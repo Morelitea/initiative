@@ -4,18 +4,24 @@ Every other migration check starts from an empty database, where a backfill
 has nothing to move and a ``NOT NULL`` column has no rows to refuse it. This
 one starts where a deployment does:
 
-1. Boot the release (``python -m app.db.init_db``, what the image runs at
-   start) and fill it with ``upgrade_seed.py`` under that release's code.
-2. With ``--walk``, boot every later release in turn, as a deployment that
-   takes each one does.
-3. Boot the current tree, then seed it again with the current code: the
-   upgraded database has to take new writes as well as keep old ones.
-4. Build a fresh install of the current tree on a second server, seeded the
-   same way.
+1. Boot the release's published image and fill the database with
+   ``upgrade_seed.py`` under that release's code.
+2. With ``--walk``, boot every later release's image in turn, as a deployment
+   that takes each one does.
+3. Boot ``--image``, this tree built as the image a release would publish,
+   then seed it again with the current code: the upgraded database has to take
+   new writes as well as keep old ones.
+4. Build a fresh install with ``--image`` on a second server, seeded the same
+   way.
+
+A boot is the image's own start: its entrypoint runs the migrations and serves.
+It has booted when it answers on its port; ``--image`` must then also report
+itself ready and serve the web app, its version and the app-update manifest,
+over plain HTTP at an address other than ``APP_URL``.
 
 and fails when:
 
-* any boot or seed fails;
+* any boot or seed fails, or ``--image`` does not serve what it should;
 * a table that held rows before a boot is empty after it;
 * the upgraded database differs in structure from the fresh install —
   ``public``, ``guild_template``, and every community schema against a fresh
@@ -36,9 +42,14 @@ attributes and memberships.
 Each database has its own Postgres server, because roles are cluster-wide and a
 community's roles would otherwise be shared between the two.
 
+The containers use the host's network, so the servers' URLs are the same for
+them as for this script, and the image's port (8173) must be free.
+
 Usage, from ``backend/`` with ``SECRET_KEY`` set, as each boot reads it::
 
-    python scripts/upgrade_from_release.py --from v0.73.1 \\
+    docker build -t initiative:local --build-arg VERSION=$(cat ../VERSION) ..
+    python scripts/upgrade_from_release.py --image initiative:local \\
+        --from v0.73.1 \\
         --server postgresql://initiative:initiative@localhost:5432 \\
         --fresh-server postgresql://initiative:initiative@localhost:5433
 
@@ -57,11 +68,15 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import asyncpg
@@ -70,6 +85,21 @@ BACKEND = Path(__file__).resolve().parents[1]
 REPO = BACKEND.parent
 SEED = BACKEND / "scripts" / "upgrade_seed.py"
 DATABASE = "initiative"
+
+#: Where each release's image is published, tagged with its version.
+RELEASE_IMAGE = "docker.io/morelitea/initiative"
+
+#: Where a booted image answers, and the address it is told it has: a
+#: deployment reached at another one, over plain HTTP.
+SERVED_AT = "http://127.0.0.1:8173"
+APP_URL = "http://initiative.test:8173"
+
+#: How long a boot may take to answer: a fresh install runs every migration.
+BOOT_SECONDS = 600
+
+#: The account ``--image`` runs as. CI denies it the network outside the host,
+#: as an air-gapped install has none.
+IMAGE_UID = "1999"
 
 # The login roles every release since the bootstrap module creates for itself,
 # with the passwords CI gives them.
@@ -87,10 +117,16 @@ WALK_FROM = "v0.70.0"
 #: The first release that derives its logins from one owner ``DATABASE_URL``.
 ONE_URL_FROM = "v0.72.0"
 
-#: Releases that could not upgrade a database, and the release that replaced
-#: them. A walk steps over each one, as the deployments it stopped did: what
-#: it shipped is fixed, so booting it would only fail again.
+#: Releases withdrawn after they shipped, and the release that replaced them.
+#: A walk steps over each one, as the deployments it stopped did: what it
+#: shipped is fixed, so booting it would only fail again.
 WITHDRAWN = {
+    # Its image is no longer published: an upgrade with OIDC claim rules
+    # stopped at startup.
+    "v0.70.0": "v0.70.1",
+    # Its image is no longer published: it would not start where a shared
+    # calendar had been trashed.
+    "v0.71.1": "v0.71.2",
     # Its bootstrap withheld the TEMPORARY privilege a 0414 backfill needs
     # (issue #2152); v0.73.1 grants it.
     "v0.73.0": "v0.73.1",
@@ -439,12 +475,111 @@ def _restart_changes(
 # ---------------------------------------------------------------------------
 
 
-def _boot(backend: Path, python: str, env: dict[str, str]) -> None:
-    """Start the app as its image does. The bootstrap is run first because
-    releases before 0.72 did not run it from ``init_db``; their CI ran it as a
-    step of its own, and it changes nothing where it has already run."""
-    _run([python, "-m", "app.db.bootstrap"], cwd=backend, env=env)
-    _run([python, "-m", "app.db.init_db"], cwd=backend, env=env)
+def _release_image(tag: str) -> str:
+    return f"{RELEASE_IMAGE}:{tag.removeprefix('v')}"
+
+
+def _docker(
+    *args: str, env: dict[str, str] | None = None, image_env: tuple[str, ...] = ()
+) -> None:
+    """Run ``docker run`` with ``image_env`` passed by name, so the command
+    printed carries no values."""
+    names = [arg for name in image_env for arg in ("-e", name)]
+    _run(["docker", "run", "--network", "host", *names, *args], cwd=REPO, env=env)
+
+
+def _get(path: str) -> tuple[int, bytes]:
+    try:
+        with urllib.request.urlopen(f"{SERVED_AT}{path}", timeout=10) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read()
+
+
+def _answering(name: str) -> None:
+    """Wait until the container answers, or fail with its log if it stops."""
+    deadline = time.monotonic() + BOOT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            if _get("/api/v1/version")[0] == 200:
+                return
+        except OSError:
+            pass
+        running = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", name],
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if running != "true":
+            break
+        time.sleep(2)
+    subprocess.run(["docker", "logs", name])
+    _fail(f"{name} did not start answering on {SERVED_AT}", [])
+
+
+def _serving() -> list[str]:
+    """Whatever ``--image`` does not serve that a deployment needs."""
+    problems = []
+    status, body = _get("/api/v1/readyz")
+    if status != 200:
+        problems.append(f"/api/v1/readyz answered {status}: {body[:300]!r}")
+    status, body = _get("/")
+    if status != 200 or b'<div id="root">' not in body:
+        problems.append(f"/ answered {status} without the web app")
+    version = (REPO / "VERSION").read_text().strip()
+    status, body = _get("/api/v1/version")
+    if status != 200 or json.loads(body).get("version") != version:
+        problems.append(
+            f"/api/v1/version answered {status} {body[:200]!r}, not {version}"
+        )
+    status, body = _get("/api/v1/native/bundle/manifest")
+    if status != 200 or json.loads(body).get("version") != version:
+        problems.append(
+            f"/api/v1/native/bundle/manifest answered {status} {body[:200]!r}, "
+            f"not {version}"
+        )
+    return problems
+
+
+def _boot(
+    image: str, env: dict[str, str], *, current: bool = False, bootstrap: bool = False
+) -> None:
+    """Start ``image`` as a deployment does, wait until it answers, check what
+    it serves when it is this tree's, and stop it.
+
+    Releases before 0.72 did not run the bootstrap when they started (their
+    CI ran it as a step of its own), so they are given it first. It changes
+    nothing where it has already run."""
+    image_env = (
+        "SECRET_KEY",
+        "APP_URL",
+        *(k for k in env if k.startswith("DATABASE_URL")),
+    )
+    env = {**env, "APP_URL": APP_URL}
+    if current:
+        image_env += ("PUID", "PGID")
+        env |= {"PUID": IMAGE_UID, "PGID": IMAGE_UID}
+    if bootstrap:
+        _docker(
+            "--rm",
+            image,
+            "python",
+            "-m",
+            "app.db.bootstrap",
+            env=env,
+            image_env=image_env,
+        )
+    name = f"upgrade-from-release-{os.getpid()}"
+    _docker("-d", "--name", name, image, env=env, image_env=image_env)
+    try:
+        _answering(name)
+        problems = _serving() if current else []
+        if problems:
+            subprocess.run(["docker", "logs", name])
+            _fail(f"{image} booted, but does not serve what it should", problems)
+    finally:
+        subprocess.run(["docker", "stop", "--time", "30", name], capture_output=True)
+        subprocess.run(["docker", "rm", name], capture_output=True)
 
 
 def _seed(backend: Path, python: str, env: dict[str, str]) -> None:
@@ -459,10 +594,16 @@ def _fail(title: str, lines: list[str]) -> None:
 
 
 def _boot_keeping_rows(
-    label: str, server: str, backend: Path, python: str, env: dict[str, str]
+    label: str,
+    server: str,
+    image: str,
+    env: dict[str, str],
+    *,
+    current: bool = False,
+    bootstrap: bool = False,
 ) -> None:
     before = asyncio.run(_row_counts(server))
-    _boot(backend, python, env)
+    _boot(image, env, current=current, bootstrap=bootstrap)
     lost = _lost(before, asyncio.run(_row_counts(server)))
     if lost:
         _fail(f"Booting {label} lost rows it held", lost)
@@ -490,6 +631,9 @@ def main() -> None:
         metavar="SERVER",
         help="owner URL of the other setup's fresh-install server, to match exactly",
     )
+    parser.add_argument(
+        "--image", required=True, help="this tree's image, built and loaded locally"
+    )
     parser.add_argument("--server", required=True, help="owner URL, no database")
     parser.add_argument(
         "--fresh-server", required=True, help="a second server for the fresh install"
@@ -504,7 +648,7 @@ def main() -> None:
     releases = (
         [tag for tag in tags[tags.index(start) :] if tag not in WITHDRAWN]
         if args.walk
-        else [start]
+        else [WITHDRAWN.get(start, start)]
     )
     upgraded_env = _environment(args.server, one_url=args.one_url)
     fresh_env = _environment(args.fresh_server, one_url=args.one_url)
@@ -513,39 +657,51 @@ def main() -> None:
     asyncio.run(_recreate_database(args.server))
     asyncio.run(_recreate_database(args.fresh_server))
 
-    with tempfile.TemporaryDirectory(prefix="upgrade-from-release-") as scratch:
-        checkout = Path(scratch) / "release"
-        # One environment re-synced to each release's lockfile, so a hop only
-        # installs what changed.
-        release_env = {**upgraded_env, "UV_PROJECT_ENVIRONMENT": f"{scratch}/venv"}
-        python = f"{scratch}/venv/bin/python"
-        _run(["git", "worktree", "add", "--detach", str(checkout), start], cwd=REPO)
-        try:
-            for index, tag in enumerate(releases):
-                _run(["git", "checkout", "--detach", "--quiet", tag], cwd=checkout)
+    for index, tag in enumerate(releases):
+        _boot_keeping_rows(
+            tag,
+            args.server,
+            _release_image(tag),
+            upgraded_env,
+            bootstrap=tags.index(tag) < tags.index(ONE_URL_FROM),
+        )
+        if index == 0:
+            # The seed is written against the release's own test factories,
+            # which its image does not ship.
+            with tempfile.TemporaryDirectory(prefix="upgrade-from-release-") as scratch:
+                checkout = Path(scratch) / "release"
+                release_env = {
+                    **upgraded_env,
+                    "UV_PROJECT_ENVIRONMENT": f"{scratch}/venv",
+                }
                 _run(
-                    ["uv", "sync", "--frozen"],
-                    cwd=checkout / "backend",
-                    env=release_env,
+                    ["git", "worktree", "add", "--detach", str(checkout), tag], cwd=REPO
                 )
-                _boot_keeping_rows(
-                    tag, args.server, checkout / "backend", python, release_env
-                )
-                if index == 0:
-                    _seed(checkout / "backend", python, release_env)
-        finally:
-            _run(["git", "worktree", "remove", "--force", str(checkout)], cwd=REPO)
+                try:
+                    _run(
+                        ["uv", "sync", "--frozen"],
+                        cwd=checkout / "backend",
+                        env=release_env,
+                    )
+                    _seed(
+                        checkout / "backend", f"{scratch}/venv/bin/python", release_env
+                    )
+                finally:
+                    _run(
+                        ["git", "worktree", "remove", "--force", str(checkout)],
+                        cwd=REPO,
+                    )
 
     _boot_keeping_rows(
-        "the current tree", args.server, BACKEND, sys.executable, upgraded_env
+        "the current tree", args.server, args.image, upgraded_env, current=True
     )
     _seed(BACKEND, sys.executable, upgraded_env)
 
-    _boot(BACKEND, sys.executable, fresh_env)
+    _boot(args.image, fresh_env, current=True)
     _seed(BACKEND, sys.executable, fresh_env)
     fresh = asyncio.run(_schemas(args.fresh_server))
     _boot_keeping_rows(
-        "a fresh install again", args.fresh_server, BACKEND, sys.executable, fresh_env
+        "a fresh install again", args.fresh_server, args.image, fresh_env, current=True
     )
 
     problems = [
@@ -563,7 +719,7 @@ def main() -> None:
         if other:
             _fail(f"A fresh install with {shape} differs from the other setup's", other)
     print(
-        f"Upgraded {' → '.join(releases)} → current tree ({shape}); "
+        f"Upgraded {' → '.join(releases)} → {args.image} ({shape}); "
         "matches a fresh install, and a restart changes nothing"
         + ("; the fresh install matches the other setup's." if args.same_as else ".")
     )

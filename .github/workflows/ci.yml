@@ -184,21 +184,23 @@ jobs:
             fi
           }
 
-          # Upgrading a database a release wrote. A pull request into dev
-          # upgrades from the newest release; a release pull request and every
-          # integration push walk each release since WALK_FROM in turn.
+          # Upgrading a database a release wrote, by booting the images. A pull
+          # request into dev upgrades from the newest release; a release pull
+          # request and every integration push walk each release since
+          # WALK_FROM in turn.
           upgrade() {
             if [[ "$EVENT" != "pull_request" || "$BASE_REF" == "main" ]]; then
               out upgrade walk
               echo "Integration push or release — walking every release"
             elif [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/ \
-                backend/alembic/ \
+                Dockerfile .dockerignore backend/entrypoint.sh backend/start.sh \
+                backend/app/main.py backend/alembic/ \
                 backend/app/db/ backend/app/models/ backend/app/core/ \
                 backend/app/testing/ backend/scripts/upgrade_seed.py \
                 backend/scripts/upgrade_from_release.py backend/pyproject.toml \
                 backend/uv.lock scripts/seed/ scripts/seed_dev_data.py)" ]]; then
               out upgrade hop
-              echo "Schema or boot changed — upgrading from the newest release"
+              echo "Schema, boot or image changed — upgrading from the newest release"
             else
               out upgrade false
             fi
@@ -424,12 +426,18 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   upgrade-from-release:
-    name: Upgrade From Release
+    name: Upgrade From Release (${{ matrix.arch }})
     needs: changes
     # A failed change detection leaves the outputs empty, which runs the job.
     if: ${{ !cancelled() && needs.changes.outputs.upgrade != 'false' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Every boot is of an image built for the runner's architecture. arm64
+    # upgrades from the newest release in one setup, on the runs that walk.
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(needs.changes.outputs.upgrade == 'walk' && '["amd64", "arm64"]' || '["amd64"]') }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 45
     # Two servers per setup, because roles are cluster-wide: the release's
     # database and a fresh install of this tree, compared once both are built.
     # The explicit-logins run uses 5432/5433, the one-URL run 5434/5435.
@@ -495,13 +503,47 @@ jobs:
 
       - uses: ./.github/actions/setup-backend
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Read the version, and name today for the package refresh
+        id: build
+        run: |
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+          echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Build this tree's image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          # Read only, like the image scan: the published builds write this
+          # architecture's cache, and a scope of its own would hold a second
+          # copy of every layer.
+          build-args: |
+            VERSION=${{ steps.build.outputs.version }}
+            APT_REFRESH=${{ steps.build.outputs.day }}
+          cache-from: type=gha,scope=docker-build-linux-${{ matrix.arch }}
+          load: true
+          tags: initiative:ci
+
+      - name: Deny the image the network outside the runner
+        # An air-gapped install has none. The image runs as this account
+        # (upgrade_from_release.py IMAGE_UID); what it sends past the loopback
+        # is logged and refused, and the last step fails on it.
+        run: |
+          sudo iptables -N image-egress
+          sudo iptables -A image-egress -j LOG --log-prefix "image-egress: "
+          sudo iptables -A image-egress -j REJECT
+          sudo iptables -I OUTPUT -m owner --uid-owner 1999 ! -o lo -j image-egress
+
       - name: Upgrade a release's database to this tree (explicit logins)
         id: explicit
+        if: matrix.arch == 'amd64'
         env:
           MODE: ${{ needs.changes.outputs.upgrade }}
         run: |
           cd backend
-          uv run python scripts/upgrade_from_release.py \
+          uv run python scripts/upgrade_from_release.py --image initiative:ci \
             $([[ "$MODE" == "walk" ]] && echo --walk) \
             --server postgresql://initiative:initiative@localhost:5432 \
             --fresh-server postgresql://initiative:initiative@localhost:5433
@@ -514,19 +556,20 @@ jobs:
         # reports on its own, and compares with it only when it passed.
         if: ${{ !cancelled() }}
         env:
-          MODE: ${{ needs.changes.outputs.upgrade }}
+          MODE: ${{ matrix.arch == 'amd64' && needs.changes.outputs.upgrade || 'hop' }}
           EXPLICIT: ${{ steps.explicit.outcome }}
         run: |
           cd backend
-          uv run python scripts/upgrade_from_release.py --one-url \
+          uv run python scripts/upgrade_from_release.py --image initiative:ci --one-url \
             $([[ "$MODE" == "walk" ]] && echo --walk) \
             $([[ "$EXPLICIT" == "success" ]] && echo --same-as postgresql://initiative:initiative@localhost:5433) \
             --server postgresql://initiative:initiative@localhost:5434 \
             --fresh-server postgresql://initiative:initiative@localhost:5435
 
       - name: The dev seed fills a fresh install
-        # The fresh install the step above built, with a first owner for the
-        # seed to sign its data with.
+        # The fresh install the explicit run built, given a first owner for the
+        # seed to sign its data with by the image's own init_db.
+        if: matrix.arch == 'amd64'
         env:
           DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5433/initiative
           DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5433/initiative
@@ -535,9 +578,23 @@ jobs:
           FIRST_OWNER_EMAIL: admin@example.com
           FIRST_OWNER_PASSWORD: changeme
         run: |
+          docker run --rm --network host -e SECRET_KEY \
+            -e DATABASE_URL -e DATABASE_URL_APP -e DATABASE_URL_ADMIN -e DATABASE_URL_BOOTSTRAP \
+            -e FIRST_OWNER_EMAIL -e FIRST_OWNER_PASSWORD \
+            initiative:ci python -m app.db.init_db
           cd backend
-          uv run python -m app.db.init_db
           uv run python ../scripts/seed_dev_data.py
+
+      - name: The image reached nothing outside the runner
+        if: ${{ !cancelled() }}
+        run: |
+          refused=$(sudo iptables -L image-egress -v -x -n | awk '$3 == "REJECT" {print $1}')
+          if [[ "$refused" != 0 ]]; then
+            echo "::error::The image sent $refused packets past the runner, which an air-gapped install cannot."
+            sudo dmesg | grep "image-egress: " | tail -20
+            exit 1
+          fi
+          echo "The image reached nothing outside the runner."
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
