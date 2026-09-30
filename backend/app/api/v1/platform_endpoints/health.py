@@ -67,14 +67,14 @@ CHECK_TIMEOUT_SECONDS = 3.0
 #: reported and does not change the verdict — see the module docstring.
 REQUIRED = frozenset({"database", "database_system", "database_provisioning"})
 
-#: How long one readiness answer is reused. Shorter than a probe's default
-#: ``periodSeconds`` (10), so each scheduled probe gets a fresh answer, and
-#: longer than ``CHECK_TIMEOUT_SECONDS``, so a run finishes before its answer
-#: expires.
+#: How long one readiness answer is reused, counted from when its run
+#: started. Shorter than a probe's default ``periodSeconds`` (10), so each
+#: scheduled probe gets a fresh answer.
 READY_CACHE_SECONDS = 5.0
 
 #: When the current answer was started, and the run producing it. Callers
-#: that arrive while it is still running wait for that run.
+#: that arrive while it is still running wait for that run, however long it
+#: takes: a check run in a thread outlasts its timeout when the thread does.
 _ready_started_at = 0.0
 _ready_run: asyncio.Task[tuple[int, dict[str, object]]] | None = None
 
@@ -174,7 +174,9 @@ async def _readiness() -> tuple[int, dict[str, object]]:
 async def readyz(response: Response) -> dict[str, object]:
     global _ready_started_at, _ready_run
     now = time.monotonic()
-    if _ready_run is None or now - _ready_started_at >= READY_CACHE_SECONDS:
+    if _ready_run is None or (
+        _ready_run.done() and now - _ready_started_at >= READY_CACHE_SECONDS
+    ):
         _ready_started_at = now
         _ready_run = asyncio.ensure_future(_readiness())
     # Shielded so a caller that disconnects does not cancel the run the
