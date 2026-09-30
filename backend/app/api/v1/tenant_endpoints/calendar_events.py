@@ -9,6 +9,7 @@ calendar (``PUT /calendars/{id}/grants``), never per event.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
+from collections.abc import Sequence
 from typing import Annotated, Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -141,27 +142,36 @@ CalendarWindowDep = Annotated[CalendarWindow, Depends(calendar_window)]
 # ---------------------------------------------------------------------------
 
 
+#: How far a window's bound moves inward to find its day without a zone.
+_NO_ZONE_INWARD = timedelta(hours=12)
+
+
+def _window_day(bound: datetime, inward: timedelta, tz: Optional[str]) -> datetime:
+    """The day a window's bound falls on, as the UTC midnight all-day events
+    are stored at.
+
+    A calendar asks from its first day's midnight to its last day's 23:59:59,
+    in ``tz``, the viewer's zone. Without one, those days are the UTC dates of
+    the bounds moved twelve hours inward, which holds within twelve hours of
+    UTC."""
+    local = bound.astimezone(resolve_zone(tz)) if tz else bound + inward
+    return datetime.combine(local.date(), time(), timezone.utc)
+
+
 def starts_in_window(
     start_after: Optional[datetime],
     start_before: Optional[datetime],
     tz: Optional[str] = None,
 ) -> list[ColumnElement[bool]]:
     """An event starts in the window: a timed one by its instant, an all-day
-    one by its date, a UTC date the same for every viewer.
-
-    A calendar asks from its first day's midnight to its last day's 23:59:59,
-    in ``tz``, the viewer's zone. Without one, those days are the UTC dates of
-    the bounds moved twelve hours inward, which holds within twelve hours of
-    UTC."""
-
-    def day(bound: datetime, inward: timedelta) -> datetime:
-        local = bound.astimezone(resolve_zone(tz)) if tz else bound + inward
-        return datetime.combine(local.date(), time(), timezone.utc)
-
-    conditions: list[ColumnElement[bool]] = []
+    one by its date, a UTC date the same for every viewer (``_window_day``).
+    A repeating event may, when it began by the window's end and has not ended
+    before its start; ``occurrences`` says when."""
+    once: list[ColumnElement[bool]] = [CalendarEvent.recurrence.is_(None)]
+    repeating: list[ColumnElement[bool]] = [CalendarEvent.recurrence.isnot(None)]
     if start_after is not None:
-        first = day(start_after, timedelta(hours=12))
-        conditions.append(
+        first = _window_day(start_after, _NO_ZONE_INWARD, tz)
+        once.append(
             or_(
                 and_(
                     CalendarEvent.all_day.is_(False),
@@ -170,18 +180,75 @@ def starts_in_window(
                 and_(CalendarEvent.all_day.is_(True), CalendarEvent.start_at >= first),
             )
         )
-    if start_before is not None:
-        last = day(start_before, timedelta(hours=-12))
-        conditions.append(
+        repeating.append(
             or_(
+                CalendarEvent.recurrence_until.is_(None),
                 and_(
                     CalendarEvent.all_day.is_(False),
-                    CalendarEvent.start_at <= start_before,
+                    CalendarEvent.recurrence_until >= start_after,
                 ),
-                and_(CalendarEvent.all_day.is_(True), CalendarEvent.start_at <= last),
+                and_(
+                    CalendarEvent.all_day.is_(True),
+                    CalendarEvent.recurrence_until >= first,
+                ),
             )
         )
-    return conditions
+    if start_before is not None:
+        last = _window_day(start_before, -_NO_ZONE_INWARD, tz)
+        before = or_(
+            and_(
+                CalendarEvent.all_day.is_(False),
+                CalendarEvent.start_at <= start_before,
+            ),
+            and_(CalendarEvent.all_day.is_(True), CalendarEvent.start_at <= last),
+        )
+        once.append(before)
+        repeating.append(before)
+    if len(once) == 1:
+        return []
+    return [or_(and_(*once), and_(*repeating))]
+
+
+def occurrences(
+    events: Sequence[CalendarEventSummary],
+    start_after: datetime,
+    start_before: datetime,
+    tz: Optional[str] = None,
+) -> list[CalendarEventSummary]:
+    """The events starting in the window, a repeating one once for each of
+    its occurrences there, ordered by start.
+
+    An occurrence is the series' summary at that start, with the series'
+    length, and ``original_start`` naming it."""
+    first = _window_day(start_after, _NO_ZONE_INWARD, tz)
+    last = _window_day(start_before, -_NO_ZONE_INWARD, tz)
+    found: list[CalendarEventSummary] = []
+    for event in events:
+        if not event.recurrence:
+            found.append(event)
+            continue
+        lower, upper = (first, last) if event.all_day else (start_after, start_before)
+        try:
+            starts = recurrence.between(
+                event.recurrence, event.start_at, event.recurrence_shift, lower, upper
+            )
+        except ValueError:
+            # Unreadable, so drawn once, where it starts.
+            found.append(event)
+            continue
+        length = event.end_at - event.start_at
+        found.extend(
+            event.model_copy(
+                update={
+                    "start_at": start,
+                    "end_at": start + length,
+                    "original_start": start,
+                }
+            )
+            for start in starts
+        )
+    found.sort(key=lambda event: (event.start_at, event.guild_id, event.id))
+    return found
 
 
 async def _get_event_or_404(

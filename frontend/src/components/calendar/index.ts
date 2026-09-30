@@ -5,6 +5,6 @@ export {
   buildEventCalendarEntry,
   DEFAULT_CALENDAR_COLOR,
 } from "./eventCalendarEntry";
-export { buildTaskCalendarEntries } from "./taskCalendarEntries";
+export { buildTaskCalendarEntries, buildTaskOccurrenceEntries } from "./taskCalendarEntries";
 export { useCalendarVisibility } from "./useCalendarVisibility";
 export { calendarVisibleRange } from "./visibleRange";

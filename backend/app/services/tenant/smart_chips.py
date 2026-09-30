@@ -31,6 +31,7 @@ from app.core.smart_chips import (
     SmartChipTone,
 )
 from app.core.references import REF_SEPARATOR, parse_ref as parse_bare_ref
+from app.core import recurrence
 from app.core.search import SearchEntityType
 from app.db import reference_targets
 from app.core.user_display import display_name
@@ -234,17 +235,27 @@ async def _counter_value(
 async def _event_when(
     session: AsyncSession, ids: list[int]
 ) -> dict[int, SmartChipValue]:
+    """When an event starts: a repeating one's next occurrence, muted once the
+    series has ended, on its last."""
     rows = (
         await session.exec(
-            select(CalendarEvent.id, CalendarEvent.start_at).where(
-                CalendarEvent.id.in_(ids), CalendarEvent.deleted_at.is_(None)
-            )
+            select(
+                CalendarEvent.id,
+                CalendarEvent.start_at,
+                CalendarEvent.recurrence,
+                CalendarEvent.recurrence_shift,
+            ).where(CalendarEvent.id.in_(ids), CalendarEvent.deleted_at.is_(None))
         )
     ).all()
     now = datetime.now(timezone.utc)
     values: dict[int, SmartChipValue] = {}
-    for event_id, start in rows:
+    for event_id, start, repeat, shift in rows:
         moment = start if start.tzinfo else start.replace(tzinfo=timezone.utc)
+        if repeat:
+            try:
+                moment = recurrence.upcoming(repeat, moment, shift, now)
+            except ValueError:
+                pass
         values[event_id] = SmartChipValue(
             text=moment.date().isoformat(),
             tone=SmartChipTone.muted if moment < now else SmartChipTone.neutral,

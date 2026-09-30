@@ -1619,6 +1619,7 @@ export interface CalendarEventSummary {
   recurrence: string | null;
   id: number;
   recurrence_shift: number;
+  original_start: string | null;
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -1740,6 +1741,7 @@ export interface TaskListRead {
   assignees: TaskAssigneeSummary[];
   recurrence_occurrence_count: number;
   recurrence_shift: number;
+  recurrence_until: string | null;
   comment_count: number;
   blocked_by_open_count: number;
   guild_id: number | null;
@@ -1756,6 +1758,7 @@ export interface TaskListRead {
 export interface CalendarEntriesResponse {
   events: CalendarEventSummary[];
   tasks: TaskListRead[];
+  task_occurrences: TaskListRead[];
 }
 
 /**
@@ -1839,6 +1842,7 @@ export interface CalendarEventRead {
   recurrence: string | null;
   id: number;
   recurrence_shift: number;
+  original_start: string | null;
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -8701,6 +8705,7 @@ export interface TaskRead {
   assignees: UserPublic[];
   recurrence_occurrence_count: number;
   recurrence_shift: number;
+  recurrence_until: string | null;
   comment_count: number;
   blocked_by_open_count: number;
   project: TaskProjectSummary | null;

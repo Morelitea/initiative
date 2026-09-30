@@ -75,6 +75,68 @@ async def test_guild_entries_unions_events_and_task_markers(
     assert {t["id"] for t in body["tasks"]} == {task.id}
 
 
+async def test_guild_entries_give_each_occurrence_of_a_repeat(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A weekly event that began before the window is there once a week, and
+    one that ended before it is not. A repeating task stays where it is, and its
+    next occurrences in the window come with it, up to its end."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    calendar = await _enable_events(session, a.initiative, a.user)
+    weekly = await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        start_at=NOW - timedelta(days=60),
+        end_at=NOW - timedelta(days=60, minutes=-30),
+        recurrence="RRULE:FREQ=WEEKLY",
+    )
+    await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        start_at=NOW - timedelta(days=60),
+        recurrence="RRULE:FREQ=WEEKLY;COUNT=3",
+    )
+    task = await create_task(
+        session,
+        a.project,
+        due_date=NOW - timedelta(days=45),
+        recurrence="RRULE:FREQ=WEEKLY;COUNT=5",
+        assignees=[a.user],
+    )
+
+    response = await client.get(
+        a.g("/calendar-entries/"),
+        headers=a.headers,
+        params={
+            "initiative_id": a.initiative.id,
+            "start_after": WINDOW_START,
+            "start_before": WINDOW_END,
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    starts = [NOW + timedelta(days=days) for days in (-25, -18, -11, -4, 3, 10, 17, 24)]
+    assert [
+        (
+            e["id"],
+            datetime.fromisoformat(e["start_at"]),
+            datetime.fromisoformat(e["end_at"]) - datetime.fromisoformat(e["start_at"]),
+            datetime.fromisoformat(e["original_start"]),
+        )
+        for e in body["events"]
+    ] == [(weekly.id, start, timedelta(minutes=30), start) for start in starts]
+    assert body["tasks"] == []
+    assert [
+        (t["id"], datetime.fromisoformat(t["due_date"]))
+        for t in body["task_occurrences"]
+    ] == [
+        (task.id, NOW - timedelta(days=24)),
+        (task.id, NOW - timedelta(days=17)),
+    ]
+
+
 async def test_guild_entries_include_flags_skip_legs(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

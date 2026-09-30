@@ -219,6 +219,34 @@ async def test_event_reminder_fires_once_within_lead_window(
     assert len(list(dispatches.all())) == 1
 
 
+async def test_event_reminder_fires_for_each_occurrence_of_a_repeat(
+    session: AsyncSession,
+):
+    """A daily event that began last week reminds of today's occurrence."""
+    creator = await create_user(session)
+    attendee = await create_user(session, event_reminder_minutes_before=15)
+    _guild, initiative, calendar = await _events_initiative(session, creator)
+    upcoming = (datetime.now(timezone.utc) + timedelta(minutes=10)).replace(
+        microsecond=0
+    )
+    event = await create_calendar_event(
+        session,
+        calendar,
+        creator,
+        start_at=upcoming - timedelta(days=7),
+        end_at=upcoming - timedelta(days=7, minutes=-30),
+        recurrence="RRULE:FREQ=DAILY",
+    )
+    await _add_attendee(session, initiative, event, attendee)
+
+    await _dispatch(session)
+    await _dispatch(session)
+    reminders = await _reminders_for(session, attendee.id)
+    assert [reminder.data["start_at"] for reminder in reminders] == [
+        upcoming.isoformat()
+    ]
+
+
 async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):
     creator = await create_user(session, email="organizer2@example.com")
     attendee = await create_user(session, email="attendee2@example.com")

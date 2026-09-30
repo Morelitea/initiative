@@ -258,10 +258,16 @@ def last_start(
 
 
 def between(
-    text: str, start: datetime, shift: int, lower: datetime, upper: datetime
+    text: str,
+    start: datetime,
+    shift: int,
+    lower: datetime,
+    upper: datetime,
+    *,
+    count: bool = True,
 ) -> list[datetime]:
     """The occurrences starting in ``[lower, upper]``."""
-    series, offset = _series(parse(text), start, shift)
+    series, offset = _series(parse(text), start, shift, count=count)
 
     def moved(value: datetime) -> datetime:
         return (value.astimezone(timezone.utc) + offset).replace(tzinfo=None)
@@ -270,6 +276,15 @@ def between(
         _back(value, offset)
         for value in series.between(moved(lower), moved(upper), inc=True)
     ]
+
+
+def upcoming(text: str, start: datetime, shift: int, now: datetime) -> datetime:
+    """The first occurrence starting at or after ``now``, or, once the series
+    has ended, its last."""
+    series, offset = _series(parse(text), start, shift)
+    moved = (now.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+    found = series.after(moved, inc=True) or series.before(moved)
+    return _back(found, offset) if found else start
 
 
 def restarted(

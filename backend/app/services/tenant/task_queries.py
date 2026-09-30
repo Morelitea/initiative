@@ -19,6 +19,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.messages import QueryMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -1059,7 +1060,8 @@ def _task_calendar_window_clause(
 ):
     """Keep only tasks that sit on a calendar within ``[start_after,
     start_before]`` — i.e. whose ``start_date`` OR ``due_date`` falls in the
-    window (a task placed by either endpoint belongs on the calendar).
+    window (a task placed by either endpoint belongs on the calendar) — and the
+    repeating ones whose upcoming occurrences may (``projected_occurrences``).
 
     Returns ``None`` when neither bound is given (no windowing). This is the
     aggregate's authoritative task window: the named params bound the task leg
@@ -1076,7 +1078,63 @@ def _task_calendar_window_clause(
         if start_before is not None:
             bounds.append(field <= start_before)
         field_clauses.append(and_(*bounds))
-    return or_(*field_clauses)
+    repeating = [Task.recurrence.isnot(None), Task.recurrence_strategy != "rolling"]
+    if start_before is not None:
+        repeating.append(Task.due_date <= start_before)
+    if start_after is not None:
+        repeating.append(
+            or_(Task.recurrence_until.is_(None), Task.recurrence_until >= start_after)
+        )
+    return or_(*field_clauses, and_(*repeating))
+
+
+def projected_occurrences(
+    tasks: list[TaskListRead], start_after: datetime, start_before: datetime
+) -> tuple[list[TaskListRead], list[TaskListRead]]:
+    """The tasks placed in ``[start_after, start_before]`` by their own dates,
+    and the upcoming occurrences of the repeating ones there.
+
+    An occurrence is the task as its successor will be: the same task with its
+    dates moved to the next start of its rule, until the series ends. A rolling
+    series has none, since its next start waits on when the task is done."""
+
+    def within(value: datetime | None) -> bool:
+        return value is not None and start_after <= value <= start_before
+
+    placed: list[TaskListRead] = []
+    projected: list[TaskListRead] = []
+    for task in tasks:
+        if within(task.start_date) or within(task.due_date):
+            placed.append(task)
+        due = task.due_date
+        if not task.recurrence or due is None or task.recurrence_strategy == "rolling":
+            continue
+        try:
+            starts = recurrence.between(
+                task.recurrence,
+                due,
+                task.recurrence_shift,
+                start_after,
+                start_before,
+                count=False,
+            )
+        except ValueError:
+            continue
+        lead = due - task.start_date if task.start_date else None
+        for start in starts:
+            if start <= due or (
+                task.recurrence_until is not None and start > task.recurrence_until
+            ):
+                continue
+            projected.append(
+                task.model_copy(
+                    update={
+                        "due_date": start,
+                        "start_date": start - lead if lead is not None else None,
+                    }
+                )
+            )
+    return placed, projected
 
 
 async def query_guild_tasks(

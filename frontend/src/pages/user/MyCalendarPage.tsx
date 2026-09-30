@@ -14,6 +14,7 @@ import { invalidate, q } from "@/api/query-keys";
 import {
   buildEventCalendarEntry,
   buildTaskCalendarEntries,
+  buildTaskOccurrenceEntries,
   type CalendarEntry,
   CalendarView,
   type CalendarViewMode,
@@ -204,7 +205,8 @@ export const MyCalendarPage = () => {
   // One read-only virtual calendar per project with a task in the window.
   const projectCalendars = useMemo<ProjectTaskCalendar[]>(() => {
     const seen = new Map<string, ProjectTaskCalendar>();
-    for (const task of entriesQuery.data?.tasks ?? []) {
+    const data = entriesQuery.data;
+    for (const task of [...(data?.tasks ?? []), ...(data?.task_occurrences ?? [])]) {
       if (task.project_id == null) continue;
       const key = `${task.guild_id ?? 0}:${task.project_id}`;
       if (seen.has(key)) continue;
@@ -230,11 +232,16 @@ export const MyCalendarPage = () => {
     // same visual treatment as the other calendars, injecting guildId into
     // meta for cross-guild navigation. Not draggable here (My Calendar has no
     // reschedule handler).
-    for (const task of entriesQuery.data?.tasks ?? []) {
+    const data = entriesQuery.data;
+    const occurrences = new Set(data?.task_occurrences);
+    for (const task of [...(data?.tasks ?? []), ...occurrences]) {
       if (task.project_id != null && visibility.isProjectHidden(task.guild_id, task.project_id)) {
         continue;
       }
-      for (const entry of buildTaskCalendarEntries(task, getProjectColor(task.project_id), false)) {
+      const color = getProjectColor(task.project_id);
+      for (const entry of occurrences.has(task)
+        ? buildTaskOccurrenceEntries(task, color)
+        : buildTaskCalendarEntries(task, color, false)) {
         entries.push({
           ...entry,
           meta: { ...(entry.meta as Record<string, unknown>), guildId: task.guild_id },
@@ -258,7 +265,13 @@ export const MyCalendarPage = () => {
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
-      | { type: string; taskId?: number; eventId?: number; guildId?: number }
+      | {
+          type: string;
+          taskId?: number;
+          eventId?: number;
+          guildId?: number;
+          occurrence?: string;
+        }
       | undefined;
     if (!meta) return;
     const scopedPath = (path: string) => (meta.guildId ? guildPath(meta.guildId, path) : gp(path));
@@ -267,7 +280,10 @@ export const MyCalendarPage = () => {
     if (meta.type === "task" && meta.taskId) {
       void navigate({ to: scopedPath(entityRefRoute("task", meta.taskId)) });
     } else if (meta.type === "event" && meta.eventId) {
-      void navigate({ to: scopedPath(entityRefRoute("calendar-event", meta.eventId)) });
+      void navigate({
+        to: scopedPath(entityRefRoute("calendar-event", meta.eventId)),
+        search: meta.occurrence ? { occurrence: meta.occurrence } : {},
+      });
     }
   };
 

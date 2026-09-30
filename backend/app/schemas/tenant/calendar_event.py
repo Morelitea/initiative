@@ -139,6 +139,10 @@ class CalendarEventSummary(CalendarEventBase):
     # See ``app.core.recurrence``: a rule's days are where the start moved by
     # this many minutes lands.
     recurrence_shift: int = 0
+    #: The occurrence of a repeating event this is, by the start it has in the
+    #: series; None for an event that does not repeat, and for the series
+    #: itself.
+    original_start: Optional[datetime] = None
     calendar_id: int
     # Derived from the parent calendar — kept on the summary so list views can
     # filter/group by initiative without another fetch. NULL when the parent is

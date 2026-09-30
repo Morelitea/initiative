@@ -10,6 +10,8 @@ each leg delegates to the exact query path of ``list_calendar_events`` /
 ``list_tasks`` (guild) and ``list_my_calendar_events`` / ``list_my_tasks`` (me),
 so RLS + per-resource DAC are identical. The client keeps the merge, so the
 response reuses the existing ``CalendarEventSummary`` and ``TaskListRead`` shapes.
+A repeating event or task is expanded into its occurrences in the window here,
+from rows those queries returned.
 """
 
 from typing import Annotated, List, Literal, Optional
@@ -79,26 +81,37 @@ async def list_calendar_entries(
             tz=tz,
             property_filters=property_filters,
         )
-        events_out = [
-            serialize_calendar_event_summary(
-                e, user_id=current_user.id, context=guild_context
-            )
-            for e in events
-        ]
-
-    tasks_out = []
-    if include_tasks:
-        tasks_out = await task_queries.query_guild_tasks(
-            session,
-            current_user,
-            guild_context,
-            conditions=conditions,
-            tz=tz,
-            start_after=window.start_after,
-            start_before=window.start_before,
+        events_out = calendar_events_api.occurrences(
+            [
+                serialize_calendar_event_summary(
+                    e, user_id=current_user.id, context=guild_context
+                )
+                for e in events
+            ],
+            window.start_after,
+            window.start_before,
+            tz,
         )
 
-    return CalendarEntriesResponse(events=events_out, tasks=tasks_out)
+    tasks_out, task_occurrences = [], []
+    if include_tasks:
+        tasks_out, task_occurrences = task_queries.projected_occurrences(
+            await task_queries.query_guild_tasks(
+                session,
+                current_user,
+                guild_context,
+                conditions=conditions,
+                tz=tz,
+                start_after=window.start_after,
+                start_before=window.start_before,
+            ),
+            window.start_after,
+            window.start_before,
+        )
+
+    return CalendarEntriesResponse(
+        events=events_out, tasks=tasks_out, task_occurrences=task_occurrences
+    )
 
 
 @me_router.get("/calendar-entries", response_model=CalendarEntriesResponse)
@@ -133,17 +146,25 @@ async def list_my_calendar_entries(
             tz=tz,
         )
         # Already serialized inside each guild's own routed fetch.
-        events_out = events
-
-    tasks_out = []
-    if include_tasks:
-        tasks_out = await task_queries.query_my_tasks_list(
-            session,
-            current_user,
-            conditions=conditions,
-            tz=tz,
-            start_after=window.start_after,
-            start_before=window.start_before,
+        events_out = calendar_events_api.occurrences(
+            events, window.start_after, window.start_before, tz
         )
 
-    return CalendarEntriesResponse(events=events_out, tasks=tasks_out)
+    tasks_out, task_occurrences = [], []
+    if include_tasks:
+        tasks_out, task_occurrences = task_queries.projected_occurrences(
+            await task_queries.query_my_tasks_list(
+                session,
+                current_user,
+                conditions=conditions,
+                tz=tz,
+                start_after=window.start_after,
+                start_before=window.start_before,
+            ),
+            window.start_after,
+            window.start_before,
+        )
+
+    return CalendarEntriesResponse(
+        events=events_out, tasks=tasks_out, task_occurrences=task_occurrences
+    )
