@@ -35,6 +35,7 @@ jobs:
       upgrade: ${{ steps.diff.outputs.upgrade }}
       frontend: ${{ steps.diff.outputs.frontend }}
       codegen: ${{ steps.diff.outputs.codegen }}
+      tooling: ${{ steps.diff.outputs.tooling }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -170,6 +171,19 @@ jobs:
             fi
           }
 
+          # The repository's own tooling: the git identity guard, the release
+          # workflow's Android signing, and the scripts CI runs. Tested below,
+          # in this job, when any of it changes.
+          tooling() {
+            if [[ "$EVENT" != "pull_request" ]] || [[ -n "$(changed .github/ frontend/.husky/ \
+                scripts/ci/ scripts/git-identity-guard.sh scripts/git-identity-guard_test.sh)" ]]; then
+              out tooling true
+              echo "Tooling changed — testing it"
+            else
+              out tooling false
+            fi
+          }
+
           # The request-context conformance suite (pytest marker ``seam``) is
           # slow, so it runs where it pays for itself: every integration push,
           # and a pull request that touches the seam.
@@ -212,6 +226,7 @@ jobs:
           upgrade
           frontend
           codegen
+          tooling
 
           {
             echo "### What this run checks"
@@ -221,6 +236,26 @@ jobs:
             # shellcheck disable=SC2016 # literal backticks: Markdown code
             sed -E 's/^([^=]+)=(.*)$/| \1 | `\2` |/' "$GITHUB_OUTPUT"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test the git identity guard
+        if: steps.diff.outputs.tooling == 'true'
+        run: ./scripts/git-identity-guard_test.sh
+
+      - name: Set up Python
+        if: steps.diff.outputs.tooling == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Test the Android signing workflow
+        if: steps.diff.outputs.tooling == 'true'
+        run: |
+          pip install "pyyaml==6.0.3"
+          python3 scripts/ci/android_signing_workflow_test.py
+
+      - name: Test the test-run summary
+        if: steps.diff.outputs.tooling == 'true'
+        run: python3 scripts/ci/pytest_summary_test.py
 
   backend-tests:
     name: Backend Lint & Tests
@@ -461,30 +496,6 @@ jobs:
       - name: Check env-contract.json and the generated API client
         run: scripts/ci/check codegen
 
-  git-hooks:
-    name: Git Hooks
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Test the git identity guard
-        run: ./scripts/git-identity-guard_test.sh
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.12'
-
-      - name: Install workflow check dependencies
-        run: pip install "pyyaml==6.0.3"
-
-      - name: Test the Android signing workflow
-        run: python3 scripts/ci/android_signing_workflow_test.py
-
-      - name: Test the test-run summary
-        run: python3 scripts/ci/pytest_summary_test.py
-
   dev-image:
     name: Dev Image
     needs:
@@ -493,7 +504,6 @@ jobs:
       - upgrade-from-release
       - frontend-lint-and-test
       - check-generated-types
-      - git-hooks
     # Publishes :dev from a push to dev once every check above has passed on
     # it (a check that had nothing to test is skipped, which counts as a pass).
     # To build one without waiting, run Dev Build by hand.
