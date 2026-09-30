@@ -392,6 +392,10 @@ Detect Changes job, and the run's summary page says which:
   start renders), `app/testing/`, `conftest.py`, `pytest.ini`, the
   dependencies, `backend/scripts/ci/`, non-Python files under `app/`, or the CI
   workflow. Every push to `main` and `dev` runs every test too.
+- **Only the always-run core** when nothing in `backend/` changed but
+  something other than documentation did: the core holds the backend's checks
+  on files elsewhere (the locale catalogues, the app-kit contract, the Android
+  channels).
 - **Otherwise, two passes**: the **always-run core**, then the tests the
   change reaches. The second pass uses
   [pytest-testmon](https://testmon.org): every full run records which code each
@@ -401,12 +405,14 @@ Detect Changes job, and the run's summary page says which:
   file's top level (a pydantic field, a constant) selects every test that used
   the file.
 
-The **always-run core** is every test marked `always`
-(`pytestmark = pytest.mark.always`). Mark a test file `always` when it checks
-something across *every* table, route, registry, capability or migration:
-selection only knows code a test has already run, so a new file (a model, a
-route, a revision) reaches no test until one of these catches it. Keep the core
-cheap: it runs on every pull request.
+The **always-run core** is every test marked `always` (a file's
+`pytestmark = pytest.mark.always`, or `@pytest.mark.always` on one test). Mark
+a test `always` when it checks something across *every* table, route,
+registry, capability or migration, scans the source tree for a pattern, or
+reads a file outside `backend/`: selection only knows code a test has already
+run, so a new file (a model, a route, a revision) or a frontend file reaches no
+test until one of these catches it. Keep the core cheap: it runs on every pull
+request.
 
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:

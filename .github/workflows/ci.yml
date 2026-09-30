@@ -89,8 +89,17 @@ jobs:
             local CHANGED
             CHANGED=$(changed backend/)
             if [[ -z "$CHANGED" ]]; then
-              out backend false
-              echo "No backend changes — skipping"
+              # Nothing in backend/, but the always-run core also holds the
+              # backend's checks on files elsewhere (the locale catalogues, the
+              # app-kit contract, the Android channels), so any change but
+              # documentation runs it.
+              if [[ -n "$(changed . ':!docs/' ':!*.md' ':!zensical.toml')" ]]; then
+                out backend true; out alembic false; out backend_mode core
+                echo "No backend changes — running the always-run core"
+              else
+                out backend false
+                echo "Documentation only — skipping"
+              fi
               return
             fi
             out backend true
@@ -375,6 +384,7 @@ jobs:
           status=0
           uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 -m always \
             | tee "$RUNNER_TEMP/pytest-core.log" || status=1
+          [[ "$MODE" == "core" ]] && exit $status
           uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 \
             -m "not always and not seam" --testmon-nocollect --testmon-forceselect \
             | tee "$RUNNER_TEMP/pytest.log" || [[ $? -eq 5 ]] || status=1

@@ -15,6 +15,8 @@ from app.core.intake import (
 from app.models.tenant.property import PropertyType
 from app.models.tenant.task import TaskStatusCategory
 
+pytestmark = pytest.mark.always
+
 
 def test_every_case_field_names_a_property_type_the_writer_can_create():
     """Which fields exist at all is a row in ``core/registry_coverage_test.py``;
