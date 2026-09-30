@@ -104,6 +104,26 @@ class ProjectAdapter(ToolExportAdapter):
             session, user, guild_id, initiative_ids=[initiative_id]
         )
 
+    async def reach(
+        self,
+        session: AsyncSession,
+        params: dict,
+        envelopes: list[ProjectExportEnvelope],
+        /,
+    ) -> set[int]:
+        # The envelope is portable and names no initiative; the rows do.
+        from sqlmodel import select
+
+        from app.models.tenant.project import Project
+
+        return set(
+            await session.exec(
+                select(Project.initiative_id).where(
+                    Project.id.in_(self.selection(params))
+                )
+            )
+        )
+
     def title(self, envelope: ProjectExportEnvelope, /) -> str:
         return envelope.project.name
 

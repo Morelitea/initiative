@@ -153,6 +153,13 @@ class ToolExportAdapter:
         beside it — a gallery's pictures ride next to its envelope."""
         return (self.item(entity, ctx),)
 
+    async def reach(
+        self, session: AsyncSession, params: dict, entities: list[Any], /
+    ) -> set[int]:
+        """The initiatives whose content these entities hold. A guild-level
+        entity holds none."""
+        return {entity.initiative_id for entity in entities} - {None}
+
     async def prepare(self, session: AsyncSession, entities: list[Any], /) -> Any:
         """Anything the item builders need across the whole batch, loaded in
         one pass (they are synchronous and hold no session)."""
@@ -240,4 +247,5 @@ class ToolExportAdapter:
             template_id=self.template_id,
             format=format,
             batch=batch,
+            initiative_ids=frozenset(await self.reach(session, params, entities)),
         )

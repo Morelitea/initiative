@@ -415,6 +415,7 @@ async def _build_scope(
         template_id="data-table",
         format="zip",
         batch=tuple(items),
+        initiative_ids=frozenset(initiative.id for initiative in initiatives),
     )
 
 

@@ -36,6 +36,7 @@ from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import DocumentType
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import storage as storage_module
@@ -469,6 +470,34 @@ async def test_jobs_are_own_row_isolated(
     assert [
         j["id"] for j in (await client.get(a.g("/exports/"), headers=a.headers)).json()
     ] == [job_id]
+
+
+async def test_an_export_is_not_served_after_its_initiative_is_left(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    """The job records the initiatives its artifact holds, and the download
+    asks for them again: a member removed from one after the render is
+    refused for the rest of the artifact's life."""
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
+    a = await _actor_with_tasks(acting_user, session)
+    guild_id, initiative_id, user_id = a.guild.id, a.initiative.id, a.user.id
+    job_id = (await _export(client, a, "tasks")).json()["id"]
+    await _run_worker()
+    await _download(client, a, job_id)
+
+    await route_session_to_guild(session, guild_id)
+    assert (await session.get(ExportJob, job_id)).initiative_ids == [initiative_id]
+    await session.exec(
+        sa_delete(InitiativeMember).where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeMember.user_id == user_id,
+        )
+    )
+    await session.commit()
+
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 403
+    assert dl.json()["detail"] == "EXPORT_OUT_OF_REACH"
 
 
 async def test_worker_renders_job_and_download_succeeds(
@@ -1068,7 +1097,8 @@ async def test_an_artifact_past_its_expiry_is_not_served(
     client: AsyncClient, acting_user, session
 ):
     """Past ``expires_at`` a finished export is refused with 410 and reads as
-    ``expired`` — before GC has swept it as well as after."""
+    ``expired`` — before GC has swept it as well as after. So is one rendered
+    before the job recorded the initiatives it holds."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     storage = get_guild_storage(a.guild.id)
     key = "exports/515151.pdf"
@@ -1089,11 +1119,20 @@ async def test_an_artifact_past_its_expiry_is_not_served(
         status=ExportJobStatus.expired,
         expires_at=now - timedelta(days=1),
     )
+    unrecorded = await create_export_job(
+        session,
+        a.guild,
+        a.user,
+        status=ExportJobStatus.done,
+        artifact_ref=key,
+        expires_at=now + timedelta(days=1),
+    )
 
-    for job in (due, swept):
+    for job in (due, swept, unrecorded):
         dl = await client.get(a.g(f"/exports/{job.id}/download"), headers=a.headers)
         assert dl.status_code == 410, job.status
         assert dl.json()["detail"] == "EXPORT_EXPIRED"
+    for job in (due, swept):
         assert (await _job(client, a, job.id))["status"] == (
             ExportJobStatus.expired.value
         )

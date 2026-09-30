@@ -253,6 +253,7 @@
   "EXPORT_JOB_NOT_FOUND": "Exportación no encontrada.",
   "EXPORT_NOT_READY": "Esta exportación aún no está lista para descargar.",
   "EXPORT_EXPIRED": "Esta exportación ha caducado. Inicia una nueva para volver a descargarla.",
+  "EXPORT_OUT_OF_REACH": "Ya no tienes acceso a todo lo que contiene esta exportación, así que no se puede descargar.",
   "EXPORT_CREATOR_INACTIVE": "La exportación se detuvo porque la cuenta que la inició ya no está activa.",
   "EXPORT_ACCESS_REVOKED": "La exportación se detuvo porque quien la inició ya no tiene acceso a esta comunidad.",
   "EXPORT_RENDER_FAILED": "La exportación falló. Inténtalo de nuevo.",
