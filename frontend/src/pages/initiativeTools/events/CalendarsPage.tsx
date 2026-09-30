@@ -48,6 +48,7 @@ import {
   PropertyFilter,
   type PropertyFilterCondition,
 } from "@/components/properties/PropertyFilter";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import {
   CalendarPageSkeleton,
   CardGridSkeleton,
@@ -516,17 +517,31 @@ export const CalendarsView = ({
   // Drag-to-reschedule for events (the backend enforces calendar write).
   const updateTask = useUpdateTask();
   const rescheduleEvent = useRescheduleCalendarEvent();
+  const scopePrompt = useScopePrompt();
 
   const handleEntryReschedule = useCallback(
-    ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
+    async ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
       const meta = entry.meta as
-        | { type?: string; taskId?: number; eventId?: number; kind?: "start" | "due" | "span" }
+        | {
+            type?: string;
+            taskId?: number;
+            eventId?: number;
+            kind?: "start" | "due" | "span";
+            occurrence?: string;
+          }
         | undefined;
       if (!meta) return;
       if (meta.type === "event" && meta.eventId) {
+        // An occurrence of a repeating event moves alone, from here on, or
+        // with every other one, as the person picks.
+        const scope = meta.occurrence ? await scopePrompt.ask("edit") : undefined;
+        if (scope === null) return;
         rescheduleEvent.mutate({
           eventId: meta.eventId,
-          data: entry.allDay ? allDayRange(startAt, endAt) : { start_at: startAt, end_at: endAt },
+          data: {
+            ...(entry.allDay ? allDayRange(startAt, endAt) : { start_at: startAt, end_at: endAt }),
+            ...(scope ? { scope, occurrence: meta.occurrence } : {}),
+          },
         });
         return;
       }
@@ -543,7 +558,7 @@ export const CalendarsView = ({
         }
       }
     },
-    [updateTask, rescheduleEvent]
+    [updateTask, rescheduleEvent, scopePrompt.ask]
   );
 
   const defaultStartDate = createDefaultDate ? format(createDefaultDate, "yyyy-MM-dd") : undefined;
@@ -723,10 +738,12 @@ export const CalendarsView = ({
           onFocusDateChange={setFocusDate}
           onEntryClick={handleEntryClick}
           onSlotClick={canCreateEvents ? handleSlotClick : undefined}
-          onEntryReschedule={handleEntryReschedule}
+          onEntryReschedule={(change) => void handleEntryReschedule(change)}
           weekStartsOn={weekStartsOn}
         />
       )}
+
+      {scopePrompt.dialog}
 
       <CreateEventDialog
         open={createDialogOpen}

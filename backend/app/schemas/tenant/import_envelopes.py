@@ -406,6 +406,10 @@ class EventEnvelopeItem(SanitizedBaseModel):
     #: When the event was written down (not when it happens — that is
     #: ``start_at``). The export has always emitted it; it is read now.
     created_at: Optional[str] = None
+    #: An occurrence with a row of its own: its series' ``external_ref``, and
+    #: its start there.
+    series_ref: Optional[str] = None
+    original_start: Optional[str] = None
 
 
 class CalendarEnvelope(_EnvelopeBase):

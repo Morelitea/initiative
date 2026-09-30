@@ -17,6 +17,7 @@ from app.core import usernames
 from app.db.session import set_rls_context
 from app.models.tenant.calendar_event import (
     CalendarEvent,
+    CalendarEventAnswer,
     CalendarEventAttendee,
     RSVPStatus,
 )
@@ -223,9 +224,11 @@ async def test_event_reminder_fires_once_within_lead_window(
 async def test_event_reminder_fires_for_each_occurrence_of_a_repeat(
     session: AsyncSession,
 ):
-    """A daily event that began last week reminds of today's occurrence."""
+    """A daily event that began last week reminds of today's occurrence, but
+    not somebody who declined just that one."""
     creator = await create_user(session)
     attendee = await create_user(session, event_reminder_minutes_before=15)
+    away = await create_user(session, event_reminder_minutes_before=15)
     _guild, initiative, calendar = await _events_initiative(session, creator)
     upcoming = (datetime.now(timezone.utc) + timedelta(minutes=10)).replace(
         microsecond=0
@@ -239,9 +242,20 @@ async def test_event_reminder_fires_for_each_occurrence_of_a_repeat(
         recurrence="RRULE:FREQ=DAILY",
     )
     await _add_attendee(session, initiative, event, attendee)
+    await _add_attendee(session, initiative, event, away)
+    session.add(
+        CalendarEventAnswer(
+            calendar_event_id=event.id,
+            user_id=away.id,
+            original_start=upcoming,
+            rsvp_status=RSVPStatus.declined,
+        )
+    )
+    await session.commit()
 
     await _dispatch(session)
     await _dispatch(session)
+    assert await _reminders_for(session, away.id) == []
     reminders = await _reminders_for(session, attendee.id)
     assert [
         (reminder.data["start_at"], reminder.data["target_path"])

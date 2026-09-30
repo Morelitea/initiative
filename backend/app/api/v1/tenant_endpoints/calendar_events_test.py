@@ -216,6 +216,143 @@ async def test_create_multi_day_timed_event_is_allowed(
     assert body["end_at"].startswith("2026-07-03")
 
 
+async def test_one_occurrence_changes_alone(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Mondays at 09:00 UTC from 5 October. One occurrence is moved and
+    renamed, and still follows the series where it didn't change; one is
+    skipped and brought back; an attendee who can't edit the calendar declines
+    one; and the series is renamed from a later one on, then deleted."""
+    (
+        organizer,
+        attendee,
+        _guild,
+        _initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+    created = await client.post(
+        organizer.g("/calendar-events/"),
+        headers=organizer.headers,
+        json={
+            "calendar_id": calendar.id,
+            "title": "Standup",
+            "start_at": "2026-10-05T09:00:00Z",
+            "end_at": "2026-10-05T09:30:00Z",
+            "recurrence": "FREQ=WEEKLY;BYDAY=MO",
+            "attendee_ids": [attendee.user.id],
+        },
+    )
+    assert created.status_code == 201, created.text
+    series = created.json()["id"]
+    second, third, fourth = (
+        "2026-10-12T09:00:00Z",
+        "2026-10-19T09:00:00Z",
+        "2026-10-26T09:00:00Z",
+    )
+
+    def at(path: str) -> str:
+        return organizer.g(f"/calendar-events/{series}{path}")
+
+    async def month() -> list[tuple[str, str, str | None]]:
+        entries = await client.get(
+            organizer.g("/calendar-entries/"),
+            headers=organizer.headers,
+            params={
+                "start_after": "2026-10-01T00:00:00Z",
+                "start_before": "2026-11-01T00:00:00Z",
+                "include_tasks": "false",
+            },
+        )
+        assert entries.status_code == 200, entries.text
+        return [
+            (e["title"], e["start_at"], e["location"]) for e in entries.json()["events"]
+        ]
+
+    moved = await client.patch(
+        at(""),
+        headers=organizer.headers,
+        json={
+            "scope": "this",
+            "occurrence": second,
+            "title": "Standup (moved)",
+            "start_at": "2026-10-12T10:00:00Z",
+            "end_at": "2026-10-12T10:30:00Z",
+        },
+    )
+    assert moved.status_code == 200, moved.text
+    assert (
+        moved.json()["series_id"],
+        moved.json()["original_start"],
+        moved.json()["overridden_fields"],
+    ) == (series, second, ["all_day", "end_at", "start_at", "title"])
+    # A change to the series reaches the occurrence where it didn't change.
+    await client.patch(at(""), headers=organizer.headers, json={"location": "Room 2"})
+    assert await month() == [
+        ("Standup", "2026-10-05T09:00:00Z", "Room 2"),
+        ("Standup (moved)", "2026-10-12T10:00:00Z", "Room 2"),
+        ("Standup", third, "Room 2"),
+        ("Standup", fourth, "Room 2"),
+    ]
+
+    skipped = await client.delete(
+        at(""), headers=organizer.headers, params={"scope": "this", "occurrence": third}
+    )
+    assert skipped.status_code == 204
+    read = await client.get(at(""), headers=organizer.headers)
+    assert read.json()["skipped_starts"] == [third]
+    restored = await client.post(
+        at("/occurrences/restore"), headers=organizer.headers, json={"start": third}
+    )
+    assert restored.json()["skipped_starts"] == []
+
+    # Answering takes read access, so one occurrence's answer needs no row.
+    declined = await client.patch(
+        attendee.g(f"/calendar-events/{series}/rsvp"),
+        headers=attendee.headers,
+        json={"rsvp_status": "declined", "scope": "this", "occurrence": fourth},
+    )
+    assert declined.status_code == 200, declined.text
+
+    async def answer(event_id: int, occurrence: str | None = None) -> str:
+        read = await client.get(
+            organizer.g(f"/calendar-events/{event_id}"),
+            headers=organizer.headers,
+            params={"occurrence": occurrence} if occurrence else {},
+        )
+        return read.json()["attendees"][0]["rsvp_status"]
+
+    assert (await answer(series, fourth), await answer(series)) == (
+        "declined",
+        "pending",
+    )
+
+    retro = await client.patch(
+        at(""),
+        headers=organizer.headers,
+        json={"scope": "following", "occurrence": fourth, "title": "Retro"},
+    )
+    assert retro.status_code == 200, retro.text
+    rest = retro.json()["id"]
+    assert rest != series
+    assert (await client.get(at(""), headers=organizer.headers)).json()[
+        "recurrence"
+    ] == "RRULE:FREQ=WEEKLY;UNTIL=20261026T085959Z;BYDAY=MO"
+    assert [title for title, _start, _location in await month()] == [
+        "Standup",
+        "Standup (moved)",
+        "Standup",
+        "Retro",
+    ]
+    # The answer went with its occurrence.
+    assert await answer(rest, fourth) == "declined"
+
+    deleted = await client.delete(
+        at(""), headers=organizer.headers, params={"scope": "all"}
+    )
+    assert deleted.status_code == 204
+    assert [title for title, _start, _location in await month()] == ["Retro"]
+
+
 async def test_an_event_repeat_is_stored_as_picked(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

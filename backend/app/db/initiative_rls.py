@@ -1309,6 +1309,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "post_poll_votes": via_post_poll("poll_id"),
     # Two hops -> calendar_events -> calendars
     "calendar_event_attendees": via_event_calendar("calendar_event_id"),
+    "calendar_event_answers": via_event_calendar("calendar_event_id"),
     # Property values (entity + property_definitions, same-initiative)
     "document_property_values": via_property(
         "documents d",
@@ -1379,6 +1380,7 @@ NAMED_PEOPLE: tuple[NamedPerson, ...] = (
     NamedPerson("task_assignees", "user_id"),
     NamedPerson("task_property_values", "value_user_id"),
     NamedPerson("calendar_event_attendees", "user_id"),
+    NamedPerson("calendar_event_answers", "user_id"),
     NamedPerson("calendar_event_property_values", "value_user_id"),
     NamedPerson("document_property_values", "value_user_id"),
     NamedPerson("queue_items", "user_id", clear=True),
@@ -1430,6 +1432,8 @@ DAC_WRITE_COMMANDS: dict[str, frozenset[str]] = {
     "post_reads": frozenset(),
     "post_poll_votes": frozenset(),
     "calendar_event_attendees": frozenset(),
+    # One occurrence's answer, the same gesture as the attendee row's.
+    "calendar_event_answers": frozenset(),
     # A record that this reader was reminded, written where the reminder is
     # sent. Being told about an event is a reader's business, not a change to
     # the calendar.

@@ -28,6 +28,7 @@ from app.models.platform.user import User
 from app.schemas.tenant.calendar_entry import CalendarEntriesResponse
 from app.schemas.tenant.calendar_event import serialize_calendar_event_summary
 from app.api.v1.tenant_endpoints import calendar_events as calendar_events_api
+from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import task_queries
 
 router = APIRouter()
@@ -91,6 +92,9 @@ async def list_calendar_entries(
             window.start_after,
             window.start_before,
             tz,
+            await occurrences_service.changed_starts(
+                session, [e.id for e in events if e.recurrence]
+            ),
         )
 
     tasks_out, task_occurrences = [], []
@@ -144,11 +148,10 @@ async def list_my_calendar_entries(
             start_after=window.start_after,
             start_before=window.start_before,
             tz=tz,
+            expand=True,
         )
-        # Already serialized inside each guild's own routed fetch.
-        events_out = calendar_events_api.occurrences(
-            events, window.start_after, window.start_before, tz
-        )
+        # Already serialized and expanded inside each guild's own routed fetch.
+        events_out = events
 
     tasks_out, task_occurrences = [], []
     if include_tasks:

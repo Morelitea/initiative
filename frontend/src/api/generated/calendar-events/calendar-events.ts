@@ -26,6 +26,7 @@ import type {
   CalendarEventRSVPUpdate,
   CalendarEventRead,
   CalendarEventUpdate,
+  DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams,
   HTTPValidationError,
   ICalImportRequest,
   ICalImportResult,
@@ -33,8 +34,10 @@ import type {
   ICalParseResult,
   ListCalendarEventsApiV1CGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
+  OccurrenceRequest,
   PropertyValuesSetRequest,
   ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams,
+  SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams,
   TagSetRequest,
 } from "../initiativeAPI.schemas";
 
@@ -729,6 +732,13 @@ export function useReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGet<
 /**
  * Update a calendar event. Requires write access on the calendar (and on
  * the target calendar when moving the event).
+ *
+ * For a repeating event, ``scope`` says which occurrences: ``this`` one
+ * (named by ``occurrence``) becomes a row of its own, ``following`` ends the
+ * series before it and starts a new one there, and ``all`` changes the
+ * series, its times moving every occurrence by as much as they move the one
+ * named. Changing an occurrence that has a row of its own changes that row,
+ * unless the scope says otherwise.
  * @summary Update Calendar Event
  */
 export const updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch = (
@@ -837,16 +847,23 @@ export const useUpdateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch = <
 };
 /**
  * Soft-delete a calendar event. Requires write access on the calendar.
+ *
+ * For a repeating event, ``scope`` says which occurrences: ``this`` one
+ * (named by ``occurrence``) is skipped, ``following`` ends the series before
+ * it, and ``all`` bins the series with every occurrence of it. Deleting an
+ * occurrence that has a row of its own skips it, unless the scope says
+ * otherwise.
  * @summary Delete Calendar Event
  */
 export const deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete = (
   guildId: number,
   eventId: number,
+  params?: DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/calendar-events/${eventId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/calendar-events/${eventId}`, method: "DELETE", params, signal },
     options
   );
 };
@@ -882,11 +899,12 @@ export const getDeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteMutat
     Awaited<ReturnType<typeof deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete>>,
     DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteMutationVariables
   > = (props) => {
-    const { guildId, eventId } = props ?? {};
+    const { guildId, eventId, params } = props ?? {};
 
     return deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete(
       guildId,
       eventId,
+      params,
       requestOptions
     );
   };
@@ -903,6 +921,7 @@ export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteMutationE
 export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteMutationVariables = {
   guildId: number;
   eventId: number;
+  params?: DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams;
 };
 
 /**
@@ -934,16 +953,478 @@ export const useDeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete = <
   );
 };
 /**
+ * The occurrence starting at ``start`` as a row of its own, made from the
+ * series the first time it is asked for, so it can change, carry its own
+ * attendees or be linked to alone. Requires write access on the calendar.
+ * @summary Open Occurrence
+ */
+export const openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost = (
+  guildId: number,
+  eventId: number,
+  occurrenceRequest: BodyType<OccurrenceRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventRead>(
+    {
+      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/occurrences`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: occurrenceRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getOpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationKey = () =>
+  ["openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost"] as const;
+
+export const getOpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost>>,
+    TError,
+    OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost>>,
+  TError,
+  OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getOpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost>>,
+    OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationVariables
+  > = (props) => {
+    const { guildId, eventId, data } = props ?? {};
+
+    return openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost(
+      guildId,
+      eventId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost>>
+  >;
+export type OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationBody =
+  BodyType<OccurrenceRequest>;
+export type OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationVariables = {
+  guildId: number;
+  eventId: number;
+  data: BodyType<OccurrenceRequest>;
+};
+
+/**
+ * @summary Open Occurrence
+ */
+export const useOpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost>>,
+      TError,
+      OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost>>,
+  TError,
+  OpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getOpenOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy the occurrence at ``start`` out into an event of its own, which
+ * the series then skips.
+ * @summary Detach Occurrence
+ */
+export const detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost = (
+  guildId: number,
+  eventId: number,
+  occurrenceRequest: BodyType<OccurrenceRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventRead>(
+    {
+      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/occurrences/detach`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: occurrenceRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationKey =
+  () => ["detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost"] as const;
+
+export const getDetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost>
+      >,
+      TError,
+      DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost>
+    >,
+    TError,
+    DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getDetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost>
+      >,
+      DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationVariables
+    > = (props) => {
+      const { guildId, eventId, data } = props ?? {};
+
+      return detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost(
+        guildId,
+        eventId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost>
+    >
+  >;
+export type DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationBody =
+  BodyType<OccurrenceRequest>;
+export type DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationVariables =
+  { guildId: number; eventId: number; data: BodyType<OccurrenceRequest> };
+
+/**
+ * @summary Detach Occurrence
+ */
+export const useDetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost>
+      >,
+      TError,
+      DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost>
+  >,
+  TError,
+  DetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDetachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Bring back a skipped occurrence of the series.
+ * @summary Restore Occurrence
+ */
+export const restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost = (
+  guildId: number,
+  eventId: number,
+  occurrenceRequest: BodyType<OccurrenceRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventRead>(
+    {
+      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/occurrences/restore`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: occurrenceRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationKey =
+  () => ["restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost"] as const;
+
+export const getRestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost>
+      >,
+      TError,
+      RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost>
+    >,
+    TError,
+    RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getRestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost>
+      >,
+      RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationVariables
+    > = (props) => {
+      const { guildId, eventId, data } = props ?? {};
+
+      return restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost(
+        guildId,
+        eventId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost>
+    >
+  >;
+export type RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationBody =
+  BodyType<OccurrenceRequest>;
+export type RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationVariables =
+  { guildId: number; eventId: number; data: BodyType<OccurrenceRequest> };
+
+/**
+ * @summary Restore Occurrence
+ */
+export const useRestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost>
+      >,
+      TError,
+      RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost>
+  >,
+  TError,
+  RestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRestoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Give the series an extra occurrence at ``start``.
+ * @summary Add Occurrence
+ */
+export const addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost = (
+  guildId: number,
+  eventId: number,
+  occurrenceRequest: BodyType<OccurrenceRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventRead>(
+    {
+      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/occurrences/add`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: occurrenceRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getAddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationKey = () =>
+  ["addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost"] as const;
+
+export const getAddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost>>,
+    TError,
+    AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost>>,
+  TError,
+  AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getAddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost>>,
+    AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationVariables
+  > = (props) => {
+    const { guildId, eventId, data } = props ?? {};
+
+    return addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost(
+      guildId,
+      eventId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost>>
+  >;
+export type AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationBody =
+  BodyType<OccurrenceRequest>;
+export type AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationVariables = {
+  guildId: number;
+  eventId: number;
+  data: BodyType<OccurrenceRequest>;
+};
+
+/**
+ * @summary Add Occurrence
+ */
+export const useAddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost>>,
+      TError,
+      AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost>>,
+  TError,
+  AddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getAddOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Set attendees. Requires write access on the calendar.
  *
  * Everyone newly on the list is invited by whoever set it: the person, or an
- * installed app by its name.
+ * installed app by its name. ``scope`` works as it does on an update.
  * @summary Set Attendees
  */
 export const setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut = (
   guildId: number,
   eventId: number,
   setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutBody: BodyType<number[]>,
+  params?: SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -953,6 +1434,7 @@ export const setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut = (
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutBody,
+      params,
       signal,
     },
     options
@@ -990,12 +1472,13 @@ export const getSetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutMutati
     Awaited<ReturnType<typeof setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut>>,
     SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutMutationVariables
   > = (props) => {
-    const { guildId, eventId, data } = props ?? {};
+    const { guildId, eventId, data, params } = props ?? {};
 
     return setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut(
       guildId,
       eventId,
       data,
+      params,
       requestOptions
     );
   };
@@ -1015,6 +1498,7 @@ export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutMutationVa
   guildId: number;
   eventId: number;
   data: BodyType<number[]>;
+  params?: SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams;
 };
 
 /**
@@ -1048,6 +1532,12 @@ export const useSetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut = <
 /**
  * Update the current user's RSVP status. Read access on the calendar
  * suffices — RSVPing is answering an invitation, not editing the event.
+ *
+ * For a repeating event, ``scope`` is ``this`` occurrence (named by
+ * ``occurrence``) or ``all`` of them, where an occurrence's own answer is
+ * replaced only if it still said what the series did. Answering from some
+ * occurrence on would start a new series, which takes write, so it is not
+ * offered here.
  * @summary Update Rsvp
  */
 export const updateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch = (

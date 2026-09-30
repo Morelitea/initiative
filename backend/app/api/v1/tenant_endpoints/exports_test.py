@@ -2040,6 +2040,17 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         session, recurring_event, definition, value_text="Table 3"
     )
     await create_calendar_event(session, calendar, a.user, title="One-shot night")
+    # The first session, an hour late: its own row, in the series' UID.
+    await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        title="Session 13 (late)",
+        start_at=session_start + timedelta(hours=1),
+        end_at=session_start + timedelta(hours=4),
+        series_id=recurring_event.id,
+        original_start=session_start,
+    )
 
     body = _assert_export(
         await _export(client, a, "calendar", format="ics"),
@@ -2054,9 +2065,11 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
             "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO",
             "EXDATE;VALUE=DATE:20261109",
             "LOCATION:Roll20",
+            "RECURRENCE-ID:20261004T223000Z",
         ),
     )
-    assert body.count("BEGIN:VEVENT") == 3
+    assert body.count("BEGIN:VEVENT") == 4
+    assert body.count(f"UID:event-{recurring_event.id}@initiative") == 2
     imported, errors, _ = ical_service.build_calendar_events(
         body, calendar.id, a.guild.id, a.user.id, tz="Europe/Berlin"
     )
@@ -2068,6 +2081,8 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         weekly,
         1440,
     )
+    late = by_title["Session 13 (late)"]
+    assert (late.series, late.original_start) == (picked, session_start)
     meeting = by_title["Guild meeting"]
     assert (meeting.start_at, meeting.end_at, meeting.recurrence) == (
         datetime(2026, 10, 12, tzinfo=timezone.utc),
@@ -2111,8 +2126,19 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     assert envelope["schema_version"] == 1
     assert envelope["name"] == "Raid Nights"
     titles = {e["title"] for e in envelope["events"]}
-    assert titles == {"Session 13", "Guild meeting", "One-shot night"}
+    assert titles == {
+        "Session 13",
+        "Session 13 (late)",
+        "Guild meeting",
+        "One-shot night",
+    }
     recurring = next(e for e in envelope["events"] if e["title"] == "Session 13")
+    late = next(e for e in envelope["events"] if e["title"] == "Session 13 (late)")
+    # The late one names its series the way the series answers to.
+    assert (late["series_ref"], late["original_start"]) == (
+        recurring["external_ref"],
+        session_start.isoformat(),
+    )
     assert recurring["recurrence"] == weekly
     assert recurring["description"] == "Return to the castle"
     # Custom properties ride flat and by NAME (project-envelope encoding).

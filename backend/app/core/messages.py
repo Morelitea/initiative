@@ -900,6 +900,11 @@ class CalendarEventMessages:
     # A repeat rule that can't be read, or asks for more than tasks and
     # events repeat by (``app.core.recurrence``).
     RECURRENCE_INVALID = "RECURRENCE_INVALID"
+    # A change to one occurrence (or from one on) names which, by its start.
+    OCCURRENCE_REQUIRED = "CALENDAR_EVENT_OCCURRENCE_REQUIRED"
+    NOT_AN_OCCURRENCE = "CALENDAR_EVENT_NOT_AN_OCCURRENCE"
+    # One occurrence stays in its series' calendar and repeats with it.
+    OCCURRENCE_FOLLOWS_SERIES = "CALENDAR_EVENT_OCCURRENCE_FOLLOWS_SERIES"
     # A guild calendar holds guild-level content only. Things defined on an
     # initiative — custom properties, documents — have no counterpart at guild
     # scope, so an event there cannot carry them; and an event cannot be moved

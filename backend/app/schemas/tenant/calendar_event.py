@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, Sequence, TYPE_CHECKING
+from typing import List, Literal, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
+from app.core import recurrence
 from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
@@ -40,8 +41,24 @@ class CalendarEventAttendeeRead(SanitizedBaseModel):
     created_at: datetime
 
 
+#: Which occurrences of a repeating event a change is for: the one named by
+#: ``occurrence``, it and every later one, or the whole series.
+OccurrenceScope = Literal["this", "following", "all"]
+
+
 class CalendarEventRSVPUpdate(SanitizedBaseModel):
     rsvp_status: RSVPStatus
+    #: For a repeating event: the answer for one occurrence, from one on, or
+    #: for every one. Omitted, an event's own row (the series, or an
+    #: occurrence opened on its own).
+    scope: Optional[OccurrenceScope] = None
+    #: The occurrence, by its start in the series.
+    occurrence: Optional[datetime] = None
+
+
+class OccurrenceRequest(SanitizedBaseModel):
+    #: The occurrence, by its start in the series, or the extra start to add.
+    start: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +127,13 @@ class CalendarEventUpdate(SanitizedBaseModel):
     tz: Optional[str] = Field(default=None, max_length=64)
     # Move the event to another calendar (requires write on both calendars).
     calendar_id: Optional[int] = None
+    #: For a repeating event: change one occurrence, it and every later one
+    #: (a new series from there), or all of them. Omitted, the event's own row:
+    #: the series, or an occurrence opened on its own.
+    scope: Optional[OccurrenceScope] = None
+    #: The occurrence, by its start in the series. Its new times for "all"
+    #: move every occurrence by as much.
+    occurrence: Optional[datetime] = None
 
 
 class CalendarEventAttendeePreview(SanitizedBaseModel):
@@ -143,6 +167,8 @@ class CalendarEventSummary(CalendarEventBase):
     #: series; None for an event that does not repeat, and for the series
     #: itself.
     original_start: Optional[datetime] = None
+    #: The series an occurrence with a row of its own belongs to.
+    series_id: Optional[int] = None
     calendar_id: int
     # Derived from the parent calendar — kept on the summary so list views can
     # filter/group by initiative without another fetch. NULL when the parent is
@@ -169,6 +195,11 @@ class CalendarEventListResponse(PageMeta):
 class CalendarEventRead(CalendarEventSummary):
     attendees: List[CalendarEventAttendeeRead] = Field(default_factory=list)
     documents: List[CalendarEventDocumentRead] = Field(default_factory=list)
+    #: What an occurrence changed; the rest follows its series.
+    overridden_fields: List[str] = Field(default_factory=list)
+    #: A series' skipped starts and extra starts.
+    skipped_starts: List[datetime] = Field(default_factory=list)
+    extra_starts: List[datetime] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +226,9 @@ def _serialize_documents(
     ]
 
 
-def _serialize_attendees(event: "CalendarEvent") -> List[CalendarEventAttendeeRead]:
+def _serialize_attendees(
+    event: "CalendarEvent", answers: Mapping[int, RSVPStatus]
+) -> List[CalendarEventAttendeeRead]:
     attendees_list = getattr(event, "attendees", None) or []
     result: List[CalendarEventAttendeeRead] = []
     for att in attendees_list:
@@ -204,7 +237,7 @@ def _serialize_attendees(event: "CalendarEvent") -> List[CalendarEventAttendeeRe
             CalendarEventAttendeeRead(
                 user_id=att.user_id,
                 user=UserPublic.model_validate(user) if user else None,
-                rsvp_status=att.rsvp_status,
+                rsvp_status=answers.get(att.user_id, att.rsvp_status),
                 created_at=att.created_at,
             )
         )
@@ -277,10 +310,22 @@ def serialize_calendar_event(
     context: ActorContext,
     user_id: Optional[int] = None,
     documents: Sequence[Related] = (),
+    answers: Mapping[int, RSVPStatus] | None = None,
 ) -> CalendarEventRead:
+    """``answers`` are one occurrence's, shown in place of the series'."""
     summary = serialize_calendar_event_summary(event, context=context, user_id=user_id)
+    skipped, extra = (
+        recurrence.exception_starts(
+            event.recurrence, event.start_at, event.recurrence_shift
+        )
+        if event.recurrence
+        else ([], [])
+    )
     return CalendarEventRead(
         **summary.model_dump(),
-        attendees=_serialize_attendees(event),
+        attendees=_serialize_attendees(event, answers or {}),
         documents=_serialize_documents(documents),
+        overridden_fields=list(event.overridden_fields or []),
+        skipped_starts=skipped,
+        extra_starts=extra,
     )

@@ -9,7 +9,7 @@ calendar (``PUT /calendars/{id}/grants``), never per event.
 import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Annotated, Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -58,6 +58,8 @@ from app.schemas.tenant.calendar_event import (
     CalendarEventRead,
     CalendarEventListResponse,
     CalendarEventRSVPUpdate,
+    OccurrenceRequest,
+    OccurrenceScope,
     serialize_calendar_event,
     serialize_calendar_event_summary,
 )
@@ -81,6 +83,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
 from app.services.permissions import Action
 from app.services.tenant import calendar_events as events_service
+from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import content_references
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
@@ -214,12 +217,14 @@ def occurrences(
     start_after: datetime,
     start_before: datetime,
     tz: Optional[str] = None,
+    changed: Mapping[int, set[datetime]] | None = None,
 ) -> list[CalendarEventSummary]:
     """The events starting in the window, a repeating one once for each of
     its occurrences there, ordered by start.
 
     An occurrence is the series' summary at that start, with the series'
-    length, and ``original_start`` naming it."""
+    length, and ``original_start`` naming it. One with a row of its own
+    (``changed``, by series id) is left out: the row stands in for it."""
     first = _window_day(start_after, _NO_ZONE_INWARD, tz)
     last = _window_day(start_before, -_NO_ZONE_INWARD, tz)
     found: list[CalendarEventSummary] = []
@@ -237,6 +242,7 @@ def occurrences(
             found.append(event)
             continue
         length = event.end_at - event.start_at
+        own = (changed or {}).get(event.id, set())
         found.extend(
             event.model_copy(
                 update={
@@ -246,6 +252,7 @@ def occurrences(
                 }
             )
             for start in starts
+            if start not in own
         )
     found.sort(key=lambda event: (event.start_at, event.guild_id, event.id))
     return found
@@ -406,9 +413,12 @@ async def query_my_calendar_events(
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
     tz: Optional[str] = None,
+    expand: bool = False,
 ) -> list[CalendarEventSummary]:
     """Shared cross-guild calendar-event query for ``list_my_calendar_events``
-    and the ``/me/calendar-entries`` aggregate.
+    and the ``/me/calendar-entries`` aggregate, which asks to ``expand`` each
+    repeating event into its occurrences in the window (``occurrences``),
+    inside the guild whose rows say which have one of their own.
 
     Schema-per-guild: events live in per-guild schemas, so no single query can
     span guilds. Visit each of the user's
@@ -435,12 +445,24 @@ async def query_my_calendar_events(
         # the summary names the guild and computes the reader's level from the
         # role held there, and both would read the last guild visited if it
         # waited for the merge.
-        return [
+        events = await _exec_events(guild_session, stmt)
+        summaries = [
             serialize_calendar_event_summary(
                 event, context=context, user_id=current_user.id, guild_id=guild_id
             )
-            for event in await _exec_events(guild_session, stmt)
+            for event in events
         ]
+        if not expand or start_after is None or start_before is None:
+            return summaries
+        return occurrences(
+            summaries,
+            start_after,
+            start_before,
+            tz,
+            await occurrences_service.changed_starts(
+                guild_session, [e.id for e in events if e.recurrence]
+            ),
+        )
 
     target_guilds = await member_guild_ids(
         session, current_user.id, restrict_to=guild_ids
@@ -763,12 +785,19 @@ async def _serialized_event(
     user_id: int | None,
     *,
     context: ActorContext,
+    occurrence: datetime | None = None,
 ) -> CalendarEventRead:
+    """``occurrence`` shows that one's answers in place of the series'."""
     return serialize_calendar_event(
         event,
         context=context,
         user_id=user_id,
         documents=await _event_documents(session, event),
+        answers=(
+            await occurrences_service.answers_for(session, event.id, occurrence)
+            if occurrence is not None
+            else None
+        ),
     )
 
 
@@ -779,10 +808,18 @@ async def read_calendar_event(
     current_user: ActorUserDep,
     guild_context: CalendarsRead,
     include_deleted: IncludeDeletedDep = False,
+    occurrence: Optional[datetime] = Query(
+        default=None,
+        description="One occurrence of a repeating event, whose answers to show.",
+    ),
 ) -> CalendarEventRead:
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
     return await _serialized_event(
-        session, event, guild_context.user_id, context=guild_context
+        session,
+        event,
+        guild_context.user_id,
+        context=guild_context,
+        occurrence=occurrence if event.recurrence else None,
     )
 
 
@@ -880,11 +917,96 @@ async def update_calendar_event(
     guild_context: CalendarsWrite,
 ) -> CalendarEventRead:
     """Update a calendar event. Requires write access on the calendar (and on
-    the target calendar when moving the event)."""
+    the target calendar when moving the event).
+
+    For a repeating event, ``scope`` says which occurrences: ``this`` one
+    (named by ``occurrence``) becomes a row of its own, ``following`` ends the
+    series before it and starts a new one there, and ``all`` changes the
+    series, its times moving every occurrence by as much as they move the one
+    named. Changing an occurrence that has a row of its own changes that row,
+    unless the scope says otherwise."""
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, action=Action.contribute
     )
+    changes = event_in.model_dump(
+        exclude_unset=True, exclude={"scope", "occurrence", "tz"}
+    )
+    scope, at = event_in.scope, event_in.occurrence
+    alone = {"recurrence", "calendar_id"}
 
+    if event.series_id is not None:
+        if scope in (None, "this"):
+            if alone & set(changes):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=CalendarEventMessages.OCCURRENCE_FOLLOWS_SERIES,
+                )
+            occurrences_service.mark(event, changes)
+            return await _apply_update(
+                session, event, changes, event_in, current_user, guild_context
+            )
+        # From this occurrence on, or every one: its series, from its start,
+        # and the fields changed follow the series again here.
+        occurrences_service.unmark(event, changes)
+        session.add(event)
+        at = event.original_start
+        event = await _get_event_or_404(
+            session,
+            event.series_id,
+            current_user,
+            guild_context,
+            action=Action.contribute,
+        )
+
+    if event.recurrence and scope == "this":
+        if alone & set(changes):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=CalendarEventMessages.OCCURRENCE_FOLLOWS_SERIES,
+            )
+        made = await occurrences_service.occurrence(
+            session, event, occurrences_service.require_occurrence(event, at)
+        )
+        await session.flush()
+        target = await _refetch_event(session, made.id)
+        occurrences_service.mark(target, changes)
+        return await _apply_update(
+            session, target, changes, event_in, current_user, guild_context
+        )
+
+    if event.recurrence and scope == "following":
+        at = occurrences_service.require_occurrence(event, at)
+        if at != event.start_at.astimezone(timezone.utc):
+            rest = await occurrences_service.split(session, event, at)
+            event = await _refetch_event(session, rest.id)
+        # The times sent are this occurrence's, which starts the new series.
+        return await _apply_update(
+            session, event, changes, event_in, current_user, guild_context
+        )
+
+    if event.recurrence and at is not None and {"start_at", "end_at"} & set(changes):
+        # Every occurrence moves as the one named does.
+        at = occurrences_service.require_occurrence(event, at)
+        length = event.end_at - event.start_at
+        new_start = changes.get("start_at") or at
+        new_end = changes.get("end_at") or new_start + length
+        changes["start_at"] = event.start_at + (new_start - at)
+        changes["end_at"] = changes["start_at"] + (new_end - new_start)
+    return await _apply_update(
+        session, event, changes, event_in, current_user, guild_context
+    )
+
+
+async def _apply_update(
+    session: AsyncSession,
+    event: CalendarEvent,
+    update_data: dict,
+    event_in: CalendarEventUpdate,
+    current_user: User | None,
+    guild_context: ActorContext,
+) -> CalendarEventRead:
+    """Write ``update_data`` to one event row, and to a series' overrides
+    what they follow of it."""
     # Snapshot fields that drive the "updated"/"rescheduled" notification before
     # the in-place mutation below.
     old_title = event.title
@@ -892,9 +1014,12 @@ async def update_calendar_event(
     old_all_day = event.all_day
     old_start = event.start_at
     old_end = event.end_at
+    old_description = event.description
+    old_shift = event.recurrence_shift
+    old_recurrence = event.recurrence
+    old_calendar = event.calendar_id
 
     updated = False
-    update_data = event_in.model_dump(exclude_unset=True)
 
     if (
         "calendar_id" in update_data
@@ -952,6 +1077,11 @@ async def update_calendar_event(
             if update_data["recurrence"]
             else (None, 0)
         )
+        if event.recurrence:
+            # A rule written without skipped or extra starts keeps them.
+            event.recurrence = recurrence.kept_exceptions(
+                event.recurrence, old_recurrence
+            )
         updated = True
     elif event.recurrence and (
         event.start_at != previous_start or event.all_day != previous_all_day
@@ -975,8 +1105,37 @@ async def update_calendar_event(
         event.updated_at = datetime.now(timezone.utc)
         session.add(event)
 
-        # Notify attendees only on meaningful changes (skip pure color/tag edits).
         time_changed = event.start_at != old_start or event.end_at != old_end
+        if event.series_id is None and (old_recurrence or event.recurrence):
+            # What the series' overrides follow of it.
+            if (
+                time_changed
+                or event.all_day != old_all_day
+                or event.recurrence != old_recurrence
+            ):
+                await occurrences_service.rehome(
+                    session,
+                    event,
+                    old_shift=old_shift,
+                    moved=event.start_at != old_start,
+                    deleted_by=guild_context.user_id,
+                )
+            changed = {
+                name
+                for name, before in (
+                    ("title", old_title),
+                    ("description", old_description),
+                    ("location", old_location),
+                )
+                if getattr(event, name) != before
+            }
+            if time_changed or event.all_day != old_all_day:
+                changed |= set(occurrences_service.TIMES)
+            if event.calendar_id != old_calendar:
+                changed.add("attendees")
+            await occurrences_service.follow(session, event, changed)
+
+        # Notify attendees only on meaningful changes (skip pure color/tag edits).
         meaningful_change = (
             time_changed
             or event.title != old_title
@@ -1008,7 +1167,8 @@ async def update_calendar_event(
             )
 
         await attachments_service.claim_uploads(session, event)
-        await session.commit()
+    session.add(event)
+    await session.commit()
 
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
@@ -1022,13 +1182,46 @@ async def delete_calendar_event(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    scope: Optional[OccurrenceScope] = Query(default=None),
+    occurrence: Optional[datetime] = Query(default=None),
 ) -> None:
-    """Soft-delete a calendar event. Requires write access on the calendar."""
+    """Soft-delete a calendar event. Requires write access on the calendar.
+
+    For a repeating event, ``scope`` says which occurrences: ``this`` one
+    (named by ``occurrence``) is skipped, ``following`` ends the series before
+    it, and ``all`` bins the series with every occurrence of it. Deleting an
+    occurrence that has a row of its own skips it, unless the scope says
+    otherwise."""
     from app.services.tenant.soft_delete import trash
 
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, action=Action.contribute
     )
+    if event.series_id is not None:
+        at = event.original_start
+        event = await _get_event_or_404(
+            session,
+            event.series_id,
+            current_user,
+            guild_context,
+            action=Action.contribute,
+        )
+        scope = scope or "this"
+    else:
+        at = occurrence
+    if event.recurrence and scope == "this":
+        await occurrences_service.skip(session, event, at, deleted_by=current_user.id)
+        await session.commit()
+        return
+    if (
+        event.recurrence
+        and scope == "following"
+        and await occurrences_service.end_before(
+            session, event, at, deleted_by=current_user.id
+        )
+    ):
+        await session.commit()
+        return
     # A declined attendee already isn't attending, so skip the cancellation
     # notice for them (consistent with update/reminder notifications).
     cancel_ids = [
@@ -1055,6 +1248,163 @@ async def delete_calendar_event(
     await session.commit()
 
 
+async def _scoped_list_target(
+    session: AsyncSession,
+    event: CalendarEvent,
+    field: str,
+    scope: Optional[OccurrenceScope],
+    at: Optional[datetime],
+    current_user: User | None,
+    guild_context: ActorContext,
+) -> CalendarEvent:
+    """The row a list change (attendees) is written to, as an update's scope
+    picks it: the occurrence's own row, a new series from it, or the series."""
+    if event.series_id is not None:
+        if scope in (None, "this"):
+            return event
+        occurrences_service.unmark(event, [field])
+        session.add(event)
+        at = event.original_start
+        event = await _get_event_or_404(
+            session,
+            event.series_id,
+            current_user,
+            guild_context,
+            action=Action.contribute,
+        )
+    if event.recurrence and scope == "this":
+        target = await occurrences_service.occurrence(
+            session, event, occurrences_service.require_occurrence(event, at)
+        )
+        return await _refetch_event(session, target.id)
+    if event.recurrence and scope == "following":
+        at = occurrences_service.require_occurrence(event, at)
+        if at != event.start_at.astimezone(timezone.utc):
+            rest = await occurrences_service.split(session, event, at)
+            return await _refetch_event(session, rest.id)
+    return event
+
+
+async def _followed(session: AsyncSession, event: CalendarEvent, field: str) -> None:
+    """After a list changed on ``event``: an occurrence's own row now holds its
+    own, and a series' overrides that didn't change it follow."""
+    if event.series_id is not None:
+        occurrences_service.mark(event, [field])
+        session.add(event)
+    elif event.recurrence:
+        await occurrences_service.follow(
+            session, await _refetch_event(session, event.id), [field]
+        )
+
+
+async def _repeating_or_404(
+    session: AsyncSession,
+    event_id: int,
+    current_user: User | None,
+    guild_context: ActorContext,
+) -> CalendarEvent:
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, action=Action.contribute
+    )
+    if not event.recurrence:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=CalendarEventMessages.NOT_AN_OCCURRENCE,
+        )
+    return event
+
+
+@router.post("/{event_id}/occurrences", response_model=CalendarEventRead)
+async def open_occurrence(
+    event_id: int,
+    body: OccurrenceRequest,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
+) -> CalendarEventRead:
+    """The occurrence starting at ``start`` as a row of its own, made from the
+    series the first time it is asked for, so it can change, carry its own
+    attendees or be linked to alone. Requires write access on the calendar."""
+    series = await _repeating_or_404(session, event_id, current_user, guild_context)
+    override = await occurrences_service.occurrence(session, series, body.start)
+    await session.commit()
+    return await _serialized_event(
+        session,
+        await _refetch_event(session, override.id),
+        guild_context.user_id,
+        context=guild_context,
+    )
+
+
+@router.post("/{event_id}/occurrences/detach", response_model=CalendarEventRead)
+async def detach_occurrence(
+    event_id: int,
+    body: OccurrenceRequest,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
+) -> CalendarEventRead:
+    """Copy the occurrence at ``start`` out into an event of its own, which
+    the series then skips."""
+    series = await _repeating_or_404(session, event_id, current_user, guild_context)
+    event = await occurrences_service.detach(session, series, body.start)
+    await session.commit()
+    return await _serialized_event(
+        session,
+        await _refetch_event(session, event.id),
+        guild_context.user_id,
+        context=guild_context,
+    )
+
+
+@router.post("/{event_id}/occurrences/restore", response_model=CalendarEventRead)
+async def restore_occurrence(
+    event_id: int,
+    body: OccurrenceRequest,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
+) -> CalendarEventRead:
+    """Bring back a skipped occurrence of the series."""
+    series = await _repeating_or_404(session, event_id, current_user, guild_context)
+    series.recurrence = recurrence.restored(
+        series.recurrence or "", series.recurrence_shift, body.start
+    )
+    series.updated_at = datetime.now(timezone.utc)
+    session.add(series)
+    await session.commit()
+    return await _serialized_event(
+        session,
+        await _refetch_event(session, series.id),
+        guild_context.user_id,
+        context=guild_context,
+    )
+
+
+@router.post("/{event_id}/occurrences/add", response_model=CalendarEventRead)
+async def add_occurrence(
+    event_id: int,
+    body: OccurrenceRequest,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
+) -> CalendarEventRead:
+    """Give the series an extra occurrence at ``start``."""
+    series = await _repeating_or_404(session, event_id, current_user, guild_context)
+    series.recurrence = recurrence.with_extra(
+        series.recurrence or "", series.recurrence_shift, body.start
+    )
+    series.updated_at = datetime.now(timezone.utc)
+    session.add(series)
+    await session.commit()
+    return await _serialized_event(
+        session,
+        await _refetch_event(session, series.id),
+        guild_context.user_id,
+        context=guild_context,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Attendees
 # ---------------------------------------------------------------------------
@@ -1067,14 +1417,19 @@ async def set_attendees(
     session: ActorSessionDep,
     current_user: ActorUserDep,
     guild_context: CalendarsWrite,
+    scope: Optional[OccurrenceScope] = Query(default=None),
+    occurrence: Optional[datetime] = Query(default=None),
 ) -> CalendarEventRead:
     """Set attendees. Requires write access on the calendar.
 
     Everyone newly on the list is invited by whoever set it: the person, or an
-    installed app by its name.
+    installed app by its name. ``scope`` works as it does on an update.
     """
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, action=Action.contribute
+    )
+    event = await _scoped_list_target(
+        session, event, "attendees", scope, occurrence, current_user, guild_context
     )
     old_ids = {a.user_id for a in event.attendees}
     await events_service.set_event_attendees(
@@ -1085,6 +1440,8 @@ async def set_attendees(
         uid for uid in (set(attendee_ids) - old_ids) if uid != guild_context.user_id
     ]
     await _notify_invited(session, event, added_ids, current_user, guild_context)
+    await session.flush()
+    await _followed(session, event, "attendees")
 
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
@@ -1102,24 +1459,33 @@ async def update_rsvp(
     guild_context: GuildContextDep,
 ) -> CalendarEventRead:
     """Update the current user's RSVP status. Read access on the calendar
-    suffices — RSVPing is answering an invitation, not editing the event."""
+    suffices — RSVPing is answering an invitation, not editing the event.
+
+    For a repeating event, ``scope`` is ``this`` occurrence (named by
+    ``occurrence``) or ``all`` of them, where an occurrence's own answer is
+    replaced only if it still said what the series did. Answering from some
+    occurrence on would start a new series, which takes write, so it is not
+    offered here."""
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
-
-    stmt = select(CalendarEventAttendee).where(
-        CalendarEventAttendee.calendar_event_id == event.id,
-        CalendarEventAttendee.user_id == current_user.id,
-    )
-    result = await session.exec(stmt)
-    attendee = result.one_or_none()
-
-    if not attendee:
-        attendee = CalendarEventAttendee(
-            calendar_event_id=event.id,
-            user_id=current_user.id,
+    answer = rsvp_in.rsvp_status
+    if rsvp_in.scope == "following":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=CalendarEventMessages.OCCURRENCE_FOLLOWS_SERIES,
         )
-
-    attendee.rsvp_status = rsvp_in.rsvp_status
-    session.add(attendee)
+    if event.series_id is not None and rsvp_in.scope == "all":
+        event = await _get_event_or_404(
+            session, event.series_id, current_user, guild_context
+        )
+        await occurrences_service.answer_series(session, event, current_user.id, answer)
+    elif event.recurrence and rsvp_in.scope == "this":
+        await occurrences_service.answer_occurrence(
+            session, event, rsvp_in.occurrence, current_user.id, answer
+        )
+    elif event.recurrence:
+        await occurrences_service.answer_series(session, event, current_user.id, answer)
+    else:
+        await occurrences_service.answer_on(session, event, current_user.id, answer)
 
     await _notify_about_event(
         session,
@@ -1136,7 +1502,11 @@ async def update_rsvp(
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
-        session, hydrated, current_user.id, context=guild_context
+        session,
+        hydrated,
+        current_user.id,
+        context=guild_context,
+        occurrence=rsvp_in.occurrence if rsvp_in.scope == "this" else None,
     )
 
 
@@ -1168,6 +1538,8 @@ async def set_event_tags(
     )
     event.updated_at = datetime.now(timezone.utc)
     session.add(event)
+    await session.flush()
+    await _followed(session, event, "tags")
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
@@ -1215,6 +1587,8 @@ async def set_event_properties(
         await properties_service.property_values_by_row_id(session, payload.values),
         initiative_id=event.calendar.initiative_id,
     )
+    await session.flush()
+    await _followed(session, await _refetch_event(session, event.id), "properties")
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(

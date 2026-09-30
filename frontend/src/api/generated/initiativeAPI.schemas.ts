@@ -1620,6 +1620,7 @@ export interface CalendarEventSummary {
   id: number;
   recurrence_shift: number;
   original_start: string | null;
+  series_id: number | null;
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -1824,8 +1825,20 @@ export interface CalendarEventListResponse {
   items: CalendarEventSummary[];
 }
 
+export type CalendarEventRSVPUpdateScope =
+  | (typeof CalendarEventRSVPUpdateScope)[keyof typeof CalendarEventRSVPUpdateScope]
+  | null;
+
+export const CalendarEventRSVPUpdateScope = {
+  this: "this",
+  following: "following",
+  all: "all",
+} as const;
+
 export interface CalendarEventRSVPUpdate {
   rsvp_status: RSVPStatus;
+  scope?: CalendarEventRSVPUpdateScope;
+  occurrence?: string | null;
 }
 
 export interface CalendarEventRead {
@@ -1843,6 +1856,7 @@ export interface CalendarEventRead {
   id: number;
   recurrence_shift: number;
   original_start: string | null;
+  series_id: number | null;
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -1857,7 +1871,20 @@ export interface CalendarEventRead {
   updated_at: string;
   attendees: CalendarEventAttendeeRead[];
   documents: CalendarEventDocumentRead[];
+  overridden_fields: string[];
+  skipped_starts: string[];
+  extra_starts: string[];
 }
+
+export type CalendarEventUpdateScope =
+  | (typeof CalendarEventUpdateScope)[keyof typeof CalendarEventUpdateScope]
+  | null;
+
+export const CalendarEventUpdateScope = {
+  this: "this",
+  following: "following",
+  all: "all",
+} as const;
 
 export interface CalendarEventUpdate {
   title?: string | null;
@@ -1869,6 +1896,8 @@ export interface CalendarEventUpdate {
   recurrence?: string | null;
   tz?: string | null;
   calendar_id?: number | null;
+  scope?: CalendarEventUpdateScope;
+  occurrence?: string | null;
 }
 
 /**
@@ -6289,6 +6318,10 @@ export interface OIDCSettingsResponse {
   mobile_redirect_uri: string | null;
   provider_name: string | null;
   scopes: string[];
+}
+
+export interface OccurrenceRequest {
+  start: string;
 }
 
 /**
@@ -10870,10 +10903,44 @@ export type ListCalendarEventsApiV1CGuildIdCalendarEventsGetParams = {
 
 export type ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams = {
   /**
+   * One occurrence of a repeating event, whose answers to show.
+   */
+  occurrence?: string | null;
+  /**
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
 };
+
+export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams = {
+  scope?: DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope;
+  occurrence?: string | null;
+};
+
+export type DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope =
+  | (typeof DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope)[keyof typeof DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope]
+  | null;
+
+export const DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope = {
+  this: "this",
+  following: "following",
+  all: "all",
+} as const;
+
+export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams = {
+  scope?: SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope;
+  occurrence?: string | null;
+};
+
+export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope =
+  | (typeof SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope)[keyof typeof SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope]
+  | null;
+
+export const SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope = {
+  this: "this",
+  following: "following",
+  all: "all",
+} as const;
 
 export type ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams = {
   initiative_id?: number | null;
