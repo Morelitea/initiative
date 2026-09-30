@@ -3,6 +3,7 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import update as sa_update
+from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.api import resource_access
@@ -170,10 +171,31 @@ async def bulk_edit_tags(
                 detail=f"{target.upper()}_NOT_FOUND",
             )
         parent_ids = list(dict.fromkeys(parent_id for _, parent_id in rows))
+    # One load for every governing row, with what the decision reads: the
+    # actions the database answered and the initiative's switches.
+    parent = tags_service.TOOL_TAG_LINKS[tool].entity
+    loaded = {
+        row.id: row
+        for row in (
+            await session.exec(
+                select(parent)
+                .where(parent.id.in_(parent_ids))
+                .options(selectinload(parent.initiative), undefer(parent.actions))
+            )
+        ).all()
+    }
     for parent_id in parent_ids:
-        await resource_access.load_authorized(
-            session, tool, parent_id, current_user, guild_context, access="write"
-        )
+        row = loaded.get(parent_id)
+        if row is None:
+            # Out of sight: the single loader names the refusal — 404, or 403
+            # to a reader in the initiative whom sharing refused.
+            await resource_access.load_authorized(
+                session, tool, parent_id, current_user, guild_context, access="write"
+            )
+        else:
+            resource_access.authorize(
+                tool, row, current_user, context=guild_context, access="write"
+            )
 
     await tags_service.bulk_edit_tags(
         session,
@@ -183,7 +205,6 @@ async def bulk_edit_tags(
         remove_tag_ids=remove_ids,
     )
     if chain:
-        parent = tags_service.TOOL_TAG_LINKS[tool].entity
         await session.exec(
             sa_update(parent)
             .where(parent.id.in_(parent_ids))

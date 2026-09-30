@@ -23,6 +23,7 @@ from app.core.tools import Tool
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.task import TaskStatusCategory
+from app.services.tenant import tags as tags_service
 from app.testing import route_session_to_guild
 from app.testing.factories import (
     create_document,
@@ -32,6 +33,7 @@ from app.testing.factories import (
     create_initiative,
     create_project,
     create_resource_grant,
+    create_tag,
     create_task,
     create_task_status,
 )
@@ -656,9 +658,21 @@ async def test_duplicate_project_copies_task_relations(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Duplicating a project carries its task relations, ids remapped, and
-    a symmetric relation to something outside the project is kept as-is."""
+    a symmetric relation to something outside the project is kept as-is; each
+    task's tags land on its own copy."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     source, first, second = await _template_with_dependency(session, admin)
+    design = await create_tag(session, admin.guild, name="design")
+    build = await create_tag(session, admin.guild, name="build")
+    for task, tag in ((first, design), (second, build)):
+        await tags_service.set_entity_tags(
+            session,
+            tags_service.TAG_LINKS["task"],
+            guild_id=admin.guild.id,
+            entity_id=task.id,
+            tag_ids=[tag.id],
+        )
+    await session.commit()
     other_project = await create_project(
         session, admin.initiative, admin.user, name="Elsewhere"
     )
@@ -682,10 +696,16 @@ async def test_duplicate_project_copies_task_relations(
     new_first, new_second = tasks["Design"], tasks["Build"]
 
     relations = await _relations_of(client, admin, new_first["id"])
-    assert sorted((r["relationship_type"], r["other"]["id"]) for r in relations) == [
+    assert sorted(
+        (r["relationship_type"], r["other"]["id"])
+        for r in relations
+        if r["relationship_type"] != RelationshipType.tagged_with
+    ) == [
         ("depends_on", new_second["id"]),
         ("related_to", outside.id),
     ]
+    assert [t["name"] for t in new_first["tags"]] == ["design"]
+    assert [t["name"] for t in new_second["tags"]] == ["build"]
 
 
 async def test_a_duplicate_keeps_the_sources_sharing_and_needs_the_create_right(

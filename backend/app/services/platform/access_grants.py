@@ -742,7 +742,7 @@ async def expire_due(session: AsyncSession) -> int:
 
 async def _enrichment(
     session: AsyncSession, *, user_ids: set[int], guild_ids: set[int]
-) -> tuple[dict[int | None, User], dict[int, str], dict[int, Guild]]:
+) -> tuple[dict[int | None, User], dict[int, str], dict[int | None, Guild]]:
     """The people and communities a page of grants names, for display."""
     users_result = await session.exec(select(User).where(User.id.in_(user_ids)))
     users = {u.id: u for u in users_result.all()}
@@ -750,11 +750,10 @@ async def _enrichment(
     addresses_by_user = await addresses.primary_addresses(
         session, user_ids=sorted(user_ids)
     )
-    guilds = {}
-    for gid in guild_ids:
-        guild = await guilds_service.get_guild(session, guild_id=gid)
-        if guild is not None:
-            guilds[gid] = guild
+    # A community the lookup does not find leaves its rows unnamed rather
+    # than failing the page.
+    guilds_result = await session.exec(select(Guild).where(Guild.id.in_(guild_ids)))
+    guilds = {g.id: g for g in guilds_result.all()}
     return users, addresses_by_user, guilds
 
 

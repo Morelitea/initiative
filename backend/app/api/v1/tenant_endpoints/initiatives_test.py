@@ -804,7 +804,8 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A member's row carries the role they actually hold — its own name,
-    display name, and manager standing — for custom roles too."""
+    display name, and manager standing — for custom roles too, and the role
+    list counts each role's holders."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -833,6 +834,13 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     assert row["role_name"] == "leads"
     assert row["role_display_name"] == "Leads"
     assert row["is_manager"] is True
+
+    roles = await client.get(
+        admin.g(f"/initiatives/{admin.initiative.id}/roles"), headers=admin.headers
+    )
+    assert roles.status_code == 200, roles.text
+    counts = {r["name"]: r["member_count"] for r in roles.json()}
+    assert (counts["leads"], counts["member"], sum(counts.values())) == (1, 0, 2)
 
 
 @pytest.mark.parametrize(

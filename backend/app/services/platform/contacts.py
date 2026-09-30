@@ -9,7 +9,7 @@ which needs no guild at all and may name people the reader shares none with.
 
 from typing import Iterable, Optional, Sequence
 
-from sqlalchemy import String, cast, func, text
+from sqlalchemy import String, cast, exists, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
@@ -107,12 +107,10 @@ async def guild_sections(
     if not guilds:
         return []
 
-    # guild_id -> everyone in it, collected while that guild is the current
-    # one. Inverted afterwards into "which of the reader's guilds is this
-    # person also in", which cannot be derived from the paged rows themselves:
-    # a person may be on page 1 of one section and page 3 of another.
-    membership_map: dict[int, list[int]] = {}
     sections: dict[int, ContactGuildSection] = {}
+    # The guilds the walk below could enter; one it cannot reach right now
+    # contributes nothing, section or shared membership.
+    visited: set[int] = set()
     named = {gid: (name, icon) for gid, name, icon in guilds}
 
     # Who, of each community, this reader may actually reach — asked here, on
@@ -139,25 +137,22 @@ async def guild_sections(
     }
 
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[int]:
-
-        # Ids only, unpaginated — an index-only scan of the primary key, which
-        # leads with guild_id.
-        membership_map[guild_id] = list(
-            (
-                await guild_session.exec(
-                    select(GuildMembership.user_id).where(
-                        GuildMembership.guild_id == guild_id,
-                        GuildMembership.user_id != user_id,
-                    )
-                )
-            ).all()
-        )
+        visited.add(guild_id)
 
         # A community of one is not a section. Nobody is in it to list, and an
         # empty section there would read as a remark about people who are not
         # there — the reader is by themselves, which the page should not
         # dress up as everybody being unreachable.
-        if not membership_map[guild_id]:
+        if not (
+            await guild_session.exec(
+                select(
+                    exists().where(
+                        GuildMembership.guild_id == guild_id,
+                        GuildMembership.user_id != user_id,
+                    )
+                )
+            )
+        ).one():
             return []
 
         # Read from the guild projection, not from ``users``: this is a roster,
@@ -219,10 +214,16 @@ async def guild_sections(
     guild_ids = [gid for gid, _name, _icon in guilds]
     await gather_across_guilds(session, user_id, guild_ids, _fetch)
 
+    # Which of the reader's guilds each listed person is also in, which the
+    # paged rows cannot say: a person may be on page 1 of one section and page
+    # 3 of another. Whether two people may message each other does not depend
+    # on the guild, so anyone on a page is listable in exactly the reader's
+    # guilds they belong to.
     shared: dict[int, list[int]] = {}
     for guild_id in guild_ids:
-        for member_id in membership_map.get(guild_id, ()):
-            shared.setdefault(member_id, []).append(guild_id)
+        if guild_id in visited:
+            for member_id in listable.get(guild_id, ()):
+                shared.setdefault(member_id, []).append(guild_id)
 
     ordered = [sections[gid] for gid in guild_ids if gid in sections]
     for section in ordered:
