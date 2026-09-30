@@ -24,7 +24,11 @@ router = APIRouter()
 def preview_recurrence(body: RecurrencePreviewRequest) -> RecurrencePreview:
     """The rule as it would be stored, its shift, and its next starts."""
     try:
-        rule, shift = recurrence.stored(body.rule, body.start, body.tz, kind=body.kind)
+        rule, shift = (
+            recurrence.stored(body.rule, body.start, body.tz, kind=body.kind)
+            if body.shift is None
+            else (recurrence.normalize(body.rule, kind=body.kind), body.shift)
+        )
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

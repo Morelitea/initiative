@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Repeating events show on every date they happen.** A calendar draws each occurrence in view, not only the first, and opening one shows its own date along with how the event repeats. Each occurrence sends its own reminder, and a smart chip for a repeating event shows its next date. A repeating task's next dates show on the calendar too; opening one opens the current task. Dragging a repeating event on the calendar is turned off for now; change its time from the event's settings.
+- **More ways to repeat.** A custom repeat can now fall on several days of the month or its last day, the fifth or last of a weekday, every chosen weekday of the month, the first or last work day of the month, and in several months a year. The form shows the next dates it will fall on, and an event's repeat can be changed from its settings. Events no longer offer the "after completion" choice, which only tasks use.
+- **Preview a stored repeat as it runs (API).** `POST /recurrence/preview` takes an optional `shift`, a stored rule's own, to list its dates without taking the shift again.
 - **`calendar-entries` returns occurrences (API).** A repeating event comes back once for each occurrence in the window, with `original_start` naming it, and repeating tasks' next dates come back in `task_occurrences`.
 
 ### Changed

@@ -1,7 +1,7 @@
 import type { TaskListReadRecurrenceStrategy } from "@/api/generated/initiativeAPI.schemas";
 import type { TranslateFn } from "@/types/i18n";
 
-export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "last";
+export type TaskWeekPosition = "first" | "second" | "third" | "fourth" | "fifth" | "last";
 export type RecurrenceFrequency = "daily" | "weekly" | "monthly" | "yearly";
 export type RecurrenceWeekday =
   | "monday"
@@ -13,6 +13,13 @@ export type RecurrenceWeekday =
   | "sunday";
 
 /**
+ * How a monthly or yearly repeat picks its days: by their numbers, the nth of
+ * a weekday, every one of some weekdays, or the first or last of them (the
+ * last work day is the last of Monday to Friday).
+ */
+export type MonthlyMode = "day_of_month" | "weekday" | "weekdays" | "set";
+
+/**
  * A repeat as the form edits it: its days as picked, in the viewer's zone.
  * It goes out through {@link toRRule} with the browser's zone, which the
  * server keeps as a shift beside the rule, and comes back through
@@ -21,12 +28,17 @@ export type RecurrenceWeekday =
 export type RecurrenceRule = {
   frequency: RecurrenceFrequency;
   interval: number;
+  /** Weekly, the days; monthly or yearly, the days `weekdays` and `set` pick from. */
   weekdays: RecurrenceWeekday[];
-  monthly_mode: "day_of_month" | "weekday";
-  day_of_month: number | null;
-  month: number | null;
+  monthly_mode: MonthlyMode;
+  /** Days of the month, -1 for the last. One day past 28 on its own falls on a
+   *  short month's last day. */
+  month_days: number[];
+  /** Yearly, the months (1–12); none repeats in the start's month. */
+  months: number[];
   weekday_position: TaskWeekPosition | null;
   weekday: RecurrenceWeekday | null;
+  set_position: "first" | "last";
   ends: "never" | "on_date" | "after_occurrences";
   end_after_occurrences: number | null;
   end_date: string | null;
@@ -94,7 +106,7 @@ export const getWeekPosition = (date: Date): TaskWeekPosition => {
     return "last";
   }
   const index = Math.ceil(day / 7);
-  return (["first", "second", "third", "fourth"][index - 1] ?? "last") as TaskWeekPosition;
+  return (["first", "second", "third", "fourth", "fifth"][index - 1] ?? "last") as TaskWeekPosition;
 };
 
 const sortWeekdays = (weekdays: RecurrenceWeekday[]) =>
@@ -105,10 +117,11 @@ const baseRule = (): RecurrenceRule => ({
   interval: 1,
   weekdays: [],
   monthly_mode: "day_of_month",
-  day_of_month: null,
-  month: null,
+  month_days: [],
+  months: [],
   weekday_position: null,
   weekday: null,
+  set_position: "last",
   ends: "never",
   end_after_occurrences: null,
   end_date: null,
@@ -140,16 +153,14 @@ export const createRecurrenceFromPreset = (
       return {
         ...baseRule(),
         frequency: "monthly",
-        monthly_mode: "day_of_month",
-        day_of_month: anchor.getDate(),
+        month_days: [anchor.getDate()],
       };
     case "yearly":
       return {
         ...baseRule(),
         frequency: "yearly",
-        monthly_mode: "day_of_month",
-        day_of_month: anchor.getDate(),
-        month: anchor.getMonth() + 1,
+        month_days: [anchor.getDate()],
+        months: [anchor.getMonth() + 1],
       };
     case "custom":
       return baseRule();
@@ -182,7 +193,8 @@ export const detectRecurrencePreset = (rule: RecurrenceRule | null): RecurrenceP
     rule.frequency === "monthly" &&
     rule.interval === 1 &&
     rule.monthly_mode === "day_of_month" &&
-    typeof rule.day_of_month === "number" &&
+    rule.month_days.length === 1 &&
+    rule.month_days[0] > 0 &&
     rule.ends === "never"
   ) {
     return "monthly";
@@ -191,8 +203,9 @@ export const detectRecurrencePreset = (rule: RecurrenceRule | null): RecurrenceP
     rule.frequency === "yearly" &&
     rule.interval === 1 &&
     rule.monthly_mode === "day_of_month" &&
-    typeof rule.day_of_month === "number" &&
-    typeof rule.month === "number" &&
+    rule.month_days.length === 1 &&
+    rule.month_days[0] > 0 &&
+    rule.months.length === 1 &&
     rule.ends === "never"
   ) {
     return "yearly";
@@ -200,16 +213,21 @@ export const detectRecurrencePreset = (rule: RecurrenceRule | null): RecurrenceP
   return "custom";
 };
 
-const formatWeekdayList = (weekdays: RecurrenceWeekday[], t: TranslateFn) => {
-  if (!weekdays.length) {
+const formatWeekdayList = (weekdays: RecurrenceWeekday[], t: TranslateFn) =>
+  formatList(
+    sortWeekdays(weekdays).map((day) => t(`dates:weekdays.${day}`)),
+    "conjunction"
+  );
+
+const formatList = (labels: string[], type: "conjunction" | "disjunction" = "conjunction") => {
+  if (!labels.length) {
     return "";
   }
-  const labels = sortWeekdays(weekdays).map((day) => t(`dates:weekdays.${day}`));
   if (labels.length === 1) {
     return labels[0] ?? "";
   }
   try {
-    return new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(labels);
+    return new Intl.ListFormat(undefined, { style: "long", type }).format(labels);
   } catch {
     if (labels.length === 2) {
       return `${labels[0]} and ${labels[1]}`;
@@ -235,17 +253,57 @@ const formatEnding = (rule: RecurrenceRule, t: TranslateFn) => {
   return "";
 };
 
+const WORK_DAYS: RecurrenceWeekday[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
+
 const describeMonthlyDetail = (rule: RecurrenceRule, t: TranslateFn) => {
-  if (rule.monthly_mode === "day_of_month" && typeof rule.day_of_month === "number") {
-    return t("dates:recurrenceSummary.onDay", { day: rule.day_of_month });
+  switch (rule.monthly_mode) {
+    case "day_of_month": {
+      const days = sortMonthDays(rule.month_days);
+      if (!days.length) return "";
+      if (days.length === 1) {
+        return days[0] === -1
+          ? t("dates:recurrenceSummary.onLastDay")
+          : t("dates:recurrenceSummary.onDay", { day: days[0] });
+      }
+      return t("dates:recurrenceSummary.onDays", {
+        days: formatList(
+          days.map((day) => (day === -1 ? t("dates:recurrenceSummary.lastDayItem") : String(day)))
+        ),
+      });
+    }
+    case "weekday":
+      return rule.weekday_position && rule.weekday
+        ? t("dates:recurrenceSummary.onPositionWeekday", {
+            position: t(`dates:positions.${rule.weekday_position}`),
+            weekday: t(`dates:weekdays.${rule.weekday}`),
+          })
+        : "";
+    case "weekdays":
+      return rule.weekdays.length
+        ? t("dates:recurrenceSummary.onEveryWeekdays", {
+            weekdays: formatWeekdayList(rule.weekdays, t),
+          })
+        : "";
+    case "set": {
+      if (!rule.weekdays.length) return "";
+      const workDays = sortWeekdays(rule.weekdays).join() === WORK_DAYS.join();
+      const first = rule.set_position === "first";
+      if (workDays) {
+        return t(
+          first ? "dates:recurrenceSummary.onFirstWorkDay" : "dates:recurrenceSummary.onLastWorkDay"
+        );
+      }
+      const weekdays = formatList(
+        sortWeekdays(rule.weekdays).map((day) => t(`dates:weekdays.${day}`)),
+        "disjunction"
+      );
+      return t(first ? "dates:recurrenceSummary.onFirstOf" : "dates:recurrenceSummary.onLastOf", {
+        weekdays,
+      });
+    }
+    default:
+      return "";
   }
-  if (rule.weekday_position && rule.weekday) {
-    return t("dates:recurrenceSummary.onPositionWeekday", {
-      position: t(`dates:positions.${rule.weekday_position}`),
-      weekday: t(`dates:weekdays.${rule.weekday}`),
-    });
-  }
-  return "";
 };
 
 export const summarizeRecurrence = (
@@ -280,13 +338,12 @@ export const summarizeRecurrence = (
       detail = describeMonthlyDetail(rule, t);
       break;
     case "yearly": {
-      const monthNum =
-        typeof rule.month === "number"
-          ? Math.max(1, Math.min(12, rule.month))
-          : options?.referenceDate
-            ? getReferenceDate(options.referenceDate).getMonth() + 1
-            : null;
-      const monthName = monthNum != null ? t(`dates:months.${monthNum}`) : "";
+      const months = rule.months.length
+        ? [...rule.months].sort((a, b) => a - b)
+        : options?.referenceDate
+          ? [getReferenceDate(options.referenceDate).getMonth() + 1]
+          : [];
+      const monthName = formatList(months.map((month) => t(`dates:months.${month}`)));
       const monthlyDetail = describeMonthlyDetail(rule, t);
       if (monthName && monthlyDetail) {
         detail = t("dates:recurrenceSummary.detailOfMonth", {
@@ -327,68 +384,71 @@ export const updateWeeklyWeekdays = (
   weekdays: sortWeekdays(weekdays),
 });
 
-export const updateMonthlyDay = (rule: RecurrenceRule, dayOfMonth: number): RecurrenceRule => ({
-  ...rule,
-  monthly_mode: "day_of_month",
-  day_of_month: Math.max(1, Math.min(31, Math.floor(dayOfMonth))),
-  weekday: null,
-  weekday_position: null,
-});
+/** Month days in order: the numbered ones, then the last. */
+export const sortMonthDays = (days: number[]) =>
+  [...new Set(days)].sort((a, b) => (a === -1 ? 32 : a) - (b === -1 ? 32 : b));
 
-export const updateMonthlyWeekday = (
+/**
+ * A monthly or yearly repeat moved to another way of picking its days, the
+ * fields that way needs taken from the start where it has none yet.
+ */
+export const withMonthlyMode = (
   rule: RecurrenceRule,
-  position: TaskWeekPosition,
-  weekday: RecurrenceWeekday
-): RecurrenceRule => ({
-  ...rule,
-  monthly_mode: "weekday",
-  day_of_month: null,
-  weekday_position: position,
-  weekday,
-});
-
-export const updateYearlyMonth = (rule: RecurrenceRule, month: number): RecurrenceRule => ({
-  ...rule,
-  month: Math.max(1, Math.min(12, Math.floor(month))),
-});
-
-export const ensureYearlyDefaults = (
-  rule: RecurrenceRule,
+  mode: MonthlyMode,
   referenceDate?: string | null
 ): RecurrenceRule => {
   const anchor = getReferenceDate(referenceDate);
-  return {
-    ...rule,
-    month: rule.month ?? anchor.getMonth() + 1,
-    monthly_mode: rule.monthly_mode ?? "day_of_month",
-    day_of_month:
-      rule.monthly_mode === "day_of_month" ? (rule.day_of_month ?? anchor.getDate()) : null,
-    weekday: rule.monthly_mode === "weekday" ? (rule.weekday ?? getWeekdayFromDate(anchor)) : null,
-    weekday_position:
-      rule.monthly_mode === "weekday" ? (rule.weekday_position ?? getWeekPosition(anchor)) : null,
-  };
+  const weekday = getWeekdayFromDate(anchor);
+  switch (mode) {
+    case "day_of_month":
+      return {
+        ...rule,
+        monthly_mode: mode,
+        month_days: rule.month_days.length ? rule.month_days : [anchor.getDate()],
+      };
+    case "weekday":
+      return {
+        ...rule,
+        monthly_mode: mode,
+        weekday: rule.weekday ?? weekday,
+        weekday_position: rule.weekday_position ?? getWeekPosition(anchor),
+      };
+    case "weekdays":
+      return {
+        ...rule,
+        monthly_mode: mode,
+        weekdays: rule.weekdays.length ? rule.weekdays : [weekday],
+      };
+    case "set":
+      return { ...rule, monthly_mode: mode, weekdays: WORK_DAYS };
+  }
 };
 
-export const ensureMonthlyDefaults = (
+/** A repeat moved to another frequency, keeping how often and when it ends. */
+export const withFrequency = (
   rule: RecurrenceRule,
+  frequency: RecurrenceFrequency,
   referenceDate?: string | null
 ): RecurrenceRule => {
   const anchor = getReferenceDate(referenceDate);
-  if (rule.monthly_mode === "weekday") {
+  const next: RecurrenceRule = {
+    ...baseRule(),
+    frequency,
+    ends: rule.ends,
+    end_after_occurrences: rule.end_after_occurrences,
+    end_date: rule.end_date,
+  };
+  if (frequency === "weekly") {
+    return { ...next, weekdays: [getWeekdayFromDate(anchor)] };
+  }
+  if (frequency === "monthly" || frequency === "yearly") {
     return {
-      ...rule,
-      weekday: rule.weekday ?? getWeekdayFromDate(anchor),
-      weekday_position: rule.weekday_position ?? getWeekPosition(anchor),
-      day_of_month: null,
+      ...next,
+      month_days: [anchor.getDate()],
+      months: frequency === "yearly" ? [anchor.getMonth() + 1] : [],
     };
   }
-  return {
-    ...rule,
-    monthly_mode: "day_of_month",
-    day_of_month: rule.day_of_month ?? anchor.getDate(),
-    weekday: null,
-    weekday_position: null,
-  };
+  return next;
 };
 
 // ---------------------------------------------------------------------------
@@ -413,11 +473,18 @@ const POSITION_NUMBERS: Record<TaskWeekPosition, number> = {
   second: 2,
   third: 3,
   fourth: 4,
+  fifth: 5,
   last: -1,
 };
 const POSITION_OF = Object.fromEntries(
   Object.entries(POSITION_NUMBERS).map(([name, n]) => [n, name])
 ) as Record<number, TaskWeekPosition>;
+
+/**
+ * An all-day event's stored start as the form reads a date: its UTC date, at
+ * local midnight, so it is that day in every zone.
+ */
+export const allDayReference = (start: string) => `${start.slice(0, 10)}T00:00:00`;
 
 /** The browser's zone, sent beside a rule so the server can store it. */
 export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -439,18 +506,27 @@ export const toRRule = (rule: RecurrenceRule, options?: { allDay?: boolean }): s
     );
   }
   if (rule.frequency === "monthly" || rule.frequency === "yearly") {
+    const weekdays = sortWeekdays(rule.weekdays)
+      .map((day) => CODES[day])
+      .join(",");
+    const days = sortMonthDays(rule.month_days);
     if (rule.monthly_mode === "weekday" && rule.weekday && rule.weekday_position) {
       parts.push(`BYDAY=${POSITION_NUMBERS[rule.weekday_position]}${CODES[rule.weekday]}`);
-    } else if (rule.day_of_month) {
-      const day = rule.day_of_month;
+    } else if (rule.monthly_mode === "weekdays" && weekdays) {
+      parts.push(`BYDAY=${weekdays}`);
+    } else if (rule.monthly_mode === "set" && weekdays) {
+      parts.push(`BYDAY=${weekdays}`, `BYSETPOS=${rule.set_position === "first" ? 1 : -1}`);
+    } else if (rule.monthly_mode === "day_of_month" && days.length === 1 && days[0] > 28) {
       // A day a short month lacks falls on that month's last day.
       parts.push(
-        day <= 28
-          ? `BYMONTHDAY=${day}`
-          : `BYMONTHDAY=${Array.from({ length: day - 27 }, (_, i) => 28 + i).join(",")};BYSETPOS=-1`
+        `BYMONTHDAY=${Array.from({ length: days[0] - 27 }, (_, i) => 28 + i).join(",")};BYSETPOS=-1`
       );
+    } else if (rule.monthly_mode === "day_of_month" && days.length) {
+      parts.push(`BYMONTHDAY=${days.join(",")}`);
     }
-    if (rule.frequency === "yearly" && rule.month) parts.push(`BYMONTH=${rule.month}`);
+    if (rule.frequency === "yearly" && rule.months.length) {
+      parts.push(`BYMONTH=${[...new Set(rule.months)].sort((a, b) => a - b).join(",")}`);
+    }
   }
   if (rule.ends === "after_occurrences" && rule.end_after_occurrences) {
     parts.push(`COUNT=${rule.end_after_occurrences}`);
@@ -513,14 +589,26 @@ const moveMonthday = (day: number, days: number): number => {
  * A stored rule's days read in the viewer's zone. They are the days it was
  * picked on, which the start moved by its shift lands on; a viewer elsewhere
  * sees them moved by the day between that and their own date. Where that move
- * leaves a shape the form can't show, the rule reads as custom.
+ * leaves a shape the form can't show, the rule reads as custom (`null`): the
+ * first or last of some weekdays, or every one of them in a month, moves
+ * across a month's end on some months and not others.
  */
-const toLocalParts = (parts: Parts, start: Date, shift: number): Parts => {
+const toLocalParts = (parts: Parts, start: Date, shift: number): Parts | null => {
   const picked = new Date(start.getTime() + shift * 60_000);
   const days = localDayNumber(start) - utcDayNumber(picked);
   if (!days) return parts;
   const moved: Parts = new Map(parts);
   const byday = parts.get("BYDAY") ?? [];
+  const monthly = ["MONTHLY", "YEARLY"].includes(parts.get("FREQ")?.[0] ?? "");
+  if (
+    (parts.has("BYSETPOS") && parts.has("BYDAY")) ||
+    (monthly &&
+      byday.length &&
+      byday.every((code) => code.length === 2) &&
+      !parts.has("BYMONTHDAY"))
+  ) {
+    return null;
+  }
   let monthdays = (parts.get("BYMONTHDAY") ?? []).map(Number);
   const shiftCode = (code: string) =>
     CODE_ORDER[(CODE_ORDER.indexOf(code.slice(-2)) + days + 7) % 7];
@@ -562,17 +650,21 @@ const toLocalParts = (parts: Parts, start: Date, shift: number): Parts => {
 /**
  * The rule the form edits, from a stored rule and its series start (an event's
  * start, a task's due date): `null` for no repeat, `"custom"` for one the form
- * can't show, which is kept as it is until somebody picks another.
+ * can't show, which is kept as it is until somebody picks another. An all-day
+ * event's days are UTC dates, the same for every viewer, so they are read as
+ * they are.
  */
 export const fromStored = (
   stored: string | null | undefined,
   start: string | null | undefined,
-  shift = 0
+  shift = 0,
+  allDay = false
 ): RecurrenceRule | "custom" | null => {
   if (!stored) return null;
   const raw = parseRule(stored);
   if (!raw) return "custom";
-  const parts = start ? toLocalParts(raw, new Date(start), shift) : raw;
+  const parts = start && !allDay ? toLocalParts(raw, new Date(start), shift) : raw;
+  if (!parts) return "custom";
   const freq = (parts.get("FREQ")?.[0] ?? "").toLowerCase() as RecurrenceFrequency;
   if (!(freq in FREQUENCY_LABELS)) return "custom";
   const known = new Set([
@@ -599,23 +691,24 @@ export const fromStored = (
     if (monthdays.length || setpos || byday.some((code) => !WEEKDAY_OF[code])) return "custom";
     rule.weekdays = byday.map((code) => WEEKDAY_OF[code]);
   } else if (freq === "monthly" || freq === "yearly") {
-    if (
-      byday.length === 1 &&
-      POSITION_OF[Number(byday[0].slice(0, -2))] &&
-      !monthdays.length &&
-      !setpos
-    ) {
+    const plain = byday.length > 0 && byday.every((code) => WEEKDAY_OF[code]);
+    const position = byday.length === 1 ? POSITION_OF[Number(byday[0].slice(0, -2))] : undefined;
+    if (position && !monthdays.length && !setpos) {
       rule.monthly_mode = "weekday";
-      rule.weekday_position = POSITION_OF[Number(byday[0].slice(0, -2))];
+      rule.weekday_position = position;
       rule.weekday = WEEKDAY_OF[byday[0].slice(-2)] ?? null;
+    } else if (plain && !monthdays.length && !setpos) {
+      rule.monthly_mode = "weekdays";
+      rule.weekdays = sortWeekdays(byday.map((code) => WEEKDAY_OF[code]));
     } else if (
-      !byday.length &&
-      monthdays.length === 1 &&
-      monthdays[0] >= 1 &&
-      monthdays[0] <= 28 &&
-      !setpos
+      plain &&
+      !monthdays.length &&
+      freq === "monthly" &&
+      (setpos?.join() === "1" || setpos?.join() === "-1")
     ) {
-      rule.day_of_month = monthdays[0];
+      rule.monthly_mode = "set";
+      rule.weekdays = sortWeekdays(byday.map((code) => WEEKDAY_OF[code]));
+      rule.set_position = setpos.join() === "1" ? "first" : "last";
     } else if (
       !byday.length &&
       setpos?.join() === "-1" &&
@@ -623,13 +716,23 @@ export const fromStored = (
       monthdays.every((day, i) => day === 28 + i) &&
       monthdays.length <= 4
     ) {
-      rule.day_of_month = 27 + monthdays.length;
+      rule.month_days = [27 + monthdays.length];
+    } else if (
+      !byday.length &&
+      !setpos &&
+      monthdays.length &&
+      monthdays.every((day) => day === -1 || (day >= 1 && day <= 31)) &&
+      // One day past 28 on its own skips short months, which the form's
+      // single day doesn't: it falls on their last day.
+      !(monthdays.length === 1 && monthdays[0] > 28)
+    ) {
+      rule.month_days = sortMonthDays(monthdays);
     } else if (byday.length || monthdays.length || setpos) {
       return "custom";
     }
-    const months = parts.get("BYMONTH");
-    if (months && (freq === "monthly" || months.length > 1)) return "custom";
-    rule.month = months ? Number(months[0]) : null;
+    const months = (parts.get("BYMONTH") ?? []).map(Number);
+    if (months.length && freq === "monthly") return "custom";
+    rule.months = months;
   } else if (byday.length || monthdays.length || setpos || parts.has("BYMONTH")) {
     return "custom";
   }
@@ -658,12 +761,21 @@ const toLocalDateKey = (date: Date) =>
 export const summarizeStored = (
   stored: string | null | undefined,
   start: string | null | undefined,
-  options: { strategy?: TaskListReadRecurrenceStrategy; shift?: number } | undefined,
+  options:
+    | { strategy?: TaskListReadRecurrenceStrategy; shift?: number; allDay?: boolean }
+    | undefined,
   t: TranslateFn
 ): string => {
-  const rule = fromStored(stored, start, options?.shift);
+  const rule = fromStored(stored, start, options?.shift, options?.allDay);
   if (rule === "custom") return t("dates:recurrenceSummary.custom");
-  return summarizeRecurrence(rule, { referenceDate: start, strategy: options?.strategy }, t);
+  return summarizeRecurrence(
+    rule,
+    {
+      referenceDate: options?.allDay && start ? allDayReference(start) : start,
+      strategy: options?.strategy,
+    },
+    t
+  );
 };
 
 /**

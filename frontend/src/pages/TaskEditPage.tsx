@@ -665,6 +665,11 @@ export const TaskEditPage = () => {
                 selectedAssignees={task?.assignees}
                 descriptionSlot={descriptionSlot}
                 recurrenceReferenceDate={dueDate || startDate || task?.due_date || task?.start_date}
+                storedRecurrence={
+                  task?.recurrence
+                    ? { rule: task.recurrence, shift: task.recurrence_shift ?? 0 }
+                    : null
+                }
               />
 
               {/* Save and cancel are the only actions that earn a button here;

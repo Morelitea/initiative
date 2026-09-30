@@ -39,6 +39,9 @@ class RecurrencePreviewRequest(SanitizedBaseModel):
     #: all-day event, whose days are UTC dates.
     tz: Optional[str] = Field(default=None, max_length=64)
     kind: Literal["task", "event"]
+    #: A stored rule's own shift, to preview it as it runs; without one, the
+    #: shift is taken in ``tz``.
+    shift: Optional[int] = Field(default=None, ge=-1440, le=1440)
     count: int = Field(default=5, ge=1, le=20)
 
 

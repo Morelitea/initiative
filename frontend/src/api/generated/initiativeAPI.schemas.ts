@@ -7895,6 +7895,7 @@ export interface RecurrencePreviewRequest {
   start: string;
   tz?: string | null;
   kind: RecurrencePreviewRequestKind;
+  shift?: number | null;
   /**
    * @minimum 1
    * @maximum 20

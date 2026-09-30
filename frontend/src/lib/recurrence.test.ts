@@ -14,10 +14,11 @@ const rule = (overrides: Partial<RecurrenceRule>): RecurrenceRule => ({
   interval: 1,
   weekdays: [],
   monthly_mode: "day_of_month",
-  day_of_month: null,
-  month: null,
+  month_days: [],
+  months: [],
   weekday_position: null,
   weekday: null,
+  set_position: "last",
   ends: "never",
   end_after_occurrences: null,
   end_date: null,
@@ -45,7 +46,7 @@ describe("toRRule", () => {
       )
     ).toBe("RRULE:FREQ=MONTHLY;BYDAY=2MO;UNTIL=20261214T225959Z");
     // The 31st falls on a short month's last day, as it always has.
-    expect(toRRule(rule({ frequency: "monthly", day_of_month: 31 }))).toBe(
+    expect(toRRule(rule({ frequency: "monthly", month_days: [31] }))).toBe(
       "RRULE:FREQ=MONTHLY;BYMONTHDAY=28,29,30,31;BYSETPOS=-1"
     );
     expect(
@@ -53,6 +54,91 @@ describe("toRRule", () => {
         allDay: true,
       })
     ).toBe("RRULE:FREQ=DAILY;UNTIL=20261214");
+  });
+});
+
+describe("every shape the editor builds", () => {
+  const shapes: [Partial<RecurrenceRule>, string][] = [
+    [{ frequency: "monthly", month_days: [-1, 15, 1] }, "RRULE:FREQ=MONTHLY;BYMONTHDAY=1,15,-1"],
+    [
+      {
+        frequency: "monthly",
+        monthly_mode: "weekday",
+        weekday_position: "fifth",
+        weekday: "friday",
+      },
+      "RRULE:FREQ=MONTHLY;BYDAY=5FR",
+    ],
+    [
+      {
+        frequency: "monthly",
+        interval: 2,
+        monthly_mode: "weekdays",
+        weekdays: ["monday", "wednesday"],
+      },
+      "RRULE:FREQ=MONTHLY;INTERVAL=2;BYDAY=MO,WE",
+    ],
+    [
+      {
+        frequency: "monthly",
+        monthly_mode: "set",
+        weekdays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+      },
+      "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+    ],
+    [
+      { frequency: "yearly", month_days: [15], months: [7, 1] },
+      "RRULE:FREQ=YEARLY;BYMONTHDAY=15;BYMONTH=1,7",
+    ],
+  ];
+
+  it.each(shapes)("writes and reads back %j", (picked, line) => {
+    const built = rule(picked);
+    expect(toRRule(built)).toBe(line);
+    // Read back where it was picked, it is the rule that was built.
+    expect(fromStored(line, START, 1440)).toEqual({
+      ...built,
+      month_days: [...(built.month_days ?? [])].sort(
+        (a, b) => (a === -1 ? 32 : a) - (b === -1 ? 32 : b)
+      ),
+      months: [...(built.months ?? [])].sort((a, b) => a - b),
+    });
+  });
+
+  it("says each in words", () => {
+    const t = ((key: string, values?: Record<string, unknown>) =>
+      values ? `${key}(${Object.values(values).join("|")})` : key) as Parameters<
+      typeof summarizeStored
+    >[3];
+    expect(
+      summarizeStored("RRULE:FREQ=MONTHLY;BYMONTHDAY=-1", START, { shift: 1440 }, t)
+    ).toContain("dates:recurrenceSummary.onLastDay");
+    expect(
+      summarizeStored(
+        "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1",
+        START,
+        { shift: 1440 },
+        t
+      )
+    ).toContain("dates:recurrenceSummary.onFirstWorkDay");
+  });
+
+  it("reads an all-day event's days as they are, and a year's last work day as custom", () => {
+    // An all-day event's days are UTC dates, the same for every viewer.
+    expect(fromStored("RRULE:FREQ=WEEKLY;BYDAY=MO", START, 0, true)).toMatchObject({
+      weekdays: ["monday"],
+    });
+    // The last of some days is taken once a year there, not once a month.
+    expect(
+      fromStored("RRULE:FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1", START, 1440)
+    ).toBe("custom");
+  });
+
+  it("reads a set or every-weekday rule from another zone's days as custom", () => {
+    // In UTC days (no shift), Berlin's Monday is a Sunday: the last weekday of
+    // a month moves across its end on some months, so no one rule says it.
+    expect(fromStored("RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1", START)).toBe("custom");
+    expect(fromStored("RRULE:FREQ=MONTHLY;BYDAY=MO", START)).toBe("custom");
   });
 });
 
@@ -80,7 +166,7 @@ describe("fromStored", () => {
       end_date: "2026-12-14",
     });
     expect(fromStored("RRULE:FREQ=MONTHLY;BYMONTHDAY=28,29,30,31;BYSETPOS=-1", null)).toMatchObject(
-      { day_of_month: 31 }
+      { month_days: [31] }
     );
     expect(fromStored(null, START)).toBeNull();
   });
