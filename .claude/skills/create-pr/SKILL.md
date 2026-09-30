@@ -29,9 +29,14 @@ Repo rules that this skill must honor (from `CLAUDE.md`):
    - **`scripts/ci/check`**: the fast checks CI runs, by the same script CI
      calls (ruff, ruff format, ty, frozen migrations and one Alembic head,
      biome, tsc, and generated-types / `env-contract.json` drift), for what the
-     branch changed against `origin/dev`. No database, no tests; seconds. If
-     `codegen` fails, `scripts/ci/check codegen` has regenerated the files:
-     review and commit them.
+     branch changed against `origin/dev`. No database, no tests; seconds.
+     When `codegen` fails, read why before committing anything:
+     - "it differs from what is committed": it has regenerated the files.
+       Review the diff and commit it.
+     - "uncommitted changes, which regenerating would overwrite": it stopped
+       before generating. Commit or discard those changes and run it again.
+     - anything else (a missing `.venv` or `node_modules`, an export error):
+       nothing was regenerated. Fix that and run it again.
    - Tests for what changed: `cd backend && ./scripts/test-changed.sh` and
      `cd frontend && ./scripts/test-changed.sh`.
    Fix anything that fails before opening the PR — a red gate locally will be
@@ -187,9 +192,12 @@ The CI workflow's jobs on this repo include **Backend Lint & Tests**,
 minutes; **Backend Lint & Tests** is the long pole. Detect Changes picks its
 mode from the diff (CLAUDE.md, "Which backend tests a pull request runs"):
 - **every test** (the ~26-minute case) for a change test selection cannot see:
-  `backend/alembic/`, `app/db/`, `app/testing/`, `conftest.py`,
-  `pytest.ini`, dependencies, non-Python files under `app/`, or
-  `.github/workflows/ci.yml`;
+  under `backend/`, `alembic/`, `app/db/`, `app/testing/`,
+  `app/core/capabilities.py`, `app/core/config.py`, `conftest.py`,
+  `pytest.ini`, `pyproject.toml`, `uv.lock`, `scripts/ci/` and non-Python
+  files under `app/`; and `.github/workflows/ci.yml` or
+  `.github/actions/setup-backend/`. The `changes` job in `ci.yml` holds the
+  list, and wins if this one drifts;
 - **the always-run core plus the tests the change reaches** for an ordinary
   backend change;
 - **only the always-run core** when nothing in `backend/` changed but more
