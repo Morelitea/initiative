@@ -31,7 +31,6 @@ import type {
   ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
   ListMyTasksApiV1MeTasksGetParams,
   ListTasksApiV1CGuildIdTasksGetParams,
-  PropertyValuesSetRequest,
   ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
   TaskCreate,
   TaskListResponse,
@@ -1373,122 +1372,6 @@ export const useGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost
 > => {
   return useMutation(
     getGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Replace the custom property values on a task.
- *
- * Deprecated: ``PATCH /tasks/{task_id}`` takes the same ``property_values``
- * list. Kept while installed apps move over. Requires write access. Validates
- * each value against its definition's type and options server-side. An
- * installed app names the person a person-valued property holds by its
- * reference for them.
- * @deprecated
- * @summary Set Task Properties
- */
-export const setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut = (
-  guildId: number,
-  taskId: number,
-  propertyValuesSetRequest: BodyType<PropertyValuesSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<TaskRead>(
-    {
-      url: `/api/v1/c/${guildId}/tasks/${taskId}/properties`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: propertyValuesSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationKey = () =>
-  ["setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut"] as const;
-
-export const getSetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut>>,
-    TError,
-    SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut>>,
-  TError,
-  SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut>>,
-    SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationVariables
-  > = (props) => {
-    const { guildId, taskId, data } = props ?? {};
-
-    return setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut(
-      guildId,
-      taskId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut>>
->;
-export type SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationBody =
-  BodyType<PropertyValuesSetRequest>;
-export type SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationVariables = {
-  guildId: number;
-  taskId: number;
-  data: BodyType<PropertyValuesSetRequest>;
-};
-
-/**
- * @deprecated
- * @summary Set Task Properties
- */
-export const useSetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut>>,
-      TError,
-      SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut>>,
-  TError,
-  SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationOptions(options),
     queryClient
   );
 };

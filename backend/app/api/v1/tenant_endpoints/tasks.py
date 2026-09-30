@@ -37,7 +37,6 @@ from app.schemas.ai_generation import (
     GenerateChecklistResponse,
     GenerateDescriptionResponse,
 )
-from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
@@ -1059,37 +1058,3 @@ async def generate_task_description(
         return GenerateDescriptionResponse(description=description)
     except ai_generation_service.AIGenerationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.code)
-
-
-@router.put("/{task_id}/properties", response_model=TaskRead, deprecated=True)
-async def set_task_properties(
-    task_id: int,
-    payload: PropertyValuesSetRequest,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: ProjectsWrite,
-) -> Task:
-    """Replace the custom property values on a task.
-
-    Deprecated: ``PATCH /tasks/{task_id}`` takes the same ``property_values``
-    list. Kept while installed apps move over. Requires write access. Validates
-    each value against its definition's type and options server-side. An
-    installed app names the person a person-valued property holds by its
-    reference for them.
-    """
-    task = await _load_for_change(session, task_id, current_user, guild_context)
-    try:
-        await properties_service.set_task_property_values(
-            session,
-            task,
-            await properties_service.property_values_by_row_id(session, payload.values),
-            task.project.initiative_id,
-        )
-    except HTTPException:
-        await session.rollback()
-        raise
-    now = datetime.now(timezone.utc)
-    task.updated_at = now
-    _touch_project(task.project, now)
-    await session.commit()
-    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)

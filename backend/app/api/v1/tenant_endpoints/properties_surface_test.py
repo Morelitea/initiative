@@ -70,6 +70,9 @@ class Surface:
     make: Callable[[AsyncSession, Actor, Any, str], Awaitable[int]]
     #: The list query keeping only entities whose value equals ``value``.
     filter_query: Callable[[Actor, Any, int, Any], str]
+    #: How the values are replaced: the method, the path after the entity, and
+    #: the key the list goes under. A task's ride its own PATCH.
+    write: tuple[str, str, str] = ("PUT", "/properties", "values")
 
 
 async def _project_in(session, a, initiative):
@@ -129,6 +132,7 @@ TASKS = Surface(
     parent=_project_in,
     make=_make_task,
     filter_query=_conditions_filter,
+    write=("PATCH", "", "property_values"),
 )
 DOCUMENTS = Surface(
     kind="document",
@@ -163,11 +167,13 @@ async def _scene(surface: Surface, session, acting_user) -> tuple[Actor, Any]:
     return a, await surface.parent(session, a, a.initiative)
 
 
-async def _put(client, a: Actor, surface: Surface, entity_id: int, values: list):
-    return await client.put(
-        a.g(f"/{surface.path}/{entity_id}/properties"),
+async def _write(client, a: Actor, surface: Surface, entity_id: int, values: list):
+    method, suffix, key = surface.write
+    return await client.request(
+        method,
+        a.g(f"/{surface.path}/{entity_id}{suffix}"),
         headers=a.headers,
-        json={"values": values},
+        json={key: values},
     )
 
 
@@ -207,7 +213,7 @@ async def test_put_sets_values(
         session, a.initiative, name="Score", type=PropertyType.number
     )
 
-    response = await _put(
+    response = await _write(
         client,
         a,
         surface,
@@ -233,9 +239,11 @@ async def test_put_of_nothing_clears_what_was_there(
     defn = await create_property_definition(
         session, a.initiative, name="Tag", type=PropertyType.text
     )
-    await _put(client, a, surface, entity, [{"property_id": defn.id, "value": "seed"}])
+    await _write(
+        client, a, surface, entity, [{"property_id": defn.id, "value": "seed"}]
+    )
 
-    response = await _put(client, a, surface, entity, [])
+    response = await _write(client, a, surface, entity, [])
 
     assert response.status_code == 200
     assert response.json()[surface.values_key] == []
@@ -257,7 +265,7 @@ async def test_put_refuses_a_value_the_type_cannot_read(
         session, a.initiative, name="Count", type=PropertyType.number
     )
 
-    response = await _put(
+    response = await _write(
         client, a, surface, entity, [{"property_id": defn.id, "value": "not a number"}]
     )
 
@@ -290,7 +298,7 @@ async def test_put_holds_a_value_to_its_type(
     entity = await DOCUMENTS.make(session, a, parent, "E")
     defn = await create_property_definition(session, a.initiative, name="V", type=type_)
 
-    response = await _put(
+    response = await _write(
         client, a, DOCUMENTS, entity, [{"property_id": defn.id, "value": value}]
     )
 
@@ -333,7 +341,7 @@ async def test_put_refuses_an_option_the_definition_lacks(
         options=[{"value": "a", "label": "A"}, {"value": "b", "label": "B"}],
     )
 
-    response = await _put(
+    response = await _write(
         client, a, surface, entity, [{"property_id": defn.id, "value": value}]
     )
 
@@ -356,7 +364,7 @@ async def test_put_refuses_a_person_who_cannot_open_it(
         session, a.initiative, name="Owner", type=PropertyType.user_reference
     )
 
-    response = await _put(
+    response = await _write(
         client, a, surface, entity, [{"property_id": defn.id, "value": outsider.id}]
     )
 
@@ -378,7 +386,7 @@ async def test_put_refuses_a_definition_from_another_initiative(
     elsewhere = await create_initiative(session, a.guild, a.user, name="B")
     foreign = await create_property_definition(session, elsewhere, name="Foreign")
 
-    response = await _put(
+    response = await _write(
         client, a, surface, entity, [{"property_id": foreign.id, "value": "x"}]
     )
 
@@ -400,11 +408,7 @@ async def test_put_on_an_entity_of_another_community_is_not_found(
     parent_b = await surface.parent(session, a, initiative_b)
     entity_b = await surface.make(session, a, parent_b, "B")
 
-    response = await client.put(
-        f"/api/v1/c/{a.guild.id}/{surface.path}/{entity_b}/properties",
-        headers=a.headers,
-        json={"values": []},
-    )
+    response = await _write(client, a, surface, entity_b, [])
 
     assert response.status_code == 404
     assert response.json()["detail"] == surface.not_found_code
@@ -425,8 +429,10 @@ async def test_list_filters_by_a_text_value(
     defn = await create_property_definition(
         session, a.initiative, name="Tag", type=PropertyType.text
     )
-    await _put(client, a, surface, match, [{"property_id": defn.id, "value": "findme"}])
-    await _put(client, a, surface, other, [{"property_id": defn.id, "value": "skip"}])
+    await _write(
+        client, a, surface, match, [{"property_id": defn.id, "value": "findme"}]
+    )
+    await _write(client, a, surface, other, [{"property_id": defn.id, "value": "skip"}])
 
     listed = await _listed(client, a, surface, parent, defn.id, "findme")
 
@@ -453,14 +459,14 @@ async def test_list_filters_by_a_selected_option(
             {"value": "gamma", "label": "Gamma"},
         ],
     )
-    await _put(
+    await _write(
         client,
         a,
         surface,
         with_alpha,
         [{"property_id": defn.id, "value": ["alpha", "beta"]}],
     )
-    await _put(
+    await _write(
         client, a, surface, without, [{"property_id": defn.id, "value": ["gamma"]}]
     )
 
@@ -485,7 +491,7 @@ async def test_moving_a_task_to_another_initiative_drops_its_values(
     defn = await create_property_definition(
         session, a.initiative, name="Tag", type=PropertyType.text
     )
-    await _put(
+    await _write(
         client, a, TASKS, task, [{"property_id": defn.id, "value": "beforeMove"}]
     )
 
@@ -507,7 +513,7 @@ async def test_duplicating_a_task_in_its_project_carries_its_values(
     defn = await create_property_definition(
         session, a.initiative, name="Tag", type=PropertyType.text
     )
-    await _put(client, a, TASKS, task, [{"property_id": defn.id, "value": "carry"}])
+    await _write(client, a, TASKS, task, [{"property_id": defn.id, "value": "carry"}])
 
     duplicated = await client.post(a.g(f"/tasks/{task}/duplicate"), headers=a.headers)
 
@@ -530,7 +536,7 @@ async def test_list_documents_filters_by_a_number(
     )
     docs = [await _make_document(session, a, initiative, f"D{n}") for n in range(3)]
     for doc, score in zip(docs, [10, 20, 30]):
-        await _put(
+        await _write(
             client, a, DOCUMENTS, doc, [{"property_id": defn.id, "value": score}]
         )
 
@@ -573,7 +579,7 @@ async def test_duplicating_a_document_in_place_carries_its_values(
     defn = await create_property_definition(
         session, initiative, name="Tag", type=PropertyType.text
     )
-    await _put(
+    await _write(
         client, a, DOCUMENTS, doc, [{"property_id": defn.id, "value": "carryover"}]
     )
 
@@ -596,7 +602,9 @@ async def test_copying_a_document_to_another_initiative_drops_its_values(
     defn = await create_property_definition(
         session, initiative, name="Tag", type=PropertyType.text
     )
-    await _put(client, a, DOCUMENTS, doc, [{"property_id": defn.id, "value": "onlyA"}])
+    await _write(
+        client, a, DOCUMENTS, doc, [{"property_id": defn.id, "value": "onlyA"}]
+    )
 
     copied = await client.post(
         a.g(f"/documents/{doc}/copy"),
@@ -625,7 +633,7 @@ async def test_attaching_a_property_to_an_event_without_a_value_keeps_a_row(
         session, a.initiative, name="Empty", type=PropertyType.text
     )
 
-    response = await _put(
+    response = await _write(
         client, a, EVENTS, event, [{"property_id": defn.id, "value": None}]
     )
 
@@ -641,7 +649,7 @@ async def test_reading_an_event_embeds_its_values(
     defn = await create_property_definition(
         session, a.initiative, name="Topic", type=PropertyType.text
     )
-    await _put(
+    await _write(
         client, a, EVENTS, event, [{"property_id": defn.id, "value": "onboarding"}]
     )
 
@@ -660,7 +668,7 @@ async def test_list_events_is_null_matches_the_unset(
     defn = await create_property_definition(
         session, a.initiative, name="Topic", type=PropertyType.text
     )
-    await _put(
+    await _write(
         client, a, EVENTS, with_value, [{"property_id": defn.id, "value": "yes"}]
     )
 
@@ -688,7 +696,7 @@ async def test_purging_an_initiative_takes_its_event_values_with_it(
     defn = await create_property_definition(
         session, a.initiative, name="Topic", type=PropertyType.text
     )
-    await _put(client, a, EVENTS, event, [{"property_id": defn.id, "value": "hold"}])
+    await _write(client, a, EVENTS, event, [{"property_id": defn.id, "value": "hold"}])
 
     deleted = await client.delete(
         a.g(f"/initiatives/{a.initiative.id}"), headers=a.headers

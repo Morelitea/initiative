@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /settings/interface` → `GET /config`, which now includes the accent colours.
   - `GET /users/{id}/dm-permission` → `POST /me/dm-permissions` with that one id.
   - `PUT /calendar-events/{id}/tags` and `PUT /queues/{id}/items/{item_id}/tags` → `tag_ids` on each one's `PATCH`.
-  - `PUT /tasks/{id}/properties` is deprecated in favour of `property_values` on `PATCH /tasks/{id}`, and will be removed in a later release.
+  - `PUT /tasks/{id}/properties` → `property_values` on `PATCH /tasks/{id}`.
 
 ### Fixed
 
