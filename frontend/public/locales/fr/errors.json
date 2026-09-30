@@ -716,6 +716,7 @@
   "WIKI_PAGE_PARENT_DESCENDANT": "Une page ne peut pas être classée sous l’une de ses sous-pages",
   "WIKI_HOME_NOT_IN_WIKI": "La page d’accueil doit être une page de ce wiki",
   "WIKI_TEMPLATE_NOT_IN_WIKI": "Le modèle doit être une page de ce wiki",
+  "WIKI_LIVE_SESSION_OWNS_CONTENT": "Cette page est en cours d'édition en direct. Reconnecte-toi à la session d'édition pour enregistrer tes modifications.",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Cette règle n'est pas la vôtre",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connectez ce fournisseur à votre communauté avant de dire ce que ses groupes signifient",
   "AUTH_PROVIDER_RULE_EXISTS": "Ce groupe arrive déjà là",

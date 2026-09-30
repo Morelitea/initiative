@@ -716,6 +716,7 @@
   "WIKI_PAGE_PARENT_DESCENDANT": "Una página no puede archivarse dentro de una de sus subpáginas",
   "WIKI_HOME_NOT_IN_WIKI": "La página de inicio debe ser una página de este wiki",
   "WIKI_TEMPLATE_NOT_IN_WIKI": "La plantilla debe ser una página de este wiki",
+  "WIKI_LIVE_SESSION_OWNS_CONTENT": "Esta página se está editando en directo. Vuelve a conectarte a la sesión de edición para guardar tus cambios.",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "Esa regla no es vuestra",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Conectad ese proveedor a vuestra comunidad antes de decir qué significan sus grupos",
   "AUTH_PROVIDER_RULE_EXISTS": "Ese grupo ya llega ahí",

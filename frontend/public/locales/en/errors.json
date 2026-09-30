@@ -716,6 +716,7 @@
   "WIKI_PAGE_PARENT_DESCENDANT": "A page cannot be filed under one of its own sub-pages",
   "WIKI_HOME_NOT_IN_WIKI": "The home page has to be one of this wiki's own pages",
   "WIKI_TEMPLATE_NOT_IN_WIKI": "The template has to be one of this wiki’s own pages",
+  "WIKI_LIVE_SESSION_OWNS_CONTENT": "This page is being edited live. Reconnect to the editing session to save your changes.",
   "AUTH_PROVIDER_RULE_NOT_FOUND": "That rule is not one of yours",
   "AUTH_PROVIDER_RULE_PROVIDER_NOT_CONNECTED": "Connect that provider to your community before saying what its groups mean",
   "AUTH_PROVIDER_RULE_EXISTS": "That group already lands there",

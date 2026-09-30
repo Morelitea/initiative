@@ -1003,6 +1003,9 @@ class WikiMessages:
     HOME_NOT_IN_WIKI = "WIKI_HOME_NOT_IN_WIKI"
     #: So does the page new ones are copied from.
     TEMPLATE_NOT_IN_WIKI = "WIKI_TEMPLATE_NOT_IN_WIKI"
+    #: A page with a live collaboration room has that room as the writer of
+    #: its content; a save from outside the session is refused.
+    LIVE_SESSION_OWNS_CONTENT = "WIKI_LIVE_SESSION_OWNS_CONTENT"
 
 
 class MarketplaceMessages:
