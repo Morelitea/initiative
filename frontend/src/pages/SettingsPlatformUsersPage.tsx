@@ -5,6 +5,7 @@ import {
   LockOpen,
   Mail,
   MailCheck,
+  ShieldOff,
   Trash2,
   UserCheck,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useExportPlatformUsersCsv,
   useOperatorClearAgeBlock,
+  useOperatorClearSecondFactor,
   useOperatorLiftSignInLock,
   useOperatorReactivateUser,
   useOperatorResendVerification,
@@ -63,6 +65,9 @@ export const SettingsPlatformUsersPage = () => {
     userId: number;
     handle: string;
   } | null>(null);
+  const [clearSecondFactorTarget, setClearSecondFactorTarget] = useState<OperatorUserRead | null>(
+    null
+  );
   const [deleteUserTarget, setDeleteUserTarget] = useState<OperatorUserRead | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
 
@@ -143,6 +148,11 @@ export const SettingsPlatformUsersPage = () => {
 
   const liftSignInLock = useOperatorLiftSignInLock({
     onSuccess: () => toast.success(t("settings:platformUsers.signInLockLifted")),
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
+  });
+
+  const clearSecondFactor = useOperatorClearSecondFactor({
+    onSuccess: () => toast.success(t("settings:platformUsers.secondFactorCleared")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
@@ -383,6 +393,12 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.liftSignInLock")}
               </DropdownMenuItem>
             )}
+            {abilities.canManageUsers && platformUser.second_factor_enrolled && (
+              <DropdownMenuItem onSelect={() => setClearSecondFactorTarget(platformUser)}>
+                <ShieldOff className="h-4 w-4" />
+                {t("platformUsers.clearSecondFactor")}
+              </DropdownMenuItem>
+            )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}
@@ -493,6 +509,22 @@ export const SettingsPlatformUsersPage = () => {
         cancelLabel={t("common:cancel")}
         onConfirm={confirmResetPassword}
         isLoading={resetPassword.isPending}
+      />
+
+      <ConfirmDialog
+        open={clearSecondFactorTarget !== null}
+        onOpenChange={(open) => !open && setClearSecondFactorTarget(null)}
+        title={t("platformUsers.clearSecondFactor")}
+        description={t("platformUsers.clearSecondFactorDescription", {
+          handle: clearSecondFactorTarget ? getUserHandle(clearSecondFactorTarget) : "",
+        })}
+        confirmLabel={t("platformUsers.clearSecondFactorConfirm")}
+        cancelLabel={t("common:cancel")}
+        onConfirm={() => {
+          if (clearSecondFactorTarget) clearSecondFactor.mutate(clearSecondFactorTarget.id);
+        }}
+        isLoading={clearSecondFactor.isPending}
+        destructive
       />
 
       {deleteUserTarget && (

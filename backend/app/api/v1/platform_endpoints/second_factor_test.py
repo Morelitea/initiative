@@ -322,10 +322,24 @@ async def test_support_can_clear_a_lost_factor(
     user, _secret, _codes = await _enrol(client, session, "lostphone@example.com")
     staff = await acting_user("moderator")
 
+    async def roster_says_enrolled() -> bool:
+        roster = await client.get(
+            "/api/v1/operator/users",
+            params={"search": user.username},
+            headers=staff.headers,
+        )
+        assert roster.status_code == 200, roster.text
+        (row,) = [r for r in roster.json()["items"] if r["id"] == user.id]
+        return row["second_factor_enrolled"]
+
+    # The roster is where staff find it to clear.
+    assert await roster_says_enrolled()
+
     response = await client.delete(
         f"/api/v1/operator/users/{user.id}/second-factor", headers=staff.headers
     )
     assert response.status_code == 204, response.text
+    assert not await roster_says_enrolled()
 
     signed_in = await _sign_in(client, "lostphone@example.com")
     assert signed_in.status_code == 200
