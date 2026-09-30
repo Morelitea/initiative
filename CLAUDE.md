@@ -135,7 +135,7 @@ Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `
 ./scripts/promote.sh --dry-run
 ```
 
-The release branch's image is built once: `release-candidate.yml` builds and signs it on every push to `release/vX.Y.Z`, walks it from every release in both setups (`upgrade.yml`), and tags it `candidate-<tree>` when that passes. After the release PR merges to `main`, `tag-release.yml` auto-creates the version tag, and `docker-publish.yml` retags the candidate whose tree the tag holds as the release (no rebuild), building one only if there is none, then makes the GitHub Release.
+The release branch's image is built once: `release-candidate.yml` builds and signs it on every push to `release/vX.Y.Z`, walks it from every release in both setups (`upgrade.yml`), and tags it `candidate-<tree>` when that passes. After the release PR merges to `main`, `tag-release.yml` auto-creates the version tag, and `docker-publish.yml` retags the candidate whose tree the tag holds as the release (no rebuild). Without one, it builds the image and walks it the same way before tagging it, so no release image is published unwalked. Then it makes the GitHub Release.
 
 ### Semantic Versioning Guidelines
 

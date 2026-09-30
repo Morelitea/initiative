@@ -40,6 +40,7 @@ def detect(
     event: str = "pull_request",
     base_ref: str = "dev",
     head_ref: str = "feature",
+    same_repo: bool = True,
 ) -> dict[str, str]:
     """Commit ``changed`` on top of ``origin/<base_ref>`` and return the
     step's outputs."""
@@ -90,6 +91,7 @@ def detect(
                     "EVENT": event,
                     "BASE_REF": base_ref,
                     "HEAD_REF": head_ref,
+                    "SAME_REPO": str(same_repo).lower(),
                     "BEFORE": base,
                     "GITHUB_OUTPUT": str(output),
                     "GITHUB_STEP_SUMMARY": str(summary),
@@ -168,6 +170,12 @@ class UpgradeTest(unittest.TestCase):
     def test_a_release_is_walked_by_its_candidate(self) -> None:
         outputs = detect(["VERSION"], base_ref="main", head_ref="release/v1.2.3")
         self.assertEqual(outputs.get("upgrade"), "false")
+
+    def test_a_release_branch_from_a_fork_walks(self) -> None:
+        outputs = detect(
+            ["VERSION"], base_ref="main", head_ref="release/v1.2.3", same_repo=False
+        )
+        self.assertEqual(outputs.get("upgrade"), "walk")
 
     def test_another_pull_request_into_main_walks(self) -> None:
         outputs = detect(["VERSION"], base_ref="main", head_ref="hotfix/login")

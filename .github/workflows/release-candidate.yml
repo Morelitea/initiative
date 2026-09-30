@@ -50,6 +50,7 @@ jobs:
     uses: ./.github/workflows/docker-image.yml
     with:
       name: candidate
+      labels: true
       signing-environment: ota-release
       build-args: |
         VERSION=${{ needs.identify.outputs.version }}

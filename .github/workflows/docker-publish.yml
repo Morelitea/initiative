@@ -217,16 +217,16 @@ jobs:
           path: artifacts/*.apk
 
   candidate:
-    # The image Release Candidate built from this tree and walked, if there
-    # is one: the release publishes that digest rather than a new build.
+    # The tree this run publishes, and whether Release Candidate built it and
+    # walked it: then the release publishes that digest rather than a build.
     needs: decide
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
     outputs:
       tree: ${{ steps.find.outputs.tree }}
+      checked: ${{ steps.find.outputs.checked }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -235,16 +235,47 @@ jobs:
         id: find
         run: |
           tree=$(git rev-parse 'HEAD^{tree}' | cut -c1-12)
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
           if docker buildx imagetools inspect "$IMAGE_NAME:candidate-$tree" >/dev/null 2>&1; then
-            echo "tree=$tree" >> "$GITHUB_OUTPUT"
+            echo "checked=true" >> "$GITHUB_OUTPUT"
             echo "Publishing candidate-$tree"
           else
-            echo "No checked candidate for this tree ($tree); the release builds its own image."
+            echo "No checked candidate for this tree ($tree); building and walking one."
           fi
 
-  publish-candidate:
+  docker-public:
+    # Without a checked candidate for this tree (a tag on a tree no release
+    # branch held, a candidate that did not pass, or a run by hand), the
+    # image is built here and walked below before anything is tagged.
     needs: [decide, candidate]
-    if: needs.candidate.outputs.tree != ''
+    if: needs.candidate.outputs.checked != 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      name: release
+      labels: true
+      signing-environment: ota-release
+      build-args: |
+        VERSION=${{ needs.decide.outputs.version }}
+        VITE_API_URL=/api/v1
+      tags: type=raw,value=unchecked-${{ needs.candidate.outputs.tree }}
+    # inherit, not a list: the called job's environment secrets
+    # (OTA_SIGNING_KEY) read as empty without it.
+    secrets: inherit
+
+  walk:
+    needs: [candidate, docker-public]
+    uses: ./.github/workflows/upgrade.yml
+    with:
+      mode: walk
+      image: docker.io/morelitea/initiative:unchecked-${{ needs.candidate.outputs.tree }}
+
+  publish:
+    # Tags the checked image as the release: the candidate, or the build
+    # above once its walk passed. Nothing is published unwalked.
+    needs: [decide, candidate, walk]
+    if: ${{ !cancelled() && (needs.candidate.outputs.checked == 'true' || needs.walk.result == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -259,54 +290,33 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Tag the candidate as this release
-        # The same tags the build below gives a release; the digest is the
-        # candidate's, so nothing is rebuilt.
+      - name: Tag the checked image as this release
+        # A tag, or a run given a version, publishes the version tags;
+        # a run by hand without one moves latest alone.
         env:
+          SOURCE: ${{ needs.candidate.outputs.checked == 'true' && 'candidate' || 'unchecked' }}
           TREE: ${{ needs.candidate.outputs.tree }}
           VERSION: ${{ needs.decide.outputs.version }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          IFS=. read -r major minor _ <<< "$VERSION"
-          docker buildx imagetools create \
-            -t "$IMAGE_NAME:$VERSION" -t "$IMAGE_NAME:$major.$minor" \
-            -t "$IMAGE_NAME:$major" -t "$IMAGE_NAME:latest" \
-            "$IMAGE_NAME:candidate-$TREE"
-          docker buildx imagetools inspect "$IMAGE_NAME:$VERSION"
-
-  docker-public:
-    needs: [decide, candidate]
-    # Without a checked candidate for this tree: a tag on a tree no release
-    # branch held, or a run by hand.
-    if: ${{ !cancelled() && needs.decide.result == 'success' && needs.candidate.outputs.tree == '' }}
-    permissions:
-      contents: read
-    uses: ./.github/workflows/docker-image.yml
-    with:
-      name: release
-      labels: true
-      signing-environment: ota-release
-      build-args: |
-        VERSION=${{ needs.decide.outputs.version }}
-        VITE_API_URL=/api/v1
-      tags: |
-        type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
-        type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
-        type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
-        type=raw,value=latest
-    # inherit, not a list: the called job's environment secrets
-    # (OTA_SIGNING_KEY) read as empty without it.
-    secrets: inherit
+          tags=(-t "$IMAGE_NAME:latest")
+          if [[ "$GITHUB_REF" == refs/tags/* || -n "$INPUT_VERSION" ]]; then
+            IFS=. read -r major minor _ <<< "$VERSION"
+            tags+=(-t "$IMAGE_NAME:$VERSION" -t "$IMAGE_NAME:$major.$minor" -t "$IMAGE_NAME:$major")
+          fi
+          docker buildx imagetools create "${tags[@]}" "$IMAGE_NAME:$SOURCE-$TREE"
+          docker buildx imagetools inspect "$IMAGE_NAME:latest"
 
   release:
-    needs: [decide, build-android, docker-public, publish-candidate]
+    needs: [decide, build-android, publish]
     # Run even when build-android was *skipped* (web-only release). Only the Docker manifest
-    # must have succeeded, from a build or from the candidate; the APK is attached
+    # must have been published, from the candidate or a walked build; the APK is attached
     # opportunistically below. But a build-android *failure* on a native-change release is a
     # hard error — publishing then would advertise "updates over the air" while the bumped
     # minNativeVersion blocks OTA and no new APK exists.
     if: >-
       always()
-      && (needs.docker-public.result == 'success' || needs.publish-candidate.result == 'success')
+      && needs.publish.result == 'success'
       && needs.build-android.result != 'failure'
     runs-on: ubuntu-24.04
     timeout-minutes: 15

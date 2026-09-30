@@ -47,6 +47,9 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_REF: ${{ github.head_ref }}
+          # Whether the pull request's branch is in this repository, where
+          # Release Candidate runs, rather than in a fork.
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           BEFORE: ${{ github.event.before }}
         run: |
           # A pull request diffs against its base branch. A push diffs against
@@ -191,7 +194,8 @@ jobs:
           # release pull request is walked by Release Candidate, on the image
           # it will publish.
           upgrade() {
-            if [[ "$EVENT" == "pull_request" && "$BASE_REF" == "main" && "$HEAD_REF" == release/v* ]]; then
+            if [[ "$EVENT" == "pull_request" && "$BASE_REF" == "main" && "$HEAD_REF" == release/v* \
+                && "$SAME_REPO" == "true" ]]; then
               out upgrade false
               echo "Release — Release Candidate walks every release on the image it publishes"
             elif [[ "$EVENT" != "pull_request" || "$BASE_REF" == "main" ]]; then
