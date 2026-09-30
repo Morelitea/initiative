@@ -813,9 +813,9 @@
     "liftSignInLock": "Turn password sign-in back on",
     "signInLockLifted": "They can sign in with a password again.",
     "clearSecondFactor": "Clear two-factor authentication",
-    "clearSecondFactorDescription": "Take the authenticator off {{handle}}'s account? This is for when they've lost their phone and their recovery codes. They're signed out everywhere and emailed about it, and they sign in with their password to set it up again.",
+    "clearSecondFactorDescription": "Take the authenticator off {{handle}}'s account? This is for when they've lost their phone and their recovery codes. They're signed out everywhere and emailed about it, then sign in the way they usually do and can set it up again.",
     "clearSecondFactorConfirm": "Clear it",
-    "secondFactorCleared": "Two-factor authentication cleared. They can sign in with their password.",
+    "secondFactorCleared": "Two-factor authentication cleared. They can sign in the way they usually do.",
     "sheet": {
       "open": "Manage",
       "openLabel": "Manage account {{handle}}",

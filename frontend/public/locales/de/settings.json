@@ -813,9 +813,9 @@
     "liftSignInLock": "Anmeldung mit Passwort wieder einschalten",
     "signInLockLifted": "Die Person kann sich wieder mit Passwort anmelden.",
     "clearSecondFactor": "Zwei-Faktor-Authentifizierung entfernen",
-    "clearSecondFactorDescription": "Den Authenticator vom Konto von {{handle}} entfernen? Das ist für den Fall, dass Handy und Wiederherstellungscodes verloren sind. Die Person wird überall abgemeldet und per E-Mail informiert und meldet sich mit ihrem Passwort an, um ihn neu einzurichten.",
+    "clearSecondFactorDescription": "Den Authenticator vom Konto von {{handle}} entfernen? Das ist für den Fall, dass Handy und Wiederherstellungscodes verloren sind. Die Person wird überall abgemeldet und per E-Mail informiert, meldet sich dann wie gewohnt an und kann ihn neu einrichten.",
     "clearSecondFactorConfirm": "Entfernen",
-    "secondFactorCleared": "Zwei-Faktor-Authentifizierung entfernt. Die Person kann sich mit ihrem Passwort anmelden.",
+    "secondFactorCleared": "Zwei-Faktor-Authentifizierung entfernt. Die Person kann sich wie gewohnt anmelden.",
     "sheet": {
       "open": "Verwalten",
       "openLabel": "Konto {{handle}} verwalten",

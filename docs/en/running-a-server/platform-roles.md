@@ -55,7 +55,7 @@ The row's actions menu keeps the one-off jobs:
 - **Export** the user list as CSV.
 - **Let someone answer the age question again**, where they answered as under age. Nearly always a mistyped year. It clears the answer and nothing else — they answer again from scratch, and no birthday is recorded either way. See [Asking members their age](configuration.md#asking-members-their-age).
 - **Turn password sign-in back on**, shown on an account marked **Password sign-in off**. Five wrong passwords or codes in fifteen minutes switch it off for fifteen minutes; a second time that day, an hour; after that, four hours each time. It comes back on by itself, or as soon as they reset their password from the emailed link, so this is for when they can't wait. Their passkeys work throughout, and so does anywhere they're already signed in. Moderator and above.
-- **Clear two-factor authentication**, shown on an account with an authenticator app set up. For when their phone is gone and so are the recovery codes. It takes the authenticator off, signs them out everywhere and emails them; they sign in with their password and set it up again. Moderator and above.
+- **Clear two-factor authentication**, shown on an account with an authenticator app set up. For when their phone is gone and so are the recovery codes. It takes the authenticator off, signs them out everywhere and emails them; they sign in the way they usually do and set it up again. Moderator and above.
 - **Delete a user**, choosing how thorough it is:
     - **Deactivate** — can't sign in; data preserved; reversible.
     - **Anonymize** — personal details removed; their content remains as "Deleted user"; not reversible.

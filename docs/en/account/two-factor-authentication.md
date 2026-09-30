@@ -42,7 +42,7 @@ Each code works exactly once. The Security page shows how many you have left, an
 
 ## If your phone is gone and so are the codes
 
-Ask whoever runs your Initiative. They can [clear the second factor](../running-a-server/platform-roles.md#managing-platform-users) from your account so you can sign in with your password and set it up again on your new phone.
+Ask whoever runs your Initiative. They can [clear the second factor](../running-a-server/platform-roles.md#managing-platform-users) from your account so you can sign in the way you usually do and set it up again on your new phone.
 
 They can only *remove* it. Nobody, at any level, can see your key or your recovery codes — there's nothing to look up.
 

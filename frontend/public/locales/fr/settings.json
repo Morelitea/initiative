@@ -813,9 +813,9 @@
     "liftSignInLock": "Réactiver la connexion par mot de passe",
     "signInLockLifted": "Cette personne peut de nouveau se connecter avec un mot de passe.",
     "clearSecondFactor": "Retirer l'authentification à deux facteurs",
-    "clearSecondFactorDescription": "Retirer l'authentificateur du compte de {{handle}} ? C'est pour le cas où cette personne a perdu son téléphone et ses codes de récupération. Toutes ses sessions sont fermées, elle est prévenue par e-mail et se connecte avec son mot de passe pour le configurer à nouveau.",
+    "clearSecondFactorDescription": "Retirer l'authentificateur du compte de {{handle}} ? C'est pour le cas où cette personne a perdu son téléphone et ses codes de récupération. Toutes ses sessions sont fermées et elle est prévenue par e-mail ; elle se connecte ensuite comme d'habitude et peut le configurer à nouveau.",
     "clearSecondFactorConfirm": "Retirer",
-    "secondFactorCleared": "Authentification à deux facteurs retirée. Cette personne peut se connecter avec son mot de passe.",
+    "secondFactorCleared": "Authentification à deux facteurs retirée. Cette personne peut se connecter comme d'habitude.",
     "sheet": {
       "open": "Gérer",
       "openLabel": "Gérer le compte {{handle}}",
