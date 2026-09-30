@@ -528,8 +528,9 @@ jobs:
 
       - name: Deny the image the network outside the runner
         # An air-gapped install has none. The image runs as this account
-        # (upgrade_from_release.py IMAGE_UID); what it sends past the loopback
-        # is logged and refused, and the last step fails on it.
+        # (upgrade_from_release.py IMAGE_UID), told of no marketplace registry
+        # it can reach (OFFLINE_REGISTRY); what it sends past the loopback is
+        # logged and refused, and the last step fails on it.
         run: |
           sudo iptables -N image-egress
           sudo iptables -A image-egress -j LOG --log-prefix "image-egress: "

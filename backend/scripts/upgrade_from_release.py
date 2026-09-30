@@ -101,6 +101,11 @@ BOOT_SECONDS = 600
 #: as an air-gapped install has none.
 IMAGE_UID = "1999"
 
+#: Where ``--image`` looks for the marketplace registry: nowhere it can reach,
+#: as on an air-gapped install that has no mirror. Its refresh still runs, and
+#: fails without leaving the host.
+OFFLINE_REGISTRY = "http://127.0.0.1:9/"
+
 # The login roles every release since the bootstrap module creates for itself,
 # with the passwords CI gives them.
 LOGINS = {
@@ -557,8 +562,12 @@ def _boot(
     )
     env = {**env, "APP_URL": APP_URL}
     if current:
-        image_env += ("PUID", "PGID")
-        env |= {"PUID": IMAGE_UID, "PGID": IMAGE_UID}
+        image_env += ("PUID", "PGID", "MARKETPLACE_REGISTRY_URL")
+        env |= {
+            "PUID": IMAGE_UID,
+            "PGID": IMAGE_UID,
+            "MARKETPLACE_REGISTRY_URL": OFFLINE_REGISTRY,
+        }
     # The image binds its port once its migrations have run; until then,
     # anything else answering there would read as this boot.
     try:
