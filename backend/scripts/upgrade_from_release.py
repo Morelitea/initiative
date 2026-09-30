@@ -794,8 +794,16 @@ def objects():
         blob = store.open_readable(key)
         if blob is None:
             print("storage: a written object reads back as missing")
-        elif blob.stream is not None and b"".join(blob.stream) != b"probe":
-            print("storage: a written object reads back changed")
+        else:
+            # Object storage streams it; local storage names the file.
+            if blob.stream is not None:
+                data = b"".join(blob.stream)
+            elif blob.path is not None:
+                data = blob.path.read_bytes()
+            else:
+                data = None
+            if data != b"probe":
+                print(f"storage: a written object reads back as {data!r}")
         store.delete(key)
     except Exception as error:
         print(f"storage: {error!r}")
