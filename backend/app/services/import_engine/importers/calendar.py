@@ -10,14 +10,14 @@ in the envelope are informational and dropped."""
 
 from __future__ import annotations
 
-import json
-from datetime import datetime
+from datetime import datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.db.session import routed_guild_id
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
@@ -214,6 +214,22 @@ class CalendarImporter(NamesPeopleInPassing):
         end_at = parse_datetime(item.end_at)
         if start_at is None or end_at is None:
             raise ValueError("unparseable event times")
+        if item.all_day:
+            # An all-day event is its UTC dates. An export taken before that
+            # carries its creator's local midnight, whose date is the nearest
+            # UTC midnight; a newer one is already on it.
+            start_at = _nearest_midnight(start_at)
+            end_at = _nearest_midnight(end_at + timedelta(seconds=1)) - timedelta(
+                seconds=1
+            )
+        repeat, shift = recurrence.imported(
+            item.recurrence,
+            kind="event",
+            start=start_at,
+            tz=importer.timezone,
+            shift=item.recurrence_shift,
+            all_day=item.all_day,
+        )
         event = CalendarEvent(
             calendar_id=calendar_id,
             title=item.title,
@@ -222,7 +238,8 @@ class CalendarImporter(NamesPeopleInPassing):
             start_at=start_at,
             end_at=end_at,
             all_day=item.all_day,
-            recurrence=json.dumps(item.recurrence) if item.recurrence else None,
+            recurrence=repeat,
+            recurrence_shift=shift,
             created_by=importer.id,
             # When the event was written down, not when it happens. Absent
             # leaves the model default: the moment of the import.
@@ -316,3 +333,11 @@ def _created_at(item: EventEnvelopeItem) -> dict[str, datetime]:
     to the model default rather than overwriting it."""
     parsed = parse_datetime(item.created_at)
     return {"created_at": parsed} if parsed is not None else {}
+
+
+def _nearest_midnight(value: datetime) -> datetime:
+    return datetime.combine(
+        (value.astimezone(timezone.utc) + timedelta(hours=12)).date(),
+        time(),
+        timezone.utc,
+    )

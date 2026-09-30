@@ -18,17 +18,16 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import HTTPException, status as http_status
-from pydantic import ValidationError
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.messages import TaskMessages
 from app.core.tools import Tool
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
-from app.schemas.tenant.task import TaskRecurrence
 from app.services import notifications as notifications_service
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people
@@ -36,7 +35,6 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_statuses as task_statuses_service
-from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant.task_completion import sync_completed_at
 from app.core.user_input_validators import resolve_zone
 
@@ -183,53 +181,36 @@ async def advance_recurrence_if_needed(
         return False
 
     try:
-        recurrence = TaskRecurrence.model_validate(task.recurrence)
-    except ValidationError:
+        rule = recurrence.parse(task.recurrence).rule
+    except ValueError:
         return False
 
     strategy = task.recurrence_strategy or "fixed"
     if strategy == "rolling":
-        # For rolling: use the user's local *calendar day* of completion
-        # but preserve the task's original *local* time-of-day. Doing
-        # this math in UTC produced an off-by-one when the task's
-        # local time crossed UTC midnight: e.g. a 5pm LA task is
-        # midnight UTC the next day, so a UTC-anchored
-        # ``now.replace(hour=0)`` landed the new occurrence one local
-        # day earlier than the user's "complete + 3 days" intuition.
+        # Rolling counts from the completer's local day, at the task's own
+        # local time of day: a 5pm LA task is midnight UTC the next day, so a
+        # UTC day would land a day early. The zone is the request's, read here
+        # and never stored.
         zone = resolve_zone(user_timezone)
         now_local = now.astimezone(zone)
         due_local = task.due_date.astimezone(zone)
-        # ``replace()`` doesn't consult the zone's transition table on
-        # its own, so a gap-time result (e.g. 2:30 AM on a spring-
-        # forward day) is left labelled with the surrounding offset.
-        # The trailing ``astimezone(zone)`` is defensive — when the
-        # source and target tzinfo are the same ZoneInfo instance
-        # CPython short-circuits to ``return self``, so this is a
-        # no-op in that case, but it documents the intent and makes
-        # the call site safe if a future change resolves ``zone``
-        # from a different cache. The downstream ``+ timedelta``
-        # advance preserves wall-clock time across DST, which is the
-        # behaviour we want for daily recurrence: an "every day at
-        # 2:30 AM" task continues to fire at 2:30 AM after DST kicks
-        # in, the same way an alarm clock would.
-        base_local = now_local.replace(
+        base_date = now_local.replace(
             hour=due_local.hour,
             minute=due_local.minute,
             second=due_local.second,
             microsecond=due_local.microsecond,
         ).astimezone(zone)
-        # ``get_next_due_date`` is timezone-naive about its frequency
-        # math (adds ``timedelta(days=...)`` directly), so keep the
-        # base in local time for the duration of the calculation and
-        # let the caller convert back to UTC if needed. Storing a
-        # timezone-aware value preserves the right instant either way.
-        base_date = base_local
     else:
         base_date = task.due_date
-    next_due = get_next_due_date(
-        base_date,
-        recurrence,
-        completed_occurrences=task.recurrence_occurrence_count,
+    # The task's own counter ends a COUNT series: every successor is a new row
+    # whose start moves, so dateutil would count from the wrong place.
+    count = rule.get("COUNT", [None])[0]
+    next_due = (
+        None
+        if count is not None and task.recurrence_occurrence_count + 1 >= count
+        else recurrence.next_start(
+            task.recurrence, base_date, task.recurrence_shift, count=False
+        )
     )
     if next_due is None:
         task.recurrence = None
@@ -251,7 +232,8 @@ async def advance_recurrence_if_needed(
         priority=task.priority,
         start_date=new_start,
         due_date=next_due,
-        recurrence=recurrence.model_dump(mode="json"),
+        recurrence=task.recurrence,
+        recurrence_shift=task.recurrence_shift,
         recurrence_strategy=strategy,
         position=await next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,

@@ -7,7 +7,6 @@ import type {
   TagSummary,
   TaskListReadRecurrenceStrategy,
   TaskPriority,
-  TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { dateRangeBounds } from "@/lib/dateRange";
+import type { RecurrenceRule } from "@/lib/recurrence";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
 /** The full editable state of a task form, owned by the parent so it can
@@ -54,7 +54,8 @@ export interface TaskFormValue {
   assigneeIds: number[];
   startDate: string;
   dueDate: string;
-  recurrence: TaskRecurrenceOutput | null;
+  /** `"custom"` is a stored rule the form can't show, kept until replaced. */
+  recurrence: RecurrenceRule | "custom" | null;
   recurrenceStrategy: TaskListReadRecurrenceStrategy;
   tags: TagSummary[];
   /** Attached property rows — real server rows or locally-added stubs. */
@@ -315,14 +316,19 @@ export const TaskForm = ({
   );
 
   const recurrenceField = (
-    <TaskRecurrenceSelector
-      recurrence={value.recurrence}
-      onChange={(recurrence) => set({ recurrence })}
-      strategy={value.recurrenceStrategy}
-      onStrategyChange={(recurrenceStrategy) => set({ recurrenceStrategy })}
-      disabled={disabled}
-      referenceDate={recurrenceReferenceDate ?? value.dueDate ?? value.startDate}
-    />
+    <div className="space-y-2">
+      {value.recurrence === "custom" ? (
+        <p className="text-muted-foreground text-sm">{t("dates:recurrenceSummary.custom")}</p>
+      ) : null}
+      <TaskRecurrenceSelector
+        recurrence={value.recurrence === "custom" ? null : value.recurrence}
+        onChange={(recurrence) => set({ recurrence })}
+        strategy={value.recurrenceStrategy}
+        onStrategyChange={(recurrenceStrategy) => set({ recurrenceStrategy })}
+        disabled={disabled}
+        referenceDate={recurrenceReferenceDate ?? value.dueDate ?? value.startDate}
+      />
+    </div>
   );
 
   const propertiesField = (

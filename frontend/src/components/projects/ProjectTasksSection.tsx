@@ -107,6 +107,7 @@ import {
   taskFiltersEqual,
 } from "@/lib/filters/taskFilters";
 import { getProjectColor } from "@/lib/projectColor";
+import { rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 
@@ -1344,13 +1345,10 @@ export const ProjectTasksSection = ({
                     value: composerValue.propertyValues[property.property_id] ?? null,
                   })),
                 };
-                if (composerValue.recurrence) {
-                  payload.recurrence = composerValue.recurrence;
-                  payload.recurrence_strategy = composerValue.recurrenceStrategy;
-                } else {
-                  payload.recurrence = null;
-                  payload.recurrence_strategy = "fixed";
-                }
+                Object.assign(payload, rulePayload(composerValue.recurrence));
+                payload.recurrence_strategy = composerValue.recurrence
+                  ? composerValue.recurrenceStrategy
+                  : "fixed";
                 createTask.mutate(payload as never);
               }}
               onCancel={closeComposer}

@@ -9,6 +9,7 @@ import type {
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { utcDateKey } from "@/components/calendar/eventCalendarEntry";
 import {
   EventDateTimeFields,
   useEventTiming,
@@ -70,9 +71,10 @@ export function EventSettingsPage() {
         title: loaded?.title ?? "",
         description: loaded?.description ?? "",
         location: loaded?.location ?? "",
-        startDate: start ? toDateKey(start) : "",
+        // An all-day event's dates are UTC dates.
+        startDate: start ? (loaded?.all_day ? utcDateKey(loaded.start_at) : toDateKey(start)) : "",
         startTime: start ? toTimeSlotRounded(start) : "09:00",
-        endDate: end ? toDateKey(end) : "",
+        endDate: end ? (loaded?.all_day ? utcDateKey(loaded.end_at) : toDateKey(end)) : "",
         endTime: end ? toTimeSlotRounded(end) : "10:00",
         allDay: loaded?.all_day ?? false,
       };

@@ -72,6 +72,7 @@
     "inMonth": "im {{month}}",
     "afterCompletion": "nach Abschluss",
     "untilDate": "bis {{date}}",
-    "forOccurrences": "für {{count}} Wiederholungen"
+    "forOccurrences": "für {{count}} Wiederholungen",
+    "custom": "Wiederholt sich nach einem eigenen Plan"
   }
 }

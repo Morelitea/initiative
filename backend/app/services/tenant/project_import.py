@@ -26,6 +26,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
+from app.core import recurrence
 from app.core.messages import ProjectExportMessages
 from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
@@ -228,6 +229,7 @@ async def import_project(
             envelope_task=t,
             project_id=project.id,
             importer_id=importer.id,
+            importer_zone=importer.timezone,
             status_name_to_id=status_name_to_id,
             status_id_to_category=status_id_to_category,
             default_status_id=default_status_id,
@@ -275,6 +277,7 @@ async def _import_task(
     envelope_task: ProjectExportTask,
     project_id: int,
     importer_id: int,
+    importer_zone: str | None,
     status_name_to_id: dict[str, int],
     status_id_to_category: dict[int, TaskStatusCategory],
     default_status_id: int | None,
@@ -297,6 +300,13 @@ async def _import_task(
             detail=ProjectExportMessages.NO_TASK_STATUSES,
         )
 
+    repeat, shift = recurrence.imported(
+        envelope_task.recurrence,
+        kind="task",
+        start=envelope_task.due_date or envelope_task.start_date,
+        tz=importer_zone,
+        shift=envelope_task.recurrence_shift,
+    )
     task = Task(
         project_id=project_id,
         task_status_id=status_id,
@@ -310,7 +320,8 @@ async def _import_task(
         priority=envelope_task.priority,
         start_date=envelope_task.start_date,
         due_date=envelope_task.due_date,
-        recurrence=envelope_task.recurrence,
+        recurrence=repeat,
+        recurrence_shift=shift,
         recurrence_strategy=envelope_task.recurrence_strategy,
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
         position=envelope_task.position,

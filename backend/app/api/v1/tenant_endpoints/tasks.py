@@ -22,6 +22,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
+from app.core import recurrence
 from app.core.audit_events import AuditEventType
 from app.core.messages import ChecklistMessages, TaskMessages
 from app.db.query import build_paginated_response, paginated_query
@@ -46,7 +47,6 @@ from app.schemas.tenant.task import (
     TaskMoveRequest,
     TaskRead,
     TaskReorderRequest,
-    TaskRecurrence,
     TaskUpdate,
 )
 from app.services import ai_generation as ai_generation_service
@@ -363,17 +363,16 @@ async def create_task(
             "tag_ids",
             "property_values",
             "checklist",
+            "tz",
         }
     )
-
-    # Serialize recurrence to JSON if present
-    if task_data.get("recurrence") is not None:
-        if isinstance(task_data["recurrence"], TaskRecurrence):
-            task_data["recurrence"] = task_data["recurrence"].model_dump(mode="json")
-        elif isinstance(task_data["recurrence"], dict):
-            # Already a dict, convert to model and back to ensure proper serialization
-            recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
-            task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
+    if task_data.get("recurrence"):
+        task_data["recurrence"], task_data["recurrence_shift"] = recurrence.stored(
+            task_data["recurrence"],
+            task_data.get("due_date") or task_data.get("start_date"),
+            task_in.tz,
+            kind="task",
+        )
 
     task_data.pop("project_id", None)
     task = await task_creation_service.create_task_row(
@@ -473,6 +472,8 @@ async def update_task(
     tag_ids = update_data.pop("tag_ids", None)
     property_values = update_data.pop("property_values", None)
     checklist_sent = update_data.pop("checklist", None) is not None
+    picked_in = update_data.pop("tz", None)
+    previous_start = task.due_date or task.start_date
     previous_description = task.description
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
@@ -498,15 +499,19 @@ async def update_task(
                 setattr(task, field, None)
                 task.recurrence_strategy = "fixed"
                 continue
-            if isinstance(value, TaskRecurrence):
-                value = value.model_dump(mode="json")
-            elif isinstance(value, dict):
-                # Already a dict, convert to model and back to ensure proper serialization
-                recurrence_obj = TaskRecurrence.model_validate(value)
-                value = recurrence_obj.model_dump(mode="json")
         if field == "recurrence_strategy" and value is None:
             continue
         setattr(task, field, value)
+    start = task.due_date or task.start_date
+    if update_data.get("recurrence"):
+        task.recurrence, task.recurrence_shift = recurrence.stored(
+            update_data["recurrence"], start, picked_in, kind="task"
+        )
+    elif task.recurrence and previous_start and start and start != previous_start:
+        # The repeat moves with its start, its days kept as they were picked.
+        task.recurrence, task.recurrence_shift = recurrence.restarted(
+            task.recurrence, task.recurrence_shift, previous_start, start, picked_in
+        )
     if checklist_sent:
         task.checklist = checklist_service.normalize(
             task_in.checklist or [], existing=task.checklist
@@ -695,6 +700,7 @@ async def duplicate_task(
         start_date=original_task.start_date,
         due_date=original_task.due_date,
         recurrence=original_task.recurrence,
+        recurrence_shift=original_task.recurrence_shift,
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by=current_user.id,

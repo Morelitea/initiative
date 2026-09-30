@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import.
+- **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.
 - **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
 
 ### Fixed
 
+- **A project made from a template keeps each task's repeat**, moved with the task's dates.
 - **A wiki page or a reply stays in the trash until what it's filed under comes back.** Restoring a page whose parent page is still in the trash, or a reply whose comment is, now says to restore that one first, instead of bringing it back under something nobody can open.
 - **Only a community admin can take somebody off the moderator role.** A project manager can no longer remove an initiative's moderator or change them to another role, the same way only an admin can put somebody on it.
 - **Exporting a calendar with a repeating event works again.** A repeat such as "the second Monday of every month" no longer fails the export, and every repeat setting now carries over to other calendar apps and back on import.

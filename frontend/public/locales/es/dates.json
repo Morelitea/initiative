@@ -72,6 +72,7 @@
     "inMonth": "en {{month}}",
     "afterCompletion": "después de completar",
     "untilDate": "hasta {{date}}",
-    "forOccurrences": "por {{count}} ocurrencias"
+    "forOccurrences": "por {{count}} ocurrencias",
+    "custom": "Se repite con un calendario personalizado"
   }
 }

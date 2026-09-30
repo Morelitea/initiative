@@ -9,10 +9,10 @@ import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { TaskRecurrenceOutput } from "@/api/generated/initiativeAPI.schemas";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import type { RecurrenceRule } from "@/lib/recurrence";
 
-const renderSelector = (recurrence: TaskRecurrenceOutput | null) =>
+const renderSelector = (recurrence: RecurrenceRule | null) =>
   renderWithProviders(
     <TaskRecurrenceSelector
       recurrence={recurrence}
@@ -38,7 +38,7 @@ describe("TaskRecurrenceSelector", () => {
       interval: 2,
       weekdays: ["monday"],
       ends: "never",
-    } as TaskRecurrenceOutput);
+    } as RecurrenceRule);
 
     expect(await screen.findByText(/every 2 weeks/i)).toBeInTheDocument();
     expect(screen.queryByText(/does not repeat/i)).not.toBeInTheDocument();

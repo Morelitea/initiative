@@ -44,7 +44,7 @@ import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useGuildPath } from "@/lib/guildUrl";
-import { summarizeRecurrence } from "@/lib/recurrence";
+import { summarizeStored } from "@/lib/recurrence";
 import type { AppColumnDef } from "@/lib/table";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -572,16 +572,21 @@ const TaskCell = ({ task, taskHref }: TaskCellProps) => {
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
     if (!task.recurrence) return null;
-    const summary = summarizeRecurrence(
+    const summary = summarizeStored(
       task.recurrence,
-      {
-        referenceDate: task.start_date || task.due_date,
-        strategy: task.recurrence_strategy,
-      },
+      task.due_date || task.start_date,
+      { strategy: task.recurrence_strategy, shift: task.recurrence_shift },
       t as TranslateFn
     );
     return summary ? truncateText(summary, 100) : null;
-  }, [task.recurrence, task.start_date, task.due_date, task.recurrence_strategy, t]);
+  }, [
+    task.recurrence,
+    task.recurrence_shift,
+    task.start_date,
+    task.due_date,
+    task.recurrence_strategy,
+    t,
+  ]);
 
   return (
     <div className="flex items-center gap-2">
@@ -614,6 +619,7 @@ const MemoizedTaskCell = memo(TaskCell, (prevProps, nextProps) => {
     prevProps.task.id === nextProps.task.id &&
     prevProps.task.title === nextProps.task.title &&
     prevProps.task.recurrence === nextProps.task.recurrence &&
+    prevProps.task.recurrence_shift === nextProps.task.recurrence_shift &&
     prevProps.task.recurrence_strategy === nextProps.task.recurrence_strategy &&
     prevProps.task.start_date === nextProps.task.start_date &&
     prevProps.task.due_date === nextProps.task.due_date &&

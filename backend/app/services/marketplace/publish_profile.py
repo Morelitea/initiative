@@ -40,6 +40,7 @@ from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from app.core import recurrence
 from app.core.references import REFERENCE_NODES, reference_as_text, text_node
 from app.core.tools import Tool, tool_export_source
 
@@ -288,9 +289,19 @@ def _property_date_slots(values: Any) -> Iterator[tuple[dict[str, Any], str]]:
 
 
 def _recurrence_slot(owner: dict[str, Any]) -> Iterator[tuple[dict[str, Any], str]]:
-    recurrence = owner.get("recurrence")
-    if isinstance(recurrence, dict):
-        yield recurrence, "end_date"
+    # A template published before RRULE keeps its repeat's end in JSON.
+    repeat = owner.get("recurrence")
+    if isinstance(repeat, dict):
+        yield repeat, "end_date"
+
+
+def _repeating(tool: Tool, env: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """Every item whose repeat is RRULE lines, which keep their dates inside."""
+    if tool not in (Tool.project, Tool.calendar):
+        return
+    for item in env.get("tasks" if tool is Tool.project else "events") or []:
+        if isinstance(item, dict) and isinstance(item.get("recurrence"), str):
+            yield item
 
 
 def _date_slots(tool: Tool, env: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
@@ -348,6 +359,8 @@ def shift_dates(tool: Tool, envelope: dict[str, Any], days: int) -> dict[str, An
         parsed = _parse(owner.get(key))
         if parsed is not None:
             owner[key] = (parsed + delta).isoformat()
+    for owner in _repeating(tool, shifted):
+        owner["recurrence"] = recurrence.moved(owner["recurrence"], delta)
     return shifted
 
 

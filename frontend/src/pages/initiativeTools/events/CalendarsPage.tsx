@@ -15,6 +15,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  allDayRange,
   buildEventCalendarEntry,
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
@@ -513,7 +514,7 @@ export const CalendarsView = ({
       if (meta.type === "event" && meta.eventId) {
         rescheduleEvent.mutate({
           eventId: meta.eventId,
-          data: { start_at: startAt, end_at: endAt },
+          data: entry.allDay ? allDayRange(startAt, endAt) : { start_at: startAt, end_at: endAt },
         });
         return;
       }

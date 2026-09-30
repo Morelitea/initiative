@@ -655,6 +655,7 @@
   "OWNER_APP_NOT_ELIGIBLE": "Una aplicación solo puede ser propietaria de esto si está activada, está ubicada en la iniciativa del contenido y puede modificar esa herramienta.",
   "CONTACT_CANNOT_FAVORITE_SELF": "No puedes añadirte a ti mismo a tus contactos.",
   "ICAL_PARSE_FAILED": "Ese no es un archivo de calendario que podamos leer.",
+  "RECURRENCE_INVALID": "No podemos usar esa repetición.",
   "ICAL_NO_EVENTS_FOUND": "Ese archivo de calendario no contiene eventos.",
   "WEBHOOK_SUBSCRIPTION_NOT_FOUND": "Webhook no encontrado",
   "WEBHOOK_INVALID_TARGET_URL": "Esa no es una URL válida. Usa una dirección https:// completa.",

@@ -7,7 +7,9 @@ task display text, event ids and timestamps, linked document titles) parse
 and drop — they reference guild-local state an import cannot rebind.
 
 Every envelope is schema version 1. There is no support for reading an
-earlier shape: the app imports what this build exports, and nothing else.
+earlier shape: the app imports what this build exports, and nothing else. The
+one exception is a repeat, which older exports carry as JSON rather than RRULE
+lines (``app.core.recurrence.imported``).
 """
 
 from __future__ import annotations
@@ -391,7 +393,9 @@ class EventEnvelopeItem(SanitizedBaseModel):
     start_at: str
     end_at: str
     all_day: bool = False
-    recurrence: Optional[dict[str, Any]] = None
+    # RRULE lines; an export taken before RRULE carries the older JSON shape.
+    recurrence: Optional[str | dict[str, Any]] = None
+    recurrence_shift: int = 0
     attendees: list[EventEnvelopeAttendee] = []
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []

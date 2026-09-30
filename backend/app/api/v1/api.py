@@ -62,6 +62,7 @@ from app.api.v1.tenant_endpoints import (
 )
 from app.api.v1.platform_endpoints import (
     field_catalog,
+    recurrence,
     access_grants,
     announcements,
     ai_settings as platform_ai_settings,
@@ -111,6 +112,7 @@ api_router = APIRouter()
 # These do NOT take a guild path segment.
 # ---------------------------------------------------------------------------
 api_router.include_router(field_catalog.router, tags=["fields"])
+api_router.include_router(recurrence.router, prefix="/recurrence", tags=["recurrence"])
 api_router.include_router(version.router, tags=["version"])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(native.router, tags=["native"])
