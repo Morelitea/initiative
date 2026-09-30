@@ -48,11 +48,9 @@ OccurrenceScope = Literal["this", "following", "all"]
 
 class CalendarEventRSVPUpdate(SanitizedBaseModel):
     rsvp_status: RSVPStatus
-    #: For a repeating event: the answer for one occurrence, from one on, or
-    #: for every one. Omitted, an event's own row (the series, or an
-    #: occurrence opened on its own).
-    scope: Optional[OccurrenceScope] = None
-    #: The occurrence, by its start in the series.
+    #: An answer is for one event: on a repeating one, the occurrence it is
+    #: for, by its start in the series. An occurrence with a row of its own is
+    #: answered on that row.
     occurrence: Optional[datetime] = None
 
 

@@ -1461,29 +1461,14 @@ async def update_rsvp(
     """Update the current user's RSVP status. Read access on the calendar
     suffices — RSVPing is answering an invitation, not editing the event.
 
-    For a repeating event, ``scope`` is ``this`` occurrence (named by
-    ``occurrence``) or ``all`` of them, where an occurrence's own answer is
-    replaced only if it still said what the series did. Answering from some
-    occurrence on would start a new series, which takes write, so it is not
-    offered here."""
+    An answer is for one event: a repeating event is answered one occurrence
+    at a time, named by ``occurrence``."""
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
     answer = rsvp_in.rsvp_status
-    if rsvp_in.scope == "following":
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=CalendarEventMessages.OCCURRENCE_FOLLOWS_SERIES,
-        )
-    if event.series_id is not None and rsvp_in.scope == "all":
-        event = await _get_event_or_404(
-            session, event.series_id, current_user, guild_context
-        )
-        await occurrences_service.answer_series(session, event, current_user.id, answer)
-    elif event.recurrence and rsvp_in.scope == "this":
+    if event.recurrence:
         await occurrences_service.answer_occurrence(
             session, event, rsvp_in.occurrence, current_user.id, answer
         )
-    elif event.recurrence:
-        await occurrences_service.answer_series(session, event, current_user.id, answer)
     else:
         await occurrences_service.answer_on(session, event, current_user.id, answer)
 
@@ -1506,7 +1491,7 @@ async def update_rsvp(
         hydrated,
         current_user.id,
         context=guild_context,
-        occurrence=rsvp_in.occurrence if rsvp_in.scope == "this" else None,
+        occurrence=rsvp_in.occurrence if event.recurrence else None,
     )
 
 

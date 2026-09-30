@@ -17,19 +17,20 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 export type OccurrenceScope = NonNullable<CalendarEventUpdateScope>;
 
 /** What the change is: it names the dialog and its button. */
-export type ScopeAction = "edit" | "delete" | "answer";
+export type ScopeAction = "edit" | "delete";
 
-const ALL_SCOPES: OccurrenceScope[] = ["this", "following", "all"];
+const SCOPES: OccurrenceScope[] = ["this", "following", "all"];
 
 type OccurrenceScopeDialogProps = {
   action: ScopeAction;
-  /** The scopes this change offers: an answer has no "from here on". */
-  scopes: OccurrenceScope[];
   onChoose: (scope: OccurrenceScope | null) => void;
 };
 
-/** Which occurrences of a repeating event a change is for. */
-export const OccurrenceScopeDialog = ({ action, scopes, onChoose }: OccurrenceScopeDialogProps) => {
+/**
+ * Which occurrences of a repeating event an edit or a delete is for. An
+ * answer is always for one event, so it is never asked.
+ */
+export const OccurrenceScopeDialog = ({ action, onChoose }: OccurrenceScopeDialogProps) => {
   const { t } = useTranslation(["calendars", "common"]);
   const [scope, setScope] = useState<OccurrenceScope>("this");
   return (
@@ -40,7 +41,7 @@ export const OccurrenceScopeDialog = ({ action, scopes, onChoose }: OccurrenceSc
           <DialogDescription>{t("scope.description")}</DialogDescription>
         </DialogHeader>
         <RadioGroup value={scope} onValueChange={(value) => setScope(value as OccurrenceScope)}>
-          {scopes.map((option) => (
+          {SCOPES.map((option) => (
             <div key={option} className="flex items-center gap-3">
               <RadioGroupItem value={option} id={`occurrence-scope-${option}`} />
               <Label htmlFor={`occurrence-scope-${option}`} className="cursor-pointer">
@@ -70,23 +71,21 @@ export const OccurrenceScopeDialog = ({ action, scopes, onChoose }: OccurrenceSc
  * `null` when the dialog was closed. Render `dialog` once in the page.
  */
 export const useScopePrompt = (): {
-  ask: (action: ScopeAction, scopes?: OccurrenceScope[]) => Promise<OccurrenceScope | null>;
+  ask: (action: ScopeAction) => Promise<OccurrenceScope | null>;
   dialog: ReactNode;
 } => {
   const [asking, setAsking] = useState<{
     action: ScopeAction;
-    scopes: OccurrenceScope[];
     resolve: (scope: OccurrenceScope | null) => void;
   } | null>(null);
   const ask = useCallback(
-    (action: ScopeAction, scopes: OccurrenceScope[] = ALL_SCOPES) =>
-      new Promise<OccurrenceScope | null>((resolve) => setAsking({ action, scopes, resolve })),
+    (action: ScopeAction) =>
+      new Promise<OccurrenceScope | null>((resolve) => setAsking({ action, resolve })),
     []
   );
   const dialog = asking ? (
     <OccurrenceScopeDialog
       action={asking.action}
-      scopes={asking.scopes}
       onChoose={(scope) => {
         asking.resolve(scope);
         setAsking(null);

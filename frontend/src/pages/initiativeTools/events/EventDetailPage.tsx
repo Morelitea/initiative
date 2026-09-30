@@ -260,11 +260,12 @@ export function EventDetailPage() {
     if (scope) deleteEvent.mutate({ eventId: parsedId, ...scoped(scope) });
   };
 
-  const handleAnswer = async (status: RSVPStatus) => {
-    const scope = repeating ? await scopePrompt.ask("answer", ["this", "all"]) : undefined;
-    if (scope === null) return;
-    updateRSVP.mutate({ rsvp_status: status, ...(scope ? scoped(scope) : {}) });
-  };
+  // An answer is for one event: a series' is for the occurrence shown.
+  const handleAnswer = (status: RSVPStatus) =>
+    updateRSVP.mutate({
+      rsvp_status: status,
+      ...(event.recurrence ? { occurrence: occurrenceStart } : {}),
+    });
   const shownEnd = new Date(
     Date.parse(shownStart) + Date.parse(event.end_at) - Date.parse(event.start_at)
   ).toISOString();
@@ -396,7 +397,7 @@ export function EventDetailPage() {
               )}
               <Select
                 value={myRsvpStatus ?? "pending"}
-                onValueChange={(value) => void handleAnswer(value as RSVPStatus)}
+                onValueChange={(value) => handleAnswer(value as RSVPStatus)}
                 disabled={updateRSVP.isPending}
               >
                 <SelectTrigger className="w-[140px]">

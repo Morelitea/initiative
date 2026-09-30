@@ -107,8 +107,7 @@
   "scope": {
     "title": {
       "edit": "Wiederkehrenden Termin ändern",
-      "delete": "Wiederkehrenden Termin löschen",
-      "answer": "Auf wiederkehrenden Termin antworten"
+      "delete": "Wiederkehrenden Termin löschen"
     },
     "description": "Dieser Termin wiederholt sich. Für welche Termine gilt das?",
     "this": "Nur dieser Termin",
@@ -116,8 +115,7 @@
     "all": "Alle Termine der Serie",
     "confirm": {
       "edit": "Speichern",
-      "delete": "Löschen",
-      "answer": "Antworten"
+      "delete": "Löschen"
     }
   },
   "occurrence": {

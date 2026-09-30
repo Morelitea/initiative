@@ -309,9 +309,16 @@ async def test_one_occurrence_changes_alone(
     declined = await client.patch(
         attendee.g(f"/calendar-events/{series}/rsvp"),
         headers=attendee.headers,
-        json={"rsvp_status": "declined", "scope": "this", "occurrence": fourth},
+        json={"rsvp_status": "declined", "occurrence": fourth},
     )
     assert declined.status_code == 200, declined.text
+    # An answer is for one event, so a repeating one names its occurrence.
+    unnamed = await client.patch(
+        attendee.g(f"/calendar-events/{series}/rsvp"),
+        headers=attendee.headers,
+        json={"rsvp_status": "accepted"},
+    )
+    assert unnamed.json()["detail"] == "CALENDAR_EVENT_OCCURRENCE_REQUIRED"
 
     async def answer(event_id: int, occurrence: str | None = None) -> str:
         read = await client.get(

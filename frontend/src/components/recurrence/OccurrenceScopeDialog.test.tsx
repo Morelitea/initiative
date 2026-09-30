@@ -4,17 +4,14 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import {
-  type OccurrenceScope,
-  useScopePrompt,
-} from "@/components/recurrence/OccurrenceScopeDialog";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 
-const Harness = ({ scopes }: { scopes?: OccurrenceScope[] }) => {
+const Harness = () => {
   const { ask, dialog } = useScopePrompt();
   const [picked, setPicked] = useState<string>("none");
   return (
     <>
-      <button type="button" onClick={async () => setPicked(String(await ask("delete", scopes)))}>
+      <button type="button" onClick={async () => setPicked(String(await ask("delete")))}>
         delete
       </button>
       <output>{picked}</output>
@@ -36,14 +33,5 @@ describe("useScopePrompt", () => {
     await user.click(screen.getByRole("button", { name: "delete" }));
     await user.click(await screen.findByRole("button", { name: /cancel/i }));
     expect(await screen.findByText("null")).toBeInTheDocument();
-  });
-
-  it("offers only the scopes a change can have", async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<Harness scopes={["this", "all"]} />);
-
-    await user.click(screen.getByRole("button", { name: "delete" }));
-    expect(await screen.findByLabelText(/just this event/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/events after this point/i)).not.toBeInTheDocument();
   });
 });

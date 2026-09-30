@@ -11,9 +11,10 @@ Skipped and extra starts are the series' ``EXDATE`` and ``RDATE`` lines. A
 split ("this and following") ends the series before an occurrence and starts a
 new one there, and the overrides from that occurrence on move with it.
 
-An attendee's answer for one occurrence is on its override's attendee row when
-it has one, and otherwise in ``calendar_event_answers``: answering takes read
-access, and making an override takes write.
+An answer is for one event, so a repeating one is answered an occurrence at a
+time: on its override's attendee row when it has one, and otherwise in
+``calendar_event_answers``, since answering takes read access and making an
+override takes write.
 """
 
 from __future__ import annotations
@@ -271,36 +272,6 @@ async def answer_occurrence(
         )
     row.rsvp_status = answer
     session.add(row)
-
-
-async def answer_series(
-    session: AsyncSession, series: CalendarEvent, user_id: int, answer: RSVPStatus
-) -> None:
-    """``user_id``'s answer for the whole series: the series' own, and each
-    override's where it still said what the series did."""
-    before = next(
-        (a.rsvp_status for a in series.attendees if a.user_id == user_id), None
-    )
-    await answer_on(session, series, user_id, answer)
-    for override in await overrides(session, series):
-        row = (
-            await session.exec(
-                select(CalendarEventAttendee).where(
-                    CalendarEventAttendee.calendar_event_id == override.id,
-                    CalendarEventAttendee.user_id == user_id,
-                )
-            )
-        ).one_or_none()
-        if row is not None and row.rsvp_status == (before or RSVPStatus.pending):
-            row.rsvp_status = answer
-            session.add(row)
-    await session.exec(
-        sa_delete(CalendarEventAnswer).where(
-            CalendarEventAnswer.calendar_event_id == series.id,
-            CalendarEventAnswer.user_id == user_id,
-            CalendarEventAnswer.rsvp_status == (before or RSVPStatus.pending),
-        )
-    )
 
 
 async def answers_for(

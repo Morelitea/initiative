@@ -107,8 +107,7 @@
   "scope": {
     "title": {
       "edit": "Change a repeating event",
-      "delete": "Delete a repeating event",
-      "answer": "Answer a repeating event"
+      "delete": "Delete a repeating event"
     },
     "description": "This event repeats. Which events is this for?",
     "this": "Just this event",
@@ -116,8 +115,7 @@
     "all": "All events in the series",
     "confirm": {
       "edit": "Save",
-      "delete": "Delete",
-      "answer": "Answer"
+      "delete": "Delete"
     }
   },
   "occurrence": {
