@@ -244,7 +244,6 @@ const WhiteboardBody = ({
       readOnly={!canEdit}
       yDoc={room?.doc ?? null}
       isSynced={collaboration.isSynced}
-      hasSynced={collaboration.hasSynced}
       // The server roster includes ourselves — only *other* users make the
       // room's Yjs state authoritative over a local write-ahead cache.
       hasOtherCollaborators={collaboration.collaborators.some((c) => c.user_id !== currentUser?.id)}
