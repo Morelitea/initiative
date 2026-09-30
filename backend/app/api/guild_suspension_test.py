@@ -376,9 +376,9 @@ async def test_read_only_caps_serialized_permission_level(
     assert (can["edit"], can["delete"], can["share"]) == (False, False, False)
     assert can["export"] is True
 
-    resp = await client.get(a.g("/projects/writable"), headers=a.headers)
+    resp = await client.get(a.g("/projects/?writable=true"), headers=a.headers)
     assert resp.status_code == 200
-    assert resp.json() == []
+    assert resp.json()["items"] == []
 
 
 @pytest.mark.parametrize(

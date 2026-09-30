@@ -92,6 +92,10 @@ class AppConfig(BaseModel):
     # question is put to somebody who has not signed in and may never do so. A
     # database setting like the three above, so it changes without a redeploy.
     cookie_consent_enabled: bool
+    # The deployment's accent colours, owner-set on the branding page. Public
+    # because the SPA paints them before anybody signs in.
+    light_accent_color: str
+    dark_accent_color: str
     # The optional cookie categories this deployment actually uses, which is
     # what the chooser offers a switch for. Empty where it uses none, and the
     # chooser then states what is essential rather than asking about nothing.
@@ -149,6 +153,8 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
         direct_messages_enabled=app_settings.direct_messages_enabled,
         cookie_consent_enabled=app_settings.cookie_consent_enabled,
+        light_accent_color=app_settings.light_accent_color,
+        dark_accent_color=app_settings.dark_accent_color,
         cookie_categories=[c.value for c in active_cookie_categories(settings)],
         login_methods=sorted(
             m.value for m in auth_posture.methods_from_row(app_settings)

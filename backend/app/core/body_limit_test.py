@@ -94,7 +94,7 @@ def test_the_routes_that_write_a_document_take_a_whiteboard(path):
     "path",
     [
         "/api/v1/c/1/documents/42/comments",
-        "/api/v1/c/1/documents/42/duplicate",
+        "/api/v1/c/1/documents/42/copy",
         "/api/v1/c/1/wikis/3",
     ],
 )

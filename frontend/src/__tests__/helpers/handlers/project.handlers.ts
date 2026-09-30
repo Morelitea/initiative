@@ -9,10 +9,6 @@ export const projectHandlers = [
     return HttpResponse.json([buildProject()]);
   }),
 
-  guildHttp.get("/projects/counts/by-initiative", () => {
-    return HttpResponse.json({ counts: {} });
-  }),
-
   guildHttp.post("/projects/", () => {
     return HttpResponse.json(buildProject());
   }),

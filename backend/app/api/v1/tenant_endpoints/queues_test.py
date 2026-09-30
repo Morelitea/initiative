@@ -797,8 +797,8 @@ async def test_set_queue_item_tags(
     # Create a tag
     tag = await create_tag(session, a.guild, name="Priority")
 
-    response = await client.put(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}/tags"),
+    response = await client.patch(
+        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
         headers=a.headers,
         json={"tag_ids": [tag.id]},
     )
@@ -884,10 +884,10 @@ async def test_queue_counts_by_initiative(
     # the reader — the admin's own queue in each, not the member's beside it.
     # The disabled initiative is absent either way.
     response = await client.get(
-        admin.g("/queues/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {
+    assert response.json()["counts"]["queue"] == {
         str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
@@ -895,10 +895,10 @@ async def test_queue_counts_by_initiative(
     # Member: only queues shared with them, and no entry for initiatives
     # they are not in.
     response = await client.get(
-        member.g("/queues/counts/by-initiative"), headers=member.headers
+        member.g("/tools/counts/by-initiative"), headers=member.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(admin.initiative.id): 1}
+    assert response.json()["counts"]["queue"] == {str(admin.initiative.id): 1}
 
 
 async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user):

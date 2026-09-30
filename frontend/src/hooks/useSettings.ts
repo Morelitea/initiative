@@ -13,7 +13,12 @@ import {
   testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost,
   updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
 } from "@/api/generated/auth-providers/auth-providers";
+import {
+  getAppConfigApiV1ConfigGet,
+  getGetAppConfigApiV1ConfigGetQueryKey,
+} from "@/api/generated/config/config";
 import type {
+  AppConfig,
   AuthProviderCreate,
   AuthProviderOwnerRead,
   AuthProviderProbeResult,
@@ -59,14 +64,12 @@ import {
   getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey,
   getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
   getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
-  getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey,
   getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
   getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey,
   getGetPushSettingsApiV1SettingsPushGetQueryKey,
   getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
   getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
-  getInterfaceSettingsApiV1SettingsInterfaceGet,
   getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey,
   getNotificationSettingsApiV1SettingsNotificationsGet,
   getOidcSettingsApiV1SettingsAuthGet,
@@ -189,10 +192,11 @@ export const usePushSettings = (options?: QueryOpts<PushSettingsResponse>) =>
     ...options,
   });
 
-export const useInterfaceSettings = (options?: QueryOpts<InterfaceSettingsResponse>) => {
-  return useQuery<InterfaceSettingsResponse>({
-    queryKey: getGetInterfaceSettingsApiV1SettingsInterfaceGetQueryKey(),
-    queryFn: () => getInterfaceSettingsApiV1SettingsInterfaceGet(),
+/** The branding page's values, read from the public config they live in. */
+export const useInterfaceSettings = (options?: QueryOpts<AppConfig>) => {
+  return useQuery<AppConfig>({
+    queryKey: getGetAppConfigApiV1ConfigGetQueryKey(),
+    queryFn: () => getAppConfigApiV1ConfigGet(),
     ...options,
   });
 };
@@ -299,7 +303,7 @@ export const useUpdateInterfaceSettings = (
         ),
       // The cookie-notice switch shares this endpoint and is also on the boot
       // config, which is where the notice itself reads it.
-      invalidate: () => invalidate(q.appConfig(), q.interfaceSettings()),
+      invalidate: () => invalidate(q.appConfig()),
     },
     options
   );

@@ -1379,10 +1379,12 @@ export const useGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost
 /**
  * Replace the custom property values on a task.
  *
- * Requires write access. Validates
+ * Deprecated: ``PATCH /tasks/{task_id}`` takes the same ``property_values``
+ * list. Kept while installed apps move over. Requires write access. Validates
  * each value against its definition's type and options server-side. An
  * installed app names the person a person-valued property holds by its
  * reference for them.
+ * @deprecated
  * @summary Set Task Properties
  */
 export const setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut = (
@@ -1462,6 +1464,7 @@ export type SetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPutMutationVariab
 };
 
 /**
+ * @deprecated
  * @summary Set Task Properties
  */
 export const useSetTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut = <

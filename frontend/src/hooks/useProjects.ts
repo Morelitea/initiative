@@ -19,9 +19,7 @@ import {
   favoriteProjectsApiV1CGuildIdProjectsFavoritesGet,
   getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey,
   getListProjectsApiV1CGuildIdProjectsGetQueryKey,
-  getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey,
   getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  listWritableProjectsApiV1CGuildIdProjectsWritableGet,
   reorderProjectsApiV1CGuildIdProjectsReorderPost,
   unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1CGuildIdProjectsProjectIdPatch,
@@ -100,15 +98,9 @@ export const useTemplateProjects = (initiativeId?: number | null) => {
   return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };
 
-export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
-  const guildId = useActiveGuildId();
-  return useQuery<ProjectRead[]>({
-    queryKey: getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey(guildId),
-    queryFn: () => listWritableProjectsApiV1CGuildIdProjectsWritableGet(guildId),
-    staleTime: 60 * 1000,
-    ...options,
-  });
-};
+/** The projects the reader may edit — where a task can be moved to. */
+export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) =>
+  useProjects({ writable: true, slim: true }, { staleTime: 60 * 1000, ...options });
 
 // ``useRecentProjects`` was removed when the projects-only ``/projects/recent``
 // endpoint was retired. Use ``useRecents`` from ``@/hooks/useRecents`` for the

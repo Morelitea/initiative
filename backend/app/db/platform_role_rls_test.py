@@ -221,10 +221,10 @@ async def test_owner_can_update_interface_settings_role_scoped(client, acting_us
     assert resp.json()["light_accent_color"] == "#123456"
 
 
-async def test_interface_settings_readable_without_write_privilege(client, acting_user):
+async def test_public_config_readable_without_write_privilege(client, acting_user):
     """A public config read works even for a non-owner when the singleton row is
     absent: the privilege-tolerant lazy-create degrades to a transient default
     instead of faulting on the owner-only write."""
     a = await acting_user("member")
-    resp = await client.get("/api/v1/settings/interface", headers=a.headers)
+    resp = await client.get("/api/v1/config", headers=a.headers)
     assert resp.status_code == 200

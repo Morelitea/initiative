@@ -35,7 +35,6 @@ from app.services.platform import dm_settings as dm_settings_service
 from app.services.platform import user_ignores as user_ignores_service
 
 me_router = APIRouter()
-user_router = APIRouter()
 
 TargetUserId = Annotated[int, Path(ge=1)]
 
@@ -67,12 +66,16 @@ async def read_dm_permissions(
     session: UserSessionDep,
     current_user: CurrentUser,
 ) -> DirectMessagePermissionsResponse:
-    """The same two answers as the single read, for a page of people at once.
+    """What the caller may do about each account: ``permission`` is ``open``,
+    ``may_request`` or ``denied``, and ``may_connect`` says whether a
+    connection request would be taken.
 
-    A surface listing members draws a control per row, and asking per row is a
-    request per row. Both functions read the caller from the request context,
-    so this is the same question asked once for many subjects rather than a
-    different, looser one.
+    One value each, with nothing beside it to tell the refusals apart. Asked
+    for a page of people at once — a surface listing members draws a control
+    per row — and for one person the same way. Both answers are computed in
+    the database (``public.dm_apparent_permission`` / ``public.dm_may_connect``),
+    which read the caller from the request context rather than taking one. The
+    caller's own id is left out: every action on your own account is refused.
 
     A POST because the subjects are a list rather than an address: nothing is
     written, and the body is the only place a page of ids belongs.
@@ -205,37 +208,6 @@ async def stop_ignoring_account(
         session, user_id=current_user.id, ignored_user_id=user_id
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@user_router.get("/{user_id}/dm-permission", response_model=DirectMessagePermissionRead)
-async def read_dm_permission(
-    user_id: TargetUserId,
-    session: UserSessionDep,
-    current_user: CurrentUser,
-) -> DirectMessagePermissionRead:
-    """What the caller may do about that account: ``open``, ``may_request`` or
-    ``denied``.
-
-    One value, with nothing beside it to tell the refusals apart. The answer is
-    computed by ``public.dm_apparent_permission``, which reads the caller from
-    the request context rather than taking one.
-    """
-    await _require_visible_account(session, user_id)
-    if user_id == current_user.id:
-        return DirectMessagePermissionRead(permission="denied", may_connect=False)
-    permission = (
-        await session.exec(
-            text("SELECT public.dm_apparent_permission(:t)").bindparams(t=user_id)
-        )
-    ).scalar_one()
-    # Asked separately because it is a separate rule. Both read the caller from
-    # the request context rather than taking one.
-    may_connect = (
-        await session.exec(
-            text("SELECT public.dm_may_connect(:t)").bindparams(t=user_id)
-        )
-    ).scalar_one()
-    return DirectMessagePermissionRead(permission=permission, may_connect=may_connect)
 
 
 def _grant_error(exc: contact_grants_service.ContactGrantError) -> HTTPException:

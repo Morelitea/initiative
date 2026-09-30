@@ -129,16 +129,13 @@ class InitiativeRoleUpdate(SanitizedBaseModel):
     permissions: Optional[Dict[PermissionKey, bool]] = None
 
 
-class InitiativeGroupedCountsResponse(SanitizedBaseModel):
-    """Per-initiative resource counts (initiative_id -> visible count).
-
-    Shared response shape for the documents/projects grouped-count
-    endpoints that back sidebar and landing-card badges.
-    """
+class ToolCountsByInitiativeResponse(SanitizedBaseModel):
+    """Each tool's visible-row counts, by initiative (tool -> initiative_id ->
+    count) — what the sidebar and the initiative directory badge."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    counts: Dict[int, int] = Field(default_factory=dict)
+    counts: Dict[Tool, Dict[int, int]] = Field(default_factory=dict)
 
 
 # Member schemas - updated to work with role_id

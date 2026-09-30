@@ -1,20 +1,19 @@
 /**
  * How much of each tool lives in each initiative, for every tool at once.
  *
- * Every tool exposes the same `counts-by-initiative` shape (initiative id →
- * count), so this reads the one each declares in `TOOL_HOOKS` and runs the lot
- * behind one shared `enabled`, keyed by `Tool`. Callers then render whatever
- * the registry declares rather than naming tools by hand — a new tool shows up
- * in every consumer as soon as it has a counts endpoint, and the table it is
- * read from fails to build until it does.
- *
- * Shaped after `useGuildToolRows`, which fans out over the same tools.
+ * One request answers every tool (tool → initiative id → count), and the
+ * result is spread over the registry's `TOOLS`, keyed by `Tool`. Callers then
+ * render whatever the registry declares rather than naming tools by hand — a
+ * new tool shows up in every consumer as soon as the server counts it.
  */
 
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { TOOL_HOOKS } from "@/hooks/toolHooks";
+import {
+  getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey,
+  getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet,
+} from "@/api/generated/tools/tools";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { TOOLS } from "@/lib/tools";
 
@@ -27,7 +26,7 @@ export interface ToolCounts {
 export type ToolCountsByInitiative = Record<Tool, ToolCounts>;
 
 export interface UseToolCountsOptions {
-  /** Skip every request — for a view with no card that would show a number. */
+  /** Skip the request — for a view with no card that would show a number. */
   enabled?: boolean;
   staleTime?: number;
 }
@@ -42,25 +41,19 @@ const toCountMap = (counts: Record<string, number> | undefined): Map<number, num
 };
 
 export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolCountsByInitiative {
-  const queryOptions = {
+  const guildId = useActiveGuildId();
+  const query = useQuery({
+    queryKey: getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey(guildId),
+    queryFn: () => getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet(guildId),
     enabled: options?.enabled ?? true,
     staleTime: options?.staleTime ?? 30_000,
-  };
-
-  // One `useQueries` rather than a hook per tool: the list comes from the
-  // registry, so it is the same length and the same order on every render, and
-  // a tool joins the fan-out by existing.
-  const guildId = useActiveGuildId();
-  const results = useQueries({
-    queries: TOOLS.map((tool) => ({ ...TOOL_HOOKS[tool].countsQuery(guildId), ...queryOptions })),
   });
 
   // One small map per tool, built during render rather than memoized against
-  // query results that change identity on their own.
+  // a query result that changes identity on its own.
   const byTool = {} as ToolCountsByInitiative;
-  TOOLS.forEach((tool, index) => {
-    const query = results[index];
-    byTool[tool] = { counts: toCountMap(query.data?.counts), isLoading: query.isLoading };
-  });
+  for (const tool of TOOLS) {
+    byTool[tool] = { counts: toCountMap(query.data?.counts[tool]), isLoading: query.isLoading };
+  }
   return byTool;
 }

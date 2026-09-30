@@ -1061,7 +1061,7 @@ async def generate_task_description(
         raise HTTPException(status_code=e.status_code, detail=e.code)
 
 
-@router.put("/{task_id}/properties", response_model=TaskRead)
+@router.put("/{task_id}/properties", response_model=TaskRead, deprecated=True)
 async def set_task_properties(
     task_id: int,
     payload: PropertyValuesSetRequest,
@@ -1071,7 +1071,8 @@ async def set_task_properties(
 ) -> Task:
     """Replace the custom property values on a task.
 
-    Requires write access. Validates
+    Deprecated: ``PATCH /tasks/{task_id}`` takes the same ``property_values``
+    list. Kept while installed apps move over. Requires write access. Validates
     each value against its definition's type and options server-side. An
     installed app names the person a person-valued property holds by its
     reference for them.

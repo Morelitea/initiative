@@ -196,13 +196,13 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     await create_resource_grant(session, doc, all_initiative_members=True)
 
     refused = await client.post(
-        writer.g(f"/documents/{doc.id}/duplicate"), headers=writer.headers
+        writer.g(f"/documents/{doc.id}/copy"), headers=writer.headers
     )
     assert refused.status_code == 403
     assert refused.json()["detail"] == "DOCUMENT_CREATE_PERMISSION_REQUIRED"
 
     duplicated = await client.post(
-        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
+        owner.g(f"/documents/{doc.id}/copy"), headers=owner.headers
     )
     assert duplicated.status_code == 201, duplicated.text
     assert duplicated.json()["name"] == "Plan (Copy)"
@@ -216,7 +216,7 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     }
 
     again = await client.post(
-        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
+        owner.g(f"/documents/{doc.id}/copy"), headers=owner.headers
     )
     assert again.status_code == 409
     assert again.json()["detail"] == "DOCUMENT_NAME_ALREADY_EXISTS"
@@ -922,10 +922,10 @@ async def test_document_counts_by_initiative(
     # a guild admin included. Theirs is the one document they hold in each,
     # not the member's two alongside it.
     response = await client.get(
-        admin.g("/documents/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {
+    assert response.json()["counts"]["document"] == {
         str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
@@ -933,10 +933,10 @@ async def test_document_counts_by_initiative(
     # A member counts only documents shared with them, and gets no entry
     # at all for initiatives they are not in.
     response = await client.get(
-        member.g("/documents/counts/by-initiative"), headers=member.headers
+        member.g("/tools/counts/by-initiative"), headers=member.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(admin.initiative.id): 2}
+    assert response.json()["counts"]["document"] == {str(admin.initiative.id): 2}
 
 
 async def test_reading_a_document_can_leave_the_body_out(

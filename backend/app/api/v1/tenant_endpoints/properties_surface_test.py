@@ -578,7 +578,7 @@ async def test_duplicating_a_document_in_place_carries_its_values(
     )
 
     duplicated = await client.post(
-        a.g(f"/documents/{doc}/duplicate"), headers=a.headers, json={"name": "Dup"}
+        a.g(f"/documents/{doc}/copy"), headers=a.headers, json={"name": "Dup"}
     )
 
     assert duplicated.status_code == 201

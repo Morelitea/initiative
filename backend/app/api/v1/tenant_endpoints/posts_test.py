@@ -723,9 +723,9 @@ async def test_a_draft_is_out_of_the_sidebar_counts(
     await create_post(session, author.initiative, author.user, name="Live one")
 
     counts = await client.get(
-        reader.g("/posts/counts/by-initiative"), headers=reader.headers
+        reader.g("/tools/counts/by-initiative"), headers=reader.headers
     )
-    assert counts.json()["counts"][str(author.initiative.id)] == 1
+    assert counts.json()["counts"]["post"][str(author.initiative.id)] == 1
 
 
 async def test_an_editor_can_see_a_draft(

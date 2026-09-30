@@ -21,7 +21,7 @@ import {
   listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet,
   updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch,
 } from "@/api/generated/property-definitions/property-definitions";
-import { setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut } from "@/api/generated/tasks/tasks";
+import { updateTaskApiV1CGuildIdTasksTaskIdPatch } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -206,13 +206,16 @@ export const useSetDocumentProperties = (
     options
   );
 
+/** A task's values ride its own update (`property_values` on the PATCH). */
 export const useSetTaskProperties = (
   options?: MutationOpts<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>
 ) =>
   useGuildMutation<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>(
     {
       mutationFn: (guildId, { taskId, values }) =>
-        setTaskPropertiesApiV1CGuildIdTasksTaskIdPropertiesPut(guildId, taskId, values),
+        updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, {
+          property_values: values.values,
+        }),
       invalidate: (_data, vars) => invalidate(q.allTasks(), q.task(vars.taskId)),
       errorKey: "properties:manager.setValuesError",
     },
