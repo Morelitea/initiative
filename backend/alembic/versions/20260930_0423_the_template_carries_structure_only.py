@@ -12,15 +12,15 @@ security, and the template's check names the types 0207 created it with. Each
 community's own check is rendered from the registry when it is provisioned,
 so no community schema is touched.
 
-Revision ID: 20260930_0422
-Revises: 20260930_0421
+Revision ID: 20260930_0423
+Revises: 20260930_0422
 Create Date: 2026-09-30
 """
 
 from alembic import op
 
-revision = "20260930_0422"
-down_revision = "20260930_0421"
+revision = "20260930_0423"
+down_revision = "20260930_0422"
 branch_labels = None
 depends_on = None
 
