@@ -6,6 +6,7 @@ test harness commits real data and truncates between tests).
 """
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 import re
 
@@ -242,8 +243,15 @@ async def test_event_reminder_fires_for_each_occurrence_of_a_repeat(
     await _dispatch(session)
     await _dispatch(session)
     reminders = await _reminders_for(session, attendee.id)
-    assert [reminder.data["start_at"] for reminder in reminders] == [
-        upcoming.isoformat()
+    assert [
+        (reminder.data["start_at"], reminder.data["target_path"])
+        for reminder in reminders
+    ] == [
+        (
+            upcoming.isoformat(),
+            f"/go/calendar-event/{event.id}?"
+            + urlencode({"occurrence": upcoming.isoformat()}),
+        )
     ]
 
 

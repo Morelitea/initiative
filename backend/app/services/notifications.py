@@ -20,7 +20,7 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from sqlalchemy import column as sa_column
 from sqlalchemy import and_, delete, func, or_, select
@@ -2287,6 +2287,8 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
             )
             if start - lead[user_id] <= now
         ]
+        # A repeat's reminder opens the occurrence it is about.
+        repeating = {event.id for event in events if event.recurrence}
         for event_id, start_at in due:
             # Reserve the dedup row before dispatching (reserve-then-send).
             # The reservation is the claim: a row already there — this pass's
@@ -2324,7 +2326,19 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                         _event, reader, _start
                     ),
                 },
-                data={"event_id": event_id, "start_at": start_at.isoformat()},
+                data={
+                    "event_id": event_id,
+                    "start_at": start_at.isoformat(),
+                    **(
+                        {
+                            "target_path": reference_path("calendar_event", event_id)
+                            + "?"
+                            + urlencode({"occurrence": start_at.isoformat()})
+                        }
+                        if event_id in repeating
+                        else {}
+                    ),
+                },
             )
             await session.commit()
         return []

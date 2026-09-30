@@ -216,7 +216,10 @@ export function EventDetailPage() {
   }
 
   // The occurrence is the series at that start, with the series' length.
-  const shownStart = event.recurrence && occurrence ? occurrence : event.start_at;
+  const shownStart =
+    event.recurrence && occurrence && !Number.isNaN(Date.parse(occurrence))
+      ? occurrence
+      : event.start_at;
   const shownEnd = new Date(
     Date.parse(shownStart) + Date.parse(event.end_at) - Date.parse(event.start_at)
   ).toISOString();
