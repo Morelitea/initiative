@@ -587,6 +587,16 @@ async def create_guild(
             detail=GuildMessages.GUILD_NAME_REQUIRED,
         )
 
+    if not user_has_capability(
+        current_user, Capability.GUILDS_MANAGE
+    ) and not await guilds_service.may_create_another_guild(
+        session, user_id=current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=GuildMessages.GUILD_CREATION_LIMIT_REACHED,
+        )
+
     owner = await _resolve_guild_owner(session, guild_in, current_user)
 
     if (

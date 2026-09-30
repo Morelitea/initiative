@@ -13,6 +13,7 @@ from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.core.config import settings
 from app.core.guild_auth_options import GuildAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
@@ -670,6 +671,34 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     session.add(settings_row)
     await session.flush()
     return settings_row
+
+
+_GUILD_CREATION_LOCK_NAMESPACE = 0x47435245  # 1195594309
+
+
+async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bool:
+    """Has this account created fewer than ``GUILD_CREATION_DAILY_LIMIT``
+    communities in the last day?
+
+    Takes a per-account lock held until the transaction ends, so the guild the
+    caller then inserts is committed before the next creation for this account
+    counts. A deleted community still counts: its row stays for at least
+    ``MIN_GUILD_RETENTION_DAYS`` after deletion, which is at least this window.
+    """
+    limit = settings.GUILD_CREATION_DAILY_LIMIT
+    if not limit:
+        return True
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
+        params={"ns": _GUILD_CREATION_LOCK_NAMESPACE, "uid": int(user_id)},
+    )
+    since = datetime.now(timezone.utc) - timedelta(days=1)
+    created = await session.scalar(
+        select(func.count())
+        .select_from(Guild)
+        .where(Guild.created_by == user_id, Guild.created_at > since)
+    )
+    return (created or 0) < limit
 
 
 async def holds_a_free_guild(session: AsyncSession, *, user_id: int) -> bool:

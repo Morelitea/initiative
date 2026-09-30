@@ -83,8 +83,16 @@ async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSe
     assert "public_registration_enabled" in data
 
 
-async def test_register_first_user(client: AsyncClient):
-    """Test that first registered user becomes owner and gets a guild."""
+async def test_register_first_user(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The first registered user becomes owner, and with
+    ``REGISTRATION_CREATES_GUILD`` off registering creates no guild."""
+    from app.core.config import settings
+    from app.models.platform.guild import GuildMembership
+
+    monkeypatch.setattr(settings, "REGISTRATION_CREATES_GUILD", False)
+
     user_data = {
         "email": "first@example.com",
         "username": "first",
@@ -100,6 +108,10 @@ async def test_register_first_user(client: AsyncClient):
     assert data["full_name"] == "First User"
     assert data["status"] == "active"
     assert data["role"] == "owner"  # First user bootstraps as owner
+    held = await session.exec(
+        select(GuildMembership).where(GuildMembership.user_id == data["id"])
+    )
+    assert held.all() == []
 
 
 async def test_register_with_invite_blocked_when_guild_full(
