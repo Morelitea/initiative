@@ -20,15 +20,43 @@ From an initiative's **Calendar**, pick a slot or choose **New event**. You can 
 | **Start and end** | Or tick **all day** and skip the times. |
 | **Color** | So rehearsals and meetings are distinguishable at a glance. |
 | **Attendees** | The people invited. |
-| **Recurrence** | If it repeats — same options as recurring tasks. |
+| **Repeat** | If it happens more than once. See [Repeating events](#repeating-events). |
 
 ![The initiative calendar with events](../images/tools/calendar.png)
+
+## Repeating events
+
+Pick **Repeat** and choose daily, every weekday, weekly, monthly or annually. **Custom…** covers the awkward ones: the second Tuesday, the last Friday, the first weekday of the month, the 1st and the 15th.
+
+The form lists the next few dates underneath, so you can check it means what you meant before twelve people turn up on the wrong Tuesday. **Ends** stops it on a date, after a number of times, or never.
+
+Every date shows on the calendar, and every date sends its own reminder.
+
+### Changing one date
+
+Move, rename, re-invite or delete a repeating event — in its settings, or by dragging it on the calendar — and Initiative asks which dates you mean:
+
+| | |
+|---|---|
+| **Just this event** | This date changes. The rest carry on as they were. |
+| **Events after this point** | This date and everything after it. The earlier ones stay as they happened. |
+| **All events in the series** | The lot. |
+
+A few more things live on a repeating event:
+
+- **Skipped dates.** Deleting just one date skips it. The event's settings list every skipped date with **Restore** beside it, for when the cancelled rehearsal turns out to be happening after all.
+- **Extra dates.** **Add a date** puts in a one-off, like the bonus session the week before the show.
+- **Make this its own event** lifts one date out of the series entirely. It keeps everything it had, and the series skips that date.
+
+A date changed on its own says so at the top, with **Open the series** to get back to the rest.
 
 ## RSVPs
 
 Invited people answer **Accepted**, **Declined**, **Tentative**, or leave it sitting at **Pending**. You get to see who's actually coming, which is the entire reason anybody sends an invitation in the first place.
 
 Pending isn't a rude answer, incidentally. It's the default, and it nearly always means "haven't opened it yet" rather than "am refusing to engage".
+
+On a repeating event, each date gets its own answer. Accepting one Tuesday is not accepting every Tuesday until the end of time.
 
 ## Reminders
 
@@ -52,6 +80,11 @@ Events **import and export as standard `.ics` files**, which every other calenda
 | A whole calendar | That calendar's **Settings → Advanced**, which also offers a file Initiative can import back | Whoever could also delete it |
 
 So you can pull a whole season's fixtures in at once, or push the rehearsal schedule straight into everyone's phone calendar — including the members who will never, under any circumstances, open Initiative.
+
+Repeats go both ways too, with their skipped dates and any date changed on its own.
+
+??? techspec "Repeats in files and the API"
+    A repeat is an RFC 5545 rule (`RRULE`, with `EXDATE` for skipped dates and `RDATE` for extra ones), kept in UTC. In an `.ics` file, a date changed on its own is a second `VEVENT` with the series' `UID` and a `RECURRENCE-ID`. Over the API, `PATCH` and `DELETE` on a repeating event take `scope` (`this`, `following`, `all`) and the `occurrence` they start from.
 
 !!! tip "The one calendar that knows everything"
     [My Calendar](your-space.md#my-calendar) gathers events *and* dated tasks from every community you're in, on one screen.
