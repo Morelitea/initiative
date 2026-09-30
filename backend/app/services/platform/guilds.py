@@ -673,7 +673,9 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
 
 
 #: Communities one account may create in a day, since each one is a schema of
-#: its own. Platform staff holding ``guilds.manage`` are not held to it.
+#: its own. Platform staff holding ``guilds.manage`` are not held to it. A
+#: deleted community still counts: its row stays for at least
+#: ``MIN_GUILD_RETENTION_DAYS`` after deletion, which is at least this window.
 GUILDS_CREATED_PER_DAY = 5
 
 

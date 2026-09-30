@@ -294,8 +294,9 @@ async def test_a_deployment_without_billing_never_counts_communities(
 async def test_an_account_creates_only_its_daily_allowance_of_guilds(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
-    """Past the allowance the request is refused before anything is made; the
-    staff who stand communities up for others are not counted."""
+    """Past the allowance the request is refused before anything is made, and
+    deleting a community does not give the allowance back; the staff who stand
+    communities up for others are not counted."""
     from app.services.platform import guilds as guilds_service
 
     monkeypatch.setattr(guilds_service, "GUILDS_CREATED_PER_DAY", 1)
@@ -304,6 +305,10 @@ async def test_an_account_creates_only_its_daily_allowance_of_guilds(
         "/api/v1/communities/", headers=a.headers, json={"name": "First"}
     )
     assert first.status_code == 201, first.text
+    await guilds_service.soft_delete_guild(
+        session, await session.get(Guild, first.json()["id"])
+    )
+    await session.commit()
 
     second = await client.post(
         "/api/v1/communities/", headers=a.headers, json={"name": "Second"}
