@@ -633,6 +633,42 @@ async def test_an_address_is_a_way_in_once_the_code_is_permitted(
     assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"email_otp"}
 
 
+async def test_a_placeholder_address_is_not_a_way_in(
+    client: AsyncClient, session: AsyncSession
+):
+    """An identity provider that sends no address leaves the account a
+    ``{subject}@oidc.local`` placeholder, which no code reaches: leaving the
+    emailed code as its only method strands it."""
+    from sqlmodel import select
+
+    from app.models.platform.user_email import UserEmail
+    from app.services.auth import addresses
+
+    _, headers = await _owner(session)
+    await _can_send_mail(session)
+    provider = await create_auth_provider(session, slug="corp")
+    member = await create_user(session, hashed_password=None)
+    await create_federated_identity(session, member, provider=provider)
+    for row in (
+        await session.exec(select(UserEmail).where(UserEmail.user_id == member.id))
+    ).all():
+        row.source = addresses.SOURCE_SYNTHETIC
+        session.add(row)
+    await session.commit()
+    everything = ["password", "sso", "totp", "passkey", "email_otp"]
+    await client.put(METHODS_URL, headers=headers, json={"methods": everything})
+
+    refused = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["password", "totp", "passkey", "email_otp"]},
+    )
+
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    assert refused.headers["X-Affected-Count"] == "1"
+
+
 async def test_withdrawing_the_emailed_code_reports_who_it_strands(
     client: AsyncClient, session: AsyncSession
 ):

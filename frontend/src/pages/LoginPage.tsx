@@ -150,10 +150,11 @@ export const LoginPage = () => {
       try {
         const response = await listLoginProvidersApiV1AuthProvidersGet();
         setProviders(response.providers);
+        // Only an answer says nothing is offered; a failed request says
+        // nothing at all.
+        setProvidersLoaded(true);
       } catch {
         setProviders([]);
-      } finally {
-        setProvidersLoaded(true);
       }
     };
     void fetchProviders();

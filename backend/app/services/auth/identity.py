@@ -328,9 +328,17 @@ def _holds_an_address_clause():
 
     Any address, confirmed or not: a code sent to an unconfirmed one proves it
     on arrival, so both are ways in. This is the only credential an account
-    does not have to do anything to acquire.
+    does not have to do anything to acquire. A synthetic placeholder is not a
+    mailbox, so it is not one.
     """
-    return select(UserEmail.id).where(UserEmail.user_id == User.id).exists()
+    return (
+        select(UserEmail.id)
+        .where(
+            UserEmail.user_id == User.id,
+            UserEmail.source != addresses.SOURCE_SYNTHETIC,
+        )
+        .exists()
+    )
 
 
 #: What each way in is answered with, as a predicate on ``User``. The one
