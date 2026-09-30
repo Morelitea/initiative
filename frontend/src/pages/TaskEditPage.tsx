@@ -123,6 +123,7 @@ type TaskFormSource = Omit<
     | "due_date"
     | "recurrence"
     | "recurrence_strategy"
+    | "recurrence_shift"
     | "tags"
     | "properties"
   >,
@@ -138,7 +139,7 @@ const formValueFromTask = (task: TaskFormSource): TaskFormValue => ({
   assigneeIds: task.assignees?.map((assignee) => assignee.id) ?? [],
   startDate: toLocalInputValue(task.start_date),
   dueDate: toLocalInputValue(task.due_date),
-  recurrence: fromStored(task.recurrence, task.due_date ?? task.start_date),
+  recurrence: fromStored(task.recurrence, task.due_date ?? task.start_date, task.recurrence_shift),
   recurrenceStrategy: task.recurrence_strategy ?? "fixed",
   tags: task.tags ?? [],
   properties: task.properties ?? [],

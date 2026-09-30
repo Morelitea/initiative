@@ -14,8 +14,8 @@ export type RecurrenceWeekday =
 
 /**
  * A repeat as the form edits it: its days as picked, in the viewer's zone.
- * The server stores RRULE lines in UTC terms, so a rule goes out through
- * {@link toRRule} with the browser's zone, and comes back through
+ * It goes out through {@link toRRule} with the browser's zone, which the
+ * server keeps as a shift beside the rule, and comes back through
  * {@link fromStored}.
  */
 export type RecurrenceRule = {
@@ -425,8 +425,8 @@ export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().tim
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
- * The RRULE for a rule as picked. Send it with `tz: browserTimezone()`; the
- * server converts its days to UTC terms. An all-day event ends on a date.
+ * The RRULE for a rule as picked. Send it with `tz: browserTimezone()`, the
+ * zone its days are in. An all-day event ends on a date.
  */
 export const toRRule = (rule: RecurrenceRule, options?: { allDay?: boolean }): string => {
   const parts = [`FREQ=${rule.frequency.toUpperCase()}`];
@@ -510,12 +510,14 @@ const moveMonthday = (day: number, days: number): number => {
 };
 
 /**
- * A stored rule's days read in the viewer's zone: the day parts move by the
- * day the start's local date is from its UTC date. Only the shapes the server
- * writes for the form's rules are read back; anything else stays as stored.
+ * A stored rule's days read in the viewer's zone. They are the days it was
+ * picked on, which the start moved by its shift lands on; a viewer elsewhere
+ * sees them moved by the day between that and their own date. Where that move
+ * leaves a shape the form can't show, the rule reads as custom.
  */
-const toLocalParts = (parts: Parts, start: Date): Parts => {
-  const days = localDayNumber(start) - utcDayNumber(start);
+const toLocalParts = (parts: Parts, start: Date, shift: number): Parts => {
+  const picked = new Date(start.getTime() + shift * 60_000);
+  const days = localDayNumber(start) - utcDayNumber(picked);
   if (!days) return parts;
   const moved: Parts = new Map(parts);
   const byday = parts.get("BYDAY") ?? [];
@@ -564,12 +566,13 @@ const toLocalParts = (parts: Parts, start: Date): Parts => {
  */
 export const fromStored = (
   stored: string | null | undefined,
-  start: string | null | undefined
+  start: string | null | undefined,
+  shift = 0
 ): RecurrenceRule | "custom" | null => {
   if (!stored) return null;
   const raw = parseRule(stored);
   if (!raw) return "custom";
-  const parts = start ? toLocalParts(raw, new Date(start)) : raw;
+  const parts = start ? toLocalParts(raw, new Date(start), shift) : raw;
   const freq = (parts.get("FREQ")?.[0] ?? "").toLowerCase() as RecurrenceFrequency;
   if (!(freq in FREQUENCY_LABELS)) return "custom";
   const known = new Set([
@@ -655,10 +658,10 @@ const toLocalDateKey = (date: Date) =>
 export const summarizeStored = (
   stored: string | null | undefined,
   start: string | null | undefined,
-  options: { strategy?: TaskListReadRecurrenceStrategy } | undefined,
+  options: { strategy?: TaskListReadRecurrenceStrategy; shift?: number } | undefined,
   t: TranslateFn
 ): string => {
-  const rule = fromStored(stored, start);
+  const rule = fromStored(stored, start, options?.shift);
   if (rule === "custom") return t("dates:recurrenceSummary.custom");
   return summarizeRecurrence(rule, { referenceDate: start, strategy: options?.strategy }, t);
 };

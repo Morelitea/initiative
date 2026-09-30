@@ -248,8 +248,8 @@ async def test_an_archived_project_still_lists_its_tasks(
 
 
 async def test_create_task(client: AsyncClient, session: AsyncSession, acting_user):
-    """Creating a task. Its repeat, sent with the zone its days were picked in,
-    is stored in UTC terms; a repeat a task can't have is refused."""
+    """Creating a task. Its repeat is stored as picked, with the shift from the
+    zone it was picked in; a repeat a task can't have is refused."""
     from app.services.tenant import task_statuses as task_statuses_service
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -278,7 +278,10 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
     assert data["title"] == "New Task"
     assert data["description"] == "Task description"
     assert data["priority"] == "high"
-    assert data["recurrence"] == "RRULE:FREQ=WEEKLY;BYDAY=SU"
+    assert (data["recurrence"], data["recurrence_shift"]) == (
+        "RRULE:FREQ=WEEKLY;BYDAY=MO",
+        1440,
+    )
 
     hourly = await client.post(
         a.g("/tasks/"), headers=a.headers, json={**payload, "recurrence": "FREQ=HOURLY"}

@@ -295,6 +295,7 @@ async def _duplicate_template_tasks(
             start_date=start_date,
             due_date=due_date,
             recurrence=repeat,
+            recurrence_shift=template_task.recurrence_shift,
             recurrence_strategy=template_task.recurrence_strategy,
             position=template_task.position,
             checklist=checklist_service.cloned(template_task.checklist, keep_done=True),

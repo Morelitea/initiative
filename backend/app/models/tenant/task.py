@@ -118,8 +118,13 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     due_date: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    # RFC 5545 recurrence lines in UTC terms (``app.core.recurrence``).
+    # RFC 5545 recurrence lines as picked (``app.core.recurrence``).
     recurrence: Optional[str] = Field(default=None, sa_column=Column(Text))
+    # Minutes from the start's UTC time to where the repeat was picked: whole
+    # days for a rule of days, the offset for a rule of hours.
+    recurrence_shift: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default="0")
+    )
     # No occurrence of the series starts after this; null when it never ends.
     # Written from ``recurrence`` on every save (see the listener below).
     recurrence_until: Optional[datetime] = Field(
@@ -186,7 +191,10 @@ def _write_recurrence_until(_mapper, _connection, task: Task) -> None:
     start = task.due_date or task.start_date
     task.recurrence_until = (
         recurrence.last_start(
-            task.recurrence, start, done=task.recurrence_occurrence_count
+            task.recurrence,
+            start,
+            task.recurrence_shift,
+            done=task.recurrence_occurrence_count,
         )
         if task.recurrence and start
         else None

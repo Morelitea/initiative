@@ -367,7 +367,7 @@ async def create_task(
         }
     )
     if task_data.get("recurrence"):
-        task_data["recurrence"] = recurrence.stored(
+        task_data["recurrence"], task_data["recurrence_shift"] = recurrence.stored(
             task_data["recurrence"],
             task_data.get("due_date") or task_data.get("start_date"),
             task_in.tz,
@@ -504,18 +504,13 @@ async def update_task(
         setattr(task, field, value)
     start = task.due_date or task.start_date
     if update_data.get("recurrence"):
-        task.recurrence = recurrence.stored(
+        task.recurrence, task.recurrence_shift = recurrence.stored(
             update_data["recurrence"], start, picked_in, kind="task"
         )
     elif task.recurrence and previous_start and start and start != previous_start:
         # The repeat moves with its start, its days kept as they were picked.
-        task.recurrence = recurrence.carried(
-            task.recurrence,
-            previous_start,
-            start,
-            old_tz=picked_in,
-            new_tz=picked_in,
-            kind="task",
+        task.recurrence, task.recurrence_shift = recurrence.restarted(
+            task.recurrence, task.recurrence_shift, previous_start, start, picked_in
         )
     if checklist_sent:
         task.checklist = checklist_service.normalize(
@@ -705,6 +700,7 @@ async def duplicate_task(
         start_date=original_task.start_date,
         due_date=original_task.due_date,
         recurrence=original_task.recurrence,
+        recurrence_shift=original_task.recurrence_shift,
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by=current_user.id,

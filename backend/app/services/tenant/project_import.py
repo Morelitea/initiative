@@ -300,6 +300,13 @@ async def _import_task(
             detail=ProjectExportMessages.NO_TASK_STATUSES,
         )
 
+    repeat, shift = recurrence.imported(
+        envelope_task.recurrence,
+        kind="task",
+        start=envelope_task.due_date or envelope_task.start_date,
+        tz=importer_zone,
+        shift=envelope_task.recurrence_shift,
+    )
     task = Task(
         project_id=project_id,
         task_status_id=status_id,
@@ -313,12 +320,8 @@ async def _import_task(
         priority=envelope_task.priority,
         start_date=envelope_task.start_date,
         due_date=envelope_task.due_date,
-        recurrence=recurrence.imported(
-            envelope_task.recurrence,
-            kind="task",
-            start=envelope_task.due_date or envelope_task.start_date,
-            tz=importer_zone,
-        ),
+        recurrence=repeat,
+        recurrence_shift=shift,
         recurrence_strategy=envelope_task.recurrence_strategy,
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
         position=envelope_task.position,

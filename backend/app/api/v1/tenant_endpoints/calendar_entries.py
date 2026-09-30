@@ -76,6 +76,7 @@ async def list_calendar_entries(
             calendar_ids=calendar_ids,
             start_after=window.start_after,
             start_before=window.start_before,
+            tz=tz,
             property_filters=property_filters,
         )
         events_out = [
@@ -129,6 +130,7 @@ async def list_my_calendar_entries(
             guild_ids=guild_ids,
             start_after=window.start_after,
             start_before=window.start_before,
+            tz=tz,
         )
         # Already serialized inside each guild's own routed fetch.
         events_out = events

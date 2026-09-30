@@ -15,7 +15,7 @@ from app.services.fields.spec import Dataset, Hop, Relation
 
 #: A recurrence rule and its end are instructions to the calendar, not values
 #: anybody narrows a list by.
-_INTERNAL = frozenset({"recurrence", "recurrence_until"})
+_INTERNAL = frozenset({"recurrence", "recurrence_until", "recurrence_shift"})
 
 
 def build() -> Dataset:

@@ -1,4 +1,4 @@
-"""Repeat rules: RFC 5545 recurrence lines, stored in UTC terms.
+"""Repeat rules: RFC 5545 recurrence lines, as they were picked, and a shift.
 
 A stored repeat is one ``RRULE`` line and any ``EXDATE`` / ``RDATE`` lines:
 
@@ -6,19 +6,23 @@ A stored repeat is one ``RRULE`` line and any ``EXDATE`` / ``RDATE`` lines:
     EXDATE:20261109T083000Z
 
 The series start is the row's own (an event's ``start_at``, a task's due date),
-never a ``DTSTART`` line. The rule's weekdays, month days and months are those
-of the start's UTC date, and ``UNTIL``, ``EXDATE`` and ``RDATE`` are UTC, so the
-stored rule means the same instants to every viewer.
+never a ``DTSTART`` line. The rule's days are the ones somebody picked, in their
+zone; ``UNTIL``, ``EXDATE`` and ``RDATE`` are UTC. Beside it the row keeps
+``recurrence_shift``, the minutes from the start's UTC time to where it was
+picked: whole days (``-1440``, ``0``, ``1440``) for a rule of days, the exact
+offset for a rule of hours. It is neither a zone nor its daylight-saving rules,
+so every occurrence is a fixed instant, the same for every viewer.
 
-People pick days in their own zone: :func:`to_utc_terms` turns those picks into
-the stored rule, and :func:`to_local_terms` is the way back for an editor.
-dateutil is the one engine that turns a rule into dates.
+dateutil is the one engine that turns a rule into dates: it runs the rule from
+the start moved by the shift, where the picked days are, and moves every
+occurrence back.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
+from itertools import islice
 from typing import Iterable, Literal
 
 import icalendar
@@ -58,9 +62,6 @@ _PARTS: dict[RecurrenceKind, frozenset[str]] = {
     "event": _TASK_PARTS | {"BYHOUR"},
 }
 
-# Each month's length in a leap year
-_LONGEST = (31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-
 # The last second of a day: the instant an all-day series' UNTIL date ends
 _END_OF_DAY = time(23, 59, 59)
 
@@ -68,9 +69,6 @@ _END_OF_DAY = time(23, 59, 59)
 # saving a rule walks once to find its last start.
 _MAX_INTERVAL = 366
 _MAX_COUNT = 10_000
-
-# How many occurrences the conversion check compares
-_CHECKED_OCCURRENCES = 60
 
 
 @dataclass(frozen=True)
@@ -155,84 +153,146 @@ def normalize(text: str, *, kind: RecurrenceKind) -> str:
         if isinstance(value, datetime) and value.utcoffset() != timedelta(0):
             raise ValueError("A repeat's dates and times are UTC.")
     # dateutil is the engine every date comes from, so it has to read the rule.
-    ruleset(recurrence, datetime(2000, 1, 1, tzinfo=timezone.utc))
+    _series(recurrence, datetime(2000, 1, 1, tzinfo=timezone.utc), 0)
     return recurrence.to_lines()
 
 
-def ruleset(recurrence: Recurrence, start: datetime, *, count: bool = True) -> rruleset:
-    """The dateutil set for a series starting at ``start``. ``count=False``
-    leaves COUNT out, for a task series whose own counter decides its end."""
-    start = start.astimezone(timezone.utc)
-    parts = {key: values for key, values in recurrence.rule.items()}
+def shift_for(text: str, start: datetime, zone: tzinfo) -> int:
+    """The shift of a rule picked in ``zone`` for a series starting at
+    ``start``: whole days for a rule of days, the offset for a rule of hours."""
+    rule = parse(text).rule
+    local = start.astimezone(zone)
+    if rule["FREQ"][0] == "HOURLY" or "BYHOUR" in rule:
+        return int((local.utcoffset() or timedelta(0)).total_seconds() // 60)
+    return (local.date() - start.astimezone(timezone.utc).date()).days * 1440
+
+
+def stored(
+    text: str, start: datetime | None, tz: str | None, *, kind: RecurrenceKind
+) -> tuple[str, int]:
+    """A written rule and its shift: picked in ``tz``, or in UTC without one."""
+    rule = normalize(text, kind=kind)
+    if not tz or start is None:
+        return rule, 0
+    return rule, shift_for(rule, start, resolve_zone(tz))
+
+
+def _series(
+    recurrence: Recurrence, start: datetime, shift: int, *, count: bool = True
+) -> tuple[rruleset, timedelta]:
+    """The dateutil set run from the start moved by ``shift``, where the picked
+    days are, and the shift to move its occurrences back by."""
+    offset = timedelta(minutes=shift)
+    moved = (start.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+
+    def here(value: date | datetime, at: time) -> datetime:
+        if isinstance(value, datetime):
+            return (value.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+        return datetime.combine(value, at)
+
+    parts = dict(recurrence.rule)
     if not count:
         parts.pop("COUNT", None)
     if until := parts.get("UNTIL"):
-        parts["UNTIL"] = [_instant(until[0], _END_OF_DAY)]
+        parts["UNTIL"] = [here(until[0], _END_OF_DAY)]
     series = rruleset()
-    series.rrule(rrulestr(icalendar.vRecur(parts).to_ical().decode(), dtstart=start))
+    series.rrule(rrulestr(icalendar.vRecur(parts).to_ical().decode(), dtstart=moved))
     for value in recurrence.rdates:
-        series.rdate(_instant(value, start.timetz()))
+        series.rdate(here(value, moved.time()))
     for value in recurrence.exdates:
-        series.exdate(_instant(value, start.timetz()))
-    return series
+        series.exdate(here(value, moved.time()))
+    return series, offset
 
 
-def _instant(value: date | datetime, at: time) -> datetime:
-    if isinstance(value, datetime):
-        return value.astimezone(timezone.utc)
-    return datetime.combine(value, at.replace(tzinfo=None), timezone.utc)
+def _back(value: datetime, offset: timedelta) -> datetime:
+    return (value - offset).replace(tzinfo=timezone.utc)
 
 
-def last_start(text: str, start: datetime, *, done: int = 0) -> datetime | None:
+def first(text: str, start: datetime, shift: int, n: int) -> list[datetime]:
+    """The series' first ``n`` starts."""
+    series, offset = _series(parse(text), start, shift)
+    return [_back(value, offset) for value in islice(series, n)]
+
+
+def next_start(
+    text: str, start: datetime, shift: int = 0, *, count: bool = True
+) -> datetime | None:
+    """The first occurrence after ``start`` of a series starting there."""
+    series, offset = _series(parse(text), start, shift, count=count)
+    moved = (start.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+    following = series.after(moved, inc=False)
+    return _back(following, offset) if following else None
+
+
+def last_start(
+    text: str, start: datetime, shift: int = 0, *, done: int = 0
+) -> datetime | None:
     """No occurrence of the series starts after this, or None when it never
-    ends. For an UNTIL rule it is UNTIL itself (or a later extra date). ``done``
-    is how many of a COUNT series came before ``start``: a task series counts
-    its successors itself."""
+    ends: UNTIL itself (or a later extra date), or a COUNT series' last start.
+    ``done`` is how many of a COUNT series came before ``start``: a task series
+    counts its successors itself."""
     recurrence = parse(text)
-    extra = [_instant(value, start.timetz()) for value in recurrence.rdates]
+    offset = timedelta(minutes=shift)
+    extra = [
+        value.astimezone(timezone.utc)
+        for value in recurrence.rdates
+        if isinstance(value, datetime)
+    ]
     if until := recurrence.rule.get("UNTIL"):
-        return max([_instant(until[0], _END_OF_DAY), *extra])
+        end = until[0]
+        if not isinstance(end, datetime):
+            end = datetime.combine(end, _END_OF_DAY, timezone.utc) - offset
+        return max([end.astimezone(timezone.utc), *extra])
     if count := recurrence.rule.get("COUNT"):
         left = Recurrence(
             {**recurrence.rule, "COUNT": [max(count[0] - done, 1)]},
             recurrence.exdates,
             recurrence.rdates,
         )
-        return max(ruleset(left, start), default=start.astimezone(timezone.utc))
+        series, offset = _series(left, start, shift)
+        return max((_back(value, offset) for value in series), default=None)
     return None
 
 
-def next_start(text: str, start: datetime, *, count: bool = True) -> datetime | None:
-    """The first occurrence after ``start`` of a series starting there."""
-    start = start.astimezone(timezone.utc)
-    return ruleset(parse(text), start, count=count).after(start, inc=False)
+def between(
+    text: str, start: datetime, shift: int, lower: datetime, upper: datetime
+) -> list[datetime]:
+    """The occurrences starting in ``[lower, upper]``."""
+    series, offset = _series(parse(text), start, shift)
+
+    def moved(value: datetime) -> datetime:
+        return (value.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+
+    return [
+        _back(value, offset)
+        for value in series.between(moved(lower), moved(upper), inc=True)
+    ]
 
 
-def stored(
-    text: str, start: datetime | None, tz: str | None, *, kind: RecurrenceKind
-) -> str:
-    """The rule to store for one written with its days picked in ``tz``: in UTC
-    terms from ``start``. A rule written without a zone is already stored as
-    it is."""
-    if not tz or start is None:
-        return text
-    return normalize(to_utc_terms(text, start, resolve_zone(tz)), kind=kind)
+def restarted(
+    text: str, shift: int, old_start: datetime, new_start: datetime, tz: str | None
+) -> tuple[str, int]:
+    """A series whose start moved, and its shift: the days stay as picked, the
+    shift is taken again in ``tz`` (kept without one), and a skipped or extra
+    start keeps its picked day at the new time of day."""
+    new_shift = shift_for(text, new_start, resolve_zone(tz)) if tz else shift
+    repeat = parse(text)
+    old = timedelta(minutes=shift)
+    new = timedelta(minutes=new_shift)
+    at = (new_start.astimezone(timezone.utc) + new).time()
 
+    def move(value: date | datetime) -> date | datetime:
+        if not isinstance(value, datetime):
+            return value
+        day = (value.astimezone(timezone.utc) + old).date()
+        return datetime.combine(day, at, timezone.utc) - new
 
-def carried(
-    text: str,
-    old_start: datetime,
-    new_start: datetime,
-    *,
-    old_tz: str | None,
-    new_tz: str | None,
-    kind: RecurrenceKind,
-) -> str:
-    """The stored rule for a series whose start moved: read in ``old_tz`` from
-    the old start, its days as they were picked, and stored again from the new
-    start in ``new_tz``. An all-day series' zone is UTC on either side."""
-    picked = to_local_terms(text, old_start, resolve_zone(old_tz))
-    return normalize(to_utc_terms(picked, new_start, resolve_zone(new_tz)), kind=kind)
+    lines = Recurrence(
+        repeat.rule,
+        tuple(move(value) for value in repeat.exdates),
+        tuple(move(value) for value in repeat.rdates),
+    ).to_lines()
+    return lines, new_shift
 
 
 def moved(text: str, delta: timedelta) -> str:
@@ -249,266 +309,6 @@ def moved(text: str, delta: timedelta) -> str:
     ).to_lines()
 
 
-def between(
-    text: str, start: datetime, lower: datetime, upper: datetime
-) -> list[datetime]:
-    """The occurrences starting in ``[lower, upper]``."""
-    return ruleset(parse(text), start).between(
-        lower.astimezone(timezone.utc), upper.astimezone(timezone.utc), inc=True
-    )
-
-
-# ---------------------------------------------------------------------------
-# Local picks <-> UTC terms
-# ---------------------------------------------------------------------------
-
-
-def to_utc_terms(text: str, start: datetime, zone: tzinfo) -> str:
-    """The stored form of a rule whose days were picked in ``zone``."""
-    return _shift(text, start, zone, to_utc=True)
-
-
-def to_local_terms(text: str, start: datetime, zone: tzinfo) -> str:
-    """A stored rule read back in ``zone``, as its days were picked there."""
-    return _shift(text, start, zone, to_utc=False)
-
-
-def is_exact(local_text: str, utc_text: str, start: datetime, zone: tzinfo) -> bool:
-    """Whether the stored rule starts exactly when the picked one does.
-
-    Both run at the start's own offset, so a daylight-saving change (which UTC
-    terms deliberately don't follow) isn't counted as a difference."""
-    fixed = timezone(start.astimezone(zone).utcoffset() or timedelta(0))
-    local = rrulestr(
-        f"RRULE:{icalendar.vRecur(_without_until(parse(local_text).rule)).to_ical().decode()}",
-        dtstart=start.astimezone(fixed).replace(tzinfo=None),
-    )
-    stored = rrulestr(
-        f"RRULE:{icalendar.vRecur(_without_until(parse(utc_text).rule)).to_ical().decode()}",
-        dtstart=start.astimezone(timezone.utc).replace(tzinfo=None),
-    )
-    offset = fixed.utcoffset(None)
-    picked = [value for _, value in zip(range(_CHECKED_OCCURRENCES), local)]
-    kept = [value + offset for _, value in zip(range(_CHECKED_OCCURRENCES), stored)]
-    return picked == kept
-
-
-def _without_until(rule: dict[str, list]) -> dict[str, list]:
-    # Both sides are compared on their first occurrences, naive, so the end
-    # (a UTC instant on both) stays out of it.
-    return {key: values for key, values in rule.items() if key != "UNTIL"}
-
-
-def _shift(text: str, start: datetime, zone: tzinfo, *, to_utc: bool) -> str:
-    recurrence = parse(text)
-    local = start.astimezone(zone)
-    utc = start.astimezone(timezone.utc)
-    days = (utc.date() - local.date()).days
-    offset = local.utcoffset() or timedelta(0)
-    if not to_utc:
-        days, offset = -days, -offset
-    minutes = -int(offset.total_seconds() // 60)
-    shifted = _shift_rule(recurrence.rule, days, minutes)
-    candidates = [shifted]
-    if days and shifted["FREQ"][0] in ("MONTHLY", "YEARLY"):
-        if to_utc:
-            candidates.extend(_pinned(recurrence.rule, shifted, local, days))
-        else:
-            # Read back, the simplest rule that means the same wins.
-            candidates = [*_unpinned(shifted), shifted]
-    texts = [
-        Recurrence(rule, recurrence.exdates, recurrence.rdates).to_lines()
-        for rule in candidates
-    ]
-    for candidate in texts:
-        picked, stored = (text, candidate) if to_utc else (candidate, text)
-        if is_exact(picked, stored, start, zone):
-            return candidate
-    return texts[0]
-
-
-def _pinned(
-    rule: dict[str, list], shifted: dict[str, list], local: datetime, days: int
-) -> list[dict[str, list]]:
-    """The shifted rule pinned to the days of the month, and the months, that
-    the picked rule falls on: once counting days from the month's start and
-    once from its end. Where a plain shift crossed a month's end, one of them
-    can say exactly the same again: the last work day is always one of a
-    month's last three days, the 31st exists in seven months, and June 30 is a
-    last day whose next day is in July."""
-    series = rrulestr(
-        f"RRULE:{icalendar.vRecur(_without_until(rule)).to_ical().decode()}",
-        dtstart=local.replace(tzinfo=None),
-    )
-    fallen = [value for _, value in zip(range(400), series)]
-    months = {value.month for value in fallen}
-    pins = []
-    for monthdays in (
-        {value.day for value in fallen},
-        {value.day - _month_length(value) - 1 for value in fallen},
-    ):
-        pinned = {
-            **shifted,
-            "BYMONTHDAY": sorted(
-                {_move_monthday(day, days) for day in monthdays}, key=_day_order
-            ),
-        }
-        crossing = {_crosses_month(day, days) for day in monthdays}
-        if len(crossing) == 1 and (len(months) < 12 or "BYMONTH" in rule):
-            # The days all moved into the month before or after, or none did.
-            step = days if crossing == {True} else 0
-            pinned["BYMONTH"] = sorted((m - 1 + step) % 12 + 1 for m in months)
-        pins.append(pinned)
-    return pins
-
-
-def _unpinned(rule: dict[str, list]) -> list[dict[str, list]]:
-    """Simpler readings of a rule read back from UTC terms, simplest first: a
-    pin dropped, or the last day of the seven long months read as the 31st."""
-    readings = []
-    lengths = {_LONGEST[month - 1] for month in rule.get("BYMONTH", [1])}
-    if (
-        rule.get("BYMONTHDAY") == [-1]
-        and len(lengths) == 1
-        and 2 not in rule.get("BYMONTH", [])
-    ):
-        # The last day of months that all have 31 days is the 31st; of April
-        # and June, the 30th.
-        readings.append(
-            {
-                k: v
-                for k, v in rule.items()
-                if k != "BYMONTH" or rule["FREQ"][0] != "MONTHLY"
-            }
-            | {"BYMONTHDAY": [lengths.pop()]}
-        )
-    for dropped in (("BYMONTHDAY", "BYMONTH"), ("BYMONTH",), ("BYMONTHDAY",)):
-        if (
-            any(part in rule for part in dropped)
-            and "BYDAY" in rule
-            and (rule["FREQ"][0] == "MONTHLY" or "BYMONTH" not in dropped)
-        ):
-            readings.append({k: v for k, v in rule.items() if k not in dropped})
-    if rule["FREQ"][0] == "MONTHLY" and "BYMONTH" in rule:
-        readings.append({k: v for k, v in rule.items() if k != "BYMONTH"})
-    return readings
-
-
-def _month_length(value: datetime) -> int:
-    following = (value.replace(day=28) + timedelta(days=4)).replace(day=1)
-    return (following - timedelta(days=1)).day
-
-
-def _shift_rule(rule: dict[str, list], days: int, minutes: int) -> dict[str, list]:
-    """Move a rule's day parts by ``days`` (-1, 0 or 1) and its hours by
-    ``minutes``. Where no rule says exactly the same, this is the nearest one;
-    :func:`is_exact` tells the two apart."""
-    shifted = {key: list(values) for key, values in rule.items()}
-    if "BYHOUR" in shifted:
-        shifted["BYHOUR"] = sorted(
-            {((hour * 60 + minutes) // 60) % 24 for hour in shifted["BYHOUR"]}
-        )
-    if days == 0:
-        return shifted
-    weekly = shifted["FREQ"][0] == "WEEKLY" and int(shifted.get("INTERVAL", [1])[0]) > 1
-    if weekly or "BYWEEKNO" in shifted:
-        # Weeks start a day earlier or later too, so a day that moved past the
-        # week's start stays in its week.
-        start = str(shifted.get("WKST", ["MO"])[0])
-        shifted["WKST"] = [_WEEKDAYS[(_WEEKDAYS.index(start) + days) % 7]]
-        if shifted["WKST"] == ["MO"]:
-            del shifted["WKST"]
-
-    weekdays, ordinal = _split_byday(shifted.get("BYDAY", []))
-    monthdays = [int(day) for day in shifted.get("BYMONTHDAY", [])]
-    if ordinal is not None and not monthdays:
-        # The nth weekday is that weekday on one stretch of the month.
-        monthdays = _window(ordinal)
-        ordinal = None
-    if weekdays:
-        shifted["BYDAY"] = [
-            _WEEKDAYS[(_WEEKDAYS.index(d) + days) % 7] for d in weekdays
-        ]
-        if ordinal is not None:
-            shifted["BYDAY"] = [f"{ordinal}{shifted['BYDAY'][0]}"]
-    if monthdays:
-        moved = sorted({_move_monthday(day, days) for day in monthdays}, key=_day_order)
-        if (
-            len(shifted.get("BYDAY", [])) == 1
-            and (window := _ordinal_of(moved)) is not None
-        ):
-            shifted["BYDAY"] = [f"{window}{shifted['BYDAY'][0]}"]
-            shifted.pop("BYMONTHDAY", None)
-        else:
-            shifted["BYMONTHDAY"] = moved
-        if "BYMONTH" in shifted and all(_crosses_month(day, days) for day in monthdays):
-            shifted["BYMONTH"] = sorted(
-                (month - 1 + days) % 12 + 1 for month in shifted["BYMONTH"]
-            )
-    if "BYYEARDAY" in shifted:
-        shifted["BYYEARDAY"] = sorted(
-            {_move_yearday(day, days) for day in shifted["BYYEARDAY"]}
-        )
-    return shifted
-
-
-def _split_byday(values: list) -> tuple[list[str], int | None]:
-    """A BYDAY list as its weekday codes, plus the ordinal when the rule is one
-    ordinal weekday ("2MO")."""
-    codes = [str(value).upper() for value in values]
-    if len(codes) == 1 and len(codes[0]) > 2:
-        return [codes[0][-2:]], int(codes[0][:-2])
-    return codes, None
-
-
-def _move_monthday(day: int, days: int) -> int:
-    """Day ``day`` of a month moved by ``days``: the 1st less a day is the last
-    day of the month before, and the last day plus one is the 1st after."""
-    moved = day + days
-    if day > 0 and moved == 0:
-        return -1
-    if day < 0 and moved == 0:
-        return 1
-    if moved > 31:
-        return 1
-    if moved < -31:
-        return -31
-    return moved
-
-
-def _crosses_month(day: int, days: int) -> bool:
-    return (day == 1 and days < 0) or (day in (-1, 31) and days > 0)
-
-
-def _move_yearday(day: int, days: int) -> int:
-    moved = day + days
-    if day > 0 and moved == 0:
-        return -1
-    if day < 0 and moved == 0:
-        return 1
-    return max(-366, min(366, moved))
-
-
-def _day_order(day: int) -> tuple[int, int]:
-    return (0, day) if day > 0 else (1, day)
-
-
-def _window(ordinal: int) -> list[int]:
-    """The days of the month the nth weekday can fall on: 1–7 for the first,
-    29–31 for the fifth, -7 to -1 for the last."""
-    if ordinal > 0:
-        return list(range(7 * (ordinal - 1) + 1, min(7 * ordinal, 31) + 1))
-    return list(range(max(7 * ordinal, -31), 7 * (ordinal + 1)))
-
-
-def _ordinal_of(monthdays: list[int]) -> int | None:
-    """The ordinal a stretch of month days stands for (see :func:`_window`)."""
-    for ordinal in (1, 2, 3, 4, 5, -1, -2, -3, -4, -5):
-        if monthdays == _window(ordinal):
-            return ordinal
-    return None
-
-
 # ---------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------
@@ -516,9 +316,9 @@ def _ordinal_of(monthdays: list[int]) -> int | None:
 _LEGACY_POSITIONS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "last": -1}
 
 
-def from_legacy(data: dict, *, all_day: bool = False) -> str | None:
-    """A repeat in the JSON shape exports carried before RRULE, as rule lines in
-    the terms its days were picked in. None when it names no frequency."""
+def from_legacy(data: dict, *, zone: tzinfo, all_day: bool = False) -> str | None:
+    """A repeat in the JSON shape exports carried before RRULE, as the rule its
+    days were picked in (``zone``). None when it names no frequency."""
     freq = str(data.get("frequency") or "").upper()
     if freq not in ("DAILY", "WEEKLY", "MONTHLY", "YEARLY"):
         return None
@@ -547,7 +347,11 @@ def from_legacy(data: dict, *, all_day: bool = False) -> str | None:
     elif data.get("ends") == "on_date" and data.get("end_date"):
         # The last day as the form showed it: the date the value is written with.
         last = datetime.fromisoformat(str(data["end_date"])).date()
-        rule["UNTIL"] = [last if all_day else _instant(last, _END_OF_DAY)]
+        rule["UNTIL"] = [
+            last
+            if all_day
+            else datetime.combine(last, _END_OF_DAY, zone).astimezone(timezone.utc)
+        ]
     return Recurrence(rule).to_lines()
 
 
@@ -557,16 +361,20 @@ def imported(
     kind: RecurrenceKind,
     start: datetime | None,
     tz: str | None,
+    shift: int = 0,
     all_day: bool = False,
-) -> str | None:
-    """A repeat read from an import: a rule string, or the JSON shape exports
-    carried before RRULE, whose days were picked in a zone the export doesn't
-    name; ``tz`` stands in for it (the importer's). A repeat that doesn't hold
-    up imports as none."""
+) -> tuple[str | None, int]:
+    """A repeat read from an import and its shift: a rule string comes with
+    its ``shift``, and the JSON shape exports carried before RRULE was picked in
+    a zone the export doesn't name, which ``tz`` (the importer's) stands in
+    for. A repeat that doesn't hold up imports as none."""
     try:
         if isinstance(value, dict):
-            legacy = from_legacy(value, all_day=all_day)
-            return legacy and stored(legacy, start, "UTC" if all_day else tz, kind=kind)
-        return normalize(value, kind=kind) if value else None
+            zone = resolve_zone(None if all_day else tz)
+            legacy = from_legacy(value, zone=zone, all_day=all_day)
+            if legacy is None:
+                return None, 0
+            return stored(legacy, start, None if all_day else tz, kind=kind)
+        return (normalize(value, kind=kind), shift) if value else (None, 0)
     except (ValueError, TypeError):
-        return None
+        return None, 0

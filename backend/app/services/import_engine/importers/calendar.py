@@ -222,6 +222,14 @@ class CalendarImporter(NamesPeopleInPassing):
             end_at = _nearest_midnight(end_at + timedelta(seconds=1)) - timedelta(
                 seconds=1
             )
+        repeat, shift = recurrence.imported(
+            item.recurrence,
+            kind="event",
+            start=start_at,
+            tz=importer.timezone,
+            shift=item.recurrence_shift,
+            all_day=item.all_day,
+        )
         event = CalendarEvent(
             calendar_id=calendar_id,
             title=item.title,
@@ -230,13 +238,8 @@ class CalendarImporter(NamesPeopleInPassing):
             start_at=start_at,
             end_at=end_at,
             all_day=item.all_day,
-            recurrence=recurrence.imported(
-                item.recurrence,
-                kind="event",
-                start=start_at,
-                tz=importer.timezone,
-                all_day=item.all_day,
-            ),
+            recurrence=repeat,
+            recurrence_shift=shift,
             created_by=importer.id,
             # When the event was written down, not when it happens. Absent
             # leaves the model default: the moment of the import.

@@ -115,8 +115,8 @@ class TaskCreate(TaskBase):
     title: TitleStr
     project_id: int
     recurrence: Optional[TaskRule] = None
-    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
-    #: terms from the series start. Omitted, the rule is already in UTC terms.
+    #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
+    #: is taken from it. Omitted, the rule's days are UTC days.
     tz: Optional[str] = Field(default=None, max_length=64)
     assignee_ids: List[PersonId] = Field(default_factory=list)
     task_status_id: Optional[int] = None
@@ -134,8 +134,8 @@ class TaskUpdate(SanitizedBaseModel):
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRule] = None
-    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
-    #: terms from the series start. Omitted, the rule is already in UTC terms.
+    #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
+    #: is taken from it. Omitted, the rule's days are UTC days.
     tz: Optional[str] = Field(default=None, max_length=64)
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
     # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
@@ -182,6 +182,7 @@ class TaskRead(TaskBase):
     creator: Optional[UserPublic] = None
     assignees: List[UserPublic] = []
     recurrence_occurrence_count: int = 0
+    recurrence_shift: int = 0
     comment_count: int = 0
     #: How many things are still holding this task up: live ``depends_on``
     #: edges whose far end has not finished. Only kinds with a reading of
@@ -213,6 +214,7 @@ class TaskListRead(TaskBase):
     created_by: Optional[PersonId] = None
     assignees: List[TaskAssigneeSummary] = []
     recurrence_occurrence_count: int = 0
+    recurrence_shift: int = 0
     comment_count: int = 0
     #: How many things are still holding this task up: live ``depends_on``
     #: edges whose far end has not finished. Only kinds with a reading of

@@ -6,8 +6,10 @@ writes it as it is, and import only moves a file's rule into UTC terms.
 """
 
 import logging
+import math
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import List, Optional, Sequence, Tuple
+from zoneinfo import ZoneInfo
 
 import icalendar
 
@@ -65,6 +67,7 @@ def event_export_dict(
         "end_at": event.end_at.isoformat(),
         "all_day": bool(event.all_day),
         "recurrence": event.recurrence,
+        "recurrence_shift": event.recurrence_shift,
         "created_at": event.created_at.isoformat(),
         "updated_at": event.updated_at.isoformat(),
         "attendees": [
@@ -123,8 +126,11 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
             vevent.add("dtstart", start_day)
             vevent.add("dtend", last_day + timedelta(days=1))
         else:
-            vevent.add("dtstart", start_at)
-            vevent.add("dtend", end_at)
+            # A repeat's days are where it was picked, so the start is written
+            # in a fixed offset that puts it on that day.
+            zone = _picked_zone(start_at, event.get("recurrence_shift") or 0)
+            vevent.add("dtstart", start_at.astimezone(zone))
+            vevent.add("dtend", end_at.astimezone(zone))
 
         if event.get("description"):
             vevent.add("description", event["description"])
@@ -169,7 +175,25 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
 
         cal.add_component(vevent)
 
+    cal.add_missing_timezones()
     return cal.to_ical()
+
+
+def _picked_zone(start: datetime, shift: int) -> tzinfo:
+    """A fixed offset, in whole hours where it can be, whose date for ``start``
+    is the one the repeat was picked on (``app.core.recurrence``)."""
+    if shift == 0:
+        return timezone.utc
+    if shift % 1440 == 0:
+        hours = (
+            start - start.replace(hour=0, minute=0, second=0)
+        ).total_seconds() / 3600
+        offset = math.ceil(24 - hours) if shift > 0 else -(math.floor(hours) + 1)
+        offset = max(-12, min(14, offset))  # the offsets Etc/GMT names
+        return ZoneInfo(f"Etc/GMT{'-' if offset > 0 else '+'}{abs(offset)}")
+    if shift % 60 == 0:
+        return ZoneInfo(f"Etc/GMT{'-' if shift > 0 else '+'}{abs(shift) // 60}")
+    return timezone(timedelta(minutes=shift))
 
 
 async def documents_for_events(
@@ -204,39 +228,40 @@ async def documents_for_events(
 # ---------------------------------------------------------------------------
 
 
-def _repeat(component, start: datetime, zone: tzinfo) -> Optional[str]:
-    """A VEVENT's repeat in UTC terms, or None when it has none or uses parts
+def _repeat(component, start: datetime, zone: tzinfo) -> tuple[Optional[str], int]:
+    """A VEVENT's repeat and its shift, or none when it has none or uses parts
     an event can't repeat by (a minutely rule, say).
 
-    The file's rule is read in its start's own zone: the ``TZID``, UTC, or for
-    a floating time the importer's ``zone``. Its end, skips and extra dates are
-    moved to UTC first."""
+    The file's rule is kept as it is, its days picked in its start's own zone:
+    the ``TZID``, UTC, or for a floating time the importer's ``zone``. Its end,
+    skips and extra dates are moved to UTC."""
     rule = component.get("rrule")
     if rule is None or isinstance(rule, list):
-        return None
+        return None, 0
+    picked_in = start.tzinfo or zone
 
     def utc(value: date | datetime) -> date | datetime:
         if not isinstance(value, datetime):
             return value
-        aware = value if value.tzinfo else value.replace(tzinfo=start.tzinfo or zone)
+        aware = value if value.tzinfo else value.replace(tzinfo=picked_in)
         return aware.astimezone(timezone.utc)
 
     parts = {key.upper(): list(values) for key, values in rule.items()}
     if until := parts.get("UNTIL"):
         parts["UNTIL"] = [utc(until[0])]
-    picked = recurrence.Recurrence(
-        parts,
-        tuple(utc(value) for value in _dates(component.get("exdate"))),
-        tuple(utc(value) for value in _dates(component.get("rdate"))),
-    ).to_lines()
     try:
-        return recurrence.normalize(
-            recurrence.to_utc_terms(picked, start, start.tzinfo or zone),
+        kept = recurrence.normalize(
+            recurrence.Recurrence(
+                parts,
+                tuple(utc(value) for value in _dates(component.get("exdate"))),
+                tuple(utc(value) for value in _dates(component.get("rdate"))),
+            ).to_lines(),
             kind="event",
         )
     except ValueError:
         logger.info("iCal import kept an event without its repeat", exc_info=True)
-        return None
+        return None, 0
+    return kept, recurrence.shift_for(kept, start, picked_in)
 
 
 def _dates(prop) -> List[date | datetime]:
@@ -270,6 +295,7 @@ def _extract_vevent(component, zone: tzinfo) -> Optional[dict]:
         start_dt = start_val if start_val.tzinfo else start_val.replace(tzinfo=zone)
         end_dt = end_val if end_val.tzinfo else end_val.replace(tzinfo=zone)
 
+    repeat, shift = _repeat(component, start_dt, zone)
     return {
         "summary": summary,
         "description": str(component.get("description", "")) or None,
@@ -277,7 +303,8 @@ def _extract_vevent(component, zone: tzinfo) -> Optional[dict]:
         "start_at": start_dt,
         "end_at": end_dt,
         "all_day": all_day,
-        "recurrence": _repeat(component, start_dt, zone),
+        "recurrence": repeat,
+        "recurrence_shift": shift,
     }
 
 
@@ -351,6 +378,7 @@ def build_calendar_events(
                 end_at=data["end_at"],
                 all_day=data["all_day"],
                 recurrence=data["recurrence"],
+                recurrence_shift=data["recurrence_shift"],
                 created_by=created_by,
             )
             events.append(event)

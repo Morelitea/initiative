@@ -228,7 +228,7 @@ export function globalTaskColumns({
           ? summarizeStored(
               task.recurrence,
               task.due_date || task.start_date,
-              { strategy: task.recurrence_strategy },
+              { strategy: task.recurrence_strategy, shift: task.recurrence_shift },
               t
             )
           : null;

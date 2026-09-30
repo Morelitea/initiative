@@ -1618,6 +1618,7 @@ export interface CalendarEventSummary {
   all_day: boolean;
   recurrence: string | null;
   id: number;
+  recurrence_shift: number;
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -1738,6 +1739,7 @@ export interface TaskListRead {
   created_by: number | null;
   assignees: TaskAssigneeSummary[];
   recurrence_occurrence_count: number;
+  recurrence_shift: number;
   comment_count: number;
   blocked_by_open_count: number;
   guild_id: number | null;
@@ -1836,6 +1838,7 @@ export interface CalendarEventRead {
   all_day: boolean;
   recurrence: string | null;
   id: number;
+  recurrence_shift: number;
   calendar_id: number;
   initiative_id: number | null;
   guild_id: number;
@@ -7870,9 +7873,8 @@ export interface RecoveryCodesRegenerate {
 
 export interface RecurrencePreview {
   rule: string;
-  local_rule: string;
+  shift: number;
   occurrences: string[];
-  exact: boolean;
 }
 
 export type RecurrencePreviewRequestKind =
@@ -7883,21 +7885,12 @@ export const RecurrencePreviewRequestKind = {
   event: "event",
 } as const;
 
-export type RecurrencePreviewRequestTerms =
-  (typeof RecurrencePreviewRequestTerms)[keyof typeof RecurrencePreviewRequestTerms];
-
-export const RecurrencePreviewRequestTerms = {
-  local: "local",
-  utc: "utc",
-} as const;
-
 export interface RecurrencePreviewRequest {
   /** @maxLength 4000 */
   rule: string;
   start: string;
   tz?: string | null;
   kind: RecurrencePreviewRequestKind;
-  terms?: RecurrencePreviewRequestTerms;
   /**
    * @minimum 1
    * @maximum 20
@@ -8707,6 +8700,7 @@ export interface TaskRead {
   creator: UserPublic | null;
   assignees: UserPublic[];
   recurrence_occurrence_count: number;
+  recurrence_shift: number;
   comment_count: number;
   blocked_by_open_count: number;
   project: TaskProjectSummary | null;

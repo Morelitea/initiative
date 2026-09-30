@@ -1,4 +1,4 @@
-"""Repeat rules on the wire: RFC 5545 lines in UTC terms (``app.core.recurrence``)."""
+"""Repeat rules on the wire: RFC 5545 lines as picked (``app.core.recurrence``)."""
 
 from datetime import datetime
 from typing import Annotated, List, Literal, Optional
@@ -19,8 +19,8 @@ def _event_rule(value: str) -> str:
 
 _DESCRIPTION = (
     "RFC 5545 recurrence lines: one RRULE, and optional EXDATE and RDATE "
-    "lines, in UTC terms from the series start. POST /recurrence/preview "
-    "converts days picked in a zone."
+    "lines in UTC. The rule's days are as picked in the request's tz, or UTC "
+    "days without one. POST /recurrence/preview lists its next starts."
 )
 
 TaskRule = Annotated[
@@ -35,22 +35,17 @@ class RecurrencePreviewRequest(SanitizedBaseModel):
     rule: str = Field(max_length=4000)
     #: The series start: an event's start, a task's due date.
     start: datetime
-    #: The zone the rule's days are in. An all-day event's days are UTC dates.
+    #: The zone the rule's days were picked in; UTC without one, and for an
+    #: all-day event, whose days are UTC dates.
     tz: Optional[str] = Field(default=None, max_length=64)
     kind: Literal["task", "event"]
-    #: ``local`` converts picked days to the stored rule; ``utc`` reads a
-    #: stored rule back in ``tz``.
-    terms: Literal["local", "utc"] = "local"
     count: int = Field(default=5, ge=1, le=20)
 
 
 class RecurrencePreview(SanitizedBaseModel):
-    #: The stored form, in UTC terms.
+    #: The rule as it is stored.
     rule: str
-    #: The same rule in the request's zone.
-    local_rule: str
+    #: The shift stored beside it (``app.core.recurrence``).
+    shift: int
     #: The next starts, from the series start.
     occurrences: List[datetime]
-    #: False when no rule in UTC terms says exactly what was picked, and the
-    #: stored rule is the nearest one.
-    exact: bool

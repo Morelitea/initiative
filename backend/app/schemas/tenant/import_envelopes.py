@@ -395,6 +395,7 @@ class EventEnvelopeItem(SanitizedBaseModel):
     all_day: bool = False
     # RRULE lines; an export taken before RRULE carries the older JSON shape.
     recurrence: Optional[str | dict[str, Any]] = None
+    recurrence_shift: int = 0
     attendees: list[EventEnvelopeAttendee] = []
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []

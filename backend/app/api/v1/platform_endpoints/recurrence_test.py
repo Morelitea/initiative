@@ -1,9 +1,6 @@
-async def test_a_preview_converts_both_ways_and_lists_the_next_starts(
-    client, acting_user
-):
-    """Days picked in Berlin come back as the stored rule in UTC terms with the
-    next starts; the stored rule reads back as picked; a rule a task can't have
-    is refused."""
+async def test_a_preview_lists_the_next_starts(client, acting_user):
+    """A rule picked in Berlin comes back as stored, with its shift and next
+    starts; a rule a task can't have is refused."""
     a = await acting_user()
     picked = {
         "rule": "FREQ=MONTHLY;BYDAY=2MO",
@@ -17,21 +14,11 @@ async def test_a_preview_converts_both_ways_and_lists_the_next_starts(
         "/api/v1/recurrence/preview", headers=a.headers, json=picked
     )
     assert response.status_code == 200
-    body = response.json()
-    stored = "RRULE:FREQ=MONTHLY;BYDAY=SU;BYMONTHDAY=7,8,9,10,11,12,13"
-    assert body == {
-        "rule": stored,
-        "local_rule": "RRULE:FREQ=MONTHLY;BYDAY=2MO",
+    assert response.json() == {
+        "rule": "RRULE:FREQ=MONTHLY;BYDAY=2MO",
+        "shift": 1440,
         "occurrences": ["2026-10-11T22:30:00Z", "2026-11-08T22:30:00Z"],
-        "exact": True,
     }
-
-    back = await client.post(
-        "/api/v1/recurrence/preview",
-        headers=a.headers,
-        json={**picked, "rule": stored, "terms": "utc"},
-    )
-    assert back.json()["local_rule"] == "RRULE:FREQ=MONTHLY;BYDAY=2MO"
 
     refused = await client.post(
         "/api/v1/recurrence/preview",

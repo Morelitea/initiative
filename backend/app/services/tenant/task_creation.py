@@ -208,7 +208,9 @@ async def advance_recurrence_if_needed(
     next_due = (
         None
         if count is not None and task.recurrence_occurrence_count + 1 >= count
-        else recurrence.next_start(task.recurrence, base_date, count=False)
+        else recurrence.next_start(
+            task.recurrence, base_date, task.recurrence_shift, count=False
+        )
     )
     if next_due is None:
         task.recurrence = None
@@ -231,6 +233,7 @@ async def advance_recurrence_if_needed(
         start_date=new_start,
         due_date=next_due,
         recurrence=task.recurrence,
+        recurrence_shift=task.recurrence_shift,
         recurrence_strategy=strategy,
         position=await next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,

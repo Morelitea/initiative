@@ -216,12 +216,13 @@ async def test_create_multi_day_timed_event_is_allowed(
     assert body["end_at"].startswith("2026-07-03")
 
 
-async def test_create_event_stores_its_repeat_in_utc_terms(
+async def test_an_event_repeat_is_stored_as_picked(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A repeat sent with the zone its days were picked in is stored in UTC
-    terms from the event's start, with the latest start it can have. An
-    all-day event's days are UTC dates already, so its zone changes nothing."""
+    """A repeat is stored as picked, with the shift from the zone it was picked
+    in and the latest start it can have; an all-day event's days are UTC dates,
+    so its shift is none. The repeat moves with a start that moves, and an
+    all-day event is found by its date."""
     (
         organizer,
         _attendee,
@@ -231,7 +232,7 @@ async def test_create_event_stores_its_repeat_in_utc_terms(
     ) = await _setup_organizer_and_attendee(session, acting_user)
     created = {}
     for title, extra, rule in (
-        # Mondays at 00:30 in Berlin are Sundays in UTC.
+        # Mondays at 00:30 in Berlin, which are Sundays in UTC.
         (
             "Standup",
             {"start_at": "2026-10-04T22:30:00Z"},
@@ -257,8 +258,11 @@ async def test_create_event_stores_its_repeat_in_utc_terms(
         )
         assert response.status_code == 201
         created[title] = response.json()
-    assert created["Standup"]["recurrence"] == "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=SU"
-    assert created["Market day"]["recurrence"] == "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO"
+    weekly = "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO"
+    assert {
+        title: (event["recurrence"], event["recurrence_shift"])
+        for title, event in created.items()
+    } == {"Standup": (weekly, 1440), "Market day": (weekly, 0)}
 
     await route_session_to_guild(session, guild.id)
     standup = await session.get(CalendarEvent, created["Standup"]["id"])
@@ -267,8 +271,7 @@ async def test_create_event_stores_its_repeat_in_utc_terms(
         2026, 10, 18, 22, 30, tzinfo=timezone.utc
     )
 
-    # Moved to noon, the repeat moves with its start: still Mondays in Berlin,
-    # now Mondays in UTC too.
+    # Moved to noon, still Mondays in Berlin, and now Mondays in UTC too.
     moved = await client.patch(
         organizer.g(f"/calendar-events/{created['Standup']['id']}"),
         headers=organizer.headers,
@@ -278,10 +281,14 @@ async def test_create_event_stores_its_repeat_in_utc_terms(
             "tz": "Europe/Berlin",
         },
     )
-    assert moved.json()["recurrence"] == "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO"
+    assert (moved.json()["recurrence"], moved.json()["recurrence_shift"]) == (
+        weekly,
+        0,
+    )
 
-    # Los Angeles asks for Monday from its own midnight, which is after the
-    # all-day event's UTC midnight; the event is still Monday's.
+    # Monday asked for from Los Angeles begins after the all-day event's UTC
+    # midnight, and from Auckland it ends before noon UTC; either way the event
+    # is Monday's.
     listing = await client.get(
         organizer.g("/calendar-events/"),
         headers=organizer.headers,
@@ -291,6 +298,18 @@ async def test_create_event_stores_its_repeat_in_utc_terms(
         },
     )
     assert "Market day" in {event["title"] for event in listing.json()["items"]}
+    entries = await client.get(
+        organizer.g("/calendar-entries/"),
+        headers=organizer.headers,
+        params={
+            "start_after": "2026-10-04T11:00:00Z",
+            "start_before": "2026-10-05T10:59:59Z",
+            "tz": "Pacific/Auckland",
+            "include_events": True,
+            "include_tasks": False,
+        },
+    )
+    assert "Market day" in {event["title"] for event in entries.json()["events"]}
 
 
 async def test_create_event_rejects_end_before_start(

@@ -193,6 +193,7 @@ async def build_project_export(
                 start_date=task.start_date,
                 due_date=task.due_date,
                 recurrence=task.recurrence,
+                recurrence_shift=task.recurrence_shift,
                 recurrence_strategy=task.recurrence_strategy,
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
                 position=task.position,

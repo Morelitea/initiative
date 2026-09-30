@@ -41,10 +41,15 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    # RFC 5545 recurrence lines in UTC terms (``app.core.recurrence``).
+    # RFC 5545 recurrence lines as picked (``app.core.recurrence``).
     recurrence: Optional[str] = Field(
         default=None,
         sa_column=Column(Text, nullable=True),
+    )
+    # Minutes from the start's UTC time to where the repeat was picked: whole
+    # days for a rule of days, the offset for a rule of hours.
+    recurrence_shift: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default="0")
     )
     # No occurrence starts after this; null when the series never ends.
     # Written from ``recurrence`` on every save (see the listener below).
@@ -88,7 +93,9 @@ class RSVPStatus(str, Enum):
 @event.listens_for(CalendarEvent, "before_update")
 def _write_recurrence_until(_mapper, _connection, row: CalendarEvent) -> None:
     row.recurrence_until = (
-        recurrence.last_start(row.recurrence, row.start_at) if row.recurrence else None
+        recurrence.last_start(row.recurrence, row.start_at, row.recurrence_shift)
+        if row.recurrence
+        else None
     )
 
 

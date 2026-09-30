@@ -1,20 +1,20 @@
-"""repeats are RRULE lines in UTC terms
+"""repeats are RRULE lines, as picked, with a shift
 
 A task's or an event's repeat was a JSON object of our own (frequency,
-weekdays, "monthly_mode", ...). It becomes RFC 5545 recurrence lines, stored in
-UTC terms: the rule's weekdays and month days are those of the series start's
-UTC date (``app.core.recurrence``). ``recurrence_until`` is added beside it, the
-latest start the series can have, or null for one that never ends.
+weekdays, "monthly_mode", ...). It becomes RFC 5545 recurrence lines, the days
+as they were picked, and ``recurrence_shift`` beside it: the minutes from the
+start's UTC time to where it was picked, whole days for a rule of days
+(``app.core.recurrence``). ``recurrence_until`` is the latest start the series
+can have, or null for one that never ends.
 
-The old objects were picked in their creator's zone while the starts are UTC
-instants, so each is converted with its creator's profile timezone (UTC when
-there is none). That zone is used here, once, and stored nowhere. The JSON shape
-is stated below in full, so this revision reads the same whatever the modules
-say later; only the converter, which writes what the current app reads, comes
-from ``app.core.recurrence``.
+The old objects were picked in their creator's zone, so each shift is taken in
+their profile timezone (UTC when there is none). That zone is used here, once,
+and stored nowhere. The JSON shape is stated below in full, so this revision
+reads the same whatever the modules say later; only the engine, which writes
+what the current app reads, comes from ``app.core.recurrence``.
 
-An all-day event becomes its dates: the creator's local first and last day,
-as UTC midnight and 23:59:59, so every viewer sees the same days.
+An all-day event becomes its dates: the creator's local first and last day, as
+UTC midnight and 23:59:59, so every viewer sees the same days.
 
 A repeat that doesn't convert (malformed, or asking for something the rule
 can't hold) is dropped, and the count is logged per schema. Every reader already
@@ -34,7 +34,7 @@ from zoneinfo import ZoneInfo
 import sqlalchemy as sa
 from alembic import op
 
-from app.core.recurrence import last_start, normalize, to_utc_terms
+from app.core.recurrence import last_start, normalize, shift_for
 from app.db.guild_migrations import guild_schema_names, run_for_each_guild_schema
 
 revision = "20260930_0420"
@@ -103,19 +103,20 @@ def _picked_rule(data: dict, *, zone: tzinfo, all_day: bool) -> str | None:
 
 def _stored(
     raw: object, start: datetime, *, zone: tzinfo, kind: str, all_day: bool
-) -> str | None:
-    """The stored rule for one old JSON repeat, or None when it doesn't convert."""
+) -> tuple[str | None, int]:
+    """One old JSON repeat as stored, and its shift, or none when it doesn't
+    convert."""
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
         if not isinstance(data, dict):
-            return None
+            return None, 0
         picked = _picked_rule(data, zone=zone, all_day=all_day)
         if picked is None:
-            return None
-        converted = to_utc_terms(picked, start, zone)
-        return normalize(converted, kind=kind)  # type: ignore[arg-type]
+            return None, 0
+        rule = normalize(picked, kind=kind)  # type: ignore[arg-type]
+        return rule, shift_for(rule, start, zone)
     except (ValueError, TypeError, KeyError):
-        return None
+        return None, 0
 
 
 def _day_start(value: date) -> datetime:
@@ -132,26 +133,32 @@ def _convert(bind, schema: str, zones: dict[int, tzinfo]) -> None:
     tasks = bind.execute(
         sa.text(
             "SELECT id, recurrence::text AS recurrence, due_date, start_date,"
-            " created_by FROM tasks WHERE recurrence IS NOT NULL"
+            " recurrence_occurrence_count, created_by FROM tasks"
+            " WHERE recurrence IS NOT NULL"
         )
     ).mappings()
     for row in tasks.all():
         start = row["due_date"] or row["start_date"]
         zone = zones.get(row["created_by"], timezone.utc)
-        rule = (
+        rule, shift = (
             _stored(row["recurrence"], start, zone=zone, kind="task", all_day=False)
             if start
-            else None
+            else (None, 0)
         )
         dropped += rule is None
         _update(
             bind,
-            "UPDATE tasks SET recurrence_rule = :rule, recurrence_until = :until"
-            " WHERE id = :id",
+            "UPDATE tasks SET recurrence_rule = :rule, recurrence_shift = :shift,"
+            " recurrence_until = :until WHERE id = :id",
             {
                 "id": row["id"],
                 "rule": rule,
-                "until": last_start(rule, start) if rule else None,
+                "shift": shift,
+                "until": last_start(
+                    rule, start, shift, done=row["recurrence_occurrence_count"]
+                )
+                if rule
+                else None,
             },
         )
 
@@ -170,9 +177,10 @@ def _convert(bind, schema: str, zones: dict[int, tzinfo]) -> None:
             end = datetime.combine(
                 max(end.astimezone(zone).date(), first), _END_OF_DAY, timezone.utc
             )
-        rule = None
+        rule, shift = None, 0
         if row["recurrence"] is not None:
-            rule = _stored(
+            # An all-day event's days are UTC dates now, so its rule's are too.
+            rule, shift = _stored(
                 row["recurrence"],
                 start,
                 zone=timezone.utc if row["all_day"] else zone,
@@ -183,12 +191,13 @@ def _convert(bind, schema: str, zones: dict[int, tzinfo]) -> None:
         _update(
             bind,
             "UPDATE calendar_events SET recurrence_rule = :rule,"
-            " recurrence_until = :until, start_at = :start, end_at = :end"
-            " WHERE id = :id",
+            " recurrence_shift = :shift, recurrence_until = :until,"
+            " start_at = :start, end_at = :end WHERE id = :id",
             {
                 "id": row["id"],
                 "rule": rule,
-                "until": last_start(rule, start) if rule else None,
+                "shift": shift,
+                "until": last_start(rule, start, shift) if rule else None,
                 "start": start,
                 "end": end,
             },
@@ -205,6 +214,12 @@ def _add_columns() -> None:
         op.add_column(
             table,
             sa.Column("recurrence_until", sa.DateTime(timezone=True), nullable=True),
+        )
+        op.add_column(
+            table,
+            sa.Column(
+                "recurrence_shift", sa.Integer(), nullable=False, server_default="0"
+            ),
         )
 
 
@@ -254,9 +269,11 @@ def upgrade() -> None:
 def _restore_columns() -> None:
     op.drop_column("tasks", "recurrence")
     op.drop_column("tasks", "recurrence_until")
+    op.drop_column("tasks", "recurrence_shift")
     op.add_column("tasks", sa.Column("recurrence", sa.JSON(), nullable=True))
     op.drop_column("calendar_events", "recurrence")
     op.drop_column("calendar_events", "recurrence_until")
+    op.drop_column("calendar_events", "recurrence_shift")
     op.add_column("calendar_events", sa.Column("recurrence", sa.Text(), nullable=True))
 
 

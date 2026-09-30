@@ -87,9 +87,9 @@ class CalendarEventCreate(CalendarEventBase):
     title: TitleStr = Field(..., min_length=1, max_length=255)
     calendar_id: int
     recurrence: Optional[EventRule] = None
-    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
-    #: terms from the event's start; an all-day event's days are
-    #: UTC dates already. Omitted, the rule is already in UTC terms.
+    #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
+    #: is taken from it; an all-day event's days are UTC dates already.
+    #: Omitted, the rule's days are UTC days.
     tz: Optional[str] = Field(default=None, max_length=64)
     attendee_ids: Optional[List[PersonId]] = None
     tag_ids: Optional[List[int]] = None
@@ -104,9 +104,9 @@ class CalendarEventUpdate(SanitizedBaseModel):
     end_at: Optional[datetime] = None
     all_day: Optional[bool] = None
     recurrence: Optional[EventRule] = None
-    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
-    #: terms from the event's start; an all-day event's days are
-    #: UTC dates already. Omitted, the rule is already in UTC terms.
+    #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
+    #: is taken from it; an all-day event's days are UTC dates already.
+    #: Omitted, the rule's days are UTC days.
     tz: Optional[str] = Field(default=None, max_length=64)
     # Move the event to another calendar (requires write on both calendars).
     calendar_id: Optional[int] = None
@@ -136,6 +136,9 @@ class CalendarEventSummary(CalendarEventBase):
     )
 
     id: int
+    # See ``app.core.recurrence``: a rule's days are where the start moved by
+    # this many minutes lands.
+    recurrence_shift: int = 0
     calendar_id: int
     # Derived from the parent calendar — kept on the summary so list views can
     # filter/group by initiative without another fetch. NULL when the parent is

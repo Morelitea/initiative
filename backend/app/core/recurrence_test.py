@@ -1,18 +1,17 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from itertools import islice
 from zoneinfo import ZoneInfo
 
 import pytest
+from dateutil.rrule import rrulestr
 
 from app.core import recurrence
 
 BERLIN = ZoneInfo("Europe/Berlin")
-NEW_YORK = ZoneInfo("America/New_York")
 UTC = timezone.utc
 
-# Monday 00:30 in Berlin is Sunday in UTC; Monday 20:30 in New York is Tuesday.
+# Monday 00:30 in Berlin is Sunday in UTC.
 EAST = datetime(2026, 10, 5, 0, 30, tzinfo=BERLIN)
-WEST = datetime(2026, 10, 26, 20, 30, tzinfo=NEW_YORK)
-NOON = datetime(2026, 10, 5, 12, 0, tzinfo=BERLIN)
 
 
 @pytest.mark.parametrize(
@@ -54,67 +53,62 @@ def test_normalize_refuses(text, kind):
         recurrence.normalize(text, kind=kind)
 
 
-@pytest.mark.parametrize("start", [EAST, WEST, NOON])
+_PICKED = [
+    rule
+    for interval in (1, 2)
+    for rule in (
+        f"FREQ=WEEKLY;INTERVAL={interval};BYDAY=MO,TH",
+        f"FREQ=MONTHLY;INTERVAL={interval};BYDAY=5MO",
+        f"FREQ=MONTHLY;INTERVAL={interval};BYDAY=-1MO",
+        f"FREQ=MONTHLY;INTERVAL={interval};BYMONTHDAY=29",
+        f"FREQ=MONTHLY;INTERVAL={interval};BYMONTHDAY=30",
+        f"FREQ=MONTHLY;INTERVAL={interval};BYDAY=MO,TU,WE,TH,FR;BYSETPOS=1",
+        f"FREQ=MONTHLY;INTERVAL={interval};BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+        f"FREQ=YEARLY;INTERVAL={interval};BYMONTH=2;BYMONTHDAY=28",
+        f"FREQ=WEEKLY;INTERVAL={interval};BYDAY=MO;BYHOUR=0,12",
+        f"FREQ=DAILY;INTERVAL={interval};BYHOUR=0,12",
+    )
+]
+
+
+@pytest.mark.parametrize("picked", _PICKED)
 @pytest.mark.parametrize(
-    "picked",
+    ("zone", "at"),
     [
-        "FREQ=DAILY;INTERVAL=3",
-        "FREQ=WEEKLY;BYDAY=MO,WE",
-        "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH",
-        "FREQ=MONTHLY;BYMONTHDAY=1,15",
-        "FREQ=MONTHLY;BYMONTHDAY=31",
-        "FREQ=MONTHLY;BYMONTHDAY=-1",
-        "FREQ=MONTHLY;BYDAY=2MO",
-        "FREQ=MONTHLY;BYDAY=-1FR",
-        "FREQ=MONTHLY;BYDAY=MO",
-        "FREQ=YEARLY;BYMONTH=11;BYDAY=4TH",
-        "FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=31",
-        "FREQ=YEARLY;INTERVAL=2;BYMONTH=6;BYMONTHDAY=30",
+        (BERLIN, (0, 30)),
+        (ZoneInfo("America/New_York"), (20, 30)),
+        (ZoneInfo("Asia/Kolkata"), (0, 15)),
+        (ZoneInfo("Pacific/Auckland"), (1, 0)),
     ],
+    ids=["berlin-midnight", "new-york-evening", "kolkata-midnight", "auckland"],
 )
-def test_picked_days_are_stored_exactly_and_read_back(picked, start):
-    """Every rule the form builds is stored in UTC terms that start at the same
-    instants, and reads back as it was picked."""
-    zone = start.tzinfo
-    stored = recurrence.to_utc_terms(picked, start, zone)
-    assert recurrence.is_exact(picked, stored, start, zone)
-    assert recurrence.to_local_terms(stored, start, zone) == recurrence.normalize(
-        picked, kind="event"
+def test_a_stored_rule_starts_when_it_was_picked_to(picked, zone, at):
+    """Near midnight a day moves across a month's end on some months and not
+    others, which no rule in UTC terms can say. Kept as picked, with its
+    shift, the rule starts exactly when it does at the start's own offset."""
+    first = rrulestr(f"RRULE:{picked}", dtstart=datetime(2026, 1, 1, *at))[0].replace(
+        tzinfo=zone
     )
-
-
-def test_utc_terms_move_the_days_with_the_start():
-    assert recurrence.to_utc_terms("FREQ=MONTHLY;BYDAY=2MO", EAST, BERLIN) == (
-        "RRULE:FREQ=MONTHLY;BYDAY=SU;BYMONTHDAY=7,8,9,10,11,12,13"
-    )
-    # The last work day is one of a month's last three days, pinned so the
-    # day before it stays exact.
-    assert recurrence.to_utc_terms(
-        "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1", EAST, BERLIN
-    ) == ("RRULE:FREQ=MONTHLY;BYDAY=SU,MO,TU,WE,TH;BYMONTHDAY=-4,-3,-2;BYSETPOS=-1")
-    assert (
-        recurrence.to_utc_terms("FREQ=DAILY;BYHOUR=0,9", NOON, BERLIN)
-        == "RRULE:FREQ=DAILY;BYHOUR=7,22"
-    )
-    # A start whose day is the same in UTC changes nothing.
-    assert recurrence.to_utc_terms("FREQ=WEEKLY;BYDAY=MO", NOON, BERLIN) == (
-        "RRULE:FREQ=WEEKLY;BYDAY=MO"
-    )
-
-
-def test_a_rule_with_no_exact_utc_form_is_the_nearest_one():
-    """The day after the last work day can fall in the next month, which one
-    rule can't say; the nearest is stored and reported as not exact."""
-    picked = "FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1"
-    stored = recurrence.to_utc_terms(picked, WEST, NEW_YORK)
-    assert stored == "RRULE:FREQ=MONTHLY;BYDAY=TU,WE,TH,FR,SA;BYSETPOS=-1"
-    assert not recurrence.is_exact(picked, stored, WEST, NEW_YORK)
+    fixed = timezone(first.utcoffset() or timedelta(0))
+    wanted = [
+        value.replace(tzinfo=fixed).astimezone(UTC)
+        for value in islice(
+            rrulestr(f"RRULE:{picked}", dtstart=first.replace(tzinfo=None)), 60
+        )
+    ]
+    rule, shift = recurrence.stored(picked, first, str(zone), kind="event")
+    assert rule == recurrence.normalize(picked, kind="event")
+    assert recurrence.first(rule, first, shift, 60) == wanted
 
 
 def test_occurrences_come_from_the_stored_rule():
-    start = datetime(2026, 10, 4, 22, 30, tzinfo=UTC)
-    assert recurrence.next_start("RRULE:FREQ=WEEKLY;BYDAY=SU,TU", start) == (
-        datetime(2026, 10, 6, 22, 30, tzinfo=UTC)
+    rule, shift = recurrence.stored(
+        "FREQ=WEEKLY;BYDAY=MO,WE", EAST, "Europe/Berlin", kind="event"
+    )
+    assert shift == 1440
+    start = EAST.astimezone(UTC)
+    assert recurrence.next_start(rule, start, shift) == datetime(
+        2026, 10, 6, 22, 30, tzinfo=UTC
     )
     # A task series' own counter decides its end, so COUNT can be left out.
     assert recurrence.next_start("RRULE:FREQ=DAILY;COUNT=1", start) is None
@@ -133,8 +127,9 @@ def test_occurrences_come_from_the_stored_rule():
     )
     assert recurrence.last_start("RRULE:FREQ=DAILY", start) is None
     assert recurrence.between(
-        "RRULE:FREQ=WEEKLY;BYDAY=SU\nEXDATE:20261011T223000Z\nRDATE:20261020T090000Z",
+        "RRULE:FREQ=WEEKLY;BYDAY=MO\nEXDATE:20261011T223000Z\nRDATE:20261020T090000Z",
         start,
+        shift,
         datetime(2026, 10, 1, tzinfo=UTC),
         datetime(2026, 10, 21, tzinfo=UTC),
     ) == [
@@ -145,38 +140,30 @@ def test_occurrences_come_from_the_stored_rule():
 
 
 def test_a_repeat_moves_with_its_start():
-    """Mondays at 00:30 in Berlin are Sundays in UTC; moved to noon they are
-    Mondays in UTC too. Made all-day, the days are UTC dates."""
-    stored = "RRULE:FREQ=WEEKLY;BYDAY=SU"
+    """Mondays at 00:30 in Berlin, moved to noon: still Mondays, the shift
+    taken again, and a skipped Monday skipped at its new time."""
+    rule = "RRULE:FREQ=WEEKLY;BYDAY=MO\nEXDATE:20261011T223000Z"
     noon = datetime(2026, 10, 5, 10, 0, tzinfo=UTC)
-    moved = recurrence.carried(
-        stored, EAST, noon, old_tz="Europe/Berlin", new_tz="Europe/Berlin", kind="event"
+    moved, shift = recurrence.restarted(rule, 1440, EAST, noon, "Europe/Berlin")
+    assert (moved, shift) == (
+        "RRULE:FREQ=WEEKLY;BYDAY=MO\nEXDATE:20261012T100000Z",
+        0,
     )
-    assert moved == "RRULE:FREQ=WEEKLY;BYDAY=MO"
-    all_day = datetime(2026, 10, 5, tzinfo=UTC)
-    assert (
-        recurrence.carried(
-            stored, EAST, all_day, old_tz="Europe/Berlin", new_tz="UTC", kind="event"
-        )
-        == "RRULE:FREQ=WEEKLY;BYDAY=MO"
-    )
+    # Without a zone the shift stays.
+    assert recurrence.restarted(rule, 1440, EAST, noon, None)[1] == 1440
 
 
 def test_imports_read_either_shape():
-    """A rule string is stored as it is; the JSON shape older exports carried
+    """A rule string comes with its shift; the JSON shape older exports carried
     was picked in a zone, which the importer's stands in for."""
-    assert (
-        recurrence.imported(
-            "FREQ=WEEKLY;BYDAY=SU", kind="task", start=EAST, tz="Europe/Berlin"
-        )
-        == "RRULE:FREQ=WEEKLY;BYDAY=SU"
-    )
+    assert recurrence.imported(
+        "FREQ=WEEKLY;BYDAY=MO", kind="task", start=EAST, tz="Europe/Berlin", shift=1440
+    ) == ("RRULE:FREQ=WEEKLY;BYDAY=MO", 1440)
     legacy = {"frequency": "weekly", "weekdays": ["monday"], "ends": "never"}
-    assert (
-        recurrence.imported(legacy, kind="task", start=EAST, tz="Europe/Berlin")
-        == "RRULE:FREQ=WEEKLY;BYDAY=SU"
+    assert recurrence.imported(legacy, kind="task", start=EAST, tz="Europe/Berlin") == (
+        "RRULE:FREQ=WEEKLY;BYDAY=MO",
+        1440,
     )
-    assert (
-        recurrence.imported({"frequency": "hourly"}, kind="event", start=EAST, tz=None)
-        is None
-    )
+    assert recurrence.imported(
+        {"frequency": "hourly"}, kind="event", start=EAST, tz=None
+    ) == (None, 0)

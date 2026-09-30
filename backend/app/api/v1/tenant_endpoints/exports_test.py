@@ -1921,14 +1921,16 @@ async def _events_enabled(session, initiative):
 
 async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, session):
     """A calendar exports as one multi-event iCalendar file (the stored rules as
-    they are, read back unchanged by the ics import) or one importable envelope
-    carrying the calendar plus every event."""
+    they are, a picked one's start written on its picked day, all read back
+    unchanged by the ics import) or one importable envelope carrying the
+    calendar plus every event."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
-    # Mondays and Wednesdays at 00:30 in Berlin: Sundays and Tuesdays in UTC.
+    # Mondays and Wednesdays at 00:30, picked in Berlin: Sundays and Tuesdays
+    # in UTC.
     session_start = datetime(2026, 10, 4, 22, 30, tzinfo=timezone.utc)
-    weekly = "RRULE:FREQ=WEEKLY;BYDAY=SU,TU"
+    weekly = "RRULE:FREQ=WEEKLY;BYDAY=MO,WE"
     recurring_event = await create_calendar_event(
         session,
         calendar,
@@ -1939,6 +1941,7 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         description="Return to the castle",
         location="Roll20",
         recurrence=weekly,
+        recurrence_shift=1440,
     )
     # All day on the second Monday until mid-December, November skipped.
     monthly = "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO\nEXDATE;VALUE=DATE:20261109"
@@ -1964,15 +1967,14 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         disposition=('filename="raid_nights-',),
         present=(
             "SUMMARY:Session 13",
-            "DTSTART:20261004T223000Z",
-            "RRULE:FREQ=WEEKLY;BYDAY=SU,TU",
+            "DTSTART;TZID=Etc/GMT-2:20261005T003000",
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,WE",
             "DTSTART;VALUE=DATE:20261012",
             "DTEND;VALUE=DATE:20261013",
             "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO",
             "EXDATE;VALUE=DATE:20261109",
             "LOCATION:Roll20",
         ),
-        absent=("TZID",),
     )
     assert body.count("BEGIN:VEVENT") == 3
     imported, errors, _ = ical_service.build_calendar_events(
@@ -1980,9 +1982,11 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     )
     assert errors == []
     by_title = {event.title: event for event in imported}
-    assert (by_title["Session 13"].start_at, by_title["Session 13"].recurrence) == (
+    picked = by_title["Session 13"]
+    assert (picked.start_at, picked.recurrence, picked.recurrence_shift) == (
         session_start,
         weekly,
+        1440,
     )
     meeting = by_title["Guild meeting"]
     assert (meeting.start_at, meeting.end_at, meeting.recurrence) == (
@@ -2009,13 +2013,16 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         tz="America/New_York",
     )
     assert errors == []
-    assert {e.title: (e.start_at, e.recurrence) for e in foreign} == {
-        "Standup": (session_start, "RRULE:FREQ=WEEKLY;BYDAY=SU"),
+    assert {
+        e.title: (e.start_at, e.recurrence, e.recurrence_shift) for e in foreign
+    } == {
+        "Standup": (session_start, "RRULE:FREQ=WEEKLY;BYDAY=MO", 1440),
         "Month end": (
             datetime(2026, 10, 31, 13, 0, tzinfo=timezone.utc),
             "RRULE:FREQ=MONTHLY;BYMONTHDAY=-1",
+            0,
         ),
-        "Ticker": (datetime(2026, 10, 5, 9, 0, tzinfo=timezone.utc), None),
+        "Ticker": (datetime(2026, 10, 5, 9, 0, tzinfo=timezone.utc), None, 0),
     }
 
     js = await _export(client, a, "calendar", format="json")

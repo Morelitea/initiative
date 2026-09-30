@@ -24,9 +24,7 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Convert a repeat between the days picked in ``tz`` (``terms=local``) and
- * the stored rule (``terms=utc``), and list its next starts. An all-day
- * event's days are UTC dates, so its form sends ``tz=UTC``.
+ * The rule as it would be stored, its shift, and its next starts.
  * @summary Preview Recurrence
  */
 export const previewRecurrenceApiV1RecurrencePreviewPost = (

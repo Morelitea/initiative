@@ -57,7 +57,12 @@ describe("toRRule", () => {
 });
 
 describe("fromStored", () => {
-  it("reads a rule stored in UTC terms back as it was picked", () => {
+  it("reads a rule as picked, and one in UTC days in the viewer's", () => {
+    // Picked here, in Berlin: the days are the viewer's already.
+    expect(fromStored("RRULE:FREQ=WEEKLY;BYDAY=MO,WE", START, 1440)).toMatchObject({
+      weekdays: ["monday", "wednesday"],
+    });
+    // In UTC days (no shift): read on Berlin's side of midnight.
     expect(fromStored("RRULE:FREQ=WEEKLY;BYDAY=SU,TU", START)).toMatchObject({
       frequency: "weekly",
       weekdays: ["monday", "wednesday"],
