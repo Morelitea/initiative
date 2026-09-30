@@ -227,6 +227,7 @@ jobs:
     outputs:
       tree: ${{ steps.find.outputs.tree }}
       checked: ${{ steps.find.outputs.checked }}
+      digest: ${{ steps.find.outputs.digest }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -236,9 +237,13 @@ jobs:
         run: |
           tree=$(git rev-parse 'HEAD^{tree}' | cut -c1-12)
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
-          if docker buildx imagetools inspect "$IMAGE_NAME:candidate-$tree" >/dev/null 2>&1; then
+          # Resolved once, here: what is published is this digest, whatever
+          # the tag points at by then.
+          if digest=$(docker buildx imagetools inspect "$IMAGE_NAME:candidate-$tree" \
+              --format '{{json .Manifest}}' 2>/dev/null | jq -er .digest); then
             echo "checked=true" >> "$GITHUB_OUTPUT"
-            echo "Publishing candidate-$tree"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+            echo "Publishing candidate-$tree ($digest)"
           else
             echo "No checked candidate for this tree ($tree); building and walking one."
           fi
@@ -269,12 +274,12 @@ jobs:
     uses: ./.github/workflows/upgrade.yml
     with:
       mode: walk
-      image: docker.io/morelitea/initiative:unchecked-${{ needs.candidate.outputs.tree }}
+      image: docker.io/morelitea/initiative@${{ needs.docker-public.outputs.digest }}
 
   publish:
     # Tags the checked image as the release: the candidate, or the build
     # above once its walk passed. Nothing is published unwalked.
-    needs: [decide, candidate, walk]
+    needs: [decide, candidate, docker-public, walk]
     if: ${{ !cancelled() && (needs.candidate.outputs.checked == 'true' || needs.walk.result == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -294,17 +299,17 @@ jobs:
         # A tag, or a run given a version, publishes the version tags;
         # a run by hand without one moves latest alone.
         env:
-          SOURCE: ${{ needs.candidate.outputs.checked == 'true' && 'candidate' || 'unchecked' }}
-          TREE: ${{ needs.candidate.outputs.tree }}
+          DIGEST: ${{ needs.candidate.outputs.checked == 'true' && needs.candidate.outputs.digest || needs.docker-public.outputs.digest }}
           VERSION: ${{ needs.decide.outputs.version }}
           INPUT_VERSION: ${{ inputs.version }}
         run: |
+          [[ "$DIGEST" == sha256:* ]] || { echo "::error::No checked image digest to publish."; exit 1; }
           tags=(-t "$IMAGE_NAME:latest")
           if [[ "$GITHUB_REF" == refs/tags/* || -n "$INPUT_VERSION" ]]; then
             IFS=. read -r major minor _ <<< "$VERSION"
             tags+=(-t "$IMAGE_NAME:$VERSION" -t "$IMAGE_NAME:$major.$minor" -t "$IMAGE_NAME:$major")
           fi
-          docker buildx imagetools create "${tags[@]}" "$IMAGE_NAME:$SOURCE-$TREE"
+          docker buildx imagetools create "${tags[@]}" "$IMAGE_NAME@$DIGEST"
           docker buildx imagetools inspect "$IMAGE_NAME:latest"
 
   release:

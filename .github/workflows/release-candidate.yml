@@ -3,6 +3,8 @@ name: Release Candidate
 # A release's image, built once from its release branch and signed with the
 # release key. It is published as unchecked-<tree>, walked from every release
 # in both setups (upgrade.yml), and tagged candidate-<tree> once that passes.
+# The walk and the tag name the build by its digest, so another build of the
+# same tree moving unchecked-<tree> cannot change what is checked or tagged.
 # At tag time Build and Release retags candidate-<tree> as the release when the
 # tag holds the same tree, so the image users pull is the one checked here.
 
@@ -66,11 +68,11 @@ jobs:
     uses: ./.github/workflows/upgrade.yml
     with:
       mode: walk
-      image: docker.io/morelitea/initiative:unchecked-${{ needs.identify.outputs.tree }}
+      image: docker.io/morelitea/initiative@${{ needs.build.outputs.digest }}
 
   checked:
     name: Mark it checked
-    needs: [identify, walk]
+    needs: [identify, build, walk]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -87,6 +89,8 @@ jobs:
         env:
           IMAGE: docker.io/morelitea/initiative
           TREE: ${{ needs.identify.outputs.tree }}
+          DIGEST: ${{ needs.build.outputs.digest }}
         run: |
-          docker buildx imagetools create -t "$IMAGE:candidate-$TREE" "$IMAGE:unchecked-$TREE"
+          [[ "$DIGEST" == sha256:* ]] || { echo "::error::The build reported no digest."; exit 1; }
+          docker buildx imagetools create -t "$IMAGE:candidate-$TREE" "$IMAGE@$DIGEST"
           docker buildx imagetools inspect "$IMAGE:candidate-$TREE"
