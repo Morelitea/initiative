@@ -221,12 +221,13 @@ async def list_notifications(
     unread_only: bool = False,
     guild_id: int | None = None,
     personal_only: bool = False,
-) -> tuple[list[Notification], int, str | None]:
+) -> tuple[list[Notification], int | None, str | None]:
     """One page of the inbox, newest first, plus the unread total.
 
     Returns the cursor for the next page, or None at the end. The popover asks
     for ``unread_only`` and takes every page; the inbox page takes them as it
-    is scrolled.
+    is scrolled. The total is counted on the first page only — a later page
+    answers None — since it is one figure for the whole inbox.
     """
     stmt = select(Notification).where(Notification.user_id == user_id)
     if unread_only:
@@ -253,15 +254,8 @@ async def list_notifications(
         encode_cursor(notifications[limit - 1]) if len(notifications) > limit else None
     )
     notifications = notifications[:limit]
-
-    count_stmt = select(func.count()).where(
-        Notification.user_id == user_id,
-        Notification.read_at.is_(None),
-    )
-    count_result = await session.exec(count_stmt)
-    unread_row = count_result.one()
-    unread_count = unread_row[0] if isinstance(unread_row, tuple) else unread_row
-    return notifications, unread_count, next_cursor
+    unread = await unread_count(session, user_id=user_id) if position is None else None
+    return notifications, unread, next_cursor
 
 
 async def unread_places(session: AsyncSession, *, user_id: int) -> list[dict[str, Any]]:

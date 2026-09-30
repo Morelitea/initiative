@@ -131,6 +131,7 @@ async def test_the_popover_can_take_every_unread_page(
     headers = get_auth_headers(user)
 
     seen: list[int] = []
+    counts: list[int | None] = []
     cursor: str | None = None
     for _ in range(10):  # bounded so a broken cursor cannot spin forever
         params = {"limit": 2, "unread_only": "true"}
@@ -140,6 +141,7 @@ async def test_the_popover_can_take_every_unread_page(
             await client.get("/api/v1/notifications/", headers=headers, params=params)
         ).json()
         seen.extend(n["id"] for n in body["notifications"])
+        counts.append(body["unread_count"])
         cursor = body["next_cursor"]
         if not cursor:
             break
@@ -147,6 +149,8 @@ async def test_the_popover_can_take_every_unread_page(
     assert cursor is None
     assert len(seen) == 5
     assert len(set(seen)) == 5
+    # The total is the first page's; the pages after it do not count again.
+    assert counts == [5, None, None]
 
 
 async def test_marking_unread_puts_a_line_back(

@@ -1,8 +1,9 @@
 """Sharing is enforced on index reads.
 
-``search_entries`` is gated in the database by initiative membership, like the
-content tables it mirrors. These assert the gate that is NOT in the database:
-per-resource sharing, applied by :func:`search_scope_clause`.
+``search_entries`` is gated in the database like the content tables it
+mirrors: by initiative membership, and by per-resource sharing on the tool each
+entry names. A query states no access clause of its own, so these read the
+index bare.
 
 The case that matters is the one the initiative gate cannot answer — a member OF
 the initiative, whose RLS therefore admits the row, holding no grant on the
@@ -15,22 +16,18 @@ from sqlmodel import select
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.search_entry import SearchEntry
-from app.services.tenant.search import search_scope_clause
 from app.testing import create_task
 
 
 async def _search(reading_as, *, user_id: int, guild_id: int) -> list[str]:
-    """Titles this user can read out of the index, through the one entry point.
+    """Titles this user can read out of the index.
 
     Read on the request login: what the index hands back is a policy answer,
     and the setup session's own login is one the database treats as trusted.
     """
     session = await reading_as(user_id, guild_id)
     rows = await session.exec(
-        select(SearchEntry.title).where(
-            SearchEntry.entity_type == "task",
-            search_scope_clause(user_id, guild_id=guild_id),
-        )
+        select(SearchEntry.title).where(SearchEntry.entity_type == "task")
     )
     await session.rollback()
     return sorted(rows)

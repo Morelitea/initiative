@@ -6197,7 +6197,7 @@ export interface NotificationRead {
 
 export interface NotificationListResponse {
   notifications: NotificationRead[];
-  unread_count: number;
+  unread_count: number | null;
   next_cursor: string | null;
 }
 

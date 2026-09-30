@@ -493,19 +493,9 @@ async def _project_reads_with_order(
             project_ids,
         )
 
-    if preserve_order:
-        sorted_projects = projects
-    else:
-
-        def sort_key(project: Project) -> tuple[bool, float, int]:
-            order_value = order_map.get(project.id)
-            return (
-                order_value is None,
-                float(order_value) if order_value is not None else 0.0,
-                project.id or 0,
-            )
-
-        sorted_projects = sorted(projects, key=sort_key)
+    sorted_projects = (
+        projects if preserve_order else _in_reader_order(projects, order_map)
+    )
 
     attached = await _documents_for_projects(session, sorted_projects)
     context = require_actor_context(session)
@@ -594,6 +584,23 @@ async def serialize_project_page(
     return await _project_reads_with_order(
         session, user_id, projects, preserve_order=True
     )
+
+
+def _in_reader_order(
+    projects: List[Project], order_map: dict[int, float]
+) -> List[Project]:
+    """The projects in the reader's own order: those they have placed first,
+    then the rest by id."""
+
+    def sort_key(project: Project) -> tuple[bool, float, int]:
+        order_value = order_map.get(project.id)
+        return (
+            order_value is None,
+            float(order_value) if order_value is not None else 0.0,
+            project.id or 0,
+        )
+
+    return sorted(projects, key=sort_key)
 
 
 async def _project_metadata_for_user(
@@ -1170,12 +1177,29 @@ async def reorder_projects(
     if not visible_projects:
         return []
 
-    current_payloads = await _project_reads_with_order(
-        session, current_user.id, visible_projects
-    )
-    current_ids = [project.id for project in current_payloads if project.id is not None]
-    if not current_ids:
-        return current_payloads
+    # The order as it stands, from the order rows alone: the projects are
+    # serialized once, after the write.
+    existing_orders = {
+        order.project_id: order
+        for order in (
+            await session.exec(
+                select(ProjectOrder).where(
+                    ProjectOrder.user_id == current_user.id,
+                    ProjectOrder.project_id.in_(
+                        [project.id for project in visible_projects]
+                    ),
+                )
+            )
+        ).all()
+    }
+    current_ids = [
+        project.id
+        for project in _in_reader_order(
+            visible_projects,
+            {pid: order.sort_order for pid, order in existing_orders.items()},
+        )
+        if project.id is not None
+    ]
 
     valid_ids = set(current_ids)
     seen: set[int] = set()
@@ -1191,30 +1215,20 @@ async def reorder_projects(
             seen.add(project_id)
             final_order.append(project_id)
 
-    if final_order == current_ids or not final_order:
-        return current_payloads
-
-    order_stmt = select(ProjectOrder).where(
-        ProjectOrder.user_id == current_user.id,
-        ProjectOrder.project_id.in_(tuple(final_order)),
-    )
-    existing_orders_result = await session.exec(order_stmt)
-    existing_orders = {
-        order.project_id: order for order in existing_orders_result.all()
-    }
-
-    for index, project_id in enumerate(final_order):
-        sort_value = float(index)
-        order = existing_orders.get(project_id)
-        if order:
-            order.sort_order = sort_value
-        else:
-            order = ProjectOrder(
-                user_id=current_user.id, project_id=project_id, sort_order=sort_value
-            )
-        session.add(order)
-
-    await session.commit()
+    if final_order != current_ids:
+        for index, project_id in enumerate(final_order):
+            sort_value = float(index)
+            order = existing_orders.get(project_id)
+            if order:
+                order.sort_order = sort_value
+            else:
+                order = ProjectOrder(
+                    user_id=current_user.id,
+                    project_id=project_id,
+                    sort_order=sort_value,
+                )
+            session.add(order)
+        await session.commit()
     return await _project_reads_with_order(
         session,
         current_user.id,

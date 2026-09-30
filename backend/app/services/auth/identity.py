@@ -361,28 +361,32 @@ def _can_sign_in_clause(permitted: frozenset[LoginMethod]):
     return or_(*ways_in)
 
 
+def stranded_clause(
+    *, current: frozenset[LoginMethod], requested: frozenset[LoginMethod]
+):
+    """Accounts that can begin a session under ``current`` and not under
+    ``requested``.
+
+    Both sets in one predicate rather than one per method, so an account
+    holding two credentials whose methods go together is counted for the pair —
+    which asking about each method on its own cannot do, since each of the two
+    is a way in while the other is still offered.
+    """
+    return _can_sign_in_clause(current) & ~_can_sign_in_clause(requested)
+
+
 async def stranded_between(
     session: AsyncSession,
     *,
     current: frozenset[LoginMethod],
     requested: frozenset[LoginMethod],
 ) -> int:
-    """How many accounts can begin a session under ``current`` and not under
-    ``requested``.
-
-    One query over both sets rather than one per method, so an account holding
-    two credentials whose methods go together is counted for the pair — which
-    asking about each method on its own cannot do, since each of the two is a
-    way in while the other is still offered.
-    """
+    """How many accounts :func:`stranded_clause` matches."""
     return (
         await session.exec(
             select(func.count())
             .select_from(User)
-            .where(
-                _can_sign_in_clause(current),
-                ~_can_sign_in_clause(requested),
-            )
+            .where(stranded_clause(current=current, requested=requested))
         )
     ).one()
 

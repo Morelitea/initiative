@@ -1150,6 +1150,36 @@ async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     assert listed.json() == []
 
 
+async def test_reordering_puts_the_named_projects_first_and_keeps_the_rest(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The ids asked for lead, in that order, and the rest follow in the order
+    they held; the answer is the list as it now stands."""
+    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    first, second, third = [
+        await create_project(session, user.initiative, user.user, name=name)
+        for name in ("First", "Second", "Third")
+    ]
+    url = user.g("/projects/reorder")
+
+    moved = await client.post(
+        url, headers=user.headers, json={"project_ids": [third.id]}
+    )
+    assert moved.status_code == 200, moved.text
+    assert [(p["id"], p["sort_order"]) for p in moved.json()] == [
+        (third.id, 0.0),
+        (first.id, 1.0),
+        (second.id, 2.0),
+    ]
+
+    # The order it already holds changes nothing, and is answered the same.
+    kept = await client.post(
+        url, headers=user.headers, json={"project_ids": [third.id, first.id]}
+    )
+    assert kept.status_code == 200, kept.text
+    assert [p["id"] for p in kept.json()] == [third.id, first.id, second.id]
+
+
 async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
     """Read task_assignees straight from the guild schema (superuser session)."""
     await session.commit()

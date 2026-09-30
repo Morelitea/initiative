@@ -29,11 +29,12 @@ from __future__ import annotations
 from typing import Any, Iterable, Sequence
 
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import cast, func
+from sqlalchemy.dialects.postgresql import JSONPATH
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sqlalchemy.orm import selectinload, undefer
+from sqlalchemy.orm import defer, selectinload, undefer
 
 from app.db import session as db_session
 from app.core.messages import WikiMessages
@@ -278,16 +279,44 @@ def _parent_of(item: Any, known: set[int]) -> int | None:
 async def load_list(
     session: AsyncSession,
     wiki: Wiki,
-) -> list[Any]:
-    """A wiki's whole tree — its pages and its documents — in reading order.
+) -> list[tuple[Any, list]]:
+    """A wiki's whole tree — its pages and its documents — in reading order,
+    each with the heading nodes of its body.
 
     Depth-first: each row, then everything filed under it. The navigation draws
     this, and the order it comes back in is the order it reads in. Assembled
     here rather than in SQL because it spans two tables and a wiki's list is
     the size of a table of contents, not of a table.
+
+    No body is read: the navigation draws a row's headings and nothing else of
+    it, so the database picks those out (:func:`heading_nodes`).
     """
-    pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
-    documents = await linked_documents(session, wiki.id)
+    from app.models.tenant.document import Document
+
+    page_rows = (
+        await session.exec(
+            select(WikiPage, heading_nodes(WikiPage.content))
+            .where(WikiPage.wiki_id == wiki.id)
+            .options(defer(WikiPage.content), defer(WikiPage.yjs_state))
+        )
+    ).all()
+    document_ids = await _linked_document_ids(session, wiki.id)
+    document_rows = (
+        (
+            await session.exec(
+                select(Document, heading_nodes(Document.content))
+                .where(Document.id.in_(document_ids))
+                .options(undefer(Document.smart_link_url))
+            )
+        ).all()
+        if document_ids
+        else []
+    )
+    nodes_of = {
+        (type(item), item.id): nodes for item, nodes in (*page_rows, *document_rows)
+    }
+    pages = [page for page, _ in page_rows]
+    documents = [document for document, _ in document_rows]
     known = {page.id for page in pages}
 
     filed: dict[int | None, list[Any]] = {}
@@ -310,7 +339,7 @@ async def load_list(
                 walk(item.id)
 
     walk(None)
-    return ordered
+    return [(item, nodes_of[(type(item), item.id)]) for item in ordered]
 
 
 async def siblings_of(
@@ -440,6 +469,17 @@ def forget_document_placement(wiki: Wiki, document_id: int) -> None:
         wiki.document_positions = placements
 
 
+#: Where a Lexical body keeps its headings: every node of type ``heading``, at
+#: any depth, in the order they appear.
+_HEADING_NODES = 'strict $.** ? (@.type == "heading")'
+
+
+def heading_nodes(content: Any) -> Any:
+    """The heading nodes of a body column, picked out by the database, so a
+    list reads a page's headings without reading the page."""
+    return func.jsonb_path_query_array(content, cast(_HEADING_NODES, JSONPATH))
+
+
 #: What an anchor keeps. Mirrors ``slugify`` in the frontend, which is what
 #: stamps the ``id`` on a rendered heading — the two have to agree or a link
 #: from the navigation lands nowhere.
@@ -474,8 +514,9 @@ def page_headings(content: Any) -> list[dict[str, Any]]:
 
     Read from the stored body rather than from an editor, because the
     navigation draws the headings of every page in a wiki and only one of them
-    is ever open. Level comes from the tag, and the anchor is what the editor
-    stamps on the heading when it renders it.
+    is ever open. ``content`` is the body, or the nodes :func:`heading_nodes`
+    picked out of it. Level comes from the tag, and the anchor is what the
+    editor stamps on the heading when it renders it.
     """
     found: list[dict[str, Any]] = []
 
@@ -495,6 +536,9 @@ def page_headings(content: Any) -> list[dict[str, Any]]:
 
     if isinstance(content, dict):
         walk(content.get("root"))
+    elif isinstance(content, list):
+        for node in content:
+            walk(node)
     return found
 
 
@@ -591,9 +635,25 @@ async def linked_documents(session: AsyncSession, wiki_id: int) -> list[Any]:
     moved, copied, or owned by it — it stays the document it was, in whatever
     else it also belongs to.
     """
+    from app.models.tenant.document import Document
+
+    document_ids = await _linked_document_ids(session, wiki_id)
+    if not document_ids:
+        return []
+
+    # RLS is the gate, as everywhere else: a document the reader may not see
+    # simply does not come back, and the wiki is shorter by one row.
+    rows = (
+        await session.exec(select(Document).where(Document.id.in_(document_ids)))
+    ).all()
+    return list(rows)
+
+
+async def _linked_document_ids(session: AsyncSession, wiki_id: int) -> list[int]:
+    """The ids of the documents somebody has put in this wiki, by the
+    ``document part_of wiki`` edges (:func:`linked_documents`)."""
     from app.core.relationships import RelationshipType, decode_node_id, node_id
     from app.core.search import SearchEntityType
-    from app.models.tenant.document import Document
     from app.models.tenant.relationship import EntityRelationship
 
     edges = (
@@ -607,25 +667,11 @@ async def linked_documents(session: AsyncSession, wiki_id: int) -> list[Any]:
         )
     ).all()
 
-    document_ids = [
+    return [
         entity_id
         for kind, entity_id in (decode_node_id(edge.source_node) for edge in edges)
         if kind is SearchEntityType.document
     ]
-    if not document_ids:
-        return []
-
-    # RLS is the gate, as everywhere else: a document the reader may not see
-    # simply does not come back, and the wiki is shorter by one row. The body
-    # comes along for the headings the navigation draws.
-    rows = (
-        await session.exec(
-            select(Document)
-            .where(Document.id.in_(document_ids))
-            .options(undefer(Document.content), undefer(Document.smart_link_url))
-        )
-    ).all()
-    return list(rows)
 
 
 async def page_links(session: AsyncSession, page: WikiPage) -> tuple[list, list]:
