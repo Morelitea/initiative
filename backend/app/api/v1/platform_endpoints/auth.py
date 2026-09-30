@@ -362,14 +362,13 @@ async def _register_account(
     One body for both doors — the password one above and the passkey one below
     — because what a registration *is* does not depend on what it hands the
     account to come back with: the same address rules, the same invite and
-    captcha gates, the same handle, the same workspace seeded and the same
-    verification letter.
+    captcha gates, the same handle and the same verification letter.
 
     What differs is the way in, and it is settled *here* rather than by the
-    caller afterwards: the guild this account gets is provisioned in the middle
-    of this, which commits, so a credential written after the fact could fail
-    and leave an account nobody can sign in to. Written in the same breath as
-    the account, it is covered by the same undo.
+    caller afterwards: this commits — and, where ``REGISTRATION_CREATES_GUILD``
+    is on, provisions the account a guild of its own — so a credential written
+    after the fact could fail and leave an account nobody can sign in to.
+    Written in the same breath as the account, it is covered by the same undo.
 
     The caller has already refused a method this deployment does not permit and
     taken whatever its own door asks for.
@@ -533,6 +532,8 @@ async def _register_account(
             )
             await session.commit()
             await cohorts.settle(session)
+        elif not settings.REGISTRATION_CREATES_GUILD:
+            await session.commit()
         else:
             guild_name_source = (user.full_name or "").strip() or user.username
             guild_name = (

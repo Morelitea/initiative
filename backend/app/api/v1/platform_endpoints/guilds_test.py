@@ -297,9 +297,10 @@ async def test_an_account_creates_only_its_daily_allowance_of_guilds(
     """Past the allowance the request is refused before anything is made, and
     deleting a community does not give the allowance back; the staff who stand
     communities up for others are not counted."""
+    from app.core.config import settings
     from app.services.platform import guilds as guilds_service
 
-    monkeypatch.setattr(guilds_service, "GUILDS_CREATED_PER_DAY", 1)
+    monkeypatch.setattr(settings, "GUILD_CREATION_DAILY_LIMIT", 1)
     a = await acting_user("member")
     first = await client.post(
         "/api/v1/communities/", headers=a.headers, json={"name": "First"}

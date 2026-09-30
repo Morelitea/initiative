@@ -177,9 +177,11 @@ async def test_an_unconfigured_deployment_creates_guilds_without_claiming(
 
 
 async def test_registration_claims_the_guild_it_creates(
-    client, billing_configured, sent_claims
+    client, billing_configured, sent_claims, monkeypatch
 ):
-    """Registration seeds the new account a guild, and claims that one too."""
+    """Where registration seeds the new account a guild, it claims that one
+    too."""
+    monkeypatch.setattr(config_module.settings, "REGISTRATION_CREATES_GUILD", True)
     response = await client.post(
         "/api/v1/auth/register",
         json={

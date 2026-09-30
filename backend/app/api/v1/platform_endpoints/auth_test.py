@@ -83,8 +83,11 @@ async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSe
     assert "public_registration_enabled" in data
 
 
-async def test_register_first_user(client: AsyncClient):
-    """Test that first registered user becomes owner and gets a guild."""
+async def test_register_first_user(client: AsyncClient, session: AsyncSession):
+    """The first registered user becomes owner, and registering creates no
+    guild unless ``REGISTRATION_CREATES_GUILD`` is on."""
+    from app.models.platform.guild import GuildMembership
+
     user_data = {
         "email": "first@example.com",
         "username": "first",
@@ -100,6 +103,10 @@ async def test_register_first_user(client: AsyncClient):
     assert data["full_name"] == "First User"
     assert data["status"] == "active"
     assert data["role"] == "owner"  # First user bootstraps as owner
+    held = await session.exec(
+        select(GuildMembership).where(GuildMembership.user_id == data["id"])
+    )
+    assert held.all() == []
 
 
 async def test_register_with_invite_blocked_when_guild_full(
@@ -2427,6 +2434,7 @@ async def test_register_rolls_back_when_guild_seed_fails(
     from sqlalchemy import text
     from sqlmodel import select
 
+    from app.core.config import settings
     from app.models.platform.guild import Guild
     from app.services.platform import guilds as guilds_service
 
@@ -2435,6 +2443,7 @@ async def test_register_rolls_back_when_guild_seed_fails(
         # would, so the cleanup path MUST rollback before it can delete anything.
         await seed_session.exec(text("SELECT * FROM does_not_exist_xyz"))
 
+    monkeypatch.setattr(settings, "REGISTRATION_CREATES_GUILD", True)
     monkeypatch.setattr(guilds_service, "seed_guild_content", _boom)
 
     response = await client.post(

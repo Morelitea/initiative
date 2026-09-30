@@ -13,6 +13,7 @@ from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.core.config import settings
 from app.core.guild_auth_options import GuildAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
@@ -672,22 +673,23 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
-#: Communities one account may create in a day, since each one is a schema of
-#: its own. Platform staff holding ``guilds.manage`` are not held to it. A
-#: deleted community still counts: its row stays for at least
-#: ``MIN_GUILD_RETENTION_DAYS`` after deletion, which is at least this window.
-GUILDS_CREATED_PER_DAY = 5
-
-
 async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bool:
-    """Has this account created fewer than its daily allowance of communities?"""
+    """Has this account created fewer than ``GUILD_CREATION_DAILY_LIMIT``
+    communities in the last day?
+
+    A deleted community still counts: its row stays for at least
+    ``MIN_GUILD_RETENTION_DAYS`` after deletion, which is at least this window.
+    """
+    limit = settings.GUILD_CREATION_DAILY_LIMIT
+    if not limit:
+        return True
     since = datetime.now(timezone.utc) - timedelta(days=1)
     created = await session.scalar(
         select(func.count())
         .select_from(Guild)
         .where(Guild.created_by == user_id, Guild.created_at > since)
     )
-    return (created or 0) < GUILDS_CREATED_PER_DAY
+    return (created or 0) < limit
 
 
 async def holds_a_free_guild(session: AsyncSession, *, user_id: int) -> bool:

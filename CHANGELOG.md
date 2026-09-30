@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import.
 - **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.
-- **An account can create up to five communities a day.** Platform staff who can manage communities aren't limited.
+- **An account can create up to five communities a day.** Change it with `GUILD_CREATION_DAILY_LIMIT` (`0` for no limit). Operators and owners aren't limited.
+- **Signing up no longer creates a community.** A new account starts on the page for creating or joining one. Set `REGISTRATION_CREATES_GUILD=true` to give everybody who signs up without an invite a community of their own again.
 - **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
 
 ### Fixed
