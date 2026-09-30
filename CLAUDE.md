@@ -358,10 +358,24 @@ and opens its own engines, ~500MB resident each, so `conftest.py`'s
 takes the lower of that and the core count (16 cores + 16GB RAM → 8 workers).
 Override with `PYTEST_XDIST_AUTO_NUM_WORKERS` on a host that knows better.
 
-The suite is also the cluster's heaviest **writer** — a TRUNCATE per test and a
-CREATE/DROP of a ~60-table schema per guild test — and what that fills is WAL,
+**Guild schemas are pooled per worker.** Building one costs ~0.8s and ~6MB of
+WAL, and guild ids restart at 1 every test, so each worker keeps the schemas
+for guild ids 1–3 instead of dropping them. A finished test's schema is emptied
+(only the tables it wrote to, sequences back to 1) and parked as
+`test_pool_<id>`, a name no `guild_[0-9]+` enumerator sees. The next test that
+provisions that id gets it back by rename. A schema that a test changed is
+dropped and rebuilt: an event trigger logs DDL on guild schemas, and a
+fingerprint covers the grants and role memberships DDL events can't see. See
+`app/testing/guild_pool.py`. A test *about* provisioning takes
+`@pytest.mark.fresh_guild_schema`; `PYTEST_GUILD_POOL=0` turns the pool off
+for a whole run, to rule it in or out when a failure looks order-dependent.
+A test that leaves `guild_template` changed fails at teardown, because the
+worker renders provisioning from the template once.
+
+The suite is also the cluster's heaviest **writer** — a TRUNCATE per test, and
+a guild schema built for every guild id above the pool — and what that fills is WAL,
 not table data (per-worker databases sit near 100MB; `pg_wal` was measured at
-2.5GB). Writing it grows the page cache, which is what makes a WSL2 VM balloon
+2.5GB before the pool). Writing it grows the page cache, which is what makes a WSL2 VM balloon
 past its ceiling and die mid-run. The local `docker-compose.yml` db service
 therefore also runs with `fsync=off`, `full_page_writes=off`,
 `synchronous_commit=off`, `wal_level=minimal`, `max_wal_senders=0` and
