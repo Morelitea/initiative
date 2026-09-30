@@ -26,7 +26,7 @@ favorites, recents, queues. Those would extend the schema under a future
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -40,6 +40,8 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.project import Project
 from app.models.tenant.property import PropertyType, TaskPropertyValue
+from app.models.platform.user_profile_view import MemberProfile
+from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task, TaskStatus
 from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
@@ -197,6 +199,7 @@ async def build_project_export(
                 recurrence_strategy=task.recurrence_strategy,
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
                 series=task.series_id,
+                recurrence_carry=await _portable_carry(session, task.recurrence_carry),
                 position=task.position,
                 archived_at=task.archived_at,
                 completed_at=task.completed_at,
@@ -391,6 +394,29 @@ async def list_project_ids_for_export(
     ]
     statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
     return list(await session.exec(statement))
+
+
+async def _portable_carry(
+    session: AsyncSession, carry: dict[str, Any] | None
+) -> dict[str, Any] | None:
+    """``recurrence_carry`` with its tags by name and colour and its assignees
+    by handle, which is how the envelope names both."""
+    if not carry:
+        return None
+    portable = {
+        field: value
+        for field, value in carry.items()
+        if field not in {"tag_ids", "assignee_ids"}
+    }
+    if "tag_ids" in carry:
+        tags = await session.exec(select(Tag).where(Tag.id.in_(carry["tag_ids"])))
+        portable["tags"] = [{"name": tag.name, "color": tag.color} for tag in tags]
+    if "assignee_ids" in carry:
+        people = await session.exec(
+            select(MemberProfile).where(MemberProfile.id.in_(carry["assignee_ids"]))
+        )
+        portable["assignee_handles"] = [handle_of(person) for person in people]
+    return portable
 
 
 def _fallback_status_name(statuses_sorted: list[TaskStatus]) -> str:

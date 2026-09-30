@@ -20,7 +20,10 @@ import { useTranslation } from "react-i18next";
 import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
+import {
+  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
+  readTaskApiV1CGuildIdTasksTaskIdGet,
+} from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
@@ -282,9 +285,15 @@ export const TaskEditPage = () => {
   });
 
   const deleteTask = useDeleteTask({
-    onSuccess: (_data, { scope }) => {
-      // Deleting just this one of a series skips it, so the task is still here.
-      if (scope === "this") {
+    onSuccess: async (_data, { scope }) => {
+      // Deleting just this one of a series skips it, so the task is still
+      // here, unless it was the series' last.
+      const skipped =
+        scope === "this"
+          ? await readTaskApiV1CGuildIdTasksTaskIdGet(guildId, parsedTaskId).catch(() => null)
+          : null;
+      if (skipped) {
+        form.settle(formValueFromTask(skipped));
         toast.success(t("edit.taskSkipped"));
         return;
       }

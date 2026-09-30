@@ -31,11 +31,15 @@ const renderTaskPage = ({
   /** What the project reports; a column the task uses can be missing from it. */
   statuses,
   recurrence = null,
+  lastOccurrence = false,
 }: {
   taskProjectId?: number;
   statuses?: unknown[];
   recurrence?: string | null;
+  /** Deleting just this task trashes it, as nothing comes after it. */
+  lastOccurrence?: boolean;
 } = {}) => {
+  let gone = false;
   const task = {
     ...buildTask({
       id: TASK_ID,
@@ -53,7 +57,9 @@ const renderTaskPage = ({
   const deleted = vi.fn();
 
   server.use(
-    guildHttp.get("/tasks/:taskId", () => HttpResponse.json(task)),
+    guildHttp.get("/tasks/:taskId", () =>
+      gone ? new HttpResponse(null, { status: 404 }) : HttpResponse.json(task)
+    ),
     // The collection routes go first: `:projectId` would otherwise swallow
     // them and answer a list request with a single project.
     guildHttp.get("/projects/", () => HttpResponse.json([project])),
@@ -63,7 +69,9 @@ const renderTaskPage = ({
       ? [guildHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses))]
       : []),
     guildHttp.delete("/tasks/:taskId", ({ request }) => {
-      deleted(new URL(request.url).searchParams.get("scope"));
+      const scope = new URL(request.url).searchParams.get("scope");
+      gone = scope !== "this" || lastOccurrence;
+      deleted(scope);
       return new HttpResponse(null, { status: 204 });
     })
   );
@@ -174,6 +182,24 @@ describe("TaskEditPage", () => {
     // Just this one skips it, so the series and the page stay.
     await waitFor(() => expect(deleted).toHaveBeenCalledWith("this"));
     expect(router.state.location.pathname).toContain(`/tasks/${TASK_ID}`);
+  });
+
+  it("leaves the page when just this task was the series' last", async () => {
+    const { router, deleted } = renderTaskPage({
+      recurrence: "RRULE:FREQ=DAILY;COUNT=2",
+      lastOccurrence: true,
+    });
+
+    await openActionsMenu();
+    await userEvent.click(await screen.findByRole("menuitem", { name: /delete task/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => expect(deleted).toHaveBeenCalledWith("this"));
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe(
+        `/c/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
+      )
+    );
   });
 
   it("follows the task's own project, not the one left in the path", async () => {

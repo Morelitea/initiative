@@ -49,6 +49,7 @@ from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
     ProjectExportComment,
     ProjectExportEnvelope,
+    ProjectExportTag,
     ProjectExportTask,
     ProjectImportResult,
 )
@@ -363,7 +364,7 @@ async def _import_task(
     # Tag links — match-or-create against the target guild for any tag
     # that wasn't already in the project-level set (tasks can have tags
     # the project itself doesn't carry).
-    for task_tag in envelope_task.tags:
+    async def tag_id(task_tag: ProjectExportTag) -> int:
         tid = tag_name_to_id.get(task_tag.name)
         if tid is None:
             resolved = await ensure_tag(
@@ -373,7 +374,34 @@ async def _import_task(
             )
             tid = resolved.id
             tag_name_to_id[task_tag.name] = tid
-        session.add(tags_service.tag_edge(tags_service.TAG_LINKS["task"], task.id, tid))
+        return tid
+
+    for task_tag in envelope_task.tags:
+        session.add(
+            tags_service.tag_edge(
+                tags_service.TAG_LINKS["task"], task.id, await tag_id(task_tag)
+            )
+        )
+
+    # What an edit of just this task kept back, its tags and assignees named
+    # back into this community.
+    if envelope_task.recurrence_carry:
+        carry = dict(envelope_task.recurrence_carry)
+        if "tags" in carry:
+            carry["tag_ids"] = sorted(
+                {await tag_id(ProjectExportTag(**tag)) for tag in carry.pop("tags")}
+            )
+        if "assignee_handles" in carry:
+            found = (
+                initiative_member_id(
+                    handle,
+                    people=context.people if context is not None else PeopleMap(),
+                    member_handles=initiative_member_handles,
+                )
+                for handle in carry.pop("assignee_handles")
+            )
+            carry["assignee_ids"] = sorted({uid for uid in found if uid is not None})
+        task.recurrence_carry = carry
 
     # Assignees: the account a person mapped the handle to, else a member
     # whose handle is the same string (see ``people.initiative_member_id``).

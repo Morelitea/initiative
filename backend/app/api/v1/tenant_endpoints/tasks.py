@@ -568,16 +568,6 @@ async def update_task(
             if assignee.id not in existing_assignee_ids
         ]
 
-    await task_creation_service.advance_recurrence_if_needed(
-        session,
-        task,
-        previous_status_category=previous_status_category,
-        now=now,
-        # An installed app has no zone of its own; a rolling recurrence it
-        # completes counts days in UTC.
-        user_timezone=current_user.timezone if current_user is not None else None,
-    )
-
     if new_assignees:
         assigned_by = await notifications_service.author_of(
             session, guild_context, current_user
@@ -623,6 +613,17 @@ async def update_task(
             now=now,
             author_id=current_user.id if current_user is not None else None,
         )
+    # Once the task has everything this edit gives it, so a completion's next
+    # task is copied from what was saved.
+    await task_creation_service.advance_recurrence_if_needed(
+        session,
+        task,
+        previous_status_category=previous_status_category,
+        now=now,
+        # An installed app has no zone of its own; a rolling recurrence it
+        # completes counts days in UTC.
+        user_timezone=current_user.timezone if current_user is not None else None,
+    )
 
     let_go: set[str] = set()
     if task.description != previous_description:

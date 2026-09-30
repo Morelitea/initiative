@@ -1552,9 +1552,10 @@ async def test_a_task_changes_alone_or_with_its_series(
     it changed from; an edit of all reaches every task of the series; a skip
     moves the task on without completing it; and a delete is this task (a
     skip) or the whole series."""
-    from app.testing.factories import create_task
+    from app.testing.factories import create_tag, create_task
 
     a, todo, done = await recurring_task_env()
+    tag = await create_tag(session, a.guild, name="garden")
     first = await create_task(
         session,
         a.project,
@@ -1581,8 +1582,10 @@ async def test_a_task_changes_alone_or_with_its_series(
         )
         return {task["id"]: task for task in listing.json()["items"]}
 
-    await patch(first.id, task_status_id=done.id)
+    # Completed and tagged in one save: the next task has the tag.
+    await patch(first.id, task_status_id=done.id, tag_ids=[tag.id])
     (second_id,) = set(await live()) - {first.id}
+    assert [t["id"] for t in (await live())[second_id]["tags"]] == [tag.id]
     second = await patch(
         second_id,
         title="Water ferns",

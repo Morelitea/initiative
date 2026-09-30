@@ -35,6 +35,8 @@ from app.models.tenant.task import Task, TaskPriority
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_description as task_description_service
+from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant.task_completion import sync_completed_at
 
 #: What an edit of just one task keeps from the rest of its series.
 CARRIED = (
@@ -198,6 +200,8 @@ async def skip(
     next task would have been made. False when the series has no more."""
     from app.services.tenant.task_creation import set_task_assignees
 
+    if task.due_date is None:
+        return False
     try:
         dates = next_dates(task, now=now, user_timezone=user_timezone)
     except ValueError:
@@ -217,6 +221,16 @@ async def skip(
         )
     if "tag_ids" in values:
         await retag(session, task.id, values["tag_ids"])
+    if "description" in values:
+        await task_description_service.record_references(
+            session, task, author_id=task.created_by
+        )
+    default_status = await task_statuses_service.get_default_status(
+        session, task.project_id
+    )
+    task.task_status_id = default_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    task.task_status = default_status
+    sync_completed_at(task, default_status.category, now=now)
     task.start_date, task.due_date = dates
     task.recurrence_occurrence_count += 1
     task.checklist = checklist_service.cloned(task.checklist)
