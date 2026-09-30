@@ -5,6 +5,7 @@ from typing import Annotated, List
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -1669,6 +1670,7 @@ async def delete_guild(
     session: SettingsRLSSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    background_tasks: BackgroundTasks,
 ) -> Response:
     # The seat, not an ordinary admin. Deleting a community is the one action
     # an admin cannot undo and cannot be undone for them — only an operator
@@ -1736,11 +1738,12 @@ async def delete_guild(
     # See soft_delete_guild: these live on another connection, so they go after
     # the commit that made the deletion real. Billing keeps its name for the
     # guild until the purge, and is told to go and read what happened to it.
-    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
-    billing_ping.notify_lifecycle_changed(guild_id)
-    await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(session)
+    # The references go after the revocations, which name the guild by them.
+    app_revocation_service.send_after_response(session, background_tasks)
+    background_tasks.add_task(
+        app_refs.forget_guild, guild_id=guild_id, keep_billing=True
     )
+    billing_ping.notify_lifecycle_changed(guild_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -2016,6 +2019,7 @@ async def leave_guild(
     session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    background_tasks: BackgroundTasks,
 ) -> Response:
     """Leave a guild.
 
@@ -2072,7 +2076,5 @@ async def leave_guild(
     # …and tell this guild's apps that the credentials this person connected
     # under it are finished. After the commit, so an app is never told to let go
     # of something a rollback would have put back.
-    await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(session)
-    )
+    app_revocation_service.send_after_response(session, background_tasks)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

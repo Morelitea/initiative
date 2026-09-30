@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Ending app connections answers right away.** Revoking every member's connection, uninstalling an app, removing a member, leaving or deleting a community no longer waits for each connected service to confirm, one at a time. The services are told in the background, several at once.
+- **A service's webhook reaches every connected community faster.** One delivery is passed to several communities at once instead of one after another, so a service that connected many of them no longer times out waiting.
 - **A project made from a template keeps each task's repeat**, moved with the task's dates.
 - **Nothing comes back from the trash under something that's still in it.** Restoring a sub-page whose parent page is still in the trash, a reply whose comment is, or a task or tool that was archived before it was trashed, now says to restore what it's inside first, instead of bringing it back where nobody can open it.
 - **Archived content can be thrown away and brought back.** Deleting an archived initiative or wiki that has pages, or a page inside one, works again, and whatever you restore into an archive comes back archived.
