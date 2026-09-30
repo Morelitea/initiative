@@ -462,6 +462,8 @@ export const useClearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete = <
 };
 /**
  * Trigger a password reset email for a user (``users.manage``).
+ *
+ * Refused where the deployment takes no password, as the reset it links to is.
  * @summary Trigger Password Reset
  */
 export const triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost = (

@@ -550,6 +550,9 @@ class SettingsMessages:
     #: authenticator code accompanies a sign-in rather than opening one.
     LOGIN_METHODS_NO_PRIMARY = "SETTINGS_LOGIN_METHODS_NO_PRIMARY"
     LOGIN_METHODS_WOULD_STRAND = "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    #: The change would leave the account making it with no way in. Not
+    #: acknowledgeable: the account adds another way in first.
+    LOGIN_METHODS_WOULD_STRAND_SELF = "SETTINGS_LOGIN_METHODS_WOULD_STRAND_SELF"
     #: The acknowledged number no longer matches what withdrawing would strand.
     LOGIN_METHODS_STALE_ACKNOWLEDGEMENT = "SETTINGS_LOGIN_METHODS_STALE_ACK"
     #: The method used to reach this endpoint is not one the platform permits.

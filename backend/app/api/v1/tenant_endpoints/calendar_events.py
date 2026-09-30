@@ -70,7 +70,6 @@ from app.schemas.tenant.ical import (
     ICalParseResult,
 )
 from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.schemas.tenant.tag import TagSetRequest
 from app.api import resource_access
 from app.core.tools import Tool
 from app.db.query import (
@@ -1094,6 +1093,20 @@ async def _apply_update(
             picked_in,
         )
 
+    if update_data.get("tag_ids") is not None:
+        await tags_service.set_entity_tags(
+            session,
+            tags_service.EXTRA_TAG_LINKS["calendar_event"],
+            guild_id=guild_context.guild_id,
+            entity_id=event.id,
+            tag_ids=update_data["tag_ids"],
+        )
+        await session.flush()
+        # An occurrence's own tags stay its own; a series' reach its
+        # occurrences that kept the series' tags.
+        await _followed(session, event, "tags")
+        updated = True
+
     # Validate dates after applying partial updates
     if updated:
         if event.end_at < event.start_at:
@@ -1517,43 +1530,6 @@ async def update_rsvp(
         current_user.id,
         context=guild_context,
         occurrence=rsvp_in.occurrence if event.recurrence else None,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Tags & Documents
-# ---------------------------------------------------------------------------
-
-
-@router.put("/{event_id}/tags", response_model=CalendarEventRead)
-async def set_event_tags(
-    event_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CalendarEventRead:
-    """Set the tags for an event. Replaces all existing tags with the provided
-    list. Events are content-level extras (like tasks), so they keep a
-    hand-written tag route instead of the generic ``/tools/{tool}`` one."""
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, action=Action.contribute
-    )
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.EXTRA_TAG_LINKS["calendar_event"],
-        guild_id=guild_context.guild_id,
-        entity_id=event.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    event.updated_at = datetime.now(timezone.utc)
-    session.add(event)
-    await session.flush()
-    await _followed(session, event, "tags")
-    await session.commit()
-    hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(
-        session, hydrated, current_user.id, context=guild_context
     )
 
 

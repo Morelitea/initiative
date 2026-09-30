@@ -423,7 +423,7 @@ export const TaskEditPage = () => {
   const writableProjectsQuery = useWritableProjects({
     enabled: Boolean(canWriteProject && !projectIsArchived),
   });
-  const writableProjects = writableProjectsQuery.data ?? [];
+  const writableProjects = writableProjectsQuery.data?.items ?? [];
 
   const handleCommentCreated = (comment: CommentRead) => {
     queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {

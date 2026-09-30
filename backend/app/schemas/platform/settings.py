@@ -605,8 +605,7 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
     light_accent_color: str
     dark_accent_color: str
     #: Whether arriving visitors are asked what this deployment may keep in
-    #: their browser. Also on ``GET /config``, which is where the SPA reads it;
-    #: served here for the page that writes it.
+    #: their browser. Read, like the colours, from ``GET /config``.
     cookie_consent_enabled: bool
 
 

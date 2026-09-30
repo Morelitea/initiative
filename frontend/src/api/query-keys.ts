@@ -373,8 +373,6 @@ const allSettings = (): Spec => ({
   guildPrefix: ["/api/v1/settings"],
 });
 
-const interfaceSettings = (): Spec => ({ personalExact: ["/api/v1/settings/interface"] });
-
 const emailSettings = (): Spec => ({ personalExact: ["/api/v1/settings/email"] });
 
 const authSettings = (): Spec => ({ personalExact: ["/api/v1/settings/auth"] });
@@ -570,13 +568,16 @@ const allProperties = (): Spec => ({ guildPrefix: ["/api/v1/property-definitions
 // Every tool is cached the same way, so its keys are one rule over the `Tool`
 // enum rather than a table per tool: a new member is covered the day it lands.
 
+/** The sidebar's per-initiative counts, one query for every tool. */
+const toolCounts = (): Spec => ({ guildExact: ["/api/v1/tools/counts/by-initiative"] });
+
 /**
- * Every list of one tool — its guild-wide list and the cross-guild `/me` twin
- * every tool has. A calendar's also reaches the events and entries views, which
- * show its name and colour.
+ * Every list of one tool — its guild-wide list, the cross-guild `/me` twin
+ * every tool has, and the counts beside them. A calendar's also reaches the
+ * events and entries views, which show its name and colour.
  */
 const toolList = (which: Tool): Spec => {
-  const lists = resourceAndMe(toolRouteSegment(which));
+  const lists = compose(resourceAndMe(toolRouteSegment(which)), toolCounts());
   return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
 };
 
@@ -680,7 +681,6 @@ export const q = {
   initiativeJoinRequests,
   initiativeMembers,
   initiativeRoles,
-  interfaceSettings,
   latestVersion,
   memberAI,
   myAI,

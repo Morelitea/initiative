@@ -268,12 +268,10 @@ async def test_counts_by_initiative(client: AsyncClient, acting_user, session):
     await create_gallery(session, a.initiative, a.user)
     await create_gallery(session, a.initiative, a.user)
 
-    response = await client.get(
-        a.g("/galleries/counts/by-initiative"), headers=a.headers
-    )
+    response = await client.get(a.g("/tools/counts/by-initiative"), headers=a.headers)
 
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(a.initiative.id): 2}
+    assert response.json()["counts"]["gallery"] == {str(a.initiative.id): 2}
 
 
 # ---------------------------------------------------------------------------

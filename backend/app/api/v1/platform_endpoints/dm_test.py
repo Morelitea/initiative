@@ -186,6 +186,15 @@ async def test_the_list_never_answers_the_other_direction(client, session, actin
 # -------------------------------------------------------------- permission ---
 
 
+async def _permission(client, headers, user_id: int) -> dict:
+    """One person's answer from the bulk read."""
+    response = await client.post(
+        "/api/v1/me/dm-permissions", json={"user_ids": [user_id]}, headers=headers
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["permissions"][str(user_id)]
+
+
 async def test_permission_is_identical_across_being_ignored(
     client, session, acting_user
 ):
@@ -195,17 +204,13 @@ async def test_permission_is_identical_across_being_ignored(
     await _set_policy(session, ada.user, DmPolicy.community)
     await _set_policy(session, bram.user, DmPolicy.community)
 
-    url = f"/api/v1/users/{ada.user.id}/dm-permission"
-    before = await client.get(url, headers=bram.headers)
-    assert before.status_code == 200
-    assert before.json() == {"permission": "may_request", "may_connect": True}
+    before = await _permission(client, bram.headers, ada.user.id)
+    assert before == {"permission": "may_request", "may_connect": True}
 
     session.add(UserIgnore(user_id=ada.user.id, ignored_user_id=bram.user.id))
     await session.commit()
 
-    after = await client.get(url, headers=bram.headers)
-    assert after.status_code == before.status_code
-    assert after.json() == before.json()
+    assert await _permission(client, bram.headers, ada.user.id) == before
 
 
 async def test_a_private_target_is_denied(client, session, acting_user):
@@ -214,19 +219,18 @@ async def test_a_private_target_is_denied(client, session, acting_user):
     await _set_policy(session, ada.user, DmPolicy.private)
     await _set_policy(session, bram.user, DmPolicy.community)
 
-    response = await client.get(
-        f"/api/v1/users/{ada.user.id}/dm-permission", headers=bram.headers
-    )
-    assert response.json() == {"permission": "denied", "may_connect": True}
+    assert await _permission(client, bram.headers, ada.user.id) == {
+        "permission": "denied",
+        "may_connect": True,
+    }
 
 
-async def test_an_unknown_account_is_not_found(client, acting_user):
+async def test_an_unknown_account_is_denied(client, acting_user):
     a = await acting_user()
-    response = await client.get(
-        "/api/v1/users/99999999/dm-permission", headers=a.headers
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "DM_USER_NOT_FOUND"
+    assert await _permission(client, a.headers, 99999999) == {
+        "permission": "denied",
+        "may_connect": False,
+    }
 
 
 # ------------------------------------------------- connections & requests ---
@@ -311,10 +315,10 @@ async def test_accepting_a_connection_opens_the_channel(client, session, acting_
     channels = await client.get("/api/v1/me/message-requests", headers=a.headers)
     assert [r["user_id"] for r in channels.json()["accepted"]] == [b.user.id]
 
-    permission = await client.get(
-        f"/api/v1/users/{b.user.id}/dm-permission", headers=a.headers
-    )
-    assert permission.json() == {"permission": "open", "may_connect": True}
+    assert await _permission(client, a.headers, b.user.id) == {
+        "permission": "open",
+        "may_connect": True,
+    }
 
 
 async def test_a_request_from_an_ignored_account_is_never_surfaced(
@@ -361,10 +365,10 @@ async def test_removing_a_connection_keeps_a_community_channel(
     )
     assert removed.status_code == 204
 
-    permission = await client.get(
-        f"/api/v1/users/{bram.user.id}/dm-permission", headers=ada.headers
-    )
-    assert permission.json() == {"permission": "open", "may_connect": True}
+    assert await _permission(client, ada.headers, bram.user.id) == {
+        "permission": "open",
+        "may_connect": True,
+    }
 
 
 async def test_ignoring_someone_does_not_stop_you_reaching_them(
@@ -407,47 +411,38 @@ async def test_may_connect_says_nothing_about_being_ignored(
     await _set_policy(session, ada.user, DmPolicy.community)
     await _set_policy(session, bram.user, DmPolicy.community)
 
-    url = f"/api/v1/users/{ada.user.id}/dm-permission"
-    before = await client.get(url, headers=bram.headers)
+    before = await _permission(client, bram.headers, ada.user.id)
 
     session.add(UserIgnore(user_id=ada.user.id, ignored_user_id=bram.user.id))
     await session.commit()
 
-    after = await client.get(url, headers=bram.headers)
-    assert after.json()["may_connect"] == before.json()["may_connect"]
+    after = await _permission(client, bram.headers, ada.user.id)
+    assert after["may_connect"] == before["may_connect"]
 
 
-async def test_permissions_in_bulk_answer_as_the_single_read_does(
-    client, session, acting_user
-):
-    """One request for a page of people, and the same two answers per person.
-
-    A surface listing members draws a control per row; asking per row is a
-    request per row. This has to be the same question asked once for many
-    subjects, not a looser one.
-    """
+async def test_permissions_answer_for_a_page_of_people(client, session, acting_user):
+    """One request for a page of people, and the same two answers per person
+    as asking about each alone."""
     ada = await acting_user(guild_role=GuildRole.member)
     bram = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
+    cleo = await acting_user(guild_role=GuildRole.member, guild=ada.guild)
     await _set_policy(session, ada.user, DmPolicy.community)
     await _set_policy(session, bram.user, DmPolicy.private)
-
-    single = {
-        str(other.user.id): (
-            await client.get(
-                f"/api/v1/users/{other.user.id}/dm-permission", headers=ada.headers
-            )
-        ).json()
-        for other in (bram,)
-    }
+    await _set_policy(session, cleo.user, DmPolicy.community)
 
     bulk = await client.post(
         "/api/v1/me/dm-permissions",
-        json={"user_ids": [bram.user.id, ada.user.id]},
+        json={"user_ids": [bram.user.id, cleo.user.id, ada.user.id]},
         headers=ada.headers,
     )
     assert bulk.status_code == 200, bulk.text
     answers = bulk.json()["permissions"]
 
-    assert answers[str(bram.user.id)] == single[str(bram.user.id)]
+    for other in (bram, cleo):
+        assert answers[str(other.user.id)] == await _permission(
+            client, ada.headers, other.user.id
+        )
+    assert answers[str(bram.user.id)]["permission"] == "denied"
+    assert answers[str(cleo.user.id)]["permission"] == "may_request"
     # Nothing about yourself: every action on your own account is refused.
     assert str(ada.user.id) not in answers

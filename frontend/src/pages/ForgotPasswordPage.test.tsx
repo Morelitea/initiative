@@ -26,6 +26,15 @@ const fillRecoverForm = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("ForgotPasswordPage", () => {
+  it("offers no form where the deployment takes no password", async () => {
+    server.use(http.get("/api/v1/config", () => HttpResponse.json({ login_methods: ["sso"] })));
+
+    renderPage(ForgotPasswordPage, { initialRoute: "/forgot-password" });
+
+    expect(await screen.findByText(/password sign-in is off/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+  });
+
   it("sets a password from a recovery code", async () => {
     const user = userEvent.setup();
     let body: unknown = null;

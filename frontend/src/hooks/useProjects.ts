@@ -19,9 +19,8 @@ import {
   favoriteProjectsApiV1CGuildIdProjectsFavoritesGet,
   getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey,
   getListProjectsApiV1CGuildIdProjectsGetQueryKey,
-  getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey,
   getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  listWritableProjectsApiV1CGuildIdProjectsWritableGet,
+  listProjectsApiV1CGuildIdProjectsGet,
   reorderProjectsApiV1CGuildIdProjectsReorderPost,
   unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1CGuildIdProjectsProjectIdPatch,
@@ -38,6 +37,7 @@ import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -100,11 +100,14 @@ export const useTemplateProjects = (initiativeId?: number | null) => {
   return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };
 
-export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
+/** Every project the reader may edit — where a task can be moved to. Walks the
+ *  list's windows, so no destination is left off a long list. */
+export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) => {
   const guildId = useActiveGuildId();
-  return useQuery<ProjectRead[]>({
-    queryKey: getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey(guildId),
-    queryFn: () => listWritableProjectsApiV1CGuildIdProjectsWritableGet(guildId),
+  const params = { writable: true, slim: true, page_size: 0 };
+  return useQuery<ProjectListResponse>({
+    queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId, params),
+    queryFn: () => fetchAllPages(listProjectsApiV1CGuildIdProjectsGet, guildId, params),
     staleTime: 60 * 1000,
     ...options,
   });

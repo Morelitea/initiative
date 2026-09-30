@@ -30,7 +30,7 @@ of these is left exactly as it was.
 
 from typing import Any, Callable, Optional, Sequence
 
-from sqlalchemy import ColumnElement, func, or_
+from sqlalchemy import ColumnElement, func, literal, or_, union_all
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -221,15 +221,16 @@ async def list_tool_rows(
 
 async def count_tool_rows_by_initiative(
     session: AsyncSession,
-    tool: Tool,
-    model,
-    enabled_column,
+    sources: Sequence[tuple[Tool, Any, Any, Sequence[Any]]],
     *,
     user_id: int | None,
     context: ActorContext,
-    extra_conditions: Sequence[Any] = (),
-) -> dict[int, int]:
-    """How many of this tool each initiative holds for this reader.
+) -> dict[Tool, dict[int, int]]:
+    """How many of each tool each initiative holds for this reader.
+
+    ``sources`` is one ``(tool, model, enabled_column, extra_conditions)`` per
+    tool, and every tool is answered in one statement: the sidebar shows all
+    of them at once, so asking once per tool was a round trip per badge.
 
     What the sidebar badge shows, so it counts what is on the board: live rows
     only, and whatever else that tool's own list leaves out by default (a
@@ -237,19 +238,27 @@ async def count_tool_rows_by_initiative(
     the guild rather than an initiative fall outside every group, because the
     rows this answers are initiative rows.
     """
-    conditions = [
-        initiative_switch_clause(model, enabled_column),
-        archive_service.archive_filter_clause(model, None),
-        permissions_service.granted_scope_clause(
-            tool, model.id, user_id, context=context
-        ),
-        *extra_conditions,
-    ]
-    rows = (
-        await session.exec(
-            select(model.initiative_id, func.count(model.id))
-            .where(*conditions)
-            .group_by(model.initiative_id)
+    counts: dict[Tool, dict[int, int]] = {tool: {} for tool, *_ in sources}
+    if not sources:
+        return counts
+    selects = [
+        select(
+            literal(tool.value).label("tool"),
+            model.initiative_id,
+            func.count(model.id),
         )
-    ).all()
-    return {initiative_id: count for initiative_id, count in rows}
+        .where(
+            initiative_switch_clause(model, enabled_column),
+            archive_service.archive_filter_clause(model, None),
+            permissions_service.granted_scope_clause(
+                tool, model.id, user_id, context=context
+            ),
+            *extra_conditions,
+        )
+        .group_by(model.initiative_id)
+        for tool, model, enabled_column, extra_conditions in sources
+    ]
+    rows = (await session.exec(union_all(*selects))).all()
+    for tool, initiative_id, count in rows:
+        counts[Tool(tool)][initiative_id] = count
+    return counts

@@ -12,7 +12,6 @@ import {
   readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet,
   restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost,
   setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut,
-  setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut,
   updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch,
   updateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch,
 } from "@/api/generated/calendar-events/calendar-events";
@@ -26,7 +25,6 @@ import type {
   ICalImportResult,
   ICalParseRequest,
   ICalParseResult,
-  TagSetRequest,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -61,9 +59,6 @@ export const useCalendarEvent = (
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
-
-const invalidateEventAndList = (eventId: number) =>
-  invalidate(q.calendarEvent(eventId), q.allCalendarEvents());
 
 export const useCreateCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, CalendarEventCreate>
@@ -218,22 +213,6 @@ export const useOccurrenceAction = (
     {
       mutationFn: (guildId, start) => OCCURRENCE_ACTIONS[action](guildId, eventId, { start }),
       invalidate: () => invalidate(q.allCalendarEvents()),
-      errorKey: "calendars:error",
-    },
-    options
-  );
-
-/** Events are content-level extras (like tasks), so tag assignment goes
- * through their own route, not the generic /tools one. */
-export const useSetEventTags = (
-  eventId: number,
-  options?: MutationOpts<CalendarEventRead, TagSetRequest>
-) =>
-  useGuildMutation<CalendarEventRead, TagSetRequest>(
-    {
-      mutationFn: (guildId, data) =>
-        setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut(guildId, eventId, data),
-      invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },
     options

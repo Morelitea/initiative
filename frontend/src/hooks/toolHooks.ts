@@ -1,10 +1,10 @@
 /**
  * The hooks every tool repeats, written once.
  *
- * Nine tools ask the API the same seven questions — how many of me does each
- * initiative hold, list me, read one of me, create, update, delete, share —
+ * Nine tools ask the API the same six questions — list me, read one of me,
+ * create, update, delete, share —
  * over endpoints that differ only in their names. Each `use<Tool>s.ts` used to
- * spell all seven out; they are built here from the generated client instead,
+ * spell all six out; they are built here from the generated client instead,
  * and that file re-exports them under the names its callers already use.
  *
  * Cache keys come from the generated key builders and invalidation from the
@@ -12,15 +12,14 @@
  * exactly one place however they are reached.
  *
  * `TOOL_HOOKS` below is the table, keyed by `Tool`, and it says tool by tool
- * which of the seven come from here. A hook that genuinely differs — a list
+ * which of the six come from here. A hook that genuinely differs — a list
  * that walks every page, a create that also links the new row to a project —
  * is absent from that tool's entry and stays hand-written in its own file,
  * rather than being reached by a flag here.
  *
- * Three questions are asked for EVERY tool, however its hook is written: how
- * many of me per initiative, one page of me in this community, one page of me
- * across all of them. Those three are in the table as query options rather
- * than hooks, because the surfaces that ask them ask every tool at once and
+ * Two questions are asked for EVERY tool, however its hook is written: one
+ * page of me in this community, one page of me across all of them. Those two
+ * are in the table as query options rather than hooks, because the surfaces that ask them ask every tool at once and
  * hand the lot to `useQueries` — a hook cannot be called in a loop. A tool
  * whose hook is hand-written still declares its options here, so the query is
  * described once and the hand-written hook wraps these rather than repeating
@@ -32,8 +31,6 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   createCalendarApiV1CGuildIdCalendarsPost,
   deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete,
-  getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet,
-  getGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryKey,
   getListCalendarsApiV1CGuildIdCalendarsGetQueryKey,
   getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
   listCalendarsApiV1CGuildIdCalendarsGet,
@@ -44,8 +41,6 @@ import {
 import {
   createCounterGroupApiV1CGuildIdCounterGroupsPost,
   deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete,
-  getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet,
-  getGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryKey,
   getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryKey,
   getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
   listCounterGroupsApiV1CGuildIdCounterGroupsGet,
@@ -56,8 +51,6 @@ import {
 import {
   createDashboardApiV1CGuildIdDashboardsPost,
   deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete,
-  getDashboardCountsByInitiativeApiV1CGuildIdDashboardsCountsByInitiativeGet,
-  getGetDashboardCountsByInitiativeApiV1CGuildIdDashboardsCountsByInitiativeGetQueryKey,
   getListDashboardsApiV1CGuildIdDashboardsGetQueryKey,
   getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
   listDashboardsApiV1CGuildIdDashboardsGet,
@@ -68,8 +61,6 @@ import {
 import {
   createDocumentApiV1CGuildIdDocumentsPost,
   deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
-  getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet,
-  getGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryKey,
   getListDocumentsApiV1CGuildIdDocumentsGetQueryKey,
   getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
   listDocumentsApiV1CGuildIdDocumentsGet,
@@ -79,8 +70,6 @@ import {
 import {
   createGalleryApiV1CGuildIdGalleriesPost,
   deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete,
-  getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet,
-  getGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryKey,
   getListGalleriesApiV1CGuildIdGalleriesGetQueryKey,
   getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
   listGalleriesApiV1CGuildIdGalleriesGet,
@@ -89,7 +78,6 @@ import {
   updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch,
 } from "@/api/generated/galleries/galleries";
 import type {
-  InitiativeGroupedCountsResponse,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -117,9 +105,7 @@ import {
 import {
   createPostApiV1CGuildIdPostsPost,
   deletePostApiV1CGuildIdPostsPostIdDelete,
-  getGetPostCountsByInitiativeApiV1CGuildIdPostsCountsByInitiativeGetQueryKey,
   getListPostsApiV1CGuildIdPostsGetQueryKey,
-  getPostCountsByInitiativeApiV1CGuildIdPostsCountsByInitiativeGet,
   getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
   listPostsApiV1CGuildIdPostsGet,
   readPostApiV1CGuildIdPostsPostIdGet,
@@ -129,9 +115,7 @@ import {
 import {
   createProjectApiV1CGuildIdProjectsPost,
   deleteProjectApiV1CGuildIdProjectsProjectIdDelete,
-  getGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryKey,
   getListProjectsApiV1CGuildIdProjectsGetQueryKey,
-  getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet,
   getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
   listProjectsApiV1CGuildIdProjectsGet,
   readProjectApiV1CGuildIdProjectsProjectIdGet,
@@ -140,9 +124,7 @@ import {
 import {
   createQueueApiV1CGuildIdQueuesPost,
   deleteQueueApiV1CGuildIdQueuesQueueIdDelete,
-  getGetQueueCountsByInitiativeApiV1CGuildIdQueuesCountsByInitiativeGetQueryKey,
   getListQueuesApiV1CGuildIdQueuesGetQueryKey,
-  getQueueCountsByInitiativeApiV1CGuildIdQueuesCountsByInitiativeGet,
   getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
   listQueuesApiV1CGuildIdQueuesGet,
   readQueueApiV1CGuildIdQueuesQueueIdGet,
@@ -152,10 +134,8 @@ import {
 import {
   createWikiApiV1CGuildIdWikisPost,
   deleteWikiApiV1CGuildIdWikisWikiIdDelete,
-  getGetWikiCountsByInitiativeApiV1CGuildIdWikisCountsByInitiativeGetQueryKey,
   getListWikisApiV1CGuildIdWikisGetQueryKey,
   getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-  getWikiCountsByInitiativeApiV1CGuildIdWikisCountsByInitiativeGet,
   listWikisApiV1CGuildIdWikisGet,
   readWikiApiV1CGuildIdWikisWikiIdGet,
   setWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut,
@@ -217,35 +197,17 @@ interface ToolListPage {
   has_next: boolean;
 }
 
-// ── The seven, each built from the endpoints that answer it ──────────────────
+// ── The six, each built from the endpoints that answer it ──────────────────
 // Every builder takes the tool's endpoint record and reads only the fields it
 // needs, so a tool that has no standard version of one hook simply leaves those
 // fields out of its record and never calls that builder.
 
 /**
- * Visible-entity counts per initiative, for the sidebar badges.
- *
- * Two shapes of the one query: the hook, for a page that wants this tool's
- * counts, and the options behind it, for a caller that wants every tool's at
- * once and hands the lot to `useQueries` — hooks cannot be called in a loop.
- */
-const countsHooks = (endpoints: {
-  countsKey: (guildId: number) => CacheKey;
-  counts: (guildId: number) => Promise<InitiativeGroupedCountsResponse>;
-}) => {
-  const countsQuery = (guildId: number) => ({
-    queryKey: endpoints.countsKey(guildId),
-    queryFn: () => endpoints.counts(guildId),
-  });
-  return { countsQuery };
-};
-
-/**
  * One page of the tool's list, in this community and across every one at once.
  *
- * Options rather than hooks, for the same reason `countsQuery` is: the two
- * tables that show one tool at a time ask all nine and hand the lot to
- * `useQueries`. Both are declared for every tool, including the ones whose own
+ * Options rather than hooks: the two tables that show one tool at a time ask
+ * all nine and hand the lot to `useQueries`, and a hook cannot be called in a
+ * loop. Both are declared for every tool, including the ones whose own
  * list hook is hand-written — those wrap these, so the key and the fetch are
  * written once wherever the list is reached from.
  */
@@ -405,8 +367,6 @@ const grantsHook = <TRead>(
 
 /** Everything the generated client offers for a tool with no exceptions. */
 interface ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams> {
-  countsKey: (guildId: number) => CacheKey;
-  counts: (guildId: number) => Promise<InitiativeGroupedCountsResponse>;
   listKey: (guildId: number, params?: TParams) => CacheKey;
   list: (guildId: number, params?: TParams) => Promise<TList>;
   myListKey: (params?: ToolMyListParams) => CacheKey;
@@ -422,7 +382,7 @@ interface ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams> {
 }
 
 /**
- * All seven, for a tool whose list and whose four writes are the standard ones.
+ * All six, for a tool whose list and whose four writes are the standard ones.
  * Their failures read the tool's own `error` string.
  */
 const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
@@ -431,7 +391,6 @@ const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
 ) => {
   const errorKey = `${toolCamelPlural(endpoints.tool)}:error`;
   return {
-    ...countsHooks(endpoints),
     ...listQueries(endpoints),
     create: endpoints.create,
     useList: listHook(endpoints),
@@ -446,8 +405,6 @@ const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
 // ── One record per tool ──────────────────────────────────────────────────────
 
 const calendarEndpoints = {
-  countsKey: getGetCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGetQueryKey,
-  counts: getCalendarCountsByInitiativeApiV1CGuildIdCalendarsCountsByInitiativeGet,
   listKey: getListCalendarsApiV1CGuildIdCalendarsGetQueryKey,
   list: listCalendarsApiV1CGuildIdCalendarsGet,
   myListKey: getListMyCalendarsApiV1MeCalendarsGetQueryKey,
@@ -462,9 +419,6 @@ const calendarEndpoints = {
 };
 
 const counterGroupEndpoints = {
-  countsKey:
-    getGetCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGetQueryKey,
-  counts: getCounterGroupCountsByInitiativeApiV1CGuildIdCounterGroupsCountsByInitiativeGet,
   listKey: getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryKey,
   list: listCounterGroupsApiV1CGuildIdCounterGroupsGet,
   myListKey: getListMyCounterGroupsApiV1MeCounterGroupsGetQueryKey,
@@ -479,8 +433,6 @@ const counterGroupEndpoints = {
 };
 
 const dashboardEndpoints = {
-  countsKey: getGetDashboardCountsByInitiativeApiV1CGuildIdDashboardsCountsByInitiativeGetQueryKey,
-  counts: getDashboardCountsByInitiativeApiV1CGuildIdDashboardsCountsByInitiativeGet,
   listKey: getListDashboardsApiV1CGuildIdDashboardsGetQueryKey,
   list: listDashboardsApiV1CGuildIdDashboardsGet,
   myListKey: getListMyDashboardsApiV1MeDashboardsGetQueryKey,
@@ -500,8 +452,6 @@ const dashboardEndpoints = {
 // relationship graph) — all three live in `useDocuments.ts`. The list QUERY is
 // here like every other tool's, and that hook wraps it.
 const documentEndpoints = {
-  countsKey: getGetDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGetQueryKey,
-  counts: getDocumentCountsByInitiativeApiV1CGuildIdDocumentsCountsByInitiativeGet,
   listKey: getListDocumentsApiV1CGuildIdDocumentsGetQueryKey,
   // `page_size: 0` asks for the complete set, which the server serves in
   // windows; this walks them. A positive page size passes straight through.
@@ -517,7 +467,6 @@ const documentEndpoints = {
 };
 
 const documentHooks = {
-  ...countsHooks(documentEndpoints),
   ...listQueries(documentEndpoints),
   create: createDocumentApiV1CGuildIdDocumentsPost,
   useDetail: detailHook(documentEndpoints),
@@ -526,8 +475,6 @@ const documentHooks = {
 };
 
 const galleryEndpoints = {
-  countsKey: getGetGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGetQueryKey,
-  counts: getGalleryCountsByInitiativeApiV1CGuildIdGalleriesCountsByInitiativeGet,
   listKey: getListGalleriesApiV1CGuildIdGalleriesGetQueryKey,
   list: listGalleriesApiV1CGuildIdGalleriesGet,
   myListKey: getListMyGalleriesApiV1MeGalleriesGetQueryKey,
@@ -542,8 +489,6 @@ const galleryEndpoints = {
 };
 
 const postEndpoints = {
-  countsKey: getGetPostCountsByInitiativeApiV1CGuildIdPostsCountsByInitiativeGetQueryKey,
-  counts: getPostCountsByInitiativeApiV1CGuildIdPostsCountsByInitiativeGet,
   listKey: getListPostsApiV1CGuildIdPostsGetQueryKey,
   list: listPostsApiV1CGuildIdPostsGet,
   myListKey: getListMyPostsApiV1MePostsGetQueryKey,
@@ -563,8 +508,6 @@ const postEndpoints = {
 // `useProjects.ts`. The list QUERY is here like every other tool's, and that
 // hook wraps it.
 const projectEndpoints = {
-  countsKey: getGetProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGetQueryKey,
-  counts: getProjectCountsByInitiativeApiV1CGuildIdProjectsCountsByInitiativeGet,
   listKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey,
   list: listProjectsApiV1CGuildIdProjectsGet,
   myListKey: getListMyProjectsApiV1MeProjectsGetQueryKey,
@@ -578,7 +521,6 @@ const projectEndpoints = {
 };
 
 const projectHooks = {
-  ...countsHooks(projectEndpoints),
   ...listQueries(projectEndpoints),
   create: projectEndpoints.create,
   useDetail: detailHook(projectEndpoints),
@@ -588,8 +530,6 @@ const projectHooks = {
 };
 
 const queueEndpoints = {
-  countsKey: getGetQueueCountsByInitiativeApiV1CGuildIdQueuesCountsByInitiativeGetQueryKey,
-  counts: getQueueCountsByInitiativeApiV1CGuildIdQueuesCountsByInitiativeGet,
   listKey: getListQueuesApiV1CGuildIdQueuesGetQueryKey,
   list: listQueuesApiV1CGuildIdQueuesGet,
   myListKey: getListMyQueuesApiV1MeQueuesGetQueryKey,
@@ -604,8 +544,6 @@ const queueEndpoints = {
 };
 
 const wikiEndpoints = {
-  countsKey: getGetWikiCountsByInitiativeApiV1CGuildIdWikisCountsByInitiativeGetQueryKey,
-  counts: getWikiCountsByInitiativeApiV1CGuildIdWikisCountsByInitiativeGet,
   listKey: getListWikisApiV1CGuildIdWikisGetQueryKey,
   list: listWikisApiV1CGuildIdWikisGet,
   myListKey: getListMyWikisApiV1MeWikisGetQueryKey,
@@ -630,10 +568,6 @@ const wikiEndpoints = {
  * one caller drives all nine with.
  */
 interface ToolQueries {
-  countsQuery: (guildId: number) => {
-    queryKey: CacheKey;
-    queryFn: () => Promise<InitiativeGroupedCountsResponse>;
-  };
   listQuery: (
     guildId: number,
     params?: ToolListParams
@@ -650,9 +584,9 @@ interface ToolQueries {
 }
 
 /**
- * Which of the seven each tool takes from here.
+ * Which of the six each tool takes from here.
  *
- * A tool listed with `makeToolHooks` takes all seven; one written out takes the
+ * A tool listed with `makeToolHooks` takes all six; one written out takes the
  * ones it names and keeps the rest hand-written, for the reason stated above
  * its endpoint record.
  */

@@ -38,7 +38,6 @@ import type {
   PropertyValuesSetRequest,
   ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams,
   SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams,
-  TagSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1638,116 +1637,6 @@ export const useUpdateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch = <
 > => {
   return useMutation(
     getUpdateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatchMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Set the tags for an event. Replaces all existing tags with the provided
- * list. Events are content-level extras (like tasks), so they keep a
- * hand-written tag route instead of the generic ``/tools/{tool}`` one.
- * @summary Set Event Tags
- */
-export const setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut = (
-  guildId: number,
-  eventId: number,
-  tagSetRequest: BodyType<TagSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<CalendarEventRead>(
-    {
-      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/tags`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: tagSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationKey = () =>
-  ["setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut"] as const;
-
-export const getSetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut>>,
-    TError,
-    SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut>>,
-  TError,
-  SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut>>,
-    SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationVariables
-  > = (props) => {
-    const { guildId, eventId, data } = props ?? {};
-
-    return setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut(
-      guildId,
-      eventId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut>>
->;
-export type SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationBody =
-  BodyType<TagSetRequest>;
-export type SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationVariables = {
-  guildId: number;
-  eventId: number;
-  data: BodyType<TagSetRequest>;
-};
-
-/**
- * @summary Set Event Tags
- */
-export const useSetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut>>,
-      TError,
-      SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPut>>,
-  TError,
-  SetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetEventTagsApiV1CGuildIdCalendarEventsEventIdTagsPutMutationOptions(options),
     queryClient
   );
 };

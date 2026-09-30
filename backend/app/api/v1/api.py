@@ -135,12 +135,6 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 # deployment that does not offer messaging refuses the whole surface rather
 # than each route deciding for itself.
 api_router.include_router(
-    dm.user_router,
-    prefix="/users",
-    tags=["direct-messages"],
-    dependencies=[DirectMessagesEnabledDep],
-)
-api_router.include_router(
     dm_transport.user_router,
     prefix="/users",
     tags=["direct-messages"],
@@ -250,10 +244,9 @@ api_router.include_router(
 # ---------------------------------------------------------------------------
 guild_router = APIRouter(prefix="/c/{guild_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
-# Every tool's list and its sidebar counts, mounted once per Tool at each
-# tool's own path (see tenant_endpoints/tool_lists.py). Included FIRST so each
-# literal ``/counts/by-initiative`` wins the match against the ``/{id}`` route
-# its tool's own router declares below. The routes carry their own tags.
+# Every tool's list, mounted once per Tool at each tool's own path, and the
+# one sidebar-counts route beside them (see tenant_endpoints/tool_lists.py).
+# The routes carry their own tags.
 guild_router.include_router(tool_lists.router)
 guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])

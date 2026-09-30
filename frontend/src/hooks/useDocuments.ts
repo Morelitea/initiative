@@ -6,7 +6,6 @@ import {
   createDocumentApiV1CGuildIdDocumentsPost,
   deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
   deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete,
-  duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost,
   generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost,
   getDocumentCountsApiV1CGuildIdDocumentsCountsGet,
   getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey,
@@ -476,6 +475,7 @@ export const useCopyDocument = (
 
 // ── Document-scoped mutations ───────────────────────────────────────────────
 
+/** A copy beside the original, in its own initiative. */
 export const useDuplicateDocument = (
   documentId: number,
   options?: MutationOpts<DocumentRead, { name: string }>
@@ -483,9 +483,7 @@ export const useDuplicateDocument = (
   useGuildMutation<DocumentRead, { name: string }>(
     {
       mutationFn: (guildId, { name }) =>
-        duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(guildId, documentId, {
-          name,
-        }),
+        copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(guildId, documentId, { name }),
       invalidate: () => invalidate(q.allDocuments()),
     },
     options

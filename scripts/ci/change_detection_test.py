@@ -139,5 +139,25 @@ class BackendModeTest(unittest.TestCase):
         self.assertMode(["backend/app/services/guilds.py"], "full", event="push")
 
 
+class UpgradeTest(unittest.TestCase):
+    def test_a_migration_runs_every_migration_check(self) -> None:
+        outputs = detect(["backend/alembic/versions/20260930_0420_example.py"])
+        self.assertEqual(outputs.get("alembic"), "true")
+        self.assertEqual(outputs.get("upgrade"), "hop")
+
+    def test_a_change_to_how_the_image_starts_upgrades(self) -> None:
+        for path in ["Dockerfile", "backend/entrypoint.sh", "backend/app/main.py"]:
+            with self.subTest(path=path):
+                self.assertEqual(detect([path]).get("upgrade"), "hop")
+
+    def test_an_ordinary_change_does_not_upgrade(self) -> None:
+        self.assertEqual(
+            detect(["backend/app/services/guilds.py"]).get("upgrade"), "false"
+        )
+
+    def test_an_integration_push_walks_every_release(self) -> None:
+        self.assertEqual(detect(["README.md"], event="push").get("upgrade"), "walk")
+
+
 if __name__ == "__main__":
     unittest.main()

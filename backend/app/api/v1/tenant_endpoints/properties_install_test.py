@@ -1,9 +1,9 @@
 """The custom property routes an installed app calls.
 
-``PUT /{documents,tasks,calendar-events}/{id}/properties`` answer to the write
-scope of the tool that governs the item, and a person-valued property names the
-person by the install's own reference for them, on the way in and on the way
-out.
+``PUT /{documents,calendar-events}/{id}/properties`` and ``PATCH /tasks/{id}``
+answer to the write scope of the tool that governs the item, and a person-valued
+property names the person by the install's own reference for them, on the way in
+and on the way out.
 """
 
 from __future__ import annotations
@@ -92,6 +92,14 @@ _KINDS = {
     "calendar-events": ("calendars", _event, "/calendar-events", "property_values"),
 }
 
+#: How each kind's values are replaced: the method, the path after the item,
+#: and the key the list goes under. A task's ride its own PATCH.
+_WRITES = {
+    "documents": ("PUT", "/properties", "values"),
+    "tasks": ("PATCH", "", "property_values"),
+    "calendar-events": ("PUT", "/properties", "values"),
+}
+
 
 async def _seat_reference(client: Any, installed: Any, headers: dict) -> str:
     """What the install calls the seat, a member of the initiative it is
@@ -124,17 +132,18 @@ async def test_setting_values_needs_the_tools_write(
     note = await create_property_definition(
         session, installed.placed, name="Note", type=PropertyType.text
     )
-    url = guild_url(guild_id, f"{_KINDS[kind][2]}/{item_id}/properties")
-    body = {"values": [{"property_id": note.id, "value": "Set by the app"}]}
+    method, suffix, key = _WRITES[kind]
+    url = guild_url(guild_id, f"{_KINDS[kind][2]}/{item_id}{suffix}")
+    body = {key: [{"property_id": note.id, "value": "Set by the app"}]}
 
-    read_only = await client.put(
-        url, headers=install_headers(installed, [f"{tool}:read"]), json=body
+    read_only = await client.request(
+        method, url, headers=install_headers(installed, [f"{tool}:read"]), json=body
     )
     assert read_only.status_code == 403, read_only.text
     assert read_only.json()["detail"] == AppMessages.SCOPE_REQUIRED
 
-    written = await client.put(
-        url, headers=install_headers(installed, scopes), json=body
+    written = await client.request(
+        method, url, headers=install_headers(installed, scopes), json=body
     )
     assert written.status_code == 200, written.text
     [value] = written.json()[_KINDS[kind][3]]
@@ -166,10 +175,12 @@ async def test_a_person_valued_property_is_set_and_read_by_reference(
     seat_ref = await _seat_reference(client, installed, headers)
     path = f"{_KINDS[kind][2]}/{item_id}"
 
-    written = await client.put(
-        guild_url(guild_id, f"{path}/properties"),
+    method, suffix, key = _WRITES[kind]
+    written = await client.request(
+        method,
+        guild_url(guild_id, f"{path}{suffix}"),
         headers=headers,
-        json={"values": [{"property_id": owner.id, "value": seat_ref}]},
+        json={key: [{"property_id": owner.id, "value": seat_ref}]},
     )
     assert written.status_code == 200, written.text
     [value] = written.json()[_KINDS[kind][3]]

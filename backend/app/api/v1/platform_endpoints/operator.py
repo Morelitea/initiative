@@ -7,6 +7,8 @@ from sqlalchemy import case, func
 from sqlmodel import select
 
 from app.api.deps import UserSessionDep, require_capability, SystemSessionDep
+from app.api.v1.platform_endpoints.session_opening import require_login_method
+from app.core.login_methods import LoginMethod
 from app.db.query import build_paginated_response, paginated_query
 from app.core.audit_events import AuditEventType
 from app.core.user_display import handle_of
@@ -317,7 +319,11 @@ async def trigger_password_reset(
     session: SystemSessionDep,
     current_user: UsersManageDep,
 ) -> VerificationSendResponse:
-    """Trigger a password reset email for a user (``users.manage``)."""
+    """Trigger a password reset email for a user (``users.manage``).
+
+    Refused where the deployment takes no password, as the reset it links to is.
+    """
+    await require_login_method(session, LoginMethod.password)
     user = await _account_within_rank(session, user_id, current_user)
 
     if user.status != UserStatus.active:

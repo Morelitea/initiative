@@ -4,12 +4,20 @@
  * Initiative API
  * OpenAPI spec version: 0.73.2
  */
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
 } from "@tanstack/react-query";
 
 import type {
@@ -18,12 +26,232 @@ import type {
   TagSummary,
   Tool,
   ToolCommentSettings,
+  ToolCountsByInitiativeResponse,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
+
+const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
+  const result = { queryKey } as T & { queryKey: K };
+  for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
+    if (key === "queryKey") continue;
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => (query as Record<string, unknown>)[key],
+    });
+  }
+  return result;
+};
+
+/**
+ * Every tool's visible-row counts, grouped by initiative.
+ *
+ * What the sidebar and the initiative directory badge — the same visibility
+ * rules as each tool's default list (live rows, no project templates), one
+ * statement for every tool rather than a request per tool.
+ * @summary Get Tool Counts By Initiative
+ */
+export const getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ToolCountsByInitiativeResponse>(
+    { url: `/api/v1/c/${guildId}/tools/counts/by-initiative`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/c/${guildId}/tools/counts/by-initiative`] as const;
+};
+
+export const getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>>
+  > = ({ signal }) =>
+    getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet(
+      guildId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>>
+  >;
+export type GetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Tool Counts By Initiative
+ */
+
+export function useGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet<
+  TData = Awaited<
+    ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 /**
  * Set tags on any tool entity. Replaces all existing tags with the

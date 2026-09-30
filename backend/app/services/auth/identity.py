@@ -328,9 +328,17 @@ def _holds_an_address_clause():
 
     Any address, confirmed or not: a code sent to an unconfirmed one proves it
     on arrival, so both are ways in. This is the only credential an account
-    does not have to do anything to acquire.
+    does not have to do anything to acquire. A synthetic placeholder is not a
+    mailbox, so it is not one.
     """
-    return select(UserEmail.id).where(UserEmail.user_id == User.id).exists()
+    return (
+        select(UserEmail.id)
+        .where(
+            UserEmail.user_id == User.id,
+            UserEmail.source != addresses.SOURCE_SYNTHETIC,
+        )
+        .exists()
+    )
 
 
 #: What each way in is answered with, as a predicate on ``User``. The one
@@ -380,15 +388,18 @@ async def stranded_between(
     *,
     current: frozenset[LoginMethod],
     requested: frozenset[LoginMethod],
+    user_id: int | None = None,
 ) -> int:
-    """How many accounts :func:`stranded_clause` matches."""
-    return (
-        await session.exec(
-            select(func.count())
-            .select_from(User)
-            .where(stranded_clause(current=current, requested=requested))
-        )
-    ).one()
+    """How many accounts :func:`stranded_clause` matches — of every account,
+    or of the one ``user_id`` names."""
+    query = (
+        select(func.count())
+        .select_from(User)
+        .where(stranded_clause(current=current, requested=requested))
+    )
+    if user_id is not None:
+        query = query.where(User.id == user_id)
+    return (await session.exec(query)).one()
 
 
 async def _permitted_methods(session: AsyncSession) -> frozenset[LoginMethod]:

@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **More API routes the app no longer uses**: `PUT /tasks/{id}/tags` (send `tag_ids` to `PATCH /tasks/{id}`), `PUT /queues/{id}/items/reorder`, `GET /initiatives/{id}/join-requests/me`, `GET /property-definitions/{id}` and its `/entities`, `DELETE /dashboards/{id}/published/{type}/{id}` (publish the list without it), `DELETE /apps/{id}/placements/{initiative_id}`, and `GET /users/decoration-art`.
+- **API routes merged into ones that already existed.** The nine `GET /c/{guild_id}/<tool>/counts/by-initiative` routes are now one, `GET /c/{guild_id}/tools/counts/by-initiative`, which returns every tool's counts keyed by tool, so the sidebar loads its badges in one request. Also:
+  - `POST /documents/{id}/duplicate` → `POST /documents/{id}/copy`, which copies into the document's own initiative when `target_initiative_id` is left out.
+  - `GET /projects/writable` → `GET /projects/?writable=true`.
+  - `GET /settings/interface` → `GET /config`, which now includes the accent colours.
+  - `GET /users/{id}/dm-permission` → `POST /me/dm-permissions` with that one id.
+  - `PUT /calendar-events/{id}/tags` and `PUT /queues/{id}/items/{item_id}/tags` → `tag_ids` on each one's `PATCH`.
+  - `PUT /tasks/{id}/properties` → `property_values` on `PATCH /tasks/{id}`.
 
 ### Fixed
 
@@ -41,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ownership moves on archived tools.** Claiming unowned content or handing someone's content to another admin no longer fails when some of it is archived, and a restored tool with no owner goes back to whoever made it even when it's archived.
 - **Only a community admin can take somebody off the moderator role.** A project manager can no longer remove an initiative's moderator or change them to another role, the same way only an admin can put somebody on it.
 - **Exporting a calendar with a repeating event works again.** A repeat such as "the second Monday of every month" no longer fails the export, and every repeat setting now carries over to other calendar apps and back on import.
+- **You can't turn off the only way you sign in yourself.** Withdrawing a sign-in method that is your own account's only way in is refused, even when you confirm it for other accounts. Add a passkey or link a sign-in provider to your account first.
+- **With password sign-in off, nothing offers you a password.** Account settings no longer offers to set or change one, the forgot and reset password pages say password sign-in is off, and operators no longer see **Reset password** on a user. A sign-in page with no way in available from that browser says so instead of showing an empty card.
 - **Wiki page edits are no longer lost to a later live session.** A page saved while nobody was editing it live keeps that save, and a save from a tab outside a live session is refused with a prompt to reconnect instead of being reported as saved.
 - **Exported and imported events keep their days in your timezone.** All-day events no longer land a day early, a repeat's weekdays and last day stay put, and an imported all-day event covers exactly its days.
 - **Confirming your password in settings is limited per account.** Wrong passwords entered to remove a password, set up an authenticator app, regenerate recovery codes, or change or delete something now count toward the same account lock as sign-in, a correct one starts the count over as signing in does, and these requests are no longer limited per network address, so people sharing an office connection don't use up each other's attempts.

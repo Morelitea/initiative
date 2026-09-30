@@ -65,7 +65,6 @@ from app.schemas.tenant.document import (
     DocumentCopyRequest,
     DocumentCountsResponse,
     DocumentCreate,
-    DocumentDuplicateRequest,
     DocumentFileVersionRead,
     DocumentRead,
     DocumentSummary,
@@ -996,42 +995,23 @@ async def _duplicate_into(
 
 
 @router.post(
-    "/{document_id}/duplicate",
-    response_model=DocumentRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def duplicate_document(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    payload: DocumentDuplicateRequest | None = Body(default=None),
-) -> DocumentRead:
-    document = await resource_access.load_authorized(
-        session, Tool.document, document_id, current_user, guild_context, access="write"
-    )
-    return await _duplicate_into(
-        session,
-        document,
-        initiative_id=document.initiative_id,
-        name=(payload.name if payload else None) or f"{document.name} (Copy)",
-        user=current_user,
-        guild_context=guild_context,
-    )
-
-
-@router.post(
     "/{document_id}/copy",
     response_model=DocumentRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def copy_document(
     document_id: int,
-    payload: DocumentCopyRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    payload: DocumentCopyRequest | None = Body(default=None),
 ) -> DocumentRead:
+    """Copy a document into an initiative — its own, unless another is named.
+
+    A copy beside its original is named "<name> (Copy)" unless the body names
+    it; one in another initiative keeps the original's name.
+    """
+    payload = payload or DocumentCopyRequest()
     document = await resource_access.load_authorized(
         session, Tool.document, document_id, current_user, guild_context
     )
@@ -1046,11 +1026,17 @@ async def copy_document(
             access="write",
             context=guild_context,
         )
+    initiative_id = payload.target_initiative_id or document.initiative_id
     return await _duplicate_into(
         session,
         document,
-        initiative_id=payload.target_initiative_id,
-        name=payload.name or document.name,
+        initiative_id=initiative_id,
+        name=payload.name
+        or (
+            f"{document.name} (Copy)"
+            if initiative_id == document.initiative_id
+            else document.name
+        ),
         user=current_user,
         guild_context=guild_context,
     )

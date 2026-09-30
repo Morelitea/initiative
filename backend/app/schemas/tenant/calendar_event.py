@@ -125,6 +125,8 @@ class CalendarEventUpdate(SanitizedBaseModel):
     tz: Optional[str] = Field(default=None, max_length=64)
     # Move the event to another calendar (requires write on both calendars).
     calendar_id: Optional[int] = None
+    #: Replaces every tag on the event; omitted leaves them as they are.
+    tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
     #: For a repeating event: change one occurrence, it and every later one
     #: (a new series from there), or all of them. Omitted, the event's own row:
     #: the series, or an occurrence opened on its own.

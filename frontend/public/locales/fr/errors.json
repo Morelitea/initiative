@@ -639,6 +639,7 @@
   "DOCUMENTS_NOT_ENABLED": "Les documents ne sont pas activés pour cette initiative",
   "SETTINGS_LOGIN_METHODS_EMPTY": "Au moins un moyen d'accès doit rester actif.",
   "SETTINGS_LOGIN_METHODS_WOULD_STRAND": "Certains comptes se connectent uniquement ainsi. Confirmez pour le retirer malgré tout.",
+  "SETTINGS_LOGIN_METHODS_WOULD_STRAND_SELF": "Votre propre compte n'aurait alors plus aucun moyen de se connecter. Ajoutez d'abord une clé d'accès ou associez un fournisseur de connexion à votre compte.",
   "SETTINGS_LOGIN_METHODS_STALE_ACK": "Le nombre de comptes concernés a changé. Vérifiez-le et réessayez.",
   "SETTINGS_LOGIN_METHOD_NOT_PERMITTED": "Ce déploiement n'autorise pas ce mode de connexion.",
   "SETTINGS_LOGIN_METHODS_GUILD_POLICIES": "Une communauté exige encore une connexion via un fournisseur qui lui est propre. Levez d'abord cette exigence.",

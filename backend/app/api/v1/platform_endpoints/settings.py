@@ -7,7 +7,6 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
-    SessionDep,
     UserSessionDep,
     SystemSessionDep,
 )
@@ -388,18 +387,6 @@ async def update_notification_settings(
         )
     await session.commit()
     return await _notification_payload(session)
-
-
-@router.get("/interface", response_model=InterfaceSettingsResponse)
-async def get_interface_settings(
-    session: SessionDep,
-) -> InterfaceSettingsResponse:
-    settings_obj = await app_settings_service.get_app_settings(session)
-    return InterfaceSettingsResponse(
-        light_accent_color=settings_obj.light_accent_color,
-        dark_accent_color=settings_obj.dark_accent_color,
-        cookie_consent_enabled=settings_obj.cookie_consent_enabled,
-    )
 
 
 @router.put("/interface", response_model=InterfaceSettingsResponse)

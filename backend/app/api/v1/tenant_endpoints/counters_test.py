@@ -765,10 +765,10 @@ async def test_counter_group_counts_by_initiative(
     # reader — the admin's own group in each, not the member's beside it. The
     # disabled initiative is absent either way.
     response = await client.get(
-        admin.g("/counter-groups/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {
+    assert response.json()["counts"]["counter_group"] == {
         str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
@@ -776,10 +776,10 @@ async def test_counter_group_counts_by_initiative(
     # Member: only groups shared with them, and no entry for initiatives
     # they are not in.
     response = await client.get(
-        member.g("/counter-groups/counts/by-initiative"), headers=member.headers
+        member.g("/tools/counts/by-initiative"), headers=member.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(admin.initiative.id): 1}
+    assert response.json()["counts"]["counter_group"] == {str(admin.initiative.id): 1}
 
 
 async def test_a_counter_resolves_by_its_own_id(client, session, acting_user):

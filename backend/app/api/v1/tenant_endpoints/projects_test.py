@@ -404,9 +404,11 @@ async def test_list_projects_slim_permission_for_member(
     item = next(p for p in response.json()["items"] if p["id"] == project.id)
     assert (item["can"]["edit"], item["can"]["delete"]) == (True, False)
 
-    writable = await client.get(member.g("/projects/writable"), headers=member.headers)
+    writable = await client.get(
+        member.g("/projects/?slim=true&writable=true"), headers=member.headers
+    )
     assert writable.status_code == 200
-    assert [p["id"] for p in writable.json()] == [project.id]
+    assert [p["id"] for p in writable.json()["items"]] == [project.id]
 
 
 async def test_create_project(client: AsyncClient, acting_user):
@@ -1458,10 +1460,10 @@ async def test_project_counts_by_initiative(
     # Guild admin: the counts span initiatives, so they count what reaches
     # the reader — the admin's own project in each, not the member's beside it.
     response = await client.get(
-        admin.g("/projects/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {
+    assert response.json()["counts"]["project"] == {
         str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
@@ -1469,10 +1471,10 @@ async def test_project_counts_by_initiative(
     # Member: only projects shared with them, and no entry for
     # initiatives they are not in.
     response = await client.get(
-        member.g("/projects/counts/by-initiative"), headers=member.headers
+        member.g("/tools/counts/by-initiative"), headers=member.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(admin.initiative.id): 1}
+    assert response.json()["counts"]["project"] == {str(admin.initiative.id): 1}
 
 
 # ── Default view mode ─────────────────────────────────────────────────
