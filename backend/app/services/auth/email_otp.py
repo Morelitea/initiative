@@ -44,6 +44,9 @@ PURPOSES = (
     challenge_service.ChallengePurpose.email_otp_native,
 )
 
+#: The purpose a code confirming a session already open is presented against.
+STEP_UP_PURPOSES = (challenge_service.ChallengePurpose.email_otp_step_up,)
+
 #: And the purposes a registration ticket may be spent against.
 TICKET_PURPOSES = (
     challenge_service.ChallengePurpose.email_otp_register,
@@ -92,8 +95,7 @@ async def issue(
 
     The caller commits, and the caller decides whether a letter goes out.
     """
-    code = mint_code()
-    issued = await challenge_service.create(
+    return await _issue(
         session,
         user_id=user_id,
         purpose=(
@@ -101,6 +103,38 @@ async def issue(
             if native
             else challenge_service.ChallengePurpose.email_otp
         ),
+        user_email_id=user_email_id,
+        email=email,
+    )
+
+
+async def issue_step_up(session: AsyncSession, *, user_id: int) -> IssuedCode:
+    """Open a challenge confirming the session this account already has open.
+
+    The caller commits and posts the code.
+    """
+    return await _issue(
+        session,
+        user_id=user_id,
+        purpose=challenge_service.ChallengePurpose.email_otp_step_up,
+        user_email_id=None,
+        email=None,
+    )
+
+
+async def _issue(
+    session: AsyncSession,
+    *,
+    user_id: int | None,
+    purpose: challenge_service.ChallengePurpose,
+    user_email_id: int | None,
+    email: str | None,
+) -> IssuedCode:
+    code = mint_code()
+    issued = await challenge_service.create(
+        session,
+        user_id=user_id,
+        purpose=purpose,
         answer=code,
         ttl=CODE_TTL,
         user_email_id=user_email_id,
@@ -122,15 +156,23 @@ class Claim:
     answered: bool
 
 
-async def claim(session: AsyncSession, *, handle: str, code: str) -> Claim:
+async def claim(
+    session: AsyncSession,
+    *,
+    handle: str,
+    code: str,
+    purposes: tuple[challenge_service.ChallengePurpose, ...] = PURPOSES,
+) -> Claim:
     """Take one of the handle's attempts and check the code against it.
+
+    ``purposes`` is the sign-in's by default; the step-up passes its own.
 
     The attempt is spent whether or not the code is right, which is the point
     of looking it up by the handle. It is taken in this session and the caller
     commits it, including on the way to refusing.
     """
     challenge = await challenge_service.claim_attempt(
-        session, value=handle, purposes=PURPOSES
+        session, value=handle, purposes=purposes
     )
     if challenge is None:
         return Claim(challenge=None, answered=False)

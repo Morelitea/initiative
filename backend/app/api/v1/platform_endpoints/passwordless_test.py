@@ -916,6 +916,69 @@ async def test_a_session_resumed_from_a_device_token_is_not_a_sign_in(
     assert response.json()["detail"] == "RECENT_PROOF_REQUIRED"
 
 
+async def _withdraw_passwords(session: AsyncSession) -> None:
+    """Leave the deployment signing nobody in with a password."""
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["sso", "totp", "passkey"]
+    session.add(row)
+    await session.commit()
+
+
+async def _remove_the_password(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    await _seed_passkey(session, user)
+    return await client.post(REMOVE, headers=headers, json={})
+
+
+# Re-issuing codes asks a password holder to be enrolled first, which is not
+# this question; giving the password up is asked of password holders only.
+_GATED_FOR_A_HELD_PASSWORD = [
+    row for row in _GATED if row[0] != "re-issue-the-codes"
+] + [("remove-the-password", _remove_the_password, 200)]
+
+
+@pytest.mark.parametrize(
+    "slug,route,ok",
+    _GATED_FOR_A_HELD_PASSWORD,
+    ids=[row[0] for row in _GATED_FOR_A_HELD_PASSWORD],
+)
+async def test_a_password_nobody_signs_in_with_is_not_asked_for(
+    client: AsyncClient, session: AsyncSession, slug: str, route, ok: int
+):
+    """Where the deployment takes no password, one the account still holds is
+    not a way in, so a recent sign-in answers in its place — and one of a
+    while ago does not."""
+    await _withdraw_passwords(session)
+    fresh = await _account(session, f"nopw-fresh-{slug}@example.com")
+    stale = await _account(session, f"nopw-stale-{slug}@example.com")
+
+    answered = await route(client, session, fresh, await _proof_headers(session, fresh))
+    refused = await route(
+        client, session, stale, await _proof_headers(session, stale, minutes_ago=11)
+    )
+
+    assert answered.status_code == ok, answered.text
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "RECENT_PROOF_REQUIRED"
+
+
+async def test_the_account_says_whether_its_password_is_asked_for(
+    client: AsyncClient, session: AsyncSession
+):
+    """What the confirmation forms read to decide whether to show the field."""
+    user = await _account(session, "pl-required@example.com")
+    headers = get_auth_headers(user)
+
+    before = await client.get("/api/v1/users/me", headers=headers)
+    await _withdraw_passwords(session)
+    after = await client.get("/api/v1/users/me", headers=headers)
+
+    assert before.json()["password_required"] is True
+    assert after.json()["has_password"] is True
+    assert after.json()["password_required"] is False
+
+
 async def test_an_account_holding_a_password_answers_with_it_instead(
     client: AsyncClient, session: AsyncSession
 ):

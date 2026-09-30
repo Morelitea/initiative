@@ -34,6 +34,7 @@ from app.api.deps import (
     GuildAdminContext,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
+    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import replace_session
@@ -244,6 +245,7 @@ async def read_users_me(
         session, user_id=current_user.id
     )
     payload.has_password = has_usable_password(current_user.hashed_password)
+    payload.password_required = await password_confirms(session, current_user)
     # The hosted deployment's terms. Short-circuits on the deployment switch
     # for every self-hoster, and costs one indexed count everywhere else.
     payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
@@ -1277,6 +1279,7 @@ async def update_users_me(
         payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account
         payload.has_password = has_usable_password(current_user.hashed_password)
+        payload.password_required = await password_confirms(session, current_user)
         return payload
 
     new_full_name = update_data.get("full_name")
@@ -1439,6 +1442,7 @@ async def update_users_me(
     payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
     payload.has_password = has_usable_password(current_user.hashed_password)
+    payload.password_required = await password_confirms(session, current_user)
     return payload
 
 

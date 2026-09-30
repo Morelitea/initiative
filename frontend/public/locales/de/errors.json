@@ -741,6 +741,7 @@
   "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Richte zuerst den E-Mail-Versand ein — der Code erreicht sonst niemanden.",
   "EMAIL_OTP_INVALID": "Dieser Code hat nicht funktioniert oder ist abgelaufen. Fordere einen neuen an.",
   "EMAIL_OTP_CANNOT_SEND": "Dieser Server kann keine E-Mails senden und daher auch keinen Code.",
+  "EMAIL_OTP_NO_PROVED_ADDRESS": "Dein Konto hat keine bestätigte E-Mail-Adresse, an die ein Code gehen könnte.",
   "GUILD_NOT_DELETED": "Diese Community wurde nicht gelöscht, es gibt also nichts wiederherzustellen.",
   "GUILD_RESTORE_STATUS_INVALID": "Wählen Sie den Zustand, in dem die Community zurückkommt.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Wählen Sie vor dem Wiederherstellen, wer die Community leiten wird.",

@@ -741,6 +741,7 @@
   "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Configura antes el envío de correo: el código no tiene forma de llegar a nadie.",
   "EMAIL_OTP_INVALID": "Ese código no ha funcionado o ha caducado. Pide uno nuevo.",
   "EMAIL_OTP_CANNOT_SEND": "Este servidor no puede enviar correo, así que no puede enviar un código.",
+  "EMAIL_OTP_NO_PROVED_ADDRESS": "Tu cuenta no tiene ninguna dirección de correo confirmada a la que enviar un código.",
   "GUILD_NOT_DELETED": "Esa comunidad no se ha eliminado, así que no hay nada que restaurar.",
   "GUILD_RESTORE_STATUS_INVALID": "Elige el estado en el que vuelve la comunidad.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Elige quién dirigirá la comunidad antes de restaurarla.",
