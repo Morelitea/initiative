@@ -304,14 +304,17 @@ async def _snapshot(conn: asyncpg.Connection, schema: str) -> dict[str, str]:
     return shape
 
 
-#: The roles the app makes, read for their attributes and their memberships.
-_APP_ROLE = "^(app_|platform_|guild_)"
+def _app_role(alias: str) -> str:
+    """Every role but Postgres's own and the owner login the check connects
+    as: what the app made, whatever its names."""
+    return f"{alias}.rolname !~ '^pg_' AND {alias}.rolname <> current_user"
+
 
 _ROLES = {
     "role": (
         "SELECT rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, "
         "rolcanlogin, rolreplication, rolbypassrls, rolconnlimit "
-        f"FROM pg_roles WHERE rolname ~ '{_APP_ROLE}'"
+        f"FROM pg_roles r WHERE {_app_role('r')}"
     ),
     "membership": (
         # One row per grantor: the same membership can be held twice.
@@ -320,17 +323,24 @@ _ROLES = {
         "a.inherit_option, a.set_option "
         "FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member "
         "JOIN pg_roles g ON g.oid = a.roleid "
-        f"WHERE m.rolname ~ '{_APP_ROLE}' OR g.rolname ~ '{_APP_ROLE}'"
+        f"WHERE ({_app_role('m')}) OR ({_app_role('g')})"
     ),
 }
 
 
 async def _roles(conn: asyncpg.Connection) -> dict[str, str]:
-    shape: dict[str, str] = {}
+    """The roles and memberships, with each community's id read as ``guild_#``.
+
+    A database holds a role set per community, so one name stands for several:
+    every distinct record under it is kept, and a community whose roles differ
+    from another's shows as an extra one.
+    """
+    records: dict[str, set[str]] = {}
     for kind, query in _ROLES.items():
         for name, *rest in await conn.fetch(query):
-            shape[f"{kind} {_COMMUNITY.sub('guild_#', name)}"] = repr(rest)
-    return shape
+            key = f"{kind} {_COMMUNITY.sub('guild_#', name)}"
+            records.setdefault(key, set()).add(repr(rest))
+    return {key: repr(sorted(values)) for key, values in records.items()}
 
 
 async def _schemas(server: str) -> dict[str, dict[str, str]]:
