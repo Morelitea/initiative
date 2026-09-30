@@ -200,6 +200,8 @@ export const RecurrenceEditor = ({
           : null;
   const preview = useRecurrencePreview(request);
   const dates = request && !preview.isError ? (preview.data?.occurrences ?? []) : [];
+  // Dates for an earlier pick, shown faded until the current one's arrive.
+  const stale = preview.isPlaceholderData || preview.isFetching || !preview.settled;
 
   const summary =
     value === "custom"
@@ -230,7 +232,10 @@ export const RecurrenceEditor = ({
         </Select>
         {summary ? <p className="text-muted-foreground text-sm">{summary}</p> : null}
         {dates.length ? (
-          <div className="text-muted-foreground text-xs">
+          <div
+            className={cn("text-muted-foreground text-xs", stale && "opacity-50")}
+            aria-busy={stale}
+          >
             <span className="font-medium">{t("recurrence.nextDates")}</span>{" "}
             {dates
               .map((date) => (allDay ? formatDate(date.slice(0, 10)) : formatDateTime(date)))
@@ -325,11 +330,15 @@ export const RecurrenceEditor = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MODES.map((mode) => (
-                    <SelectItem key={mode} value={mode}>
-                      {t(`recurrence.mode.${mode}` as never)}
-                    </SelectItem>
-                  ))}
+                  {/* The first or last is taken once per repeat, so a year's
+                      would be one date a year, not one a month. */}
+                  {MODES.filter((mode) => mode !== "set" || rule.frequency === "monthly").map(
+                    (mode) => (
+                      <SelectItem key={mode} value={mode}>
+                        {t(`recurrence.mode.${mode}` as never)}
+                      </SelectItem>
+                    )
+                  )}
                 </SelectContent>
               </Select>
 

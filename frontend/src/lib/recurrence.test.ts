@@ -123,6 +123,17 @@ describe("every shape the editor builds", () => {
     ).toContain("dates:recurrenceSummary.onFirstWorkDay");
   });
 
+  it("reads an all-day event's days as they are, and a year's last work day as custom", () => {
+    // An all-day event's days are UTC dates, the same for every viewer.
+    expect(fromStored("RRULE:FREQ=WEEKLY;BYDAY=MO", START, 0, true)).toMatchObject({
+      weekdays: ["monday"],
+    });
+    // The last of some days is taken once a year there, not once a month.
+    expect(
+      fromStored("RRULE:FREQ=YEARLY;BYMONTH=1,7;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1", START, 1440)
+    ).toBe("custom");
+  });
+
   it("reads a set or every-weekday rule from another zone's days as custom", () => {
     // In UTC days (no shift), Berlin's Monday is a Sunday: the last weekday of
     // a month moves across its end on some months, so no one rule says it.

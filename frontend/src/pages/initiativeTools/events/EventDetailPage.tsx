@@ -279,7 +279,7 @@ export function EventDetailPage() {
                 {summarizeStored(
                   event.recurrence,
                   event.start_at,
-                  { shift: event.recurrence_shift },
+                  { shift: event.recurrence_shift, allDay: event.all_day },
                   t as TranslateFn
                 )}
               </p>

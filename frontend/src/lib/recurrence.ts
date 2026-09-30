@@ -480,6 +480,12 @@ const POSITION_OF = Object.fromEntries(
   Object.entries(POSITION_NUMBERS).map(([name, n]) => [n, name])
 ) as Record<number, TaskWeekPosition>;
 
+/**
+ * An all-day event's stored start as the form reads a date: its UTC date, at
+ * local midnight, so it is that day in every zone.
+ */
+export const allDayReference = (start: string) => `${start.slice(0, 10)}T00:00:00`;
+
 /** The browser's zone, sent beside a rule so the server can store it. */
 export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -644,17 +650,20 @@ const toLocalParts = (parts: Parts, start: Date, shift: number): Parts | null =>
 /**
  * The rule the form edits, from a stored rule and its series start (an event's
  * start, a task's due date): `null` for no repeat, `"custom"` for one the form
- * can't show, which is kept as it is until somebody picks another.
+ * can't show, which is kept as it is until somebody picks another. An all-day
+ * event's days are UTC dates, the same for every viewer, so they are read as
+ * they are.
  */
 export const fromStored = (
   stored: string | null | undefined,
   start: string | null | undefined,
-  shift = 0
+  shift = 0,
+  allDay = false
 ): RecurrenceRule | "custom" | null => {
   if (!stored) return null;
   const raw = parseRule(stored);
   if (!raw) return "custom";
-  const parts = start ? toLocalParts(raw, new Date(start), shift) : raw;
+  const parts = start && !allDay ? toLocalParts(raw, new Date(start), shift) : raw;
   if (!parts) return "custom";
   const freq = (parts.get("FREQ")?.[0] ?? "").toLowerCase() as RecurrenceFrequency;
   if (!(freq in FREQUENCY_LABELS)) return "custom";
@@ -691,7 +700,12 @@ export const fromStored = (
     } else if (plain && !monthdays.length && !setpos) {
       rule.monthly_mode = "weekdays";
       rule.weekdays = sortWeekdays(byday.map((code) => WEEKDAY_OF[code]));
-    } else if (plain && !monthdays.length && (setpos?.join() === "1" || setpos?.join() === "-1")) {
+    } else if (
+      plain &&
+      !monthdays.length &&
+      freq === "monthly" &&
+      (setpos?.join() === "1" || setpos?.join() === "-1")
+    ) {
       rule.monthly_mode = "set";
       rule.weekdays = sortWeekdays(byday.map((code) => WEEKDAY_OF[code]));
       rule.set_position = setpos.join() === "1" ? "first" : "last";
@@ -747,12 +761,21 @@ const toLocalDateKey = (date: Date) =>
 export const summarizeStored = (
   stored: string | null | undefined,
   start: string | null | undefined,
-  options: { strategy?: TaskListReadRecurrenceStrategy; shift?: number } | undefined,
+  options:
+    | { strategy?: TaskListReadRecurrenceStrategy; shift?: number; allDay?: boolean }
+    | undefined,
   t: TranslateFn
 ): string => {
-  const rule = fromStored(stored, start, options?.shift);
+  const rule = fromStored(stored, start, options?.shift, options?.allDay);
   if (rule === "custom") return t("dates:recurrenceSummary.custom");
-  return summarizeRecurrence(rule, { referenceDate: start, strategy: options?.strategy }, t);
+  return summarizeRecurrence(
+    rule,
+    {
+      referenceDate: options?.allDay && start ? allDayReference(start) : start,
+      strategy: options?.strategy,
+    },
+    t
+  );
 };
 
 /**

@@ -42,7 +42,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { fromStored, rulePayload } from "@/lib/recurrence";
+import { allDayReference, fromStored, rulePayload } from "@/lib/recurrence";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
@@ -88,7 +88,12 @@ export function EventSettingsPage() {
   const repeat = useServerForm(
     event,
     (loaded) => ({
-      rule: fromStored(loaded?.recurrence, loaded?.start_at, loaded?.recurrence_shift),
+      rule: fromStored(
+        loaded?.recurrence,
+        loaded?.start_at,
+        loaded?.recurrence_shift,
+        loaded?.all_day
+      ),
     }),
     event?.id,
     (a, b) => JSON.stringify(a) === JSON.stringify(b)
@@ -328,7 +333,7 @@ export function EventSettingsPage() {
             kind="event"
             value={repeat.values.rule}
             onChange={(rule) => repeat.set({ rule })}
-            referenceDate={event.start_at}
+            referenceDate={event.all_day ? allDayReference(event.start_at) : event.start_at}
             allDay={event.all_day}
             stored={
               event.recurrence ? { rule: event.recurrence, shift: event.recurrence_shift } : null
