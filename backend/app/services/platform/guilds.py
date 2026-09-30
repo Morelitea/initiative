@@ -672,6 +672,22 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
+#: Communities one account may create in a day, since each one is a schema of
+#: its own. Platform staff holding ``guilds.manage`` are not held to it.
+GUILDS_CREATED_PER_DAY = 5
+
+
+async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bool:
+    """Has this account created fewer than its daily allowance of communities?"""
+    since = datetime.now(timezone.utc) - timedelta(days=1)
+    created = await session.scalar(
+        select(func.count())
+        .select_from(Guild)
+        .where(Guild.created_by == user_id, Guild.created_at > since)
+    )
+    return (created or 0) < GUILDS_CREATED_PER_DAY
+
+
 async def holds_a_free_guild(session: AsyncSession, *, user_id: int) -> bool:
     """Does this account already have the one free community it gets?"""
     result = await session.exec(

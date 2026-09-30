@@ -281,12 +281,42 @@ async def test_a_paid_community_does_not_use_up_the_free_one(
 async def test_a_deployment_without_billing_never_counts_communities(
     client: AsyncClient, acting_user
 ):
-    """No billing service, no rule. A self-hosted install makes as many as it
-    likes, and nothing in this app has an opinion about how many that is."""
+    """No billing service, no free-community rule: a self-hosted install is
+    held only to the daily allowance below."""
     a = await acting_user("member")
     for name in ("One", "Two", "Three"):
         created = await client.post(
             "/api/v1/communities/", headers=a.headers, json={"name": name}
+        )
+        assert created.status_code == 201, created.text
+
+
+async def test_an_account_creates_only_its_daily_allowance_of_guilds(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """Past the allowance the request is refused before anything is made; the
+    staff who stand communities up for others are not counted."""
+    from app.services.platform import guilds as guilds_service
+
+    monkeypatch.setattr(guilds_service, "GUILDS_CREATED_PER_DAY", 1)
+    a = await acting_user("member")
+    first = await client.post(
+        "/api/v1/communities/", headers=a.headers, json={"name": "First"}
+    )
+    assert first.status_code == 201, first.text
+
+    second = await client.post(
+        "/api/v1/communities/", headers=a.headers, json={"name": "Second"}
+    )
+    assert second.status_code == 429
+    assert second.json()["detail"] == "GUILD_CREATION_LIMIT_REACHED"
+    made = (await session.exec(select(Guild).where(Guild.name == "Second"))).all()
+    assert made == []
+
+    staff = await acting_user(UserRole.owner)
+    for name in ("Staff one", "Staff two"):
+        created = await client.post(
+            "/api/v1/communities/", headers=staff.headers, json={"name": name}
         )
         assert created.status_code == 201, created.text
 
