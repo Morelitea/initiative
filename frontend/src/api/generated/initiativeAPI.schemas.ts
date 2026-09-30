@@ -10443,7 +10443,7 @@ export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
    */
   property_filters?: string | null;
   /**
-   * IANA timezone the events' dates and repeats are read in
+   * IANA timezone for the file name's date
    */
   tz?: string | null;
 };
