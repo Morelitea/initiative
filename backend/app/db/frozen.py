@@ -290,9 +290,15 @@ def _trashed(alias: str, table: str) -> str | None:
     return f"{alias}.deleted_at IS NOT NULL"
 
 
-def _parent_call(table: str, alias: str, *, trashed_ok: str) -> str | None:
-    """What carries the walk up from ``table``: the hop toward its tool, and
-    the row it is filed under when that is one of its own kind."""
+def _any(legs: list[str]) -> str | None:
+    if len(legs) < 2:
+        return legs[0] if legs else None
+    return "(" + " OR ".join(legs) + ")"
+
+
+def _parent_legs(table: str, alias: str, *, trashed_ok: str) -> list[str]:
+    """Each way up from ``table``, one call apiece: the hop toward its tool,
+    and the row it is filed under when that is one of its own kind."""
     legs = [
         f"({alias}.{column} IS NOT NULL AND resource_frozen("
         f"'{table}', {alias}.{column}, {trashed_ok}))"
@@ -301,9 +307,12 @@ def _parent_call(table: str, alias: str, *, trashed_ok: str) -> str | None:
     toward_tool = _tool_hop(table, alias, trashed_ok=trashed_ok)
     if toward_tool is not None:
         legs.insert(0, toward_tool)
-    if len(legs) < 2:
-        return legs[0] if legs else None
-    return "(" + " OR ".join(legs) + ")"
+    return legs
+
+
+def _parent_call(table: str, alias: str, *, trashed_ok: str) -> str | None:
+    """Whether anything up any of ``table``'s ways up is frozen."""
+    return _any(_parent_legs(table, alias, trashed_ok=trashed_ok))
 
 
 def _tool_hop(table: str, alias: str, *, trashed_ok: str) -> str | None:
@@ -781,11 +790,14 @@ def freeze_leg(
         return None
     if trashed_ok is None:
         trashed_ok = command == "DELETE"
-    flag = "true" if trashed_ok else "false"
-    alias = alias or table
+    return _any(_freeze_branches(table, alias or table, trashed_ok=trashed_ok))
 
-    walked = _parent_call(table, alias, trashed_ok=flag)
-    if walked is not None:
+
+def _freeze_branches(table: str, alias: str, *, trashed_ok: bool) -> list[str]:
+    """The freeze walk from ``table``, one call per way up."""
+    flag = "true" if trashed_ok else "false"
+    walked = _parent_legs(table, alias, trashed_ok=flag)
+    if walked:
         return walked
 
     # No governing tool, but the row names its initiative: guild-wide
@@ -793,8 +805,8 @@ def freeze_leg(
     # freeze with the initiative and with nothing else.
     columns = SQLModel.metadata.tables[table].c
     if "initiative_id" in columns:
-        return f"resource_frozen('initiatives', {alias}.initiative_id, {flag})"
-    return None
+        return [f"resource_frozen('initiatives', {alias}.initiative_id, {flag})"]
+    return []
 
 
 def _trashed_ancestor_leg(table: str, alias: str) -> str | None:
@@ -811,9 +823,17 @@ def _trashed_ancestor_leg(table: str, alias: str) -> str | None:
     walk sees an archive (if anything) and the child may come back unstamped —
     which for a comment, a queue item, a counter, a picture or a calendar event
     is the only way it can come back at all.
+
+    Asked of each way up on its own. A reply sits under its comment and under
+    the comment's task, and an archive on the task says nothing about whether
+    the comment is in the trash; asked of both at once, the one would hide the
+    other.
     """
-    frozen = freeze_leg(table, "UPDATE", alias=alias)
-    if frozen is None:
+    if table in FREEZE_EXEMPT_TABLES:
         return None
-    archived = freeze_leg(table, "UPDATE", alias=alias, trashed_ok=True)
-    return f"(({frozen}) AND NOT ({archived}))"
+    pairs = zip(
+        _freeze_branches(table, alias, trashed_ok=False),
+        _freeze_branches(table, alias, trashed_ok=True),
+        strict=True,
+    )
+    return _any([f"(({frozen}) AND NOT ({archived}))" for frozen, archived in pairs])

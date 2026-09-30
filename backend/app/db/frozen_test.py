@@ -414,12 +414,14 @@ class TestAncestorFreeze:
             )
         assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
 
+    @pytest.mark.parametrize("task_archived", [False, True])
     async def test_a_reply_cannot_come_out_from_under_a_trashed_comment(
-        self, session, routed, workspace
+        self, session, routed, workspace, task_archived
     ):
         """A reply thrown away before its comment keeps a stamp of its own, so
         the comment's restore leaves it where it is — and it may not come back
-        before the comment it answers does."""
+        before the comment it answers does. An archive on the task does not
+        hide the trash on the comment: they are two different ways up."""
         user, _g, _i, _p, task = workspace
         comment = await create_comment(session, user, task=task)
         reply = await create_comment(
@@ -427,6 +429,8 @@ class TestAncestorFreeze:
         )
         await _trash(session, reply, by=user.id)
         await _trash(session, comment, by=user.id)
+        if task_archived:
+            await _archive(session, task)
 
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(
