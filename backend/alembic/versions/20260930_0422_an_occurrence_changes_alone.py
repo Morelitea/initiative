@@ -11,8 +11,8 @@ read, so an attendee's answer for one occurrence that has no row of its own is
 kept in ``calendar_event_answers`` (event, person, occurrence). Its policies are
 rendered at boot from the registry, like every guild table's.
 
-Revision ID: 20260930_0423
-Revises: 20260930_0422
+Revision ID: 20260930_0422
+Revises: 20260930_0421
 Create Date: 2026-09-30
 """
 
@@ -22,8 +22,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20260930_0423"
-down_revision = "20260930_0422"
+revision = "20260930_0422"
+down_revision = "20260930_0421"
 branch_labels = None
 depends_on = None
 
