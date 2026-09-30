@@ -251,14 +251,15 @@ async def _guard_full_access_role(
     role: InitiativeRoleModel | None,
     guild_context: GuildContext,
 ) -> None:
-    """Restrict who may be placed on a role carrying "Full access".
+    """Restrict who may put a member on a role carrying "Full access", or take
+    them off one — ``role`` is either the role they take or the role they leave.
 
     A guild admin settles that one. Every other role — the other manager roles
-    included — stays an initiative manager's to assign.
+    included — stays an initiative manager's to assign and to remove.
 
     A guild admin as the *target* is the exception: their standing already
-    reaches every initiative in the guild, so the role adds nothing to it, and
-    this is the route a project manager brings an admin in by.
+    reaches every initiative in the guild, so the role neither adds to it nor
+    takes from it, and this is the route a project manager brings an admin in by.
     """
     if role is None or not role.override_share_restrictions:
         return
@@ -1443,6 +1444,13 @@ async def add_initiative_member(
             old_role = await initiatives_service.get_role_by_id(
                 session, role_id=membership.role_id
             )
+            await _guard_full_access_role(
+                session,
+                guild_id=routed_guild_id(session),
+                target_user_id=payload.user_id,
+                role=old_role,
+                guild_context=guild_context,
+            )
             new_role = await initiatives_service.get_role_by_id(
                 session, role_id=role_id
             )
@@ -1545,6 +1553,13 @@ async def remove_initiative_member(
     membership = result.one_or_none()
 
     if membership:
+        await _guard_full_access_role(
+            session,
+            guild_id=guild_context.guild_id,
+            target_user_id=user_id,
+            role=membership.role_ref,
+            guild_context=guild_context,
+        )
         role_name = membership.role_ref.name if membership.role_ref else None
         # Removing a member is never blocked by them being the initiative's last
         # manager — the initiative is simply left without one until an admin
@@ -1631,6 +1646,13 @@ async def update_initiative_member(
         )
 
     if membership.role_id != payload.role_id:
+        await _guard_full_access_role(
+            session,
+            guild_id=guild_context.guild_id,
+            target_user_id=user_id,
+            role=membership.role_ref,
+            guild_context=guild_context,
+        )
         # Check if demoting from manager role
         if (
             membership.role_ref
