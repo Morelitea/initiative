@@ -67,6 +67,12 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/db/schema_provisioning.py::drop_guild_schema": (
         "int-derived guild_<id> schema/role names"
     ),
+    "app/testing/guild_pool.py::activate": (
+        "test harness: int-derived guild_<id> / test_pool_<id> schema names"
+    ),
+    "app/testing/guild_pool.py::drop": (
+        "test harness: int-derived test_pool_<id> schema name"
+    ),
     "app/db/schema_provisioning.py::strip_template_registry_objects": (
         "the TEMPLATE_SCHEMA constant; policy, trigger and table names read "
         "from the catalog and quoted; function names and argument lists from "

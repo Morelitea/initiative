@@ -117,11 +117,13 @@ async def test_tenant_rows_land_in_guild_schema(session: AsyncSession, acting_us
 
 async def test_a_pooled_guild_schema_comes_back_as_built(session: AsyncSession, engine):
     """A guild schema is parked out of sight between tests and handed back
-    empty, with its ids starting over; one a test changed is not parked."""
+    empty, with its ids starting over; one a test changed is not parked, and
+    one whose roles went while it was parked is not handed back."""
     from sqlalchemy import text
 
     from app.db.guild_migrations import GUILD_SCHEMA_REGEX
-    from app.db.schema_provisioning import get_provisioning_bundle
+    from app.db import schema_provisioning
+    from app.db.schema_provisioning import drop_guild_schema, get_provisioning_bundle
     from app.testing import create_guild, create_initiative, guild_pool
 
     if not guild_pool.ENABLED:
@@ -152,6 +154,13 @@ async def test_a_pooled_guild_schema_comes_back_as_built(session: AsyncSession, 
             {"s": schema},
         )
     assert (rows, drawn) == (0, 0)
+
+    # Dropping a guild's roles while its schema is parked retires the schema.
+    assert await guild_pool.park(engine, gid)
+    async with engine.begin() as conn:
+        await drop_guild_schema(conn, gid)
+    assert await guild_pool.activate(engine, gid, stamp) is False
+    await schema_provisioning.provision_guild(gid)
 
     # A grant reaches no event trigger; the permissions check catches it.
     async with engine.begin() as conn:

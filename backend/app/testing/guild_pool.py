@@ -18,6 +18,9 @@ decide whether one still is when its test ends:
   objects, its default privileges, its roles' memberships and attributes, none
   of which reach an event trigger — must equal the one taken when it was built.
 
+The permissions are checked again when a parked schema is handed back out: a
+test can drop a guild's roles while that guild's schema is parked.
+
 ``PYTEST_GUILD_POOL=0`` turns the pool off, so every guild is built and
 dropped; ``@pytest.mark.fresh_guild_schema`` does the same for one test.
 """
@@ -131,6 +134,18 @@ async def _record_permissions(
     )
 
 
+async def _permissions_intact(
+    conn: AsyncConnection, schema: str, guild_id: int
+) -> bool:
+    recorded = await conn.scalar(
+        text("SELECT permissions FROM test_harness.slots WHERE guild_id = :g"),
+        {"g": guild_id},
+    )
+    return recorded is not None and recorded == await conn.scalar(
+        text(_permissions_sql(schema, guild_id))
+    )
+
+
 async def install(engine: AsyncEngine) -> None:
     """Set up the log and bring the pool to a known state, once per session.
 
@@ -180,7 +195,9 @@ async def activate(engine: AsyncEngine, guild_id: int, stamp: str) -> bool | Non
     True when it was. None when ``guild_<id>`` already exists, so whatever
     provisions it next builds over a schema the pool did not hand out. False
     otherwise: the caller provisions, and the result can join the pool. A
-    parked schema built from another render than ``stamp`` is dropped.
+    parked schema built from another render than ``stamp`` is dropped, and so
+    is one whose permissions moved while it was parked: a test that drops a
+    guild's roles leaves that guild's parked schema without them.
     """
     if not 1 <= guild_id <= POOL_SIZE:
         return False
@@ -201,7 +218,9 @@ async def activate(engine: AsyncEngine, guild_id: int, stamp: str) -> bool | Non
             return None
         if not found:
             return False
-        if parked_stamp != stamp:
+        if parked_stamp != stamp or not await _permissions_intact(
+            conn, parked, guild_id
+        ):
             await conn.exec_driver_sql(f'DROP SCHEMA "{parked}" CASCADE')
             return False
         await conn.exec_driver_sql(
@@ -260,13 +279,7 @@ async def park(engine: AsyncEngine, guild_id: int) -> bool:
     schema = guild_schema_name(guild_id)
     async with engine.begin() as conn:
         await quiet(conn)
-        recorded = await conn.scalar(
-            text("SELECT permissions FROM test_harness.slots WHERE guild_id = :g"),
-            {"g": guild_id},
-        )
-        if recorded is None or recorded != await conn.scalar(
-            text(_permissions_sql(schema, guild_id))
-        ):
+        if not await _permissions_intact(conn, schema, guild_id):
             return False
         tables = (
             (
