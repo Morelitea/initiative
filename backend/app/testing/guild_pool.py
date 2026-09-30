@@ -225,6 +225,17 @@ async def adopt(engine: AsyncEngine, guild_id: int) -> None:
         await _record_permissions(conn, schema, guild_id)
 
 
+async def drop(engine: AsyncEngine, guild_id: int) -> None:
+    """Drop ``guild_<id>`` and its roles, and the parked schema for the same
+    id with them: it was built on those roles."""
+    async with engine.begin() as conn:
+        await quiet(conn)
+        await conn.exec_driver_sql(
+            f'DROP SCHEMA IF EXISTS "{parked_name(guild_id)}" CASCADE'
+        )
+        await drop_guild_schema(conn, guild_id)
+
+
 async def take_changed(engine: AsyncEngine) -> set[str]:
     """The schemas DDL touched since the last call, clearing the log."""
     async with engine.begin() as conn:

@@ -48,7 +48,7 @@ from app.testing import guild_pool
 from app.testing.schema_harness import clear_search_path_pin
 from app.db.guild_ddl import render_guild_schema_ddl
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
-from app.db.schema_provisioning import drop_guild_schema, guild_schema_name
+from app.db.schema_provisioning import guild_schema_name
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
@@ -948,9 +948,7 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
             and await guild_pool.park(engine, guild_id)
         ):
             continue
-        async with engine.begin() as conn:
-            await guild_pool.quiet(conn)
-            await drop_guild_schema(conn, guild_id)
+        await guild_pool.drop(engine, guild_id)
     template_changed = (
         guild_pool.TEMPLATE in changed
         and await render_guild_schema_ddl(engine) != _template_bundle.schema_ddl

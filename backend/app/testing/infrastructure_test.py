@@ -124,6 +124,8 @@ async def test_a_pooled_guild_schema_comes_back_as_built(session: AsyncSession, 
     from app.db.schema_provisioning import get_provisioning_bundle
     from app.testing import create_guild, create_initiative, guild_pool
 
+    if not guild_pool.ENABLED:
+        pytest.skip("PYTEST_GUILD_POOL=0")
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     await create_initiative(session, guild, user)
@@ -151,13 +153,17 @@ async def test_a_pooled_guild_schema_comes_back_as_built(session: AsyncSession, 
         )
     assert (rows, drawn) == (0, 0)
 
+    # A grant reaches no event trigger; the permissions check catches it.
+    async with engine.begin() as conn:
+        await conn.execute(text(f'GRANT SELECT ON "{schema}".initiatives TO app_user'))
+    assert schema not in await guild_pool.take_changed(engine)
+    assert not await guild_pool.park(engine, gid)
+
     async with engine.begin() as conn:
         await conn.execute(
             text(f'ALTER TABLE "{schema}".initiatives ADD COLUMN probe int')
         )
-        await conn.execute(text(f'GRANT SELECT ON "{schema}".initiatives TO app_user'))
     assert schema in await guild_pool.take_changed(engine)
-    assert not await guild_pool.park(engine, gid)
 
 
 async def test_unrouted_tenant_write_fails_closed(session: AsyncSession, acting_user):
