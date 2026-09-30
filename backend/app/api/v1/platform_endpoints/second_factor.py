@@ -114,7 +114,7 @@ async def read_second_factor(
 
 
 @router.post("/totp/enroll", response_model=SecondFactorEnrolment)
-@limiter.limit("10/hour")
+@limiter.limit("10/hour", key_func=get_user_or_ip_key)
 async def begin_second_factor(
     request: Request,
     current_user: FactorExemptUser,
@@ -233,7 +233,7 @@ async def disable_second_factor(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    require_password(current_user, payload.current_password)
+    await require_password(system_session, current_user, payload.current_password)
     await refuse_if_locked(system_session, current_user.id)
 
     if payload.recovery_code:
@@ -342,7 +342,7 @@ async def step_up_with_factor(
 
 
 @router.post("/recovery-codes/regenerate", response_model=RecoveryCodes)
-@limiter.limit("5/hour")
+@limiter.limit("5/hour", key_func=get_user_or_ip_key)
 async def regenerate_recovery_codes(
     request: Request,
     current_user: CurrentUser,
