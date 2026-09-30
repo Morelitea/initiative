@@ -49,6 +49,7 @@ from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
     ProjectExportComment,
     ProjectExportEnvelope,
+    ProjectExportTag,
     ProjectExportTask,
     ProjectImportResult,
 )
@@ -223,6 +224,7 @@ async def import_project(
     comment_count = 0
     unmatched_handles: set[str] = set()
     named_handles: dict[int, str] = {}
+    series_ids: dict[int, int] = {}
     for t in envelope.tasks:
         matched, comments_made = await _import_task(
             session,
@@ -238,6 +240,7 @@ async def import_project(
             initiative_member_handles=initiative_member_handles,
             unmatched_handle_sink=unmatched_handles,
             named_handle_sink=named_handles,
+            series_ids=series_ids,
             context=context,
         )
         assignee_match_count += matched
@@ -286,6 +289,7 @@ async def _import_task(
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
     named_handle_sink: dict[int, str],
+    series_ids: dict[int, int],
     context: ImportContext | None = None,
 ) -> tuple[int, int]:
     """Insert one task, its checklist, tags, assignees, property values and
@@ -353,11 +357,14 @@ async def _import_task(
     )
     session.add(task)
     await session.flush()
+    # A series is named by its first task here, so the ones after it join it.
+    if envelope_task.series is not None:
+        task.series_id = series_ids.setdefault(envelope_task.series, task.id)
 
     # Tag links — match-or-create against the target guild for any tag
     # that wasn't already in the project-level set (tasks can have tags
     # the project itself doesn't carry).
-    for task_tag in envelope_task.tags:
+    async def tag_id(task_tag: ProjectExportTag) -> int:
         tid = tag_name_to_id.get(task_tag.name)
         if tid is None:
             resolved = await ensure_tag(
@@ -367,7 +374,51 @@ async def _import_task(
             )
             tid = resolved.id
             tag_name_to_id[task_tag.name] = tid
-        session.add(tags_service.tag_edge(tags_service.TAG_LINKS["task"], task.id, tid))
+        return tid
+
+    for task_tag in envelope_task.tags:
+        session.add(
+            tags_service.tag_edge(
+                tags_service.TAG_LINKS["task"], task.id, await tag_id(task_tag)
+            )
+        )
+
+    # What an edit of just this task kept back, its tags and assignees named
+    # back into this community.
+    if envelope_task.recurrence_carry:
+        carry = dict(envelope_task.recurrence_carry)
+        if carry.get("description"):
+            # Linked to people here now, its references placed with the
+            # task's own description once everything has been written.
+            carry["description"] = note_or_settle(
+                context,
+                SearchEntityType.task,
+                task.id,
+                _link_mentions(
+                    carry["description"],
+                    envelope_task.mention_handles,
+                    context=context,
+                    initiative_member_handles=initiative_member_handles,
+                ),
+            )
+        if "tags" in carry:
+            carry["tag_ids"] = sorted(
+                {await tag_id(ProjectExportTag(**tag)) for tag in carry.pop("tags")}
+            )
+        if "assignee_handles" in carry:
+            carried: set[int] = set()
+            for handle in carry.pop("assignee_handles"):
+                uid = initiative_member_id(
+                    handle,
+                    people=context.people if context is not None else PeopleMap(),
+                    member_handles=initiative_member_handles,
+                )
+                if uid is not None:
+                    carried.add(uid)
+                    # Brought into the initiative with the task's own assignees.
+                    named_handle_sink.setdefault(uid, handle)
+            carry["assignee_ids"] = sorted(carried)
+        task.recurrence_carry = carry
 
     # Assignees: the account a person mapped the handle to, else a member
     # whose handle is the same string (see ``people.initiative_member_id``).

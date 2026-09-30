@@ -80,6 +80,8 @@ VIRTUAL_FIELDS = {
 #: the model becomes a field without anybody listing it.
 NOT_FILTERABLE = {
     "checklist": "a JSON list of steps — no operator means anything against it",
+    "recurrence_carry": "a JSON object of values kept for the next task in a "
+    "series — no operator means anything against it",
     "guild_id": "references a table no picker browses, and a request is "
     "already scoped to one guild",
 }

@@ -14,6 +14,16 @@ const Harness = () => {
       <button type="button" onClick={async () => setPicked(String(await ask("delete")))}>
         delete
       </button>
+      <button
+        type="button"
+        onClick={async () =>
+          setPicked(
+            String(await ask("edit", { tool: "tasks", count: 4, scopes: ["this", "following"] }))
+          )
+        }
+      >
+        move task
+      </button>
       <output>{picked}</output>
       {dialog}
     </>
@@ -33,5 +43,17 @@ describe("useScopePrompt", () => {
     await user.click(screen.getByRole("button", { name: "delete" }));
     await user.click(await screen.findByRole("button", { name: /cancel/i }));
     expect(await screen.findByText("null")).toBeInTheDocument();
+  });
+
+  it("asks in a task's words, with only the choices given", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+
+    await user.click(screen.getByRole("button", { name: "move task" }));
+    expect(await screen.findByLabelText(/just this task/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/all tasks/i)).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText(/tasks after this point/i));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    expect(await screen.findByText("following")).toBeInTheDocument();
   });
 });

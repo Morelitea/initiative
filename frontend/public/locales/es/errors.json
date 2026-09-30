@@ -115,6 +115,8 @@
   "TASK_STATUS_NOT_FOUND_FOR_PROJECT": "Estado de tarea no encontrado para este proyecto",
   "TASK_INVALID_ASSIGNEE_ID": "ID de asignado no válido",
   "TASK_DUPLICATE_NOT_FOUND": "Tarea duplicada no encontrada",
+  "TASK_NOT_REPEATING": "Esta tarea no se repite",
+  "TASK_NO_LATER_OCCURRENCE": "Esta es la última repetición de la serie",
   "CHECKLIST_ITEM_NOT_FOUND": "Elemento de la lista no encontrado",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Dos elementos de la lista comparten el mismo identificador",
   "CHECKLIST_TEXT_EMPTY": "El texto del elemento no puede estar vacío",

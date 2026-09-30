@@ -25,6 +25,8 @@ import {
   CalendarView,
   type CalendarViewMode,
   calendarVisibleRange,
+  rescheduledDates,
+  type TaskEntryMeta,
   useCalendarVisibility,
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
@@ -522,13 +524,8 @@ export const CalendarsView = ({
   const handleEntryReschedule = useCallback(
     async ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
       const meta = entry.meta as
-        | {
-            type?: string;
-            taskId?: number;
-            eventId?: number;
-            kind?: "start" | "due" | "span";
-            occurrence?: string;
-          }
+        | Partial<TaskEntryMeta>
+        | { type: "event"; eventId?: number; occurrence?: string }
         | undefined;
       if (!meta) return;
       if (meta.type === "event" && meta.eventId) {
@@ -546,16 +543,16 @@ export const CalendarsView = ({
         return;
       }
       if (meta.type === "task" && meta.taskId) {
-        if (meta.kind === "start") {
-          updateTask.mutate({ taskId: meta.taskId, data: { start_date: startAt } });
-        } else if (meta.kind === "due") {
-          updateTask.mutate({ taskId: meta.taskId, data: { due_date: startAt } });
-        } else {
-          updateTask.mutate({
-            taskId: meta.taskId,
-            data: { start_date: startAt, due_date: endAt },
-          });
-        }
+        // Dates are each task's own, so moving one asks only whether the
+        // tasks after it move too.
+        const scope = meta.repeating
+          ? await scopePrompt.ask("edit", { tool: "tasks", scopes: ["this", "following"] })
+          : undefined;
+        if (scope === null) return;
+        updateTask.mutate({
+          taskId: meta.taskId,
+          data: { ...rescheduledDates(meta.kind, startAt, endAt), ...(scope ? { scope } : {}) },
+        });
       }
     },
     [updateTask, rescheduleEvent, scopePrompt.ask]

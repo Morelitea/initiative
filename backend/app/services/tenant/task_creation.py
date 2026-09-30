@@ -23,7 +23,6 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core import recurrence
 from app.core.messages import TaskMessages
 from app.core.tools import Tool
 from app.models.tenant.project import Project
@@ -34,9 +33,9 @@ from app.services.tenant import named_people
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_description as task_description_service
+from app.services.tenant import task_series
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.task_completion import sync_completed_at
-from app.core.user_input_validators import resolve_zone
 
 
 async def next_position(session: AsyncSession, project_id: int) -> float:
@@ -181,80 +180,57 @@ async def advance_recurrence_if_needed(
         return False
 
     try:
-        rule = recurrence.parse(task.recurrence).rule
+        dates = task_series.next_dates(task, now=now, user_timezone=user_timezone)
     except ValueError:
         return False
-
-    strategy = task.recurrence_strategy or "fixed"
-    if strategy == "rolling":
-        # Rolling counts from the completer's local day, at the task's own
-        # local time of day: a 5pm LA task is midnight UTC the next day, so a
-        # UTC day would land a day early. The zone is the request's, read here
-        # and never stored.
-        zone = resolve_zone(user_timezone)
-        now_local = now.astimezone(zone)
-        due_local = task.due_date.astimezone(zone)
-        base_date = now_local.replace(
-            hour=due_local.hour,
-            minute=due_local.minute,
-            second=due_local.second,
-            microsecond=due_local.microsecond,
-        ).astimezone(zone)
-    else:
-        base_date = task.due_date
-    # The task's own counter ends a COUNT series: every successor is a new row
-    # whose start moves, so dateutil would count from the wrong place.
-    count = rule.get("COUNT", [None])[0]
-    next_due = (
-        None
-        if count is not None and task.recurrence_occurrence_count + 1 >= count
-        else recurrence.next_start(
-            task.recurrence, base_date, task.recurrence_shift, count=False
-        )
-    )
-    if next_due is None:
+    if dates is None:
         task.recurrence = None
         return False
+    new_start, next_due = dates
 
-    duration = None
-    if task.start_date and task.due_date:
-        duration = task.due_date - task.start_date
-    new_start = next_due - duration if duration else None
-
+    # An edit of just this task leaves the next one with what it changed from.
+    values = task_series.carried(task)
+    task.series_id = task.series_id or task.id
     default_status = await task_statuses_service.get_default_status(
         session, task.project_id
     )
     new_task = Task(
         project_id=task.project_id,
         task_status_id=default_status.id,
-        title=task.title,
-        description=task.description,
-        priority=task.priority,
+        title=values.get("title", task.title),
+        description=values.get("description", task.description),
+        priority=values.get("priority", task.priority),
         start_date=new_start,
         due_date=next_due,
         recurrence=task.recurrence,
         recurrence_shift=task.recurrence_shift,
-        recurrence_strategy=strategy,
+        recurrence_strategy=task.recurrence_strategy or "fixed",
         position=await next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
+        series_id=task.series_id,
         created_by=task.created_by,
         checklist=checklist_service.cloned(task.checklist),
     )
     sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
     await session.flush()
-    assignee_ids = [assignee.id for assignee in task.assignees]
+    assignee_ids = values.get(
+        "assignee_ids", [assignee.id for assignee in task.assignees]
+    )
     project = await session.get(Project, task.project_id)
     if project is None:  # the task was just read inside it
         raise RuntimeError("a recurring task's project is gone")
     await set_task_assignees(
         session, new_task, assignee_ids, project=project, carried=True
     )
-    await tags_service.copy_entity_tags(
-        session,
-        tags_service.TAG_LINKS["task"],
-        {task.id: new_task.id},
-    )
+    if "tag_ids" in values:
+        await task_series.retag(session, new_task.id, values["tag_ids"])
+    else:
+        await tags_service.copy_entity_tags(
+            session,
+            tags_service.TAG_LINKS["task"],
+            {task.id: new_task.id},
+        )
     if new_task.description:
         await task_description_service.record_references(
             session, new_task, author_id=task.created_by
@@ -276,6 +252,7 @@ async def advance_recurrence_if_needed(
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"
+    task.recurrence_carry = None
     task.updated_at = now
     session.add(task)
     return True

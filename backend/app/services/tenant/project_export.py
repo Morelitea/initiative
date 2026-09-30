@@ -26,7 +26,8 @@ favorites, recents, queues. Those would extend the schema under a future
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -40,6 +41,8 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.project import Project
 from app.models.tenant.property import PropertyType, TaskPropertyValue
+from app.models.platform.user_profile_view import MemberProfile
+from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task, TaskStatus
 from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
@@ -185,6 +188,9 @@ async def build_project_export(
         description, described = detach_markdown_mentions(
             task.description, mention_handles
         )
+        carry, carry_described = await _portable_carry(
+            session, task.recurrence_carry, mention_handles
+        )
         tasks.append(
             ProjectExportTask(
                 title=task.title,
@@ -196,6 +202,8 @@ async def build_project_export(
                 recurrence_shift=task.recurrence_shift,
                 recurrence_strategy=task.recurrence_strategy,
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
+                series=task.series_id,
+                recurrence_carry=carry,
                 position=task.position,
                 archived_at=task.archived_at,
                 completed_at=task.completed_at,
@@ -209,7 +217,7 @@ async def build_project_export(
                 external_ref=task_ref(task.id),
                 links=links_by_task.get(task.id, []),
                 comments=comments_by_task.get(task.id, []),
-                mention_handles=described,
+                mention_handles=list(dict.fromkeys(described + carry_described)),
             )
         )
 
@@ -390,6 +398,38 @@ async def list_project_ids_for_export(
     ]
     statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
     return list(await session.exec(statement))
+
+
+async def _portable_carry(
+    session: AsyncSession,
+    carry: dict[str, Any] | None,
+    mention_handles: Mapping[int, str],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """``recurrence_carry`` as the envelope names things: its description's
+    mentions by handle and references by ref, its tags by name and colour and
+    its assignees by handle. Also the handles the description mentions."""
+    if not carry:
+        return None, []
+    portable = {
+        field: value
+        for field, value in carry.items()
+        if field not in {"tag_ids", "assignee_ids"}
+    }
+    described: list[str] = []
+    if "description" in carry:
+        description, described = detach_markdown_mentions(
+            carry["description"], mention_handles
+        )
+        portable["description"] = detach_markdown_references(description)
+    if "tag_ids" in carry:
+        tags = await session.exec(select(Tag).where(Tag.id.in_(carry["tag_ids"])))
+        portable["tags"] = [{"name": tag.name, "color": tag.color} for tag in tags]
+    if "assignee_ids" in carry:
+        people = await session.exec(
+            select(MemberProfile).where(MemberProfile.id.in_(carry["assignee_ids"]))
+        )
+        portable["assignee_handles"] = [handle_of(person) for person in people]
+    return portable, described
 
 
 def _fallback_status_name(statuses_sorted: list[TaskStatus]) -> str:

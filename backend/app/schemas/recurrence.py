@@ -23,6 +23,10 @@ _DESCRIPTION = (
     "days without one. POST /recurrence/preview lists its next starts."
 )
 
+#: Which occurrences of a repeating event or task a change is for: this one, it
+#: and every later one, or the whole series.
+OccurrenceScope = Literal["this", "following", "all"]
+
 TaskRule = Annotated[
     str, Field(max_length=4000, description=_DESCRIPTION), AfterValidator(_task_rule)
 ]

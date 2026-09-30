@@ -3409,6 +3409,8 @@ async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, ses
         a.project,
         title="Ship it",
         description=f"After #task[Fix the bug]({fix.id}), per #doc[Spec]({spec.id})",
+        # What an edit of just this task kept back is placed the same way.
+        recurrence_carry={"description": f"Once #task[Fix the bug]({fix.id})"},
     )
 
     envelope = await _export_json(
@@ -3429,6 +3431,9 @@ async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, ses
         }
         assert (await session.get(Project, project_id)).initiative_id == target.id
         descriptions.append((tasks["Fix the bug"].id, tasks["Ship it"].description))
+        assert tasks["Ship it"].recurrence_carry == {
+            "description": f"Once #task[Fix the bug]({tasks['Fix the bug'].id})"
+        }
 
     (here_fix, here), (there_fix, there) = descriptions
     assert here == f"After #task[Fix the bug]({here_fix}), per #doc[Spec]({spec.id})"

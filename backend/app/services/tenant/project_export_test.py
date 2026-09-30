@@ -90,6 +90,12 @@ async def _seed_populated_project(session: AsyncSession):
         title="Fix the thing",
         description="Important",
         position=1024.0,
+        series_id=4242,
+        recurrence_carry={
+            "title": "Fix it once",
+            "tag_ids": [tag.id],
+            "assignee_ids": [assignee.id],
+        },
         checklist=[
             *checklist_items("step 1"),
             *checklist_items("step 2", done=True),
@@ -153,6 +159,12 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert {i.text for i in exported_task.checklist} == {"step 1", "step 2"}
     assert exported_task.property_values[0].property_name == "Severity"
     assert exported_task.property_values[0].value_text == "high"
+    assert exported_task.series == 4242
+    assert exported_task.recurrence_carry == {
+        "title": "Fix it once",
+        "tags": [{"name": "blocker", "color": "#FF0000"}],
+        "assignee_handles": [handle_of(assignee)],
+    }
 
     # Target initiative in the same guild — assignee is a member of both
     target_initiative = await create_initiative(
@@ -198,6 +210,14 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert len(new_project.tasks) == 1
     new_task = new_project.tasks[0]
     assert new_task.title == "Fix the thing"
+    # Its series is named after the first task of it the import made.
+    assert new_task.series_id == new_task.id
+    await tags_service.annotate_tags(session, [new_task])
+    assert new_task.recurrence_carry == {
+        "title": "Fix it once",
+        "tag_ids": [tag.id for tag in new_task.tags],
+        "assignee_ids": [assignee.id],
+    }
     assert {i["text"] for i in new_task.checklist} == {"step 1", "step 2"}
     assert [handle_of(u) for u in new_task.assignees] == [handle_of(assignee)]
     await tags_service.annotate_tags(session, [new_task])

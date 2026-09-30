@@ -37,6 +37,8 @@ import {
   type CalendarEntryReschedule,
   CalendarView,
   type CalendarViewMode,
+  rescheduledDates,
+  type TaskEntryMeta,
 } from "@/components/calendar";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
@@ -56,6 +58,7 @@ import {
   shouldInsertAfter,
 } from "@/components/projects/taskOrdering";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialog";
 import { ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
@@ -808,25 +811,23 @@ export const ProjectTasksSection = ({
   // Drag-to-reschedule on the calendar. Uses the silent date-update mutation
   // (patches the local list so the dropped entry moves immediately, no toast).
   // A start/due marker patches only that field; a same-day span shifts both
-  // endpoints (CalendarView preserved the duration).
+  // endpoints (CalendarView preserved the duration). A repeating task asks
+  // whether the tasks after it move too.
+  const scopePrompt = useScopePrompt();
   const handleCalendarReschedule = useCallback(
-    ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
-      const meta = entry.meta as
-        | { type?: string; taskId?: number; kind?: "start" | "due" | "span" }
-        | undefined;
+    async ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
+      const meta = entry.meta as Partial<TaskEntryMeta> | undefined;
       if (meta?.type !== "task" || !meta.taskId) return;
-      if (meta.kind === "start") {
-        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { start_date: startAt } });
-      } else if (meta.kind === "due") {
-        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { due_date: startAt } });
-      } else {
-        rescheduleTaskDates.mutate({
-          taskId: meta.taskId,
-          data: { start_date: startAt, due_date: endAt },
-        });
-      }
+      const scope = meta.repeating
+        ? await scopePrompt.ask("edit", { tool: "tasks", scopes: ["this", "following"] })
+        : undefined;
+      if (scope === null) return;
+      rescheduleTaskDates.mutate({
+        taskId: meta.taskId,
+        data: { ...rescheduledDates(meta.kind, startAt, endAt), ...(scope ? { scope } : {}) },
+      });
     },
-    [rescheduleTaskDates]
+    [rescheduleTaskDates, scopePrompt.ask]
   );
 
   // Count of archivable done tasks (non-archived tasks in done category)
@@ -1068,6 +1069,7 @@ export const ProjectTasksSection = ({
 
   return (
     <div className="space-y-4">
+      {scopePrompt.dialog}
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
         <ToolListToolbar
           heading={<h2 className="truncate font-semibold text-xl">{t("tasks.projectTasks")}</h2>}

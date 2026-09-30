@@ -37,6 +37,7 @@ from app.schemas.ai_generation import (
     GenerateChecklistResponse,
     GenerateDescriptionResponse,
 )
+from app.schemas.recurrence import OccurrenceScope
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
@@ -59,6 +60,7 @@ from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_creation as task_creation_service
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_queries
+from app.services.tenant import task_series
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.soft_delete import trash
 from app.services.tenant.task_completion import sync_completed_at
@@ -471,6 +473,12 @@ async def update_task(
     property_values = update_data.pop("property_values", None)
     checklist_sent = update_data.pop("checklist", None) is not None
     picked_in = update_data.pop("tz", None)
+    scope = update_data.pop("scope", None)
+    before = (
+        await task_series.values_of(session, task)
+        if task.recurrence or task.series_id
+        else None
+    )
     previous_start = task.due_date or task.start_date
     previous_description = task.description
     previous_status_category = task.task_status.category if task.task_status else None
@@ -505,7 +513,13 @@ async def update_task(
         task.recurrence, task.recurrence_shift = recurrence.stored(
             update_data["recurrence"], start, picked_in, kind="task"
         )
-    elif task.recurrence and previous_start and start and start != previous_start:
+    elif (
+        task.recurrence
+        and previous_start
+        and start
+        and start != previous_start
+        and scope != "this"
+    ):
         # The repeat moves with its start, its days kept as they were picked.
         task.recurrence, task.recurrence_shift = recurrence.restarted(
             task.recurrence, task.recurrence_shift, previous_start, start, picked_in
@@ -514,6 +528,28 @@ async def update_task(
         task.checklist = checklist_service.normalize(
             task_in.checklist or [], existing=task.checklist
         )
+    series: list[Task] = []
+    if before is not None:
+        after = task_series.values_after(
+            task, before, assignee_ids=assignee_ids, tag_ids=tag_ids
+        )
+        moved = task_series.changed(before, after)
+        if scope == "this" and task.recurrence:
+            task_series.keep(task, before, after)
+        else:
+            task_series.release(task, moved)
+        if scope == "all":
+            series = await task_series.others(session, task)
+            for project in {
+                member.project_id: member.project for member in series
+            }.values():
+                resource_access.authorize(
+                    _GOVERNING,
+                    project,
+                    current_user,
+                    context=guild_context,
+                    access="write",
+                )
     now = datetime.now(timezone.utc)
     task.updated_at = now
     sync_completed_at(
@@ -531,16 +567,6 @@ async def update_task(
             for assignee in task.assignees
             if assignee.id not in existing_assignee_ids
         ]
-
-    await task_creation_service.advance_recurrence_if_needed(
-        session,
-        task,
-        previous_status_category=previous_status_category,
-        now=now,
-        # An installed app has no zone of its own; a rolling recurrence it
-        # completes counts days in UTC.
-        user_timezone=current_user.timezone if current_user is not None else None,
-    )
 
     if new_assignees:
         assigned_by = await notifications_service.author_of(
@@ -578,6 +604,26 @@ async def update_task(
     except HTTPException:
         await session.rollback()
         raise
+    if series:
+        await task_series.apply_to_others(
+            session,
+            series,
+            after,
+            moved,
+            now=now,
+            author_id=current_user.id if current_user is not None else None,
+        )
+    # Once the task has everything this edit gives it, so a completion's next
+    # task is copied from what was saved.
+    await task_creation_service.advance_recurrence_if_needed(
+        session,
+        task,
+        previous_status_category=previous_status_category,
+        now=now,
+        # An installed app has no zone of its own; a rolling recurrence it
+        # completes counts days in UTC.
+        user_timezone=current_user.timezone if current_user is not None else None,
+    )
 
     let_go: set[str] = set()
     if task.description != previous_description:
@@ -771,12 +817,68 @@ async def delete_task(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    scope: Optional[OccurrenceScope] = Query(default=None),
 ) -> None:
+    """Trash the task. For a repeating one, ``this`` skips it so the series
+    goes on (trashing it when the series has no more), ``following`` (the
+    default) trashes it and so ends the repeat, and ``all`` trashes every
+    other task of the series too."""
     task = await _load_for_change(session, task_id, current_user, guild_context)
     project = task.project
-    await trash(session, task, deleted_by_user_id=current_user.id)
-    _touch_project(project, datetime.now(timezone.utc))
+    now = datetime.now(timezone.utc)
+    skipped = (
+        scope == "this"
+        and bool(task.recurrence)
+        and await task_series.skip(
+            session, task, now=now, user_timezone=current_user.timezone
+        )
+    )
+    if not skipped:
+        series = await task_series.others(session, task) if scope == "all" else []
+        for member in series:
+            resource_access.authorize(
+                _GOVERNING,
+                member.project,
+                current_user,
+                context=guild_context,
+                access="write",
+            )
+        for doomed in [task, *series]:
+            await trash(session, doomed, deleted_by_user_id=current_user.id)
+    _touch_project(project, now)
     await session.commit()
+
+
+@router.post("/{task_id}/skip", response_model=TaskRead)
+async def skip_task(
+    task_id: int,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
+) -> Task:
+    """Move a repeating task on to its next occurrence without completing it."""
+    task = await _load_for_change(session, task_id, current_user, guild_context)
+    if not task.recurrence:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=TaskMessages.NOT_REPEATING,
+        )
+    now = datetime.now(timezone.utc)
+    if not await task_series.skip(
+        session,
+        task,
+        now=now,
+        # An installed app has no zone of its own; a rolling repeat it skips
+        # counts days in UTC.
+        user_timezone=current_user.timezone if current_user is not None else None,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=TaskMessages.NO_LATER_OCCURRENCE,
+        )
+    _touch_project(task.project, now)
+    await session.commit()
+    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
 
 
 @router.post("/reorder", response_model=List[TaskRead])

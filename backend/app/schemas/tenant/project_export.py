@@ -146,6 +146,13 @@ class ProjectExportTask(SanitizedBaseModel):
     recurrence_shift: int = 0
     recurrence_strategy: str = "fixed"
     recurrence_occurrence_count: int = 0
+    #: The repeating series the task is in, as a number the tasks of one series
+    #: share in this export; the import gives each series a new one.
+    series: Optional[int] = None
+    #: What an edit of just this task changed from (``Task.recurrence_carry``),
+    #: its tags as ``{"name", "color"}`` under ``tags`` and its assignees under
+    #: ``assignee_handles``, as the rest of the envelope names them.
+    recurrence_carry: Optional[dict[str, Any]] = None
     position: float = 0.0
     archived_at: Optional[datetime] = None
     # Absent in exports taken before completion timestamps existed; the

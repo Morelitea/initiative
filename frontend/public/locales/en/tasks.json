@@ -93,7 +93,25 @@
     "unsavedTitle": "Discard unsaved changes?",
     "unsavedBody": "You have unsaved changes to this task. If you leave now, they will be lost.",
     "unsavedLeave": "Leave",
-    "unsavedStay": "Stay"
+    "unsavedStay": "Stay",
+    "skipOccurrence": "Skip this occurrence",
+    "taskSkipped": "Moved on to the next occurrence",
+    "skipError": "Couldn't skip this occurrence"
+  },
+  "scope": {
+    "title": {
+      "edit": "Change a repeating task",
+      "delete": "Delete a repeating task"
+    },
+    "description": "This task repeats. Which tasks is this for?",
+    "this": "Just this task",
+    "following": "Tasks after this point",
+    "all": "All tasks in the series",
+    "allCount": "All tasks in the series ({{count}})",
+    "confirm": {
+      "edit": "Save",
+      "delete": "Delete"
+    }
   },
   "focus": {
     "title": "Focus",

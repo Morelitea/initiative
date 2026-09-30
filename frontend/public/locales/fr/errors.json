@@ -115,6 +115,8 @@
   "TASK_STATUS_NOT_FOUND_FOR_PROJECT": "Statut de tâche introuvable pour ce projet",
   "TASK_INVALID_ASSIGNEE_ID": "Identifiant d'assigné invalide",
   "TASK_DUPLICATE_NOT_FOUND": "Tâche dupliquée introuvable",
+  "TASK_NOT_REPEATING": "Cette tâche ne se répète pas",
+  "TASK_NO_LATER_OCCURRENCE": "C'est la dernière occurrence de la série",
   "CHECKLIST_ITEM_NOT_FOUND": "Élément de la checklist introuvable",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Deux éléments de la checklist ont le même identifiant",
   "CHECKLIST_TEXT_EMPTY": "Le texte d'un élément ne peut pas être vide",

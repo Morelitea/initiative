@@ -9,6 +9,7 @@ import {
   Loader2,
   MoreHorizontal,
   Save,
+  SkipForward,
   Sparkles,
   Trash2,
   X,
@@ -19,12 +20,16 @@ import { useTranslation } from "react-i18next";
 import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
+import {
+  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
+  readTaskApiV1CGuildIdTasksTaskIdGet,
+} from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { normalizePropertyValue } from "@/components/properties/propertyHelpers";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
@@ -69,11 +74,13 @@ import {
   useDuplicateTask,
   useGenerateTaskDescription,
   useMoveTask,
+  useSkipTask,
   useTask,
   useUpdateTask,
 } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { dateRangeBounds } from "@/lib/dateRange";
+import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
 import { fromStored, rulePayload } from "@/lib/recurrence";
@@ -145,6 +152,18 @@ const formValueFromTask = (task: TaskFormSource): TaskFormValue => ({
   properties: task.properties ?? [],
   propertyValues: seedPropertyValues(task.properties ?? []),
 });
+
+/** The fields an edit of a repeating task can keep from the rest of its series. */
+const seriesFields = (value: TaskFormValue) =>
+  JSON.stringify([
+    value.title,
+    value.description,
+    value.priority,
+    [...value.assigneeIds].sort(),
+    value.startDate,
+    value.dueDate,
+    value.tags.map((tag) => tag.id).sort(),
+  ]);
 
 type MoveTaskVariables = {
   targetProjectId: number;
@@ -256,8 +275,34 @@ export const TaskEditPage = () => {
     },
   });
 
+  const scopePrompt = useScopePrompt();
+  const repeating = Boolean(task?.recurrence);
+
+  const skipTask = useSkipTask({
+    onSuccess: (skipped) => {
+      form.settle(formValueFromTask(skipped));
+      toast.success(t("edit.taskSkipped"));
+    },
+  });
+
   const deleteTask = useDeleteTask({
-    onSuccess: () => {
+    onSuccess: async (_data, { scope }) => {
+      // Deleting just this one of a series skips it, so the task is still
+      // here, unless it was the series' last and is gone.
+      if (scope === "this") {
+        try {
+          form.settle(
+            formValueFromTask(await readTaskApiV1CGuildIdTasksTaskIdGet(guildId, parsedTaskId))
+          );
+          toast.success(t("edit.taskSkipped"));
+          return;
+        } catch (error) {
+          if (getHttpStatus(error) !== 404) {
+            toast.success(t("edit.taskSkipped"));
+            return;
+          }
+        }
+      }
       toast.success(t("edit.taskDeleted"));
       bypassGuardRef.current = true;
       // Back to the project the task lived in — the projects list is a step
@@ -317,7 +362,7 @@ export const TaskEditPage = () => {
   // TaskForm flags the inverted range; blocking submit keeps it out of the API.
   const { isInverted: datesInverted } = dateRangeBounds(startDate, dueDate);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isReadOnly) {
       return;
@@ -345,7 +390,25 @@ export const TaskEditPage = () => {
         value: propertyValues[property.property_id] ?? null,
       })),
     };
+    if (task && repeating && seriesFields(form.values) !== seriesFields(formValueFromTask(task))) {
+      const scope = await scopePrompt.ask("edit", { tool: "tasks", count: task.series_size });
+      if (scope === null) {
+        return;
+      }
+      payload.scope = scope;
+    }
     updateTask.mutate({ taskId: parsedTaskId, data: payload as never });
+  };
+
+  const handleDelete = async () => {
+    if (!repeating) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    const scope = await scopePrompt.ask("delete", { tool: "tasks", count: task?.series_size });
+    if (scope !== null) {
+      deleteTask.mutate({ taskId: parsedTaskId, scope });
+    }
   };
 
   const handleMoveTask = (targetProjectId: number) => {
@@ -520,7 +583,8 @@ export const TaskEditPage = () => {
   // the status was archived out of the list since the task was last saved.
   // Delete and move are excluded: their confirm/move dialogs stay open and
   // already show the mutation's own loading state.
-  const menuActionPending = duplicateTask.isPending || toggleArchive.isPending;
+  const menuActionPending =
+    duplicateTask.isPending || toggleArchive.isPending || skipTask.isPending;
 
   // Assemble the shared TaskForm value from the page's individual states. The
   // effective* fallbacks keep the form from flashing defaults during the
@@ -754,11 +818,20 @@ export const TaskEditPage = () => {
                           </>
                         )}
                       </DropdownMenuItem>
+                      {repeating ? (
+                        <DropdownMenuItem
+                          disabled={skipTask.isPending}
+                          onSelect={() => skipTask.mutate(parsedTaskId)}
+                        >
+                          <SkipForward className="h-4 w-4" />
+                          {t("edit.skipOccurrence")}
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         disabled={deleteTask.isPending}
-                        onSelect={() => setShowDeleteConfirm(true)}
+                        onSelect={() => void handleDelete()}
                       >
                         <Trash2 className="h-4 w-4" />
                         {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
@@ -826,6 +899,8 @@ export const TaskEditPage = () => {
         onConfirm={handleMoveTask}
       />
 
+      {scopePrompt.dialog}
+
       <ConfirmDialog
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
@@ -833,7 +908,7 @@ export const TaskEditPage = () => {
         description={t("edit.deleteDescription")}
         confirmLabel={t("common:delete")}
         onConfirm={() => {
-          deleteTask.mutate(parsedTaskId);
+          deleteTask.mutate({ taskId: parsedTaskId });
           setShowDeleteConfirm(false);
         }}
         isLoading={deleteTask.isPending}

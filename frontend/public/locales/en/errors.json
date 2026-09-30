@@ -113,6 +113,8 @@
   "TASK_STATUS_NOT_FOUND_FOR_PROJECT": "Task status not found for this project",
   "TASK_INVALID_ASSIGNEE_ID": "Invalid assignee ID",
   "TASK_DUPLICATE_NOT_FOUND": "Duplicated task not found",
+  "TASK_NOT_REPEATING": "This task doesn't repeat",
+  "TASK_NO_LATER_OCCURRENCE": "This is the last occurrence of the series",
   "CHECKLIST_ITEM_NOT_FOUND": "Checklist item not found",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Two checklist items share the same id",
   "CHECKLIST_TEXT_EMPTY": "Checklist item text cannot be empty",

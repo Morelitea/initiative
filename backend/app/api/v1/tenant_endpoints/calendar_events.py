@@ -59,10 +59,10 @@ from app.schemas.tenant.calendar_event import (
     CalendarEventListResponse,
     CalendarEventRSVPUpdate,
     OccurrenceRequest,
-    OccurrenceScope,
     serialize_calendar_event,
     serialize_calendar_event_summary,
 )
+from app.schemas.recurrence import OccurrenceScope
 from app.schemas.tenant.ical import (
     ICalImportRequest,
     ICalImportResult,

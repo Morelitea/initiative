@@ -8667,6 +8667,8 @@ export interface TaskRead {
   recurrence_occurrence_count: number;
   recurrence_shift: number;
   recurrence_until: string | null;
+  series_id: number | null;
+  series_size: number;
   comment_count: number;
   blocked_by_open_count: number;
   project: TaskProjectSummary | null;
@@ -8735,6 +8737,14 @@ export const TaskUpdateRecurrenceStrategy = {
   rolling: "rolling",
 } as const;
 
+export type TaskUpdateScope = (typeof TaskUpdateScope)[keyof typeof TaskUpdateScope] | null;
+
+export const TaskUpdateScope = {
+  this: "this",
+  following: "following",
+  all: "all",
+} as const;
+
 export interface TaskUpdate {
   title?: string | null;
   description?: string | null;
@@ -8749,6 +8759,7 @@ export interface TaskUpdate {
   tag_ids?: number[] | null;
   property_values?: PropertyValueInput[] | null;
   checklist?: ChecklistItemInput[] | null;
+  scope?: TaskUpdateScope;
 }
 
 /**
@@ -10240,6 +10251,20 @@ export type ReadTaskApiV1CGuildIdTasksTaskIdGetParams = {
    */
   include_deleted?: boolean;
 };
+
+export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams = {
+  scope?: DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope;
+};
+
+export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope =
+  | (typeof DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope)[keyof typeof DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope]
+  | null;
+
+export const DeleteTaskApiV1CGuildIdTasksTaskIdDeleteScope = {
+  this: "this",
+  following: "following",
+  all: "all",
+} as const;
 
 export type ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams = {
   /**
