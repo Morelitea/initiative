@@ -233,10 +233,13 @@ def last_start(
     counts its successors itself."""
     recurrence = parse(text)
     offset = timedelta(minutes=shift)
+    # An extra start given as a date is at the series' time on that date.
+    at = (start.astimezone(timezone.utc) + offset).time()
     extra = [
         value.astimezone(timezone.utc)
-        for value in recurrence.rdates
         if isinstance(value, datetime)
+        else datetime.combine(value, at, timezone.utc) - offset
+        for value in recurrence.rdates
     ]
     if until := recurrence.rule.get("UNTIL"):
         end = until[0]

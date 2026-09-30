@@ -126,6 +126,10 @@ def test_occurrences_come_from_the_stored_rule():
         datetime(2026, 12, 1, 23, 59, 59, tzinfo=UTC)
     )
     assert recurrence.last_start("RRULE:FREQ=DAILY", start) is None
+    # An extra start after the end, given as a date, is the last one.
+    assert recurrence.last_start(
+        "RRULE:FREQ=DAILY;UNTIL=20261201\nRDATE;VALUE=DATE:20261224", start
+    ) == datetime(2026, 12, 24, 22, 30, tzinfo=UTC)
     assert recurrence.between(
         "RRULE:FREQ=WEEKLY;BYDAY=MO\nEXDATE:20261011T223000Z\nRDATE:20261020T090000Z",
         start,
