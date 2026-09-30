@@ -82,9 +82,8 @@ RUN apt-get update \
 # uv is a build-time tool: it synced the venv in backend-deps and is never
 # invoked again — entrypoint.sh and start.sh run everything out of
 # /app/.venv/bin. Copying only /app keeps both binaries out of the image, and
-# with them a package manager and its own dependencies: the image scan flags
-# GHSA-4w2j-m93h-cj5j in the quinn-proto bundled inside them, which has nothing
-# to do with this application and no reason to ship with it.
+# with them a package manager and its own dependencies, which have no
+# reason to ship with this application.
 #
 # This is the first thing written to /app, so the directory comes from
 # backend-deps with its times too, and an unchanged venv is the same layer
