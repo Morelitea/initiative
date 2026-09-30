@@ -29,6 +29,7 @@ from app.testing import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_resource_grant,
     create_task,
     create_task_status,
     create_user,
@@ -230,6 +231,22 @@ class TestAncestorFreeze:
                 ).bindparams(pid=project.id, uid=user.id, iid=initiative.id)
             )
         assert "frozen_ancestor_insert" in str(excinfo.value)
+
+    async def test_an_archived_project_can_still_be_unshared(
+        self, session, routed, workspace
+    ):
+        """Taking somebody's access away changes who can reach the project,
+        not the project, so the archive does not hold it."""
+        _user, guild, _i, project, _t = workspace
+        other = await create_user(session)
+        await create_guild_membership(session, user=other, guild=guild)
+        grant = await create_resource_grant(session, project, user=other)
+        await _archive(session, project)
+
+        await routed.exec(
+            text("DELETE FROM resource_grants WHERE id = :id").bindparams(id=grant.id)
+        )
+        await routed.commit()
 
     async def test_the_first_grant_on_a_new_resource_is_not_sharing(
         self, routed, workspace

@@ -194,6 +194,13 @@ FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
     }
 )
 
+#: Tables where taking a row away is never a change to what it names. A grant
+#: is somebody's access, and removing it narrows who can reach a resource
+#: without touching the resource, so it may go whatever state the resource is
+#: in — archived content is the content most worth taking somebody off. Giving
+#: or raising access is still a change, and stays refused.
+_REVOCABLE_TABLES: frozenset[str] = frozenset({"resource_grants"})
+
 #: Edge tables, which name two ends and belong to neither. They take the freeze
 #: on INSERT and UPDATE — no new link to or from frozen content, because a link
 #: shows on both ends — but not on DELETE: purging one end drops every edge that
@@ -618,14 +625,18 @@ def frozen_write_triggers(table: str) -> list[str]:
                 f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
             )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
-    if doomed is not None:
-        doomed = on_departure("DELETE", doomed)
-    if doomed is not None:
+    if doomed is None:
+        # A schema provisioned before the table was let go still has one.
         out.append(
-            f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
-            f"BEFORE DELETE ON {table} FOR EACH ROW WHEN ({doomed}) "
-            f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
+            f"DROP TRIGGER IF EXISTS tr_{table}_frozen_ancestor_delete ON {table}"
         )
+        return out
+    out.append(
+        f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
+        f"BEFORE DELETE ON {table} FOR EACH ROW "
+        f"WHEN ({on_departure('DELETE', doomed)}) "
+        f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
+    )
     return out
 
 
@@ -894,7 +905,7 @@ def freeze_leg(
     """
     if table in FREEZE_EXEMPT_TABLES:
         return None
-    if command == "DELETE" and table in _EDGE_TABLES:
+    if command == "DELETE" and table in _EDGE_TABLES | _REVOCABLE_TABLES:
         return None
     if trashed_ok is None:
         trashed_ok = command == "DELETE"

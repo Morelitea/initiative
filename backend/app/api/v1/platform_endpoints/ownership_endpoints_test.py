@@ -18,6 +18,7 @@ from app.services.tenant import archive as archive_service
 from app.services.tenant import ownership as ownership_service
 from app.testing import (
     TOOL_FACTORIES,
+    create_resource_grant,
     route_session_to_guild,
 )
 
@@ -101,7 +102,9 @@ async def test_ownership_moves_on_archived_tools(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Who owns a tool is administration, not an edit, so an archive does not
-    hold it: every tool can be handed on and claimed while it is archived."""
+    hold it: every tool can be handed on and claimed while it is archived —
+    including to somebody it was already shared with, whose own grant gives way
+    to the owner's."""
     owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
     receiver = await acting_user(
         guild_role=GuildRole.admin,
@@ -113,6 +116,8 @@ async def test_ownership_moves_on_archived_tools(
         tool: await TOOL_FACTORIES[tool](session, owner.initiative, owner.user)
         for tool in Tool
     }
+    for row in rows.values():
+        await create_resource_grant(session, row, user=receiver.user)
     await archive_service.archive_entity(session, owner.initiative)
     await session.commit()
 
