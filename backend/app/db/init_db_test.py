@@ -102,13 +102,14 @@ def test_unreadable_chain_is_left_to_alembic(monkeypatch):
     assert init_db._require_image_knows(["20991231_9999"]) is None
 
 
-def test_a_failed_start_reports_where_it_stopped_without_secrets():
+def test_a_failed_start_reports_where_it_stopped_without_secrets(monkeypatch):
+    monkeypatch.setattr(settings, "SMTP_PASSWORD", "p@ss word!")
     revisions, _head = init_db.migration_chain()
     dated = sorted(r for r in revisions if init_db._is_dated_revision(r))
     stamped, stopped = dated[-3], dated[-2]
     error = RuntimeError(
         "could not reach postgresql+asyncpg://owner:pa55word@db/initiative "
-        f"with {settings.SECRET_KEY}\nthe rest of the traceback"
+        f"with {settings.SECRET_KEY} as p%40ss%20word%21\nthe rest of the traceback"
     )
 
     report = init_db._failed_start_report(
@@ -120,6 +121,7 @@ def test_a_failed_start_reports_where_it_stopped_without_secrets():
     assert f"stopped at:  {stopped}" in report
     assert "pa55word" not in report
     assert settings.SECRET_KEY not in report
+    assert "p%40ss%20word%21" not in report
     assert "the rest of the traceback" not in report
 
 
@@ -139,8 +141,23 @@ async def test_a_failed_start_logs_the_report_and_raises(monkeypatch, caplog):
         await init_db.prepare_database()
     assert "Initiative could not start" in caplog.text
 
+    # A report that cannot be made leaves the error it was about in place.
+    def no_report(error, facts):
+        raise ValueError("the report broke")
+
+    monkeypatch.setattr(init_db, "_failed_start_report", no_report)
+    with pytest.raises(RuntimeError, match="a migration failed"):
+        await init_db.prepare_database()
+
     caplog.clear()
     monkeypatch.setattr(init_db, "_prepare_database", refuse)
     with pytest.raises(SystemExit):
         await init_db.prepare_database()
     assert "Initiative could not start" not in caplog.text
+
+
+async def test_the_report_reads_the_database(engine):
+    facts = await init_db._database_facts()
+
+    assert facts["postgres"][:1].isdigit(), facts
+    assert init_db.migration_chain()[1] in facts["stamped"], facts
