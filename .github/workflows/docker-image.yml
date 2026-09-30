@@ -30,6 +30,10 @@ on:
         required: false
         type: string
         default: ""
+    outputs:
+      digest:
+        description: The digest of the multi-arch manifest pushed, to name exactly this build.
+        value: ${{ jobs.merge.outputs.digest }}
     secrets:
       DOCKERHUB_USERNAME:
         required: false
@@ -146,6 +150,8 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      digest: ${{ steps.inspect.outputs.digest }}
     steps:
       - name: Download digests
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -178,8 +184,11 @@ jobs:
             $(printf "$IMAGE_NAME@sha256:%s " *)
 
       - name: Inspect image
+        id: inspect
         if: steps.meta.outputs.version != ''
         env:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           docker buildx imagetools inspect "$IMAGE_NAME:$VERSION"
+          digest=$(docker buildx imagetools inspect "$IMAGE_NAME:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"

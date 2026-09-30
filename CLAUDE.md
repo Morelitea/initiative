@@ -98,7 +98,7 @@ The native (Capacitor) app receives web-bundle updates over the air: each Docker
 - CI (`docker-publish.yml` `decide` job) compares `MIN_NATIVE_VERSION` against the previous tag: if it moved, it builds and attaches a fresh APK; if not, the **Android build is skipped** and the release ships Docker-only — existing installs update over the air.
 - The app refuses a bundle whose `minNativeVersion` exceeds the installed native app version and prompts the user to update from the store/APK instead.
 - **Every update the app installs is signed.** The image build signs a statement of the bundle (version, sha256, `minNativeVersion`) with the ECDSA P-256 key in the `ota-release` environment secret `OTA_SIGNING_KEY` (`frontend/scripts/sign-ota.mjs`, passed as the BuildKit secret `ota_signing_key`), and `/native/bundle/manifest` serves it. The app verifies it against the public keys in `frontend/src/lib/otaTrust.ts` (the release key, then an offline backup) and ignores an unsigned bundle, so local images never update the app.
-  - **The release build fails without the key** (`Require the app update signing key` in `docker-publish.yml`), so an official image never ships unsigned. `ota-release` releases the secret only to `v*` tags and `main`.
+  - **The release build fails without the key** (`Require the app update signing key` in `docker-publish.yml`), so an official image never ships unsigned. `ota-release` releases the secret only to `v*` tags, `main` and `release/v*` branches, where the release candidate is built.
   - **Dev images are signed with a separate dev key** (`OTA_SIGNING_KEY` in the `ota-dev` environment, `dev` branch only; public half in `.github/ota-dev-key.pub`, baked in as `VITE_OTA_DEV_KEY`). Only the dev app trusts it: `dev-app.yml` builds it as `com.morelitea.initiative.dev` ("Initiative Dev"), signed with the dev keystore in the same environment. See CONTRIBUTING.md.
   - **The backup key is held offline by the owners.** To retire the release key: set `OTA_SIGNING_KEY` to the backup private key (every installed app already trusts it), then ship an app update whose `otaTrust.ts` replaces the retired public key with a new backup. No APK is needed, and servers do nothing.
   - **This key is the project's, not an operator's.** Unlike `SECRET_KEY`, which each deployment owns because it protects that deployment's own data, the update key vouches for code the project publishes to one app that talks to every server; a key held by each server would only prove what the server already sent.
@@ -135,7 +135,7 @@ Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `
 ./scripts/promote.sh --dry-run
 ```
 
-After the release PR merges to `main`, `tag-release.yml` auto-creates the version tag, which triggers the Docker build and GitHub Release.
+The release branch's image is built once: `release-candidate.yml` builds and signs it on every push to `release/vX.Y.Z`, walks it from every release in both setups (`upgrade.yml`), and tags it `candidate-<tree>` when that passes. After the release PR merges to `main`, `tag-release.yml` auto-creates the version tag, and `docker-publish.yml` retags the candidate whose tree the tag holds as the release (no rebuild). Without one, it builds the image and walks it the same way before tagging it, so no release image is published unwalked. Then it makes the GitHub Release.
 
 ### Semantic Versioning Guidelines
 
@@ -744,8 +744,9 @@ The typical deployment process:
 
 # 2. Merge the release PR on GitHub
 
+#    (release-candidate.yml builds, signs and walks the image on the release branch)
 # 3. tag-release.yml auto-creates the version tag
-#    docker-publish.yml builds, publishes, and notifies
+#    docker-publish.yml publishes that image under the version tags, and notifies
 
 # 4. Verify on Docker Hub
 # Check: https://hub.docker.com/r/USERNAME/initiative/tags

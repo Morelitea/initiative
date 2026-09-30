@@ -1,0 +1,210 @@
+name: Upgrade From Release
+
+# Upgrades a database each release wrote to an image, in both documented
+# setups, and checks the result (backend/scripts/upgrade_from_release.py).
+# Called by CI, with this tree built here, and by Release Candidate, with the
+# candidate it published.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: hop (from the newest release) or walk (every release since WALK_FROM); walk also runs arm64.
+        required: true
+        type: string
+      image:
+        description: An image to pull and check. Empty builds this tree.
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    name: Upgrade From Release (${{ matrix.arch }})
+    # Every boot is of an image built for the runner's architecture. arm64
+    # upgrades from the newest release in one setup, on the runs that walk.
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ${{ fromJSON(inputs.mode == 'walk' && '["amd64", "arm64"]' || '["amd64"]') }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    timeout-minutes: 45
+    # Two servers per setup, because roles are cluster-wide: the release's
+    # database and a fresh install of this tree, compared once both are built.
+    # The explicit-logins run uses 5432/5433, the one-URL run 5434/5435.
+    services:
+      upgraded:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      fresh:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      upgraded-one-url:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      fresh-one-url:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
+      SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every release tag, which the check checks out and boots.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-backend
+
+      - name: Set up Docker Buildx
+        if: inputs.image == ''
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Read the version, and name today for the package refresh
+        if: inputs.image == ''
+        id: build
+        run: |
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+          echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Build this tree's image
+        if: inputs.image == ''
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          # Read only, like the image scan: the published builds write this
+          # architecture's cache, and a scope of its own would hold a second
+          # copy of every layer.
+          build-args: |
+            VERSION=${{ steps.build.outputs.version }}
+            APT_REFRESH=${{ steps.build.outputs.day }}
+          cache-from: type=gha,scope=docker-build-linux-${{ matrix.arch }}
+          load: true
+          tags: initiative:ci
+
+      - name: Pull the image to check
+        if: inputs.image != ''
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          docker pull "$IMAGE"
+          docker tag "$IMAGE" initiative:ci
+
+      - name: Deny the image the network outside the runner
+        # An air-gapped install has none. The image runs as this account
+        # (upgrade_from_release.py IMAGE_UID), told of no marketplace registry
+        # it can reach (OFFLINE_REGISTRY); what it sends past the loopback is
+        # logged and refused, and the last step fails on it.
+        run: |
+          sudo iptables -N image-egress
+          sudo iptables -A image-egress -j LOG --log-prefix "image-egress: "
+          sudo iptables -A image-egress -j REJECT
+          sudo iptables -I OUTPUT -m owner --uid-owner 1999 ! -o lo -j image-egress
+
+      - name: Upgrade a release's database to this tree (explicit logins)
+        # As a larger deployment runs: this tree's image pooled through
+        # PgBouncer with communities in cohorts and a query URL, uploads in
+        # Garage, and served over HTTPS by Caddy on initiative.test
+        # (upgrade_from_release.py, _explicit_logins).
+        id: explicit
+        if: matrix.arch == 'amd64'
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          echo "127.0.0.1 initiative.test" | sudo tee -a /etc/hosts
+          cd backend
+          uv run python scripts/upgrade_from_release.py --image initiative:ci \
+            $([[ "$MODE" == "walk" ]] && echo --walk) \
+            --server postgresql://initiative:initiative@localhost:5432 \
+            --fresh-server postgresql://initiative:initiative@localhost:5433
+
+      - name: Upgrade a release's database to this tree (one DATABASE_URL)
+        # How docker-compose.example.yml runs it: the app derives its logins
+        # from one owner URL. Its fresh install must be the same database as the
+        # explicit run's, roles and privileges included, so a fix reaches both
+        # setups alike. Runs even when the explicit run failed, so each setup
+        # reports on its own, and compares with it only when it passed.
+        if: ${{ !cancelled() }}
+        env:
+          MODE: ${{ matrix.arch == 'amd64' && inputs.mode || 'hop' }}
+          EXPLICIT: ${{ steps.explicit.outcome }}
+        run: |
+          cd backend
+          uv run python scripts/upgrade_from_release.py --image initiative:ci --one-url \
+            $([[ "$MODE" == "walk" ]] && echo --walk) \
+            $([[ "$EXPLICIT" == "success" ]] && echo --same-as postgresql://initiative:initiative@localhost:5433) \
+            --server postgresql://initiative:initiative@localhost:5434 \
+            --fresh-server postgresql://initiative:initiative@localhost:5435
+
+      - name: The dev seed fills a fresh install
+        # The fresh install the explicit run built, given a first owner for the
+        # seed to sign its data with by the image's own init_db.
+        if: matrix.arch == 'amd64'
+        env:
+          DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5433/initiative
+          DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5433/initiative
+          DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5433/initiative
+          DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5433/initiative
+          FIRST_OWNER_EMAIL: admin@example.com
+          FIRST_OWNER_PASSWORD: changeme
+        run: |
+          # As the account the network is denied to (upgrade_from_release.py
+          # IMAGE_UID).
+          docker run --rm --network host -e SECRET_KEY -e PUID=1999 -e PGID=1999 \
+            -e DATABASE_URL -e DATABASE_URL_APP -e DATABASE_URL_ADMIN -e DATABASE_URL_BOOTSTRAP \
+            -e FIRST_OWNER_EMAIL -e FIRST_OWNER_PASSWORD \
+            initiative:ci python -m app.db.init_db
+          cd backend
+          uv run python ../scripts/seed_dev_data.py
+
+      - name: The image reached nothing outside the runner
+        if: ${{ !cancelled() }}
+        run: |
+          refused=$(sudo iptables -L image-egress -v -x -n | awk '$3 == "REJECT" {print $1}')
+          if [[ "$refused" != 0 ]]; then
+            echo "::error::The image sent $refused packets past the runner, which an air-gapped install cannot."
+            sudo dmesg | grep "image-egress: " | tail -20
+            exit 1
+          fi
+          echo "The image reached nothing outside the runner."

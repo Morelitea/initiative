@@ -35,8 +35,15 @@ def _diff_step() -> str:
     raise AssertionError("ci.yml's changes job has no step with id 'diff'")
 
 
-def detect(changed: list[str], event: str = "pull_request") -> dict[str, str]:
-    """Commit ``changed`` on top of origin/dev and return the step's outputs."""
+def detect(
+    changed: list[str],
+    event: str = "pull_request",
+    base_ref: str = "dev",
+    head_ref: str = "feature",
+    same_repo: bool = True,
+) -> dict[str, str]:
+    """Commit ``changed`` on top of ``origin/<base_ref>`` and return the
+    step's outputs."""
     with tempfile.TemporaryDirectory() as tmp:
         repo = pathlib.Path(tmp)
 
@@ -57,7 +64,7 @@ def detect(changed: list[str], event: str = "pull_request") -> dict[str, str]:
         git("add", ".")
         git("commit", "-qm", "base")
         base = git("rev-parse", "HEAD")
-        git("update-ref", "refs/remotes/origin/dev", base)
+        git("update-ref", f"refs/remotes/origin/{base_ref}", base)
         for path in changed:
             (repo / path).parent.mkdir(parents=True, exist_ok=True)
             (repo / path).write_text("changed\n")
@@ -82,7 +89,9 @@ def detect(changed: list[str], event: str = "pull_request") -> dict[str, str]:
                 env={
                     **GIT_ENV,
                     "EVENT": event,
-                    "BASE_REF": "dev",
+                    "BASE_REF": base_ref,
+                    "HEAD_REF": head_ref,
+                    "SAME_REPO": str(same_repo).lower(),
                     "BEFORE": base,
                     "GITHUB_OUTPUT": str(output),
                     "GITHUB_STEP_SUMMARY": str(summary),
@@ -157,6 +166,20 @@ class UpgradeTest(unittest.TestCase):
 
     def test_an_integration_push_walks_every_release(self) -> None:
         self.assertEqual(detect(["README.md"], event="push").get("upgrade"), "walk")
+
+    def test_a_release_is_walked_by_its_candidate(self) -> None:
+        outputs = detect(["VERSION"], base_ref="main", head_ref="release/v1.2.3")
+        self.assertEqual(outputs.get("upgrade"), "false")
+
+    def test_a_release_branch_from_a_fork_walks(self) -> None:
+        outputs = detect(
+            ["VERSION"], base_ref="main", head_ref="release/v1.2.3", same_repo=False
+        )
+        self.assertEqual(outputs.get("upgrade"), "walk")
+
+    def test_another_pull_request_into_main_walks(self) -> None:
+        outputs = detect(["VERSION"], base_ref="main", head_ref="hotfix/login")
+        self.assertEqual(outputs.get("upgrade"), "walk")
 
 
 if __name__ == "__main__":
