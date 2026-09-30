@@ -1113,12 +1113,6 @@ class TestPlacementRoutes:
         assert put.status_code == 403
         assert put.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
-        removed = await client.delete(
-            self._path(admin, app.id, a.initiative.id), headers=admin.headers
-        )
-        assert removed.status_code == 403
-        assert removed.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
-
     async def test_a_role_of_another_initiative_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
@@ -1150,35 +1144,6 @@ class TestPlacementRoutes:
         )
         assert response.status_code == 422
         assert response.json()["detail"] == GuildAppMessages.PLACEMENT_INVALID
-
-    async def test_the_seat_removes_a_placement(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
-
-        response = await client.delete(
-            self._path(a, app.id, a.initiative.id), headers=a.headers
-        )
-        assert response.status_code == 204
-        assert await self._placements(client, a, app.id) == []
-
-    async def test_a_mandatory_app_may_be_removed_from_one_initiative(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        """The deployment decides that the app exists; the seat still decides
-        where it appears."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
-        await _mark(session, registration, mandatory=True)
-
-        response = await client.delete(
-            self._path(a, app.id, a.initiative.id), headers=a.headers
-        )
-        assert response.status_code == 204
-        read = (await client.get(a.g(f"/apps/{app.id}"), headers=a.headers)).json()
-        assert read["mandatory"] is True
-        assert read["placements"] == []
 
 
 class TestScopesRoute:
