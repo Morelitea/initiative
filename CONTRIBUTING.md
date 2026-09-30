@@ -189,7 +189,7 @@ Contributors open PRs to `dev`. Maintainers promote `dev` to `main` when ready t
 
 ### Using `promote.sh`
 
-The `scripts/promote.sh` script handles the full release lifecycle. It validates that the caller is a code owner before proceeding.
+The `scripts/promote.sh` script handles the full release lifecycle. It validates that the caller is a code owner before proceeding. Maintainers can also run it from **Actions → Release → Run workflow**, which asks a code owner to approve each run.
 
 ```bash
 # Preview what would be promoted (safe, no side effects)
