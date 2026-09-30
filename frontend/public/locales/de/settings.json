@@ -1682,6 +1682,7 @@
     "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
+    "passwordsOffDescription": "Die Anmeldung per Passwort ist auf diesem Server ausgeschaltet, daher kannst du hier kein Passwort festlegen oder ändern.",
     "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
     "setPasswordTitle": "Passwort festlegen",
     "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",

@@ -25,10 +25,14 @@ const state = vi.hoisted(() => ({
   search: undefined as string | null | undefined,
   clearSecondFactor: vi.fn(),
   authenticatorAskedAtSignIn: true,
+  passwordLoginEnabled: true,
 }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
-  useAppConfig: () => ({ authenticatorAskedAtSignIn: state.authenticatorAskedAtSignIn }),
+  useAppConfig: () => ({
+    authenticatorAskedAtSignIn: state.authenticatorAskedAtSignIn,
+    passwordLoginEnabled: state.passwordLoginEnabled,
+  }),
 }));
 
 vi.mock("@/hooks/useOperatorUsers", () => ({
@@ -82,6 +86,7 @@ describe("SettingsPlatformUsersPage", () => {
   beforeEach(() => {
     state.roster = [];
     state.clearSecondFactor.mockClear();
+    state.passwordLoginEnabled = true;
   });
 
   it("identifies an account by its handle, and shows no address or name", async () => {
@@ -156,6 +161,19 @@ describe("SettingsPlatformUsersPage", () => {
     // Suspending is a setting the sheet holds, not a one-shot menu item.
     expect(menu).not.toHaveTextContent("Suspend");
   });
+
+  it.each([true, false])(
+    "offers a password reset only where passwords sign in (%s)",
+    async (passwords) => {
+      state.passwordLoginEnabled = passwords;
+      renderRoster(masked(), buildUser({ role: "moderator" }));
+
+      const triggers = await screen.findAllByRole("button", { name: /actions for/i });
+      await userEvent.click(triggers[1]);
+      const item = within(await screen.findByRole("menu")).queryByText("Reset password");
+      expect(Boolean(item)).toBe(passwords);
+    }
+  );
 
   it.each<[string, UserRole, boolean, boolean, boolean]>([
     ["offers to clear an authenticator to a moderator", "moderator", true, true, true],

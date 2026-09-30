@@ -1682,6 +1682,7 @@
     "identityDescription": "Your name, your address, your handle, and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
+    "passwordsOffDescription": "Password sign-in is turned off on this server, so there is no password to set or change here.",
     "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle.",
     "setPasswordTitle": "Set a password",
     "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",

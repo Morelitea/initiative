@@ -250,7 +250,7 @@ async def set_login_methods(
 
     At least one, which the column's own constraint also holds.
 
-    Three refusals, all 409. Permitting the emailed code asks that the
+    Four refusals, all 409. Permitting the emailed code asks that the
     deployment can send mail, since that is how the code reaches anybody.
     Withdrawing single sign-on while a guild requires
     one names the guilds instead: a requirement is enforced from its policy row
@@ -259,9 +259,10 @@ async def set_login_methods(
     the count — unless the caller acknowledges exactly that number, which is how
     an SSO-only deployment is reachable at all: some account almost always still
     holds a password, and a permanent refusal would make the posture unbuildable
-    rather than safe. The figure is taken over the whole write rather than one
-    method at a time, so an account holding two of the credentials being
-    withdrawn is counted. The acknowledged number must match what the server
+    rather than safe. The account making the change is the exception: it is
+    refused outright, and adds another way in first. The figure is taken over
+    the whole write rather than one method at a time, so an account holding two
+    of the credentials being withdrawn is counted. The acknowledged number must match what the server
     computes now, so it cannot be sent blind or sent again once it has moved.
 
     Withdrawing a method signs nobody out. Sessions already open live to their
@@ -339,6 +340,17 @@ async def set_login_methods(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=SettingsMessages.LOGIN_METHODS_FACTOR_REQUIRED,
             )
+
+    # The one stranding no count can acknowledge: the account making the
+    # change. It is the one that could put a method back, so it adds another
+    # way in first.
+    if actor_user_id is not None and await identity_service.stranded_between(
+        session, current=current, requested=requested, user_id=actor_user_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=SettingsMessages.LOGIN_METHODS_WOULD_STRAND_SELF,
+        )
 
     total_stranded = await stranded_between(
         session, current=current, requested=requested

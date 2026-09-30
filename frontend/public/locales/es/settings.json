@@ -1682,6 +1682,7 @@
     "identityDescription": "Tu nombre, tu dirección, tu identificador y el reloj con el que vas.",
     "passwordTitle": "Contraseña",
     "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo.",
+    "passwordsOffDescription": "El inicio de sesión con contraseña está desactivado en este servidor, así que aquí no hay contraseña que establecer ni cambiar.",
     "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador.",
     "setPasswordTitle": "Establecer una contraseña",
     "setPasswordDescription": "Tu cuenta inicia sesión sin contraseña. Establece una aquí para tener otra forma de entrar.",
