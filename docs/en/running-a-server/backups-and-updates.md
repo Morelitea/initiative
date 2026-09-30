@@ -55,6 +55,7 @@ Back up first anyway. It's the cheapest insurance available to you and it takes 
 ### Choosing a version
 
 - **`latest`** tracks the newest release.
+- **`stable`** tracks a release we have promoted after it spent a few days out in the world without a reported regression. See [Docker images](installation.md#docker-images).
 - **Pin one** (`morelitea/initiative:0.65`) if you'd rather update deliberately and read the changelog first.
 
 Initiative follows semantic versioning, and the changelog lists what changed in each release. Worth a skim before a jump, especially across minor versions.
@@ -62,6 +63,18 @@ Initiative follows semantic versioning, and the changelog lists what changed in 
 ### Knowing what's running
 
 The running version is at `<your-server>/api/v1/version`, and in the app's sidebar footer. The web app also notices when the server's been updated and prompts people to refresh.
+
+### If it won't start
+
+Rare, and recoverable. The end of the log holds a block framed in `=` signs that opens with **Initiative could not start**:
+
+```bash
+docker compose logs initiative | tail -n 40
+```
+
+It lists the version, how the database is set up, where the migrations stopped, and the error, with every password and key already taken out. Paste the whole block into [an issue](https://github.com/Morelitea/initiative/issues).
+
+The fix is almost always a newer release, which picks up from exactly where this one stopped. Going back to the older version means restoring the backup you took before updating. You took one. It was one command.
 
 ### The mobile app
 

@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import asyncio
 import logging
+import re
 
 import asyncpg
 from sqlalchemy import delete as sql_delete
@@ -233,12 +234,128 @@ async def migrate_database() -> None:
         await run_migrations()
 
 
+#: Where to report a start that failed.
+ISSUES_URL = "https://github.com/Morelitea/initiative/issues"
+
+_URL_CREDENTIALS = re.compile(r"(://)[^/@\s]+@")
+
+
+def _secret_values() -> set[str]:
+    """Every configured value a report must not repeat: the database
+    passwords, and each setting named as a secret, key, token or password."""
+    values = set()
+    for name, value in settings.model_dump().items():
+        if not isinstance(value, str) or len(value) < 6:
+            continue
+        if name.startswith("DATABASE_URL"):
+            password = make_url(value).password
+            if password and len(password) >= 6:
+                values.add(password)
+        elif re.search(r"SECRET|PASSWORD|TOKEN|KEY", name):
+            values.add(value)
+    return values
+
+
+def _scrubbed(text: str) -> str:
+    text = _URL_CREDENTIALS.sub(r"\1***@", text)
+    for value in _secret_values():
+        text = text.replace(value, "***")
+    return text
+
+
+async def _database_facts() -> dict[str, str]:
+    """The server's version and the revisions the database is stamped at,
+    each reported as unknown when it cannot be read."""
+    url = make_url(settings.DATABASE_URL)
+    try:
+        conn = await asyncpg.connect(
+            user=url.username,
+            password=url.password,
+            database=url.database,
+            host=url.host,
+            port=url.port or 5432,
+            timeout=5,
+        )
+    except Exception as error:
+        reason = f"unknown (could not connect: {type(error).__name__})"
+        return {"postgres": reason, "stamped": reason}
+    facts = {}
+    try:
+        try:
+            facts["postgres"] = str(await conn.fetchval("SHOW server_version"))
+        except Exception as error:
+            facts["postgres"] = f"unknown ({type(error).__name__})"
+        try:
+            rows = await conn.fetch("SELECT version_num FROM alembic_version")
+            facts["stamped"] = ", ".join(sorted(r[0] for r in rows)) or "none"
+        except asyncpg.UndefinedTableError:
+            facts["stamped"] = "none"
+        except Exception as error:
+            facts["stamped"] = f"unknown ({type(error).__name__})"
+    finally:
+        await conn.close()
+    return facts
+
+
+def _failed_start_report(error: BaseException, facts: dict[str, str]) -> str:
+    """What a start that failed prints, for its operator to paste into an
+    issue: the version, how the database is given, the server's version,
+    where the migrations stand, and the error's first line, with every
+    password and key taken out."""
+    revisions, head = migration_chain()
+    stamped = facts.get("stamped", "unknown")
+    lines = [
+        ("version", get_version()),
+        (
+            "database",
+            "one DATABASE_URL"
+            if settings.database_logins_derived
+            else "separate logins",
+        ),
+        ("postgres", facts.get("postgres", "unknown")),
+        ("migrations", f"database at {stamped}, this version at {head or 'unknown'}"),
+    ]
+    # Revisions are dated, so the one after the stamp is the one a failed
+    # upgrade stopped at.
+    if _is_dated_revision(stamped) and head and stamped < head:
+        after = sorted(r for r in revisions if _is_dated_revision(r) and r > stamped)
+        if after:
+            lines.append(("stopped at", after[0]))
+    message = str(error).strip().splitlines()
+    lines.append(
+        ("error", f"{type(error).__name__}: {message[0] if message else ''}"[:300])
+    )
+    body = "\n".join(
+        f"  {label + ':':<12} {_scrubbed(value)}" for label, value in lines
+    )
+    return (
+        f"\n{'=' * 70}\n"
+        f"Initiative could not start.\n\n"
+        f"To report it, open an issue at\n"
+        f"  {ISSUES_URL}\n"
+        f"and paste this block. It holds no passwords or keys.\n\n"
+        f"{body}\n"
+        f"{'=' * 70}"
+    )
+
+
 async def prepare_database() -> None:
     """Bring the database to what this release serves, and seed it.
 
     Every step is idempotent. The server's startup runs this before it serves
-    anything, and ``python -m app.db.init_db`` runs it on its own.
+    anything, and ``python -m app.db.init_db`` runs it on its own. A failure
+    is logged with a short report to paste into an issue, then raised as it
+    was; the refusals that already say what to do (``SystemExit``) pass
+    through untouched.
     """
+    try:
+        await _prepare_database()
+    except Exception as error:
+        logger.error(_failed_start_report(error, await _database_facts()))
+        raise
+
+
+async def _prepare_database() -> None:
     # The prerequisites the app's own logins cannot create for themselves: the
     # logins, and the guild-search match operator. Applied from
     # DATABASE_URL_BOOTSTRAP when set, verified otherwise, before anything
