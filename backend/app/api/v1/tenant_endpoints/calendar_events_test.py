@@ -267,6 +267,31 @@ async def test_create_event_stores_its_repeat_in_utc_terms(
         2026, 10, 18, 22, 30, tzinfo=timezone.utc
     )
 
+    # Moved to noon, the repeat moves with its start: still Mondays in Berlin,
+    # now Mondays in UTC too.
+    moved = await client.patch(
+        organizer.g(f"/calendar-events/{created['Standup']['id']}"),
+        headers=organizer.headers,
+        json={
+            "start_at": "2026-10-05T10:00:00Z",
+            "end_at": "2026-10-05T11:00:00Z",
+            "tz": "Europe/Berlin",
+        },
+    )
+    assert moved.json()["recurrence"] == "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO"
+
+    # Los Angeles asks for Monday from its own midnight, which is after the
+    # all-day event's UTC midnight; the event is still Monday's.
+    listing = await client.get(
+        organizer.g("/calendar-events/"),
+        headers=organizer.headers,
+        params={
+            "start_after": "2026-10-05T07:00:00Z",
+            "start_before": "2026-10-06T06:59:59Z",
+        },
+    )
+    assert "Market day" in {event["title"] for event in listing.json()["items"]}
+
 
 async def test_create_event_rejects_end_before_start(
     client: AsyncClient, session: AsyncSession, acting_user

@@ -185,7 +185,9 @@ def _write_recurrence_until(_mapper, _connection, task: Task) -> None:
     # A task series starts at its due date, or its start date without one.
     start = task.due_date or task.start_date
     task.recurrence_until = (
-        recurrence.last_start(task.recurrence, start)
+        recurrence.last_start(
+            task.recurrence, start, done=task.recurrence_occurrence_count
+        )
         if task.recurrence and start
         else None
     )

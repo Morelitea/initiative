@@ -473,6 +473,7 @@ async def update_task(
     property_values = update_data.pop("property_values", None)
     checklist_sent = update_data.pop("checklist", None) is not None
     picked_in = update_data.pop("tz", None)
+    previous_start = task.due_date or task.start_date
     previous_description = task.description
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
@@ -501,11 +502,19 @@ async def update_task(
         if field == "recurrence_strategy" and value is None:
             continue
         setattr(task, field, value)
+    start = task.due_date or task.start_date
     if update_data.get("recurrence"):
         task.recurrence = recurrence.stored(
-            update_data["recurrence"],
-            task.due_date or task.start_date,
-            picked_in,
+            update_data["recurrence"], start, picked_in, kind="task"
+        )
+    elif task.recurrence and previous_start and start and start != previous_start:
+        # The repeat moves with its start, its days kept as they were picked.
+        task.recurrence = recurrence.carried(
+            task.recurrence,
+            previous_start,
+            start,
+            old_tz=picked_in,
+            new_tz=picked_in,
             kind="task",
         )
     if checklist_sent:

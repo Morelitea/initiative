@@ -183,15 +183,22 @@ def _instant(value: date | datetime, at: time) -> datetime:
     return datetime.combine(value, at.replace(tzinfo=None), timezone.utc)
 
 
-def last_start(text: str, start: datetime) -> datetime | None:
+def last_start(text: str, start: datetime, *, done: int = 0) -> datetime | None:
     """No occurrence of the series starts after this, or None when it never
-    ends. For an UNTIL rule it is UNTIL itself (or a later extra date)."""
+    ends. For an UNTIL rule it is UNTIL itself (or a later extra date). ``done``
+    is how many of a COUNT series came before ``start``: a task series counts
+    its successors itself."""
     recurrence = parse(text)
     extra = [_instant(value, start.timetz()) for value in recurrence.rdates]
     if until := recurrence.rule.get("UNTIL"):
         return max([_instant(until[0], _END_OF_DAY), *extra])
-    if "COUNT" in recurrence.rule:
-        return max(ruleset(recurrence, start), default=start.astimezone(timezone.utc))
+    if count := recurrence.rule.get("COUNT"):
+        left = Recurrence(
+            {**recurrence.rule, "COUNT": [max(count[0] - done, 1)]},
+            recurrence.exdates,
+            recurrence.rdates,
+        )
+        return max(ruleset(left, start), default=start.astimezone(timezone.utc))
     return None
 
 
@@ -210,6 +217,22 @@ def stored(
     if not tz or start is None:
         return text
     return normalize(to_utc_terms(text, start, resolve_zone(tz)), kind=kind)
+
+
+def carried(
+    text: str,
+    old_start: datetime,
+    new_start: datetime,
+    *,
+    old_tz: str | None,
+    new_tz: str | None,
+    kind: RecurrenceKind,
+) -> str:
+    """The stored rule for a series whose start moved: read in ``old_tz`` from
+    the old start, its days as they were picked, and stored again from the new
+    start in ``new_tz``. An all-day series' zone is UTC on either side."""
+    picked = to_local_terms(text, old_start, resolve_zone(old_tz))
+    return normalize(to_utc_terms(picked, new_start, resolve_zone(new_tz)), kind=kind)
 
 
 def moved(text: str, delta: timedelta) -> str:
@@ -529,13 +552,21 @@ def from_legacy(data: dict, *, all_day: bool = False) -> str | None:
 
 
 def imported(
-    value: str | dict | None, *, kind: RecurrenceKind, all_day: bool = False
+    value: str | dict | None,
+    *,
+    kind: RecurrenceKind,
+    start: datetime | None,
+    tz: str | None,
+    all_day: bool = False,
 ) -> str | None:
     """A repeat read from an import: a rule string, or the JSON shape exports
-    carried before RRULE. A repeat that doesn't hold up imports as none."""
+    carried before RRULE, whose days were picked in a zone the export doesn't
+    name; ``tz`` stands in for it (the importer's). A repeat that doesn't hold
+    up imports as none."""
     try:
         if isinstance(value, dict):
-            value = from_legacy(value, all_day=all_day)
+            legacy = from_legacy(value, all_day=all_day)
+            return legacy and stored(legacy, start, "UTC" if all_day else tz, kind=kind)
         return normalize(value, kind=kind) if value else None
     except (ValueError, TypeError):
         return None

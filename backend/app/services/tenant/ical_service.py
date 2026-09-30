@@ -141,10 +141,19 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
         if event.get("recurrence"):
             repeat = recurrence.parse(event["recurrence"])
             vevent.add("rrule", repeat.rule)
+
+            # A skipped or extra start takes the start's own type.
+            def typed(value: date | datetime) -> date | datetime:
+                if event.get("all_day"):
+                    return value.date() if isinstance(value, datetime) else value
+                if isinstance(value, datetime):
+                    return value
+                return datetime.combine(value, start_at.timetz())
+
             for value in repeat.exdates:
-                vevent.add("exdate", value)
+                vevent.add("exdate", typed(value))
             for value in repeat.rdates:
-                vevent.add("rdate", value)
+                vevent.add("rdate", typed(value))
 
         for attendee in event.get("attendees") or []:
             email = attendee.get("email")
@@ -209,7 +218,7 @@ def _repeat(component, start: datetime, zone: tzinfo) -> Optional[str]:
     def utc(value: date | datetime) -> date | datetime:
         if not isinstance(value, datetime):
             return value
-        aware = value if value.tzinfo else value.replace(tzinfo=zone)
+        aware = value if value.tzinfo else value.replace(tzinfo=start.tzinfo or zone)
         return aware.astimezone(timezone.utc)
 
     parts = {key.upper(): list(values) for key, values in rule.items()}

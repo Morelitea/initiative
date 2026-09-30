@@ -8,11 +8,11 @@ calendar (``PUT /calendars/{id}/grants``), never per event.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Annotated, Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import ColumnElement, and_, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,6 +138,45 @@ CalendarWindowDep = Annotated[CalendarWindow, Depends(calendar_window)]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def starts_in_window(
+    start_after: Optional[datetime], start_before: Optional[datetime]
+) -> list[ColumnElement[bool]]:
+    """An event starts in the window: a timed one by its instant, an all-day
+    one by its date, a UTC date the same for every viewer.
+
+    A calendar asks from its first day's local midnight to its last day's
+    23:59:59. Those days are the UTC dates of the bounds moved twelve hours
+    inward, for any zone within twelve hours of UTC."""
+    conditions: list[ColumnElement[bool]] = []
+    if start_after is not None:
+        first = datetime.combine(
+            (start_after + timedelta(hours=12)).date(), time(), timezone.utc
+        )
+        conditions.append(
+            or_(
+                and_(
+                    CalendarEvent.all_day.is_(False),
+                    CalendarEvent.start_at >= start_after,
+                ),
+                and_(CalendarEvent.all_day.is_(True), CalendarEvent.start_at >= first),
+            )
+        )
+    if start_before is not None:
+        last = datetime.combine(
+            (start_before - timedelta(hours=12)).date(), time(), timezone.utc
+        )
+        conditions.append(
+            or_(
+                and_(
+                    CalendarEvent.all_day.is_(False),
+                    CalendarEvent.start_at <= start_before,
+                ),
+                and_(CalendarEvent.all_day.is_(True), CalendarEvent.start_at <= last),
+            )
+        )
+    return conditions
 
 
 async def _get_event_or_404(
@@ -311,10 +350,7 @@ async def query_my_calendar_events(
         # Guild calendars included: this is the user's own calendar view, one of
         # the two places their events show (the app's page is the other).
         conditions = [calendars_service.tool_enabled_clause()]
-        if start_after is not None:
-            conditions.append(CalendarEvent.start_at >= start_after)
-        if start_before is not None:
-            conditions.append(CalendarEvent.start_at <= start_before)
+        conditions += starts_in_window(start_after, start_before)
         conditions.append(_cross_guild_event_dac_clause(context, current_user.id))
         stmt = (
             select(CalendarEvent)
@@ -539,10 +575,7 @@ async def query_guild_calendar_events(
             CalendarEvent.calendar_id.not_in(tuple(set(exclude_calendar_ids)))
         )
 
-    if start_after is not None:
-        conditions.append(CalendarEvent.start_at >= start_after)
-    if start_before is not None:
-        conditions.append(CalendarEvent.start_at <= start_before)
+    conditions += starts_in_window(start_after, start_before)
 
     # Property filters: parse, resolve definitions, compile to subquery
     # clauses shared with documents/tasks so event filtering picks up the
@@ -813,6 +846,7 @@ async def update_calendar_event(
         )
         updated = True
 
+    previous_start, previous_all_day = event.start_at, event.all_day
     for field in (
         "title",
         "description",
@@ -836,6 +870,18 @@ async def update_calendar_event(
             kind="event",
         )
         updated = True
+    elif event.recurrence and (
+        event.start_at != previous_start or event.all_day != previous_all_day
+    ):
+        # The repeat moves with its start, its days kept as they were picked.
+        event.recurrence = recurrence.carried(
+            event.recurrence,
+            previous_start,
+            event.start_at,
+            old_tz="UTC" if previous_all_day else event_in.tz,
+            new_tz="UTC" if event.all_day else event_in.tz,
+            kind="event",
+        )
 
     # Validate dates after applying partial updates
     if updated:

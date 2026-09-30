@@ -124,6 +124,10 @@ def test_occurrences_come_from_the_stored_rule():
     assert recurrence.last_start("RRULE:FREQ=WEEKLY;COUNT=3", start) == datetime(
         2026, 10, 18, 22, 30, tzinfo=UTC
     )
+    # A task series' successor counts down what its predecessors used.
+    assert recurrence.last_start(
+        "RRULE:FREQ=WEEKLY;COUNT=3", start, done=1
+    ) == datetime(2026, 10, 11, 22, 30, tzinfo=UTC)
     assert recurrence.last_start("RRULE:FREQ=DAILY;UNTIL=20261201", start) == (
         datetime(2026, 12, 1, 23, 59, 59, tzinfo=UTC)
     )
@@ -138,3 +142,41 @@ def test_occurrences_come_from_the_stored_rule():
         datetime(2026, 10, 18, 22, 30, tzinfo=UTC),
         datetime(2026, 10, 20, 9, 0, tzinfo=UTC),
     ]
+
+
+def test_a_repeat_moves_with_its_start():
+    """Mondays at 00:30 in Berlin are Sundays in UTC; moved to noon they are
+    Mondays in UTC too. Made all-day, the days are UTC dates."""
+    stored = "RRULE:FREQ=WEEKLY;BYDAY=SU"
+    noon = datetime(2026, 10, 5, 10, 0, tzinfo=UTC)
+    moved = recurrence.carried(
+        stored, EAST, noon, old_tz="Europe/Berlin", new_tz="Europe/Berlin", kind="event"
+    )
+    assert moved == "RRULE:FREQ=WEEKLY;BYDAY=MO"
+    all_day = datetime(2026, 10, 5, tzinfo=UTC)
+    assert (
+        recurrence.carried(
+            stored, EAST, all_day, old_tz="Europe/Berlin", new_tz="UTC", kind="event"
+        )
+        == "RRULE:FREQ=WEEKLY;BYDAY=MO"
+    )
+
+
+def test_imports_read_either_shape():
+    """A rule string is stored as it is; the JSON shape older exports carried
+    was picked in a zone, which the importer's stands in for."""
+    assert (
+        recurrence.imported(
+            "FREQ=WEEKLY;BYDAY=SU", kind="task", start=EAST, tz="Europe/Berlin"
+        )
+        == "RRULE:FREQ=WEEKLY;BYDAY=SU"
+    )
+    legacy = {"frequency": "weekly", "weekdays": ["monday"], "ends": "never"}
+    assert (
+        recurrence.imported(legacy, kind="task", start=EAST, tz="Europe/Berlin")
+        == "RRULE:FREQ=WEEKLY;BYDAY=SU"
+    )
+    assert (
+        recurrence.imported({"frequency": "hourly"}, kind="event", start=EAST, tz=None)
+        is None
+    )
