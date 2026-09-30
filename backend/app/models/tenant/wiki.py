@@ -256,7 +256,7 @@ class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
     __table_args__ = (
         # One page of a wiki per address, always — a page on its way to the bin
         # parks its slug out of the alphabet first (see RELEASED_NAMES in
-        # app.services.tenant.soft_delete), so what is unique here in practice
+        # app.db.frozen), so what is unique here in practice
         # is the set of addresses a reader can reach.
         UniqueConstraint("wiki_id", "slug", name="uq_wiki_pages_wiki_slug"),
     )

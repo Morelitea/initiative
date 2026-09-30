@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A project made from a template keeps each task's repeat**, moved with the task's dates.
 - **Nothing comes back from the trash under something that's still in it.** Restoring a sub-page whose parent page is still in the trash, a reply whose comment is, or a task or tool that was archived before it was trashed, now says to restore what it's inside first, instead of bringing it back where nobody can open it.
+- **Archived content can be thrown away and brought back.** Deleting an archived initiative or wiki that has pages, or a page inside one, works again, and whatever you restore into an archive comes back archived.
+- **Ownership moves on archived tools.** Claiming unowned content or handing someone's content to another admin no longer fails when some of it is archived, and a restored tool with no owner goes back to whoever made it even when it's archived.
 - **Only a community admin can take somebody off the moderator role.** A project manager can no longer remove an initiative's moderator or change them to another role, the same way only an admin can put somebody on it.
 - **Exporting a calendar with a repeating event works again.** A repeat such as "the second Monday of every month" no longer fails the export, and every repeat setting now carries over to other calendar apps and back on import.
 - **Wiki page edits are no longer lost to a later live session.** A page saved while nobody was editing it live keeps that save, and a save from a tab outside a live session is refused with a prompt to reconnect instead of being reported as saved.

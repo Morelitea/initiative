@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserStatus
+from app.services.tenant import archive as archive_service
 from app.services.tenant import ownership as ownership_service
 from app.testing import (
     TOOL_FACTORIES,
@@ -94,6 +95,48 @@ async def test_ownership_transfers_between_guild_admins(
     )
     assert response.status_code == 200, response.text
     assert response.json()["total"] >= 1, response.text
+
+
+async def test_ownership_moves_on_archived_tools(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Who owns a tool is administration, not an edit, so an archive does not
+    hold it: every tool can be handed on and claimed while it is archived."""
+    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    receiver = await acting_user(
+        guild_role=GuildRole.admin,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="project_manager",
+    )
+    rows = {
+        tool: await TOOL_FACTORIES[tool](session, owner.initiative, owner.user)
+        for tool in Tool
+    }
+    await archive_service.archive_entity(session, owner.initiative)
+    await session.commit()
+
+    response = await client.post(
+        f"/api/v1/c/{owner.guild.id}/users/{owner.user.id}/transfer-ownership",
+        headers=owner.headers,
+        json={"new_owner_id": receiver.user.id},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["total"] == len(Tool), response.text
+
+    await route_session_to_guild(session, owner.guild.id)
+    for tool, row in rows.items():
+        await ownership_service.set_resource_owner(
+            session, tool=tool, row=row, new_owner=None
+        )
+    await session.commit()
+    response = await client.post(
+        f"/api/v1/c/{owner.guild.id}/users/unowned-content/claim",
+        headers=owner.headers,
+        json={"new_owner_id": owner.user.id},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["total"] == len(Tool), response.text
 
 
 async def test_content_cannot_be_handed_outside_the_guild(
