@@ -844,56 +844,116 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
     assert sorted(pages.all()) == [("step-1", None), ("step-2", None)]
 
 
-@pytest.mark.parametrize("wiki_archived", [False, True])
-async def test_a_page_waits_for_the_page_it_is_filed_under(
-    session: AsyncSession, client, wiki_archived
-):
-    """A page binned before its parent keeps its own stamp, so it stays in the
-    bin when the parent comes back — and until then it cannot come back at all,
-    or it would be live under a page in the bin. Whether the wiki is archived
-    does not change that."""
-    from app.models.platform.guild import GuildRole
-    from app.services.tenant.archive import archive_entity, unarchive_entity
+async def _filed_under(session: AsyncSession, kind: str, initiative, user):
+    """A parent and one child of ``kind`` filed under it, as trash entity types
+    and rows: ``(parent_kind, parent, child)``."""
     from app.testing.factories import (
-        create_guild_membership,
+        create_calendar,
+        create_calendar_event,
+        create_comment,
+        create_counter,
+        create_counter_group,
+        create_gallery,
+        create_gallery_image,
+        create_queue,
+        create_queue_item,
+        create_task,
         create_wiki,
         create_wiki_page,
-        get_auth_headers,
     )
+
+    if kind == "project":
+        return "initiative", initiative, await create_project(session, initiative, user)
+    if kind == "task":
+        project = await create_project(session, initiative, user)
+        return "project", project, await create_task(session, project)
+    if kind == "queue_item":
+        queue = await create_queue(session, initiative, user)
+        return "queue", queue, await create_queue_item(session, queue)
+    if kind == "calendar_event":
+        calendar = await create_calendar(session, initiative, user)
+        return (
+            "calendar",
+            calendar,
+            await create_calendar_event(session, calendar, user),
+        )
+    if kind == "counter":
+        group = await create_counter_group(session, initiative, user)
+        return "counter_group", group, await create_counter(session, group)
+    if kind == "gallery_image":
+        gallery = await create_gallery(session, initiative, user)
+        return "gallery", gallery, await create_gallery_image(session, gallery, user)
+    if kind == "wiki_page":
+        wiki = await create_wiki(session, initiative, user)
+        page = await create_wiki_page(session, wiki, user)
+        return (
+            "wiki_page",
+            page,
+            await create_wiki_page(session, wiki, user, parent_page_id=page.id),
+        )
+    assert kind == "comment"
+    task = await create_task(session, await create_project(session, initiative, user))
+    comment = await create_comment(session, user, task=task)
+    return (
+        "comment",
+        comment,
+        await create_comment(session, user, task=task, parent_comment_id=comment.id),
+    )
+
+
+@pytest.mark.parametrize("archived", [False, True])
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "project",
+        "task",
+        "queue_item",
+        "calendar_event",
+        "counter",
+        "gallery_image",
+        "wiki_page",
+        "comment",
+    ],
+)
+async def test_nothing_comes_back_under_something_still_in_the_trash(
+    session: AsyncSession, client, kind, archived
+):
+    """A child binned before its parent keeps its own stamp, so it stays in the
+    bin when the parent comes back — and until then it cannot come back at all,
+    or it would be live under something in the bin. An archive over both, which
+    stamps a child that can carry one, does not change that."""
+    from app.models.platform.guild import GuildRole
+    from app.services.tenant.archive import archive_entity, unarchive_entity
+    from app.testing.factories import create_guild_membership, get_auth_headers
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user)
-    wiki = await create_wiki(session, initiative, user)
-    page = await create_wiki_page(session, wiki, user, title="Step 1")
-    child = await create_wiki_page(
-        session, wiki, user, title="Step 2", parent_page_id=page.id
-    )
-    for trashed in (child, page):
+    parent_kind, parent, child = await _filed_under(session, kind, initiative, user)
+    for trashed in (child, parent):
         await soft_delete_entity(
             session, trashed, deleted_by_user_id=user.id, retention_days=30
         )
         await session.commit()
-    if wiki_archived:
-        await archive_entity(session, wiki)
+    if archived:
+        await archive_entity(session, initiative)
         await session.commit()
 
     headers = get_auth_headers(user)
-    restore_child = f"/api/v1/c/{guild.id}/trash/wiki_page/{child.id}/restore"
-    response = await client.post(restore_child, headers=headers)
+    trash = f"/api/v1/c/{guild.id}/trash"
+    response = await client.post(f"{trash}/{kind}/{child.id}/restore", headers=headers)
     assert response.status_code == 409, response.text
     assert response.json()["detail"] == "PARENT_IS_FROZEN"
-    if wiki_archived:
-        await unarchive_entity(session, wiki)
+    if archived:
+        await unarchive_entity(session, initiative)
         await session.commit()
 
-    response = await client.post(
-        f"/api/v1/c/{guild.id}/trash/wiki_page/{page.id}/restore", headers=headers
-    )
-    assert response.status_code == 200, response.text
-    response = await client.post(restore_child, headers=headers)
-    assert response.status_code == 200, response.text
+    for kind_, row in ((parent_kind, parent), (kind, child)):
+        response = await client.post(
+            f"{trash}/{kind_}/{row.id}/restore", headers=headers
+        )
+        assert response.status_code == 200, response.text
 
 
 async def test_every_tool_takes_its_thread_to_the_trash_and_back(
