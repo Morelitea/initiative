@@ -14,9 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
-import { getAuthHeaders } from "@/api/client";
+import { apiClient } from "@/api/client";
 import { toBase64 } from "@/lib/base64";
-import { resolveApiUrl } from "@/lib/uploadUrl";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
@@ -158,16 +157,13 @@ export function useCollaboration({
     };
     let body = JSON.stringify({ ...edits, content: rendering ?? null });
     if (body.length > KEEPALIVE_LIMIT) body = JSON.stringify(edits);
-    fetch(resolveApiUrl(path), {
-      method: "POST",
-      body,
-      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-      credentials: "include",
-      keepalive: body.length <= KEEPALIVE_LIMIT,
-    })
-      .then((response) => {
-        if (response.ok) provider.handedOver(unsent.stateVector);
+    apiClient
+      .post(path, body, {
+        headers: { "Content-Type": "application/json" },
+        adapter: "fetch",
+        fetchOptions: { keepalive: body.length <= KEEPALIVE_LIMIT },
       })
+      .then(() => provider.handedOver(unsent.stateVector))
       .catch(() => {});
   }, []);
 
@@ -199,7 +195,7 @@ export function useCollaboration({
     }
     currentWsUrlRef.current = wsUrl;
     handoverPathRef.current =
-      wsUrl && activeGuildId ? `/api/v1/c/${activeGuildId}/collaboration/${socketPath}` : null;
+      wsUrl && activeGuildId ? `/c/${activeGuildId}/collaboration/${socketPath}` : null;
   }, [wsUrl, activeGuildId, socketPath, handOver]);
 
   // Create the provider factory that Lexical's CollaborationPlugin will call

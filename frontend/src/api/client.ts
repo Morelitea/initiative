@@ -134,12 +134,6 @@ export const setAuthToken = (token: string | null, deviceToken = false) => {
 
 export const getAuthToken = (): string | null => authToken;
 
-/** The Authorization header the API client sends, for a request made without
- *  it (a keepalive fetch). Empty on web, where the HttpOnly cookie carries the
- *  session. */
-export const getAuthHeaders = (): Record<string, string> =>
-  authToken ? { Authorization: `${isDeviceToken ? "DeviceToken" : "Bearer"} ${authToken}` } : {};
-
 export const setHasActiveSession = (value: boolean) => {
   hasActiveSession = value;
 };
@@ -174,10 +168,11 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
-  const { Authorization } = getAuthHeaders();
-  if (Authorization) {
+  if (authToken) {
     config.headers = config.headers ?? {};
-    config.headers.Authorization = Authorization;
+    // Use DeviceToken scheme for device tokens, Bearer for JWTs
+    const scheme = isDeviceToken ? "DeviceToken" : "Bearer";
+    config.headers.Authorization = `${scheme} ${authToken}`;
   }
   return config;
 });
