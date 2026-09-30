@@ -639,7 +639,7 @@ class TestTheGrantItself:
             {"resource_type": "project", "resource_id": project.id, "name": None}
         ]
 
-    async def test_the_resource_owner_can_take_it_back(
+    async def test_publishing_an_empty_list_takes_it_back(
         self, client, session, acting_user
     ):
         author = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -653,11 +653,12 @@ class TestTheGrantItself:
             },
             headers=author.headers,
         )
-        revoked = await client.delete(
-            author.g(f"/dashboards/{dashboard_id}/published/project/{project.id}"),
+        revoked = await client.put(
+            author.g(f"/dashboards/{dashboard_id}/published"),
+            json={"resources": []},
             headers=author.headers,
         )
-        assert revoked.status_code == 204
+        assert revoked.status_code == 200
 
         detail = await client.get(
             author.g(f"/dashboards/{dashboard_id}"), headers=author.headers

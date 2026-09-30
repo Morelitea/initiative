@@ -265,25 +265,6 @@ async def available_packs(session: AsyncSession) -> list[Pack]:
     return packs
 
 
-async def decoration_art(session: AsyncSession, ids: Iterable[str]) -> dict[str, str]:
-    """The pictures packs on this deployment carry for these decorations.
-
-    What a profile needs to draw somebody else's decorations: the profile
-    names ids, and an id whose art the client does not ship is drawn from the
-    picture its pack carries. Read from the packs on offer, so art stays
-    current with the pack.
-    """
-    wanted = {decoration_id for decoration_id in ids if decoration_id}
-    if not wanted:
-        return {}
-    art: dict[str, str] = {}
-    for pack in await available_packs(session):
-        for decoration_id, image in pack.images.items():
-            if decoration_id in wanted:
-                art.setdefault(decoration_id, image)
-    return art
-
-
 async def pack_by_uid(session: AsyncSession, uid: str) -> Pack | None:
     """One pack, by the uid a granted row records."""
     listing = await catalog_service.get_listing_by_uid(session, uid)

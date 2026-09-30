@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The notification list counts unread notifications on its first page only (API).** `unread_count` on `GET /notifications/` is `null` on any page read with a `cursor`; read it from the first page.
 - **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
 
+### Removed
+
+- **More API routes the app no longer uses**: `PUT /tasks/{id}/tags` (send `tag_ids` to `PATCH /tasks/{id}`), `PUT /queues/{id}/items/reorder`, `GET /initiatives/{id}/join-requests/me`, `GET /property-definitions/{id}` and its `/entities`, `DELETE /dashboards/{id}/published/{type}/{id}` (publish the list without it), `DELETE /apps/{id}/placements/{initiative_id}`, and `GET /users/decoration-art`.
+
 ### Fixed
 
 - **Ending app connections answers right away.** Revoking every member's connection, uninstalling an app, removing a member, leaving or deleting a community no longer waits for each connected service to confirm, one at a time. The services are told in the background, several at once.

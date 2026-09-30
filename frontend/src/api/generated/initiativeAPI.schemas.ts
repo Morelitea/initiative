@@ -2896,17 +2896,6 @@ export const DatasetName = {
   wiki_pages: "wiki_pages",
 } as const;
 
-export type DecorationArtResponseArt = { [key: string]: string };
-
-/**
- * Pictures for decorations whose art is carried by their pack rather than
- * shipped with the client, by decoration id. An id the client draws itself,
- * or one no pack on this deployment names, is absent.
- */
-export interface DecorationArtResponse {
-  art: DecorationArtResponseArt;
-}
-
 /**
  * One decoration an account may wear, and where it came from.
  *
@@ -7339,36 +7328,6 @@ export interface PropertyDefinitionUpdateResponse {
   orphaned_value_count: number;
 }
 
-export interface TaggedTaskSummary {
-  id: number;
-  title: string;
-  project_id: number;
-  project_name: string | null;
-}
-
-export interface TaggedDocumentSummary {
-  id: number;
-  name: string;
-  initiative_id: number;
-  initiative_name: string | null;
-}
-
-export interface TaggedEventSummary {
-  id: number;
-  title: string;
-  initiative_id: number;
-  initiative_name: string | null;
-}
-
-/**
- * Response for GET /property-definitions/{id}/entities.
- */
-export interface PropertyEntitiesResult {
-  tasks: TaggedTaskSummary[];
-  documents: TaggedDocumentSummary[];
-  events: TaggedEventSummary[];
-}
-
 /**
  * A single (property_id, value) pair submitted by the client.
  *
@@ -7688,15 +7647,6 @@ export interface QueueItemRead {
   attachment_count: number;
   held_at_round: number | null;
   created_at: string;
-}
-
-export interface ReorderItem {
-  id: number;
-  position: number;
-}
-
-export interface QueueItemReorderRequest {
-  items: ReorderItem[];
 }
 
 export interface QueueItemUpdate {
@@ -9736,13 +9686,6 @@ export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
    * @maximum 60
    */
   page_size?: number;
-};
-
-export type ReadDecorationArtApiV1UsersDecorationArtGetParams = {
-  /**
-   * @maxItems 64
-   */
-  ids?: string[];
 };
 
 export type ListAnnouncementsApiV1AnnouncementsGetParams = {

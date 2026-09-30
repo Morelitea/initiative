@@ -232,31 +232,6 @@ async def test_delete_queue_item(client: AsyncClient, acting_user):
     assert response.status_code == 204
 
 
-async def test_reorder_queue_items(client: AsyncClient, acting_user):
-    """Owner can bulk-reorder items."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    queue_data = await _create_queue_via_api(client, a)
-    item_a = await _add_item_via_api(client, a, queue_data["id"], "A", position=1)
-    item_b = await _add_item_via_api(client, a, queue_data["id"], "B", position=2)
-
-    response = await client.put(
-        a.g(f"/queues/{queue_data['id']}/items/reorder"),
-        headers=a.headers,
-        json={
-            "items": [
-                {"id": item_a["id"], "position": 20},
-                {"id": item_b["id"], "position": 10},
-            ]
-        },
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    items_by_id = {i["id"]: i for i in data["items"]}
-    assert items_by_id[item_a["id"]]["position"] == 20
-    assert items_by_id[item_b["id"]]["position"] == 10
-
-
 async def test_fractional_positions(client: AsyncClient, acting_user):
     """Items with the same integer initiative can be split by a fractional position."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)

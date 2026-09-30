@@ -33,7 +33,6 @@ import type {
   ListTasksApiV1CGuildIdTasksGetParams,
   PropertyValuesSetRequest,
   ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
-  TagSetRequest,
   TaskCreate,
   TaskListResponse,
   TaskMoveRequest,
@@ -1378,111 +1377,9 @@ export const useGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost
   );
 };
 /**
- * Set the tags for a task. Replaces all existing tags with the provided list.
- * @summary Set Task Tags
- */
-export const setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut = (
-  guildId: number,
-  taskId: number,
-  tagSetRequest: BodyType<TagSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<TaskRead>(
-    {
-      url: `/api/v1/c/${guildId}/tasks/${taskId}/tags`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: tagSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationKey = () =>
-  ["setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut"] as const;
-
-export const getSetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut>>,
-    TError,
-    SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut>>,
-  TError,
-  SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut>>,
-    SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationVariables
-  > = (props) => {
-    const { guildId, taskId, data } = props ?? {};
-
-    return setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut(guildId, taskId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut>>
->;
-export type SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationBody = BodyType<TagSetRequest>;
-export type SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationVariables = {
-  guildId: number;
-  taskId: number;
-  data: BodyType<TagSetRequest>;
-};
-
-/**
- * @summary Set Task Tags
- */
-export const useSetTaskTagsApiV1CGuildIdTasksTaskIdTagsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut>>,
-      TError,
-      SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setTaskTagsApiV1CGuildIdTasksTaskIdTagsPut>>,
-  TError,
-  SetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetTaskTagsApiV1CGuildIdTasksTaskIdTagsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
  * Replace the custom property values on a task.
  *
- * Requires write access (same permission gate as PUT /tags). Validates
+ * Requires write access. Validates
  * each value against its definition's type and options server-side. An
  * installed app names the person a person-valued property holds by its
  * reference for them.

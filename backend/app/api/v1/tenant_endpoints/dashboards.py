@@ -43,7 +43,6 @@ from app.models.platform.marketplace import (
 )
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
-from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.dashboard import (
     DashboardDataResponse,
     DashboardWidgetData,
@@ -61,7 +60,6 @@ from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db.session import routed_context
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
 from app.services.tenant import attachments as attachments_service
-from app.services.permissions import Action
 from app.services import audit as audit_service
 from app.services import query as query_service
 from app.services.marketplace.installs import (
@@ -785,93 +783,6 @@ async def set_published_view(
     return await _serialized_with_published(
         session, hydrated, current_user, guild_context.guild_id
     )
-
-
-@router.delete(
-    "/{dashboard_id}/published/{resource_type}/{resource_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def revoke_published_view(
-    dashboard_id: int,
-    resource_type: str,
-    resource_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Stop a dashboard reading one resource through its own grant.
-
-    Either side may do this: whoever authors the dashboard, and whoever owns
-    the resource. The owner's answer to a dashboard publishing over their work
-    is to take it back, and it is theirs to give at any time.
-    """
-    try:
-        kind = Tool(resource_type)
-    except ValueError as unknown:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.dashboard.not_found_code,
-        ) from unknown
-
-    grant = (
-        await session.exec(
-            select(ResourceGrant).where(
-                ResourceGrant.dashboard_id == dashboard_id,
-                ResourceGrant.resource_type == kind,
-                ResourceGrant.resource_id == resource_id,
-            )
-        )
-    ).first()
-    if grant is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.dashboard.not_found_code
-        )
-
-    if not await _may_revoke(
-        session, dashboard_id, kind, resource_id, current_user, guild_context
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.dashboard.no_access_code,
-        )
-    guild_id, initiative_id = guild_context.guild_id, grant.initiative_id
-    await session.delete(grant)
-    await _record_published_change(
-        session,
-        dashboard_id=dashboard_id,
-        guild_id=guild_id,
-        initiative_id=initiative_id,
-        actor_user_id=current_user.id,
-        kind=kind,
-        resource_id=resource_id,
-        to_level=None,
-    )
-    await session.commit()
-
-
-async def _may_revoke(
-    session: Any,
-    dashboard_id: int,
-    kind: Tool,
-    resource_id: int,
-    user: User,
-    guild_context: Any,
-) -> bool:
-    """Whether this caller may take a published grant back — either end of it."""
-    for check in (
-        lambda: resource_access.load_authorized(
-            session, Tool.dashboard, dashboard_id, user, guild_context, access="write"
-        ),
-        lambda: resource_access.load_authorized(
-            session, kind, resource_id, user, guild_context, action=Action.share
-        ),
-    ):
-        try:
-            await check()
-            return True
-        except HTTPException:
-            continue
-    return False
 
 
 async def _serialized_with_published(
