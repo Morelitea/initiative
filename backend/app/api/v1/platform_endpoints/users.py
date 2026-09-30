@@ -1175,7 +1175,7 @@ async def list_my_addresses(
 async def add_my_address(
     request: Request,
     payload: UserEmailCreate,
-    session: SessionDep,
+    session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
