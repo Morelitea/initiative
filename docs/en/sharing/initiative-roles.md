@@ -45,7 +45,7 @@ Every initiative arrives with two roles you didn't make and can't delete.
 
 **Moderator** is the role that overrides sharing. A Moderator reaches everything in the initiative whether or not it was ever shared with them, and can change who else has access. That's what **full access** means, and no other role gets it — not a custom one, not Manager. It isn't a setting you've failed to find.
 
-Handing out Moderator is a community admin's job. Managers staff everything else. Admins who join an initiative arrive as Moderators, because that's the standing they already had.
+Handing out Moderator is a community admin's job, and so is taking it back. Managers staff everything else. Admins who join an initiative arrive as Moderators, because that's the standing they already had.
 
 !!! warning "Moderators see everything. Everything."
     Because Moderator overrides per-item sharing, anything kept private to a few people is still perfectly visible to one.
