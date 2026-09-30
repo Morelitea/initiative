@@ -20,6 +20,7 @@ import {
   getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey,
   getListProjectsApiV1CGuildIdProjectsGetQueryKey,
   getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
+  listProjectsApiV1CGuildIdProjectsGet,
   reorderProjectsApiV1CGuildIdProjectsReorderPost,
   unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1CGuildIdProjectsProjectIdPatch,
@@ -36,6 +37,7 @@ import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -98,9 +100,18 @@ export const useTemplateProjects = (initiativeId?: number | null) => {
   return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };
 
-/** The projects the reader may edit — where a task can be moved to. */
-export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) =>
-  useProjects({ writable: true, slim: true }, { staleTime: 60 * 1000, ...options });
+/** Every project the reader may edit — where a task can be moved to. Walks the
+ *  list's windows, so no destination is left off a long list. */
+export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) => {
+  const guildId = useActiveGuildId();
+  const params = { writable: true, slim: true, page_size: 0 };
+  return useQuery<ProjectListResponse>({
+    queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId, params),
+    queryFn: () => fetchAllPages(listProjectsApiV1CGuildIdProjectsGet, guildId, params),
+    staleTime: 60 * 1000,
+    ...options,
+  });
+};
 
 // ``useRecentProjects`` was removed when the projects-only ``/projects/recent``
 // endpoint was retired. Use ``useRecents`` from ``@/hooks/useRecents`` for the
