@@ -425,11 +425,26 @@ jobs:
           # Remove leading whitespace from heredoc
           sed -i 's/^          //' release_body.md
 
+      - name: Export the published image's OpenAPI spec
+        # What API clients check themselves against, and what the next
+        # release's compatibility check compares with (scripts/ci/api-compat).
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/initiative:${{ needs.decide.outputs.version }}
+        run: |
+          mkdir -p artifacts
+          docker run --rm --entrypoint python \
+            -e SECRET_KEY=0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0 \
+            "$IMAGE" -c 'import json; from app.main import app; print(json.dumps(app.openapi(), indent=2))' \
+            > artifacts/openapi.json
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          files: artifacts/*.apk
+          files: |
+            artifacts/*.apk
+            artifacts/openapi.json
           body_path: release_body.md
           draft: false
           prerelease: false
