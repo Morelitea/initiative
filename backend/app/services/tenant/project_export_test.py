@@ -91,7 +91,11 @@ async def _seed_populated_project(session: AsyncSession):
         description="Important",
         position=1024.0,
         series_id=4242,
-        recurrence_carry={"title": "Fix it once", "tag_ids": [tag.id]},
+        recurrence_carry={
+            "title": "Fix it once",
+            "tag_ids": [tag.id],
+            "assignee_ids": [assignee.id],
+        },
         checklist=[
             *checklist_items("step 1"),
             *checklist_items("step 2", done=True),
@@ -159,6 +163,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert exported_task.recurrence_carry == {
         "title": "Fix it once",
         "tags": [{"name": "blocker", "color": "#FF0000"}],
+        "assignee_handles": [handle_of(assignee)],
     }
 
     # Target initiative in the same guild — assignee is a member of both
@@ -211,6 +216,7 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert new_task.recurrence_carry == {
         "title": "Fix it once",
         "tag_ids": [tag.id for tag in new_task.tags],
+        "assignee_ids": [assignee.id],
     }
     assert {i["text"] for i in new_task.checklist} == {"step 1", "step 2"}
     assert [handle_of(u) for u in new_task.assignees] == [handle_of(assignee)]

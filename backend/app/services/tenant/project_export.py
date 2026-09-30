@@ -26,6 +26,7 @@ favorites, recents, queues. Those would extend the schema under a future
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from collections.abc import Mapping
 from typing import Any, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -187,6 +188,9 @@ async def build_project_export(
         description, described = detach_markdown_mentions(
             task.description, mention_handles
         )
+        carry, carry_described = await _portable_carry(
+            session, task.recurrence_carry, mention_handles
+        )
         tasks.append(
             ProjectExportTask(
                 title=task.title,
@@ -199,7 +203,7 @@ async def build_project_export(
                 recurrence_strategy=task.recurrence_strategy,
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
                 series=task.series_id,
-                recurrence_carry=await _portable_carry(session, task.recurrence_carry),
+                recurrence_carry=carry,
                 position=task.position,
                 archived_at=task.archived_at,
                 completed_at=task.completed_at,
@@ -213,7 +217,7 @@ async def build_project_export(
                 external_ref=task_ref(task.id),
                 links=links_by_task.get(task.id, []),
                 comments=comments_by_task.get(task.id, []),
-                mention_handles=described,
+                mention_handles=list(dict.fromkeys(described + carry_described)),
             )
         )
 
@@ -397,17 +401,26 @@ async def list_project_ids_for_export(
 
 
 async def _portable_carry(
-    session: AsyncSession, carry: dict[str, Any] | None
-) -> dict[str, Any] | None:
-    """``recurrence_carry`` with its tags by name and colour and its assignees
-    by handle, which is how the envelope names both."""
+    session: AsyncSession,
+    carry: dict[str, Any] | None,
+    mention_handles: Mapping[int, str],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """``recurrence_carry`` as the envelope names things: its description's
+    mentions by handle and references by ref, its tags by name and colour and
+    its assignees by handle. Also the handles the description mentions."""
     if not carry:
-        return None
+        return None, []
     portable = {
         field: value
         for field, value in carry.items()
         if field not in {"tag_ids", "assignee_ids"}
     }
+    described: list[str] = []
+    if "description" in carry:
+        description, described = detach_markdown_mentions(
+            carry["description"], mention_handles
+        )
+        portable["description"] = detach_markdown_references(description)
     if "tag_ids" in carry:
         tags = await session.exec(select(Tag).where(Tag.id.in_(carry["tag_ids"])))
         portable["tags"] = [{"name": tag.name, "color": tag.color} for tag in tags]
@@ -416,7 +429,7 @@ async def _portable_carry(
             select(MemberProfile).where(MemberProfile.id.in_(carry["assignee_ids"]))
         )
         portable["assignee_handles"] = [handle_of(person) for person in people]
-    return portable
+    return portable, described
 
 
 def _fallback_status_name(statuses_sorted: list[TaskStatus]) -> str:

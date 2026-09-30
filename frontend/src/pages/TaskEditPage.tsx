@@ -80,6 +80,7 @@ import {
 } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { dateRangeBounds } from "@/lib/dateRange";
+import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
 import { fromStored, rulePayload } from "@/lib/recurrence";
@@ -287,15 +288,20 @@ export const TaskEditPage = () => {
   const deleteTask = useDeleteTask({
     onSuccess: async (_data, { scope }) => {
       // Deleting just this one of a series skips it, so the task is still
-      // here, unless it was the series' last.
-      const skipped =
-        scope === "this"
-          ? await readTaskApiV1CGuildIdTasksTaskIdGet(guildId, parsedTaskId).catch(() => null)
-          : null;
-      if (skipped) {
-        form.settle(formValueFromTask(skipped));
-        toast.success(t("edit.taskSkipped"));
-        return;
+      // here, unless it was the series' last and is gone.
+      if (scope === "this") {
+        try {
+          form.settle(
+            formValueFromTask(await readTaskApiV1CGuildIdTasksTaskIdGet(guildId, parsedTaskId))
+          );
+          toast.success(t("edit.taskSkipped"));
+          return;
+        } catch (error) {
+          if (getHttpStatus(error) !== 404) {
+            toast.success(t("edit.taskSkipped"));
+            return;
+          }
+        }
       }
       toast.success(t("edit.taskDeleted"));
       bypassGuardRef.current = true;

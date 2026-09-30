@@ -387,20 +387,37 @@ async def _import_task(
     # back into this community.
     if envelope_task.recurrence_carry:
         carry = dict(envelope_task.recurrence_carry)
+        if carry.get("description"):
+            # Linked to people here now; a reference is settled now too, as
+            # the job's later pass rewrites the description column only.
+            carry["description"] = note_or_settle(
+                None,
+                SearchEntityType.task,
+                None,
+                _link_mentions(
+                    carry["description"],
+                    envelope_task.mention_handles,
+                    context=context,
+                    initiative_member_handles=initiative_member_handles,
+                ),
+            )
         if "tags" in carry:
             carry["tag_ids"] = sorted(
                 {await tag_id(ProjectExportTag(**tag)) for tag in carry.pop("tags")}
             )
         if "assignee_handles" in carry:
-            found = (
-                initiative_member_id(
+            carried: set[int] = set()
+            for handle in carry.pop("assignee_handles"):
+                uid = initiative_member_id(
                     handle,
                     people=context.people if context is not None else PeopleMap(),
                     member_handles=initiative_member_handles,
                 )
-                for handle in carry.pop("assignee_handles")
-            )
-            carry["assignee_ids"] = sorted({uid for uid in found if uid is not None})
+                if uid is not None:
+                    carried.add(uid)
+                    # Brought into the initiative with the task's own assignees.
+                    named_handle_sink.setdefault(uid, handle)
+            carry["assignee_ids"] = sorted(carried)
         task.recurrence_carry = carry
 
     # Assignees: the account a person mapped the handle to, else a member
