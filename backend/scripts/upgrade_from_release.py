@@ -559,6 +559,14 @@ def _boot(
     if current:
         image_env += ("PUID", "PGID")
         env |= {"PUID": IMAGE_UID, "PGID": IMAGE_UID}
+    # The image binds its port once its migrations have run; until then,
+    # anything else answering there would read as this boot.
+    try:
+        _get("/api/v1/version")
+    except OSError:
+        pass
+    else:
+        _fail(f"Something already answers on {SERVED_AT}; stop it first", [])
     if bootstrap:
         _docker(
             "--rm",
@@ -578,8 +586,8 @@ def _boot(
             subprocess.run(["docker", "logs", name])
             _fail(f"{image} booted, but does not serve what it should", problems)
     finally:
-        subprocess.run(["docker", "stop", "--time", "30", name], capture_output=True)
-        subprocess.run(["docker", "rm", name], capture_output=True)
+        _run(["docker", "stop", "--time", "30", name], cwd=REPO)
+        _run(["docker", "rm", name], cwd=REPO)
 
 
 def _seed(backend: Path, python: str, env: dict[str, str]) -> None:

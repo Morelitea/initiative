@@ -578,7 +578,9 @@ jobs:
           FIRST_OWNER_EMAIL: admin@example.com
           FIRST_OWNER_PASSWORD: changeme
         run: |
-          docker run --rm --network host -e SECRET_KEY \
+          # As the account the network is denied to (upgrade_from_release.py
+          # IMAGE_UID).
+          docker run --rm --network host -e SECRET_KEY -e PUID=1999 -e PGID=1999 \
             -e DATABASE_URL -e DATABASE_URL_APP -e DATABASE_URL_ADMIN -e DATABASE_URL_BOOTSTRAP \
             -e FIRST_OWNER_EMAIL -e FIRST_OWNER_PASSWORD \
             initiative:ci python -m app.db.init_db
