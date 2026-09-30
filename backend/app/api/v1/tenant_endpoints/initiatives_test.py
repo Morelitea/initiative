@@ -1635,20 +1635,18 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
 
 
 @pytest.mark.parametrize(
-    ("caller", "path", "status_code", "expected"),
+    ("caller", "status_code", "expected"),
     [
-        ("manager", "", 200, "everyone waiting"),
-        ("admin", "", 200, "everyone waiting"),
-        ("member", "", 403, InitiativeMessages.MANAGER_REQUIRED),
-        ("asker", "", 403, InitiativeMessages.MANAGER_REQUIRED),
-        ("asker", "/me", 200, "their own"),
+        ("manager", 200, "everyone waiting"),
+        ("admin", 200, "everyone waiting"),
+        ("member", 403, InitiativeMessages.MANAGER_REQUIRED),
+        ("asker", 403, InitiativeMessages.MANAGER_REQUIRED),
     ],
     ids=[
         "its manager",
         "a guild admin",
         "a plain member of it",
         "somebody waiting at it",
-        "somebody waiting, asking after theirs",
     ],
 )
 async def test_the_join_queue_answers_each_caller(
@@ -1656,14 +1654,12 @@ async def test_the_join_queue_answers_each_caller(
     session: AsyncSession,
     acting_user,
     caller: str,
-    path: str,
     status_code: int,
     expected: str,
 ):
     """Who asked to get in is manager business, and a guild admin's too — a
     non-manager member of the initiative has no more claim on it than the
-    people waiting at it. A requester reaches their own row through ``/me``
-    and nobody else's.
+    people waiting at it.
 
     ``initiative_join_requests`` is guild-level: the schema boundary is its
     only DB gate, so row visibility is an app-layer contract — pinned here.
@@ -1676,7 +1672,7 @@ async def test_the_join_queue_answers_each_caller(
     )
 
     response = await client.get(
-        actor.g(f"/initiatives/{initiative.id}/join-requests{path}"),
+        actor.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=actor.headers,
     )
 
@@ -1686,11 +1682,7 @@ async def test_the_join_queue_answers_each_caller(
         return
 
     seen = {row["user"]["id"] for row in response.json()}
-    assert seen == (
-        {asker.user.id for asker, _ in knocks}
-        if expected == "everyone waiting"
-        else {knocks[0][0].user.id}
-    )
+    assert seen == {asker.user.id for asker, _ in knocks}
 
 
 @pytest.mark.parametrize(

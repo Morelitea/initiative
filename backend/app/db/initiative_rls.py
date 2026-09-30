@@ -1827,6 +1827,11 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "guild_apps": Emit(guild_wide=True, resource_type="apps"),
     # -- Facets of their parent ---------------------------------------------
     "task_statuses": Emit(reports_as=reports_as("projects", "project_id", "statuses")),
+    # A property definition is read in its initiative's list, not at an
+    # address of its own, so a change to one reports as that initiative.
+    "property_definitions": Emit(
+        reports_as=reports_as("initiatives", "initiative_id", "properties")
+    ),
     "project_filter_presets": Emit(
         reports_as=reports_as("projects", "project_id", "filter_presets")
     ),

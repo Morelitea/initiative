@@ -68,14 +68,16 @@ const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
   // moved is a question about the parent, below.
   comments: () => [q.recentComments()],
   calendar_events: (id) => [q.calendarEvent(id), q.allCalendarEvents()],
-  // An initiative's roster, its roles and what those roles permit all report
-  // against the initiative itself — a membership row and a role row have no
-  // route of their own — so "the initiative changed" has to name all three.
+  // An initiative's roster, its roles, what those roles permit and its
+  // property definitions all report against the initiative itself — none of
+  // those rows has a route of its own — so "the initiative changed" has to
+  // name them all.
   initiatives: (id) => [
     q.initiative(id),
     q.allInitiatives(),
     q.initiativeMembers(id),
     q.initiativeRoles(id),
+    q.allProperties(),
   ],
   tags: (id) => [q.tag(id), q.allTags()],
   // An install belongs to no initiative, so it arrives guild-wide with no
@@ -83,7 +85,6 @@ const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
   // app list and the settings dialog for another admin's install, rename or
   // configuration. Takes no id: the reads are keyed by guild, not by install.
   apps: () => [q.apps()],
-  property_definitions: () => [q.allProperties()],
 };
 
 /**
