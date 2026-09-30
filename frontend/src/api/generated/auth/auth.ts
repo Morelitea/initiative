@@ -3117,8 +3117,9 @@ export const useConfirmSecondFactorApiV1AuthTotpConfirmPost = <
 /**
  * Remove the factor, its seed and its recovery codes.
  *
- * Asks for the password and for the factor itself — a live code, or one of
- * the recovery codes. Every other session goes with it; this one stays.
+ * Asks for the password — or, where the password is not asked for, a
+ * recent sign-in — and for the factor itself: a live code, or one of the
+ * recovery codes. Every other session goes with it; this one stays.
  * @summary Disable Second Factor
  */
 export const disableSecondFactorApiV1AuthTotpDisablePost = (
