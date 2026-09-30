@@ -413,23 +413,61 @@ async def test_deleting_a_page_takes_its_sub_pages(
 # ---------------------------------------------------------------------------
 
 
+def _body(tag: str, heading: str) -> dict:
+    """A Lexical body holding one heading, nested a level down, and a paragraph."""
+    return {
+        "root": {
+            "type": "root",
+            "children": [
+                {"type": "paragraph", "children": [{"type": "text", "text": "Intro"}]},
+                {
+                    "type": "quote",
+                    "children": [
+                        {
+                            "type": "heading",
+                            "tag": tag,
+                            "children": [{"type": "text", "text": heading}],
+                        }
+                    ],
+                },
+            ],
+        }
+    }
+
+
 async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
     client: AsyncClient, acting_user, session
 ):
-    """It joins by an edge, so it reads as a page without becoming one."""
+    """It joins by an edge, so it reads as a page without becoming one — its
+    headings drawn in the tree like a page's own."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
-    await create_wiki_page(session, wiki, a.user, title="Written here")
-    document = await create_document(session, a.initiative, a.user)
+    await create_wiki_page(
+        session, wiki, a.user, title="Written here", content=_body("h1", "Opening")
+    )
+    document = await create_document(
+        session, a.initiative, a.user, content=_body("h3", "Loot table")
+    )
 
     response = await client.put(
         a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
     )
     assert response.status_code == 200, response.text
 
-    rows = {row["title"]: row["kind"] for row in response.json()["items"]}
-    assert rows == {"Written here": "page", document.name: "document"}
+    rows = {
+        row["title"]: (row["kind"], row["headings"]) for row in response.json()["items"]
+    }
+    assert rows == {
+        "Written here": (
+            "page",
+            [{"text": "Opening", "level": 1, "anchor": "opening"}],
+        ),
+        document.name: (
+            "document",
+            [{"text": "Loot table", "level": 3, "anchor": "loot-table"}],
+        ),
+    }
 
 
 async def test_a_page_filed_under_another_reads_after_it(

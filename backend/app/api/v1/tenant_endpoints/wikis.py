@@ -301,24 +301,24 @@ async def list_wiki_pages(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
     rows = await wikis_service.load_list(session, wiki)
-    await tags_service.annotate_tags(
-        session, [row for row in rows if isinstance(row, WikiPage)]
-    )
+    pages = [row for row, _ in rows if isinstance(row, WikiPage)]
+    await tags_service.annotate_tags(session, pages)
     # The position each row is SERVED with is its place in the list as drawn —
     # a document's is kept on the wiki and a page's in its own column, and
     # neither is what a client counts with.
-    known = {row.id for row in rows if isinstance(row, WikiPage)}
+    known = {page.id for page in pages}
     items = [
-        serialize_wiki_page_summary(row, context=guild_context)
+        serialize_wiki_page_summary(row, context=guild_context, heading_nodes=nodes)
         if isinstance(row, WikiPage)
         else serialize_document_as_page(
             row,
             wiki_id=wiki.id,
             position=spot,
+            heading_nodes=nodes,
             parent_page_id=wikis_service.visible_document_parent(wiki, row.id, known),
             context=guild_context,
         )
-        for spot, row in enumerate(rows)
+        for spot, (row, nodes) in enumerate(rows)
     ]
     return WikiPageTree(items=items)
 

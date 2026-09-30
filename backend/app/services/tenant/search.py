@@ -1,13 +1,9 @@
 """Reading the guild search index.
 
 ``search_entries`` carries the same ``initiative_member_*`` policies as the
-content tables it mirrors. Per-resource sharing is applied here, and
-:func:`search_scope_clause` is the ONLY way to read the table.
-
-That single entry point is deliberate: the index spans every tool, so composing
-the clause here rather than at each call site means a query cannot be written
-without it, and a new tool is covered by construction because the legs derive
-from ``Tool``.
+content tables it mirrors, per-resource sharing included: its read policy asks
+``resource_access`` of the tool each entry names. So a query here states only
+what it is looking for, and the database decides what the reader may see.
 """
 
 from __future__ import annotations
@@ -33,30 +29,6 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
 from app.db.authorization import standing_arg
-
-
-def search_scope_clause(
-    user_id: int | None,
-    *,
-    guild_id: int,
-    access: str = "read",
-) -> ColumnElement[bool]:
-    """The WHERE leg narrowing ``search_entries`` to rows this request may read.
-
-    Emits ``resource_access(...)`` — the same call the table's policies
-    make — so the query and the database answer sharing through one
-    implementation rather than two that have to agree. ``guild_id`` is accepted
-    for symmetry with the other scope helpers; the decision reads the request's
-    own context.
-    """
-    return func.resource_access(
-        SearchEntry.dac_tool,
-        SearchEntry.dac_id,
-        user_id,
-        SearchEntry.initiative_id,
-        access == "write",
-        standing_arg(),
-    )
 
 
 def writable_column(user_id: int | None, *, install: InstallContext | None = None):
@@ -276,25 +248,13 @@ class Filters:
         return clause
 
 
-def _scoped(
-    query: str, *, user_id: int, guild_id: int, filters: Filters
-) -> tuple[ColumnElement[bool], object]:
-    """The predicate every search shares, and the parsed query it uses."""
-    parsed = _tsquery(query)
-    clause = (
-        search_match_clause(parsed)
-        & filters.clause()
-        & search_scope_clause(user_id, guild_id=guild_id)
-    )
-    return clause, parsed
-
-
 def _best_chunk(clause: ColumnElement[bool], parsed) -> Select:
     """One row per entity — the chunk that matched best.
 
     Long text is split across rows, so a document can match several times. The
     highest-ranked chunk is the one worth showing, and is what supplies the
-    snippet.
+    snippet — drawn by :func:`search` for the rows on the page alone, since a
+    headline re-reads the whole chunk.
     """
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed).label("rank")
     return (
@@ -305,9 +265,7 @@ def _best_chunk(clause: ColumnElement[bool], parsed) -> Select:
             SearchEntry.dac_tool.label("tool"),
             SearchEntry.dac_id.label("tool_id"),
             SearchEntry.title,
-            func.ts_headline(
-                "simple", SearchEntry.body, parsed, _HEADLINE_OPTIONS
-            ).label("snippet"),
+            SearchEntry.chunk_ix,
             SearchEntry.updated_at,
             rank,
         )
@@ -319,7 +277,7 @@ def _best_chunk(clause: ColumnElement[bool], parsed) -> Select:
 
 
 async def _close_titles(
-    session: AsyncSession, *, query: str, user_id: int, guild_id: int, filters: Filters
+    session: AsyncSession, *, query: str, filters: Filters
 ) -> list[SearchHit]:
     """Entities whose TITLE is close to what was typed, for when nothing matched.
 
@@ -330,10 +288,7 @@ async def _close_titles(
     """
     closeness = func.word_similarity(query, SearchEntry.title)
     clause = (
-        (closeness >= FUZZY_THRESHOLD)
-        & (SearchEntry.chunk_ix == 0)
-        & filters.clause()
-        & search_scope_clause(user_id, guild_id=guild_id)
+        (closeness >= FUZZY_THRESHOLD) & (SearchEntry.chunk_ix == 0) & filters.clause()
     )
 
     statement = (
@@ -376,8 +331,6 @@ async def search(
     session: AsyncSession,
     *,
     query: str,
-    user_id: int,
-    guild_id: int,
     filters: Filters = Filters(),
     limit: int = 20,
     offset: int = 0,
@@ -392,31 +345,50 @@ async def search(
     if not query.strip():
         return SearchResults(items=[], total=0, limit=limit, offset=offset)
 
-    clause, parsed = _scoped(query, user_id=user_id, guild_id=guild_id, filters=filters)
-    best = _best_chunk(clause, parsed)
+    parsed = _tsquery(query)
+    best = _best_chunk(search_match_clause(parsed) & filters.clause(), parsed)
     total = await session.scalar(select(func.count()).select_from(best)) or 0
+
+    def ranked(rows) -> tuple:
+        # entity_type/entity_id last: rank and timestamp both tie, and an order
+        # that is not total lets a row repeat on one page and vanish from the
+        # next.
+        return (
+            rows.c.rank.desc(),
+            rows.c.updated_at.desc(),
+            rows.c.entity_type,
+            rows.c.entity_id,
+        )
+
+    page = select(best).order_by(*ranked(best)).limit(limit).offset(offset).subquery()
+    # The snippet is drawn from the chunk each row on the page chose, read back
+    # by its key, so the bodies of the rows the ranking passed over are never
+    # read.
+    chunk = aliased(SearchEntry, name="chunk")
     rows = (
         await session.exec(
-            select(best)
-            # entity_type/entity_id last: rank and timestamp both tie, and an
-            # order that is not total lets a row repeat on one page and vanish
-            # from the next.
-            .order_by(
-                best.c.rank.desc(),
-                best.c.updated_at.desc(),
-                best.c.entity_type,
-                best.c.entity_id,
+            select(
+                *(column for column in page.c if column.key != "chunk_ix"),
+                func.ts_headline("simple", chunk.body, parsed, _HEADLINE_OPTIONS).label(
+                    "snippet"
+                ),
             )
-            .limit(limit)
-            .offset(offset)
+            .select_from(page)
+            .join(
+                chunk,
+                (chunk.entity_type == page.c.entity_type)
+                & (chunk.entity_id == page.c.entity_id)
+                & (chunk.chunk_ix == page.c.chunk_ix),
+            )
+            # Re-stated outside the page: a subquery's ordering is not something
+            # the query around it inherits.
+            .order_by(*ranked(page))
         )
     ).all()
     if not rows and offset == 0:
         # Nothing matched what was typed. Offer what is closest to it rather
         # than an empty page — flagged, so the reader is told which they got.
-        close = await _close_titles(
-            session, query=query, user_id=user_id, guild_id=guild_id, filters=filters
-        )
+        close = await _close_titles(session, query=query, filters=filters)
         if close:
             return SearchResults(
                 items=close,
@@ -496,7 +468,6 @@ async def suggest(
     *,
     query: str,
     user_id: int | None,
-    guild_id: int,
     filters: Filters = Filters(),
     limit: int = SUGGEST_LIMIT,
     install: InstallContext | None = None,
@@ -526,12 +497,7 @@ async def suggest(
     title_match = func.to_tsvector("simple", SearchEntry.title).op(
         "@@", is_comparison=True
     )(parsed)
-    clause = (
-        search_match_clause(parsed)
-        & title_match
-        & filters.clause()
-        & search_scope_clause(user_id, guild_id=guild_id)
-    )
+    clause = search_match_clause(parsed) & title_match & filters.clause()
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)
     ranked = (
         select(
@@ -568,7 +534,6 @@ async def recent(
     session: AsyncSession,
     *,
     user_id: int,
-    guild_id: int,
     filters: Filters = Filters(),
     limit: int = SUGGEST_LIMIT,
 ) -> list[SearchSuggestion]:
@@ -584,7 +549,7 @@ async def recent(
     refuse to find.
     """
     limit = max(1, min(limit, SUGGEST_LIMIT))
-    clause = filters.clause() & search_scope_clause(user_id, guild_id=guild_id)
+    clause = filters.clause()
     newest = (
         select(*_suggestion_columns(user_id), SearchEntry.updated_at)
         # One row per thing: the index holds a row per body chunk as well.

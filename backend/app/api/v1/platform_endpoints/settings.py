@@ -200,6 +200,9 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
     """
     row = await app_settings_service.get_app_settings(session)
     permitted = auth_posture.methods_from_row(row)
+    stranding, without_factor = await auth_posture.account_figures(
+        session, permitted=permitted
+    )
     return PlatformAuthSettingsResponse(
         methods=[
             LoginMethodStatus(
@@ -207,9 +210,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
                 enabled=method in permitted,
                 primary=method in PRIMARY_LOGIN_METHODS,
                 answers_factor=method in FACTOR_METHODS,
-                would_strand=await auth_posture.stranded_between(
-                    session, current=permitted, requested=permitted - {method}
-                ),
+                would_strand=stranding[method],
             )
             for method in LoginMethod
         ],
@@ -219,12 +220,8 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
         session_idle_minutes=row.session_idle_minutes,
         second_factor_requirement=auth_posture.requirement_from_row(row),
         accounts_without_factor=AccountsWithoutFactor(
-            platform_roles=await auth_posture.accounts_without_factor(
-                session, level=SecondFactorRequirement.platform_roles
-            ),
-            everyone=await auth_posture.accounts_without_factor(
-                session, level=SecondFactorRequirement.everyone
-            ),
+            platform_roles=without_factor[SecondFactorRequirement.platform_roles],
+            everyone=without_factor[SecondFactorRequirement.everyone],
         ),
     )
 

@@ -94,8 +94,6 @@ async def search_guild(
     return await search_service.search(
         session,
         query=q,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
         filters=search_service.Filters(
             types=types,
             initiative_id=initiative_id,
@@ -131,7 +129,6 @@ async def recent_guild(
     return await search_service.recent(
         session,
         user_id=current_user.id,
-        guild_id=guild_context.guild_id,
         filters=search_service.Filters(
             types=types,
             initiative_id=initiative_id,
@@ -173,7 +170,6 @@ async def suggest_guild(
             session,
             query=q,
             user_id=guild_context.user_id,
-            guild_id=guild_context.guild_id,
             filters=search_service.Filters(
                 types=types,
                 initiative_id=initiative_id,
