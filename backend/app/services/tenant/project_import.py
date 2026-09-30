@@ -388,12 +388,12 @@ async def _import_task(
     if envelope_task.recurrence_carry:
         carry = dict(envelope_task.recurrence_carry)
         if carry.get("description"):
-            # Linked to people here now; a reference is settled now too, as
-            # the job's later pass rewrites the description column only.
+            # Linked to people here now, its references placed with the
+            # task's own description once everything has been written.
             carry["description"] = note_or_settle(
-                None,
+                context,
                 SearchEntityType.task,
-                None,
+                task.id,
                 _link_mentions(
                     carry["description"],
                     envelope_task.mention_handles,
