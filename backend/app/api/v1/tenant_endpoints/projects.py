@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.relationships import (
     DERIVED_TYPES,
     Provenance,
@@ -277,11 +278,14 @@ async def _duplicate_template_tasks(
             mapped_status_id = next(iter(fallback_status_ids.values()))
         start_date = template_task.start_date
         due_date = template_task.due_date
+        repeat = template_task.recurrence
         if date_shift is not None:
             if start_date is not None:
                 start_date = start_date + date_shift
             if due_date is not None:
                 due_date = due_date + date_shift
+            if repeat is not None:
+                repeat = recurrence.moved(repeat, date_shift)
         new_task = Task(
             project_id=new_project.id,
             title=template_task.title,
@@ -290,6 +294,8 @@ async def _duplicate_template_tasks(
             priority=template_task.priority,
             start_date=start_date,
             due_date=due_date,
+            recurrence=repeat,
+            recurrence_strategy=template_task.recurrence_strategy,
             position=template_task.position,
             checklist=checklist_service.cloned(template_task.checklist, keep_done=True),
         )

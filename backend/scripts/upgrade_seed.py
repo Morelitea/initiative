@@ -17,8 +17,10 @@ fixtures do, rather than through a request.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))
@@ -27,6 +29,7 @@ from sqlalchemy.ext.asyncio import create_async_engine  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
 from app.models.platform.guild import GuildRole  # noqa: E402
+from app.models.tenant.task import Task  # noqa: E402
 from app.testing import (  # noqa: E402
     TOOL_FACTORIES,
     checklist_items,
@@ -95,6 +98,32 @@ async def seed(session: AsyncSession) -> None:
     await create_counter(session, by_name["counter_group"])
     await create_calendar_event(session, by_name["calendar"], owner)
     await create_wiki_page(session, by_name["wiki"], owner)
+
+    # Repeats and an all-day event in the shape this release stores, so an
+    # upgrade has them to convert: JSON before RRULE, RRULE lines since.
+    monday = datetime(2026, 10, 4, 22, 30, tzinfo=timezone.utc)
+    if hasattr(Task, "recurrence_until"):
+        task_repeat = event_repeat = "RRULE:FREQ=WEEKLY;BYDAY=SU"
+    else:
+        task_repeat = {"frequency": "weekly", "weekdays": ["monday"], "ends": "never"}
+        event_repeat = json.dumps(task_repeat)
+    await create_task(session, project, due_date=monday, recurrence=task_repeat)
+    await create_calendar_event(
+        session,
+        by_name["calendar"],
+        owner,
+        start_at=monday,
+        end_at=monday + timedelta(hours=1),
+        recurrence=event_repeat,
+    )
+    await create_calendar_event(
+        session,
+        by_name["calendar"],
+        owner,
+        all_day=True,
+        start_at=monday,
+        end_at=monday + timedelta(hours=23, minutes=59, seconds=59),
+    )
 
 
 async def main() -> None:

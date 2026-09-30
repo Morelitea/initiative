@@ -10,7 +10,6 @@ in the envelope are informational and dropped."""
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -18,6 +17,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.db.session import routed_guild_id
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
@@ -222,7 +222,9 @@ class CalendarImporter(NamesPeopleInPassing):
             start_at=start_at,
             end_at=end_at,
             all_day=item.all_day,
-            recurrence=json.dumps(item.recurrence) if item.recurrence else None,
+            recurrence=recurrence.imported(
+                item.recurrence, kind="event", all_day=item.all_day
+            ),
             created_by=importer.id,
             # When the event was written down, not when it happens. Absent
             # leaves the model default: the moment of the import.

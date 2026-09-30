@@ -8,14 +8,15 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
+    event,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.core import recurrence
 from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -117,8 +118,12 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     due_date: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    recurrence: Optional[dict] = Field(
-        default=None, sa_column=Column(JSON, nullable=True)
+    # RFC 5545 recurrence lines in UTC terms (``app.core.recurrence``).
+    recurrence: Optional[str] = Field(default=None, sa_column=Column(Text))
+    # No occurrence of the series starts after this; null when it never ends.
+    # Written from ``recurrence`` on every save (see the listener below).
+    recurrence_until: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
     recurrence_strategy: str = Field(
         default="fixed",
@@ -171,4 +176,16 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     property_values: List["TaskPropertyValue"] = Relationship(
         back_populates="task",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+@event.listens_for(Task, "before_insert")
+@event.listens_for(Task, "before_update")
+def _write_recurrence_until(_mapper, _connection, task: Task) -> None:
+    # A task series starts at its due date, or its start date without one.
+    start = task.due_date or task.start_date
+    task.recurrence_until = (
+        recurrence.last_start(task.recurrence, start)
+        if task.recurrence and start
+        else None
     )

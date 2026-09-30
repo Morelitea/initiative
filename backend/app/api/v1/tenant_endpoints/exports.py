@@ -207,7 +207,7 @@ async def export_events(
     tz: Optional[str] = Query(
         default=None,
         max_length=64,
-        description="IANA timezone the events' dates and repeats are read in",
+        description="IANA timezone for the file name's date",
     ),
 ) -> Union[Response, JSONResponse]:
     """Export calendar events (the same visibility and filters as ``GET

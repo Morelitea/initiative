@@ -141,7 +141,8 @@ class ProjectExportTask(SanitizedBaseModel):
     priority: TaskPriority = TaskPriority.medium
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
-    recurrence: Optional[dict] = None
+    # RRULE lines; an export taken before RRULE carries the older JSON shape.
+    recurrence: Optional[str | dict] = None
     recurrence_strategy: str = "fixed"
     recurrence_occurrence_count: int = 0
     position: float = 0.0

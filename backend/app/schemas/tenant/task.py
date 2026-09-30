@@ -3,11 +3,12 @@ from string import ascii_letters, digits
 from typing import Final, List, Literal, Optional
 from uuid import uuid4
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
+from app.schemas.recurrence import TaskRule
 
 from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
@@ -100,102 +101,23 @@ class ChecklistItemToggle(SanitizedBaseModel):
 MAX_CHECKLIST_ITEMS: Final = 100
 
 
-WeekdayLiteral = Literal[
-    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
-]
-MonthlyModeLiteral = Literal["day_of_month", "weekday"]
-WeekPositionLiteral = Literal["first", "second", "third", "fourth", "last"]
-RecurrenceEndsLiteral = Literal["never", "on_date", "after_occurrences"]
-
-
-class TaskRecurrence(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    frequency: Literal["daily", "weekly", "monthly", "yearly"]
-    interval: int = Field(default=1, ge=1, le=365)
-    weekdays: List[WeekdayLiteral] = Field(default_factory=list)
-    monthly_mode: MonthlyModeLiteral = "day_of_month"
-    day_of_month: Optional[int] = Field(default=None, ge=1, le=31)
-    weekday_position: Optional[WeekPositionLiteral] = None
-    weekday: Optional[WeekdayLiteral] = None
-    month: Optional[int] = Field(default=None, ge=1, le=12)
-    ends: RecurrenceEndsLiteral = "never"
-    end_after_occurrences: Optional[int] = Field(default=None, ge=1, le=1000)
-    end_date: Optional[datetime] = None
-
-    @field_validator("weekdays")
-    def ensure_unique_weekdays(
-        cls, value: List[WeekdayLiteral]
-    ) -> List[WeekdayLiteral]:
-        seen: list[WeekdayLiteral] = []
-        for item in value:
-            if item not in seen:
-                seen.append(item)
-        return seen
-
-    @model_validator(mode="after")
-    def validate_combinations(self) -> "TaskRecurrence":
-        if self.frequency == "weekly":
-            if not self.weekdays:
-                raise ValueError("Weekly recurrence requires at least one weekday.")
-        else:
-            # Clear weekdays for non-weekly recurrences to keep payload compact/safe.
-            self.weekdays = []
-
-        if self.frequency in {"monthly", "yearly"}:
-            if self.frequency == "yearly" and self.month is None:
-                raise ValueError("Yearly recurrence requires a month.")
-            if self.monthly_mode == "day_of_month":
-                if self.day_of_month is None:
-                    raise ValueError("Recurring schedule needs a day of month.")
-                if not 1 <= self.day_of_month <= 31:
-                    raise ValueError("Day of month must be between 1 and 31.")
-                self.weekday_position = None
-                self.weekday = None
-            else:
-                if self.weekday_position is None or self.weekday is None:
-                    raise ValueError(
-                        "Weekday recurrence requires position and weekday."
-                    )
-                self.day_of_month = None
-            if self.frequency == "monthly":
-                self.month = None
-        else:
-            # Strip fields unrelated to the selected cadence.
-            self.monthly_mode = "day_of_month"
-            self.day_of_month = None
-            self.weekday_position = None
-            self.weekday = None
-            self.month = None
-
-        if self.ends == "on_date":
-            if self.end_date is None:
-                raise ValueError("End date required when ends='on_date'.")
-            self.end_after_occurrences = None
-        elif self.ends == "after_occurrences":
-            if self.end_after_occurrences is None:
-                raise ValueError("Occurrences required when ends='after_occurrences'.")
-            self.end_date = None
-        else:
-            self.end_date = None
-            self.end_after_occurrences = None
-
-        return self
-
-
 class TaskBase(SanitizedBaseModel):
     title: str
     description: Optional[RichTextStr] = None
     priority: TaskPriority = TaskPriority.medium
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
-    recurrence: Optional[TaskRecurrence] = None
+    recurrence: Optional[str] = None
     recurrence_strategy: Literal["fixed", "rolling"] = "fixed"
 
 
 class TaskCreate(TaskBase):
     title: TitleStr
     project_id: int
+    recurrence: Optional[TaskRule] = None
+    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
+    #: terms from the series start. Omitted, the rule is already in UTC terms.
+    tz: Optional[str] = Field(default=None, max_length=64)
     assignee_ids: List[PersonId] = Field(default_factory=list)
     task_status_id: Optional[int] = None
     tag_ids: List[int] = Field(default_factory=list, max_length=100)
@@ -211,7 +133,10 @@ class TaskUpdate(SanitizedBaseModel):
     assignee_ids: Optional[List[PersonId]] = None
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
-    recurrence: Optional[TaskRecurrence | None] = None
+    recurrence: Optional[TaskRule] = None
+    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
+    #: terms from the series start. Omitted, the rule is already in UTC terms.
+    tz: Optional[str] = Field(default=None, max_length=64)
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
     # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)

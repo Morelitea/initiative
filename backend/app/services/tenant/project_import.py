@@ -26,6 +26,7 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
+from app.core import recurrence
 from app.core.messages import ProjectExportMessages
 from app.core.search import SearchEntityType
 from app.models.tenant.comment import Comment
@@ -310,7 +311,7 @@ async def _import_task(
         priority=envelope_task.priority,
         start_date=envelope_task.start_date,
         due_date=envelope_task.due_date,
-        recurrence=envelope_task.recurrence,
+        recurrence=recurrence.imported(envelope_task.recurrence, kind="task"),
         recurrence_strategy=envelope_task.recurrence_strategy,
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
         position=envelope_task.position,

@@ -8,6 +8,8 @@ serialization on the list summary, and the cross-guild ``/me`` calendar list's
 DAC filter (which now keys off calendar sharing, not per-event grants).
 """
 
+from datetime import datetime, timezone
+
 from httpx import AsyncClient
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,6 +19,7 @@ from app.db.schema_provisioning import guild_schema_name
 from app.core.messages import CalendarEventMessages, CommonMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
@@ -26,6 +29,7 @@ from app.testing import (
     create_property_definition,
     create_tag,
     get_auth_headers,
+    route_session_to_guild,
 )
 
 
@@ -210,6 +214,58 @@ async def test_create_multi_day_timed_event_is_allowed(
     body = response.json()
     assert body["start_at"].startswith("2026-07-01")
     assert body["end_at"].startswith("2026-07-03")
+
+
+async def test_create_event_stores_its_repeat_in_utc_terms(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A repeat sent with the zone its days were picked in is stored in UTC
+    terms from the event's start, with the latest start it can have. An
+    all-day event's days are UTC dates already, so its zone changes nothing."""
+    (
+        organizer,
+        _attendee,
+        guild,
+        _initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+    created = {}
+    for title, extra, rule in (
+        # Mondays at 00:30 in Berlin are Sundays in UTC.
+        (
+            "Standup",
+            {"start_at": "2026-10-04T22:30:00Z"},
+            "FREQ=WEEKLY;BYDAY=MO;COUNT=3",
+        ),
+        (
+            "Market day",
+            {"start_at": "2026-10-05T00:00:00Z", "all_day": True},
+            "FREQ=WEEKLY;BYDAY=MO;COUNT=3",
+        ),
+    ):
+        response = await client.post(
+            organizer.g("/calendar-events/"),
+            headers=organizer.headers,
+            json={
+                "calendar_id": calendar.id,
+                "title": title,
+                "end_at": "2026-10-05T23:59:59Z",
+                "recurrence": rule,
+                "tz": "Europe/Berlin",
+                **extra,
+            },
+        )
+        assert response.status_code == 201
+        created[title] = response.json()
+    assert created["Standup"]["recurrence"] == "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=SU"
+    assert created["Market day"]["recurrence"] == "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO"
+
+    await route_session_to_guild(session, guild.id)
+    standup = await session.get(CalendarEvent, created["Standup"]["id"])
+    assert standup is not None
+    assert standup.recurrence_until == datetime(
+        2026, 10, 18, 22, 30, tzinfo=timezone.utc
+    )
 
 
 async def test_create_event_rejects_end_before_start(

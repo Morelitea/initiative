@@ -9,6 +9,7 @@ from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
+from app.schemas.recurrence import EventRule
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
@@ -61,24 +62,6 @@ class CalendarEventDocumentRead(SanitizedBaseModel):
 # ---------------------------------------------------------------------------
 
 
-class EventRecurrence(SanitizedBaseModel):
-    frequency: str = Field(..., pattern="^(daily|weekly|monthly|yearly)$")
-    interval: int = Field(default=1, ge=1, le=365)
-    weekdays: Optional[List[str]] = None
-    monthly_mode: Optional[str] = Field(
-        default=None, pattern="^(day_of_month|weekday)$"
-    )
-    day_of_month: Optional[int] = Field(default=None, ge=1, le=31)
-    weekday_position: Optional[str] = Field(
-        default=None, pattern="^(first|second|third|fourth|last)$"
-    )
-    weekday: Optional[str] = None
-    month: Optional[int] = Field(default=None, ge=1, le=12)
-    ends: str = Field(default="never", pattern="^(never|on_date|after_occurrences)$")
-    end_after_occurrences: Optional[int] = Field(default=None, ge=1, le=1000)
-    end_date: Optional[datetime] = None
-
-
 # ---------------------------------------------------------------------------
 # Calendar event schemas
 # ---------------------------------------------------------------------------
@@ -91,7 +74,7 @@ class CalendarEventBase(SanitizedBaseModel):
     start_at: datetime
     end_at: datetime
     all_day: bool = False
-    recurrence: Optional[EventRecurrence] = None
+    recurrence: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_dates(self) -> "CalendarEventBase":
@@ -103,6 +86,11 @@ class CalendarEventBase(SanitizedBaseModel):
 class CalendarEventCreate(CalendarEventBase):
     title: TitleStr = Field(..., min_length=1, max_length=255)
     calendar_id: int
+    recurrence: Optional[EventRule] = None
+    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
+    #: terms from the event's start; an all-day event's days are
+    #: UTC dates already. Omitted, the rule is already in UTC terms.
+    tz: Optional[str] = Field(default=None, max_length=64)
     attendee_ids: Optional[List[PersonId]] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
@@ -115,7 +103,11 @@ class CalendarEventUpdate(SanitizedBaseModel):
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
     all_day: Optional[bool] = None
-    recurrence: Optional[EventRecurrence] = None
+    recurrence: Optional[EventRule] = None
+    #: The zone ``recurrence``'s days were picked in: the rule is stored in UTC
+    #: terms from the event's start; an all-day event's days are
+    #: UTC dates already. Omitted, the rule is already in UTC terms.
+    tz: Optional[str] = Field(default=None, max_length=64)
     # Move the event to another calendar (requires write on both calendars).
     calendar_id: Optional[int] = None
 
@@ -226,19 +218,6 @@ def _serialize_event_properties(event: "CalendarEvent") -> List[PropertySummary]
     return summaries_from_rows(rows)
 
 
-def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
-    raw = getattr(event, "recurrence", None)
-    if not raw:
-        return None
-    import json
-
-    try:
-        data = json.loads(raw) if isinstance(raw, str) else raw
-        return EventRecurrence(**data)
-    except Exception:
-        return None
-
-
 def serialize_calendar_event_summary(
     event: "CalendarEvent",
     *,
@@ -274,7 +253,6 @@ def serialize_calendar_event_summary(
     return from_row(
         CalendarEventSummary,
         event,
-        recurrence=_parse_recurrence(event),
         initiative_id=calendar.initiative_id if calendar is not None else 0,
         guild_id=guild_id if guild_id is not None else context.guild_id,
         attendee_count=len(attendees_list),

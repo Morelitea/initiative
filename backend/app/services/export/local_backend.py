@@ -156,9 +156,7 @@ def _render_item(req: RenderRequest, item: RenderItem) -> RenderedArtifact:
     elif format == "ics":
         from app.services.tenant.ical_service import ical_from_export_dicts
 
-        content = ical_from_export_dicts(
-            item.data.get("events") or [], item.data.get("tz")
-        )
+        content = ical_from_export_dicts(item.data.get("events") or [])
     elif format == "json":
         # The payload IS the artifact (e.g. a backup envelope); indent for a
         # human-inspectable file.

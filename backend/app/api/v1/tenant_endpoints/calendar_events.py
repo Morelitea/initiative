@@ -16,6 +16,7 @@ from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import recurrence
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
@@ -694,10 +695,6 @@ async def create_calendar_event(
         session, event_in.calendar_id, current_user, guild_context
     )
 
-    recurrence_json = None
-    if event_in.recurrence:
-        recurrence_json = event_in.recurrence.model_dump_json()
-
     event = CalendarEvent(
         calendar_id=event_in.calendar_id,
         created_by=guild_context.user_id,
@@ -707,7 +704,13 @@ async def create_calendar_event(
         start_at=event_in.start_at,
         end_at=event_in.end_at,
         all_day=event_in.all_day,
-        recurrence=recurrence_json,
+        recurrence=event_in.recurrence
+        and recurrence.stored(
+            event_in.recurrence,
+            event_in.start_at,
+            "UTC" if event_in.all_day else event_in.tz,
+            kind="event",
+        ),
     )
     session.add(event)
     await session.flush()
@@ -826,10 +829,12 @@ async def update_calendar_event(
             updated = True
 
     if "recurrence" in update_data:
-        if update_data["recurrence"] is not None:
-            event.recurrence = event_in.recurrence.model_dump_json()
-        else:
-            event.recurrence = None
+        event.recurrence = update_data["recurrence"] and recurrence.stored(
+            update_data["recurrence"],
+            event.start_at,
+            "UTC" if event.all_day else event_in.tz,
+            kind="event",
+        )
         updated = True
 
     # Validate dates after applying partial updates

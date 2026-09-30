@@ -893,6 +893,9 @@ class CalendarEventMessages:
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
     ENDS_BEFORE_START = "CALENDAR_EVENT_ENDS_BEFORE_START"
+    # A repeat rule that can't be read, or asks for more than tasks and
+    # events repeat by (``app.core.recurrence``).
+    RECURRENCE_INVALID = "RECURRENCE_INVALID"
     # A guild calendar holds guild-level content only. Things defined on an
     # initiative — custom properties, documents — have no counterpart at guild
     # scope, so an event there cannot carry them; and an event cannot be moved

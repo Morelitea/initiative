@@ -15,7 +15,6 @@ import zipfile
 import zlib
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 from decimal import Decimal
 from typing import Any
 
@@ -1921,16 +1920,15 @@ async def _events_enabled(session, initiative):
 
 
 async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, session):
-    """A calendar exports as one multi-event iCalendar file (RRULE preserved,
-    and read back by the ics import) or one importable envelope carrying the
-    calendar plus every event. Both sides read dates and weekdays in the
-    requester's zone, the one the form picked them in."""
+    """A calendar exports as one multi-event iCalendar file (the stored rules as
+    they are, read back unchanged by the ics import) or one importable envelope
+    carrying the calendar plus every event."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
-    berlin = ZoneInfo("Europe/Berlin")
-    # Monday 00:30 in Berlin is still Sunday in UTC.
-    session_start = datetime(2026, 10, 5, 0, 30, tzinfo=berlin)
+    # Mondays and Wednesdays at 00:30 in Berlin: Sundays and Tuesdays in UTC.
+    session_start = datetime(2026, 10, 4, 22, 30, tzinfo=timezone.utc)
+    weekly = "RRULE:FREQ=WEEKLY;BYDAY=SU,TU"
     recurring_event = await create_calendar_event(
         session,
         calendar,
@@ -1940,30 +1938,19 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         end_at=session_start + timedelta(hours=3),
         description="Return to the castle",
         location="Roll20",
-        # "WE" is the form earlier imports stored a weekday in.
-        recurrence=json.dumps(
-            {"frequency": "weekly", "weekdays": ["monday", "WE"], "ends": "never"}
-        ),
+        recurrence=weekly,
     )
+    # All day on the second Monday until mid-December, November skipped.
+    monthly = "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO\nEXDATE;VALUE=DATE:20261109"
     await create_calendar_event(
         session,
         calendar,
         a.user,
         title="Guild meeting",
-        # All day on Monday 12 October, stored the way the form stores it.
         all_day=True,
-        start_at=datetime(2026, 10, 12, tzinfo=berlin),
-        end_at=datetime(2026, 10, 12, 23, 59, 59, tzinfo=berlin),
-        recurrence=json.dumps(
-            {
-                "frequency": "monthly",
-                "monthly_mode": "weekday",
-                "weekday_position": "second",
-                "weekday": "monday",
-                "ends": "on_date",
-                "end_date": "2026-12-14",
-            }
-        ),
+        start_at=datetime(2026, 10, 12, tzinfo=timezone.utc),
+        end_at=datetime(2026, 10, 12, 23, 59, 59, tzinfo=timezone.utc),
+        recurrence=monthly,
     )
     definition = await create_property_definition(session, a.initiative, name="Table")
     await create_calendar_event_property_value(
@@ -1972,19 +1959,20 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     await create_calendar_event(session, calendar, a.user, title="One-shot night")
 
     body = _assert_export(
-        await _export(client, a, "calendar", format="ics", tz="Europe/Berlin"),
+        await _export(client, a, "calendar", format="ics"),
         "ics",
         disposition=('filename="raid_nights-',),
         present=(
             "SUMMARY:Session 13",
-            "DTSTART;TZID=Europe/Berlin:20261005T003000",
-            "BEGIN:VTIMEZONE",
-            "RRULE:FREQ=WEEKLY;BYDAY=MO,WE",
+            "DTSTART:20261004T223000Z",
+            "RRULE:FREQ=WEEKLY;BYDAY=SU,TU",
             "DTSTART;VALUE=DATE:20261012",
             "DTEND;VALUE=DATE:20261013",
             "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO",
+            "EXDATE;VALUE=DATE:20261109",
             "LOCATION:Roll20",
         ),
+        absent=("TZID",),
     )
     assert body.count("BEGIN:VEVENT") == 3
     imported, errors, _ = ical_service.build_calendar_events(
@@ -1992,40 +1980,43 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     )
     assert errors == []
     by_title = {event.title: event for event in imported}
-    assert by_title["Session 13"].start_at == session_start
-    meeting = by_title["Guild meeting"]
-    assert (meeting.start_at, meeting.end_at) == (
-        datetime(2026, 10, 12, tzinfo=berlin),
-        datetime(2026, 10, 12, 23, 59, 59, tzinfo=berlin),
+    assert (by_title["Session 13"].start_at, by_title["Session 13"].recurrence) == (
+        session_start,
+        weekly,
     )
-    recurrences = {e.title: json.loads(e.recurrence or "null") for e in imported}
-    assert recurrences["Session 13"]["weekdays"] == ["monday", "wednesday"]
-    assert recurrences["Guild meeting"] == {
-        "frequency": "monthly",
-        "interval": 1,
-        "monthly_mode": "weekday",
-        "weekday_position": "second",
-        "weekday": "monday",
-        "ends": "on_date",
-        "end_date": "2026-12-14T00:00:00",
-    }
-    # A rule the model cannot hold imports as one event, not another schedule;
-    # a cutoff before the day's start ends the repeats the day before.
-    foreign, _, _ = ical_service.build_calendar_events(
+    meeting = by_title["Guild meeting"]
+    assert (meeting.start_at, meeting.end_at, meeting.recurrence) == (
+        datetime(2026, 10, 12, tzinfo=timezone.utc),
+        datetime(2026, 10, 12, 23, 59, 59, tzinfo=timezone.utc),
+        monthly,
+    )
+    # Another app's file: a rule in its own zone comes into UTC terms, a
+    # floating time is read in the importer's zone, and a rule an event can't
+    # repeat by leaves the event without its repeat.
+    foreign, errors, _ = ical_service.build_calendar_events(
         "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
-        "BEGIN:VEVENT\r\nSUMMARY:Month end\r\nDTSTART:20261031T090000Z\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Standup\r\n"
+        "DTSTART;TZID=Europe/Berlin:20261005T003000\r\n"
+        "RRULE:FREQ=WEEKLY;BYDAY=MO\r\nEND:VEVENT\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Month end\r\nDTSTART:20261031T090000\r\n"
         "RRULE:FREQ=MONTHLY;BYMONTHDAY=-1\r\nEND:VEVENT\r\n"
-        "BEGIN:VEVENT\r\nSUMMARY:Late night\r\nDTSTART:20261005T213000Z\r\n"
-        "RRULE:FREQ=DAILY;UNTIL=20261006T190000Z\r\nEND:VEVENT\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Ticker\r\nDTSTART:20261005T090000Z\r\n"
+        "RRULE:FREQ=MINUTELY\r\nEND:VEVENT\r\n"
         "END:VCALENDAR\r\n",
         calendar.id,
         a.guild.id,
         a.user.id,
-        tz="Europe/Berlin",
+        tz="America/New_York",
     )
-    foreign_rules = {e.title: json.loads(e.recurrence or "null") for e in foreign}
-    assert foreign_rules["Month end"] is None
-    assert foreign_rules["Late night"]["end_date"] == "2026-10-05T00:00:00"
+    assert errors == []
+    assert {e.title: (e.start_at, e.recurrence) for e in foreign} == {
+        "Standup": (session_start, "RRULE:FREQ=WEEKLY;BYDAY=SU"),
+        "Month end": (
+            datetime(2026, 10, 31, 13, 0, tzinfo=timezone.utc),
+            "RRULE:FREQ=MONTHLY;BYMONTHDAY=-1",
+        ),
+        "Ticker": (datetime(2026, 10, 5, 9, 0, tzinfo=timezone.utc), None),
+    }
 
     js = await _export(client, a, "calendar", format="json")
     envelope = json.loads(_assert_export(js, "json"))
@@ -2035,7 +2026,7 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     titles = {e["title"] for e in envelope["events"]}
     assert titles == {"Session 13", "Guild meeting", "One-shot night"}
     recurring = next(e for e in envelope["events"] if e["title"] == "Session 13")
-    assert recurring["recurrence"]["frequency"] == "weekly"
+    assert recurring["recurrence"] == weekly
     assert recurring["description"] == "Return to the castle"
     # Custom properties ride flat and by NAME (project-envelope encoding).
     assert recurring["properties"] == [
@@ -2110,12 +2101,10 @@ async def test_calendar_export_applies_calendar_sharing(
 
     # The events export is a formatted read: what b can see, and nothing more.
     body = _assert_export(
-        await _export(
-            client, a, "events", headers=b.headers, format="ics", tz="Asia/Tokyo"
-        ),
+        await _export(client, a, "events", headers=b.headers, format="ics"),
         "ics",
         disposition=('filename="events.ics"',),
-        present=("SUMMARY:Their session", "SUMMARY:Read only", "TZID=Asia/Tokyo"),
+        present=("SUMMARY:Their session", "SUMMARY:Read only"),
         absent=("SUMMARY:Hidden",),
     )
     assert body.count("BEGIN:VEVENT") == 2
