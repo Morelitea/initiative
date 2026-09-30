@@ -26,11 +26,14 @@ Repo rules that this skill must honor (from `CLAUDE.md`):
    are no changes at all, stop and tell the user.
 2. Run the quality gates for what changed (don't run the whole world if only
    one side changed):
-   - Frontend: `cd frontend && pnpm typecheck` and
-     `pnpm biome check <changed files>`; run changed tests with
-     `./scripts/test-changed.sh`.
-   - Backend: `cd backend && ruff check app` and
-     `./scripts/test-changed.sh`.
+   - **`scripts/ci/check`**: the fast checks CI runs, by the same script CI
+     calls (ruff, ruff format, ty, frozen migrations and one Alembic head,
+     biome, tsc, and generated-types / `env-contract.json` drift), for what the
+     branch changed against `origin/dev`. No database, no tests; seconds. If
+     `codegen` fails, `scripts/ci/check codegen` has regenerated the files:
+     review and commit them.
+   - Tests for what changed: `cd backend && ./scripts/test-changed.sh` and
+     `cd frontend && ./scripts/test-changed.sh`.
    Fix anything that fails before opening the PR — a red gate locally will be
    red in CI, and a CI round-trip on this repo costs up to ~26 minutes. Never
    push a speculative fix hoping CI will validate it; reproduce it locally
@@ -48,7 +51,9 @@ Repo rules that this skill must honor (from `CLAUDE.md`):
 2. Stage the intended files explicitly and commit. Imperative subject ≤50
    chars; add a body explaining the *why*. **No** `Co-Authored-By`, no agent
    mentions. A pre-commit hook (lint-staged/biome) may run — let it.
-3. `git push -u origin <branch>`.
+3. `git push -u origin <branch>`. The husky pre-push hook runs
+   `scripts/ci/check` again for what the branch changed; if it fails, fix and
+   push again rather than skipping it with `--no-verify`.
 
 ## 3. Open the PR
 
@@ -179,12 +184,18 @@ The CI workflow's jobs on this repo include **Backend Lint & Tests**,
 4. Commit, push, and re-enter §4's loop.
 
 **Frontend Lint & Tests** and **Check Generated Types** report in a few
-minutes; **Backend Lint & Tests** is the long pole. Its scope is computed from
-the diff — a change under `backend/alembic/` or to `.github/workflows/ci.yml`
-forces the full `app/ alembic/` suite (the ~26-minute case), while an ordinary
-backend change runs a scoped subset. If you touch either of those paths, expect
-the long run and plan the batch around it. A PR with no `backend/` changes
-skips the job entirely.
+minutes; **Backend Lint & Tests** is the long pole. Detect Changes picks its
+mode from the diff (CLAUDE.md, "Which backend tests a pull request runs"):
+- **every test** (the ~26-minute case) for a change test selection cannot see:
+  `backend/alembic/`, `app/db/`, `app/testing/`, `conftest.py`,
+  `pytest.ini`, dependencies, non-Python files under `app/`, or
+  `.github/workflows/ci.yml`;
+- **the always-run core plus the tests the change reaches** for an ordinary
+  backend change;
+- **only the always-run core** when nothing in `backend/` changed but more
+  than documentation did.
+If you touch one of the every-test paths, expect the long run and plan the
+batch around it. A documentation-only PR skips the job.
 
 ## 7. Report
 
