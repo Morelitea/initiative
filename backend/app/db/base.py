@@ -49,6 +49,7 @@ from app.models.tenant.queue import (
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
+    CalendarEventAnswer,
     CalendarEventAttendee,
 )
 from app.models.tenant.event_outbox import EventOutbox
@@ -191,6 +192,7 @@ __all__ = [
     "QueueItem",
     "Calendar",
     "CalendarEvent",
+    "CalendarEventAnswer",
     "CalendarEventAttendee",
     "EventOutbox",
     "AppEventOutbox",

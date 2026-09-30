@@ -103,5 +103,33 @@
     "title": "Calendrier de la communauté",
     "empty": "Aucun calendrier pour l'instant.",
     "emptyHint": "Créez-en un pour les jours fériés, pour une rencontre régulière ou simplement pour vous."
+  },
+  "scope": {
+    "title": {
+      "edit": "Modifier un événement récurrent",
+      "delete": "Supprimer un événement récurrent"
+    },
+    "description": "Cet événement se répète. À quels événements cela s'applique-t-il ?",
+    "this": "Uniquement cet événement",
+    "following": "Les événements à partir de celui-ci",
+    "all": "Tous les événements de la série",
+    "confirm": {
+      "edit": "Enregistrer",
+      "delete": "Supprimer"
+    }
+  },
+  "occurrence": {
+    "partOfSeries": "Une occurrence d'un événement récurrent.",
+    "openSeries": "Ouvrir la série",
+    "detach": "En faire un événement à part",
+    "detached": "Cette occurrence est désormais un événement à part.",
+    "followsSeries": "Cette occurrence se répète avec sa série. Modifiez la répétition depuis la série.",
+    "skipped": "Dates ignorées",
+    "extra": "Dates supplémentaires",
+    "restore": "Rétablir",
+    "restored": "Date rétablie.",
+    "addDate": "Ajouter une date",
+    "added": "Date ajoutée.",
+    "openAlone": "Modifier uniquement cette occurrence"
   }
 }

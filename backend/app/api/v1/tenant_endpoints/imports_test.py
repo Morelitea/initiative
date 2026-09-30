@@ -214,6 +214,8 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
 
 
 async def test_envelope_import_roundtrips_calendar(client, acting_user, session):
+    from datetime import timedelta
+
     from sqlmodel import select
 
     from app.models.tenant.calendar import Calendar
@@ -225,8 +227,22 @@ async def test_envelope_import_roundtrips_calendar(client, acting_user, session)
     session.add(a.initiative)
     await session.commit()
     calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
-    await create_calendar_event(session, calendar, a.user, title="Session Zero")
+    zero = await create_calendar_event(
+        session, calendar, a.user, title="Session Zero", recurrence="RRULE:FREQ=WEEKLY"
+    )
     await create_calendar_event(session, calendar, a.user, title="One-shot")
+    # Its second week, changed alone, comes across as its second week.
+    second = zero.start_at + timedelta(weeks=1)
+    await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        title="Session Zero, again",
+        start_at=second,
+        end_at=second + timedelta(hours=1),
+        series_id=zero.id,
+        original_start=second,
+    )
 
     envelope = await _export_json(
         client, a, "/exports/calendar", {"initiative_id": a.initiative.id}
@@ -238,7 +254,7 @@ async def test_envelope_import_roundtrips_calendar(client, acting_user, session)
     assert resp.status_code == 201, resp.text
     created = resp.json()["result"]["created"]
     assert created["calendars"] == 1
-    assert created["events"] == 2
+    assert created["events"] == 3
 
     imported_calendar = (
         await session.exec(select(Calendar).where(Calendar.initiative_id == target.id))
@@ -251,7 +267,14 @@ async def test_envelope_import_roundtrips_calendar(client, acting_user, session)
             )
         )
     )
-    assert {e.title for e in imported} == {"Session Zero", "One-shot"}
+    by_title = {e.title: e for e in imported}
+    assert set(by_title) == {"Session Zero", "One-shot", "Session Zero, again"}
+    again = by_title["Session Zero, again"]
+    assert (again.series_id, again.original_start, again.overridden_fields) == (
+        by_title["Session Zero"].id,
+        second,
+        ["attendees", "properties", "tags", "title"],
+    )
     # The exporter was the only attendee-resolvable member; attendee rows for
     # the creator resolve by email.
     attendees = list(

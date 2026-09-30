@@ -54,6 +54,7 @@ from app.services.import_engine.people import (
     bring_in_named,
     initiative_member_id,
 )
+from app.services.tenant import calendar_occurrences
 from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 
@@ -144,12 +145,16 @@ class CalendarImporter(NamesPeopleInPassing):
         named_handles: dict[int, str] = {}
         warnings: list[str] = []
 
-        for item in env.events:
+        # A repeating event's new id by the name it came with, for the
+        # occurrences of it with rows of their own, which come after it.
+        series_ids: dict[str, int] = {}
+        for item in sorted(env.events, key=lambda item: item.series_ref is not None):
             try:
                 async with session.begin_nested():
                     counts = await self._apply_event(
                         session,
                         item=item,
+                        series_ids=series_ids,
                         calendar_id=calendar.id,
                         initiative_id=target_initiative.id,
                         guild_id=guild_id,
@@ -208,6 +213,7 @@ class CalendarImporter(NamesPeopleInPassing):
         member_handles: dict[str, int],
         unmatched_handles: set[str],
         named_handles: dict[int, str],
+        series_ids: dict[str, int],
         context: ImportContext | None = None,
     ) -> dict[str, int]:
         start_at = parse_datetime(item.start_at)
@@ -245,8 +251,22 @@ class CalendarImporter(NamesPeopleInPassing):
             # leaves the model default: the moment of the import.
             **_created_at(item),
         )
+        original = parse_datetime(item.original_start) if item.original_start else None
+        if item.series_ref in series_ids and original is not None:
+            series = await session.get(CalendarEvent, series_ids[item.series_ref])
+            event.series_id = series_ids[item.series_ref]
+            event.original_start = original
+            if series is not None:
+                # What it says differently stays its own, and so do the
+                # attendees, tags and properties it came with.
+                event.overridden_fields = sorted(
+                    calendar_occurrences.differences(event, series)
+                    | set(calendar_occurrences.LISTS)
+                )
         session.add(event)
         await session.flush()
+        if item.external_ref and event.recurrence and event.id is not None:
+            series_ids[item.external_ref] = event.id
 
         # An event is something other entries point at — a sprint with its
         # tasks in it — so it joins the job's ref map like a task does. The

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
-from itertools import islice
+from itertools import islice, takewhile
 from typing import Iterable, Literal
 
 import icalendar
@@ -278,6 +278,15 @@ def between(
     ]
 
 
+def starting(
+    text: str, start: datetime, shift: int, at: datetime, n: int
+) -> list[datetime]:
+    """The series' first ``n`` starts at or after ``at``."""
+    series, offset = _series(parse(text), start, shift)
+    moved = (at.astimezone(timezone.utc) + offset).replace(tzinfo=None)
+    return [_back(value, offset) for value in series.xafter(moved, count=n, inc=True)]
+
+
 def upcoming(text: str, start: datetime, shift: int, now: datetime) -> datetime:
     """The first occurrence starting at or after ``now``, or, once the series
     has ended, its last."""
@@ -295,15 +304,11 @@ def restarted(
     start keeps its picked day at the new time of day."""
     new_shift = shift_for(text, new_start, resolve_zone(tz)) if tz else shift
     repeat = parse(text)
-    old = timedelta(minutes=shift)
-    new = timedelta(minutes=new_shift)
-    at = (new_start.astimezone(timezone.utc) + new).time()
 
     def move(value: date | datetime) -> date | datetime:
         if not isinstance(value, datetime):
             return value
-        day = (value.astimezone(timezone.utc) + old).date()
-        return datetime.combine(day, at, timezone.utc) - new
+        return rehomed(text, value, shift, new_shift, old_start, new_start)
 
     lines = Recurrence(
         repeat.rule,
@@ -311,6 +316,161 @@ def restarted(
         tuple(move(value) for value in repeat.rdates),
     ).to_lines()
     return lines, new_shift
+
+
+def rehomed(
+    text: str,
+    value: datetime,
+    old_shift: int,
+    new_shift: int,
+    old_start: datetime,
+    new_start: datetime,
+) -> datetime:
+    """An occurrence of a series whose start moved: the same picked day, at
+    the new start's time of day. A rule of named hours keeps its hour and takes
+    the new start's minute; a rule of every so many hours moves each start by
+    as much as the first moved."""
+    rule = parse(text).rule
+    if "BYHOUR" in rule:
+        local = value.astimezone(timezone.utc) + timedelta(minutes=old_shift)
+        anchor = new_start.astimezone(timezone.utc) + timedelta(minutes=new_shift)
+        return local.replace(
+            minute=anchor.minute, second=anchor.second, microsecond=0
+        ) - timedelta(minutes=new_shift)
+    if rule["FREQ"][0] == "HOURLY":
+        return value.astimezone(timezone.utc) + (new_start - old_start)
+    day = (value.astimezone(timezone.utc) + timedelta(minutes=old_shift)).date()
+    new = timedelta(minutes=new_shift)
+    at = (new_start.astimezone(timezone.utc) + new).time()
+    return datetime.combine(day, at, timezone.utc) - new
+
+
+def _names(value: date | datetime, at: datetime, shift: int) -> bool:
+    """Whether a skipped or extra start is the occurrence starting at ``at``:
+    an instant by itself, a date by the day it was picked on."""
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc) == at.astimezone(timezone.utc)
+    return (at.astimezone(timezone.utc) + timedelta(minutes=shift)).date() == value
+
+
+def occurs(text: str, start: datetime, shift: int, at: datetime) -> bool:
+    """Whether the series has an occurrence starting at ``at``."""
+    return bool(between(text, start, shift, at, at))
+
+
+def skipped(text: str, shift: int, at: datetime) -> str:
+    """The repeat without its occurrence at ``at``: an extra start is taken
+    out again, any other is skipped."""
+    repeat = parse(text)
+    rdates = tuple(value for value in repeat.rdates if not _names(value, at, shift))
+    if len(rdates) != len(repeat.rdates):
+        return Recurrence(repeat.rule, repeat.exdates, rdates).to_lines()
+    return Recurrence(
+        repeat.rule, (*repeat.exdates, at.astimezone(timezone.utc)), repeat.rdates
+    ).to_lines()
+
+
+def restored(text: str, shift: int, at: datetime) -> str:
+    """The repeat with its skipped occurrence at ``at`` back."""
+    repeat = parse(text)
+    return Recurrence(
+        repeat.rule,
+        tuple(value for value in repeat.exdates if not _names(value, at, shift)),
+        repeat.rdates,
+    ).to_lines()
+
+
+def with_extra(text: str, shift: int, at: datetime) -> str:
+    """The repeat with an extra start at ``at``."""
+    repeat = parse(text)
+    return Recurrence(
+        repeat.rule,
+        tuple(value for value in repeat.exdates if not _names(value, at, shift)),
+        (*repeat.rdates, at.astimezone(timezone.utc)),
+    ).to_lines()
+
+
+def exception_starts(
+    text: str, start: datetime, shift: int
+) -> tuple[list[datetime], list[datetime]]:
+    """The series' skipped starts and extra starts, as instants: a date is
+    at the series' time on the day it was picked."""
+    repeat = parse(text)
+    offset = timedelta(minutes=shift)
+    at = (start.astimezone(timezone.utc) + offset).time()
+
+    def instant(value: date | datetime) -> datetime:
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc)
+        return datetime.combine(value, at, timezone.utc) - offset
+
+    return (
+        sorted(instant(v) for v in repeat.exdates),
+        sorted(instant(v) for v in repeat.rdates),
+    )
+
+
+def kept_exceptions(new: str, old: str | None) -> str:
+    """A rule written without skipped or extra starts keeps the ones the
+    series had: the form edits the rule, and they are not the rule."""
+    fresh = parse(new)
+    if not old or fresh.exdates or fresh.rdates:
+        return new
+    before = parse(old)
+    return Recurrence(fresh.rule, before.exdates, before.rdates).to_lines()
+
+
+def split(
+    text: str, start: datetime, shift: int, at: datetime
+) -> tuple[str | None, str]:
+    """The series cut at its occurrence ``at``: the part before it (None when
+    ``at`` is its first), and the rest, a series starting at ``at``.
+
+    A COUNT is shared between them by the rule's own starts before ``at``;
+    otherwise the first part ends the second before ``at``. Each part keeps
+    the skipped and extra starts on its side."""
+    repeat = parse(text)
+    at = at.astimezone(timezone.utc)
+    offset = timedelta(minutes=shift)
+
+    def early(value: date | datetime) -> bool:
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc) < at
+        return value < (at + offset).date()
+
+    series, _ = _series(Recurrence(repeat.rule), start, shift)
+    moved = (at + offset).replace(tzinfo=None)
+    count = repeat.rule.get("COUNT")
+    # The rule's own starts before ``at``: counted only for a COUNT, which
+    # bounds them; otherwise all that matters is whether there is one.
+    done = (
+        sum(1 for _ in takewhile(lambda value: value < moved, series))
+        if count
+        else int(next(iter(series), moved) < moved)
+    )
+    head_rule, tail_rule = dict(repeat.rule), dict(repeat.rule)
+    if count:
+        if count[0] <= done:
+            raise ValueError("The series has ended before this occurrence.")
+        head_rule["COUNT"], tail_rule["COUNT"] = [done], [count[0] - done]
+    else:
+        head_rule.pop("UNTIL", None)
+        head_rule["UNTIL"] = [at - timedelta(seconds=1)]
+    head = (
+        Recurrence(
+            head_rule,
+            tuple(v for v in repeat.exdates if early(v)),
+            tuple(v for v in repeat.rdates if early(v)),
+        ).to_lines()
+        if done
+        else None
+    )
+    tail = Recurrence(
+        tail_rule,
+        tuple(v for v in repeat.exdates if not early(v)),
+        tuple(v for v in repeat.rdates if not early(v)),
+    ).to_lines()
+    return head, tail
 
 
 def moved(text: str, delta: timedelta) -> str:
