@@ -24,6 +24,11 @@ const state = vi.hoisted(() => ({
   roster: [] as OperatorUserRead[],
   search: undefined as string | null | undefined,
   clearSecondFactor: vi.fn(),
+  authenticatorAskedAtSignIn: true,
+}));
+
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({ authenticatorAskedAtSignIn: state.authenticatorAskedAtSignIn }),
 }));
 
 vi.mock("@/hooks/useOperatorUsers", () => ({
@@ -152,11 +157,15 @@ describe("SettingsPlatformUsersPage", () => {
     expect(menu).not.toHaveTextContent("Suspend");
   });
 
-  it.each<[string, UserRole, boolean, boolean]>([
-    ["offers to clear an authenticator to a moderator", "moderator", true, true],
-    ["offers nothing to clear on an account without one", "moderator", false, false],
-    ["offers support no way to clear one", "support", true, false],
-  ])("%s", async (_label, role, enrolled, offered) => {
+  it.each<[string, UserRole, boolean, boolean, boolean]>([
+    ["offers to clear an authenticator to a moderator", "moderator", true, true, true],
+    ["offers nothing to clear on an account without one", "moderator", false, true, false],
+    ["offers support no way to clear one", "support", true, true, false],
+    // A passkey or single sign-on never asks for the code, so where nothing
+    // else is permitted there is nothing to get past.
+    ["offers nothing where signing in never asks for the code", "moderator", true, false, false],
+  ])("%s", async (_label, role, enrolled, asked, offered) => {
+    state.authenticatorAskedAtSignIn = asked;
     const rows = masked();
     rows[1].second_factor_enrolled = enrolled;
     renderRoster(rows, buildUser({ role }));
