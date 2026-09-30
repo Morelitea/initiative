@@ -428,7 +428,23 @@ async def load_tasks(session: AsyncSession, task_ids: list[int]) -> list[Task]:
     )
     await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
+    await _annotate_series_sizes(session, tasks)
     return tasks
+
+
+async def _annotate_series_sizes(session: AsyncSession, tasks: list[Task]) -> None:
+    """How many live tasks each task's repeating series holds."""
+    series_ids = {task.series_id for task in tasks if task.series_id is not None}
+    sizes: dict[int, int] = {}
+    if series_ids:
+        stmt = (
+            select(Task.series_id, func.count(Task.id))
+            .where(Task.series_id.in_(tuple(series_ids)))
+            .group_by(Task.series_id)
+        )
+        sizes = dict((await session.exec(stmt)).all())
+    for task in tasks:
+        object.__setattr__(task, "series_size", sizes.get(task.series_id, 1))
 
 
 async def load_task(session: AsyncSession, task_id: int) -> Task | None:

@@ -28,6 +28,7 @@ from app.models.tenant.task import Task, TaskStatusCategory
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.core.messages import TaskMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.testing.factories import (
@@ -1542,6 +1543,73 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         session, tags_service.TAG_LINKS["task"], successor.id
     )
     assert copied == [tag_id]
+
+
+async def test_a_task_changes_alone_or_with_its_series(
+    client: AsyncClient, session: AsyncSession, recurring_task_env
+):
+    """An edit of just this task stays on it, the next task is made with what
+    it changed from; an edit of all reaches every task of the series; a skip
+    moves the task on without completing it; and a delete is this task (a
+    skip) or the whole series."""
+    from app.testing.factories import create_task
+
+    a, todo, done = await recurring_task_env()
+    first = await create_task(
+        session,
+        a.project,
+        title="Water plants",
+        task_status_id=todo.id,
+        due_date=datetime(2026, 5, 4, 12, 0, tzinfo=timezone.utc),
+        recurrence="RRULE:FREQ=DAILY",
+    )
+    await session.commit()
+
+    async def patch(task_id: int, **body):
+        response = await client.patch(
+            a.g(f"/tasks/{task_id}"), headers=a.headers, json=body
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    async def live() -> dict[int, dict]:
+        conditions = json.dumps(
+            [{"field": "project_id", "op": "eq", "value": a.project.id}]
+        )
+        listing = await client.get(
+            a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+        )
+        return {task["id"]: task for task in listing.json()["items"]}
+
+    await patch(first.id, task_status_id=done.id)
+    (second_id,) = set(await live()) - {first.id}
+    second = await patch(
+        second_id,
+        title="Water ferns",
+        due_date="2026-05-05T15:00:00Z",
+        scope="this",
+    )
+    assert (second["series_id"], second["series_size"]) == (first.id, 2)
+
+    await patch(second_id, task_status_id=done.id)
+    (third_id,) = set(await live()) - {first.id, second_id}
+    third = (await live())[third_id]
+    assert third["title"] == "Water plants"
+    assert third["due_date"].startswith("2026-05-06T12:00")
+
+    third = await patch(third_id, title="Water everything", scope="all")
+    assert third["series_size"] == 3
+    assert {task["title"] for task in (await live()).values()} == {"Water everything"}
+
+    skipped = await client.post(a.g(f"/tasks/{third_id}/skip"), headers=a.headers)
+    assert skipped.json()["due_date"].startswith("2026-05-07T12:00")
+    refused = await client.post(a.g(f"/tasks/{first.id}/skip"), headers=a.headers)
+    assert refused.json()["detail"] == TaskMessages.NOT_REPEATING
+
+    await client.delete(a.g(f"/tasks/{third_id}?scope=this"), headers=a.headers)
+    assert (await live())[third_id]["due_date"].startswith("2026-05-08T12:00")
+    await client.delete(a.g(f"/tasks/{third_id}?scope=all"), headers=a.headers)
+    assert await live() == {}
 
 
 async def test_filter_tasks_by_date_window_group(

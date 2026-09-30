@@ -146,6 +146,9 @@ class ProjectExportTask(SanitizedBaseModel):
     recurrence_shift: int = 0
     recurrence_strategy: str = "fixed"
     recurrence_occurrence_count: int = 0
+    #: The repeating series the task is in, as a number the tasks of one series
+    #: share in this export; the import gives each series a new one.
+    series: Optional[int] = None
     position: float = 0.0
     archived_at: Optional[datetime] = None
     # Absent in exports taken before completion timestamps existed; the

@@ -25,6 +25,7 @@ import type {
   ArchiveDoneTasksApiV1CGuildIdTasksArchiveDonePostParams,
   ChecklistItem,
   ChecklistItemToggle,
+  DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams,
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
   HTTPValidationError,
@@ -581,16 +582,21 @@ export const useUpdateTaskApiV1CGuildIdTasksTaskIdPatch = <
   );
 };
 /**
+ * Trash the task. For a repeating one, ``this`` skips it so the series
+ * goes on (trashing it when the series has no more), ``following`` (the
+ * default) trashes it and so ends the repeat, and ``all`` trashes every
+ * other task of the series too.
  * @summary Delete Task
  */
 export const deleteTaskApiV1CGuildIdTasksTaskIdDelete = (
   guildId: number,
   taskId: number,
+  params?: DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/c/${guildId}/tasks/${taskId}`, method: "DELETE", signal },
+    { url: `/api/v1/c/${guildId}/tasks/${taskId}`, method: "DELETE", params, signal },
     options
   );
 };
@@ -626,9 +632,9 @@ export const getDeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationOptions = <
     Awaited<ReturnType<typeof deleteTaskApiV1CGuildIdTasksTaskIdDelete>>,
     DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables
   > = (props) => {
-    const { guildId, taskId } = props ?? {};
+    const { guildId, taskId, params } = props ?? {};
 
-    return deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId, requestOptions);
+    return deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -642,6 +648,7 @@ export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationError = ErrorType<HT
 export type DeleteTaskApiV1CGuildIdTasksTaskIdDeleteMutationVariables = {
   guildId: number;
   taskId: number;
+  params?: DeleteTaskApiV1CGuildIdTasksTaskIdDeleteParams;
 };
 
 /**
@@ -862,6 +869,99 @@ export const useDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost = <
 > => {
   return useMutation(
     getDuplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Move a repeating task on to its next occurrence without completing it.
+ * @summary Skip Task
+ */
+export const skipTaskApiV1CGuildIdTasksTaskIdSkipPost = (
+  guildId: number,
+  taskId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
+    { url: `/api/v1/c/${guildId}/tasks/${taskId}/skip`, method: "POST", signal },
+    options
+  );
+};
+
+export const getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationKey = () =>
+  ["skipTaskApiV1CGuildIdTasksTaskIdSkipPost"] as const;
+
+export const getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+    TError,
+    SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+  TError,
+  SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+    SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables
+  > = (props) => {
+    const { guildId, taskId } = props ?? {};
+
+    return skipTaskApiV1CGuildIdTasksTaskIdSkipPost(guildId, taskId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>
+>;
+
+export type SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationError = ErrorType<HTTPValidationError>;
+export type SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables = {
+  guildId: number;
+  taskId: number;
+};
+
+/**
+ * @summary Skip Task
+ */
+export const useSkipTaskApiV1CGuildIdTasksTaskIdSkipPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+      TError,
+      SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof skipTaskApiV1CGuildIdTasksTaskIdSkipPost>>,
+  TError,
+  SkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSkipTaskApiV1CGuildIdTasksTaskIdSkipPostMutationOptions(options),
     queryClient
   );
 };

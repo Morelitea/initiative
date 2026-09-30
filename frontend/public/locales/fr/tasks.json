@@ -93,7 +93,25 @@
     "unsavedTitle": "Abandonner les modifications non enregistrées ?",
     "unsavedBody": "Vous avez des modifications non enregistrées sur cette tâche. Si vous partez maintenant, elles seront perdues.",
     "unsavedLeave": "Quitter",
-    "unsavedStay": "Rester"
+    "unsavedStay": "Rester",
+    "skipOccurrence": "Passer cette occurrence",
+    "taskSkipped": "Passée à l'occurrence suivante",
+    "skipError": "Impossible de passer cette occurrence"
+  },
+  "scope": {
+    "title": {
+      "edit": "Modifier une tâche récurrente",
+      "delete": "Supprimer une tâche récurrente"
+    },
+    "description": "Cette tâche se répète. À quelles tâches cela s'applique-t-il ?",
+    "this": "Uniquement cette tâche",
+    "following": "Les tâches à partir de celle-ci",
+    "all": "Toutes les tâches de la série",
+    "allCount": "Toutes les tâches de la série ({{count}})",
+    "confirm": {
+      "edit": "Enregistrer",
+      "delete": "Supprimer"
+    }
   },
   "focus": {
     "title": "Focus",

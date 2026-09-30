@@ -21,17 +21,34 @@ export type ScopeAction = "edit" | "delete";
 
 const SCOPES: OccurrenceScope[] = ["this", "following", "all"];
 
-type OccurrenceScopeDialogProps = {
+/** Whose series it is: the namespace holding its `scope.*` wording. */
+export type ScopeTool = "calendars" | "tasks";
+
+export type ScopeQuestion = {
+  tool?: ScopeTool;
+  /** How many the whole series holds, shown beside "all". */
+  count?: number;
+  /** The choices that differ for this change; all three by default. */
+  scopes?: OccurrenceScope[];
+};
+
+type OccurrenceScopeDialogProps = ScopeQuestion & {
   action: ScopeAction;
   onChoose: (scope: OccurrenceScope | null) => void;
 };
 
 /**
- * Which occurrences of a repeating event an edit or a delete is for. An
- * answer is always for one event, so it is never asked.
+ * Which occurrences of a repeating event or task an edit or a delete is for.
+ * An answer is always for one event, so it is never asked.
  */
-export const OccurrenceScopeDialog = ({ action, onChoose }: OccurrenceScopeDialogProps) => {
-  const { t } = useTranslation(["calendars", "common"]);
+export const OccurrenceScopeDialog = ({
+  action,
+  onChoose,
+  tool = "calendars",
+  count,
+  scopes = SCOPES,
+}: OccurrenceScopeDialogProps) => {
+  const { t } = useTranslation([tool, "common"]);
   const [scope, setScope] = useState<OccurrenceScope>("this");
   return (
     <Dialog open onOpenChange={(open) => !open && onChoose(null)}>
@@ -41,11 +58,13 @@ export const OccurrenceScopeDialog = ({ action, onChoose }: OccurrenceScopeDialo
           <DialogDescription>{t("scope.description")}</DialogDescription>
         </DialogHeader>
         <RadioGroup value={scope} onValueChange={(value) => setScope(value as OccurrenceScope)}>
-          {SCOPES.map((option) => (
+          {scopes.map((option) => (
             <div key={option} className="flex items-center gap-3">
               <RadioGroupItem value={option} id={`occurrence-scope-${option}`} />
               <Label htmlFor={`occurrence-scope-${option}`} className="cursor-pointer">
-                {t(`scope.${option}`)}
+                {option === "all" && count !== undefined
+                  ? t("scope.allCount", { count })
+                  : t(`scope.${option}`)}
               </Label>
             </div>
           ))}
@@ -71,21 +90,24 @@ export const OccurrenceScopeDialog = ({ action, onChoose }: OccurrenceScopeDialo
  * `null` when the dialog was closed. Render `dialog` once in the page.
  */
 export const useScopePrompt = (): {
-  ask: (action: ScopeAction) => Promise<OccurrenceScope | null>;
+  ask: (action: ScopeAction, question?: ScopeQuestion) => Promise<OccurrenceScope | null>;
   dialog: ReactNode;
 } => {
-  const [asking, setAsking] = useState<{
-    action: ScopeAction;
-    resolve: (scope: OccurrenceScope | null) => void;
-  } | null>(null);
+  const [asking, setAsking] = useState<
+    | (ScopeQuestion & {
+        action: ScopeAction;
+        resolve: (scope: OccurrenceScope | null) => void;
+      })
+    | null
+  >(null);
   const ask = useCallback(
-    (action: ScopeAction) =>
-      new Promise<OccurrenceScope | null>((resolve) => setAsking({ action, resolve })),
+    (action: ScopeAction, question?: ScopeQuestion) =>
+      new Promise<OccurrenceScope | null>((resolve) => setAsking({ ...question, action, resolve })),
     []
   );
   const dialog = asking ? (
     <OccurrenceScopeDialog
-      action={asking.action}
+      {...asking}
       onChoose={(scope) => {
         asking.resolve(scope);
         setAsking(null);

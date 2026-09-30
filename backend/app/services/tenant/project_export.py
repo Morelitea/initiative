@@ -196,6 +196,7 @@ async def build_project_export(
                 recurrence_shift=task.recurrence_shift,
                 recurrence_strategy=task.recurrence_strategy,
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
+                series=task.series_id,
                 position=task.position,
                 archived_at=task.archived_at,
                 completed_at=task.completed_at,

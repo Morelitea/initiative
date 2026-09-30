@@ -8,7 +8,7 @@ from pydantic import ConfigDict, Field, field_validator
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
-from app.schemas.recurrence import TaskRule
+from app.schemas.recurrence import OccurrenceScope, TaskRule
 
 from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
@@ -142,6 +142,10 @@ class TaskUpdate(SanitizedBaseModel):
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
     property_values: Optional[List[PropertyValueInput]] = None
     checklist: Optional[List[ChecklistItemInput]] = None
+    #: Which tasks of a repeating series the edit is for (``task_series``).
+    #: Omitted, it carries forward from this task ("following"). The repeat
+    #: itself always changes from this task on.
+    scope: Optional[OccurrenceScope] = None
 
 
 class TaskMoveRequest(SanitizedBaseModel):
@@ -185,6 +189,10 @@ class TaskRead(TaskBase):
     recurrence_shift: int = 0
     #: No occurrence of the series starts after this; None while it goes on.
     recurrence_until: Optional[datetime] = None
+    #: The first task of the repeating series; None until the series moves on.
+    series_id: Optional[int] = None
+    #: How many live tasks the series holds, this one included.
+    series_size: int = 1
     comment_count: int = 0
     #: How many things are still holding this task up: live ``depends_on``
     #: edges whose far end has not finished. Only kinds with a reading of

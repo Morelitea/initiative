@@ -30,11 +30,21 @@ const renderTaskPage = ({
   taskProjectId = PROJECT_ID,
   /** What the project reports; a column the task uses can be missing from it. */
   statuses,
+  recurrence = null,
 }: {
   taskProjectId?: number;
   statuses?: unknown[];
+  recurrence?: string | null;
 } = {}) => {
-  const task = buildTask({ id: TASK_ID, project_id: taskProjectId, title: "Wire the doorbell" });
+  const task = {
+    ...buildTask({
+      id: TASK_ID,
+      project_id: taskProjectId,
+      title: "Wire the doorbell",
+      recurrence,
+    }),
+    series_size: 3,
+  };
   const project = buildProject({
     id: taskProjectId,
     initiative_id: INITIATIVE_ID,
@@ -52,8 +62,8 @@ const renderTaskPage = ({
     ...(statuses
       ? [guildHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses))]
       : []),
-    guildHttp.delete("/tasks/:taskId", () => {
-      deleted();
+    guildHttp.delete("/tasks/:taskId", ({ request }) => {
+      deleted(new URL(request.url).searchParams.get("scope"));
       return new HttpResponse(null, { status: 204 });
     })
   );
@@ -151,6 +161,19 @@ describe("TaskEditPage", () => {
         `/c/${GUILD_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}`
       )
     );
+  });
+
+  it("asks which tasks of a repeating series a delete is for", async () => {
+    const { router, deleted } = renderTaskPage({ recurrence: "RRULE:FREQ=DAILY" });
+
+    await openActionsMenu();
+    await userEvent.click(await screen.findByRole("menuitem", { name: /delete task/i }));
+    expect(await screen.findByLabelText(/all tasks in the series \(3\)/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    // Just this one skips it, so the series and the page stay.
+    await waitFor(() => expect(deleted).toHaveBeenCalledWith("this"));
+    expect(router.state.location.pathname).toContain(`/tasks/${TASK_ID}`);
   });
 
   it("follows the task's own project, not the one left in the path", async () => {

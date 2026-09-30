@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -10,7 +10,7 @@ from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
-from app.schemas.recurrence import EventRule
+from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import PropertySummary
@@ -39,11 +39,6 @@ class CalendarEventAttendeeRead(SanitizedBaseModel):
     user: Optional[UserPublic] = None
     rsvp_status: RSVPStatus
     created_at: datetime
-
-
-#: Which occurrences of a repeating event a change is for: the one named by
-#: ``occurrence``, it and every later one, or the whole series.
-OccurrenceScope = Literal["this", "following", "all"]
 
 
 class CalendarEventRSVPUpdate(SanitizedBaseModel):

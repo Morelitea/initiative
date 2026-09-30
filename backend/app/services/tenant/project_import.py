@@ -223,6 +223,7 @@ async def import_project(
     comment_count = 0
     unmatched_handles: set[str] = set()
     named_handles: dict[int, str] = {}
+    series_ids: dict[int, int] = {}
     for t in envelope.tasks:
         matched, comments_made = await _import_task(
             session,
@@ -238,6 +239,7 @@ async def import_project(
             initiative_member_handles=initiative_member_handles,
             unmatched_handle_sink=unmatched_handles,
             named_handle_sink=named_handles,
+            series_ids=series_ids,
             context=context,
         )
         assignee_match_count += matched
@@ -286,6 +288,7 @@ async def _import_task(
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
     named_handle_sink: dict[int, str],
+    series_ids: dict[int, int],
     context: ImportContext | None = None,
 ) -> tuple[int, int]:
     """Insert one task, its checklist, tags, assignees, property values and
@@ -353,6 +356,9 @@ async def _import_task(
     )
     session.add(task)
     await session.flush()
+    # A series is named by its first task here, so the ones after it join it.
+    if envelope_task.series is not None:
+        task.series_id = series_ids.setdefault(envelope_task.series, task.id)
 
     # Tag links — match-or-create against the target guild for any tag
     # that wasn't already in the project-level set (tasks can have tags
