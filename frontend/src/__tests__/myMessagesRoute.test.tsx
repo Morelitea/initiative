@@ -55,7 +55,8 @@ const mocks = vi.hoisted(() => ({
   dmSettings: vi.fn(),
   ownDevice: vi.fn(),
   historyAsk: vi.fn(),
-  thisDevice: vi.fn(),
+  startVerification: vi.fn(),
+  peerDeviceChanges: vi.fn(),
 }));
 
 // The ratchet is exercised for real in src/crypto/ratchet.test.ts. Here it is
@@ -65,8 +66,6 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   // identity, so a stand-in would prove nothing.
   RecipientHasNoDeviceError: (await importOriginal<Record<string, unknown>>())
     .RecipientHasNoDeviceError,
-  RecipientDevicesUnverifiedError: (await importOriginal<Record<string, unknown>>())
-    .RecipientDevicesUnverifiedError,
   ensureDevice: () => mocks.ensureDevice(),
   registeredDevice: () => mocks.registeredDevice(),
   collect: () => mocks.collect(),
@@ -96,7 +95,13 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   // an endpoint.
   ownDeviceWaiting: () => mocks.ownDevice(),
   historyAskWaiting: () => mocks.historyAsk(),
-  thisDevice: () => mocks.thisDevice(),
+  startVerification: (change: unknown, options: unknown) =>
+    mocks.startVerification(change, options),
+  confirmMatch: vi.fn(),
+  rejectMatch: vi.fn(),
+  cancelVerification: vi.fn(),
+  dismissVerification: vi.fn(),
+  peerDeviceChanges: { all: () => mocks.peerDeviceChanges() },
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
@@ -205,7 +210,8 @@ beforeEach(() => {
   mocks.leaveConversation.mockResolvedValue(undefined);
   mocks.ownDevice.mockResolvedValue(null);
   mocks.historyAsk.mockResolvedValue(undefined);
-  mocks.thisDevice.mockResolvedValue(null);
+  mocks.startVerification.mockResolvedValue(undefined);
+  mocks.peerDeviceChanges.mockResolvedValue({});
 });
 
 /** The person a `?with=` handle resolves to. */
@@ -620,28 +626,23 @@ describe("My Messages", () => {
     expect(
       await screen.findByRole("heading", { name: /new device signed in/i })
     ).toBeInTheDocument();
-    // What it asks somebody to compare is pictures, not a line of base64, and
-    // the history the device asked for is offered already ticked.
-    expect(await screen.findByRole("list", { name: /device code/i })).toBeInTheDocument();
+    // Verifying starts a comparison, carrying the history the device asked
+    // for, which is offered already ticked.
     expect(screen.getByRole("checkbox", { name: /message history/i })).toBeChecked();
+    await userEvent.click(screen.getByRole("button", { name: /^verify$/i }));
+    expect(mocks.startVerification).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "device-2" }),
+      { sendHistory: true }
+    );
   });
 
-  it("shows the waiting device the code it will be asked about", async () => {
-    // The other half of the comparison: two screens each drawing the same
-    // device, rather than one screen showing a code nobody can check.
+  it("tells the waiting device where to verify it, and shows no standing code", async () => {
     mocks.historyAsk.mockResolvedValue({ expiresAt: Date.now() + 60_000 });
-    mocks.thisDevice.mockResolvedValue({
-      userId: 1,
-      fingerprintKey: KEYS.fingerprint,
-      identityKey: KEYS.identityKey,
-    });
 
     await renderMessages();
 
-    expect(
-      await screen.findByRole("heading", { name: /confirm this device/i })
-    ).toBeInTheDocument();
-    expect(await screen.findByRole("list", { name: /device code/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /verify this device/i })).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: /pictures/i })).toBeNull();
   });
 
   it("does not carry a half-written message into another conversation", async () => {
@@ -697,12 +698,17 @@ describe("My Messages", () => {
       data: { accepted: [grant(7, "alex")], incoming: [], outgoing: [] },
     });
     mocks.userProfile.mockReturnValue(profile(7, "alex"));
-    mocks.logGet.mockResolvedValue([{ id: "m1", body: "already talking", at: "", mine: false }]);
+    mocks.logGet.mockResolvedValue([
+      { id: "m1", body: "already talking", at: "2026-09-01T00:00:00Z", mine: false },
+    ]);
+    // A change to their devices is said once, where it happened, and asks nothing.
+    mocks.peerDeviceChanges.mockResolvedValue({ 7: ["2026-09-02T00:00:00Z"] });
 
     const Page = await messagesPage();
     renderPage(Page, { initialRoute: "/messages", routerSearch: { with: "alex1234" } });
 
     expect(await screen.findByText("already talking")).toBeInTheDocument();
+    expect(await screen.findByText(/devices changed/i)).toBeInTheDocument();
   });
 
   it("asks the age question here, instead of a page whose every control refuses", async () => {

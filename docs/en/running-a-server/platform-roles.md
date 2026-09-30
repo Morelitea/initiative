@@ -54,7 +54,7 @@ The row's actions menu keeps the one-off jobs:
 - **Reactivate** a deactivated account.
 - **Export** the user list as CSV.
 - **Let someone answer the age question again**, where they answered as under age. Nearly always a mistyped year. It clears the answer and nothing else — they answer again from scratch, and no birthday is recorded either way. See [Asking members their age](configuration.md#asking-members-their-age).
-- **Turn password sign-in back on**, shown on an account marked **Password sign-in off**. Five wrong passwords or codes in fifteen minutes switch it off for fifteen minutes; three of those in a day and it stays off until somebody here turns it back on. Their passkeys work throughout, and so does anywhere they're already signed in. Moderator and above.
+- **Turn password sign-in back on**, shown on an account marked **Password sign-in off**. Five wrong passwords or codes in fifteen minutes switch it off for fifteen minutes; a second time that day, an hour; after that, four hours each time. It comes back on by itself, or as soon as they reset their password from the emailed link, so this is for when they can't wait. Their passkeys work throughout, and so does anywhere they're already signed in. Moderator and above.
 - **Delete a user**, choosing how thorough it is:
     - **Deactivate** — can't sign in; data preserved; reversible.
     - **Anonymize** — personal details removed; their content remains as "Deleted user"; not reversible.
@@ -86,9 +86,9 @@ Ask for one, the other, or both. Each is approved and recorded on its own.
     Whatever it reaches and whoever holds it, a grant runs out. Anything that would outlive it stays out of reach — a grantee can't answer a request to join an initiative, for instance, because the membership on the other side of that answer has no end date.
 
 !!! info "Breaking glass asks for your authenticator code"
-    As soon as **anybody** who can break glass has set up [two-factor authentication](../account/two-factor-authentication.md), breaking glass asks everybody for a code — theirs, at the moment they do it. One of your recovery codes works too, which matters, because the phone is the thing most likely to be missing in the hour you need this.
+    If you've set up [two-factor authentication](../account/two-factor-authentication.md), breaking glass asks for a code, at the moment you do it. A [passkey](../account/passkeys.md) answers too, and so does one of your recovery codes, which matters, because the phone is the thing most likely to be missing in the hour you need this.
 
-    Nobody switches this on. It follows from who has enrolled, which means it can only ever be on while at least one person can satisfy it — there is no way to end up with a server nobody can break glass into. The flip side is worth knowing before it surprises you: if a colleague enrols and you haven't, your next break-glass is refused until you do. Setting one up takes about a minute, under **Security** in your own settings. If you've [required two-factor authentication for platform roles](configuration.md#requiring-two-factor-authentication), everybody who can break glass already has one and this never comes up.
+    It's about your account, not anybody else's. A colleague setting one up asks nothing of you. The one exception: if you've [required two-factor authentication for platform roles](configuration.md#requiring-two-factor-authentication), everybody who can break glass is asked. Somebody whose single sign-on did the second factor on the way in is covered by that; anybody else without one is sent to **Security** in their own settings first. It takes about a minute.
 
 !!! info "Why it's built this way"
     Privileged access has to be deliberately taken, is scoped to one community, expires on its own, and leaves a record naming who took it and why. That's a stronger position than a permanent bypass nobody has to justify. More in [How your data is kept separate](../security/how-your-data-is-kept-separate.md).

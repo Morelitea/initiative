@@ -66,8 +66,15 @@ from app.db.guild_standing import (
 )
 from app.models.platform.identity_ref import IdentityEntity
 from app.db.schema_provisioning import PLATFORM_SUSPENDED
+from app.db.request_context import (
+    ContentGrantee,
+    SignIn,
+    Install,
+    Member,
+    Platform,
+    SettingsGrantee,
+)
 from app.db.session import (
-    SYSTEM_SATISFIED,
     apply_guild_standing,
     apply_install_standing,
     clear_rls_context,
@@ -450,17 +457,24 @@ class GuildAccessError(Exception):
         super().__init__(detail)
 
 
-def _satp_param(value: frozenset[int] | str) -> list[int] | str:
-    """``set_rls_context`` form of a satisfied set: the system sentinel passes
-    through verbatim, a provider-id set sorts for a deterministic GUC."""
-    return value if isinstance(value, str) else sorted(value)
+def _sign_in(satisfied: frozenset[int], on_behalf: bool) -> SignIn:
+    """How this request's session signed in, as the routing records it: the
+    providers ``satisfied`` names, and the rest as the credential validator
+    recorded it."""
+    return SignIn(
+        providers=tuple(satisfied),
+        claims=auth_context.satisfied_claims(),
+        amr=auth_context.session_amr(),
+        platform_factor=auth_context.platform_factor(),
+        on_behalf=on_behalf,
+    )
 
 
 async def _enforce_guild_auth_policy(
     session: AsyncSession,
     policy: GuildAuthPolicy | None,
     guild_id: int,
-    satisfied: frozenset[int] | str,
+    satisfied: frozenset[int],
     markers: frozenset[str] = frozenset(),
     *,
     require_second_factor: bool = False,
@@ -468,8 +482,7 @@ async def _enforce_guild_auth_policy(
     """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
     grants alike. No policy row (or ``open``) admits any authenticated
-    session; the SYSTEM_SATISFIED sentinel (user-attributed system work whose
-    enqueueing request already passed this gate) passes.
+    session.
 
     Decided by ``public.guild_auth_satisfied()``, which the standing statement
     asks for every request. This is the same rule read in Python, run once the
@@ -483,8 +496,6 @@ async def _enforce_guild_auth_policy(
 
     ``policy`` is the guild's row, read under the routed session.
     """
-    if satisfied == SYSTEM_SATISFIED:
-        return
     # Asked of everybody reaching this community, whatever it says about how
     # they arrive — so it is read before a community with no sign-in rule
     # returns. The answer names no provider and no kind of factor: the
@@ -681,27 +692,20 @@ async def _load_guild_context(
         raise GuildAccessError()
 
     # Establish the caller context before loading their membership.
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-    )
+    await set_rls_context(session, Platform(user_id=current_user.id))
 
     gate = await _read_membership_gate(session, guild_id, current_user.id)
     if gate is None:
         # Resolve live grants when the caller has no membership.
-        grant = await access_grants_service.get_live_grant(
+        grants = await access_grants_service.get_live_grants(
             session, user_id=current_user.id, guild_id=guild_id
         )
+        grant = grants.get(AccessGrantPurpose.content)
         # A settings grant reaches the community's configuration and nothing
         # of its work, so a content request needs the content grant.
         if grant is None and not for_settings:
             raise GuildAccessError()
-        settings_grant = await access_grants_service.get_live_grant(
-            session,
-            user_id=current_user.id,
-            guild_id=guild_id,
-            purpose=AccessGrantPurpose.settings,
-        )
+        settings_grant = grants.get(AccessGrantPurpose.settings)
         if grant is None and settings_grant is None:
             raise GuildAccessError()
         is_read_write = (
@@ -710,10 +714,9 @@ async def _load_guild_context(
         # Establish the grant context before loading guild metadata.
         await set_rls_context(
             session,
-            user_id=current_user.id,
-            pam_guild_id=guild_id,
-            pam_read=True,
-            pam_write=is_read_write,
+            ContentGrantee(
+                guild_id=guild_id, user_id=current_user.id, read_write=is_read_write
+            ),
         )
         guild, asked = await _read_grant_gate(session, guild_id)
         _enforce_guild_api_access(guild)
@@ -891,7 +894,7 @@ def require_seat(
     """Raise 403 unless this request holds the community's seat, by the
     standing — the membership row's, or lent by a settings grant at that
     rung."""
-    if not context.seat:
+    if not context.guild_seat:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
@@ -968,8 +971,9 @@ async def apply_guild_session_context(
     session: AsyncSession,
     current_user: User,
     guild_context: GuildContext,
-    satisfied: frozenset[int] | str = frozenset(),
+    satisfied: frozenset[int] = frozenset(),
     *,
+    on_behalf: bool = False,
     for_seat: bool = False,
 ) -> GuildContext:
     """Route ``session`` into ``guild_context``'s community and compute the
@@ -998,14 +1002,14 @@ async def apply_guild_session_context(
         _note_privileged_request(current_user, guild_context)
         await set_rls_context(
             session,
-            user_id=current_user.id,
-            context=guild_context,
-            settings_guild_id=guild_context.guild_id,
-            seat=seat,
-            platform_role=current_user.role.value,
-            satisfied_providers=_satp_param(satisfied),
-            satisfied_claims=auth_context.satisfied_claims(),
-            session_amr=auth_context.session_amr(),
+            SettingsGrantee(
+                guild_id=guild_context.guild_id,
+                user_id=current_user.id,
+                standing=guild_context,
+                tier=current_user.role.value,
+                sign_in=_sign_in(satisfied, on_behalf),
+                seat=seat,
+            ),
         )
         return await apply_guild_standing(session, guild_context)
 
@@ -1021,45 +1025,38 @@ async def apply_guild_session_context(
         )
         await set_rls_context(
             session,
-            user_id=current_user.id,
-            context=guild_context,
-            guild_id=None,
-            pam_guild_id=guild_context.guild_id,
-            pam_read=True,
-            pam_write=(access_level == AccessLevel.read_write.value),
-            # Break-glass is a pair: the content grant names the community on
-            # the PAM axis, and a settings grant beside it names the same one
-            # on the configuration axis, which is what the shared tables' own
-            # policies read.
-            settings_guild_id=(
-                guild_context.guild_id
-                if guild_context.settings_grant is not None
-                else None
+            ContentGrantee(
+                guild_id=guild_context.guild_id,
+                user_id=current_user.id,
+                standing=guild_context,
+                read_write=access_level == AccessLevel.read_write.value,
+                # Break-glass is a pair: a settings grant beside the content
+                # grant, into the same community.
+                settings=guild_context.settings_grant is not None,
+                tier=current_user.role.value,
+                sign_in=_sign_in(satisfied, on_behalf),
+                seat=seat,
             ),
-            seat=seat,
-            platform_role=current_user.role.value,
-            satisfied_providers=_satp_param(satisfied),
-            satisfied_claims=auth_context.satisfied_claims(),
-            session_amr=auth_context.session_amr(),
         )
         return await apply_guild_standing(session, guild_context)
 
     await set_rls_context(
         session,
-        user_id=current_user.id,
-        context=guild_context,
-        guild_id=guild_context.guild_id,
-        # Recorded, not routed with: the community's own role governs inside
-        # the schema. It is what a later hop back out to ``public`` re-assumes.
-        platform_role=current_user.role.value,
-        # Community in read_only status: the membership legs evaluate normally
-        # but the session assumes the SELECT-only guild_<id>_ro Postgres role,
-        # so content writes are refused by Postgres rather than by app code.
-        read_only=guild_context.content_read_only,
-        seat=seat,
-        satisfied_providers=_satp_param(satisfied),
-        satisfied_claims=auth_context.satisfied_claims(),
-        session_amr=auth_context.session_amr(),
+        Member(
+            guild_id=guild_context.guild_id,
+            user_id=current_user.id,
+            standing=guild_context,
+            # Recorded, not routed with: the community's own role governs
+            # inside the schema. It is what a later hop back out to ``public``
+            # re-assumes.
+            tier=current_user.role.value,
+            sign_in=_sign_in(satisfied, on_behalf),
+            # Community in read_only status: the membership legs evaluate
+            # normally but the session assumes the SELECT-only role, so content
+            # writes are refused by Postgres rather than by app code.
+            read_only=guild_context.content_read_only,
+            seat=seat,
+        ),
     )
     return await apply_guild_standing(session, guild_context)
 
@@ -1126,8 +1123,9 @@ async def establish_guild_access(
     session: AsyncSession,
     current_user: User,
     guild_id: int,
-    satisfied_providers: frozenset[int] | str | None = None,
+    satisfied_providers: frozenset[int] | None = None,
     *,
+    on_behalf: bool = False,
     for_settings: bool = False,
     for_seat: bool = False,
 ) -> GuildContext:
@@ -1145,9 +1143,14 @@ async def establish_guild_access(
     ``satisfied_providers`` feeds the guild auth-policy gate and the
     ``app.satisfied_providers`` GUC. ``None`` (the default) reads the ambient
     ``auth_context`` the credential validator recorded — right for every path
-    serving a live session. Explicit values are for the two non-session cases:
-    user-attributed system jobs pass ``SYSTEM_SATISFIED``, and the stream
-    re-auth sweep replays the set captured at socket join.
+    serving a live session. The stream re-auth sweep passes the set captured
+    at socket join.
+
+    ``on_behalf`` is work a job does as the person who asked for it — an
+    export, an import, a published view drawn as its author, a digest. Their
+    own request met the community's sign-in rule when it was made, so the
+    routing answers that rule for them; membership, grants and the standing
+    are resolved exactly as for the person themselves.
     """
     satisfied = (
         auth_context.satisfied_providers()
@@ -1159,7 +1162,12 @@ async def establish_guild_access(
     )
     looked_up = save_rls_context(session)
     guild_context = await apply_guild_session_context(
-        session, current_user, guild_context, satisfied=satisfied, for_seat=for_seat
+        session,
+        current_user,
+        guild_context,
+        satisfied=satisfied,
+        on_behalf=on_behalf,
+        for_seat=for_seat,
     )
     # The community's sign-in rule governs its work, not the surface that sets
     # the rule: an administrator keeps that one while their session does not
@@ -1177,7 +1185,7 @@ async def establish_guild_access(
 
 
 async def _refuse_sign_in(
-    session: AsyncSession, guild_context: GuildContext, satisfied: frozenset[int] | str
+    session: AsyncSession, guild_context: GuildContext, satisfied: frozenset[int]
 ) -> NoReturn:
     """Refuse a session the standing says does not answer the community's
     sign-in rule, saying what it is missing.
@@ -1271,14 +1279,16 @@ async def establish_install_access(
     try:
         await set_rls_context(
             session,
-            guild_id=pending.guild_id,
-            context=pending,
-            install_id=pending.install_id,
-            token_client_id=pending.client_id,
-            token_scopes=pending.token_scopes,
-            scope_initiative_id=pending.scope_initiative_id,
-            member_user_id=pending.member_user_id,
-            token_purpose=pending.purpose,
+            Install(
+                guild_id=pending.guild_id,
+                install_id=pending.install_id,
+                standing=pending,
+                token_client_id=pending.client_id,
+                token_scopes=pending.token_scopes,
+                scope_initiative_id=pending.scope_initiative_id,
+                member_user_id=pending.member_user_id,
+                token_purpose=pending.purpose,
+            ),
         )
         completed = await apply_install_standing(session, pending, named_refs)
     except DBAPIError as exc:
@@ -1656,7 +1666,7 @@ async def get_guild_seat_context(
         )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
-    if not context.seat:
+    if not context.guild_seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
@@ -1781,11 +1791,7 @@ async def _apply_user_session_context(
         if current_user.status == UserStatus.suspended
         else current_user.role.value
     )
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        platform_role=tier,
-    )
+    await set_rls_context(session, Platform(user_id=current_user.id, tier=tier))
     return session
 
 

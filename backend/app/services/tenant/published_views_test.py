@@ -17,6 +17,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserStatus
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import create_project, create_task
+from app.db.request_context import SystemGuild
 
 
 COUNT_TASKS = "SELECT count(*) AS n FROM tasks"
@@ -423,7 +424,7 @@ class TestTheReaderCannotBeSmuggledIn:
         from app.db.session import set_rls_context
         from app.models.tenant.dashboard import Dashboard
 
-        await set_rls_context(session, guild_id=author.guild.id)
+        await set_rls_context(session, SystemGuild(author.guild.id))
         row = await session.get(Dashboard, dashboard_id)
         assert row is not None
         row.definition = dashboard_body(
@@ -474,7 +475,7 @@ class TestTheReaderCannotBeSmuggledIn:
         from app.db.session import set_rls_context
         from app.models.tenant.dashboard import Dashboard
 
-        await set_rls_context(session, guild_id=author.guild.id)
+        await set_rls_context(session, SystemGuild(author.guild.id))
         row = await session.get(Dashboard, dashboard_id)
         assert row is not None
         row.definition = dashboard_body(
@@ -590,7 +591,7 @@ class TestTheGrantItself:
         )
         from app.db.session import set_rls_context
 
-        await set_rls_context(session, guild_id=author.guild.id)
+        await set_rls_context(session, SystemGuild(author.guild.id))
         grant = (
             await session.exec(
                 select(ResourceGrant).where(ResourceGrant.dashboard_id == dashboard_id)

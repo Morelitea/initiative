@@ -72,6 +72,22 @@ async def _create(client, actor, tool: Tool, name: str) -> dict:
     return response.json()
 
 
+async def _second_guild(client, session: AsyncSession, actor: Actor) -> Actor:
+    """The actor's user in a second guild of their own, every tool switched on.
+
+    The same user and auth, bound to the new guild so ``.g()`` addresses it."""
+    guild = await create_guild(session, creator=actor.user, name="Second Guild")
+    await create_guild_membership(
+        session, user=actor.user, guild=guild, role=GuildRole.admin
+    )
+    initiative = await create_initiative(session, guild, actor.user, name="Initiative")
+    second = Actor(
+        user=actor.user, headers=actor.headers, guild=guild, initiative=initiative
+    )
+    await _enable_tools(client, second)
+    return second
+
+
 # ---------------------------------------------------------------------------
 # What every tool's list does
 # ---------------------------------------------------------------------------
@@ -142,17 +158,7 @@ async def test_guild_ids_narrows_the_merge(
     ``guild_ids`` narrows it to the ones named."""
     a1 = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _enable_tools(client, a1)
-    user = a1.user
-
-    guild2 = await create_guild(session, creator=user, name="Second Guild")
-    await create_guild_membership(
-        session, user=user, guild=guild2, role=GuildRole.admin
-    )
-    init2 = await create_initiative(session, guild2, user, name="Initiative")
-    # A second actor view for the SAME user bound to guild2, so a2.g() addresses
-    # guild2 while a2.headers is still the user's auth.
-    a2 = Actor(user=user, headers=a1.headers, guild=guild2, initiative=init2)
-    await _enable_tools(client, a2)
+    a2 = await _second_guild(client, session, a1)
 
     row1 = await _create(client, a1, tool, "In Guild 1")
     row2 = await _create(client, a2, tool, "In Guild 2")
@@ -160,14 +166,14 @@ async def test_guild_ids_narrows_the_merge(
     both = await client.get(_path(tool), headers=a1.headers)
     assert both.status_code == 200
     assert (a1.guild.id, row1["id"]) in _keyed(both)
-    assert (guild2.id, row2["id"]) in _keyed(both)
+    assert (a2.guild.id, row2["id"]) in _keyed(both)
 
     narrowed = await client.get(
         f"{_path(tool)}?guild_ids={a1.guild.id}", headers=a1.headers
     )
     assert narrowed.status_code == 200
     assert (a1.guild.id, row1["id"]) in _keyed(narrowed)
-    assert (guild2.id, row2["id"]) not in _keyed(narrowed)
+    assert (a2.guild.id, row2["id"]) not in _keyed(narrowed)
 
 
 @per_tool
@@ -188,25 +194,48 @@ async def test_search_narrows_by_name(client: AsyncClient, acting_user, tool: To
 
 @per_tool
 async def test_pagination_walks_the_merged_list(
-    client: AsyncClient, acting_user, tool: Tool
+    client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    """Slicing happens over the merged list, since per-schema SQL can't."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _enable_tools(client, a)
-    for index in range(3):
-        await _create(client, a, tool, f"Row {index}")
+    """Each guild orders and limits its own rows, and the pages cut from their
+    merge continue one another across guilds: every row once, in order."""
+    a1 = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _enable_tools(client, a1)
+    a2 = await _second_guild(client, session, a1)
+    for actor, name in [
+        (a1, "Delta"),
+        (a2, "bravo"),
+        (a1, "alpha"),
+        (a2, "Charlie"),
+        (a1, "Echo"),
+    ]:
+        await _create(client, actor, tool, name)
 
-    first = await client.get(f"{_path(tool)}?page=1&page_size=2", headers=a.headers)
-    assert first.status_code == 200
-    assert len(first.json()["items"]) == 2
-    assert first.json()["total_count"] == 3
-    assert first.json()["has_next"] is True
+    pages = []
+    for page in (1, 2, 3):
+        response = await client.get(
+            f"{_path(tool)}?sort_by=name&page={page}&page_size=2", headers=a1.headers
+        )
+        assert response.status_code == 200
+        pages.append(response.json())
 
-    second = await client.get(f"{_path(tool)}?page=2&page_size=2", headers=a.headers)
-    assert second.status_code == 200
-    assert len(second.json()["items"]) == 1
-    assert second.json()["has_next"] is False
-    assert second.json()["has_prev"] is True
+    assert [page["total_count"] for page in pages] == [5, 5, 5]
+    assert [page["has_next"] for page in pages] == [True, True, False]
+    assert pages[1]["has_prev"] is True
+    walked = [item for page in pages for item in page["items"]]
+    assert [item["name"] for item in walked] == [
+        "alpha",
+        "bravo",
+        "Charlie",
+        "Delta",
+        "Echo",
+    ]
+    assert [item["guild_id"] for item in walked] == [
+        a1.guild.id,
+        a2.guild.id,
+        a2.guild.id,
+        a1.guild.id,
+        a1.guild.id,
+    ]
 
 
 @per_tool

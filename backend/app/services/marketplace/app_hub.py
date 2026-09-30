@@ -52,6 +52,7 @@ from app.services.marketplace.app_refs import ensure_app_ref
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.marketplace.service_apps import is_admin_only
 from app.services.tenant.app_channels import owns_install
+from app.db.request_context import SystemGuild
 
 __all__ = [
     "INSTALLATION",
@@ -100,9 +101,10 @@ class HubAnswer:
     cached: bool = False
 
 
-_ISSUABLE_SQL = text(
+_ISSUABLE_SQL_TEXT = (
     f"SELECT {ISSUABLE_SCOPES_SQL} FROM guild_apps a WHERE a.id = :install_id"
 )
+_ISSUABLE_SQL = text(_ISSUABLE_SQL_TEXT)
 
 
 def _refuse(code: str, status_code: int) -> AppDataError:
@@ -195,7 +197,7 @@ async def call_app(
         raise _refuse(AppHubMessages.INSUFFICIENT_SCOPE, 403)
 
     try:
-        await set_rls_context(session, guild_id=caller.guild_id, read_only=True)
+        await set_rls_context(session, SystemGuild(caller.guild_id, read_only=True))
         # Read now, so a scope the seat has taken back refuses the next call.
         issuable = (
             await session.exec(_ISSUABLE_SQL, params={"install_id": caller.install_id})

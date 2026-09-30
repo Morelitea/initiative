@@ -27,23 +27,6 @@ _REF_DESCRIPTION = (
 )
 
 
-@router.get("/kinds", response_model=List[SmartChipKind])
-async def list_smart_chip_kinds(
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-    _guild_context: GuildContextDep,
-) -> List[SmartChipKind]:
-    """The chips an editor may offer to insert.
-
-    Asked for rather than assumed, so an editor cannot put a chip in a
-    document that this server has no reader for — and gains one the day a
-    reader is added, without being told.
-
-    Titles are not here: every referenceable thing has one, and it is how a
-    reference renders rather than something chosen from a menu.
-    """
-    return list(SmartChipKind)
-
-
 @router.get("/", response_model=SmartChipStateList)
 async def read_smart_chips(
     session: RLSSessionDep,
@@ -81,7 +64,8 @@ async def read_reference_embeds(
         description="A reference to show in full, as `kind:id` — `task:12`.",
     ),
 ) -> ReferenceEmbedList:
-    """What an embedded reference shows: the thing's name and description.
+    """What an embedded reference shows: the thing's name, and its description
+    or, for prose, its body.
 
     Absent for anything gone or out of this caller's reach, as a chip is.
     """

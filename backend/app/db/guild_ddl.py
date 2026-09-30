@@ -50,20 +50,17 @@ from app.db.initiative_rls import (
     render_entity_access_fn,
     InitiativePath,
 )
+from app.db import gucs
 from app.db.authorization import (
-    GUILD_ADMIN,
-    GUILD_SEAT,
     IN_POLICY,
+    POLICY_SEAT,
+    POLICY_SETTINGS_ADMIN,
     RETIRED_GUILD_FUNCTION_SIGNATURES,
-    SETTINGS_ADMIN,
     STANDING,
-    STANDING_IS_THIS_GUILD,
-    SYSTEM_SESSION,
     app_refused,
     app_scope,
     render_guild_authorization_functions,
     sql_values,
-    standing_ids,
 )
 from app.db.frozen import (
     FROZEN_TABLES,
@@ -114,7 +111,7 @@ _GUILD_LEVEL_PURGE_TABLES: frozenset[str] = (
 # Matches the same two legs of initiative_access exactly: the admin fact the
 # standing statement computed from the membership row, and the connection's own
 # login for a sweep.
-_PURGE_GUARD_PREDICATE = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
+_PURGE_GUARD_PREDICATE = f"({IN_POLICY.system} OR {IN_POLICY.admin})"
 
 # Who may READ a row that is in the trash. Deleting something takes it out of
 # sight, so the ordinary answer is nobody: the trash is a place to recover from,
@@ -126,8 +123,7 @@ _PURGE_GUARD_PREDICATE = f"({SYSTEM_SESSION} OR {GUILD_ADMIN})"
 _TRASH_READ_PREDICATE = (
     "deleted_at IS NULL"
     f" OR {_PURGE_GUARD_PREDICATE}"
-    " OR deleted_by = NULLIF(current_setting('app.current_user_id'::text, true),"
-    " ''::text)::integer"
+    f" OR deleted_by = {gucs.USER_ID.once}"
 )
 
 
@@ -147,10 +143,7 @@ def _trash_read_policy(table: str) -> list[str]:
 # should be the same for everybody reading it, and a deleted row is not part of
 # that for anyone. RESTRICTIVE and keyed on the query flag, so it applies to the
 # statements a reader writes and to nothing else.
-_QUERY_TRASH_PREDICATE = (
-    "deleted_at IS NULL"
-    " OR current_setting('app.query'::text, true) IS DISTINCT FROM 'true'::text"
-)
+_QUERY_TRASH_PREDICATE = f"deleted_at IS NULL OR {gucs.QUERY.once} IS NOT TRUE"
 
 
 def _query_trash_policy(table: str) -> list[str]:
@@ -253,17 +246,15 @@ _MANAGED_SECTION = """\
 -- the one further way in. initiatives keeps its purge guard and trash reads.
 -- ==========================================================================="""
 
-_PAM_WRITE = "current_setting('app.pam_write'::text, true) = 'true'::text"
-
 
 def _managed_write_predicate(initiative_expr: str) -> str:
     """Who changes an initiative's structure: its managers by the standing, the
     community's admin, a settings rung writing beside a read_write grant, or
     the system engine."""
     return (
-        f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR ({SETTINGS_ADMIN} AND {_PAM_WRITE})"
-        f" OR ({STANDING_IS_THIS_GUILD}"
-        f" AND ({initiative_expr}) = ANY ({standing_ids('app.manager_initiatives')})))"
+        f"({IN_POLICY.system} OR {IN_POLICY.admin} OR ({POLICY_SETTINGS_ADMIN} AND {IN_POLICY.pam_write})"
+        f" OR ({IN_POLICY.this_guild}"
+        f" AND ({initiative_expr}) = ANY ({IN_POLICY.field('manager_initiatives')})))"
     )
 
 
@@ -271,8 +262,8 @@ def _managed_write_predicate(initiative_expr: str) -> str:
 #: route. Names the community's members (``app.current_guild_id`` is set for a
 #: membership routing and for nothing else) and the initiative's policy.
 _SELF_JOIN_LEG = (
-    "(user_id = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
-    " AND NULLIF(current_setting('app.current_guild_id'::text, true), '') IS NOT NULL"
+    f"(user_id = {gucs.USER_ID.once}"
+    f" AND {gucs.GUILD_ID.once} IS NOT NULL"
     " AND EXISTS (SELECT 1 FROM initiatives i WHERE i.id = initiative_id"
     f" AND i.join_policy = '{InitiativeJoinPolicy.open.value}' AND i.deleted_at IS NULL))"
 )
@@ -315,21 +306,17 @@ def _managed_block(table: str, initiative_expr: str) -> str:
     return "\n".join(lines)
 
 
-_OWN_ROW_OWNER = (
-    "{col} = NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
-)
+_OWN_ROW_OWNER = "{col} = " + gucs.USER_ID.once
 
 #: Who reads an own-row table's rows: the owner, the community's admin, a
 #: settings rung, or the system engine.
-_OWN_ROW_READ_PREDICATE = (
-    f"({_OWN_ROW_OWNER} OR {SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
-)
+_OWN_ROW_READ_PREDICATE = f"({_OWN_ROW_OWNER} OR {IN_POLICY.system} OR {IN_POLICY.admin} OR {POLICY_SETTINGS_ADMIN})"
 
 #: Who writes them: the same, with a settings rung writing only beside a
 #: read_write grant.
 _OWN_ROW_WRITE_PREDICATE = (
-    f"({_OWN_ROW_OWNER} OR {SYSTEM_SESSION} OR {GUILD_ADMIN}"
-    f" OR ({SETTINGS_ADMIN} AND {_PAM_WRITE}))"
+    f"({_OWN_ROW_OWNER} OR {IN_POLICY.system} OR {IN_POLICY.admin}"
+    f" OR ({POLICY_SETTINGS_ADMIN} AND {IN_POLICY.pam_write}))"
 )
 
 _COMMANDS = (
@@ -352,9 +339,9 @@ _TRIGGER_WRITTEN_INSERT: dict[str, str] = {
     # The search index is derived: rows arrive from the refresh trigger as a
     # consequence of a content write that already cleared its own table's gate.
     # The reindex sweep routes as the guild admin, which is the second leg.
-    "search_entries": f"pg_trigger_depth() > 0 OR {SYSTEM_SESSION} OR {GUILD_ADMIN}",
+    "search_entries": f"pg_trigger_depth() > 0 OR {IN_POLICY.system} OR {IN_POLICY.admin}",
     # An app's events are written by the system engine, on the app's behalf.
-    "app_event_outbox": SYSTEM_SESSION,
+    "app_event_outbox": IN_POLICY.system,
 }
 
 
@@ -463,11 +450,9 @@ _SEAT_SECTION = """\
 -- key sets guild_ai_connections.has_api_key, as whoever made the write.
 -- ==========================================================================="""
 
-_SEAT_READ_PREDICATE = f"({SYSTEM_SESSION} OR {GUILD_SEAT})"
+_SEAT_READ_PREDICATE = f"({IN_POLICY.system} OR {POLICY_SEAT})"
 
-_SEAT_WRITE_PREDICATE = (
-    f"({SYSTEM_SESSION} OR ({GUILD_SEAT} AND ({GUILD_ADMIN} OR {_PAM_WRITE})))"
-)
+_SEAT_WRITE_PREDICATE = f"({IN_POLICY.system} OR ({POLICY_SEAT} AND ({IN_POLICY.admin} OR {IN_POLICY.pam_write})))"
 
 
 # Seat tables a trigger also writes: table -> the leg OR'd into the INSERT
@@ -604,14 +589,14 @@ def _ledger_block(table: str, parent: str, fk: str) -> str:
     """RLS for a ledger table: read through its parent, written by the system
     engine."""
     read = (
-        f"({SYSTEM_SESSION} OR EXISTS (SELECT 1 FROM {parent}"
+        f"({IN_POLICY.system} OR EXISTS (SELECT 1 FROM {parent}"
         f" WHERE {parent}.id = {table}.{fk}))"
     )
     return "\n".join(
         [
             f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
             f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
-            *_policies(table, "ledger", read, SYSTEM_SESSION),
+            *_policies(table, "ledger", read, IN_POLICY.system),
         ]
     )
 
@@ -659,7 +644,7 @@ def _app_placed_initiatives() -> str:
 
 #: The member a member token acts for, read back from the routing. Empty for
 #: an installation token, which then matches no row.
-_APP_MEMBER = "NULLIF(current_setting('app.current_user_id'::text, true), '')::int"
+_APP_MEMBER = gucs.USER_ID.once
 
 #: The owner row on a tool's resource an installed app creates, written by
 #: ``public.fn_install_owns_what_it_creates`` and never by the request itself.

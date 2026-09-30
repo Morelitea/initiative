@@ -46,6 +46,7 @@ from app.models.platform.notification import NotificationType
 from app.services import guild_work
 from app.services.guild_sweeps import Drain, Scope, each_guild
 from app.services.platform import user_notifications
+from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +245,7 @@ class Dispatcher(Generic[JobT]):
         model: Any = self.model
         try:
             async with cohorts.system_session(guild_id) as session:
-                await set_rls_context(session, guild_id=guild_id)
+                await set_rls_context(session, SystemGuild(guild_id))
                 job = (
                     await session.exec(select(model).where(model.id == job_id))
                 ).one_or_none()
@@ -279,7 +280,7 @@ async def notify(session: AsyncSession, outcomes: list[JobOutcome]) -> None:
     # From the UNROUTED system context: the guild routing carries no user
     # GUC, so the shared notifications table's own-row policies would refuse
     # the insert there.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     for user_id, notification_type, data in outcomes:
         await user_notifications.create_notification(
             session,

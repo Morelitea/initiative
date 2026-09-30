@@ -18,6 +18,7 @@
   "allDay": "All day",
   "color": "Color",
   "attendees": "Attendees",
+  "repeat": "Repeat",
   "addAttendee": "Add attendee",
   "noAttendees": "No attendees",
   "rsvp": "RSVP",
@@ -63,10 +64,6 @@
   "tags": "Tags",
   "properties": "Properties",
   "today": "Today",
-  "export": {
-    "exportIcs": "Export .ics",
-    "exportError": "Failed to export events"
-  },
   "import": {
     "title": "Import Calendar Events",
     "importIcs": "Import .ics",

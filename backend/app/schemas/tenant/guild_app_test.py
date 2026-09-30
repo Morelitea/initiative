@@ -188,7 +188,7 @@ def test_surface_access_is_computed_for_the_viewer():
         user_id=11,
         guild_id=7,
         standing_guild_id=7,
-        admin=True,
+        guild_admin=True,
     )
 
     def access(context):

@@ -1,12 +1,12 @@
 """Export endpoints: create (auto inline-vs-job), poll, and download.
 
 The artifact is content, so its download is a gated read: the download route
-loads the ExportJob row under RLS (own-row + guild-admin policies) — that
-lookup IS the authorization — and only then streams the file from the guild's
-storage backend. Artifacts are deliberately never registered in ``uploads``,
-so the guild-wide ``/uploads/{guild_id}/…`` media route cannot serve them: an
-export is a per-user snapshot and may contain initiative-isolated content the
-rest of the guild must not reach.
+loads the ExportJob row under RLS (own-row + guild-admin policies), asks again
+that the caller reaches every initiative the artifact holds, and only then
+streams the file from the guild's storage backend. Artifacts are deliberately
+never registered in ``uploads``, so the guild-wide ``/uploads/{guild_id}/…``
+media route cannot serve them: an export is a per-user snapshot and may contain
+initiative-isolated content the rest of the guild must not reach.
 
 Each exportable tool's route is mounted from its adapter in ``ADAPTERS``: the
 path, the selector parameters and the format choices are the adapter's, and
@@ -20,10 +20,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from math import ceil
-from typing import Annotated, Any, Literal, Optional, Union, cast
+from typing import Annotated, Any, List, Literal, Optional, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy import func, not_
 from sqlmodel import select
 
 from app.api.deps import (
@@ -41,6 +42,7 @@ from app.core.user_display import display_name
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.backup_export import BackupEstimate
 from app.schemas.tenant.export_job import (
     ExportJobRead,
@@ -58,6 +60,7 @@ from app.services.storage import (
     get_guild_storage,
 )
 from app.services.export import limits as export_limits
+from app.services.membership import initiative_scope_clause
 
 router = APIRouter()
 
@@ -184,6 +187,49 @@ async def export_tasks(
             "tz": tz,
             "include_archived": include_archived,
             "layout": layout,
+        },
+    )
+    return _export_response(result, guild_context)
+
+
+@router.get("/events", response_model=None)
+async def export_events(
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+    format: Literal["ics"] = Query(default="ics"),
+    initiative_id: Optional[int] = Query(default=None),
+    scope: Optional[Literal["guild"]] = Query(default=None),
+    calendar_ids: Optional[List[int]] = Query(default=None),
+    exclude_calendar_ids: Optional[List[int]] = Query(
+        default=None, description="Calendars to leave out, such as hidden ones"
+    ),
+    property_filters: Optional[str] = Query(
+        default=None, description="Same JSON property filters as the event list"
+    ),
+    tz: Optional[str] = Query(
+        default=None,
+        max_length=64,
+        description="IANA timezone for the file name's date",
+    ),
+) -> Union[Response, JSONResponse]:
+    """Export calendar events (the same visibility and filters as ``GET
+    /calendar-events/``) as one iCalendar file, every date included. Small
+    results return the file directly; large results return ``202`` with a
+    queued job to poll and download."""
+    result = await _start_export(
+        session,
+        current_user,
+        guild_context,
+        source="events",
+        format=format,
+        params={
+            "initiative_id": initiative_id,
+            "scope": scope,
+            "calendar_ids": calendar_ids,
+            "exclude_calendar_ids": exclude_calendar_ids,
+            "property_filters": property_filters,
+            "tz": tz,
         },
     )
     return _export_response(result, guild_context)
@@ -738,6 +784,32 @@ async def get_export_job(
     return serialize_export_job(job, guild_id=guild_context.guild_id)
 
 
+async def _require_reach(
+    session: RLSSessionDep, user: User, initiative_ids: list[int]
+) -> None:
+    """Refuse unless the caller reaches every initiative in ``initiative_ids``
+    that still exists. One deleted since the render, in the trash or purged,
+    is skipped."""
+    if not initiative_ids:
+        return
+    unreached = (
+        await session.exec(
+            select(func.count())
+            .select_from(Initiative)
+            .where(
+                Initiative.id.in_(initiative_ids),
+                Initiative.deleted_at.is_(None),
+                not_(initiative_scope_clause(user.id, Initiative.id)),
+            )
+        )
+    ).one()
+    if unreached:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ExportMessages.EXPORT_OUT_OF_REACH,
+        )
+
+
 @router.get("/{job_id}/download")
 async def download_export_artifact(
     job_id: int,
@@ -745,8 +817,9 @@ async def download_export_artifact(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> Response:
-    """Stream a finished export's artifact. The RLS-gated job lookup is the
-    authorization; storage is touched only after it passes."""
+    """Stream a finished export's artifact. The RLS-gated job lookup and the
+    initiatives the artifact holds are the authorization, asked now rather
+    than when it was rendered; storage is touched only after both pass."""
     job = await session.get(ExportJob, job_id)
     if job is None:
         raise HTTPException(
@@ -768,6 +841,14 @@ async def download_export_artifact(
             if job.destination_ref
             else ExportMessages.EXPORT_NOT_READY,
         )
+    if job.initiative_ids is None:
+        # Rendered before the job recorded what it holds.
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE, detail=ExportMessages.EXPORT_EXPIRED
+        )
+    if job.source == "guild":
+        require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
+    await _require_reach(session, current_user, job.initiative_ids)
     storage = get_guild_storage(guild_context.guild_id)
     # Recover the download name from the artifact key. A named artifact
     # (passthrough / .lexical) is stored as `exports/{job_id}-{filename}`;
@@ -785,10 +866,10 @@ async def download_export_artifact(
     # Where the operator has turned it on and the backend can sign a URL,
     # redirect to it: the bytes then travel from the object store to the
     # client instead of through this process for the length of the download.
-    # The authorization is unchanged — the RLS-gated lookup above is what
-    # decided this, and the URL is minted only after it passed. A filesystem
-    # backend signs nothing and returns None, so those deployments keep the
-    # proxied response whatever the setting says.
+    # The authorization is unchanged — the checks above decided this, and the
+    # URL is minted only after they passed. A filesystem backend signs nothing
+    # and returns None, so those deployments keep the proxied response
+    # whatever the setting says.
     signed = (
         storage.presign_get(
             job.artifact_ref,

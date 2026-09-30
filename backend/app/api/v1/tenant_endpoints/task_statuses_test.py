@@ -584,7 +584,7 @@ async def test_delete_into_done_advances_a_recurring_task(
         title="Daily check",
         task_status_id=default_status.id,
         due_date=due,
-        recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
+        recurrence="RRULE:FREQ=DAILY",
         recurrence_strategy="fixed",
     )
 
@@ -612,10 +612,7 @@ async def test_delete_into_done_advances_a_recurring_task(
     assert completed.recurrence is None
     assert successor.task_status_id == successor_status.id
     assert successor.due_date == datetime(2026, 9, 17, 12, 0, tzinfo=timezone.utc)
-    assert successor.recurrence is not None
-    assert successor.recurrence["frequency"] == "daily"
-    assert successor.recurrence["interval"] == 1
-    assert successor.recurrence["ends"] == "never"
+    assert successor.recurrence == "RRULE:FREQ=DAILY"
 
 
 async def test_delete_can_remove_the_last_status_of_a_category(
@@ -841,7 +838,7 @@ async def test_delete_into_done_completes_frozen_tasks_without_recurring_them(
         title="Archived weekly",
         task_status_id=blocked.id,
         due_date=datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc),
-        recurrence={"frequency": "weekly", "interval": 1, "ends": "never"},
+        recurrence="RRULE:FREQ=WEEKLY",
         recurrence_strategy="fixed",
     )
     await archive_service.archive_entity(session, archived)

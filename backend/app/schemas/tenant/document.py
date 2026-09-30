@@ -221,12 +221,9 @@ def _document_owner(document: "Document") -> Optional[UserPublic]:
 
 def smart_link_url(document: Any) -> Optional[str]:
     """The address a link document points at, so a card can draw its provider's
-    mark without the content."""
-    if document.document_type != DocumentType.smart_link:
-        return None
-    content = document.content if isinstance(document.content, dict) else {}
-    url = content.get("url")
-    return url if isinstance(url, str) and url else None
+    mark without the content: ``Document.smart_link_url``, read in the row's
+    own SELECT."""
+    return document.smart_link_url or None
 
 
 def serialize_document_summary(

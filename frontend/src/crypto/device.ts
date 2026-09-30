@@ -15,7 +15,6 @@ import type { DmConversationRead, DmDeviceRead } from "@/api/generated/initiativ
 import { readUsersMeApiV1UsersMeGet as readMe } from "@/api/generated/users/users";
 
 import { ratchet, stopRatchet } from "./client";
-import type { CodeKeys } from "./safetyCode";
 import { withAccount } from "./sessions";
 import {
   deviceClaim,
@@ -233,16 +232,6 @@ export async function ensureDevice(): Promise<string> {
 /** Whether this browser has already been set up, without setting it up. */
 export async function registeredDevice(): Promise<string | undefined> {
   return storedDeviceId.get();
-}
-
-/** This browser's device keys and account, for showing its code; `null` where it is not set up. */
-export async function thisDevice(): Promise<({ userId: number } & CodeKeys) | null> {
-  if (!(await storedDeviceId.get())) return null;
-  const ctx = await ensureDeviceContext();
-  const me = ctx.own.devices.find((device) => device.id === ctx.device);
-  return me
-    ? { userId: ctx.self, fingerprintKey: me.fingerprintKey, identityKey: me.identityKey }
-    : null;
 }
 
 /**

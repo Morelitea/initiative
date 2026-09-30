@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import ARRAY, Column, DateTime, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
@@ -68,6 +68,12 @@ class ExportJob(CreatedByMixin, table=True):
     #: How many times the stale sweep has queued this job again.
     restarts: int = Field(
         default=0, sa_column=Column(Integer, nullable=False, server_default="0")
+    )
+    # The initiatives whose content the artifact holds, recorded when it is
+    # rendered. The download asks for each again; ``None`` is a job rendered
+    # before this was recorded, whose artifact is not served.
+    initiative_ids: Optional[list[int]] = Field(
+        default=None, sa_column=Column(ARRAY(Integer), nullable=True)
     )
     # Artifact GC deadline — set when the artifact is written.
     expires_at: Optional[datetime] = Field(

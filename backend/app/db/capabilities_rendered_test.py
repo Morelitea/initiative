@@ -34,6 +34,9 @@ from app.testing import (
     create_guild,
     create_user,
 )
+from app.db.request_context import Platform
+
+pytestmark = pytest.mark.always
 
 
 def test_a_capability_is_spelled_as_the_tiers_holding_it():
@@ -209,7 +212,7 @@ async def test_a_tier_is_admitted_as_the_capability_says(
     actor = await create_user(session, role=tier)
 
     s = await role_session("app_user")
-    await set_rls_context(s, user_id=actor.id, platform_role=tier.value)
+    await set_rls_context(s, Platform(user_id=actor.id, tier=tier.value))
     try:
         result = await s.exec(text(sql), params=params)
         admitted = bool(result.all()) if kind == "select" else result.rowcount == 1

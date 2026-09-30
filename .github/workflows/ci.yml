@@ -15,16 +15,27 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request replaces its run. A push to main or dev never
+# cancels one in progress: it waits, and a later push takes its place in the
+# queue, so the branch is always tested in order.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
-      backend_scope: ${{ steps.diff.outputs.backend_scope }}
+      backend_mode: ${{ steps.diff.outputs.backend_mode }}
       alembic: ${{ steps.diff.outputs.alembic }}
+      seam: ${{ steps.diff.outputs.seam }}
+      upgrade: ${{ steps.diff.outputs.upgrade }}
       frontend: ${{ steps.diff.outputs.frontend }}
       codegen: ${{ steps.diff.outputs.codegen }}
+      tooling: ${{ steps.diff.outputs.tooling }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -58,80 +69,63 @@ jobs:
           out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
 
           backend() {
-            # Integration-branch pushes are the authoritative whole-tree
-            # signal. Pull requests may use scoped feedback, but a push to main
-            # or dev must never report green after skipping the caller's tests.
+            # Integration pushes run every test: they are the authoritative
+            # whole-tree signal, and dev's run records the data pull requests
+            # select tests from.
             if [[ "$EVENT" != "pull_request" ]]; then
-              out backend true; out alembic true; out backend_scope "app/ alembic/"
-              echo "Integration push — running the full backend suite"
+              out backend true; out alembic true; out backend_mode full
+              echo "Integration push — running every backend test"
               return
             fi
 
             # This workflow file is in scope for itself: it defines the roles,
-            # URLs and services the backend job runs against, so a change to it
-            # has to run the job — in full, migrations included — to be worth
-            # anything. Scope selection below reads backend/ paths, which a
-            # workflow-only change has none of, so short-circuit here.
+            # URLs and services the backend job runs against.
             if [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/)" ]]; then
-              out backend true; out alembic true; out backend_scope "app/ alembic/"
-              echo "CI workflow changed — running the full backend job"
+              out backend true; out alembic true; out backend_mode full
+              echo "CI workflow changed — running every backend test"
               return
             fi
 
             local CHANGED
             CHANGED=$(changed backend/)
             if [[ -z "$CHANGED" ]]; then
-              out backend false
-              echo "No backend changes — skipping"
+              # Nothing in backend/, but the always-run core also holds the
+              # backend's checks on files elsewhere (the locale catalogues, the
+              # app-kit contract, the Android channels), so any change but
+              # documentation runs it.
+              if [[ -n "$(changed . ':!docs/' ':!*.md' ':!zensical.toml')" ]]; then
+                out backend true; out alembic false; out backend_mode core
+                echo "No backend changes — running the always-run core"
+              else
+                out backend false
+                echo "Documentation only — skipping"
+              fi
               return
             fi
             out backend true
-
-            # Migration tests are slow (real upgrade/downgrade against
-            # Postgres) and only relevant when the alembic/ folder itself
-            # changes. Track them as a separate scope token so they're only
-            # appended when needed. Also expose a flag so we can skip the
-            # explicit `alembic upgrade head` step on non-alembic PRs —
-            # conftest.py already runs migrations as a pytest fixture, so
-            # the only value of the standalone step is an early failure
-            # signal when a migration is broken.
-            local ALEMBIC_SCOPE=""
-            if echo "$CHANGED" | grep -q '^backend/alembic/'; then
-              ALEMBIC_SCOPE="alembic/"
+            if grep -q '^backend/alembic/' <<<"$CHANGED"; then
               out alembic true
-              echo "Alembic changes detected — including migration tests"
             else
               out alembic false
             fi
 
-            local NON_ALEMBIC
-            NON_ALEMBIC=$(echo "$CHANGED" | grep -v '^backend/alembic/' || true)
-
-            if [[ -z "$NON_ALEMBIC" ]]; then
-              # Only alembic/ changes — skip the app/ test pass entirely.
-              out backend_scope "$ALEMBIC_SCOPE"
-              echo "Only alembic changes — running migration tests only"
+            # Test selection knows which code each test ran. It cannot see what
+            # runs before any test — migrations, and the roles, grants and
+            # policies a start renders — nor the harness, the dependencies, or
+            # files that are not Python. A change to any of those runs every test.
+            local UNSEEN
+            UNSEEN=$( {
+              grep -E '^backend/(alembic/|app/db/|app/testing/|app/core/(capabilities|config)\.py$|conftest\.py$|pytest\.ini$|pyproject\.toml$|uv\.lock$|scripts/ci/)' <<<"$CHANGED"
+              grep '^backend/app/' <<<"$CHANGED" | grep -v '\.py$'
+            } || true)
+            if [[ -n "$UNSEEN" ]]; then
+              out backend_mode full
+              echo "Changes test selection cannot see — running every backend test:"
+              while read -r path; do echo "  $path"; done <<<"$UNSEEN"
               return
             fi
-
-            # Check if shared infra changed (requires full test run)
-            if echo "$NON_ALEMBIC" | grep -qE '(app/testing/|app/models/|app/schemas/|app/core/|app/db/|conftest\.py)'; then
-              out backend_scope "app/ $ALEMBIC_SCOPE"
-              echo "Shared infrastructure changed — running all tests"
-            else
-              # Extract unique directories, strip backend/ prefix, and exclude non-code dirs.
-              # Catalog data files carry no tests of their own — the marketplace
-              # service seeds and validates them, so its suite is the one to run.
-              local DIRS
-              DIRS=$(echo "$NON_ALEMBIC" | sed 's|^backend/||' | grep -v '^app/locales/' | xargs -I{} dirname {} | sed 's|^app/marketplace_catalog$|app/services/marketplace|' | sort -u | tr '\n' ' ')
-              if [[ -z "${DIRS// }" ]]; then
-                out backend_scope "app/ $ALEMBIC_SCOPE"
-                echo "Only non-code files changed — running all tests"
-              else
-                out backend_scope "$DIRS$ALEMBIC_SCOPE"
-                echo "Running tests in: $DIRS$ALEMBIC_SCOPE"
-              fi
-            fi
+            out backend_mode select
+            echo "Running the always-run core and the tests this change reaches"
           }
 
           frontend() {
@@ -160,16 +154,103 @@ jobs:
             fi
           }
 
+          # The repository's own tooling: the git identity guard, the release
+          # workflow's Android signing, and the scripts CI runs. Tested below,
+          # in this job, when any of it changes.
+          tooling() {
+            if [[ "$EVENT" != "pull_request" ]] || [[ -n "$(changed .github/ frontend/.husky/ \
+                scripts/ci/ scripts/git-identity-guard.sh scripts/git-identity-guard_test.sh)" ]]; then
+              out tooling true
+              echo "Tooling changed — testing it"
+            else
+              out tooling false
+            fi
+          }
+
+          # The request-context conformance suite (pytest marker ``seam``) is
+          # slow, so it runs where it pays for itself: every integration push,
+          # and a pull request that touches the seam.
+          seam() {
+            if [[ "$EVENT" != "pull_request" ]] || [[ -n "$(changed .github/workflows/ci.yml \
+                backend/app/db/ backend/app/api/deps.py backend/app/api/content_socket.py \
+                backend/app/services/content_sockets.py backend/app/testing/ \
+                backend/app/models/ backend/alembic/ backend/conftest.py \
+                backend/app/api/v1/tenant_endpoints/{queues,counters,events,collaboration}.py \
+                backend/app/api/v1/platform_endpoints/notifications.py)" ]]; then
+              out seam true
+              echo "Seam changed — running the conformance suite"
+            else
+              out seam false
+            fi
+          }
+
+          # Upgrading a database a release wrote. A pull request into dev
+          # upgrades from the newest release; a release pull request and every
+          # integration push walk each release since WALK_FROM in turn.
+          upgrade() {
+            if [[ "$EVENT" != "pull_request" || "$BASE_REF" == "main" ]]; then
+              out upgrade walk
+              echo "Integration push or release — walking every release"
+            elif [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/ \
+                backend/alembic/ \
+                backend/app/db/ backend/app/models/ backend/app/core/ \
+                backend/app/testing/ backend/scripts/upgrade_seed.py \
+                backend/scripts/upgrade_from_release.py backend/pyproject.toml \
+                backend/uv.lock scripts/seed/ scripts/seed_dev_data.py)" ]]; then
+              out upgrade hop
+              echo "Schema or boot changed — upgrading from the newest release"
+            else
+              out upgrade false
+            fi
+          }
+
           backend
+          seam
+          upgrade
           frontend
           codegen
+          tooling
+
+          {
+            echo "### What this run checks"
+            echo
+            echo "| Area | Decision |"
+            echo "|---|---|"
+            # shellcheck disable=SC2016 # literal backticks: Markdown code
+            sed -E 's/^([^=]+)=(.*)$/| \1 | `\2` |/' "$GITHUB_OUTPUT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test the git identity guard
+        if: steps.diff.outputs.tooling == 'true'
+        run: ./scripts/git-identity-guard_test.sh
+
+      - name: Set up Python
+        if: steps.diff.outputs.tooling == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Test the Android signing workflow
+        if: steps.diff.outputs.tooling == 'true'
+        run: |
+          pip install "pyyaml==6.0.3"
+          python3 scripts/ci/android_signing_workflow_test.py
+
+      - name: Test the test-run summary
+        if: steps.diff.outputs.tooling == 'true'
+        run: python3 scripts/ci/pytest_summary_test.py
 
   backend-tests:
     name: Backend Lint & Tests
     needs: changes
     # A failed change detection leaves the outputs empty, which runs the job.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # Reads the test selection data dev's last run published.
+      actions: read
     services:
       postgres:
         image: postgres:17
@@ -208,26 +289,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Frozen migrations are unchanged
-        if: github.event_name == 'pull_request'
-        run: |
-          # A revision at or before RELEASED_MIGRATION has run on somebody's
-          # database and is fixed. A pull request adds revisions after it;
-          # it does not edit those (CLAUDE.md, "Never edit a migration that
-          # has shipped"). Additions pass; an edit, rename or deletion at or
-          # before the line fails. --no-renames reports a rename as the old
-          # path deleted, so the frozen name is what gets checked.
-          FROZEN=$(tr -d '[:space:]' < RELEASED_MIGRATION)
-          EDITED=$(git diff --name-only --no-renames --diff-filter=MDT "origin/${{ github.base_ref }}...HEAD" -- backend/alembic/versions \
-            | grep -oE '[0-9]{8}_[0-9]{4}' | awk -v frozen="$FROZEN" '$0 <= frozen' || true)
-          if [[ -n "$EDITED" ]]; then
-            echo "::error::Edited, renamed or removed a released migration (freeze line $FROZEN): $(echo $EDITED | tr '\n' ' ')"
-            echo "Add a new revision that converges both histories instead."
-            exit 1
-          fi
-          echo "No released migration edited (freeze line $FROZEN)"
-
       - uses: ./.github/actions/setup-backend
+
+      - name: Frozen migrations are unchanged, one Alembic head
+        # scripts/ci/check runs the same checks locally (and before a push).
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+        run: scripts/ci/check migrations
 
       - name: Bootstrap database roles
         # The same module a deployment runs at startup, over the same kind of
@@ -251,22 +320,16 @@ jobs:
           uv run alembic upgrade head
 
       - name: Lint with Ruff
-        run: |
-          cd backend
-          uv run ruff check app
+        run: scripts/ci/check ruff
 
       - name: Check formatting with Ruff
-        run: |
-          cd backend
-          uv run ruff format --check app
+        run: scripts/ci/check format
 
       - name: Type-check with ty
         # Full default rule set; the only exclusions are the SQLModel/ORM
         # false-positive rules disabled in backend/pyproject.toml
         # ([tool.ty.rules]), which is the single source of truth for the gate.
-        run: |
-          cd backend
-          uv run ty check app
+        run: scripts/ci/check ty
 
       - name: Start PgBouncer (transaction mode)
         # Runs as a step (not a service) so the committed reference config is
@@ -282,30 +345,212 @@ jobs:
           timeout 30 bash -c 'until (echo > /dev/tcp/127.0.0.1/6432) 2>/dev/null; do sleep 1; done'
           echo "PgBouncer up on :6432 (transaction mode)"
 
+      - name: Fetch the test selection data dev last recorded
+        # Which code each test ran, recorded by the newest dev run that passed.
+        # Without it, every test runs.
+        if: needs.changes.outputs.backend_mode == 'select'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --branch dev \
+            --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          gh run download "$run_id" -R "$GITHUB_REPOSITORY" -n test-selection-data -D backend
+          echo "Selecting from dev run $run_id"
+
       - name: Run tests (through the pooler)
+        env:
+          MODE: ${{ needs.changes.outputs.backend_mode || 'full' }}
+          # Per-test recording needs the tracer that reports every line each
+          # test runs. The sys.monitoring core reports a line only the first
+          # time a process runs it, which credits it to one test.
+          COVERAGE_CORE: ctrace
         run: |
           cd backend
-          uv run python -m pytest ${{ needs.changes.outputs.backend_scope || 'app/ alembic/' }} -n auto --tb=short
+          set -o pipefail
+          if [[ "$MODE" == "select" && ! -f .testmondata ]]; then
+            echo "::warning::No test selection data from dev, so running every test."
+            MODE=full
+          fi
+          if [[ "$MODE" == "full" ]]; then
+            # Every test, recording which code each ran. dev's recording is
+            # the one published for pull requests to select from.
+            uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 --testmon-noselect \
+              | tee "$RUNNER_TEMP/pytest.log"
+            exit
+          fi
+          # The core runs on every pull request; then the tests the change
+          # reaches, by the code each ran on dev. Both run even if one fails.
+          status=0
+          uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 -m always \
+            | tee "$RUNNER_TEMP/pytest-core.log" || status=1
+          [[ "$MODE" == "core" ]] && exit $status
+          uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 \
+            -m "not always and not seam" --testmon-nocollect --testmon-forceselect \
+            | tee "$RUNNER_TEMP/pytest.log" || [[ $? -eq 5 ]] || status=1
+          exit $status
+
+      - name: Publish the test selection data
+        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-selection-data
+          path: backend/.testmondata
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Prove the request-context seam
+        if: needs.changes.outputs.seam == 'true'
+        run: |
+          cd backend
+          set -o pipefail
+          uv run python -m pytest -m seam app/db/seam_conformance_test.py -n 2 --tb=short \
+            | tee "$RUNNER_TEMP/pytest-seam.log"
+
+      - name: Summarise the test run
+        # The result, failures grouped by worker, and the slowest tests, on the
+        # run's summary page.
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-core.log" "Always-run core"
+            python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest.log" "Backend tests"
+            python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-seam.log" "Request-context seam"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  upgrade-from-release:
+    name: Upgrade From Release
+    needs: changes
+    # A failed change detection leaves the outputs empty, which runs the job.
+    if: ${{ !cancelled() && needs.changes.outputs.upgrade != 'false' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Two servers per setup, because roles are cluster-wide: the release's
+    # database and a fresh install of this tree, compared once both are built.
+    # The explicit-logins run uses 5432/5433, the one-URL run 5434/5435.
+    services:
+      upgraded:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      fresh:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      upgraded-one-url:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      fresh-one-url:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
+      SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every release tag, which the check checks out and boots.
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-backend
+
+      - name: Upgrade a release's database to this tree (explicit logins)
+        id: explicit
+        env:
+          MODE: ${{ needs.changes.outputs.upgrade }}
+        run: |
+          cd backend
+          uv run python scripts/upgrade_from_release.py \
+            $([[ "$MODE" == "walk" ]] && echo --walk) \
+            --server postgresql://initiative:initiative@localhost:5432 \
+            --fresh-server postgresql://initiative:initiative@localhost:5433
+
+      - name: Upgrade a release's database to this tree (one DATABASE_URL)
+        # How docker-compose.example.yml runs it: the app derives its logins
+        # from one owner URL. Its fresh install must be the same database as the
+        # explicit run's, roles and privileges included, so a fix reaches both
+        # setups alike. Runs even when the explicit run failed, so each setup
+        # reports on its own, and compares with it only when it passed.
+        if: ${{ !cancelled() }}
+        env:
+          MODE: ${{ needs.changes.outputs.upgrade }}
+          EXPLICIT: ${{ steps.explicit.outcome }}
+        run: |
+          cd backend
+          uv run python scripts/upgrade_from_release.py --one-url \
+            $([[ "$MODE" == "walk" ]] && echo --walk) \
+            $([[ "$EXPLICIT" == "success" ]] && echo --same-as postgresql://initiative:initiative@localhost:5433) \
+            --server postgresql://initiative:initiative@localhost:5434 \
+            --fresh-server postgresql://initiative:initiative@localhost:5435
+
+      - name: The dev seed fills a fresh install
+        # The fresh install the step above built, with a first owner for the
+        # seed to sign its data with.
+        env:
+          DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5433/initiative
+          DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5433/initiative
+          DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5433/initiative
+          DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5433/initiative
+          FIRST_OWNER_EMAIL: admin@example.com
+          FIRST_OWNER_PASSWORD: changeme
+        run: |
+          cd backend
+          uv run python -m app.db.init_db
+          uv run python ../scripts/seed_dev_data.py
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup-frontend
 
       - name: Lint
-        run: |
-          cd frontend
-          pnpm lint
+        run: scripts/ci/check biome
 
       - name: TypeScript Check
-        run: |
-          cd frontend
-          pnpm typecheck
+        run: scripts/ci/check tsc
 
       - name: Run tests
         run: |
@@ -316,7 +561,8 @@ jobs:
     name: Check Generated Types
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.codegen != 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -324,54 +570,28 @@ jobs:
         with:
           dev: "false"
 
-      - name: Check env-contract.json
-        run: |
-          (cd backend && uv run python ../scripts/build_env_contract.py)
-          if ! git diff --exit-code env-contract.json; then
-            echo ""
-            echo "ERROR: env-contract.json is out of date!"
-            echo "Run 'scripts/build_env_contract.py' under the backend venv and commit the result."
-            echo ""
-            exit 1
-          fi
-
-      - name: Export OpenAPI spec
-        run: |
-          cd backend
-          uv run python scripts/export_openapi.py "$RUNNER_TEMP/openapi.json"
-
       - uses: ./.github/actions/setup-frontend
 
-      - name: Regenerate types
-        run: frontend/scripts/generate-api.sh --from-spec "$RUNNER_TEMP/openapi.json"
+      - name: Check env-contract.json and the generated API client
+        run: scripts/ci/check codegen
 
-      - name: Check for drift
-        run: |
-          if ! git diff --exit-code frontend/src/api/generated/; then
-            echo ""
-            echo "ERROR: Generated types are out of date!"
-            echo "Run 'pnpm generate:api' in the frontend directory and commit the results."
-            echo ""
-            exit 1
-          fi
-          echo "Generated types are up to date."
-
-  git-hooks:
-    name: Git Hooks
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Test the git identity guard
-        run: ./scripts/git-identity-guard_test.sh
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.12'
-
-      - name: Install workflow check dependencies
-        run: pip install "pyyaml==6.0.3"
-
-      - name: Test the Android signing workflow
-        run: python3 scripts/ci/android_signing_workflow_test.py
+  dev-image:
+    name: Dev Image
+    needs:
+      - changes
+      - backend-tests
+      - upgrade-from-release
+      - frontend-lint-and-test
+      - check-generated-types
+    # Publishes :dev from a push to dev once every check above has passed on
+    # it (a check that had nothing to test is skipped, which counts as a pass).
+    # To build one without waiting, run Dev Build by hand.
+    if: >-
+      ${{ !cancelled()
+      && github.event_name == 'push' && github.ref == 'refs/heads/dev'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled') }}
+    uses: ./.github/workflows/dev-build.yml
+    # inherit, not a list: the build's environment secrets (OTA_SIGNING_KEY)
+    # read as empty without it.
+    secrets: inherit

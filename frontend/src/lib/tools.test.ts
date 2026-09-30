@@ -497,11 +497,12 @@ describe("tool imports", () => {
     for (const locale of locales) {
       const file = await import(`../../public/locales/${locale}/exports.json`);
       const labels = (file.default ?? file).table.source as Record<string, string>;
-      // `tasks` is a project sub-resource and `initiative`/`guild` are the
-      // aggregate backup scopes — the same three non-tool sources the backend's
-      // adapter-coverage test allows.
+      // `tasks` and `events` are the filterable task and event lists and
+      // `initiative`/`guild` are the aggregate backup scopes — the same four
+      // non-tool sources the backend's adapter-coverage test allows.
       const expected = [
         "tasks",
+        "events",
         "initiative",
         "guild",
         ...BULK_EXPORT_TOOLS.map(toolKebabSingular),

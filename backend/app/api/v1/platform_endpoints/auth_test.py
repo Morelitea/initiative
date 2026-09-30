@@ -83,8 +83,16 @@ async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSe
     assert "public_registration_enabled" in data
 
 
-async def test_register_first_user(client: AsyncClient):
-    """Test that first registered user becomes owner and gets a guild."""
+async def test_register_first_user(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The first registered user becomes owner, and with
+    ``REGISTRATION_CREATES_GUILD`` off registering creates no guild."""
+    from app.core.config import settings
+    from app.models.platform.guild import GuildMembership
+
+    monkeypatch.setattr(settings, "REGISTRATION_CREATES_GUILD", False)
+
     user_data = {
         "email": "first@example.com",
         "username": "first",
@@ -100,6 +108,10 @@ async def test_register_first_user(client: AsyncClient):
     assert data["full_name"] == "First User"
     assert data["status"] == "active"
     assert data["role"] == "owner"  # First user bootstraps as owner
+    held = await session.exec(
+        select(GuildMembership).where(GuildMembership.user_id == data["id"])
+    )
+    assert held.all() == []
 
 
 async def test_register_with_invite_blocked_when_guild_full(
@@ -134,6 +146,108 @@ async def test_register_with_invite_blocked_when_guild_full(
 
     assert response.status_code == 403
     assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+
+async def test_register_with_a_bound_invite_joins_on_confirming(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """With mail on, the address is not proved at sign-up, so an invite bound
+    to it waits: confirming the address joins the guild. The binding is still
+    checked when the account is made. A letter an operator sends again
+    replaces the first once it is delivered, and still carries the invite."""
+    from app.models.platform.guild import GuildMembership
+    from app.models.platform.user import UserRole
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
+    from app.services import email as email_service
+    from app.services.platform import guilds as guild_service
+    from app.testing.factories import create_guild
+
+    settings_row = await app_settings_service.get_app_settings(session)
+    settings_row.smtp_host = "smtp.example.com"
+    settings_row.smtp_from_address = "noreply@example.com"
+    session.add(settings_row)
+    letters: list[str] = []
+
+    async def _capture(session_, user, token):
+        letters.append(token)
+
+    monkeypatch.setattr(email_service, "send_verification_email", _capture)
+    admin = await create_user(session, email="bound-admin@example.com")
+    guild = await create_guild(session, creator=admin)
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by=admin.id,
+        invitee_email="bound-invitee@example.com",
+    )
+    await session.commit()
+    guild_id, code = guild.id, invite.code
+
+    def _register(email: str, username: str):
+        return client.post(
+            f"/api/v1/auth/register?invite_code={code}",
+            json={"email": email, "username": username, "password": "password1234"},
+        )
+
+    elsewhere = await _register("someone-else@example.com", "elsewhere")
+    assert elsewhere.status_code == 400
+    assert elsewhere.json()["detail"] == "INVITE_EMAIL_MISMATCH"
+
+    made = await _register("bound-invitee@example.com", "boundinvitee")
+    assert made.status_code == 201, made.text
+    user_id = made.json()["id"]
+
+    async def _memberships() -> list[int]:
+        session.expire_all()
+        return list(
+            (
+                await session.exec(
+                    select(GuildMembership.guild_id).where(
+                        GuildMembership.user_id == user_id
+                    )
+                )
+            ).all()
+        )
+
+    # Neither the invited guild nor one of its own until the address is proved.
+    assert await _memberships() == []
+
+    operator_headers = get_auth_headers(
+        await create_user(session, role=UserRole.operator)
+    )
+    resend_path = f"/api/v1/operator/users/{user_id}/verification-email"
+
+    async def _undelivered(session_, user, token):
+        raise RuntimeError("Failed to send email")
+
+    monkeypatch.setattr(email_service, "send_verification_email", _undelivered)
+    failed = await client.post(resend_path, headers=operator_headers)
+    assert failed.status_code == 502
+    assert await user_tokens.get_valid_token(
+        session, token=letters[0], purpose=UserTokenPurpose.email_verification
+    )
+
+    monkeypatch.setattr(email_service, "send_verification_email", _capture)
+    resent = await client.post(resend_path, headers=operator_headers)
+    assert resent.status_code == 200, resent.text
+    first, second = letters
+    replaced = await client.post(
+        "/api/v1/auth/verification/confirm", json={"token": first}
+    )
+    assert replaced.json()["detail"] == "INVALID_OR_EXPIRED_TOKEN"
+
+    confirmed = await client.post(
+        "/api/v1/auth/verification/confirm", json={"token": second}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert await _memberships() == [guild_id]
+    assert await addresses.holds_address(
+        session, user_id=user_id, email="bound-invitee@example.com"
+    )
+    again = await client.post(resend_path, headers=operator_headers)
+    assert again.status_code == 409
+    assert again.json()["detail"] == "OPERATOR_NOTHING_TO_VERIFY"
 
 
 async def test_register_duplicate_email(client: AsyncClient, session: AsyncSession):
@@ -561,14 +675,19 @@ async def test_five_wrong_passwords_lock_the_account(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Counted by account whatever the client, so with the per-client limits
-    off (as the suite runs) the account lock is what refuses."""
-    await create_user(
+    off (as the suite runs) the account lock is what refuses. A reset from the
+    emailed link ends the lock at once."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(
         session,
         email="five@example.com",
         hashed_password=get_password_hash("right-password"),
         status=UserStatus.active,
         email_verified=True,
     )
+    user_id = user.id
     for _ in range(5):
         assert (await _sign_in(client, "five@example.com", "wrong")).status_code == 400
 
@@ -585,6 +704,17 @@ async def test_five_wrong_passwords_lock_the_account(
         },
     )
     assert app_refused.status_code == 429
+
+    reset_token = await user_tokens.create_token(
+        session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+    )
+    reset = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert reset.status_code == 200, reset.text
+    signed_in = await _sign_in(client, "five@example.com", "brand-new-secret-123")
+    assert signed_in.status_code == 200, signed_in.text
 
 
 async def test_login_refused_for_account_without_password(

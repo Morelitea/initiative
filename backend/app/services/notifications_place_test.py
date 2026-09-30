@@ -14,6 +14,7 @@ from app.models.platform.notification import Notification, NotificationType
 from app.services import notifications as notifications_service
 from app.services.platform import user_notifications
 from app.testing import create_guild, create_user
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _only(session: AsyncSession, user_id: int) -> Notification:
@@ -130,7 +131,7 @@ async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kin
     actor = await create_user(session, email=f"place-actor-{kind}@example.com")
     await session.commit()
 
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     await notifications_service.notify(
         session,
         NotificationType.mention,
@@ -141,7 +142,7 @@ async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kin
         actor=actor,
     )
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
     line = await _only(session, owner.id)
     assert line.guild_id == guild.id

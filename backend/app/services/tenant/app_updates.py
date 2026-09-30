@@ -58,6 +58,7 @@ from app.services.tenant import app_connections as connections_service
 from app.services.tenant import app_revocation as revocation_service
 from app.services.tenant import app_schedules
 from app.services.tenant import guild_apps as guild_apps_service
+from app.db.request_context import Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +303,7 @@ async def notify_pending_updates(
     waiting = list(asked)
     if not waiting:
         return
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     holders = (
         await session.exec(
             select(GuildMembership.user_id).where(

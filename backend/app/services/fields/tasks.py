@@ -37,10 +37,19 @@ from app.services.fields.spec import (
 )
 from app.services.tenant import properties as properties_service
 
-#: Columns that are the recurrence feature's own state — the strategy that
-#: applies a rule and the counter that tracks it. Real columns, filterable by a
-#: stored definition, and not something anybody narrows a board by.
-_INTERNAL = frozenset({"recurrence_strategy", "recurrence_occurrence_count"})
+#: Columns that are the recurrence feature's own state — the rule, its end, the
+#: strategy that applies it and the counter that tracks it. Real columns,
+#: filterable by a stored definition, and not something anybody narrows a
+#: board by.
+_INTERNAL = frozenset(
+    {
+        "recurrence",
+        "recurrence_until",
+        "recurrence_shift",
+        "recurrence_strategy",
+        "recurrence_occurrence_count",
+    }
+)
 
 
 def _status_category(op: FilterOp, value: Any, ctx: FieldContext) -> Any:

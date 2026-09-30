@@ -15,9 +15,9 @@ community narrows it by — its token's ``satd`` claim — which the same gate
 gives to ``app.satisfied_claims``. The session carries the fact; the
 connection carries the rule, and the two meet in the gate.
 
-The value is either the frozenset of provider ids the session proved, or the
-``SYSTEM_SATISFIED`` sentinel string (see ``app.db.session``) that
-user-attributed system work sets explicitly. The default is the empty set —
+The value is the frozenset of provider ids the session proved. Work a job does
+on somebody's behalf is routed with ``on_behalf`` instead
+(``app.api.deps.establish_guild_access``). The default is the empty set —
 credentials that carry no ``sat`` (legacy tokens, API keys, device tokens)
 fail closed against policy-gated guilds.
 """
@@ -30,27 +30,20 @@ from dataclasses import dataclass
 
 from app.core.login_methods import SecondFactorRequirement
 
-_satisfied_providers: contextvars.ContextVar[frozenset[int] | str] = (
-    contextvars.ContextVar("auth_satisfied_providers", default=frozenset())
+_satisfied_providers: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
+    "auth_satisfied_providers", default=frozenset()
 )
 
 
-def set_satisfied_providers(value: frozenset[int] | str | None) -> None:
-    """Record the current credential's satisfied-provider set (or the system
-    sentinel). ``None`` clears to the fail-closed empty set."""
+def set_satisfied_providers(value: frozenset[int] | None) -> None:
+    """Record the current credential's satisfied-provider set. ``None`` clears
+    to the fail-closed empty set."""
     _satisfied_providers.set(frozenset() if value is None else value)
 
 
-def satisfied_providers() -> frozenset[int] | str:
+def satisfied_providers() -> frozenset[int]:
     """The satisfied-provider set recorded for this request/task."""
     return _satisfied_providers.get()
-
-
-def satisfied_provider_ids() -> frozenset[int]:
-    """The recorded set as provider ids only — the system sentinel (which no
-    live-session path records) reads as the empty, fail-closed set."""
-    value = _satisfied_providers.get()
-    return value if isinstance(value, frozenset) else frozenset()
 
 
 _satisfied_claims: contextvars.ContextVar[dict[str, dict[str, list[str]]]] = (

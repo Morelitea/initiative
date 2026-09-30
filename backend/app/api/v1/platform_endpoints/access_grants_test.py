@@ -188,6 +188,31 @@ async def test_requester_cannot_approve_own(
     assert resp.json()["detail"] == "ACCESS_GRANT_CANNOT_APPROVE_OWN"
 
 
+async def test_a_requester_who_may_no_longer_ask_is_not_approved(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Approval asks about the requester as they stand when it is decided."""
+    from app.models.platform.user import User, UserRole
+
+    support = await acting_user("support")
+    owner = await acting_user("owner")
+    guild = await create_guild(session)
+    requested = await _request_access(client, support, guild, reason="ticket")
+    assert requested.status_code == 201, requested.text
+
+    demoted = await session.get(User, support.user.id)
+    assert demoted is not None
+    demoted.role = UserRole.member
+    session.add(demoted)
+    await session.commit()
+
+    resp = await client.post(
+        f"{GRANTS}{requested.json()['id']}/approve", json={}, headers=owner.headers
+    )
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "ACCESS_GRANT_GRANTEE_INELIGIBLE"
+
+
 @pytest.mark.parametrize(
     "tier,minutes,expected",
     [
@@ -412,22 +437,21 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
 async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """One grant, read on the caller's tier: its holder reads it with the
+    """One grant, read on the caller's tier: its holder lists it with the
     community it names; another requester is not shown it."""
     host = await acting_user("owner", guild_role=GuildRole.admin)
     support = await acting_user("support")
     other = await acting_user("support")
     grant = await _approved_grant(session, grantee=support, host=host)
 
-    own = await client.get(f"{GRANTS}{grant.id}", headers=support.headers)
+    own = await client.get(GRANTS, headers=support.headers)
     assert own.status_code == 200, own.text
-    assert own.json()["guild_name"] == host.guild.name
+    row = next(g for g in own.json() if g["id"] == grant.id)
+    assert row["guild_name"] == host.guild.name
 
     listed = await client.get(GRANTS, headers=other.headers)
     assert listed.status_code == 200, listed.text
     assert grant.id not in {g["id"] for g in listed.json()}
-    theirs = await client.get(f"{GRANTS}{grant.id}", headers=other.headers)
-    assert theirs.status_code == 404, theirs.text
 
 
 @pytest.mark.parametrize(

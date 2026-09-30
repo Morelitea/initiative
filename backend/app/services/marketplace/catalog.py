@@ -7,7 +7,9 @@ Two audiences, and the split between them is the security shape of this module:
   or a guild role), and touch nothing but the two catalog tables.
 * **The writer** — ``upsert_listing``, called only from the system-engine path
   (boot seeding, the operator's catalog, uploads, and the registry refresh). No
-  user request reaches it.
+  user request reaches it. An app's ``registration`` block, from any of them,
+  goes to the one writer of a registration's app facts
+  (:mod:`app.services.marketplace.registrations`).
 
 Everything a publisher supplies is validated before it lands: the uid's shape,
 the ``public_id``'s, the version string's, the attribution, and the definition's
@@ -49,6 +51,7 @@ from app.services.marketplace.definitions import (
 )
 from app.services.marketplace import contract
 from app.services.marketplace import registration_lookup
+from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace.manifest_values import check_public_id
 
 __all__ = [
@@ -364,6 +367,7 @@ async def upsert_listing(
     bundled_with: Optional[str] = None,
     hold_for_review: bool = False,
     submitted_by: Optional[int] = None,
+    root_is_builtin: bool = False,
 ) -> MarketplaceListing:
     """Create or update one listing and the version its manifest describes.
 
@@ -385,6 +389,10 @@ async def upsert_listing(
     existing one keeps the name and description it is shown under. Approving
     it is :func:`approve_version`. ``submitted_by`` records the member who
     shared a new listing; it is never changed afterwards.
+
+    An app's ``registration`` block is read before anything is written and
+    applied once its version is offered. ``root_is_builtin`` is whether a
+    registry listing verified under the root this image ships.
     """
     if source not in LISTING_SOURCES:
         raise CatalogError(f"unknown listing source {source!r}")
@@ -412,6 +420,24 @@ async def upsert_listing(
     for required in ("name", "description"):
         if not manifest.get(required):
             raise CatalogError(f"{public_id}: {required} is required")
+
+    registration: Optional[registrations_service.ListingRegistration] = None
+    if manifest.get("registration") is not None:
+        if kind != "app":
+            raise CatalogError(f"{public_id}: only an app carries a registration")
+        try:
+            registration = await registrations_service.read_listing_registration(
+                session,
+                manifest["registration"],
+                listing_uid=uid,
+                listing_public_id=public_id,
+                definition=definition,
+                source=source,
+                root_is_builtin=root_is_builtin,
+            )
+        except registrations_service.ListingRegistrationError as exc:
+            error = CatalogSourceConflict if exc.conflict else CatalogError
+            raise error(f"{public_id}: registration: {exc}") from exc
 
     # Artwork is optional: a listing without one gets the app's own mark rather
     # than being refused over a picture. A supplied one is still held to the
@@ -554,6 +580,10 @@ async def upsert_listing(
         await vendor_values_service.sync_required_for_listing(
             session, listing.uid, version.definition
         )
+        if registration is not None:
+            await registrations_service.apply_listing_registration(
+                session, registration
+            )
 
     if kind == "app":
         await _publish_bundled_dashboards(

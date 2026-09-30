@@ -31,6 +31,7 @@ from app.testing.factories import (
     create_initiative,
     create_user,
 )
+from app.db.request_context import Unattributed
 
 
 def _where(row) -> tuple:
@@ -47,7 +48,7 @@ def _of_type(written: list[dict], event_type: AuditEventType) -> list[dict]:
 
 
 async def _sync(session: AsyncSession, *, user_id: int, provider_id: int, claims):
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     result = await sync_oidc_assignments(
         session,
         user_id=user_id,

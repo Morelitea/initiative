@@ -22,7 +22,7 @@ import binascii
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, insert, text, update
 from sqlalchemy.exc import IntegrityError
@@ -42,6 +42,7 @@ from app.models.platform.dm_conversation import (
 from app.models.platform.dm_device import DmDevice
 from app.models.platform.dm_one_time_key import DmOneTimeKey
 from app.models.platform.dm_queue import DmQueueItem
+from app.models.platform.dm_verification import DmVerificationItem
 from app.schemas.platform.dm_transport import (
     MAX_GROUP_MEMBERS,
     MAX_ONE_TIME_KEYS,
@@ -53,6 +54,7 @@ from app.schemas.platform.dm_transport import (
     DmQueueItemRead,
     DmRosterMember,
     DmSessionKey,
+    DmVerificationMessage,
 )
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import presence as presence_service
@@ -67,6 +69,15 @@ QUEUE_CEILING_BYTES = 50 * 1024 * 1024
 
 #: How many messages one collection returns.
 QUEUE_PAGE = 200
+
+#: How long a verification message waits for its recipient. An emoji
+#: verification is two people looking at two screens at once, so a message
+#: older than this belongs to an attempt that is already over.
+VERIFICATION_TTL = timedelta(minutes=10)
+#: How many verification messages one account may have waiting at once. One
+#: verification is a handful of messages; this leaves room for several running
+#: side by side.
+VERIFICATION_OUTSTANDING = 32
 
 
 @dataclass(frozen=True)
@@ -601,7 +612,7 @@ async def create_conversation(
 
 
 async def unreachable_pair(
-    session: AsyncSession, *, member_ids: Iterable[int]
+    session: AsyncSession, *, actor_id: int, member_ids: Iterable[int]
 ) -> tuple[int, int] | None:
     """The first two on this roster who cannot message each other, if any.
 
@@ -610,16 +621,36 @@ async def unreachable_pair(
     other and neither can start. The rule is ``can_ask`` both ways, the same
     table a pair passes, asked across the roster.
 
+    The proposer's own pairs are asked first, and the rest of the roster only
+    once the proposer can reach everybody on it: the answer is about people
+    the proposer already has a way to message.
+
     Deliberately ``can_ask`` and not "already open": requiring an accepted
     request between every pair would mean nobody could ever be introduced to
     anybody.
     """
-    ids = sorted(set(member_ids))
-    if len(ids) < 2:
+    others = sorted(set(member_ids) - {actor_id})
+    if not others:
+        return None
+    own = (
+        await session.exec(
+            text(
+                "SELECT id FROM unnest(CAST(:ids AS int[])) AS t(id) "
+                "WHERE public.dm_roster_unreachable_pair(ARRAY[:actor, id]) "
+                "IS NOT NULL ORDER BY id LIMIT 1"
+            ).bindparams(ids=others, actor=actor_id)
+        )
+    ).first()
+    if own is not None:
+        low, high = sorted((actor_id, own[0]))
+        return (low, high)
+    if len(others) < 2:
         return None
     row = (
         await session.exec(
-            text("SELECT public.dm_roster_unreachable_pair(:ids)").bindparams(ids=ids)
+            text("SELECT public.dm_roster_unreachable_pair(:ids)").bindparams(
+                ids=others
+            )
         )
     ).scalar_one()
     if row is None:
@@ -655,7 +686,10 @@ async def create_group_conversation(
         raise DmTransportError(Messages.ROSTER_TOO_SMALL)
     if len(members) > MAX_GROUP_MEMBERS:
         raise DmTransportError(Messages.ROSTER_TOO_LARGE)
-    if await unreachable_pair(session, member_ids=members) is not None:
+    if (
+        await unreachable_pair(session, actor_id=actor_id, member_ids=members)
+        is not None
+    ):
         raise DmTransportError(Messages.ROSTER_NOT_REACHABLE)
 
     conversation = await _conversation_with_roster(
@@ -1162,3 +1196,103 @@ async def acknowledge(
     )
     await session.flush()
     return result.rowcount or 0
+
+
+# --------------------------------------------------------------------------
+# Verification between one account's own devices
+# --------------------------------------------------------------------------
+
+
+async def _clear_expired_verifications(
+    session: AsyncSession, *, user_id: int, cutoff: datetime
+) -> None:
+    await session.exec(
+        delete(DmVerificationItem).where(
+            DmVerificationItem.user_id == user_id,
+            DmVerificationItem.created_at < cutoff,
+        )
+    )
+
+
+async def send_verification(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    device_id: uuid.UUID,
+    to_device_id: uuid.UUID,
+    body: str,
+) -> None:
+    """Relay one verification message from one of the caller's devices to
+    another of them. ``body`` is stored as the client wrote it."""
+    if device_id == to_device_id:
+        raise DmTransportError(Messages.VERIFY_SAME_DEVICE)
+    await _own_device(session, user_id=user_id, device_id=device_id)
+    await _own_device(session, user_id=user_id, device_id=to_device_id)
+    # Held to the end of the transaction, so two sends from one account count
+    # and insert one after the other.
+    await session.exec(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtextextended(f"dm-verification:{user_id}", 0)
+            )
+        )
+    )
+    await _clear_expired_verifications(
+        session,
+        user_id=user_id,
+        cutoff=datetime.now(timezone.utc) - VERIFICATION_TTL,
+    )
+    waiting = (
+        await session.exec(
+            select(func.count())
+            .select_from(DmVerificationItem)
+            .where(DmVerificationItem.user_id == user_id)
+        )
+    ).one()
+    if waiting >= VERIFICATION_OUTSTANDING:
+        raise DmTransportError(Messages.TOO_MANY_VERIFICATIONS)
+    await session.exec(
+        insert(DmVerificationItem).values(
+            user_id=user_id,
+            sender_device_id=device_id,
+            recipient_device_id=to_device_id,
+            body=body,
+        )
+    )
+    await session.flush()
+
+
+async def collect_verification(
+    session: AsyncSession, *, user_id: int, device_id: uuid.UUID
+) -> list[DmVerificationMessage]:
+    """Everything waiting for one device, oldest first.
+
+    Collecting consumes: what is returned is deleted in the same statement, so
+    there is nothing to acknowledge afterwards.
+    """
+    await _own_device(session, user_id=user_id, device_id=device_id)
+    cutoff = datetime.now(timezone.utc) - VERIFICATION_TTL
+    rows = (
+        await session.exec(
+            delete(DmVerificationItem)
+            .where(DmVerificationItem.recipient_device_id == device_id)
+            .returning(
+                DmVerificationItem.id,
+                DmVerificationItem.sender_device_id,
+                DmVerificationItem.body,
+                DmVerificationItem.created_at,
+            )
+        )
+    ).all()
+    await _clear_expired_verifications(session, user_id=user_id, cutoff=cutoff)
+    await session.flush()
+    return [
+        DmVerificationMessage(
+            id=row.id,
+            sender_device_id=row.sender_device_id,
+            body=row.body,
+            created_at=row.created_at,
+        )
+        for row in sorted(rows, key=lambda row: row.id)
+        if row.created_at >= cutoff
+    ]

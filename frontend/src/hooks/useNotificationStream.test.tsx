@@ -172,7 +172,7 @@ describe("useNotificationStream", () => {
     socket.open();
     invalidations.mockClear();
 
-    socket.receive({ resource: "heartbeat", action: "alive", ids: {} });
+    socket.receive({ heartbeat: true });
 
     expect(timesNamed(q.notifications())).toBe(0);
   });

@@ -9,6 +9,7 @@ import type {
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { utcDateKey } from "@/components/calendar/eventCalendarEntry";
 import {
   EventDateTimeFields,
   useEventTiming,
@@ -16,6 +17,7 @@ import {
 import { toDateKey, toTimeSlotRounded } from "@/components/initiativeTools/events/eventDateTime";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { AddPropertyButton, PropertyList } from "@/components/properties";
+import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import {
   DetailPageSkeleton,
   FormSkeleton,
@@ -40,6 +42,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { allDayReference, fromStored, rulePayload } from "@/lib/recurrence";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
@@ -70,14 +73,30 @@ export function EventSettingsPage() {
         title: loaded?.title ?? "",
         description: loaded?.description ?? "",
         location: loaded?.location ?? "",
-        startDate: start ? toDateKey(start) : "",
+        // An all-day event's dates are UTC dates.
+        startDate: start ? (loaded?.all_day ? utcDateKey(loaded.start_at) : toDateKey(start)) : "",
         startTime: start ? toTimeSlotRounded(start) : "09:00",
-        endDate: end ? toDateKey(end) : "",
+        endDate: end ? (loaded?.all_day ? utcDateKey(loaded.end_at) : toDateKey(end)) : "",
         endTime: end ? toTimeSlotRounded(end) : "10:00",
         allDay: loaded?.all_day ?? false,
       };
     },
     event?.id
+  );
+  // A rule is an object: compared by what it says, or every render would read
+  // as news from the server.
+  const repeat = useServerForm(
+    event,
+    (loaded) => ({
+      rule: fromStored(
+        loaded?.recurrence,
+        loaded?.start_at,
+        loaded?.recurrence_shift,
+        loaded?.all_day
+      ),
+    }),
+    event?.id,
+    (a, b) => JSON.stringify(a) === JSON.stringify(b)
   );
   const attendees = useServerForm(
     event,
@@ -214,6 +233,14 @@ export function EventSettingsPage() {
     );
   };
 
+  const handleSaveRepeat = () => {
+    const sent = repeat.values;
+    if (sent.rule === "custom") return;
+    updateEvent.mutate(rulePayload(sent.rule, { allDay: event?.all_day }), {
+      onSuccess: () => repeat.settle(sent),
+    });
+  };
+
   const handleSaveAttendees = () => {
     const sent = attendees.values;
     setAttendees.mutate(sent.ids, { onSuccess: () => attendees.settle(sent) });
@@ -297,6 +324,30 @@ export function EventSettingsPage() {
       </Card>
 
       {/* Attendees */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("repeat")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <RecurrenceEditor
+            kind="event"
+            value={repeat.values.rule}
+            onChange={(rule) => repeat.set({ rule })}
+            referenceDate={event.all_day ? allDayReference(event.start_at) : event.start_at}
+            allDay={event.all_day}
+            stored={
+              event.recurrence ? { rule: event.recurrence, shift: event.recurrence_shift } : null
+            }
+          />
+          <Button
+            onClick={handleSaveRepeat}
+            disabled={updateEvent.isPending || !repeat.edited || repeat.values.rule === "custom"}
+          >
+            {t("common:save")}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>{t("attendees")}</CardTitle>

@@ -7,17 +7,22 @@ calendar (``PUT /calendars/{id}/grants``), never per event.
 """
 
 import logging
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta, timezone
+from collections.abc import Sequence
 from typing import Annotated, Any, List, Optional, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import ColumnElement, func
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import ColumnElement, and_, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import recurrence
+from app.core.user_input_validators import resolve_zone
 from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
 from sqlmodel import select
 
@@ -97,9 +102,153 @@ CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
 CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
 
 
+#: The widest date window a calendar read may ask for: the year view plus
+#: margin for time-zone offsets.
+MAX_CALENDAR_WINDOW = timedelta(days=400)
+
+
+@dataclass(frozen=True)
+class CalendarWindow:
+    start_after: datetime
+    start_before: datetime
+
+
+def calendar_window(
+    start_after: datetime = Query(),
+    start_before: datetime = Query(),
+) -> CalendarWindow:
+    """The date window a calendar read covers, required and bounded.
+
+    A bound without a zone is read as UTC. The window must not end before it
+    starts, nor span more than ``MAX_CALENDAR_WINDOW``.
+    """
+    if start_after.tzinfo is None:
+        start_after = start_after.replace(tzinfo=timezone.utc)
+    if start_before.tzinfo is None:
+        start_before = start_before.replace(tzinfo=timezone.utc)
+    if not timedelta(0) <= start_before - start_after <= MAX_CALENDAR_WINDOW:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=CalendarEventMessages.WINDOW_INVALID,
+        )
+    return CalendarWindow(start_after=start_after, start_before=start_before)
+
+
+CalendarWindowDep = Annotated[CalendarWindow, Depends(calendar_window)]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+#: How far a window's bound moves inward to find its day without a zone.
+_NO_ZONE_INWARD = timedelta(hours=12)
+
+
+def _window_day(bound: datetime, inward: timedelta, tz: Optional[str]) -> datetime:
+    """The day a window's bound falls on, as the UTC midnight all-day events
+    are stored at.
+
+    A calendar asks from its first day's midnight to its last day's 23:59:59,
+    in ``tz``, the viewer's zone. Without one, those days are the UTC dates of
+    the bounds moved twelve hours inward, which holds within twelve hours of
+    UTC."""
+    local = bound.astimezone(resolve_zone(tz)) if tz else bound + inward
+    return datetime.combine(local.date(), time(), timezone.utc)
+
+
+def starts_in_window(
+    start_after: Optional[datetime],
+    start_before: Optional[datetime],
+    tz: Optional[str] = None,
+) -> list[ColumnElement[bool]]:
+    """An event starts in the window: a timed one by its instant, an all-day
+    one by its date, a UTC date the same for every viewer (``_window_day``).
+    A repeating event may, when it began by the window's end and has not ended
+    before its start; ``occurrences`` says when."""
+    once: list[ColumnElement[bool]] = [CalendarEvent.recurrence.is_(None)]
+    repeating: list[ColumnElement[bool]] = [CalendarEvent.recurrence.isnot(None)]
+    if start_after is not None:
+        first = _window_day(start_after, _NO_ZONE_INWARD, tz)
+        once.append(
+            or_(
+                and_(
+                    CalendarEvent.all_day.is_(False),
+                    CalendarEvent.start_at >= start_after,
+                ),
+                and_(CalendarEvent.all_day.is_(True), CalendarEvent.start_at >= first),
+            )
+        )
+        repeating.append(
+            or_(
+                CalendarEvent.recurrence_until.is_(None),
+                and_(
+                    CalendarEvent.all_day.is_(False),
+                    CalendarEvent.recurrence_until >= start_after,
+                ),
+                and_(
+                    CalendarEvent.all_day.is_(True),
+                    CalendarEvent.recurrence_until >= first,
+                ),
+            )
+        )
+    if start_before is not None:
+        last = _window_day(start_before, -_NO_ZONE_INWARD, tz)
+        before = or_(
+            and_(
+                CalendarEvent.all_day.is_(False),
+                CalendarEvent.start_at <= start_before,
+            ),
+            and_(CalendarEvent.all_day.is_(True), CalendarEvent.start_at <= last),
+        )
+        once.append(before)
+        repeating.append(before)
+    if len(once) == 1:
+        return []
+    return [or_(and_(*once), and_(*repeating))]
+
+
+def occurrences(
+    events: Sequence[CalendarEventSummary],
+    start_after: datetime,
+    start_before: datetime,
+    tz: Optional[str] = None,
+) -> list[CalendarEventSummary]:
+    """The events starting in the window, a repeating one once for each of
+    its occurrences there, ordered by start.
+
+    An occurrence is the series' summary at that start, with the series'
+    length, and ``original_start`` naming it."""
+    first = _window_day(start_after, _NO_ZONE_INWARD, tz)
+    last = _window_day(start_before, -_NO_ZONE_INWARD, tz)
+    found: list[CalendarEventSummary] = []
+    for event in events:
+        if not event.recurrence:
+            found.append(event)
+            continue
+        lower, upper = (first, last) if event.all_day else (start_after, start_before)
+        try:
+            starts = recurrence.between(
+                event.recurrence, event.start_at, event.recurrence_shift, lower, upper
+            )
+        except ValueError:
+            # Unreadable, so drawn once, where it starts.
+            found.append(event)
+            continue
+        length = event.end_at - event.start_at
+        found.extend(
+            event.model_copy(
+                update={
+                    "start_at": start,
+                    "end_at": start + length,
+                    "original_start": start,
+                }
+            )
+            for start in starts
+        )
+    found.sort(key=lambda event: (event.start_at, event.guild_id, event.id))
+    return found
 
 
 async def _get_event_or_404(
@@ -256,6 +405,7 @@ async def query_my_calendar_events(
     guild_ids: Optional[List[int]] = None,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
+    tz: Optional[str] = None,
 ) -> list[CalendarEventSummary]:
     """Shared cross-guild calendar-event query for ``list_my_calendar_events``
     and the ``/me/calendar-entries`` aggregate.
@@ -273,10 +423,7 @@ async def query_my_calendar_events(
         # Guild calendars included: this is the user's own calendar view, one of
         # the two places their events show (the app's page is the other).
         conditions = [calendars_service.tool_enabled_clause()]
-        if start_after is not None:
-            conditions.append(CalendarEvent.start_at >= start_after)
-        if start_before is not None:
-            conditions.append(CalendarEvent.start_at <= start_before)
+        conditions += starts_in_window(start_after, start_before, tz)
         conditions.append(_cross_guild_event_dac_clause(context, current_user.id))
         stmt = (
             select(CalendarEvent)
@@ -335,76 +482,8 @@ async def list_my_calendar_events(
 
 
 # ---------------------------------------------------------------------------
-# iCal export / import
+# iCal import
 # ---------------------------------------------------------------------------
-
-
-@me_router.get("/calendar-events/export.ics")
-async def export_my_calendar_events_ics(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_ids: Optional[List[int]] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
-) -> Response:
-    """Export cross-guild calendar events as an .ics file.
-
-    Schema-per-guild: aggregate per guild schema via ``gather_across_guilds``
-    — events live only in the per-guild schemas, so no one query spans them.
-    """
-
-    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
-        context = require_guild_context(guild_session)
-        conditions = [calendars_service.tool_enabled_clause()]
-        if start_after is not None:
-            conditions.append(CalendarEvent.start_at >= start_after)
-        if start_before is not None:
-            conditions.append(CalendarEvent.start_at <= start_before)
-        conditions.append(_cross_guild_event_dac_clause(context, current_user.id))
-        stmt = (
-            select(CalendarEvent)
-            .join(Calendar, Calendar.id == CalendarEvent.calendar_id)
-            .where(*conditions)
-            .options(
-                selectinload(CalendarEvent.attendees).selectinload(
-                    CalendarEventAttendee.user
-                ),
-                # event_export_dict reads tags and custom properties too —
-                # async lazy loads would raise, so load them here. Attached
-                # documents are not on the row any more and are gathered per
-                # guild below, where the session is routed to read them.
-                selectinload(CalendarEvent.property_values).selectinload(
-                    CalendarEventPropertyValue.property_definition
-                ),
-                selectinload(CalendarEvent.property_values).selectinload(
-                    CalendarEventPropertyValue.value_user
-                ),
-            )
-        )
-
-        async def _run() -> list[tuple[int, CalendarEvent, list[Related]]]:
-            found = await _exec_events(guild_session, stmt)
-            await tags_service.annotate_tags(guild_session, found)
-            # Read while this session is still routed to THIS guild — edges live
-            # in its schema — and paired with their event on the way out, so
-            # nothing downstream has to key them. Ids repeat across schemas.
-            documents = await ical_service.documents_for_events(guild_session, found)
-            return [(guild_id, event, documents.get(event.id, [])) for event in found]
-
-        return _run()
-
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=guild_ids
-    )
-    rows = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    rows.sort(key=lambda row: (row[1].start_at, row[0], row[1].id))
-
-    ics_bytes = ical_service.events_to_ical([(event, docs) for _, event, docs in rows])
-    return Response(
-        content=ics_bytes,
-        media_type="text/calendar",
-        headers={"Content-Disposition": "attachment; filename=events.ics"},
-    )
 
 
 @router.post("/import/parse", response_model=ICalParseResult)
@@ -415,7 +494,7 @@ async def parse_ical_file(
 ) -> ICalParseResult:
     """Parse an .ics file and return a preview of found events."""
     try:
-        result = ical_service.parse_ical(body.ics_content)
+        result = ical_service.parse_ical(body.ics_content, body.tz)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -448,6 +527,7 @@ async def import_ical_events(
             calendar_id=calendar.id,
             guild_id=guild_context.guild_id,
             created_by=current_user.id,
+            tz=body.tz,
         )
     except Exception:
         raise HTTPException(
@@ -462,8 +542,9 @@ async def import_ical_events(
                 session.add(event)
                 await session.flush()
             created += 1
-        except Exception as exc:
-            errors.append(f"DB error for '{event.title}': {exc}")
+        except Exception:
+            logger.exception("iCal import could not save event %r", event.title)
+            errors.append(f"Could not save '{event.title}'")
 
     if created > 0:
         await session.commit()
@@ -511,8 +592,10 @@ async def query_guild_calendar_events(
     initiative_id: Optional[int] = None,
     guild_scope: bool = False,
     calendar_ids: Optional[List[int]] = None,
+    exclude_calendar_ids: Optional[List[int]] = None,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
+    tz: Optional[str] = None,
     property_filters: Optional[str] = None,
     page: Optional[int] = None,
     page_size: int = 0,
@@ -561,11 +644,12 @@ async def query_guild_calendar_events(
 
     if calendar_ids:
         conditions.append(CalendarEvent.calendar_id.in_(tuple(set(calendar_ids))))
+    if exclude_calendar_ids:
+        conditions.append(
+            CalendarEvent.calendar_id.not_in(tuple(set(exclude_calendar_ids)))
+        )
 
-    if start_after is not None:
-        conditions.append(CalendarEvent.start_at >= start_after)
-    if start_before is not None:
-        conditions.append(CalendarEvent.start_at <= start_before)
+    conditions += starts_in_window(start_after, start_before, tz)
 
     # Property filters: parse, resolve definitions, compile to subquery
     # clauses shared with documents/tasks so event filtering picks up the
@@ -600,18 +684,20 @@ async def query_guild_calendar_events(
         )
     )
 
-    count_subq = select(CalendarEvent.id).where(*conditions).subquery()
-    count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
-
     stmt = (
         select(CalendarEvent)
         .where(*conditions)
         .options(*_calendar_event_loader_options())
         .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
     )
-    if page is not None:
-        stmt = apply_pagination(stmt, page, page_size)
+    if page is None:
+        events = await _exec_events(session, stmt)
+        return events, len(events)
+
+    count_subq = select(CalendarEvent.id).where(*conditions).subquery()
+    count_stmt = select(func.count()).select_from(count_subq)
+    total_count = (await session.exec(count_stmt)).one()
+    stmt = apply_pagination(stmt, page, page_size)
     return await _exec_events(session, stmt), total_count
 
 
@@ -716,10 +802,17 @@ async def create_calendar_event(
         session, event_in.calendar_id, current_user, guild_context
     )
 
-    recurrence_json = None
-    if event_in.recurrence:
-        recurrence_json = event_in.recurrence.model_dump_json()
-
+    # An all-day event's days are UTC dates, whatever zone it was made in.
+    repeat, shift = (
+        recurrence.stored(
+            event_in.recurrence,
+            event_in.start_at,
+            None if event_in.all_day else event_in.tz,
+            kind="event",
+        )
+        if event_in.recurrence
+        else (None, 0)
+    )
     event = CalendarEvent(
         calendar_id=event_in.calendar_id,
         created_by=guild_context.user_id,
@@ -729,7 +822,8 @@ async def create_calendar_event(
         start_at=event_in.start_at,
         end_at=event_in.end_at,
         all_day=event_in.all_day,
-        recurrence=recurrence_json,
+        recurrence=repeat,
+        recurrence_shift=shift,
     )
     session.add(event)
     await session.flush()
@@ -769,6 +863,7 @@ async def create_calendar_event(
     ]
     await _notify_invited(session, event, invite_ids, current_user, guild_context)
 
+    await attachments_service.claim_uploads(session, event)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
@@ -831,6 +926,7 @@ async def update_calendar_event(
         )
         updated = True
 
+    previous_start, previous_all_day = event.start_at, event.all_day
     for field in (
         "title",
         "description",
@@ -846,12 +942,28 @@ async def update_calendar_event(
             setattr(event, field, value)
             updated = True
 
+    # An all-day event's days are UTC dates, whatever zone it was made in.
+    picked_in = "UTC" if event.all_day else event_in.tz
     if "recurrence" in update_data:
-        if update_data["recurrence"] is not None:
-            event.recurrence = event_in.recurrence.model_dump_json()
-        else:
-            event.recurrence = None
+        event.recurrence, event.recurrence_shift = (
+            recurrence.stored(
+                update_data["recurrence"], event.start_at, picked_in, kind="event"
+            )
+            if update_data["recurrence"]
+            else (None, 0)
+        )
         updated = True
+    elif event.recurrence and (
+        event.start_at != previous_start or event.all_day != previous_all_day
+    ):
+        # The repeat moves with its start, its days kept as they were picked.
+        event.recurrence, event.recurrence_shift = recurrence.restarted(
+            event.recurrence,
+            event.recurrence_shift,
+            previous_start,
+            event.start_at,
+            picked_in,
+        )
 
     # Validate dates after applying partial updates
     if updated:
@@ -895,6 +1007,7 @@ async def update_calendar_event(
                 data={"time_changed": time_changed},
             )
 
+        await attachments_service.claim_uploads(session, event)
         await session.commit()
 
     hydrated = await _refetch_event(session, event.id)

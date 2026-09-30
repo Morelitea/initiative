@@ -3,7 +3,7 @@
 A guild admin's settings page shows storage used against the operator-set
 cap (``guilds.max_storage_bytes``). The number is the same
 ``SUM(uploads.size_bytes)`` that ``enforce_storage_quota`` enforces against,
-read under the guild-routed RLS session; it renders regardless of whether an
+summed over every upload the guild stores; it renders regardless of whether an
 external billing URL is configured. Guild-admin only — the guild-wide total
 mirrors the admin-only settings surface it backs (like ``status``, it is not
 disclosed to regular members).
@@ -41,7 +41,7 @@ async def read_storage_usage(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ADMIN_REQUIRED,
         )
-    usage_bytes = await get_guild_storage_usage(session)
+    usage_bytes = await get_guild_storage_usage(guild_context.guild_id)
     return GuildStorageUsageRead(
         guild_id=guild_context.guild_id, usage_bytes=usage_bytes
     )

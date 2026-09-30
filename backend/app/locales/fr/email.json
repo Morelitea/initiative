@@ -385,12 +385,13 @@
     "locked": {
       "subject": "Connexion par mot de passe suspendue sur votre compte",
       "title": "Connexion par mot de passe suspendue",
-      "body": "Quelqu'un a saisi 5 fois un mauvais mot de passe ou code pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant 15 minutes. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà."
+      "body": "Quelqu'un a saisi 5 fois un mauvais mot de passe ou code pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant {{minutes}} minutes. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Pour la réactiver tout de suite, réinitialisez votre mot de passe avec « Mot de passe oublié ? » sur la page de connexion."
     },
-    "held": {
-      "subject": "Connexion par mot de passe désactivée sur votre compte",
-      "title": "Connexion par mot de passe désactivée",
-      "body": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée jusqu'à ce qu'un modérateur la réactive. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Contactez la personne qui gère ce site pour la faire réactiver."
+    "lockedHours": {
+      "subject": "Connexion par mot de passe suspendue sur votre compte",
+      "title": "Connexion par mot de passe suspendue",
+      "body_one": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant une heure. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Pour la réactiver tout de suite, réinitialisez votre mot de passe avec « Mot de passe oublié ? » sur la page de connexion.",
+      "body_other": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant {{count}} heures. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Pour la réactiver tout de suite, réinitialisez votre mot de passe avec « Mot de passe oublié ? » sur la page de connexion."
     }
   }
 }

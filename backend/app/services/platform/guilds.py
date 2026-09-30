@@ -13,6 +13,7 @@ from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.core.config import settings
 from app.core.guild_auth_options import GuildAuthOption
 from app.core.intake import IntakeStream
 from app.core.encryption import encrypt_field, SALT_EMAIL
@@ -46,6 +47,7 @@ from app.services.platform import billing_ping
 
 from app.services.platform import account_stream
 from app.services.platform import contact_grants as contact_grants_service
+from app.db.request_context import Platform, SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +340,7 @@ def enroll_new_member_in_auto_join_initiatives(
 
     async def enroll_in_auto_join_initiatives() -> None:
         async with cohorts.system_session(guild_id) as guild_session:
-            await set_rls_context(guild_session, guild_id=guild_id)
+            await set_rls_context(guild_session, SystemGuild(guild_id))
             await initiatives_service.enroll_in_auto_join_initiatives(
                 guild_session, guild_id=guild_id, user_id=user_id
             )
@@ -376,7 +378,7 @@ def align_admin_initiative_roles(
 
     async def align_guild_admin_membership_roles() -> None:
         async with cohorts.system_session(guild_id) as guild_session:
-            await set_rls_context(guild_session, guild_id=guild_id)
+            await set_rls_context(guild_session, SystemGuild(guild_id))
             await initiatives_service.align_guild_admin_membership_roles(
                 guild_session, guild_id=guild_id, user_id=user_id
             )
@@ -535,7 +537,7 @@ async def list_memberships(
     from app.db.session import SystemSessionLocal, set_rls_context
     from app.services.cross_guild import gather_across_guilds
 
-    await set_rls_context(session, user_id=user_id)
+    await set_rls_context(session, Platform(user_id=user_id))
     pairs = (
         await session.exec(
             select(Guild, GuildMembership)
@@ -671,6 +673,34 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
+_GUILD_CREATION_LOCK_NAMESPACE = 0x47435245  # 1195594309
+
+
+async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bool:
+    """Has this account created fewer than ``GUILD_CREATION_DAILY_LIMIT``
+    communities in the last day?
+
+    Takes a per-account lock held until the transaction ends, so the guild the
+    caller then inserts is committed before the next creation for this account
+    counts. A deleted community still counts: its row stays for at least
+    ``MIN_GUILD_RETENTION_DAYS`` after deletion, which is at least this window.
+    """
+    limit = settings.GUILD_CREATION_DAILY_LIMIT
+    if not limit:
+        return True
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
+        params={"ns": _GUILD_CREATION_LOCK_NAMESPACE, "uid": int(user_id)},
+    )
+    since = datetime.now(timezone.utc) - timedelta(days=1)
+    created = await session.scalar(
+        select(func.count())
+        .select_from(Guild)
+        .where(Guild.created_by == user_id, Guild.created_at > since)
+    )
+    return (created or 0) < limit
+
+
 async def holds_a_free_guild(session: AsyncSession, *, user_id: int) -> bool:
     """Does this account already have the one free community it gets?"""
     result = await session.exec(
@@ -794,7 +824,7 @@ async def seed_guild_content(
     # Seeding is the system engine's, routed into the new schema: the guild
     # has no members yet and nobody is asking for anything.
     async with cohorts.system_session(guild_id) as guild_session:
-        await set_rls_context(guild_session, guild_id=guild_id)
+        await set_rls_context(guild_session, SystemGuild(guild_id))
         await create_guild_settings(guild_session, guild_id)
         try:
             # Inside a savepoint, so a failure here rolls back the app install
@@ -1391,7 +1421,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     from app.services.platform import intake as intake_service
     from app.services.platform import user_notifications
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = (
         await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none()
@@ -1611,12 +1641,7 @@ def invite_is_active(invite: GuildInvite) -> bool:
     return True
 
 
-async def redeem_invite_for_user(
-    session: AsyncSession,
-    *,
-    code: str,
-    user: User,
-) -> Guild:
+async def _live_invite(session: AsyncSession, *, code: str) -> GuildInvite:
     invite = await get_invite_by_code(session, code=code)
     if not invite:
         raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
@@ -1628,6 +1653,35 @@ async def redeem_invite_for_user(
     target_guild = await get_guild(session, guild_id=invite.guild_id)
     if target_guild.status != GuildStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+    return invite
+
+
+async def invite_awaiting_address(
+    session: AsyncSession, *, code: str, email: str
+) -> GuildInvite | None:
+    """The invite a sign-up at ``email`` joins once it proves the address.
+
+    For a sign-up that has not proved its address yet. An invite bound to that
+    address waits for the proof rather than being redeemed now; one bound to
+    another address is refused, as redeeming it would be. ``None`` for an
+    invite that binds no address, which is redeemed with the account.
+    """
+    invite = await _live_invite(session, code=code)
+    bound_email = invite.invitee_email
+    if not bound_email:
+        return None
+    if addresses.normalize(bound_email) != addresses.normalize(email):
+        raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
+    return invite
+
+
+async def redeem_invite_for_user(
+    session: AsyncSession,
+    *,
+    code: str,
+    user: User,
+) -> Guild:
+    invite = await _live_invite(session, code=code)
 
     # Email binding. An invite with no bound address
     # (``invitee_email_encrypted`` is NULL) is a shareable link that any

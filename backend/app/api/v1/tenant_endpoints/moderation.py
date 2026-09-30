@@ -177,6 +177,7 @@ async def settle_report(
         outcome=payload.outcome,
         note=payload.note,
         decided_by=current_user.id,
+        guild_id=guild_context.guild_id,
     )
     # The same reporter figures the list carries: a settled report is the same
     # shape as an open one, and answering zero would have the page replace what

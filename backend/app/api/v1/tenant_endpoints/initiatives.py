@@ -177,6 +177,19 @@ async def _read_initiative(
     return serialize_initiative(initiative, context=guild_context)
 
 
+async def _member_ids(
+    session: SessionDep, initiative_id: int, *, role_id: int | None = None
+) -> list[int]:
+    """The accounts in an initiative, or those holding one of its roles —
+    whose open connections a change to it re-checks once it commits."""
+    stmt = select(InitiativeMember.user_id).where(
+        InitiativeMember.initiative_id == initiative_id
+    )
+    if role_id is not None:
+        stmt = stmt.where(InitiativeMember.role_id == role_id)
+    return list((await session.exec(stmt)).all())
+
+
 async def _require_manager_access(
     session: SessionDep,
     initiative: Initiative,
@@ -238,14 +251,15 @@ async def _guard_full_access_role(
     role: InitiativeRoleModel | None,
     guild_context: GuildContext,
 ) -> None:
-    """Restrict who may be placed on a role carrying "Full access".
+    """Restrict who may put a member on a role carrying "Full access", or take
+    them off one — ``role`` is either the role they take or the role they leave.
 
     A guild admin settles that one. Every other role — the other manager roles
-    included — stays an initiative manager's to assign.
+    included — stays an initiative manager's to assign and to remove.
 
     A guild admin as the *target* is the exception: their standing already
-    reaches every initiative in the guild, so the role adds nothing to it, and
-    this is the route a project manager brings an admin in by.
+    reaches every initiative in the guild, so the role neither adds to it nor
+    takes from it, and this is the route a project manager brings an admin in by.
     """
     if role is None or not role.override_share_restrictions:
         return
@@ -908,7 +922,10 @@ async def update_initiative(
     for field, value in update_data.items():
         setattr(initiative, field, value)
     session.add(initiative)
+    switched = any(field.endswith("_enabled") for field in update_data)
+    members = await _member_ids(session, initiative_id) if switched else []
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, members)
     return await _read_initiative(initiative_id, session, guild_context)
 
 
@@ -931,6 +948,7 @@ async def delete_initiative(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=InitiativeMessages.CANNOT_DELETE_DEFAULT,
         )
+    members = await _member_ids(session, initiative_id)
     retention_days = await trash(
         session,
         initiative,
@@ -946,6 +964,7 @@ async def delete_initiative(
         detail={"via": "trash", "retention_days": retention_days},
     )
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, members)
 
 
 # ============================================================================
@@ -975,14 +994,10 @@ async def list_initiative_roles(
         session, initiative_id=initiative_id
     )
 
-    # Get member counts for each role
-    result = []
-    for role in roles:
-        member_count = await initiatives_service.count_role_members(
-            session, role_id=role.id
-        )
-        result.append(serialize_role(role, member_count=member_count))
-    return result
+    counts = await initiatives_service.count_members_by_role(
+        session, initiative_id=initiative_id
+    )
+    return [serialize_role(role, member_count=counts.get(role.id, 0)) for role in roles]
 
 
 @router.post(
@@ -1082,6 +1097,7 @@ async def update_initiative_role(
         role.display_name = role_in.display_name
         session.add(role)
 
+    was_manager = role.is_manager
     # Update is_manager if provided (not for built-in roles)
     if role_in.is_manager is not None:
         if role.is_builtin:
@@ -1151,7 +1167,13 @@ async def update_initiative_role(
             },
         )
 
+    holders = (
+        await _member_ids(session, initiative_id, role_id=role.id)
+        if permissions_changed or role.is_manager != was_manager
+        else []
+    )
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, holders)
     member_count = await initiatives_service.count_role_members(
         session, role_id=role.id
     )
@@ -1418,6 +1440,13 @@ async def add_initiative_member(
             old_role = await initiatives_service.get_role_by_id(
                 session, role_id=membership.role_id
             )
+            await _guard_full_access_role(
+                session,
+                guild_id=routed_guild_id(session),
+                target_user_id=payload.user_id,
+                role=old_role,
+                guild_context=guild_context,
+            )
             new_role = await initiatives_service.get_role_by_id(
                 session, role_id=role_id
             )
@@ -1469,6 +1498,7 @@ async def add_initiative_member(
         )
 
     await session.commit()
+    await content_sockets.refresh_users(guild_context.guild_id, [payload.user_id])
     read = await _read_initiative(initiative_id, session, guild_context)
     if created:
         await notifications_service.notify(
@@ -1519,6 +1549,13 @@ async def remove_initiative_member(
     membership = result.one_or_none()
 
     if membership:
+        await _guard_full_access_role(
+            session,
+            guild_id=guild_context.guild_id,
+            target_user_id=user_id,
+            role=membership.role_ref,
+            guild_context=guild_context,
+        )
         role_name = membership.role_ref.name if membership.role_ref else None
         # Removing a member is never blocked by them being the initiative's last
         # manager — the initiative is simply left without one until an admin
@@ -1605,6 +1642,13 @@ async def update_initiative_member(
         )
 
     if membership.role_id != payload.role_id:
+        await _guard_full_access_role(
+            session,
+            guild_id=guild_context.guild_id,
+            target_user_id=user_id,
+            role=membership.role_ref,
+            guild_context=guild_context,
+        )
         # Check if demoting from manager role
         if (
             membership.role_ref

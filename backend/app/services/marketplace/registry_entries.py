@@ -15,13 +15,11 @@ that the files are the ones the entry names, and turns the entry into rows:
   ``upsert_listing`` and validator every other source uses. A uid or name
   another source already published is refused, never taken over. Pictures are
   kept in ``marketplace_media`` by digest.
-* **for an app, a registration** (``app_service_registrations``,
-  ``source='registry'``): the listing it speaks for, its keys, its scope
-  ceiling (only the scopes this build defines), its reference sectors, and
-  either the container image (the operator gives the location) or the hosted
-  address. The operator keeps the switch, mandatory flag, origins and a
-  container's location; nothing here writes those. An operator's registration
-  for the same app wins.
+* **for an app, its registration's app facts** (``app_service_registrations``,
+  ``source='registry'``), from the entry's ``registration`` block, through the
+  same ``upsert_listing`` as every other source's listing. The block is the
+  container image, the scope ceiling and the reference sectors; where the
+  container runs and its keys are the deployment's.
 
 The caller runs each entry in its own savepoint, so a refusal part-way leaves
 nothing of that entry behind.
@@ -46,12 +44,9 @@ from sqlalchemy import update as sa_update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_scopes import ALL_SCOPES, app_scope_target
 from app.core.audit_events import AuditEventType
 from app.core.messages import MarketplaceRegistryMessages as Codes
 from app.models.platform.app_service_registration import (
-    IMAGE_REFERENCE_MAX_LENGTH,
-    REFERENCE_SECTORS,
     AppServiceRegistration,
     RegistrationSource,
 )
@@ -63,13 +58,11 @@ from app.models.platform.marketplace import (
 )
 from app.models.platform.marketplace_registry import MarketplaceMedia
 from app.models.platform.publisher import (
-    FIRST_PARTY_PUBLISHER_PREFIX,
     Publisher,
     PublisherSource,
     publisher_prefix,
 )
 from app.services import audit as audit_service
-from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace import media
 from app.services.marketplace import publishers as publishers_service
 from app.services.marketplace import registrations as registrations_service
@@ -82,7 +75,6 @@ from app.services.marketplace.catalog import (
     withdraw_listing,
 )
 from app.services.marketplace.definitions import LISTING_KINDS
-from app.services.marketplace.registration_lookup import service_public_id
 
 logger = logging.getLogger(__name__)
 
@@ -122,10 +114,6 @@ _DIGEST_LENGTH = 64
 _PATH_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
 )
-
-#: Characters a container image reference may use (``<repository>@sha256:``).
-_IMAGE_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._/:-@")
-_IMAGE_DIGEST_MARK = "@sha256:"
 
 
 class RegistryError(Exception):
@@ -447,250 +435,6 @@ async def _manifest(
     return manifest
 
 
-# --- the registration ------------------------------------------------------------------
-
-
-def _image_reference(value: Any) -> str:
-    """A container image pinned by digest: ``<repository>@sha256:<hex>``."""
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > IMAGE_REFERENCE_MAX_LENGTH
-        or any(char not in _IMAGE_CHARS for char in value)
-        or value.count("@") != 1
-    ):
-        raise _invalid("the container image is not a usable reference")
-    repository, mark, digest = value.partition(_IMAGE_DIGEST_MARK)
-    if not repository or not mark:
-        raise _invalid("the container image is not pinned by sha256 digest")
-    _digest(digest, what="the container image")
-    return value
-
-
-def _vocabulary(values: Any, allowed: frozenset[str], *, what: str) -> list[str]:
-    """``values`` ∩ ``allowed``, sorted; anything else is dropped and logged."""
-    if values is None:
-        return []
-    if not isinstance(values, list) or any(not isinstance(v, str) for v in values):
-        raise _invalid(f"{what} must be a list of strings")
-    kept = sorted({value for value in values if value in allowed})
-    dropped = sorted({value for value in values if value not in allowed})
-    if dropped:
-        logger.warning(
-            "marketplace registry: %s drops what this build does not define: %s",
-            what,
-            ", ".join(dropped),
-        )
-    return kept
-
-
-def _normalized(call: Callable[[], Any], *, what: str) -> Any:
-    """Run one of the registration validators, as an entry refusal."""
-    try:
-        return call()
-    except HTTPException as exc:
-        raise _invalid(f"{what}: {exc.detail}") from exc
-
-
-async def _apply_registration(
-    session: AsyncSession,
-    context: EntryContext,
-    *,
-    spec: Any,
-    uid: str,
-    prefix: str,
-    publisher: Publisher,
-    definition: Any,
-) -> None:
-    if not isinstance(spec, Mapping):
-        raise _invalid("registration is not an object")
-    publisher_id = publisher.id
-    assert publisher_id is not None  # flushed by _apply_publisher
-    public_id = service_public_id(definition)
-    if public_id is None:
-        raise _invalid("an app with a registration must be a service app")
-    public_id = _normalized(
-        lambda: registrations_service.normalize_public_id(public_id),
-        what="the service public_id",
-    )
-    if publisher_prefix(public_id) != prefix:
-        raise _invalid("the service is published under another prefix")
-
-    kind = spec.get("kind")
-    jwks = _normalized(
-        lambda: registrations_service.normalize_jwks(spec.get("jwks")), what="jwks"
-    )
-    base_url: Optional[str] = None
-    embed_origin: Optional[str] = None
-    jwks_uri: Optional[str] = None
-    image: Optional[str] = None
-    if kind == "container":
-        if any(spec.get(key) for key in ("base_url", "embed_origin", "jwks_uri")):
-            raise _invalid("a container's location is the operator's to give")
-        image = _image_reference(spec.get("image"))
-    elif kind == "hosted":
-        if spec.get("image"):
-            raise _invalid("a hosted app names no image")
-        base_url = _normalized(
-            lambda: registrations_service.normalize_base_url(str(spec.get("base_url"))),
-            what="base_url",
-        )
-        declared_embed = spec.get("embed_origin")
-        if declared_embed:
-            embed_origin = _normalized(
-                lambda: registrations_service.normalize_embed_origin(
-                    str(declared_embed)
-                ),
-                what="embed_origin",
-            )
-        declared_uri = spec.get("jwks_uri")
-        if declared_uri:
-            jwks_uri = _normalized(
-                lambda: registrations_service.normalize_jwks_uri(
-                    str(declared_uri), base_url=str(base_url)
-                ),
-                what="jwks_uri",
-            )
-    else:
-        raise _invalid("registration.kind must be container or hosted")
-    if jwks is None and jwks_uri is None:
-        raise _invalid("a registration needs keys")
-
-    declared_ceiling = spec.get("scope_ceiling")
-    ceiling = _vocabulary(
-        declared_ceiling,
-        frozenset(ALL_SCOPES)
-        | frozenset(
-            scope
-            for scope in (
-                declared_ceiling if isinstance(declared_ceiling, list) else []
-            )
-            if isinstance(scope, str) and app_scope_target(scope) is not None
-        ),
-        what=f"{public_id} ceiling",
-    )
-    sectors = _vocabulary(
-        spec.get("reference_sectors"),
-        REFERENCE_SECTORS,
-        what=f"{public_id} reference sectors",
-    )
-    if sectors and prefix != FIRST_PARTY_PUBLISHER_PREFIX:
-        # A sector names one of this deployment's own services, so only this
-        # project's own apps are given one.
-        logger.warning(
-            "marketplace registry: %s is not this project's app; reference "
-            "sectors dropped",
-            public_id,
-        )
-        sectors = []
-
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == public_id
-            )
-        )
-    ).first()
-    if row is not None and row.source != RegistrationSource.REGISTRY:
-        raise RegistryError(
-            Codes.REGISTRATION_CONFLICT,
-            f"this deployment's operator registered {public_id}",
-        )
-
-    if row is None:
-        browser = embed_origin or base_url
-        row = AppServiceRegistration(
-            public_id=public_id,
-            listing_uid=uid,
-            publisher_id=publisher_id,
-            base_url=base_url,
-            embed_origin=embed_origin,
-            allowed_origins=(
-                registrations_service.normalize_origins(None, browser_base=browser)
-                if browser
-                else []
-            ),
-            jwks=jwks,
-            jwks_uri=jwks_uri,
-            scope_ceiling=ceiling,
-            mandatory=False,
-            enabled=True,
-            source=RegistrationSource.REGISTRY,
-            image_digest=image,
-            reference_sectors=sectors,
-            root_is_builtin=context.root_is_builtin,
-            created_at=context.now,
-            updated_at=context.now,
-        )
-        await vendor_values_service.sync_required(session, row)
-        session.add(row)
-        await session.flush()
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.APP_SERVICE_CREATED,
-            actor_user_id=None,
-            target_type="app_service_registration",
-            target_id=row.id,
-            detail={
-                "via": "registry",
-                **audit_service.changed_fields(
-                    {},
-                    audit_service.snapshot(row, registrations_service.AUDITED_FIELDS),
-                ),
-            },
-        )
-        return
-
-    before = audit_service.snapshot(row, registrations_service.AUDITED_FIELDS)
-    old_base = registrations_service.row_browser_base(row)
-    origins_were_default = (
-        list(row.allowed_origins or [])
-        == registrations_service.normalize_origins(None, browser_base=old_base)
-        if old_base
-        else not row.allowed_origins
-    )
-    row.listing_uid = uid
-    row.publisher_id = publisher_id
-    row.jwks = jwks
-    row.jwks_uri = jwks_uri
-    row.scope_ceiling = ceiling
-    row.reference_sectors = sectors
-    row.root_is_builtin = context.root_is_builtin
-    if image is not None:
-        if row.image_digest is None:
-            # Was hosted, now a container: the hosted address is not where the
-            # container runs, so it waits for the operator's location.
-            row.base_url = None
-            row.embed_origin = None
-        row.image_digest = image
-    else:
-        row.image_digest = None
-        row.base_url = base_url
-        row.embed_origin = embed_origin
-    new_base = registrations_service.row_browser_base(row)
-    if origins_were_default:
-        row.allowed_origins = (
-            registrations_service.normalize_origins(None, browser_base=new_base)
-            if new_base
-            else []
-        )
-    await vendor_values_service.sync_required(session, row)
-    row.updated_at = context.now
-    session.add(row)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(row, registrations_service.AUDITED_FIELDS)
-    )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.APP_SERVICE_UPDATED,
-            actor_user_id=None,
-            target_type="app_service_registration",
-            target_id=row.id,
-            detail={"via": "registry", **changed},
-        )
-
-
 # --- one entry ------------------------------------------------------------------------
 
 
@@ -758,7 +502,6 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
         ).all()
     }
     listing: Optional[MarketplaceListing] = None
-    latest_definition: Any = None
     for index, version in enumerate(versions):
         latest = index == len(versions) - 1
         if version.version in held and not latest:
@@ -787,15 +530,19 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
             "version": version.version,
             "min_app_version": version.min_app_version,
             "release_notes": version.release_notes,
+            "registration": registration if latest else None,
         }
         try:
-            listing = await upsert_listing(session, published, source=REGISTRY_SOURCE)
+            listing = await upsert_listing(
+                session,
+                published,
+                source=REGISTRY_SOURCE,
+                root_is_builtin=context.root_is_builtin,
+            )
         except CatalogSourceConflict as exc:
             raise RegistryError(Codes.SOURCE_CONFLICT, str(exc)) from exc
         except CatalogError as exc:
             raise RegistryError(Codes.LISTING_REJECTED, str(exc)) from exc
-        if latest:
-            latest_definition = published.get("definition")
 
     assert listing is not None  # the latest version is always published
     listing.publisher_id = publisher.id
@@ -808,17 +555,6 @@ async def apply_entry(session: AsyncSession, path: str, context: EntryContext) -
         .values(publisher_id=publisher.id, publisher_verified=publisher.verified)
     )
     await session.flush()
-
-    if registration is not None:
-        await _apply_registration(
-            session,
-            context,
-            spec=registration,
-            uid=uid,
-            prefix=prefix,
-            publisher=publisher,
-            definition=latest_definition,
-        )
 
 
 # --- withdrawal -------------------------------------------------------------------------

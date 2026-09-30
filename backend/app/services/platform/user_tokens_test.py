@@ -59,6 +59,16 @@ async def test_get_valid_token_matches_hashed_value(session: AsyncSession):
     )
     assert missing is None
 
+    # Spent once, and then no more.
+    spent = await user_tokens.consume_token(
+        session, token=raw, purpose=UserTokenPurpose.email_verification
+    )
+    assert spent is not None and spent.consumed_at is not None
+    again = await user_tokens.consume_token(
+        session, token=raw, purpose=UserTokenPurpose.email_verification
+    )
+    assert again is None
+
 
 async def test_expired_token_rejected(session: AsyncSession):
     """A token whose expires_at is in the past is not returned by lookup."""

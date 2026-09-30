@@ -19,8 +19,8 @@ from fastapi import (
 )
 
 from app.api.deps import (
+    CurrentUser,
     SessionDep,
-    UploadUserDep,
     establish_guild_access,
     GuildAccessError,
     raise_for_guild_access,
@@ -294,7 +294,7 @@ async def _collaborate(
                     return
 
                 try:
-                    room.apply_update(payload, connection=websocket)
+                    room.apply_update(payload, connection=websocket, user_id=user.id)
                     if msg_type == MSG_UPDATE and not edit_recorded:
                         # Once per session, and only for an update: a
                         # SYNC_STEP2 is the client answering the room's
@@ -379,7 +379,7 @@ async def hand_over_document_edits(
     document_id: int,
     handover: CollaborationHandover,
     session: SessionDep,
-    user: UploadUserDep,
+    user: CurrentUser,
 ) -> None:
     """Merge edits a tab made while its socket was closed into the document."""
     await _hand_over(
@@ -402,7 +402,7 @@ async def hand_over_wiki_page_edits(
     page_id: int,
     handover: CollaborationHandover,
     session: SessionDep,
-    user: UploadUserDep,
+    user: CurrentUser,
 ) -> None:
     """Merge edits a tab made while its socket was closed into the page."""
     await _hand_over(
@@ -435,9 +435,9 @@ async def _hand_over(
     taken only when the tab had everything the merged room has; otherwise it
     describes an older document, and the room keeps the rendering it had.
 
-    Authenticates the header-less way (session cookie on web, a short-lived
-    uploads-scoped ``?token=`` on native), since a keepalive request carries no
-    header, and is admitted exactly as the socket is, at the write level.
+    Authenticates as every other write does (the session cookie on web, the
+    Authorization header on native), and is admitted exactly as the socket is,
+    at the write level.
     """
     try:
         await establish_guild_access(session, user, guild_id)
@@ -460,7 +460,7 @@ async def _hand_over(
     try:
         tab = object()
         try:
-            room.apply_update(handover.update, connection=tab)
+            room.apply_update(handover.update, connection=tab, user_id=user.id)
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

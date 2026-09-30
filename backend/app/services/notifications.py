@@ -20,16 +20,17 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from sqlalchemy import column as sa_column
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy import table as sa_table
 from sqlalchemy import update as sa_update
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.config import settings as app_config
 from app.core.email_i18n import email_t, translate
 from app.core.notification_categories import (
@@ -44,7 +45,6 @@ from app.db.guild_standing import ActorContext, InstallContext
 from app.db import cohorts
 from app.db.initiative_rls import entity_tables, governing_path
 from app.db.session import (
-    SYSTEM_SATISFIED,
     SystemSessionLocal,
     routed_guild_id,
     set_rls_context,
@@ -86,6 +86,7 @@ from app.services.platform import (
     user_notifications,
 )
 from app.core.user_input_validators import resolve_zone
+from app.db.request_context import Platform, SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -464,12 +465,16 @@ def actor_id(actor: "User | AppAuthor | None") -> int | None:
     return actor.id if actor is not None else None
 
 
-def event_when(event: CalendarEvent, recipient: User) -> str:
+def event_when(
+    event: CalendarEvent, recipient: User, start: datetime | None = None
+) -> str:
     """An event's start as its reader reads it: the date for an all-day event,
-    otherwise the time in their own zone (``Wed, Jul 1, 2026 at 2:30 PM PDT``)."""
+    otherwise the time in their own zone (``Wed, Jul 1, 2026 at 2:30 PM PDT``).
+    ``start`` names one occurrence of a repeating event."""
+    start = start or event.start_at
     if event.all_day:
-        return event.start_at.strftime("%a, %b %-d, %Y")
-    local = event.start_at.astimezone(resolve_zone(recipient.timezone))
+        return start.strftime("%a, %b %-d, %Y")
+    local = start.astimezone(resolve_zone(recipient.timezone))
     return local.strftime("%a, %b %-d, %Y at %-I:%M %p %Z")
 
 
@@ -832,7 +837,7 @@ async def clear_digest_queue_across_guilds(
         user_id,
         guild_ids,
         _clear,
-        satisfied_providers=SYSTEM_SATISFIED,
+        on_behalf=True,
         writes=True,
     )
 
@@ -1019,7 +1024,7 @@ def digest_scan(spec: DigestSpec, *, now: datetime) -> Scan:
         if not pending:
             return
         async with cohorts.system_session(None) as session:
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             await _send_digests(session, spec, pending, now=now)
 
     return Scan(Scope.LIVE, _waiting, _finish)
@@ -1084,14 +1089,14 @@ async def _send_digests(
             user_id,
             await member_guild_ids(session, user_id, restrict_to=list(held)),
             _take,
-            satisfied_providers=SYSTEM_SATISFIED,
+            on_behalf=True,
             writes=True,
         )
         if not batch:
             continue
         # Send: re-load the user, fresh, in a shared-table context.
         session.expunge_all()
-        await set_rls_context(session, user_id=user_id)
+        await set_rls_context(session, Platform(user_id=user_id))
         user = (
             await session.exec(select(User).where(User.id == user_id))
         ).scalar_one_or_none()
@@ -1133,7 +1138,7 @@ async def _send_digests(
             # items go back to waiting, in each community they were taken from.
             for gid, item_ids in taken.items():
                 async with cohorts.system_session(gid) as routed:
-                    await set_rls_context(routed, guild_id=gid)
+                    await set_rls_context(routed, SystemGuild(gid))
                     await routed.exec(
                         sa_update(model)
                         .where(model.id.in_(item_ids), model.processed_at == now)
@@ -1177,7 +1182,7 @@ def digest_gc_scan(*, now: datetime) -> Scan:
 
     async def _finish() -> None:
         async with cohorts.system_session(None) as session:
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             # Mail that has gone out, or run out of attempts, is bookkeeping on
             # the same terms as a spent digest row.
             dropped = await email_outbox.sweep_settled(session, now=now)
@@ -1611,6 +1616,43 @@ HOLD_SUMMARY_POLL_SECONDS = 600
 EVENT_REMINDER_GRACE = timedelta(minutes=5)
 
 
+def _starting(lower: datetime, upper: datetime) -> Any:
+    """Events with a start in ``(lower, upper]``: their own, or, repeating,
+    possibly an occurrence's (``_starts``)."""
+    return or_(
+        and_(
+            CalendarEvent.recurrence.is_(None),
+            CalendarEvent.start_at > lower,
+            CalendarEvent.start_at <= upper,
+        ),
+        and_(
+            CalendarEvent.recurrence.isnot(None),
+            CalendarEvent.start_at <= upper,
+            or_(
+                CalendarEvent.recurrence_until.is_(None),
+                CalendarEvent.recurrence_until > lower,
+            ),
+        ),
+    )
+
+
+def _starts(
+    start_at: datetime,
+    repeat: str | None,
+    shift: int,
+    lower: datetime,
+    upper: datetime,
+) -> list[datetime]:
+    """An event's starts in ``(lower, upper]``: its own, or each occurrence's."""
+    if not repeat:
+        return [start_at] if lower < start_at <= upper else []
+    try:
+        starts = recurrence.between(repeat, start_at, shift, lower, upper)
+    except ValueError:
+        return []
+    return [start for start in starts if start > lower]
+
+
 def _overdue_assignments(*columns: Any) -> Any:
     """Assigned, unfinished, past-due tasks in the routed guild schema.
 
@@ -1739,7 +1781,7 @@ def overdue_scan(*, now: datetime) -> Scan:
             logger.debug("overdue-digest: nothing overdue")
             return
         async with cohorts.system_session(None) as session:
-            await set_rls_context(session)
+            await set_rls_context(session, Unattributed())
             await _send_overdue(session, overdue, now=now)
 
     return Scan(Scope.LIVE, _overdue_here, _finish)
@@ -1816,14 +1858,14 @@ async def _send_overdue(
             lambda routed, gid, _uid=user_id: _overdue_tasks_for_user(
                 routed, _uid, gid
             ),
-            satisfied_providers=SYSTEM_SATISFIED,
+            on_behalf=True,
         )
         if not tasks:
             continue
         # Re-load the user, fresh, to send + stamp it. The
         # email/stamp touch only shared tables, so the user-only context is fine.
         session.expunge_all()
-        await set_rls_context(session, user_id=user_id)
+        await set_rls_context(session, Platform(user_id=user_id))
         user = (
             await session.exec(select(User).where(User.id == user_id))
         ).scalar_one_or_none()
@@ -2140,7 +2182,8 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
 
     Considers events starting within the next day (the widest lead preset)
     whose attendees opted into reminders, and fires once per (event, user,
-    start time) — keyed on ``start_at`` so a reschedule re-arms the reminder.
+    start time) — keyed on the start so a reschedule re-arms the reminder, and
+    each occurrence of a repeating event has its own.
     Attendees who RSVP'd ``declined`` are skipped.
 
     Starts from what is due: each live community is asked once which opted-in
@@ -2171,29 +2214,44 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
             await routed.exec(
                 select(
                     CalendarEventAttendee.user_id,
+                    CalendarEvent.id,
                     CalendarEvent.start_at,
+                    CalendarEvent.recurrence,
+                    CalendarEvent.recurrence_shift,
                 )
                 .join(
                     CalendarEvent,
                     CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
                 )
                 .where(
+                    CalendarEventAttendee.user_id.in_(list(lead)),
                     CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
                     CalendarEvent.deleted_at.is_(None),
-                    CalendarEvent.start_at > lower,
-                    CalendarEvent.start_at <= horizon,
-                    ~select(EventReminderDispatch.id)
-                    .where(
-                        EventReminderDispatch.event_id == CalendarEvent.id,
-                        EventReminderDispatch.user_id == CalendarEventAttendee.user_id,
-                        EventReminderDispatch.event_start_at == CalendarEvent.start_at,
-                    )
-                    .exists(),
+                    _starting(lower, horizon),
                 )
             )
         ).all()
-        for user_id, start_at in rows:
-            if user_id in lead and start_at - lead[user_id] <= now:
+        if not rows:
+            return
+        sent = set(
+            (
+                await routed.exec(
+                    select(
+                        EventReminderDispatch.event_id,
+                        EventReminderDispatch.user_id,
+                        EventReminderDispatch.event_start_at,
+                    ).where(
+                        EventReminderDispatch.event_id.in_({row[1] for row in rows}),
+                        EventReminderDispatch.event_start_at > lower,
+                    )
+                )
+            ).all()
+        )
+        for user_id, event_id, start_at, repeat, shift in rows:
+            if any(
+                start - lead[user_id] <= now and (event_id, user_id, start) not in sent
+                for start in _starts(start_at, repeat, shift, lower, horizon)
+            ):
                 due_in.setdefault(user_id, set()).add(guild_id)
 
     async def _dispatch(session: AsyncSession, guild_id: int, user_id: int) -> list:
@@ -2209,8 +2267,7 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                         CalendarEventAttendee.user_id == user_id,
                         CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
                         CalendarEvent.deleted_at.is_(None),
-                        CalendarEvent.start_at > lower,
-                        CalendarEvent.start_at <= horizon,
+                        _starting(lower, horizon),
                     )
                 )
             )
@@ -2218,7 +2275,20 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
             .all()
         )
         # Capture before the per-reminder commits expire/detach the rows.
-        due = [(e.id, e.start_at) for e in events if e.start_at - lead[user_id] <= now]
+        due = [
+            (event.id, start)
+            for event in events
+            for start in _starts(
+                event.start_at,
+                event.recurrence,
+                event.recurrence_shift,
+                lower,
+                horizon,
+            )
+            if start - lead[user_id] <= now
+        ]
+        # A repeat's reminder opens the occurrence it is about.
+        repeating = {event.id for event in events if event.recurrence}
         for event_id, start_at in due:
             # Reserve the dedup row before dispatching (reserve-then-send).
             # The reservation is the claim: a row already there — this pass's
@@ -2252,9 +2322,26 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                 key="event.reminder",
                 values={
                     "event": event.title,
-                    "when": lambda reader, _event=event: event_when(_event, reader),
+                    "when": lambda reader, _event=event, _start=start_at: event_when(
+                        _event, reader, _start
+                    ),
                 },
-                data={"event_id": event_id, "start_at": start_at.isoformat()},
+                data={
+                    "event_id": event_id,
+                    "start_at": start_at.isoformat(),
+                    **(
+                        {
+                            "target_path": reference_path("calendar_event", event_id)
+                            + "?"
+                            # In Z form: a "+" in a link reads back as a space.
+                            + urlencode(
+                                {"occurrence": f"{start_at:%Y-%m-%dT%H:%M:%SZ}"}
+                            )
+                        }
+                        if event_id in repeating
+                        else {}
+                    ),
+                },
             )
             await session.commit()
         return []
@@ -2272,7 +2359,7 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                         session, user_id, restrict_to=sorted(guild_ids)
                     ),
                     lambda routed, gid, _uid=user_id: _dispatch(routed, gid, _uid),
-                    satisfied_providers=SYSTEM_SATISFIED,
+                    on_behalf=True,
                     writes=True,
                 )
 

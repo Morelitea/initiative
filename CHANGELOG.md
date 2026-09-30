@@ -9,105 +9,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Safety numbers and new-device checks in Messages** — every device now signs its own keys. When someone's devices change you get a notice with a safety number to compare with them, and when you sign in somewhere new your other devices ask whether it's yours before sending it anything, with a box for your message history. **User settings → Security** shows this device's code. Joining a group, each member now sends you what they wrote.
-- **Read replica for dashboards and exports** — set `DATABASE_URL_QUERY` to a read replica and dashboard widgets and exports read from it, leaving the main database for everything else. If the replica stops a widget's query partway, the widget tries once more and then says it was interrupted. Unset, nothing changes.
-- **Pictures in descriptions and comments open full size** — click a picture in a description, a comment, a markdown file or a preview to open it at full size, where you can zoom in and swipe or use the arrow keys to move to the others in the same text. Pictures also load as you scroll to them and fade in, the way a gallery's do. A picture that is a link still opens the link.
-- **One-tap thumbs up** — comments and posts have a 👍 button beside **Add a reaction**, so agreeing takes one tap instead of opening the picker. Once someone has given a thumbs up, its reaction takes the button's place.
-- **Connecting an app's account goes through Initiative** — when you connect an app to an outside service, such as your GitHub account or your organization's GitHub install, Initiative now sends you to that service and takes you back itself, and keeps the connection so the app never holds it. A connection the service will no longer renew shows **Reconnect**. For operators, an app that needs its service's client details asks for them under **Settings → Platform → Integrations → App services**, which also shows the two addresses to register with the service; the app is not live until they are set. They can also come from environment variables named by `vendor_env` in `APP_SERVICES_CONFIG`. Anyone who connected an account before this release connects once more.
-- **Apps can use other apps** — an app may now ask to use another app installed in your community, such as opening an issue through it. The install dialog lists this as **Use {app} in this community**, and it is granted or taken back like any other access, there or in the app's settings.
-- **Apps receive their service's webhooks through Initiative** — an app can have Initiative receive its outside service's webhooks, such as GitHub's, check them, and pass each one to the communities that connected that account. Operators give the service one address per app, `{APP_URL}/api/v1/app-hooks/<app id>`, with its webhook secret entered beside the app's other client details under **Settings → Platform → Integrations → App services**. Events an app sends into a community are now kept and retried until each subscriber takes them, and an app allowed to use another app can subscribe to that app's events.
-- **An email when your password changes** — changing, resetting or recovering your password now emails every address on your account, as adding a passkey or turning off two-factor already did.
-- **Database pool settings** — `DB_POOL_SIZE` and `DB_MAX_OVERFLOW` set how many database connections each pool keeps, instead of a fixed 5 plus 10. On servers with many communities, `DB_COHORTS` splits communities into groups, each with its own request pool, so each database connection uses less memory. Behind a connection pooler, set `DB_COHORT_DATABASE` to give each group its own pooler database.
-- **Follow unread activity to the comment** — the unread dots now go past the sidebar: onto the project, document, calendar or other item in its list, onto the task, event or page inside it, and on the item itself the unread comments are highlighted.
-- **Task checkbox smart chip** — a smart chip that is a box and a task's name. Ticking it in a document moves the task to done, and unticking moves it back to in progress. The box is only offered to people who can edit the task.
-- **Embeds with `![[ ]]`** — in a text document, `![[` shows a thing in full, as a callout holding its name and its description, and keeps both up to date. It is also **Embed** in the `/` menu, and hovering a `#` link while writing offers **Show in full**. In the Markdown view an embed is written `![[task:12|Name]]`.
+- **Repeating events show on every date they happen.** A calendar draws each occurrence in view, not only the first, and opening one shows its own date along with how the event repeats. Each occurrence sends its own reminder, and a smart chip for a repeating event shows its next date. A repeating task's next dates show on the calendar too; opening one opens the current task. Dragging a repeating event on the calendar is turned off for now; change its time from the event's settings.
+- **More ways to repeat.** A custom repeat can now fall on several days of the month or its last day, the fifth or last of a weekday, every chosen weekday of the month, the first or last work day of the month, and in several months a year. The form shows the next dates it will fall on, and an event's repeat can be changed from its settings. Events no longer offer the "after completion" choice, which only tasks use.
+- **Preview a stored repeat as it runs (API).** `POST /recurrence/preview` takes an optional `shift`, a stored rule's own, to list its dates without taking the shift again.
+- **`calendar-entries` returns occurrences (API).** A repeating event comes back once for each occurrence in the window, with `original_start` naming it, and repeating tasks' next dates come back in `task_occurrences`.
 
 ### Changed
 
-- **AI errors are translated** — when AI generation or a connection test fails, the message is now in your language and says what to do: turn AI on, add or fix the key, fix the base URL, or try again when the provider is back. The provider's own error text goes to the server log instead. For API callers, a failure on the provider's side answers `502` with `AI_PROVIDER_UNAVAILABLE` or `AI_PROVIDER_ERROR`, other failures answer `400` with an `AI_*` code, and a connection test's `message` is that code, or empty when the test passes.
-- **Imports bring in the people they name** — when an import assigns someone a task, invites them to an event or names them in a property, it now shares what it imports with them. If you manage the initiative, anyone not yet in it is added as a member. Anyone who still can't open it is listed as not placed. Calendar imports now ask who their attendees are too.
-- **Only people who can open something can be named on it** — a task's assignees, an event's attendees, a person property and a queue item's person must all be able to open the project, calendar, document or queue it sits in. Anyone who can open it can be picked now, including people who can only view it, and nobody else is offered or accepted. Moving a task or event, duplicating a task, a recurring task's next occurrence and a project made from a template keep only the people who can open where it lands. Taking away someone's access to a project also takes them off its tasks.
-- **Webhooks, imports and exports start sooner** — a webhook delivery goes out about a second after the change it reports, and an import or export starts as soon as it is queued, instead of waiting for the next poll. Background work also goes through each community far less often, which matters on a server with many communities.
-- **Pictures from other sites show as links** — a picture written into a description, a document's text or a notice as an address on another site is shown as a link to it, the way comments and messages already did. Pictures uploaded here show as before.
-- **Ticking off tasks in a table is instant** — in a project's table, the done box and the status menu show the change as you click, with the sound, vibration and celebration at the same moment, and the other rows stay clickable while it saves, so a run of tasks can be ticked off without waiting on each. They no longer show a **Task updated** toast each time. If a change fails, the row goes back and says so.
-- **The example compose file needs a database password** — `docker-compose.example.yml` has no default `POSTGRES_PASSWORD` and refuses to start without one, as it already did for `SECRET_KEY`. If you started from an earlier copy and never set it, your database's password is `initiative`: set `POSTGRES_PASSWORD=initiative` when you update the file, because PostgreSQL only reads it when it first creates the database.
-- **Links to other sites open in a new tab** — everywhere text is shown, a link to another site opens in a new tab and a link inside Initiative stays in the one you're on. Documents used to open every link in place, and comments every link in a new tab.
-- **Hidden calendars are remembered per community** — a community's calendar page now remembers which calendars you hid the same way My Calendar does. Any you had hidden there show again once.
-- **An app's list of its installations comes a page at a time** — `GET /api/v1/app-platform/installations` answers in pages, naming the next one in a `Link` header, and lists each installation and whether it is active; what a community granted is in the token issued for it. Apps built on app kit 0.26 follow the pages.
-- **Checked checklist items are not crossed out** — ticking a line in a document's checklist leaves its words as they were, which suits a register or an attendance list. For a line that is a task, use a task checkbox chip.
-- **Smart chips and embeds count as links** — a document's backlinks, and a thing's **Mentioned in**, include the pages that show it in a smart chip or an embed, as they do for a `#` link.
-- **The app installs only updates Initiative published** — each release now signs the app update it serves, and the app checks that signature before installing it. A server whose update isn't signed, such as one built from source, leaves the app on the version it has and says so once.
-- **A phone restored from a backup signs in again** — the Android app now leaves its sign-in and your message keys out of phone backups and transfers, so a new phone keeps the server address and settings and asks you to sign in. The app also stops sending update statistics to the updater's maker. This release needs the app updated from its APK.
-- **API paths say community** — community routes moved from `/api/v1/g/{id}/…` to `/api/v1/c/{id}/…`, and `/api/v1/guilds/…` is now `/api/v1/communities/…` (the public directory is `/api/v1/communities/directory`). Operator paths follow: `/api/v1/settings/communities/…`, `/api/v1/settings/intake/community` and `/api/v1/auth/c/{id}/providers`, and a whole-community export is `/api/v1/c/{id}/exports/community`. The old paths no longer answer, so update any script that calls the API with a key, and rebuild apps on the new app kit. MCP tool names change with the paths.
-- **Dashboards load as one** — opening a dashboard fetches every widget in a single request instead of one per widget, so large dashboards open faster, every widget shows the same moment, and one person's dashboard no longer makes other people's widgets wait. A dashboard now refreshes when something it shows changes, instead of on a timer. If one widget's query fails, only that widget shows the error.
-- **Request size limits** — a request can now be at most 4 MiB, a file upload 51 MiB, and saving a document 64 MiB, which leaves room for whiteboards with pictures in them. Imports keep their own, larger limits.
-- **The update check asks Docker Hub less often** — the server asks at most every six hours, and every visitor shares the answer, instead of asking on every page load. A server without internet access logs that once and stops trying for 15 minutes at a time.
-- **Community calendars are the admins'** — only a community admin can add a calendar to the calendar app or change one, and the app now owns each one, so removing it takes them all. Admins decide who writes events on each calendar by sharing it; members with write access keep adding events, and are no longer offered a calendar's settings or archive, which only an admin can use. Anyone who made a community calendar before this release keeps write access on it. Installing an app, and approving what it may do, stays with the community's superadmin.
-- **Password sign-in switches off after wrong answers** — five wrong passwords or codes within 15 minutes turn off password and code sign-in for that account for 15 minutes, and its email addresses are told. Three of those in a day and it stays off until a moderator turns it back on from **Operator dashboard → Users**. Passkeys, and anywhere already signed in, keep working throughout.
-- **Live updates follow access as it changes** — changing who a queue, counter group, document or other tool is shared with now updates everyone who has it open straight away, and anyone it no longer reaches stops receiving updates for it. Someone added to or removed from an initiative starts or stops getting its live updates without reloading, and turning a tool off for an initiative also stops its open pages from updating.
-- **Password reset and sign-up say the same thing for every address** — asking for a reset link gets the same answer whether or not the address has an account, and the link is sent after the answer. A server with no mail set up says so for every address. Where signing up needs an invite, sign-up asks for the invite before checking whether the address is already taken.
-- **An expired export can't be downloaded** — once an export's download window has passed, it shows as expired and `GET /exports/{id}/download` answers `410 EXPORT_EXPIRED` (it used to answer `409 EXPORT_NOT_READY` after cleanup, and serve the file until then).
-- **Notifications go to people who can open what they name** — a mention, reply, comment, reaction, event update or task assignment now reaches someone only if they can open the task, document or calendar it is about. To bring someone into a thread, share the item with them first.
-- **Read notifications are cleared after 30 days** — once read, a notification stays in your list for 30 days. Unread ones stay until you read them.
-- **Opening something reads its notifications** — opening a task, document, event or anything else marks every unread notification about it as read, so the bell and the dots clear as you catch up.
-- **Repeated mentions in a document are one notification** — mentions of you in the same document join one unread notification until you read it, instead of a new email and push each time.
-- **Duplicates keep their sharing and need the create permission** — duplicating a project, document or counter group now shares the copy exactly as the original is shared, as long as it stays in the same initiative, and needs the permission to create one there. A project's copy used to be readable by everyone in the initiative, a document's copy by nobody but you, and a counter group's copy dropped its "all members" sharing.
-- **Only the owner changes who something is shared with** — changing the sharing of a project, document or other tool now needs the owner's access, the same access deleting it needs (full access to its initiative counts). Someone who can only edit it can no longer change its sharing through the API; the app never offered them that.
-- **The API says what you may do** — every tool's read now carries `can` (`contribute`, `edit`, `delete`, `share`, `export`, `unarchive`; projects add `configure`, and a calendar event carries `edit`) in place of `my_permission_level` and `can_unarchive`. `contribute` is writing what a tool holds, such as a calendar's events, and `edit` is changing the tool itself; they differ only on a community calendar. An initiative's read carries `can` (`manage`, `moderate`, `view`, `create`), and `GET /initiatives/{id}/my-permissions` is gone. A community's read carries `can` (`enter`, `content`, `administer`, `administer_content`, `configure`, `seat`) in place of `can_write_settings`. Update any script that calls the API with a key and reads these.
-- **Leaving an initiative gives up what you owned in it** — whether you leave or are removed, what you owned in an initiative becomes unowned, the way it does when you leave the community, and a community admin can claim it with **Claim unowned content** in **Settings → Users**. Upgrading does the same for people who left an initiative before.
-- **Leaving takes you off what you were named on** — when someone leaves or is removed from an initiative, they are taken off its task assignments, event invitations and person fields, and their queue items are left with no one on them. Leaving the community does the same for its own calendars. Before, only task assignments were cleared. Upgrading clears the ones earlier departures left.
-- **A project is owned by whoever makes it** — `POST /projects/` no longer takes an `owner_id`. To give a project to someone else, transfer its ownership after creating it.
-- **Export date and author move into the file's properties** — PDF and Markdown exports of documents, wikis, projects, queues, counter groups and task lists no longer print "exported …" or "generated … by …" under the title. Who exported the file and when is kept in the PDF, Word or Excel document properties, and as a hidden comment at the top of a Markdown file. Reports keep their counts, and the download's file name still has the date.
-- **Switching communities keeps everything that isn't the community's** — your messages, notifications, account settings, access requests and the community directory stay loaded when you move between communities, instead of being fetched again each time.
-- **The initiatives list leaves out who is in each one** — `GET /initiatives/` no longer includes each initiative's `members`. An app or script that read them there reads one initiative (`GET /initiatives/{id}`) or its `/members` instead.
-- **Paged lists answer the same way** — every paged list response now includes `has_prev` beside `has_next`, and a duplicate document name is refused with `409` like tags, properties and initiatives, instead of `400`. An unknown time zone on a profile or registration is refused as `UNKNOWN_TIMEZONE`; the old `USER_INVALID_TIMEZONE` code is gone.
-- **Timelines fall back to UTC** — the gallery and board timelines draw their months in UTC when the browser sends a time zone the server doesn't know, instead of refusing the request.
-- **Operator lists come a page at a time** — the Operator dashboard's Users and Communities tabs, a community's picker on the Operations settings page, and an app's Members view load one page and search on the server. `GET /api/v1/operator/users` and `GET /api/v1/settings/communities` now return `{items, total_count, page, …}` and take `search`, `sort_by`, `sort_dir`, `page` and `page_size`; scripts reading a plain list need updating.
+- **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import.
+- **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.
+- **An account can create up to five communities a day.** Change it with `GUILD_CREATION_DAILY_LIMIT` (`0` for no limit). Operators and owners aren't limited.
+- **Choose whether signing up creates a community.** Set `REGISTRATION_CREATES_GUILD=false` and a new account starts on the page for creating or joining one, instead of with a community of its own.
+- **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
 
 ### Fixed
 
-- **A failed project delete says so** — it used to say the project couldn't be loaded.
-- **Typing in a spreadsheet cell keeps up** — each keystroke redrew every cell on screen, so a large sheet lagged behind the typing. Now only the cells that change are redrawn.
-- **Changing a task's priority from My Tasks saves it** — the priority menu on **My Tasks** saves to the task's own community, and the priority shows in your language.
-- **A detail page says why it can't open** — a project, document, task or tool page you can't open says whether you have no access to it or it doesn't exist, and a failed request shows the error instead of calling the page missing. Wikis and counters used to say "not found" even when you had no access.
-- **Back works in the create task and document dialogs** — with one community, **Back** from choosing an initiative now stays on the community step instead of jumping forward again.
-- **Break-glass access no longer offers admin-only actions** — someone reaching a community through a break-glass grant was shown buttons to create or delete initiatives and to add community calendars, which the server refused.
-- **Archived things can be exported** — the owner of an archived project, document or other tool is now offered its export, which the server always allowed.
-- **Granted access no longer offers to create tools** — someone reaching a community through a read and write access grant was shown buttons to create projects and documents, which the server refused.
-- **Anyone who can edit a calendar can delete its events** — the delete button only showed for whoever created the event.
-- **My pages update after you create something** — creating a queue, counter group, calendar, dashboard, notice, picture gallery or wiki now refreshes your cross-community lists straight away.
-- **Embedded references survive an export and a listing** — an embed (`![[ ]]`) in a restored document, post or wiki page now points at what it pointed at before, and one whose target didn't come along shows its name. A marketplace listing shows an embed as its name instead of carrying the source community's reference.
-- **Whiteboards and file documents keep what you wrote** — a whiteboard opened while it was still loading could save an empty drawing over the real one, and a name or cover change made to a file or link document while offline was never saved.
-- **Starting the server no longer rebuilds every search index** — each start reindexed every community's search and then failed to record that it had, so the next start did it all again. It now records the rebuild, so a start only reindexes a community whose index is out of date.
-- **Tagging calendar events and wiki pages in bulk works** — adding or removing tags on several events or wiki pages at once failed with an error.
-- **A tag's page lists everything tagged with it** — it showed only tasks, projects and documents. Every tool now has its own tab.
-- **Notifications open what they're about** — event notifications opened the community home page instead of the event, notifications about a comment on a wiki page opened the wiki rather than the page, and comment notifications on queues, counters, calendars, dashboards, pictures and wikis showed no title.
-- **Erasing an account removes its name everywhere it was mentioned** — mentions of an erased account in wiki pages, checklists and the descriptions of projects, events and other tools kept its name. They now read "Deleted user", as they already did in documents, notices, tasks and comments.
-- **My Tools leaves out document templates** — templates are for starting new documents, so they no longer appear among your documents, as project templates already didn't.
-- **One community's failing background job no longer holds up the others** — scheduled posts, reminders, digests and clean-up carry on in every other community.
-- **An export that keeps failing stops being retried** — one whose preparation is interrupted three times now fails and tells whoever started it, instead of starting over forever.
-- **Leaving an initiative ends access to everything in it** — removing someone from an initiative, or someone leaving the community, now removes the access they were given to its queues, counters, calendars, dashboards, notices, pictures and wikis too. Before, only projects and documents were covered, and the rest came back if they rejoined.
-- **Duplicating a file document copies the file** — the copy used to have no file to download.
-- **Document exports follow the documents switch** — documents can no longer be exported from an initiative with documents turned off.
-- **Pictures stay while something still shows them** — taking a picture out of a document deleted it, even when another document, task or comment still showed it. It now stays until nothing shows it. Changing the cover of a picture file document no longer deletes the file itself.
-- **Duplicated documents count toward storage** — the pictures in a duplicated document are real copies, and they now count toward the community's storage limit like any other upload.
-- **Account erasure emails arrive once** — the email confirming an account was erased could arrive twice. It now goes out once.
-- **Turning off password sign-in covers the app** — the app's email-and-password sign-in kept working after an operator turned password sign-in off. It is now refused like the browser's.
-- **A community's shorter session limit applies to every sign-in** — the app's sign-in, single sign-on, and the extra check a community asks for all gave out access that outlasted the limit. Only the browser's password sign-in kept to it before.
-- **API keys limited to one community stay in it** — such a key could still reach other communities through views that span communities, such as **My Tasks**, and through community sign-in settings and file links. It now reaches only its own community.
-- **Back to the page you were on after signing in** — signing in from a link to a community page now takes you there, provided you're a member of that community; before, it always went to the home page. Single sign-on now checks membership the same way.
-- **Comments go to the trash with what they're on** — deleting a project, queue, counter group, calendar or dashboard now moves its comments to the trash with it, and restoring it brings them back. Before, they stayed behind.
-- **A deleted wiki shows once in the trash** — the trash lists a deleted wiki as one item. Before, it also listed each of its pages and comments, and restoring one of those on its own failed.
-- **Faster delete, restore and purge** — deleting, restoring, purging and archiving something large, like an initiative with thousands of tasks, now takes a few database queries instead of one per item inside it.
-- **Signing in to the app through a browser** — single sign-on and passkey sign-in in the app now count toward a community that asks for that sign-in, and they finish even when the phone closed the app while the browser was open. Signing in to the app with an emailed code now lasts past the next launch instead of asking again. Older versions of the app keep signing in as before for 60 days after your server updates, then ask to be updated.
-- **A single sign-on finishes only in the browser that started it** — following a sign-in link that began in another browser now stops with an error instead of signing that browser in.
-- **A search error at startup** — every start logged `search reindex failed for guild_template`. It was harmless, since search in your communities was already up to date, and it no longer appears.
-- **Queues and counter groups stay live after a dropped connection** — their pages reconnect on their own after a network drop or a server restart, and catch up on anything that changed meanwhile. Before, they stopped updating until the page was reloaded.
-- **Exports on servers with more than one process** — an export could be made twice and announce itself twice, and one that ran past 15 minutes started over. Each export is now made once.
-- **Old export and import files are cleaned up everywhere** — expired exports and unconfirmed imports in read-only, suspended or on-hold communities were kept forever. They now expire like everyone else's.
-- **Importing a tool's export shows it straight away** — the list you imported into now refreshes without reloading the page.
-- **Files in a backup are checked when it is restored** — each file is stored as what it actually is. One that isn't a picture or a file type a document can hold is left out and listed in the import's report.
-- **CSV attachments from Jira and Confluence become spreadsheets** — a `.csv` or `.tsv` attached to an issue or page arrives as a spreadsheet document. Attachments no document can hold, such as zips or videos, are left out when the site is read and counted in the import plan, so the plan matches what arrives.
+- **A project made from a template keeps each task's repeat**, moved with the task's dates.
+- **Nothing comes back from the trash under something that's still in it.** Restoring a sub-page whose parent page is still in the trash, a reply whose comment is, or a task or tool that was archived before it was trashed, now says to restore what it's inside first, instead of bringing it back where nobody can open it.
+- **Archived content can be thrown away and brought back.** Deleting an archived initiative or wiki that has pages, or a page inside one, works again, and whatever you restore into an archive comes back archived.
+- **Ownership moves on archived tools.** Claiming unowned content or handing someone's content to another admin no longer fails when some of it is archived, and a restored tool with no owner goes back to whoever made it even when it's archived.
+- **Only a community admin can take somebody off the moderator role.** A project manager can no longer remove an initiative's moderator or change them to another role, the same way only an admin can put somebody on it.
+- **Exporting a calendar with a repeating event works again.** A repeat such as "the second Monday of every month" no longer fails the export, and every repeat setting now carries over to other calendar apps and back on import.
+- **Wiki page edits are no longer lost to a later live session.** A page saved while nobody was editing it live keeps that save, and a save from a tab outside a live session is refused with a prompt to reconnect instead of being reported as saved.
+- **Exported and imported events keep their days in your timezone.** All-day events no longer land a day early, a repeat's weekdays and last day stay put, and an imported all-day event covers exactly its days.
+- **Confirming your password in settings is limited per account.** Wrong passwords entered to remove a password, set up an authenticator app, regenerate recovery codes, or change or delete something now count toward the same account lock as sign-in, a correct one starts the count over as signing in does, and these requests are no longer limited per network address, so people sharing an office connection don't use up each other's attempts.
+
+## [0.73.2] - 2026-09-29
+
+### Fixed
+
+- **A trusted sign-in provider's passkey sign-in counts as a second factor**, for providers such as Pocket ID that report a phishing-resistant sign-in rather than naming a second factor. New Pocket ID connections trust it by default.
+- **Spreadsheets accept a decimal without its leading zero.** Typing `.7` into a cell now stores the number 0.7 rather than text, and a formula such as `=.7*2` works instead of showing an error.
+
+## [0.73.1] - 2026-09-29
+
+### Added
+
+- **Ignore someone by handle** from Settings › Privacy › Ignored accounts, the same way you connect. API: `POST /me/ignored`.
+
+### Changed
+
+- **Trash shows 25 items a page**, with page controls past that.
+- **A new device is verified with four pictures**, different every time, shown side by side on the new device and one you already use. The device code in Security settings and safety numbers are gone; when somebody you message changes their devices, the conversation says so in one line.
+
+### Fixed
+
+- **Upgrading to 0.73 no longer stops at startup** on a server set up with a single database URL.
+- **Breaking glass only asks for a code if you have two-factor set up**, or the server requires it for your role. A second factor from single sign-on counts, and another operator setting it up no longer asks it of you.
+
+## [0.73.0] - 2026-09-28
+
+### Added
+
+- **Safety numbers in messages**, so you can check who you're talking to. A new device has to be approved by your other devices.
+- **Embeds** (`![[`) and **task checkbox chips** in documents. An embedded document or wiki page shows what it says, not just its name.
+- **Callouts and embeds fold** to their first line, and stay folded for everyone who opens the page.
+- **Full-size pictures**: click a picture in any text to open it.
+- **Unread dots that lead to the item**, with unread comments highlighted.
+- **One-tap 👍** on comments and posts.
+- **An email when your password changes.**
+- **Export on the calendars page** saves the calendars on screen, every date, as one `.ics` file. Anyone who can see a calendar can export it. API: `GET /c/{guild_id}/exports/events`.
+- **Resend verification email** in the platform Users menu, for an account that never confirmed its address. It sends the sign-up confirmation again, and an invite the account was waiting on still joins.
+
+### Changed
+
+- **Update the Android app from its APK**, since this release changes the app itself.
+- **Reconnect your app accounts** once, such as GitHub.
+- **Password sign-in pauses** after repeated wrong answers, for longer each time, up to four hours. Passkeys keep working, and resetting your password from the email ends the pause.
+- **A phone restored from backup asks you to sign in again.**
+- **Links to other sites open in a new tab.**
+- **Comments show the newest conversation first.** Replies still read in order.
+- **Pictures from other sites show as links.**
+- **Ticked checklist lines stay readable** instead of being crossed out.
+- **Only people who can open something** can be assigned to it, invited to it or notified about it.
+- **Files belong to their initiative.** A picture or file in a page opens for anyone in that page's initiative. Pasting one from another initiative saves a copy, and moving a task to another initiative takes copies of its pictures.
+- **Opening something marks its notifications read.**
+- **Mentions in the same document** make one notification.
+- **Read notifications clear after 30 days.**
+- **Community calendars belong to admins.** Members add events to the ones shared with them.
+- **Hidden calendars are remembered** in each community.
+- **Ticking tasks in a table is instant.**
+- **The trash shows a page at a time**, newest first.
+- **If you never verified your email address**, verifying it now, with an emailed code or through your organization's sign-in, clears the account's password, passkeys and second factor. Your communities and content stay; set up new sign-in methods from Security. If your address is already verified, nothing changes. Servers without SMTP automatically verify all emails on sign up and are not impacted.
+- **Improved efficiency and security.**
+
+### Removed
+
+- **API routes the app no longer uses**: single reads of an access grant, an app registration, an app's placements, your consents to an app and a target's reactions; editing a community's group rule; clearing one view preference; the smart-chip kinds list; each tool's `DELETE …/view` (use `/recents`); `POST /auth/verification/send`; and a community's `POST /users/{id}/approve`. The lists and detail reads carry the same data.
+
+### Fixed
+
+- **Platform account actions reach only accounts at or below your own role.** Reactivate is for deactivated accounts; lift a suspension or restore a deletion from their own actions.
+- **Switching communities is quicker.**
+- **API:** the member list (`GET /c/{guild_id}/users/`) and both trash lists return pages.
+- **Dashboards load faster.**
+- **Leaving an initiative** takes you off everything in it.
+- **A picture shared by several pages** stays while any of them still shows it, including pages you can't open.
+- **Signing out of the app stops its notifications**, and so does signing out other devices or resetting your password.
+- **Whiteboards and offline edits** are no longer lost.
+- **Large spreadsheets** keep up with your typing.
+- **Duplicated file documents** include the file.
+- **Notifications** open the event or page they're about.
+- **The Markdown view** keeps smart chips, `#` links and @mentions instead of turning them into plain words, and a `|` inside a table cell no longer splits it.
+- **Erased accounts** show as "Deleted user" everywhere they were mentioned.
+- **Exports that keep failing** stop and tell you.
+- **Jira and Confluence CSVs** arrive as spreadsheets.
+- **Comments** go to the trash and come back with their item.
+- **Queues and counters** reconnect after a dropped connection.
+- **Tag pages** list every tool.
+- **Archived projects** show their tasks again.
+- **Signing up in the app with an emailed code** keeps you signed in.
+- **Signing up with a password or passkey** on a server that sends email: confirming your address now lets you sign in, and an invite sent to that address joins you to its community when you confirm.
 
 ## [0.72.0] - 2026-09-24
 

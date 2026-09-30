@@ -777,6 +777,9 @@
     "roleChangeError": "Unable to change user role",
     "resetSuccess": "Password reset sent for {{handle}}.",
     "resetError": "Unable to send password reset",
+    "resendVerification": "Resend verification email",
+    "resendVerificationSuccess": "Verification email sent to {{handle}}.",
+    "resendVerificationError": "Unable to send the verification email",
     "reactivateSuccess": "{{handle}} can sign in again.",
     "reactivateError": "Unable to reactivate user",
     "permissionRequired": "You don't have permission to view platform users.",
@@ -806,6 +809,7 @@
     "clearAgeBlock": "Reset age question",
     "ageBlockCleared": "They can answer the age question again.",
     "signInLocked": "Password sign-in off",
+    "signInLockedUntil": "Until {{time}}",
     "liftSignInLock": "Turn password sign-in back on",
     "signInLockLifted": "They can sign in with a password again.",
     "sheet": {
@@ -957,8 +961,8 @@
     "loading": "Loading app services…",
     "loadError": "Unable to load app services.",
     "title": "App services",
-    "description": "The apps this deployment runs. A registration records which listing an app is, where it answers, and the keys it signs with.",
-    "empty": "No app services are registered yet. Add one for each app this deployment runs.",
+    "description": "The apps this deployment runs. An app's listing says what it is and may do; here you give where it answers and the keys it signs with.",
+    "empty": "No app services yet. An app appears here when its listing arrives, or once you add it.",
     "addService": "Add app service",
     "edit": "Edit",
     "delete": "Delete",
@@ -973,7 +977,8 @@
     "needsAddress": "Runs as a container. Edit it and give the address where you run it to make it live.",
     "publisherSummary": "Publisher: {{name}}",
     "listingSummary": "Listing:",
-    "noListing": "No listing set",
+    "noListing": "Waiting for its listing",
+    "scopeCeilingSummary": "Scopes, from its listing: {{scopes}}",
     "allowedOriginsSummary": "Allowed origins: {{origins}}",
     "disabledBadge": "Disabled",
     "disabledHelp": "This app is stopped for every community that installed it. Nothing has been deleted.",
@@ -1001,15 +1006,12 @@
     "setupUrlLabel": "Setup address",
     "createTitle": "Add app service",
     "editTitle": "Edit app service",
-    "createDescription": "Register an app this deployment runs. It goes live once it has signing keys.",
+    "createDescription": "Give an app its address and keys before its listing arrives. What it is and may do comes from its listing. It goes live once it has signing keys.",
     "editDescription": "Changes apply to every community that installed this app.",
     "publicIdLabel": "App identifier",
     "publicIdPlaceholder": "publisher.app-name",
     "publicIdHelp": "Written as publisher.app-name, in lowercase. The part before the dot is the app's publisher.",
     "publicIdHelpEdit": "The identifier cannot be changed once the registration exists.",
-    "listingUidLabel": "Listing",
-    "listingUidPlaceholder": "14-character listing uid",
-    "listingUidHelp": "The 14-character uid of this app's listing in the catalog.",
     "baseUrlLabel": "Base URL",
     "baseUrlPlaceholder": "http://initiative-github:8080",
     "baseUrlHelp": "Where Initiative's server calls the app. This may be a private address inside your own network.",
@@ -1736,7 +1738,9 @@
       "title": "Ignored accounts",
       "description": "You will not be notified when these accounts mention, reply to or react to you, and nothing they send you arrives — messages, message requests, connection requests. You will still see each other's activity in communities you share, and be able to use all tools normally.",
       "empty": "You are not ignoring anyone.",
-      "stop": "Stop ignoring"
+      "stop": "Stop ignoring",
+      "add": "Ignore by handle",
+      "ignore": "Ignore"
     },
     "cookies": {
       "title": "Cookies",
@@ -1831,10 +1835,6 @@
     "addFromBrowser": "A passkey is added from a browser signed in to this site. Add opens one for you.",
     "notOffered": "This site doesn't offer passkeys. The ones you have are kept.",
     "error": "That didn't work. Try again."
-  },
-  "messagesDevice": {
-    "title": "This device's code for messages",
-    "description": "When you confirm a new device, or compare with somebody you message, this is the code this device shows."
   },
   "providerDefaults": {
     "title": "What a community inherits",

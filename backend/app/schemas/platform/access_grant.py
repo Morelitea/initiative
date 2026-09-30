@@ -11,6 +11,7 @@ from pydantic import (
 from app.core.email_masking import mask_email
 from app.models.platform.access_grant import (
     AccessGrantStatus,
+    grant_is_live,
     AccessLevel,
     SettingsLevel,
 )
@@ -63,9 +64,10 @@ class AccessGrantCreate(SanitizedBaseModel):
 class SecondFactorAnswer(SanitizedBaseModel):
     """The account's own second factor, presented with a self-issued grant.
 
-    Asked for once any ``data.bypass`` holder has one. Any of the three
-    answers is accepted: a code from the authenticator, one of the recovery
-    codes, or an assertion from one of the account's passkeys — begun at
+    Asked for when the account holds one, or the deployment requires one of
+    its rung. Any of the three answers is accepted: a code from the
+    authenticator, one of the recovery codes, or an assertion from one of the
+    account's passkeys — begun at
     ``POST /access-grants/break-glass/passkey`` so the challenge it answers
     belongs to this request.
     """
@@ -155,11 +157,7 @@ class AccessGrantRead(SanitizedBaseModel):
     @property
     def is_live(self) -> bool:
         """Whether this grant currently confers access (approved, unexpired)."""
-        return (
-            self.status == AccessGrantStatus.approved
-            and self.expires_at is not None
-            and self.expires_at > datetime.now(timezone.utc)
-        )
+        return grant_is_live(self.status, self.expires_at, datetime.now(timezone.utc))
 
 
 class BreakGlassRequirements(SanitizedBaseModel):

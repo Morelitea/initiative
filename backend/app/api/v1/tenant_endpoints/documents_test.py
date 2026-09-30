@@ -465,8 +465,10 @@ async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     assert response.headers.get("x-frame-options") == "SAMEORIGIN"
     csp = response.headers.get("content-security-policy", "")
     assert "frame-ancestors 'self'" in csp
-    # Stored-XSS hardening preserved: scripts still disabled
+    # Shown as a static page: sandboxed, with no scripts and no forms.
+    assert "sandbox" in csp
     assert "script-src 'none'" in csp
+    assert "form-action 'none'" in csp
     assert "attachment" not in response.headers.get("content-disposition", "")
 
 
@@ -558,7 +560,7 @@ async def test_update_content_clears_yjs_state(
     assert patch_resp.status_code == 200
 
     # Re-read the document to confirm yjs_state was cleared
-    await session.refresh(doc)
+    await session.refresh(doc, ["yjs_state"])
     assert doc.yjs_state is None
 
 
@@ -626,8 +628,10 @@ def test_normalize_native_still_injects_root() -> None:
 
 
 async def test_create_smart_link_document(client: AsyncClient, acting_user) -> None:
-    """POST /documents/ with document_type='smart_link' stores only the URL."""
+    """POST /documents/ with document_type='smart_link' stores only the URL,
+    and the list reports the URL without the body."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    url = "https://www.figma.com/design/abc/Example"
 
     response = await client.post(
         owner.g("/documents/"),
@@ -636,13 +640,20 @@ async def test_create_smart_link_document(client: AsyncClient, acting_user) -> N
             "name": "Design file",
             "initiative_id": owner.initiative.id,
             "document_type": "smart_link",
-            "content": {"url": "https://www.figma.com/design/abc/Example"},
+            "content": {"url": url},
         },
     )
     assert response.status_code == 201
     body = response.json()
     assert body["document_type"] == "smart_link"
-    assert body["content"] == {"url": "https://www.figma.com/design/abc/Example"}
+    assert body["content"] == {"url": url}
+    assert body["smart_link_url"] == url
+
+    listed = await client.get(owner.g("/documents/"), headers=owner.headers)
+    assert listed.status_code == 200, listed.text
+    [row] = listed.json()["items"]
+    assert row["smart_link_url"] == url
+    assert "content" not in row
 
 
 async def test_create_smart_link_rejects_missing_url(
@@ -985,7 +996,7 @@ async def test_a_content_patch_against_a_live_document_is_refused(
 
     assert response.status_code == 409
     assert response.json()["detail"] == "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
-    await session.refresh(doc)
+    await session.refresh(doc, ["content"])
     assert doc.content == original
 
 

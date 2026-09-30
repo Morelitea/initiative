@@ -22,6 +22,7 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
 )
+from app.db.request_context import Unattributed
 
 
 BASE = "/api/v1/settings/auth/providers/"
@@ -230,7 +231,7 @@ async def test_delete_cascades_identity_links(
     member.oidc_provider_id = provider.id
     session.add(member)
     await session.commit()
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     provider_id, user_id, guild_id = provider.id, user.id, guild.id
     managed = (member.initiative_id, member.user_id)
 

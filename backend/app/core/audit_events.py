@@ -67,7 +67,6 @@ class AuditEventType(str, Enum):
     AUTH_SECOND_FACTOR_DISABLED = "auth.second_factor_disabled"
     AUTH_SECOND_FACTOR_FAILED = "auth.second_factor_failed"
     AUTH_SIGN_IN_LOCKED = "auth.sign_in_locked"
-    AUTH_SIGN_IN_HELD = "auth.sign_in_held"
     #: Cleared by somebody else — a support path, so actor and target differ.
     AUTH_SECOND_FACTOR_RESET = "auth.second_factor_reset"
     AUTH_RECOVERY_CODE_USED = "auth.recovery_code_used"
@@ -213,6 +212,7 @@ class AuditEventType(str, Enum):
     # movements of data — out of the deployment, or gone for good.
     USER_CREATED = "user.created"
     USER_DEACTIVATED = "user.deactivated"
+    USER_REACTIVATED = "user.reactivated"
     #: Personal details removed, contributions kept under a placeholder.
     USER_ANONYMIZED = "user.anonymized"
     #: The account and everything it left, removed outright.
@@ -350,11 +350,8 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=False
     ),
     # Wrong answers adding up: the account's password and codes are refused
-    # for a while, or until a moderator lifts it.
+    # for a while, longer for each lock within a day.
     AuditEventType.AUTH_SIGN_IN_LOCKED: AuditEventMeta(
-        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
-    ),
-    AuditEventType.AUTH_SIGN_IN_HELD: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_SECOND_FACTOR_RESET: AuditEventMeta(
@@ -555,6 +552,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.USER_DEACTIVATED: AuditEventMeta(
+        tier=2, category=AuditCategory.LIFECYCLE, is_write=True
+    ),
+    AuditEventType.USER_REACTIVATED: AuditEventMeta(
         tier=2, category=AuditCategory.LIFECYCLE, is_write=True
     ),
     AuditEventType.USER_ANONYMIZED: AuditEventMeta(

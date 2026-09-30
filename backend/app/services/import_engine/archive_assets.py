@@ -105,20 +105,22 @@ def _detect(asset: ArchiveAsset, data: bytes) -> tuple[str | None, str | None]:
 
 
 async def _already_stored(
-    session: AsyncSession, storage: StorageBackend, keys: list[str]
+    guild_id: int, storage: StorageBackend, keys: list[str]
 ) -> set[str]:
-    """The keys this community already holds: an ``uploads`` row, or a stored
-    file."""
+    """The keys this community already holds: an ``uploads`` row, whoever can
+    read it, or a stored file."""
     from app.models.tenant.upload import Upload
+    from app.services.tenant.attachments import guild_wide
 
     found: set[str] = set()
-    for start in range(0, len(keys), _LOOKUP_BATCH):
-        batch = keys[start : start + _LOOKUP_BATCH]
-        found.update(
-            await session.exec(
-                select(Upload.filename).where(Upload.filename.in_(batch))
+    async with guild_wide(guild_id) as session:
+        for start in range(0, len(keys), _LOOKUP_BATCH):
+            batch = keys[start : start + _LOOKUP_BATCH]
+            found.update(
+                await session.exec(
+                    select(Upload.filename).where(Upload.filename.in_(batch))
+                )
             )
-        )
     rest = [key for key in keys if key not in found]
     if rest:
         found.update(
@@ -136,10 +138,13 @@ async def restore_assets(
     *,
     guild_id: int,
     user: User,
+    initiative_id: int | None = None,
     heartbeat: Callable[[], Awaitable[None]] | None = None,
 ) -> RestoredAssets:
     """Put each file into the community's storage under its key and record it
-    in ``uploads``. One entry per key; the caller merges duplicates.
+    in ``uploads``, kept for ``initiative_id`` when the files all go there and
+    otherwise waiting to be claimed. One entry per key; the caller merges
+    duplicates.
 
     Raises ``IMPORT_QUOTA_EXCEEDED`` when the files would take the community
     past its storage quota, or when they read to more than the zip declared.
@@ -155,7 +160,7 @@ async def restore_assets(
 
     storage = get_guild_storage(guild_id)
     outcome = RestoredAssets()
-    stored = await _already_stored(session, storage, [asset.key for asset in assets])
+    stored = await _already_stored(guild_id, storage, [asset.key for asset in assets])
 
     pending: list[tuple[ArchiveAsset, zipfile.ZipInfo]] = []
     incoming = 0
@@ -212,6 +217,7 @@ async def restore_assets(
                 data=data,
                 content_type=content_type,
                 created_by=user.id,
+                initiative_id=initiative_id,
             )
             outcome.written.append(asset.key)
             outcome.content_types[asset.key] = content_type

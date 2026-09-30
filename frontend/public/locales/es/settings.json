@@ -774,6 +774,9 @@
     "roleChangeError": "No se pudo cambiar el rol del usuario",
     "resetSuccess": "Restablecimiento de contraseña enviado para {{handle}}.",
     "resetError": "No se pudo enviar el restablecimiento de contraseña",
+    "resendVerification": "Reenviar correo de verificación",
+    "resendVerificationSuccess": "Correo de verificación enviado a {{handle}}.",
+    "resendVerificationError": "No se pudo enviar el correo de verificación",
     "reactivateSuccess": "{{handle}} puede volver a iniciar sesión.",
     "reactivateError": "No se pudo reactivar al usuario",
     "permissionRequired": "No tienes permiso para ver los usuarios de la plataforma.",
@@ -806,6 +809,7 @@
     "clearAgeBlock": "Restablecer pregunta de edad",
     "ageBlockCleared": "Puede volver a responder la pregunta sobre la edad.",
     "signInLocked": "Inicio con contraseña desactivado",
+    "signInLockedUntil": "Hasta el {{time}}",
     "liftSignInLock": "Reactivar el inicio de sesión con contraseña",
     "signInLockLifted": "Ya puede volver a iniciar sesión con contraseña.",
     "sheet": {
@@ -957,8 +961,8 @@
     "loading": "Cargando servicios de aplicación…",
     "loadError": "No se pudieron cargar los servicios de aplicación.",
     "title": "Servicios de aplicación",
-    "description": "Las aplicaciones que ejecuta esta instancia. El registro guarda qué ficha es cada aplicación, dónde responde y las claves con las que firma.",
-    "empty": "Todavía no hay ningún servicio de aplicación registrado. Añade uno por cada aplicación que ejecute esta instancia.",
+    "description": "Las aplicaciones que ejecuta esta instancia. La ficha de una aplicación dice qué es y qué puede hacer; aquí indicas dónde responde y las claves con las que firma.",
+    "empty": "Todavía no hay servicios de aplicación. Una aplicación aparece aquí cuando llega su ficha o cuando la añades.",
     "addService": "Añadir servicio de aplicación",
     "edit": "Editar",
     "delete": "Eliminar",
@@ -973,7 +977,8 @@
     "needsAddress": "Se ejecuta como contenedor. Edítala e indica la dirección donde la ejecutas para activarla.",
     "publisherSummary": "Editor: {{name}}",
     "listingSummary": "Ficha:",
-    "noListing": "Sin ficha asignada",
+    "noListing": "Esperando su ficha",
+    "scopeCeilingSummary": "Alcances, de su ficha: {{scopes}}",
     "allowedOriginsSummary": "Orígenes permitidos: {{origins}}",
     "disabledBadge": "Desactivado",
     "disabledHelp": "Esta aplicación está detenida para todas las comunidades que la instalaron. No se ha borrado nada.",
@@ -1001,15 +1006,12 @@
     "setupUrlLabel": "Dirección de configuración",
     "createTitle": "Añadir servicio de aplicación",
     "editTitle": "Editar servicio de aplicación",
-    "createDescription": "Registra una aplicación que ejecuta esta instancia. Queda activa en cuanto tiene claves de firma.",
+    "createDescription": "Da a una aplicación su dirección y sus claves antes de que llegue su ficha. Qué es y qué puede hacer viene de su ficha. Queda activa en cuanto tiene claves de firma.",
     "editDescription": "Los cambios se aplican a todas las comunidades que instalaron esta aplicación.",
     "publicIdLabel": "Identificador de la aplicación",
     "publicIdPlaceholder": "editor.nombre-app",
     "publicIdHelp": "Se escribe como editor.nombre-de-app, en minúsculas. La parte antes del punto es el editor de la aplicación.",
     "publicIdHelpEdit": "El identificador no se puede cambiar una vez creado el registro.",
-    "listingUidLabel": "Ficha",
-    "listingUidPlaceholder": "UID de la ficha, de 14 caracteres",
-    "listingUidHelp": "El UID de 14 caracteres de la ficha de esta aplicación en el catálogo.",
     "baseUrlLabel": "URL base",
     "baseUrlPlaceholder": "http://initiative-github:8080",
     "baseUrlHelp": "Dónde llama el servidor de Initiative a la app. Puede ser una dirección privada dentro de tu propia red.",
@@ -1736,7 +1738,9 @@
       "title": "Cuentas ignoradas",
       "description": "No recibirás notificaciones cuando estas cuentas te mencionen, te respondan o reaccionen, y nada de lo que te envíen llegará: mensajes, solicitudes de mensaje, solicitudes de conexión. Seguiréis viendo la actividad del otro en las comunidades que compartís y podréis usar todas las herramientas con normalidad.",
       "empty": "No estás ignorando a nadie.",
-      "stop": "Dejar de ignorar"
+      "stop": "Dejar de ignorar",
+      "add": "Ignorar por identificador",
+      "ignore": "Ignorar"
     },
     "cookies": {
       "title": "Cookies",
@@ -1831,10 +1835,6 @@
     "addFromBrowser": "Las claves de acceso se añaden desde un navegador con la sesión iniciada en este sitio. «Añadir una clave de acceso» abre uno.",
     "notOffered": "Este sitio no ofrece claves de acceso. Las que ya tienes se conservan.",
     "error": "No ha funcionado. Inténtalo de nuevo."
-  },
-  "messagesDevice": {
-    "title": "Código de este dispositivo para mensajes",
-    "description": "Cuando confirmas un dispositivo nuevo o comparas con alguien a quien escribes, este es el código que muestra este dispositivo."
   },
   "providerDefaults": {
     "title": "Lo que hereda una comunidad",

@@ -27,6 +27,7 @@ import re
 from dataclasses import dataclass
 from typing import Callable
 
+from app.db import gucs
 from app.core.app_scopes import tool_resource
 from app.core.reactions import ReactionTarget
 from app.core.relationships import (
@@ -42,10 +43,6 @@ from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, i
 
 #: The legs a policy reads, off this statement's standing.
 _P = IN_POLICY
-
-# The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
-# (no membership) rather than faulting the cast for every row.
-_UID = "(NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer"
 
 # A write flag is a Python bool where the render knows the answer, or the name
 # of a SQL boolean where it does not — inside a function body, its parameter.
@@ -191,7 +188,7 @@ def _resource_call(tool: str, resource_id: str, initiative: str, write: bool) ->
     reads it applies the tool switches.
     """
     return (
-        f"resource_access({tool}, {resource_id}, {_UID}, "
+        f"resource_access({tool}, {resource_id}, {gucs.USER_ID}, "
         f"{initiative}, {_sql_bool(write)}, {STANDING})"
     )
 
@@ -239,12 +236,12 @@ def _tool_gate(
     key = tool.create_permission if creating else tool.view_permission
     default = "false" if creating else str(tool in DEFAULT_ENABLED_TOOLS).lower()
     legs.append(
-        f"initiative_role_permits({initiative}, {_UID}, '{key}', {default}, {STANDING})"
+        f"initiative_role_permits({initiative}, {gucs.USER_ID}, '{key}', {default}, {STANDING})"
     )
 
     if not creating:
         legs.append(
-            f"resource_access('{tool.value}', {resource_id}, {_UID}, "
+            f"resource_access('{tool.value}', {resource_id}, {gucs.USER_ID}, "
             f"{initiative}, {_sql_bool(write)}, {STANDING})"
         )
 
@@ -358,6 +355,10 @@ class InitiativePath:
     #: and renders no separate ``dac`` leg; ``predicate`` is the read form of
     #: the same call.
     folded: FoldedBuilder | None = None
+    #: What a row responding to this one (a comment, an edge end) asks of its
+    #: initiative, where that is less than writing the row itself; ``None``
+    #: when the two are the same. Read by :func:`_entity_arm`.
+    responding: PathBuilder | None = None
 
 
 #: Types stored once per unordered pair, as a SQL list. A symmetric edge
@@ -383,9 +384,7 @@ _PAM_ANY = _P.pam_any
 
 
 def _access(initiative_expr: str, write: bool) -> str:
-    return (
-        f"initiative_access({initiative_expr}, {_UID}, {_sql_bool(write)}, {STANDING})"
-    )
+    return f"initiative_access({initiative_expr}, {gucs.USER_ID}, {_sql_bool(write)}, {STANDING})"
 
 
 def _full_access(initiative_expr: str, write: bool) -> str:
@@ -462,6 +461,9 @@ def direct_or_guild() -> InitiativePath:
         initiative_expr=lambda r: f"{r}.initiative_id",
         parents=_no_parents,
         dac=_dac_self(),
+        # Commenting on a guild-level row is a member's, as adding an event to
+        # it is: the writer rule above is for the row itself.
+        responding=lambda t, w: _access(f"{t}.initiative_id", w),
     )
 
 
@@ -964,7 +966,8 @@ def _entity_arm(table: str) -> str:
         return "(NOT p_need_write AND NOT p_need_share_write) OR " + path.folded(
             "re", "p_need_write", "p_need_share_write"
         )
-    legs = [f"(NOT p_need_write OR ({path.predicate('re', True)}))"]
+    member = path.responding or path.predicate
+    legs = [f"(NOT p_need_write OR ({member('re', True)}))"]
     dac = _entity_dac(table)
     if dac is not None:
         sharing = dac.predicate("re", "UPDATE", True)
@@ -1146,7 +1149,7 @@ def _search_tool_gate(t: str, write: bool) -> str:
     )
     role_arms = " ".join(
         f"WHEN '{tool.value}' THEN initiative_role_permits("
-        f"{t}.initiative_id, {_UID}, '{tool.view_permission}', "
+        f"{t}.initiative_id, {gucs.USER_ID}, '{tool.view_permission}', "
         f"{str(tool in DEFAULT_ENABLED_TOOLS).lower()}, {STANDING})"
         for tool in Tool
     )
@@ -1181,6 +1184,24 @@ def search_entries_path() -> InitiativePath:
         # tool governs an entry differs per row, so the two that name a tool are
         # a CASE over it rather than a rendered constant.
         dac=DacPath(predicate=lambda t, c, w: _search_tool_gate(t, w)),
+    )
+
+
+def uploads_path() -> InitiativePath:
+    """A stored file is reached through the initiative whose content shows it.
+
+    Until it is saved into something (``claimed_at`` NULL) only its uploader
+    reaches it. Once claimed, its ``initiative_id`` is gated like any
+    :func:`direct` row, and a NULL there is content belonging to the whole
+    guild — a guild calendar and what hangs off it — which every member reads.
+    """
+    return InitiativePath(
+        predicate=lambda t, w: (
+            f"(CASE WHEN {t}.claimed_at IS NULL"
+            f" THEN ({t}.created_by = {gucs.USER_ID.once} OR {_P.system})"
+            f" ELSE {_access(f'{t}.initiative_id', w)} END)"
+        ),
+        initiative_expr=lambda r: f"{r}.initiative_id",
     )
 
 
@@ -1244,6 +1265,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "search_entries": search_entries_path(),
     # Integration config, reached by whoever can reach what it watches.
     "webhook_subscriptions": webhook_subscription_path(),
+    # Stored files, reached through the initiative whose content shows them.
+    "uploads": uploads_path(),
     # Reports a community settles. Reached by whoever already sees everything
     # in the initiative, plus the guild admin — see direct_full_access.
     "moderation_reports": direct_full_access(),
@@ -1748,10 +1771,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "moderation_reports": Silent("who reported whom is not an automation signal"),
     "moderation_report_reporters": Silent("the reporters behind one report"),
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
-    # Guild-level, and kept out on disclosure: an upload row is reachable from
-    # more than one place, so the initiative gate is not the whole answer for it
-    # the way it is for tags. Gate it properly or leave it silent — silent.
-    "uploads": Silent("reached through several parents; not gated by one of them"),
+    "uploads": Silent("a stored file; the content showing it is what changed"),
     # -- Guild-level tables that emit ---------------------------------------
     # The structural initiative tables are deliberately exempt from
     # initiative-member RLS (a membership table gated by the membership check it

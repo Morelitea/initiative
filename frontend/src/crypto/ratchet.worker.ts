@@ -20,7 +20,15 @@ import {
   generateKeys,
   inspectPreKey,
   signDevice,
+  signVerification,
+  verificationCheckMac,
+  verificationClose,
+  verificationEmoji,
+  verificationEstablish,
+  verificationMac,
+  verificationOpen,
   verifyDevice,
+  verifyVerification,
 } from "./engine";
 
 /** The only calls the worker will make. Not every export of `engine`. */
@@ -34,6 +42,14 @@ const methods = {
   createInboundSession,
   encrypt,
   decrypt,
+  verificationOpen,
+  verificationEstablish,
+  verificationEmoji,
+  verificationMac,
+  verificationCheckMac,
+  verificationClose,
+  signVerification,
+  verifyVerification,
 } as const;
 
 export type RatchetMethod = keyof typeof methods;

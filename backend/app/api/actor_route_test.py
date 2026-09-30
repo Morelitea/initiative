@@ -48,6 +48,8 @@ from app.testing import (
 )
 from app.testing.app_clients import CLIENT, client_jwks, install_app
 
+pytestmark = pytest.mark.always
+
 _BASE = "/api/v1/c/{guild_id}/actor-route-probe"
 _read = app_scope("documents:read")
 _write = app_scope("documents:write")

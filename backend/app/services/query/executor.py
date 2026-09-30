@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any, AsyncIterator, Mapping
@@ -40,6 +40,7 @@ from sqlalchemy import text
 
 from app.core.messages import QueryMessages
 from app.db import cohorts
+from app.db.request_context import QUERYABLE, ContentGrantee, Member, RequestContext
 from app.db.session import set_rls_context
 from app.services.fields.spec import FieldType
 from app.services.query.canvas import compile_canvas
@@ -215,12 +216,13 @@ async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
 #: The statement limits, as one bound statement. ``set_config`` is the function
 #: form of ``SET LOCAL`` and takes its value as a parameter, where ``SET`` takes
 #: only a literal — so the settings arrive bound rather than written into SQL.
-#: The last is a constant: one query is one backend's worth of the server's
-#: attention.
+#: The last two are constants: one query is one backend's worth of the server's
+#: attention, and it is not compiled.
 _TRANSACTION_LIMITS = text(
     "SELECT set_config('statement_timeout', :statement_timeout, true),"
     " set_config('work_mem', :work_mem, true),"
-    " set_config('max_parallel_workers_per_gather', '0', true)"
+    " set_config('max_parallel_workers_per_gather', '0', true),"
+    " set_config('jit', 'off', true)"
 )
 
 
@@ -275,47 +277,43 @@ async def _translated_failures() -> AsyncIterator[None]:
         raise QueryError(QueryMessages.EXECUTION_FAILED, str(failed)) from failed
 
 
-def _routed_guild(context: Mapping[str, Any]) -> int:
-    """Which guild this context reads. A grantee routes by the grant."""
-    guild_id = context.get("guild_id") or context.get("pam_guild_id")
-    if guild_id is None:
-        raise QueryError(QueryMessages.MISSING_RELATION)
-    return int(guild_id)
-
-
-def _scoped(
-    context: Mapping[str, Any],
+def _as_query(
+    context: RequestContext,
     initiative_id: int | None,
     via_dashboard_id: int | None = None,
-) -> dict[str, Any]:
+) -> Member | ContentGrantee:
     """The request's own context, as the query role, narrowed to one initiative.
 
-    Both entry points below establish the same thing, so they say it once: the
+    Every entry point below establishes the same thing, so it is said once: the
     reader is whoever the request admitted, the role is the query role, and the
-    scope is the surface's if it named one.
+    scope is the surface's if it named one. Only a member or a content grantee
+    reads here.
 
     *via_dashboard_id* names a dashboard whose own grants this read may answer
     through. It is only ever passed by the path that runs a placed widget's
     stored statement, and never for a statement a request supplied.
     """
-    routed = dict(context)
-    routed["query"] = True
-    routed["scope_initiative_id"] = initiative_id
-    routed["via_dashboard_id"] = via_dashboard_id
-    return routed
+    if not isinstance(context, QUERYABLE):
+        raise QueryError(QueryMessages.MISSING_RELATION)
+    return replace(
+        context,
+        query=True,
+        scope_initiative_id=initiative_id,
+        via_dashboard_id=via_dashboard_id,
+    )
 
 
 async def execute(
     statement: ResolvedQuery,
     *,
-    context: Mapping[str, Any],
+    context: RequestContext,
     initiative_id: int | None = None,
     via_dashboard_id: int | None = None,
 ) -> QueryResult:
     """Run an already-resolved statement under *context*.
 
     *context* is what the request's own session established
-    (:func:`app.db.session.rls_context_params`), replayed here with the query
+    (:func:`app.db.session.routed_context`), replayed here with the query
     role selected. The rows that come back are therefore the rows that reader
     reaches through any other part of the app — a member's, a read-only
     member's, a grantee's — decided once, by the dependency that admitted the
@@ -326,8 +324,8 @@ async def execute(
     it is asking about and the policies on the tables it reads answer for that
     one. It removes rows and never adds any, so a caller may always pass it.
     """
-    guild_id = _routed_guild(context)
-    routed = _scoped(context, initiative_id, via_dashboard_id)
+    routed = _as_query(context, initiative_id, via_dashboard_id)
+    guild_id = routed.guild_id
     async with _translated_failures():
         async with cohorts.query_sessionmaker(guild_id)() as session:
             # Opened before anything else touches the connection. The bounds
@@ -341,7 +339,7 @@ async def execute(
             await _bound_transaction(sqlalchemy_connection)
             if not await _claim_a_slot(connection, guild_id):
                 raise QueryError(QueryMessages.BUSY, str(guild_id))
-            await set_rls_context(session, **routed)
+            await set_rls_context(session, routed)
 
             cost = await _estimated_cost(connection, statement)
             if cost > QUERY_MAX_COST:
@@ -372,7 +370,7 @@ async def execute(
 async def run(
     sql: str,
     *,
-    context: Mapping[str, Any],
+    context: RequestContext,
     initiative_id: int | None = None,
     via_dashboard_id: int | None = None,
 ) -> QueryResult:
@@ -386,7 +384,7 @@ async def run(
 
 
 async def describe(
-    sql: str, *, context: Mapping[str, Any], initiative_id: int | None = None
+    sql: str, *, context: RequestContext, initiative_id: int | None = None
 ) -> tuple[tuple[QueryColumn, ...], tuple[str, ...]]:
     """What *sql* would return, without returning it.
 
@@ -399,8 +397,8 @@ async def describe(
     statement is only preparable against the schema its reader is routed to.
     """
     statement = resolve(sql)
-    routed = _scoped(context, initiative_id)
-    guild_id = _routed_guild(context)
+    routed = _as_query(context, initiative_id)
+    guild_id = routed.guild_id
 
     async with _translated_failures():
         async with cohorts.query_sessionmaker(guild_id)() as session:
@@ -410,7 +408,7 @@ async def describe(
             connection = raw.driver_connection
 
             await _bound_transaction(sqlalchemy_connection)
-            await set_rls_context(session, **routed)
+            await set_rls_context(session, routed)
             prepared = await connection.prepare(statement.sql)
             columns = await _described(connection, prepared, statement)
             await session.rollback()
@@ -449,7 +447,7 @@ async def _run_compiled(
     statements: Mapping[str, ResolvedQuery],
     *,
     guild_id: int,
-    routed: Mapping[str, Any],
+    routed: RequestContext,
 ) -> dict[str, QueryResult]:
     """Every statement in *statements*, as one compiled statement, in one
     transaction holding one slot."""
@@ -465,7 +463,7 @@ async def _run_compiled(
         )
         if not await _claim_a_slot(connection, guild_id):
             raise QueryError(QueryMessages.BUSY, str(guild_id))
-        await set_rls_context(session, **routed)
+        await set_rls_context(session, routed)
 
         # Each widget is prepared — planned, not run — for the columns it
         # returns, which the JSON the compiled statement answers with does not
@@ -516,7 +514,7 @@ async def _run_compiled(
 async def execute_canvas(
     statements: Mapping[str, ResolvedQuery],
     *,
-    context: Mapping[str, Any],
+    context: RequestContext,
     initiative_id: int | None = None,
     via_dashboard_id: int | None = None,
 ) -> dict[str, QueryResult | QueryError]:
@@ -534,8 +532,8 @@ async def execute_canvas(
     """
     if not statements:
         return {}
-    guild_id = _routed_guild(context)
-    routed = _scoped(context, initiative_id, via_dashboard_id)
+    routed = _as_query(context, initiative_id, via_dashboard_id)
+    guild_id = routed.guild_id
     try:
         async with _translated_failures():
             return dict(

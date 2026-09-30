@@ -168,15 +168,20 @@ END
 $$;
 """
 
-_GRANT_DATABASE = """
+#: Every database privilege the provisioning role holds, whoever owns the
+#: database: migrations run as that role, so they run with the same rights
+#: whether the deployment gave one owner URL or named its logins.
+PROVISIONER_DATABASE_PRIVILEGES = ("CREATE", "CONNECT", "TEMPORARY")
+
+_GRANT_DATABASE = f"""
 DO $$ BEGIN
-    EXECUTE format('GRANT CREATE, CONNECT ON DATABASE %I TO %I',
+    EXECUTE format('GRANT {", ".join(PROVISIONER_DATABASE_PRIVILEGES)} ON DATABASE %I TO %I',
                    current_database(), current_setting('app._bootstrap_role'));
 END $$;
 """
 
-# The app creates no temporary objects, so it does not use the TEMPORARY grant
-# PUBLIC carries by default on a new database.
+# The request path creates no temporary objects, so it does not use the
+# TEMPORARY grant PUBLIC carries by default on a new database.
 _REVOKE_TEMPORARY = """
 DO $$ BEGIN
     EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC',
@@ -276,6 +281,11 @@ SEARCH_OPCLASS = "tsvector_search_ops"
 BOOTSTRAP_OWNED_FUNCTIONS = (SEARCH_MATCH_FUNCTION,)
 
 
+def _kept_owners() -> str:
+    """The app's shared roles, as the handover's setting names them."""
+    return ",".join(sorted(role_name(role) for role in SHARED_ROLES))
+
+
 # Hand the app's objects to the provisioning role, for a database that has been
 # running under another login. Postgres renders each statement so identifiers
 # are quoted at the source; the caller executes what comes back and logs it.
@@ -283,10 +293,14 @@ BOOTSTRAP_OWNED_FUNCTIONS = (SEARCH_MATCH_FUNCTION,)
 # Scope is what the app can show is its own: the shared tables named in its own
 # registry, the guild schemas and everything in them, the enums those tables
 # use, and the functions in ``public`` the outgoing login created. Extension
-# members and the bootstrap's own functions are never taken.
+# members, the bootstrap's own functions, and whatever the app's own shared
+# roles own are never taken: a migration gave those to that role, and no login
+# ever held them.
 _TRANSFER_STATEMENTS = f"""
 WITH app_tables AS (
     SELECT unnest(string_to_array(current_setting('app._bootstrap_tables'), ',')) AS name
+), kept AS (
+    SELECT unnest(string_to_array(current_setting('app._bootstrap_kept_owners'), ',')) AS role
 ), target AS (
     -- The login every statement below moves an object to. Each branch excludes
     -- what it already owns, so a re-run on a moved database returns no rows.
@@ -298,6 +312,7 @@ SELECT format('table %I.%I', n.nspname, c.relname) AS label,
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind IN ('r', 'v', 'm', 'p')
    AND pg_get_userbyid(c.relowner) <> target.role
+   AND pg_get_userbyid(c.relowner) NOT IN (SELECT role FROM kept)
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'e')
    AND (n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
         OR (n.nspname = 'public' AND c.relname IN (SELECT name FROM app_tables)))
@@ -308,6 +323,7 @@ SELECT format('sequence %I.%I', n.nspname, c.relname),
   JOIN pg_namespace n ON n.oid = c.relnamespace, target
  WHERE c.relkind = 'S'
    AND pg_get_userbyid(c.relowner) <> target.role
+   AND pg_get_userbyid(c.relowner) NOT IN (SELECT role FROM kept)
    AND n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
    AND NOT EXISTS (
        SELECT 1 FROM pg_depend d
@@ -319,6 +335,7 @@ SELECT format('type public.%I', t.typname),
  WHERE t.typnamespace = 'public'::regnamespace
    AND t.typtype = 'e'
    AND pg_get_userbyid(t.typowner) <> target.role
+   AND pg_get_userbyid(t.typowner) NOT IN (SELECT role FROM kept)
    AND EXISTS (
        SELECT 1 FROM pg_attribute a
          JOIN pg_class c2 ON c2.oid = a.attrelid
@@ -333,6 +350,7 @@ SELECT format('function %s', p.oid::regprocedure),
   FROM pg_proc p, target
  WHERE p.pronamespace = 'public'::regnamespace
    AND pg_get_userbyid(p.proowner) <> target.role
+   AND pg_get_userbyid(p.proowner) NOT IN (SELECT role FROM kept)
    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
    -- Every function the outgoing login left in ``public``, less the ones the
    -- bootstrap keeps. What calls a function is not something the catalog can
@@ -347,6 +365,7 @@ SELECT format('schema %I', n.nspname),
   FROM pg_namespace n, target
  WHERE n.nspname ~ '{GUILD_OR_TEMPLATE_SCHEMA_REGEX}'
    AND pg_get_userbyid(n.nspowner) <> target.role
+   AND pg_get_userbyid(n.nspowner) NOT IN (SELECT role FROM kept)
 """
 
 
@@ -601,6 +620,7 @@ async def _transfer_ownership(conn) -> None:
     await _set_local(
         conn, "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
     )
+    await _set_local(conn, "app._bootstrap_kept_owners", _kept_owners())
     rows = (await conn.execute(text(_TRANSFER_STATEMENTS))).all()
     if not rows:
         return
@@ -803,6 +823,7 @@ def bootstrap_sql() -> str:
         setting(
             "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
         ),
+        setting("app._bootstrap_kept_owners", _kept_owners()),
         _executing(_TRANSFER_STATEMENTS),
         _DEFAULT_PRIVILEGES.strip(),
         "",
@@ -849,6 +870,19 @@ async def _verify_only() -> BootstrapResult:
         for role in (provisioner, app_login, system):
             if role.name not in present:
                 missing.append(f"role {role.name}")
+        if provisioner.name in present:
+            for privilege in PROVISIONER_DATABASE_PRIVILEGES:
+                held = await conn.scalar(
+                    text(
+                        "SELECT has_database_privilege("
+                        "CAST(:role AS text), current_database(), CAST(:p AS text))"
+                    ),
+                    {"role": provisioner.name, "p": privilege},
+                )
+                if not held:
+                    missing.append(
+                        f"{privilege} on the database for {provisioner.name}"
+                    )
         search_ready = await search_operator_present(conn)
     if missing:
         raise RuntimeError(_repair_instructions(missing))
@@ -908,6 +942,87 @@ async def ensure_database_bootstrap(
         "present" if search_ready else "NOT installed",
     )
     return result
+
+
+#: The function every routing and standing statement writes through. The
+#: logins and every shared floor a routed role inherits hold it; ``PUBLIC``
+#: does not, so a role that inherits no floor — the query surface's
+#: ``guild_<id>_q``, which runs statements a reader wrote — cannot call it.
+SET_CONFIG_FUNCTION = "pg_catalog.set_config(text, text, boolean)"
+
+_SET_CONFIG_OPEN = text(
+    "SELECT has_function_privilege('public', CAST(:function AS text), 'EXECUTE')"
+).bindparams(function=SET_CONFIG_FUNCTION)
+
+_ROLES_PRESENT = text("SELECT count(*) FROM pg_roles WHERE rolname = ANY(:names)")
+
+
+def set_config_holders() -> tuple[str, ...]:
+    """Who holds ``set_config``: the three logins, the shared floors, and the
+    billing role, which inherits none."""
+    return (
+        *(role.name for role in login_roles()),
+        *sorted(role_name(role) for role in SHARED_ROLES),
+        role_name("initiative_billing"),
+    )
+
+
+def set_config_sql() -> tuple[str, str]:
+    """The grant to its holders, then the revoke from ``PUBLIC``."""
+    holders = ", ".join(
+        '"' + name.replace('"', '""') + '"' for name in set_config_holders()
+    )
+    return (
+        f"GRANT EXECUTE ON FUNCTION {SET_CONFIG_FUNCTION} TO {holders}",
+        f"REVOKE EXECUTE ON FUNCTION {SET_CONFIG_FUNCTION} FROM PUBLIC",
+    )
+
+
+async def set_config_narrowed(conn) -> bool:
+    """Whether ``PUBLIC`` no longer holds ``set_config`` on this database."""
+    return not await conn.scalar(_SET_CONFIG_OPEN)
+
+
+async def ensure_set_config_narrowed(bootstrap_url: str | None = None) -> bool:
+    """Take ``set_config`` from ``PUBLIC`` once every holder exists.
+
+    Called after migrations, which create the shared floors. Only the
+    function's owner can change who may call it, so it is applied from the
+    owner connection when that connection is a superuser, and otherwise said,
+    with the SQL, for the operator to run. Returns whether it is in place.
+    """
+    url = bootstrap_url or settings.DATABASE_URL_BOOTSTRAP
+    holders = set_config_holders()
+    if url:
+        engine = create_async_engine(url, poolclass=NullPool, echo=False)
+        try:
+            async with _bootstrap_lock(url), engine.begin() as conn:
+                if await conn.scalar(_IS_SUPERUSER) and await conn.scalar(
+                    _ROLES_PRESENT, {"names": list(holders)}
+                ) == len(holders):
+                    for statement in set_config_sql():
+                        await conn.execute(text(statement))
+                narrowed = await set_config_narrowed(conn)
+        finally:
+            await engine.dispose()
+    else:
+        from app.db import session as db_session
+
+        async with db_session.provisioning_engine.connect() as conn:
+            narrowed = await set_config_narrowed(conn)
+    if not narrowed:
+        logger.warning(
+            "\n%s\n"
+            "Any database role may still call set_config on this database.\n"
+            "The app takes it from the query surface's role once %s is a\n"
+            "superuser connection. To apply it by hand instead, as a superuser:\n"
+            "\n  %s;\n  %s;\n%s",
+            "=" * 70,
+            owner_setting(),
+            *set_config_sql(),
+            "=" * 70,
+        )
+    return narrowed
 
 
 async def _main() -> int:

@@ -76,6 +76,7 @@ import { toast } from "@/lib/chesterToast";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
+import { fromStored, rulePayload } from "@/lib/recurrence";
 import { referenceRef } from "@/lib/smartChips";
 import { dateTimePattern } from "@/lib/timeFormat";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
@@ -122,6 +123,7 @@ type TaskFormSource = Omit<
     | "due_date"
     | "recurrence"
     | "recurrence_strategy"
+    | "recurrence_shift"
     | "tags"
     | "properties"
   >,
@@ -137,7 +139,7 @@ const formValueFromTask = (task: TaskFormSource): TaskFormValue => ({
   assigneeIds: task.assignees?.map((assignee) => assignee.id) ?? [],
   startDate: toLocalInputValue(task.start_date),
   dueDate: toLocalInputValue(task.due_date),
-  recurrence: task.recurrence ?? null,
+  recurrence: fromStored(task.recurrence, task.due_date ?? task.start_date, task.recurrence_shift),
   recurrenceStrategy: task.recurrence_strategy ?? "fixed",
   tags: task.tags ?? [],
   properties: task.properties ?? [],
@@ -335,7 +337,7 @@ export const TaskEditPage = () => {
       assignee_ids: assigneeIds,
       start_date: startDate ? new Date(startDate).toISOString() : null,
       due_date: dueDate ? new Date(dueDate).toISOString() : null,
-      recurrence: effectiveRecurrence,
+      ...rulePayload(effectiveRecurrence),
       recurrence_strategy: effectiveRecurrence ? effectiveRecurrenceStrategy : "fixed",
       tag_ids: tags.map((tag) => tag.id),
       property_values: attachedProperties.map((property) => ({
@@ -663,6 +665,11 @@ export const TaskEditPage = () => {
                 selectedAssignees={task?.assignees}
                 descriptionSlot={descriptionSlot}
                 recurrenceReferenceDate={dueDate || startDate || task?.due_date || task?.start_date}
+                storedRecurrence={
+                  task?.recurrence
+                    ? { rule: task.recurrence, shift: task.recurrence_shift ?? 0 }
+                    : null
+                }
               />
 
               {/* Save and cancel are the only actions that earn a button here;

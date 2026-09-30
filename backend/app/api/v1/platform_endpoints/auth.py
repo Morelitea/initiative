@@ -97,7 +97,7 @@ from app.models.platform.user import (
     UserRole,
     UserStatus,
 )
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, GuildInvite, GuildRole
 from app.schemas.base import MAX_TITLE_LENGTH, strip_to_plain_text
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
@@ -183,6 +183,7 @@ from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import provider_placement
 from app.models.platform.user_token import UserTokenPurpose
+from app.db.request_context import Platform
 
 router = APIRouter()
 
@@ -361,14 +362,13 @@ async def _register_account(
     One body for both doors — the password one above and the passkey one below
     — because what a registration *is* does not depend on what it hands the
     account to come back with: the same address rules, the same invite and
-    captcha gates, the same handle, the same workspace seeded and the same
-    verification letter.
+    captcha gates, the same handle and the same verification letter.
 
     What differs is the way in, and it is settled *here* rather than by the
-    caller afterwards: the guild this account gets is provisioned in the middle
-    of this, which commits, so a credential written after the fact could fail
-    and leave an account nobody can sign in to. Written in the same breath as
-    the account, it is covered by the same undo.
+    caller afterwards: this commits — and, where ``REGISTRATION_CREATES_GUILD``
+    is on, provisions the account a guild of its own — so a credential written
+    after the fact could fail and leave an account nobody can sign in to.
+    Written in the same breath as the account, it is covered by the same undo.
 
     The caller has already refused a method this deployment does not permit and
     taken whatever its own door asks for.
@@ -414,6 +414,20 @@ async def _register_account(
         # to confirm it with, and for the account that bootstraps the
         # deployment.
         address_confirmed = address_proved or is_first_user or not smtp_configured
+        # An invite bound to an address this sign-up has not proved yet waits
+        # for the proof: the verification letter carries it, and confirming
+        # the address joins the guild.
+        awaiting_invite_id: int | None = None
+        if normalized_invite and not address_confirmed:
+            try:
+                awaiting = await guilds_service.invite_awaiting_address(
+                    session, code=normalized_invite, email=normalized_email
+                )
+            except guilds_service.GuildInviteError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                ) from exc
+            awaiting_invite_id = awaiting.id if awaiting is not None else None
         user_kwargs: dict[str, Any] = dict(
             # Filled in by ``insert_with_handle`` below, which owns the insert
             # so it can redraw the number if another registration took it.
@@ -443,13 +457,16 @@ async def _register_account(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
             ) from exc
 
-        addresses.record_address(
+        address = addresses.record_address(
             session,
             user_id=user.id,
             email=normalized_email,
             source=addresses.SOURCE_SIGNUP,
             verified=address_confirmed,
         )
+        await session.flush()
+        # The verification letter proves this row, so it is named by id.
+        address_id = address.id
         await dm_settings_service.seed_for_new_account(session, user_id=user.id)
         # The way in. A password is on the row already; a key is a row of its
         # own, and the set of codes beside it is how an account holding no
@@ -488,7 +505,10 @@ async def _register_account(
             },
         )
 
-        if normalized_invite:
+        if awaiting_invite_id is not None:
+            # The guild is joined when the address is confirmed.
+            await session.commit()
+        elif normalized_invite:
             try:
                 guild = await guilds_service.redeem_invite_for_user(
                     session,
@@ -512,6 +532,8 @@ async def _register_account(
             )
             await session.commit()
             await cohorts.settle(session)
+        elif not settings.REGISTRATION_CREATES_GUILD:
+            await session.commit()
         else:
             guild_name_source = (user.full_name or "").strip() or user.username
             guild_name = (
@@ -547,7 +569,7 @@ async def _register_account(
 
     # Everything from here is about the account, so it is read on the
     # account's own platform path.
-    await set_rls_context(session, user_id=user.id)
+    await set_rls_context(session, Platform(user_id=user.id))
     await session.refresh(user)
 
     if smtp_configured and not address_confirmed:
@@ -560,6 +582,8 @@ async def _register_account(
                     user_id=user.id,
                     purpose=UserTokenPurpose.email_verification,
                     expires_minutes=60 * 24,
+                    user_email_id=address_id,
+                    invite_id=awaiting_invite_id,
                 )
             await email_service.send_verification_email(session, user, token)
         except email_service.EmailNotConfiguredError:
@@ -1128,12 +1152,9 @@ async def issue_upload_token(
     # Copy the minting session's satisfied-provider set into the scoped token
     # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
-    satisfied = auth_context.satisfied_providers()
     token, expires_in = create_upload_token(
         user_id=current_user.id,
-        satisfied_providers=sorted(satisfied)
-        if isinstance(satisfied, frozenset)
-        else (),
+        satisfied_providers=sorted(auth_context.satisfied_providers()),
         satisfied_claims=auth_context.satisfied_claims(),
         session_amr=auth_context.session_amr(),
     )
@@ -1801,6 +1822,25 @@ async def _complete_provider_login(
             target_id=provider_row.id,
             detail={"provider": provider_row.slug, "matched_by": "verified_email"},
         )
+        # An address the account had not proved is proved here for the first
+        # time, and the account starts from that proof, as it does when an
+        # emailed code is the first proof.
+        retired = not await addresses.holds_address(
+            system_session, user_id=user.id, email=email
+        )
+        if retired:
+            # The proof, the retirement and the link land in one commit.
+            await addresses.retire_credentials_predating_proof(
+                system_session, user=user
+            )
+            await addresses.ensure_address(
+                system_session,
+                user_id=user.id,
+                email=email,
+                source=addresses.SOURCE_OIDC,
+                verified=True,
+                provider_id=provider_row.id,
+            )
         identity = await link_identity(
             system_session,
             user=user,
@@ -1808,6 +1848,9 @@ async def _complete_provider_login(
             subject=completion.subject,
             email_verified=email_verified,
         )
+        if retired:
+            # Connections opened on the credentials retired above close now.
+            await content_sockets.revoke_user_everywhere(user.id)
 
     # The address this provider asserts for the account. A provisioned account
     # already holds it; a linked one existed first, so this is where a work
@@ -2070,36 +2113,6 @@ async def provider_callback(
     )
 
 
-@router.post("/verification/send", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
-async def resend_verification_email(
-    request: Request,
-    session: SessionDep,
-    system_session: SystemSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> VerificationSendResponse:
-    if await addresses.has_proven_address(session, user_id=current_user.id):
-        return VerificationSendResponse(status="already_verified")
-    try:
-        token = await user_tokens.create_token(
-            system_session,
-            user_id=current_user.id,
-            purpose=UserTokenPurpose.email_verification,
-            expires_minutes=60 * 24,
-        )
-        await email_service.send_verification_email(session, current_user, token)
-    except email_service.EmailNotConfiguredError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.SMTP_NOT_CONFIGURED,
-        ) from None
-    except RuntimeError as exc:  # pragma: no cover
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
-        ) from exc
-    return VerificationSendResponse(status="sent")
-
-
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def confirm_verification(
@@ -2150,8 +2163,40 @@ async def confirm_verification(
 
     record.consumed_at = datetime.now(timezone.utc)
     system_session.add(record)
+    if record.invite_id is not None:
+        await _join_awaited_invite(
+            system_session, invite_id=record.invite_id, user=user
+        )
     await system_session.commit()
+    await cohorts.settle(system_session)
     return VerificationSendResponse(status="verified")
+
+
+async def _join_awaited_invite(
+    session: AsyncSession, *, invite_id: int, user: User
+) -> None:
+    """Join the guild a sign-up's invite was waiting on its address for.
+
+    The address is proved whether or not this goes through: an invite that
+    expired, filled up or was withdrawn in the meantime joins nothing, and the
+    person can be sent another.
+    """
+    invite = await session.get(GuildInvite, invite_id)
+    if invite is None:
+        return
+    try:
+        async with session.begin_nested():
+            await guilds_service.redeem_invite_for_user(
+                session, code=invite.code, user=user
+            )
+    except (
+        guilds_service.GuildInviteError,
+        guilds_service.GuildCapacityError,
+        guilds_service.AgeConfirmationRequiredError,
+    ) as exc:
+        logger.info(
+            "Invite %s not joined on confirming user %s: %s", invite_id, user.id, exc
+        )
 
 
 async def _post_reset_letter(user_id: int, token: str) -> None:
@@ -2251,6 +2296,9 @@ async def reset_password(
         actor_user_id=user.id,
         detail={"via": "reset"},
     )
+    # The link proved the inbox, so the new password is not held back by wrong
+    # answers counted before it.
+    await sign_in_locks.lift(system_session, user.id)
     # Bump token_version and revoke device tokens / API keys / refresh sessions
     # so no stale credential (JWT or captured refresh) survives either.
     # ``token_version`` is bumped on ``user``, which is bound to the system

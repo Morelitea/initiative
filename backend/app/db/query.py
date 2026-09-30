@@ -6,17 +6,19 @@ Provides composable functions that transform SQLAlchemy Select statements:
 - apply_sorting: adds ORDER BY clauses from SortField list or comma-separated strings
 - apply_pagination: adds OFFSET/LIMIT
 - paginated_query: executes count + data queries, clamps page, returns (items, total, page)
+- ids_in: ``column = ANY(:ids)`` with the ids bound as one array
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from datetime import date, datetime
 from typing import Any
 
 from pydantic import ValidationError
-from sqlalchemy import Select, and_, asc, desc, not_, or_
+from sqlalchemy import Select, and_, any_, asc, bindparam, desc, not_, or_
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.schemas.query import FilterCondition, FilterGroup, FilterOp, SortField, SortDir
@@ -578,3 +580,13 @@ def build_paginated_response(
         "has_prev": page > 1,
         **extra,
     }
+
+
+def ids_in(column: Any, ids: Iterable[Any]) -> Any:
+    """``column = ANY(:ids)`` — one bound array of the column's type, however
+    many ids there are.
+
+    For id sets that grow with the data (a whole roster, a subtree): ``in_``
+    binds one parameter per value, and a statement carries at most 32,767.
+    """
+    return column == any_(bindparam(None, list(ids), type_=ARRAY(column.type)))

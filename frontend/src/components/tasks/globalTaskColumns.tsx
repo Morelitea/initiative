@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { summarizeRecurrence } from "@/lib/recurrence";
+import { summarizeStored } from "@/lib/recurrence";
 import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
@@ -225,12 +225,10 @@ export function globalTaskColumns({
       cell: ({ row }) => {
         const task = row.original;
         const recurrenceSummary = task.recurrence
-          ? summarizeRecurrence(
+          ? summarizeStored(
               task.recurrence,
-              {
-                referenceDate: task.start_date || task.due_date,
-                strategy: task.recurrence_strategy,
-              },
+              task.due_date || task.start_date,
+              { strategy: task.recurrence_strategy, shift: task.recurrence_shift },
               t
             )
           : null;

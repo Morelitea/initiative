@@ -3,9 +3,9 @@ member token that follows.
 
 An app asks on its installation token (``POST /app-platform/consent-requests``)
 for one purpose; the member is notified and answers on their consent screen
-(``/c/{guild_id}/apps/{app_id}/consents``); the app then presents a JWT-bearer
-assertion at the token endpoint and is issued a member token only while that
-answer stands. The token's reach is the install standing's member branch
+(``/c/{guild_id}/apps/{app_id}/consents/{consent_id}``); the app then presents
+a JWT-bearer assertion at the token endpoint and is issued a member token only
+while that answer stands. The token's reach is the install standing's member branch
 (``app/db/member_standing_test.py``); here the probe route reads through it.
 """
 
@@ -146,10 +146,10 @@ async def _answer(client, member, installed, consent_id: int, access: str):
 
 async def _consent_id(client, member, installed) -> int:
     listed = await client.get(
-        member.g(f"/apps/{installed.app.id}/consents"), headers=member.headers
+        member.g(f"/apps/{installed.app.id}"), headers=member.headers
     )
     assert listed.status_code == 200, listed.text
-    (row,) = listed.json()
+    (row,) = listed.json()["consents"]
     return row["id"]
 
 
@@ -309,9 +309,9 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     consent_id = await _consent_id(client, member, installed)
 
     theirs = await client.get(
-        other.g(f"/apps/{installed.app.id}/consents"), headers=other.headers
+        other.g(f"/apps/{installed.app.id}"), headers=other.headers
     )
-    assert theirs.json() == []
+    assert theirs.json()["consents"] == []
     not_theirs = await _answer(client, other, installed, consent_id, "read")
     assert not_theirs.status_code == 404
     assert not_theirs.json()["detail"] == GuildAppMessages.CONSENT_NOT_FOUND
@@ -336,9 +336,9 @@ async def test_the_member_answers_and_nobody_else_sees_it(
     )
     assert withdrawn.status_code == 204
     listed = await client.get(
-        member.g(f"/apps/{installed.app.id}/consents"), headers=member.headers
+        member.g(f"/apps/{installed.app.id}"), headers=member.headers
     )
-    assert listed.json()[0]["status"] == "revoked"
+    assert listed.json()["consents"][0]["status"] == "revoked"
 
 
 async def test_an_api_key_cannot_answer(
@@ -437,6 +437,44 @@ async def test_a_member_token_waits_for_the_answer(
     )
     assert read.status_code == 200, read.text
     assert read.json() == {"member": member.user.id, "documents": ["Theirs"]}
+
+
+async def test_a_member_token_is_issued_within_the_ceiling(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """Narrowing the registration's ceiling narrows the member's next token as
+    it does the installation's."""
+    from app.models.platform.app_service_registration import AppServiceRegistration
+    from app.services.marketplace import registration_lookup
+    from app.testing.app_clients import CLIENT
+
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["documents:write", "comments:read"],
+    )
+    member = await _member(acting_user, installed)
+    member_ref = await _ref(installed, member.user.id)
+    await _ask(client, installed, member=member_ref, purpose="node-1")
+    consent_id = await _consent_id(client, member, installed)
+    await _answer(client, member, installed, consent_id, "read_write")
+
+    registration = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == CLIENT
+            )
+        )
+    ).one()
+    registration.scope_ceiling = ["comments:read"]
+    session.add(registration)
+    await session.commit()
+    registration_lookup.invalidate_registrations()
+
+    issued = await _grant_token(client, installed, member_ref)
+    assert issued.status_code == 200, issued.text
+    assert issued.json()["scope"] == "comments:read"
 
 
 async def test_a_consent_bound_to_an_initiative_issues_only_narrowed_tokens(

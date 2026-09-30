@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { EntityType, TrashItem } from "@/api/generated/initiativeAPI.schemas";
+import { PaginationBar } from "@/components/PaginationBar";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,9 @@ import { getErrorMessage } from "@/lib/errorMessage";
  */
 type TrashVariant = "user" | "guild";
 
+/** Rows per page. */
+const TRASH_PAGE_SIZE = 25;
+
 interface TrashTableProps {
   variant: TrashVariant;
   // Whether to show the admin-only "Delete now" column. The backend also
@@ -42,9 +46,18 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
   const { t } = useTranslation("trash");
   // Hooks must run unconditionally; pick the active query by variant. The
   // unused one is disabled so it never fires a request.
-  const myTrash = useMyTrashList({ enabled: variant === "user" });
-  const guildTrash = useGuildTrashList({ enabled: variant === "guild" });
+  const [page, setPage] = useState(1);
+  const params = { page, page_size: TRASH_PAGE_SIZE };
+  const myTrash = useMyTrashList(params, { enabled: variant === "user" });
+  const guildTrash = useGuildTrashList(params, { enabled: variant === "guild" });
   const { data, isLoading } = variant === "user" ? myTrash : guildTrash;
+
+  // Restoring or purging the last row of the last page leaves that page empty;
+  // step back to the one before rather than showing nothing.
+  const pastTheEnd = data !== undefined && data.items.length === 0 && data.page > 1;
+  useEffect(() => {
+    if (pastTheEnd) setPage((current) => Math.max(1, current - 1));
+  }, [pastTheEnd]);
 
   const [purgeConfirm, setPurgeConfirm] = useState<
     | { open: false }
@@ -86,7 +99,7 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
     );
   }
 
-  if (items.length === 0) {
+  if (!data || data.total_count === 0) {
     return <p className="text-muted-foreground text-sm">{t("empty")}</p>;
   }
 
@@ -174,6 +187,16 @@ export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
           </TableBody>
         </Table>
       </div>
+      {data.has_prev || data.has_next ? (
+        <PaginationBar
+          className="mt-4"
+          page={data.page}
+          pageSize={data.page_size}
+          totalCount={data.total_count}
+          hasNext={data.has_next}
+          onPageChange={setPage}
+        />
+      ) : null}
 
       {purgeConfirm.open && (
         <ConfirmDialog

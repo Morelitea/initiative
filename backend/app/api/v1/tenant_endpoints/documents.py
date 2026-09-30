@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
@@ -167,12 +168,13 @@ def _file_download_response(
         or "html" in normalized_type
     ):
         if inline:
-            # Disable scripts (stored-XSS hardening) but allow the file to be
-            # framed by the same-origin in-app document viewer. X-Frame-Options
-            # set here overrides the SecurityHeadersMiddleware global DENY (it
-            # uses setdefault); frame-ancestors 'self' is the CSP equivalent.
+            # Shown as a static page: sandboxed, with no scripts and no forms,
+            # and framed only by the in-app document viewer on this origin.
+            # X-Frame-Options set here overrides the SecurityHeadersMiddleware
+            # global DENY (it uses setdefault); frame-ancestors 'self' is the
+            # CSP equivalent.
             headers["Content-Security-Policy"] = (
-                "script-src 'none'; frame-ancestors 'self'"
+                "sandbox; script-src 'none'; form-action 'none'; frame-ancestors 'self'"
             )
             headers["X-Frame-Options"] = "SAMEORIGIN"
         else:
@@ -401,6 +403,7 @@ async def create_document(
         body=document.content,
         author_id=guild_context.user_id,
     )
+    await attachments_service.claim_uploads(session, document)
 
     await session.commit()
     return await read_after_write(session, document.id, current_user, guild_context)
@@ -479,6 +482,7 @@ async def upload_document_file(
         data=contents,
         content_type=mime_type,
         created_by=current_user.id,
+        initiative_id=initiative.id,
     )
 
     # Create document record. A picture is its own featured image, set here so
@@ -618,6 +622,7 @@ async def upload_document_version(
         data=contents,
         content_type=mime_type,
         created_by=current_user.id,
+        initiative_id=document.initiative_id,
     )
 
     max_version = await session.scalar(
@@ -771,12 +776,12 @@ async def delete_document_version(
                     document.featured_image_url = promoted.file_url
                 else:
                     document.featured_image_url = None
-    await session.flush()
-
-    released = await attachments_service.release_uploads(session, [deleted_url])
     await session.commit()
 
-    # Delete the blob after the row is gone so a failed commit doesn't orphan files.
+    # Once the version is gone, and only if nothing else shows its file.
+    released = await attachments_service.release_unshown(
+        guild_context.guild_id, [deleted_url]
+    )
     attachments_service.delete_blobs(guild_context.guild_id, released)
 
 
@@ -831,7 +836,6 @@ async def update_document(
     update_data = document_in.model_dump(exclude_unset=True)
     removed_upload_urls: set[str] = set()
     released: set[str] = set()
-    previous_content_urls = attachments_service.extract_upload_urls(document.content)
     previous_featured_url = document.featured_image_url
 
     if "name" in update_data:
@@ -873,6 +877,10 @@ async def update_document(
             detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
         )
     if "content" in update_data:
+        await session.refresh(document, ["content"])
+        previous_content_urls = attachments_service.extract_upload_urls(
+            document.content
+        )
         try:
             document.content = documents_service.normalize_document_content(
                 update_data["content"],
@@ -915,15 +923,15 @@ async def update_document(
                 body=document.content,
                 author_id=guild_context.user_id,
             )
+        await attachments_service.claim_uploads(session, document)
         # What the edit took out goes once nothing else shows it. An installed
         # app does not manage the community's uploads; what its edit let go of
         # stays for a person to clear.
-        if current_user is not None and removed_upload_urls:
-            await session.flush()
-            released = await attachments_service.release_uploads(
-                session, removed_upload_urls
-            )
         await session.commit()
+        if current_user is not None and removed_upload_urls:
+            released = await attachments_service.release_unshown(
+                guild_context.guild_id, removed_upload_urls
+            )
         # Invalidate any in-memory collaboration room so the next session
         # loads fresh state from the database. If a room has active
         # collaborators their in-memory state wins until they disconnect.
@@ -1105,6 +1113,7 @@ async def generate_summary(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.AI_NATIVE_ONLY,
         )
+    await session.refresh(document, ["content"])
 
     # Written down before the request goes out, since the disclosure does not
     # wait on the reply: which document, which connection, which provider, and
@@ -1412,8 +1421,9 @@ async def import_spreadsheet_file(
         )
 
     try:
-        sheets = spreadsheet_import.parse_spreadsheet_file(
-            file.filename or "", contents
+        # Parsing a workbook is CPU work, so it runs off the event loop.
+        sheets = await asyncio.to_thread(
+            spreadsheet_import.parse_spreadsheet_file, file.filename or "", contents
         )
     except documents_service.DocumentContentError as exc:
         raise HTTPException(

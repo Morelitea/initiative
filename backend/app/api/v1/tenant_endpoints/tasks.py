@@ -22,12 +22,14 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
+from app.core import recurrence
 from app.core.audit_events import AuditEventType
 from app.core.messages import ChecklistMessages, TaskMessages
 from app.db.query import build_paginated_response, paginated_query
 from app.db.session import routed_guild_id
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
+from app.models.tenant.comment import Comment
 from app.models.tenant.project import Project
 from app.models.tenant.property import TaskPropertyValue
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
@@ -45,7 +47,6 @@ from app.schemas.tenant.task import (
     TaskMoveRequest,
     TaskRead,
     TaskReorderRequest,
-    TaskRecurrence,
     TaskUpdate,
 )
 from app.services import ai_generation as ai_generation_service
@@ -362,17 +363,16 @@ async def create_task(
             "tag_ids",
             "property_values",
             "checklist",
+            "tz",
         }
     )
-
-    # Serialize recurrence to JSON if present
-    if task_data.get("recurrence") is not None:
-        if isinstance(task_data["recurrence"], TaskRecurrence):
-            task_data["recurrence"] = task_data["recurrence"].model_dump(mode="json")
-        elif isinstance(task_data["recurrence"], dict):
-            # Already a dict, convert to model and back to ensure proper serialization
-            recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
-            task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
+    if task_data.get("recurrence"):
+        task_data["recurrence"], task_data["recurrence_shift"] = recurrence.stored(
+            task_data["recurrence"],
+            task_data.get("due_date") or task_data.get("start_date"),
+            task_in.tz,
+            kind="task",
+        )
 
     task_data.pop("project_id", None)
     task = await task_creation_service.create_task_row(
@@ -430,6 +430,7 @@ async def create_task(
             previous=None,
             author=current_user,
         )
+    await attachments_service.claim_uploads(session, task)
 
     _touch_project(project, datetime.now(timezone.utc))
     await session.commit()
@@ -471,6 +472,8 @@ async def update_task(
     tag_ids = update_data.pop("tag_ids", None)
     property_values = update_data.pop("property_values", None)
     checklist_sent = update_data.pop("checklist", None) is not None
+    picked_in = update_data.pop("tz", None)
+    previous_start = task.due_date or task.start_date
     previous_description = task.description
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
@@ -496,15 +499,19 @@ async def update_task(
                 setattr(task, field, None)
                 task.recurrence_strategy = "fixed"
                 continue
-            if isinstance(value, TaskRecurrence):
-                value = value.model_dump(mode="json")
-            elif isinstance(value, dict):
-                # Already a dict, convert to model and back to ensure proper serialization
-                recurrence_obj = TaskRecurrence.model_validate(value)
-                value = recurrence_obj.model_dump(mode="json")
         if field == "recurrence_strategy" and value is None:
             continue
         setattr(task, field, value)
+    start = task.due_date or task.start_date
+    if update_data.get("recurrence"):
+        task.recurrence, task.recurrence_shift = recurrence.stored(
+            update_data["recurrence"], start, picked_in, kind="task"
+        )
+    elif task.recurrence and previous_start and start and start != previous_start:
+        # The repeat moves with its start, its days kept as they were picked.
+        task.recurrence, task.recurrence_shift = recurrence.restarted(
+            task.recurrence, task.recurrence_shift, previous_start, start, picked_in
+        )
     if checklist_sent:
         task.checklist = checklist_service.normalize(
             task_in.checklist or [], existing=task.checklist
@@ -574,7 +581,7 @@ async def update_task(
         await session.rollback()
         raise
 
-    released_images: set[str] = set()
+    let_go: set[str] = set()
     if task.description != previous_description:
         await task_description_service.description_saved(
             session,
@@ -585,16 +592,17 @@ async def update_task(
         # An installed app does not manage the community's uploads; a picture
         # its edit took out of the description stays for a person to clear.
         if current_user is not None:
-            released_images = await attachments_service.release_pasted_images(
-                session,
-                attachments_service.upload_urls_in_markdown(previous_description)
-                - attachments_service.upload_urls_in_markdown(task.description),
-                leaving={Task: {task.id}},
-            )
+            let_go = attachments_service.upload_urls_in_markdown(
+                previous_description
+            ) - attachments_service.upload_urls_in_markdown(task.description)
+    await attachments_service.claim_uploads(session, task)
 
     _touch_project(project, now)
     await session.commit()
     # A picture taken out of the description goes once the edit has landed.
+    released_images = await attachments_service.release_unshown(
+        guild_context.guild_id, let_go, pasted_only=True
+    )
     attachments_service.delete_blobs(guild_context.guild_id, released_images)
     return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
 
@@ -656,6 +664,10 @@ async def move_task(
         project=target_project,
         carried=True,
     )
+    # The files the task and its conversation show are kept for the
+    # destination's initiative.
+    comments = await session.exec(select(Comment).where(Comment.task_id == task.id))
+    await attachments_service.claim_uploads(session, task, *comments.all())
 
     _touch_project(source_project, now)
     _touch_project(target_project, now)
@@ -688,6 +700,7 @@ async def duplicate_task(
         start_date=original_task.start_date,
         due_date=original_task.due_date,
         recurrence=original_task.recurrence,
+        recurrence_shift=original_task.recurrence_shift,
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by=current_user.id,
@@ -714,8 +727,7 @@ async def duplicate_task(
     await tags_service.copy_entity_tags(
         session,
         tags_service.TAG_LINKS["task"],
-        source_id=original_task.id,
-        target_id=new_task.id,
+        {original_task.id: new_task.id},
     )
 
     # Copy property values — duplicate stays in the same project and

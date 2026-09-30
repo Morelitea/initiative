@@ -23,7 +23,7 @@ from app.api.deps import (
     require_capability,
     SystemSessionDep,
 )
-from app.core.capabilities import Capability, user_has_capability
+from app.core.capabilities import Capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
 from app.models.platform.user import User
@@ -75,6 +75,7 @@ _ERROR_STATUS: dict[str, int] = {
     "CANNOT_APPROVE_OWN": status.HTTP_400_BAD_REQUEST,
     "CANNOT_CANCEL_OTHERS": status.HTTP_403_FORBIDDEN,
     "ALREADY_LIVE": status.HTTP_409_CONFLICT,
+    "GRANTEE_INELIGIBLE": status.HTTP_409_CONFLICT,
 }
 _ERROR_DETAIL: dict[str, str] = {
     "GUILD_NOT_FOUND": AccessGrantMessages.GUILD_NOT_FOUND,
@@ -86,6 +87,7 @@ _ERROR_DETAIL: dict[str, str] = {
     "CANNOT_APPROVE_OWN": AccessGrantMessages.CANNOT_APPROVE_OWN,
     "CANNOT_CANCEL_OTHERS": AccessGrantMessages.CANNOT_CANCEL_OTHERS,
     "ALREADY_LIVE": AccessGrantMessages.ALREADY_LIVE,
+    "GRANTEE_INELIGIBLE": AccessGrantMessages.GRANTEE_INELIGIBLE,
 }
 
 
@@ -182,7 +184,7 @@ async def check_second_factor(
     who needs to reach a community; the passkey, because a holder who signs in
     with one has no reason to keep an authenticator app as well.
     """
-    if not await service.demands_second_factor(session):
+    if not await service.demands_second_factor(session, actor=actor):
         return
 
     # Read once: a refused assertion may put the transaction back, and the row
@@ -240,7 +242,7 @@ async def break_glass_requirements(
     The form reads this to know whether to offer a code field, whether the
     caller has a factor to answer with, and the longest window it may ask for.
     """
-    required = await service.demands_second_factor(session)
+    required = await service.demands_second_factor(session, actor=current_user)
     return BreakGlassRequirements(
         second_factor_required=required,
         max_duration_minutes=service.break_glass_max_minutes(current_user.role),
@@ -430,28 +432,6 @@ async def read_access_grant_limits(
     return AccessGrantLimits(
         max_duration_minutes=service.max_minutes_for_role(current_user.role),
     )
-
-
-@router.get("/{grant_id}", response_model=AccessGrantRead)
-async def get_access_grant(
-    grant_id: int,
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> AccessGrantRead:
-    grant = await service.get_grant(session, grant_id)
-    if grant is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
-        )
-    # Owners of the request, or approvers, may view it.
-    if grant.user_id != current_user.id and not user_has_capability(
-        current_user, Capability.ACCESS_APPROVE
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
-        )
-    return await _one(grant)
 
 
 @router.post("/{grant_id}/approve", response_model=AccessGrantRead)

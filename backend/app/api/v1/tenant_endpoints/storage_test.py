@@ -18,13 +18,17 @@ from app.testing import create_upload
 async def test_storage_usage_sums_guild_bytes(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
+    """Every file counts, including one the admin cannot read: another
+    member's that is not saved anywhere yet."""
     a = await acting_user(guild_role=GuildRole.admin)
+    other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     await create_upload(session, a.guild, a.user, size_bytes=2048)
     await create_upload(session, a.guild, a.user, size_bytes=52)
+    await create_upload(session, a.guild, other.user, size_bytes=900)
 
     response = await client.get(a.g("/storage/usage"), headers=a.headers)
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_id": a.guild.id, "usage_bytes": 2100}
+    assert response.json() == {"guild_id": a.guild.id, "usage_bytes": 3000}
 
 
 async def test_storage_usage_zero_for_empty_guild(client: AsyncClient, acting_user):

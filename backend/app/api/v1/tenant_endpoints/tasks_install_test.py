@@ -207,27 +207,27 @@ async def test_a_write_needs_the_write_scope(
     gid = installed.guild.id
 
     attempts = [
-        client.post(
+        lambda: client.post(
             guild_url(gid, "/tasks/"),
             headers=headers,
             json={"project_id": project.id, "title": "No"},
         ),
-        client.patch(
+        lambda: client.patch(
             guild_url(gid, f"/tasks/{task.id}"), headers=headers, json={"title": "No"}
         ),
-        client.post(
+        lambda: client.post(
             guild_url(gid, f"/tasks/{task.id}/move"),
             headers=headers,
             json={"target_project_id": other.id},
         ),
-        client.patch(
+        lambda: client.patch(
             guild_url(gid, f"/tasks/{task.id}/checklist/item1"),
             headers=headers,
             json={"done": True},
         ),
     ]
     for attempt in attempts:
-        response = await attempt
+        response = await attempt()
         assert response.status_code == 403, response.text
         assert response.json()["detail"] == AppMessages.SCOPE_REQUIRED
 

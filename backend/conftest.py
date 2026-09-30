@@ -41,11 +41,14 @@ from app.db.session import (
     clear_rls_context,
     get_system_session,
     get_session,
+    prepare_query_engine,
     served_guild_id,
 )
+from app.testing import guild_pool
 from app.testing.schema_harness import clear_search_path_pin
+from app.db.guild_ddl import render_guild_schema_ddl
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
-from app.db.schema_provisioning import drop_guild_schema
+from app.db.schema_provisioning import guild_schema_name
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
@@ -346,6 +349,13 @@ async def _apply_public_rls() -> None:
         await engine.dispose()
 
 
+async def _narrow_set_config() -> None:
+    """Take ``set_config`` from ``PUBLIC``, as boot does after migrating."""
+    from app.db.bootstrap import ensure_set_config_narrowed
+
+    assert await ensure_set_config_narrowed(bootstrap_url=TEST_DATABASE_URL)
+
+
 async def _retire_public_authorization_copies() -> None:
     """Drop the ``public`` copies of the guild functions, as boot does after
     the back-fill. The migrations create them; a provisioned schema binds its
@@ -361,6 +371,17 @@ async def _retire_public_authorization_copies() -> None:
         async with engine.begin() as conn:
             await strip_template_registry_objects(conn)
         await drop_public_copies(engine)
+    finally:
+        await engine.dispose()
+
+
+async def _install_guild_pool() -> None:
+    """Set up the guild schema pool on the worker's database (see
+    ``app/testing/guild_pool.py``). After the migrations, whose own DDL is
+    not a test's."""
+    engine = create_async_engine(TEST_DATABASE_URL)
+    try:
+        await guild_pool.install(engine)
     finally:
         await engine.dispose()
 
@@ -423,9 +444,11 @@ def _run_test_migrations() -> None:
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
     asyncio.run(_apply_public_rls())
+    asyncio.run(_narrow_set_config())
     asyncio.run(_retire_public_authorization_copies())
     asyncio.run(_grant_test_temporary())
     asyncio.run(_set_db_statement_timeout())
+    asyncio.run(_install_guild_pool())
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -642,6 +665,9 @@ async def reading_as(role_session):
 # created a guild schema pays for the catalog scan + DROP SCHEMA/ROLE.
 _provisioned_guild_ids: set[int] = set()
 
+#: Whether the CURRENT test reuses pooled guild schemas (``guild_pool``).
+_pooling = False
+
 #: How many cohorts the suite divides communities into. More than one, so the
 #: paths that give each community a session of its own are the ones exercised.
 _TEST_COHORTS = 2
@@ -691,11 +717,13 @@ def _worker_engines() -> _WorkerEngines:
     engines = _WorkerEngines(
         superuser=_make("superuser"),
         system=_make("app_admin"),
-        query=_make("app_user"),
+        query=prepare_query_engine(_make("app_user")),
         app=_make("app_user"),
         cohort_request=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
         cohort_system=tuple(_make("app_admin") for _ in range(_TEST_COHORTS)),
-        cohort_query=tuple(_make("app_user") for _ in range(_TEST_COHORTS)),
+        cohort_query=tuple(
+            prepare_query_engine(_make("app_user")) for _ in range(_TEST_COHORTS)
+        ),
     )
     # Two cohorts, each with a request, a system and a query pool on this
     # worker's database, so every test that reaches a community through a
@@ -712,7 +740,7 @@ def _worker_engines() -> _WorkerEngines:
 
 
 @pytest.fixture(autouse=True)
-async def _schema_test_harness(engine, _worker_engines, monkeypatch):
+async def _schema_test_harness(engine, _worker_engines, monkeypatch, request):
     """Make every test schema-per-guild aware.
 
     - Installs the before_flush router so direct-session (factory) guild-scoped
@@ -732,7 +760,8 @@ async def _schema_test_harness(engine, _worker_engines, monkeypatch):
     - Wraps ``provision_guild`` (the universal provisioning choke point — factory,
       guild endpoints, backfill, and conversion all route through it) to record
       which guilds got a schema this test, so teardown can skip its cleanup scan
-      when none did.
+      when none did, and to hand out a pooled schema where one is parked
+      (``app/testing/guild_pool.py``).
     """
     import app.db.schema_provisioning as schema_provisioning
     import app.db.session as db_session
@@ -783,14 +812,31 @@ async def _schema_test_harness(engine, _worker_engines, monkeypatch):
     monkeypatch.setattr(settings, "DB_COHORTS", _TEST_COHORTS)
     monkeypatch.setattr(cohorts, "STRICT", True)
 
+    global _pooling
+    _pooling = (
+        guild_pool.ENABLED
+        and request.node.get_closest_marker("fresh_guild_schema") is None
+    )
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
 
     async def _tracking_provision_guild(*args: Any, **kwargs: Any) -> str:
         gid = kwargs.get("guild_id", args[0] if args else None)
-        if gid is not None:
-            _provisioned_guild_ids.add(int(gid))
-        return await _orig_provision_guild(*args, **kwargs)
+        if gid is None:
+            return await _orig_provision_guild(*args, **kwargs)
+        gid = int(gid)
+        _provisioned_guild_ids.add(gid)
+        # A pooled schema was built from the harness's render, so it serves
+        # only a test provisioning from that same render.
+        if not _pooling or schema_provisioning._bundle is not _template_bundle:
+            return await _orig_provision_guild(*args, **kwargs)
+        activated = await guild_pool.activate(engine, gid, _template_bundle.stamp)
+        if activated:
+            return guild_schema_name(gid)
+        schema = await _orig_provision_guild(*args, **kwargs)
+        if activated is False:
+            await guild_pool.adopt(engine, gid)
+        return schema
 
     monkeypatch.setattr(
         schema_provisioning, "provision_guild", _tracking_provision_guild
@@ -869,14 +915,22 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
         # superuser cleanup below to run unrouted.
         await bound_conn.rollback()
 
+    # Work a commit started on a session of its own (joining a community's
+    # auto-join initiatives, say) finishes before the tables it reads are
+    # emptied or dropped below. After the rollback, so that work is not left
+    # waiting on a lock the test's own transaction held.
+    await cohorts.settle_all()
+
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
-    # connection: drop the per-guild schemas and roles provisioned during the test
-    # (cluster-global roles must not leak between tests — guild ids restart with
-    # the identity below), then truncate public. Only a test that provisioned a
-    # guild schema (tracked in _provisioned_guild_ids) pays for the catalog scan.
+    # connection: park the pooled guild schemas the test used and drop the rest,
+    # with their roles (cluster-global roles must not leak between tests — guild
+    # ids restart with the identity below), then truncate public. Only a test
+    # that provisioned a guild schema (tracked in _provisioned_guild_ids) or ran
+    # DDL on one pays for the catalog scan.
+    changed = await guild_pool.take_changed(engine)
     guild_ids: list[int] = []
-    if _provisioned_guild_ids:
+    if _provisioned_guild_ids or changed:
         async with engine.connect() as conn:
             guild_ids = [
                 int(schema.removeprefix("guild_"))
@@ -894,8 +948,17 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     # transaction, which several xdist workers doing it at once can exhaust
     # (``max_locks_per_transaction`` sizes one shared table for the cluster).
     for guild_id in guild_ids:
-        async with engine.begin() as conn:
-            await drop_guild_schema(conn, guild_id)
+        if (
+            _pooling
+            and guild_schema_name(guild_id) not in changed
+            and await guild_pool.park(engine, guild_id)
+        ):
+            continue
+        await guild_pool.drop(engine, guild_id)
+    template_changed = (
+        guild_pool.TEMPLATE in changed
+        and await render_guild_schema_ddl(engine) != _template_bundle.schema_ddl
+    )
 
     # Truncate the SHARED (public-schema) tables to reset state — one
     # multi-table TRUNCATE (a single round-trip) instead of one statement
@@ -914,6 +977,14 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
             text(f"TRUNCATE TABLE {shared_tables} RESTART IDENTITY CASCADE")
         )
         await conn.execute(text("SET session_replication_role = 'origin'"))
+
+    if template_changed:
+        pytest.fail(
+            "This test changed guild_template and left it changed. Every guild "
+            "this worker provisions is rendered from the template as it was "
+            "when the run started, so later tests would not see the change.",
+            pytrace=False,
+        )
 
 
 @pytest.fixture
@@ -1109,6 +1180,25 @@ async def acting_user(session):
     from app.testing.actor import make_actor
 
     return functools.partial(make_actor, session)
+
+
+@pytest.fixture
+async def account_socket():
+    """Open a notification-stream socket for an account
+    (``app.testing.sockets.open_account_socket``); each leaves the register at
+    teardown."""
+    from app.services.content_sockets import sockets
+    from app.testing.sockets import open_account_socket
+
+    opened: list = []
+
+    def open_(user_id: int, websocket=None, **kwargs):
+        opened.append(open_account_socket(user_id, websocket, **kwargs))
+        return opened[-1]
+
+    yield open_
+    for websocket in opened:
+        sockets.leave(websocket)
 
 
 @pytest.fixture

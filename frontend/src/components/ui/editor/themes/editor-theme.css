@@ -144,6 +144,55 @@
 .EditorTheme__callout > .callout-body > :first-child {
   margin-top: 0;
 }
+/* Where the page can be edited, a callout's icon opens its menu. An embed
+ * draws the same panel and has none. */
+[contenteditable="true"] .EditorTheme__callout:not([data-lexical-decorator]) > .callout-icon {
+  cursor: pointer;
+}
+/* Folding: a callout folds to its first line. The button shows only when
+ * there is something below that line to fold away. */
+.EditorTheme__callout:has(> .callout-toggle) {
+  padding-right: 2.5rem;
+}
+.EditorTheme__callout > .callout-toggle {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.7rem;
+  display: flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  color: var(--callout-color);
+  cursor: pointer;
+  user-select: none;
+}
+.EditorTheme__callout > .callout-toggle:hover {
+  background-color: color-mix(in srgb, var(--callout-color) 15%, transparent);
+}
+.EditorTheme__callout > .callout-toggle::before {
+  content: "";
+  width: 1rem;
+  height: 1rem;
+  background-color: currentColor;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  transition: transform 150ms;
+}
+.EditorTheme__callout[data-collapsed] > .callout-toggle::before {
+  transform: rotate(-90deg);
+}
+.EditorTheme__callout:not(:has(> .callout-body > :nth-child(2))) > .callout-toggle {
+  display: none;
+}
+.EditorTheme__callout[data-collapsed] > .callout-body > :not(:first-child) {
+  display: none;
+}
 .EditorTheme__callout[data-callout="info"] {
   --callout-color: #2563eb;
   --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2210%22/%3E%3Cpath d=%22M12 16v-4%22/%3E%3Cpath d=%22M12 8h.01%22/%3E%3C/svg%3E");

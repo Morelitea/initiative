@@ -13,6 +13,7 @@ honest:
   rows come from one declaration, and this is what keeps them there.
 """
 
+import pytest
 from sqlalchemy import text
 
 from app.core.reactions import ReactionTarget
@@ -36,6 +37,8 @@ from app.db.tenancy import (
     OWN_ROW_TABLES,
     SEAT_TABLES,
 )
+
+pytestmark = pytest.mark.always
 
 _EXPECTED_POLICIES = {
     "initiative_member_select",
@@ -419,6 +422,7 @@ _NO_SINGLE_PARENT = {
     "property_definitions": "initiative configuration, not a tool's content",
     "resource_grants": "sharing itself; resource_access reads this table",
     "webhook_subscriptions": "integration config, gated by the initiative",
+    "uploads": "a stored file, gated by the initiative whose content shows it",
     # Gated on full access rather than sharing: the standing that opens these
     # is the one that already reaches every resource, so there is no per-resource
     # grant left to ask about.
@@ -543,8 +547,8 @@ _GID_QUERY_TRASH = 990_412
 #: normalises it the same way for every table, which is what makes that stable
 #: to compare.
 _QUERY_TRASH_QUAL = (
-    "((deleted_at IS NULL) OR (current_setting('app.query'::text, true)"
-    " IS DISTINCT FROM 'true'::text))"
+    "((deleted_at IS NULL) OR (( SELECT (current_setting('app.query'::text, true)"
+    " = 'true'::text)) IS NOT TRUE))"
 )
 
 

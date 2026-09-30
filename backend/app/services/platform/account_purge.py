@@ -27,6 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.user import User, UserStatus
+from app.db.request_context import Unattributed
 
 
 logger = logging.getLogger(__name__)
@@ -103,7 +104,7 @@ async def purge_due_accounts(session: AsyncSession, *, now: datetime) -> int:
     stepped over: an account whose erasure faults must not stop the queue
     behind it, and the next sweep tries it again.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     retention = await retention_days(session)
     if retention is None:
         # This deployment keeps deleted accounts. Nothing is erased on a timer.

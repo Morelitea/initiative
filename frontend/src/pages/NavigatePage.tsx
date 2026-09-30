@@ -89,7 +89,12 @@ export const NavigatePage = () => {
         if (activeGuildId !== parsedGuildId) {
           await switchGuild(parsedGuildId);
         }
-        router.navigate({ to: finalDestination, replace: true });
+        // A query (an event's `?occurrence=`) stays search rather than path.
+        router.navigate(
+          finalDestination.includes("?")
+            ? { href: finalDestination, replace: true }
+            : { to: finalDestination, replace: true }
+        );
       } catch (err) {
         console.error("Failed to follow smart link", err);
         setError(t("navigate.switchError"));

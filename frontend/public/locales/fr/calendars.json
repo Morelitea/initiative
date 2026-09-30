@@ -18,6 +18,7 @@
   "allDay": "Toute la journée",
   "color": "Couleur",
   "attendees": "Participants",
+  "repeat": "Répétition",
   "addAttendee": "Ajouter un participant",
   "noAttendees": "Aucun participant",
   "rsvp": "RSVP",
@@ -63,10 +64,6 @@
   "tags": "Étiquettes",
   "properties": "Propriétés",
   "today": "Aujourd'hui",
-  "export": {
-    "exportIcs": "Exporter .ics",
-    "exportError": "Échec de l'exportation des événements"
-  },
   "import": {
     "title": "Importer des événements",
     "importIcs": "Importer .ics",

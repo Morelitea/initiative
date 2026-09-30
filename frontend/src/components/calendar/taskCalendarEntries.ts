@@ -119,3 +119,17 @@ export function buildTaskCalendarEntries(
   if (due) return [dueMarker()];
   return [];
 }
+
+/**
+ * The entries for an upcoming occurrence of a repeating task: the series'
+ * current task with its dates moved there. It is not a task yet, so it is not
+ * dragged, and it opens the current task.
+ */
+export const buildTaskOccurrenceEntries = (
+  occurrence: TaskListRead,
+  color: string
+): CalendarEntry[] =>
+  buildTaskCalendarEntries(occurrence, color, false).map((entry) => ({
+    ...entry,
+    id: `${entry.id}@${occurrence.due_date}`,
+  }));

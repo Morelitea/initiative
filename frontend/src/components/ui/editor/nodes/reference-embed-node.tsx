@@ -8,6 +8,8 @@
  *
  * Like the link, it serializes `text` — the name it had when written — which
  * is what an export shows and what the search index reads.
+ *
+ * It folds to its name, and folded is saved with the page, as a callout's is.
  */
 
 import { addClassNamesToElement } from "@lexical/utils";
@@ -41,6 +43,9 @@ export type SerializedReferenceEmbedNode = Spread<
     entityId: number;
     /** The name as it read when written — the export and index fallback. */
     text: string;
+    /** Folded to its name. Absent in anything saved before embeds could fold,
+     * which reads as open. */
+    collapsed?: boolean;
   },
   SerializedLexicalNode
 >;
@@ -61,24 +66,42 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
   __entityType: SearchEntityType;
   __entityId: number;
   __text: string;
+  __collapsed: boolean;
 
   static getType(): string {
     return "reference-embed";
   }
 
   static clone(node: ReferenceEmbedNode): ReferenceEmbedNode {
-    return new ReferenceEmbedNode(node.__entityType, node.__entityId, node.__text, node.__key);
+    return new ReferenceEmbedNode(
+      node.__entityType,
+      node.__entityId,
+      node.__text,
+      node.__key,
+      node.__collapsed
+    );
   }
 
   static importJSON(serialized: SerializedReferenceEmbedNode): ReferenceEmbedNode {
-    return $createReferenceEmbedNode(serialized.entityType, serialized.entityId, serialized.text);
+    return $createReferenceEmbedNode(
+      serialized.entityType,
+      serialized.entityId,
+      serialized.text
+    ).setCollapsed(serialized.collapsed === true);
   }
 
-  constructor(entityType: SearchEntityType, entityId: number, text: string, key?: NodeKey) {
+  constructor(
+    entityType: SearchEntityType,
+    entityId: number,
+    text: string,
+    key?: NodeKey,
+    collapsed = false
+  ) {
     super(key);
     this.__entityType = entityType;
     this.__entityId = entityId;
     this.__text = text;
+    this.__collapsed = collapsed;
   }
 
   exportJSON(): SerializedReferenceEmbedNode {
@@ -87,6 +110,7 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
       entityType: this.__entityType,
       entityId: this.__entityId,
       text: this.__text,
+      collapsed: this.__collapsed,
       type: "reference-embed",
       version: 1,
     };
@@ -102,6 +126,16 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
 
   getTextContent(): string {
     return this.__text;
+  }
+
+  getCollapsed(): boolean {
+    return this.getLatest().__collapsed;
+  }
+
+  setCollapsed(collapsed: boolean): this {
+    const writable = this.getWritable();
+    writable.__collapsed = collapsed;
+    return writable;
   }
 
   /** Drawn as a callout — the same panel, colour and mark. */
@@ -148,6 +182,7 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
         entityType={this.__entityType}
         entityId={this.__entityId}
         fallback={this.__text}
+        collapsed={this.__collapsed}
         nodeKey={this.getKey()}
       />
     );

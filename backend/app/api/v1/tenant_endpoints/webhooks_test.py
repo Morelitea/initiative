@@ -21,6 +21,7 @@ from unittest.mock import patch
 
 
 from app.models.platform.guild import GuildRole
+from app.db.request_context import SystemGuild
 
 
 _WEBHOOK_HOST = "hooks.example.com"
@@ -103,7 +104,7 @@ async def test_dead_letter_count_is_visible_on_every_read(client, acting_user, s
     subscription_id = created.json()["id"]
     assert created.json()["dead_letter_count"] == 0
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await session.exec(
         sa_text(
             "INSERT INTO webhook_deliveries "
@@ -477,7 +478,8 @@ async def test_two_subscriptions_hold_unrelated_names_for_one_guild(
     client, acting_user
 ):
     """The property that makes the name worth minting: two receivers cannot put
-    their envelopes side by side and see the same guild."""
+    their envelopes side by side and see the same guild — and the list, which
+    names every row at once, gives each its own."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     with _mock_public_dns():
@@ -494,6 +496,16 @@ async def test_two_subscriptions_hold_unrelated_names_for_one_guild(
 
     assert first.json()["guild_ref"] != second.json()["guild_ref"]
     assert first.json()["created_by_ref"] != second.json()["created_by_ref"]
+
+    listing = await client.get(_url(a.guild.id), headers=a.headers)
+    listed = {
+        row["id"]: (row["guild_ref"], row["created_by_ref"]) for row in listing.json()
+    }
+    for created in (first.json(), second.json()):
+        assert listed[created["id"]] == (
+            created["guild_ref"],
+            created["created_by_ref"],
+        )
 
 
 async def test_the_name_a_subscription_is_given_is_the_one_it_keeps(

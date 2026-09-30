@@ -17,7 +17,6 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import docx
 import pytest
@@ -36,12 +35,14 @@ from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import DocumentType
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import storage as storage_module
 from app.services.export import worker as export_worker
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.storage import get_guild_storage
+from app.services.tenant import ical_service
 from app.testing import create_resource_grant, route_session_to_guild
 from app.testing.factories import (
     assign_tag,
@@ -470,6 +471,44 @@ async def test_jobs_are_own_row_isolated(
     ] == [job_id]
 
 
+async def test_an_export_is_served_while_its_initiatives_are_reached(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    """The job records the initiatives its artifact holds, and the download
+    asks for each one that still exists: a member removed from one is refused,
+    and one deleted since the render, purged or in the trash, is skipped."""
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
+    a = await _actor_with_tasks(acting_user, session)
+    guild_id, initiative_id, user_id = a.guild.id, a.initiative.id, a.user.id
+    job_id = (await _export(client, a, "tasks")).json()["id"]
+    await _run_worker()
+
+    await route_session_to_guild(session, guild_id)
+    job = await session.get(ExportJob, job_id)
+    assert job.initiative_ids == [initiative_id]
+    job.initiative_ids = [initiative_id, initiative_id + 1000]
+    session.add(job)
+    await session.commit()
+    await _download(client, a, job_id)
+
+    await session.exec(
+        sa_delete(InitiativeMember).where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeMember.user_id == user_id,
+        )
+    )
+    await session.commit()
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.status_code == 403
+    assert dl.json()["detail"] == "EXPORT_OUT_OF_REACH"
+
+    initiative = await session.get(Initiative, initiative_id)
+    initiative.deleted_at = datetime.now(timezone.utc)
+    session.add(initiative)
+    await session.commit()
+    await _download(client, a, job_id)
+
+
 async def test_worker_renders_job_and_download_succeeds(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
@@ -550,6 +589,31 @@ async def test_project_report_formats_render_the_live_tasks_only(
         disposition_absent=(".initiative-project",),
         present=("Task 0", "Task 1", *_PROJECT_REPORTS[fmt]),
         absent=("Old news",),  # archived stays backup-only
+    )
+
+
+async def test_an_archived_projects_report_carries_the_tasks_archived_with_it(
+    client: AsyncClient, acting_user, session
+):
+    """Archiving the project stamps its tasks with the project's own time; the
+    report shows those, as the project's task list does, and still leaves out
+    a task archived on its own beforehand."""
+    a = await _actor_with_tasks(acting_user, session)
+    await create_task(
+        session, a.project, title="Old news", archived_at=datetime.now(timezone.utc)
+    )
+    archived = await client.post(
+        a.g(f"/archive/project/{a.project.id}"), headers=a.headers
+    )
+    assert archived.status_code == 200
+
+    resp = await _export(client, a, "project", project_id=a.project.id, format="csv")
+    _assert_export(
+        resp,
+        "csv",
+        disposition_absent=(".initiative-project",),
+        present=("Task 0", "Task 1"),
+        absent=("Old news",),
     )
 
 
@@ -1042,7 +1106,8 @@ async def test_an_artifact_past_its_expiry_is_not_served(
     client: AsyncClient, acting_user, session
 ):
     """Past ``expires_at`` a finished export is refused with 410 and reads as
-    ``expired`` — before GC has swept it as well as after."""
+    ``expired`` — before GC has swept it as well as after. So is one rendered
+    before the job recorded the initiatives it holds."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     storage = get_guild_storage(a.guild.id)
     key = "exports/515151.pdf"
@@ -1063,11 +1128,20 @@ async def test_an_artifact_past_its_expiry_is_not_served(
         status=ExportJobStatus.expired,
         expires_at=now - timedelta(days=1),
     )
+    unrecorded = await create_export_job(
+        session,
+        a.guild,
+        a.user,
+        status=ExportJobStatus.done,
+        artifact_ref=key,
+        expires_at=now + timedelta(days=1),
+    )
 
-    for job in (due, swept):
+    for job in (due, swept, unrecorded):
         dl = await client.get(a.g(f"/exports/{job.id}/download"), headers=a.headers)
         assert dl.status_code == 410, job.status
         assert dl.json()["detail"] == "EXPORT_EXPIRED"
+    for job in (due, swept):
         assert (await _job(client, a, job.id))["status"] == (
             ExportJobStatus.expired.value
         )
@@ -1141,6 +1215,37 @@ async def test_queue_export_json_envelope(client: AsyncClient, acting_user, sess
     assert items[0]["documents"] == ["Dungeon map"]
     assert items[0]["tasks"] == ["Prep loot"]
     assert items[1]["documents"] == [] and items[1]["tasks"] == []
+
+
+async def test_a_queue_envelope_records_the_initiatives_of_its_attachments(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    """A queue's envelope names what is attached to its items, so the job
+    records the initiative of an attached document beside the queue's own. A
+    report names only the queue's own fields, and records only its own."""
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
+    a, queue = await _queue_with_items(acting_user, session)
+    second = await create_initiative(session, a.guild, a.user, name="Second Front")
+    doc = await create_document(session, second, a.user, name="Far map")
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.queue_item, queue.current_item_id),
+        target=(SearchEntityType.document, doc.id),
+    )
+    guild_id, own, other = a.guild.id, a.initiative.id, second.id
+    jobs = {}
+    for fmt in ("json", "csv"):
+        resp = await _export(client, a, "queue", queue_id=queue.id, format=fmt)
+        jobs[fmt] = resp.json()["id"]
+        await _run_worker()
+
+    await route_session_to_guild(session, guild_id)
+    recorded = {
+        fmt: (await session.get(ExportJob, job_id)).initiative_ids
+        for fmt, job_id in jobs.items()
+    }
+    assert recorded == {"json": sorted([own, other]), "csv": [own]}
 
 
 _QUEUE_REPORTS: dict[str, dict[str, Any]] = {
@@ -1537,7 +1642,7 @@ async def test_a_gallery_exports_as_a_zip_of_its_envelope_and_pictures(
 
 
 # ---------------------------------------------------------------------------
-# Report chrome: locale, timezone, branding, detailed layout
+# Report chrome: locale, branding, detailed layout
 # ---------------------------------------------------------------------------
 
 
@@ -1570,7 +1675,7 @@ async def test_task_export_localizes_report_content(
         "md",
         present=(
             "# Tareas",  # localized title
-            "1 tarea · generado el",  # localized, singular plural form
+            "\n1 tarea\n",  # localized, singular plural form
         ),
     )
 
@@ -1704,31 +1809,6 @@ async def test_pdf_export_carries_guild_brand_header(
     resp = await _export(client, a, "tasks", format="pdf")
     # The brand header, with the icon staged alongside it.
     _assert_export(resp, "pdf", present=("Ravenloft Chronicle",))
-
-
-async def test_export_timestamp_uses_requested_timezone(
-    client: AsyncClient, acting_user, session
-):
-    """The "generated at" line renders in the tz the browser sends, not UTC —
-    and an unknown zone falls back to UTC instead of failing the export."""
-    a = await _actor_with_tasks(acting_user, session, count=1)
-
-    # Snapshot the minute on both sides of the request — the render happens
-    # somewhere between, so either minute is a pass (no :59 flake).
-    before = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
-    resp = await _export(client, a, "tasks", format="md", tz="Europe/Berlin")
-    after = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
-    body = _assert_export(
-        resp,
-        "md",
-        present=(after.strftime("%Z"),),  # CET/CEST, not UTC
-        absent=(" UTC ",),
-    )
-    accepted = {f"generated {t.strftime('%Y-%m-%d %H:%M')}" for t in (before, after)}
-    assert any(stamp in body for stamp in accepted)
-
-    fallback = await _export(client, a, "tasks", format="md", tz="Not/AZone")
-    _assert_export(fallback, "md", present=("UTC",))
 
 
 async def test_detailed_pdf_page_count_is_localized(
@@ -1920,19 +2000,40 @@ async def _events_enabled(session, initiative):
 
 
 async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, session):
-    """A calendar exports as one multi-event iCalendar file (RRULE preserved)
-    or one importable envelope carrying the calendar plus every event."""
+    """A calendar exports as one multi-event iCalendar file (the stored rules as
+    they are, a picked one's start written on its picked day, all read back
+    unchanged by the ics import) or one importable envelope carrying the
+    calendar plus every event."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
+    # Mondays and Wednesdays at 00:30, picked in Berlin: Sundays and Tuesdays
+    # in UTC.
+    session_start = datetime(2026, 10, 4, 22, 30, tzinfo=timezone.utc)
+    weekly = "RRULE:FREQ=WEEKLY;BYDAY=MO,WE"
     recurring_event = await create_calendar_event(
         session,
         calendar,
         a.user,
         title="Session 13",
+        start_at=session_start,
+        end_at=session_start + timedelta(hours=3),
         description="Return to the castle",
         location="Roll20",
-        recurrence='{"frequency": "weekly", "interval": 1, "ends": "never"}',
+        recurrence=weekly,
+        recurrence_shift=1440,
+    )
+    # All day on the second Monday until mid-December, November skipped.
+    monthly = "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO\nEXDATE;VALUE=DATE:20261109"
+    await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        title="Guild meeting",
+        all_day=True,
+        start_at=datetime(2026, 10, 12, tzinfo=timezone.utc),
+        end_at=datetime(2026, 10, 12, 23, 59, 59, tzinfo=timezone.utc),
+        recurrence=monthly,
     )
     definition = await create_property_definition(session, a.initiative, name="Table")
     await create_calendar_event_property_value(
@@ -1944,9 +2045,65 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         await _export(client, a, "calendar", format="ics"),
         "ics",
         disposition=('filename="raid_nights-',),
-        present=("SUMMARY:Session 13", "RRULE:FREQ=WEEKLY", "LOCATION:Roll20"),
+        present=(
+            "SUMMARY:Session 13",
+            "DTSTART;TZID=Etc/GMT-2:20261005T003000",
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,WE",
+            "DTSTART;VALUE=DATE:20261012",
+            "DTEND;VALUE=DATE:20261013",
+            "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO",
+            "EXDATE;VALUE=DATE:20261109",
+            "LOCATION:Roll20",
+        ),
     )
-    assert body.count("BEGIN:VEVENT") == 2
+    assert body.count("BEGIN:VEVENT") == 3
+    imported, errors, _ = ical_service.build_calendar_events(
+        body, calendar.id, a.guild.id, a.user.id, tz="Europe/Berlin"
+    )
+    assert errors == []
+    by_title = {event.title: event for event in imported}
+    picked = by_title["Session 13"]
+    assert (picked.start_at, picked.recurrence, picked.recurrence_shift) == (
+        session_start,
+        weekly,
+        1440,
+    )
+    meeting = by_title["Guild meeting"]
+    assert (meeting.start_at, meeting.end_at, meeting.recurrence) == (
+        datetime(2026, 10, 12, tzinfo=timezone.utc),
+        datetime(2026, 10, 12, 23, 59, 59, tzinfo=timezone.utc),
+        monthly,
+    )
+    # Another app's file: a rule in its own zone comes into UTC terms, a
+    # floating time is read in the importer's zone, and a rule an event can't
+    # repeat by leaves the event without its repeat.
+    foreign, errors, _ = ical_service.build_calendar_events(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Standup\r\n"
+        "DTSTART;TZID=Europe/Berlin:20261005T003000\r\n"
+        "RRULE:FREQ=WEEKLY;BYDAY=MO\r\nEND:VEVENT\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Month end\r\nDTSTART:20261031T090000\r\n"
+        "RRULE:FREQ=MONTHLY;BYMONTHDAY=-1\r\nEND:VEVENT\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Ticker\r\nDTSTART:20261005T090000Z\r\n"
+        "RRULE:FREQ=MINUTELY\r\nEND:VEVENT\r\n"
+        "END:VCALENDAR\r\n",
+        calendar.id,
+        a.guild.id,
+        a.user.id,
+        tz="America/New_York",
+    )
+    assert errors == []
+    assert {
+        e.title: (e.start_at, e.recurrence, e.recurrence_shift) for e in foreign
+    } == {
+        "Standup": (session_start, "RRULE:FREQ=WEEKLY;BYDAY=MO", 1440),
+        "Month end": (
+            datetime(2026, 10, 31, 13, 0, tzinfo=timezone.utc),
+            "RRULE:FREQ=MONTHLY;BYMONTHDAY=-1",
+            0,
+        ),
+        "Ticker": (datetime(2026, 10, 5, 9, 0, tzinfo=timezone.utc), None, 0),
+    }
 
     js = await _export(client, a, "calendar", format="json")
     envelope = json.loads(_assert_export(js, "json"))
@@ -1954,9 +2111,9 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     assert envelope["schema_version"] == 1
     assert envelope["name"] == "Raid Nights"
     titles = {e["title"] for e in envelope["events"]}
-    assert titles == {"Session 13", "One-shot night"}
+    assert titles == {"Session 13", "Guild meeting", "One-shot night"}
     recurring = next(e for e in envelope["events"] if e["title"] == "Session 13")
-    assert recurring["recurrence"]["frequency"] == "weekly"
+    assert recurring["recurrence"] == weekly
     assert recurring["description"] == "Return to the castle"
     # Custom properties ride flat and by NAME (project-envelope encoding).
     assert recurring["properties"] == [
@@ -1970,7 +2127,9 @@ async def test_calendar_export_applies_calendar_sharing(
     """Calendar sharing holds for exports: export-all carries the calendars the
     exporter may export — the ones they own — and leaves out one they can only
     read as well as one not shared with them at all. Asking for either by id
-    is refused, while a guild admin still reaches them by explicit selection."""
+    is refused, while a guild admin still reaches them by explicit selection.
+    The events export takes read access instead, so it carries the readable
+    calendar too, and still nothing unshared."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     b = await acting_user(
@@ -2026,6 +2185,24 @@ async def test_calendar_export_applies_calendar_sharing(
     )
     admin_env = json.loads(_assert_export(admin_resp, "json"))
     assert {e["title"] for e in admin_env["events"]} == {"Hidden"}
+
+    # The events export is a formatted read: what b can see, and nothing more.
+    body = _assert_export(
+        await _export(client, a, "events", headers=b.headers, format="ics"),
+        "ics",
+        disposition=('filename="events.ics"',),
+        present=("SUMMARY:Their session", "SUMMARY:Read only"),
+        absent=("SUMMARY:Hidden",),
+    )
+    assert body.count("BEGIN:VEVENT") == 2
+    named = await _export(
+        client, a, "events", headers=b.headers, calendar_ids=[secret_cal.id]
+    )
+    assert _assert_export(named, "ics").count("BEGIN:VEVENT") == 0
+    left_out = await _export(
+        client, a, "events", headers=b.headers, exclude_calendar_ids=[read_cal.id]
+    )
+    assert "SUMMARY:Read only" not in _assert_export(left_out, "ics")
 
 
 async def test_calendar_export_initiative_filter(

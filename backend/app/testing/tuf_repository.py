@@ -310,16 +310,6 @@ def container_registration(**overrides: Any) -> dict[str, Any]:
     registration: dict[str, Any] = {
         "kind": "container",
         "image": "ghcr.io/acme/tracker@sha256:" + "0" * 64,
-        "jwks": {
-            "keys": [
-                {
-                    "kty": "OKP",
-                    "crv": "Ed25519",
-                    "kid": "example",
-                    "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo",
-                }
-            ]
-        },
         "scope_ceiling": ["projects:read", "projects:write"],
         "reference_sectors": [],
     }

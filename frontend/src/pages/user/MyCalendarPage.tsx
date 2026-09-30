@@ -1,9 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Download } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { apiClient } from "@/api/client";
 import {
   type FilterCondition,
   type FilterGroup,
@@ -16,6 +14,7 @@ import { invalidate, q } from "@/api/query-keys";
 import {
   buildEventCalendarEntry,
   buildTaskCalendarEntries,
+  buildTaskOccurrenceEntries,
   type CalendarEntry,
   CalendarView,
   type CalendarViewMode,
@@ -30,7 +29,6 @@ import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterP
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CalendarGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
-import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,7 +37,6 @@ import { useMyCalendars } from "@/hooks/useCalendars";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { PRIORITY_ORDER } from "@/lib/sorting";
@@ -208,7 +205,8 @@ export const MyCalendarPage = () => {
   // One read-only virtual calendar per project with a task in the window.
   const projectCalendars = useMemo<ProjectTaskCalendar[]>(() => {
     const seen = new Map<string, ProjectTaskCalendar>();
-    for (const task of entriesQuery.data?.tasks ?? []) {
+    const data = entriesQuery.data;
+    for (const task of [...(data?.tasks ?? []), ...(data?.task_occurrences ?? [])]) {
       if (task.project_id == null) continue;
       const key = `${task.guild_id ?? 0}:${task.project_id}`;
       if (seen.has(key)) continue;
@@ -234,11 +232,16 @@ export const MyCalendarPage = () => {
     // same visual treatment as the other calendars, injecting guildId into
     // meta for cross-guild navigation. Not draggable here (My Calendar has no
     // reschedule handler).
-    for (const task of entriesQuery.data?.tasks ?? []) {
+    const data = entriesQuery.data;
+    const occurrences = new Set(data?.task_occurrences);
+    for (const task of [...(data?.tasks ?? []), ...occurrences]) {
       if (task.project_id != null && visibility.isProjectHidden(task.guild_id, task.project_id)) {
         continue;
       }
-      for (const entry of buildTaskCalendarEntries(task, getProjectColor(task.project_id), false)) {
+      const color = getProjectColor(task.project_id);
+      for (const entry of occurrences.has(task)
+        ? buildTaskOccurrenceEntries(task, color)
+        : buildTaskCalendarEntries(task, color, false)) {
         entries.push({
           ...entry,
           meta: { ...(entry.meta as Record<string, unknown>), guildId: task.guild_id },
@@ -262,7 +265,13 @@ export const MyCalendarPage = () => {
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
-      | { type: string; taskId?: number; eventId?: number; guildId?: number }
+      | {
+          type: string;
+          taskId?: number;
+          eventId?: number;
+          guildId?: number;
+          occurrence?: string;
+        }
       | undefined;
     if (!meta) return;
     const scopedPath = (path: string) => (meta.guildId ? guildPath(meta.guildId, path) : gp(path));
@@ -271,7 +280,10 @@ export const MyCalendarPage = () => {
     if (meta.type === "task" && meta.taskId) {
       void navigate({ to: scopedPath(entityRefRoute("task", meta.taskId)) });
     } else if (meta.type === "event" && meta.eventId) {
-      void navigate({ to: scopedPath(entityRefRoute("calendar-event", meta.eventId)) });
+      void navigate({
+        to: scopedPath(entityRefRoute("calendar-event", meta.eventId)),
+        search: meta.occurrence ? { occurrence: meta.occurrence } : {},
+      });
     }
   };
 
@@ -293,39 +305,12 @@ export const MyCalendarPage = () => {
     (entriesQuery.isLoading && !entriesQuery.data) ||
     (calendarsQuery.isLoading && !calendarsQuery.data);
 
-  const handleExport = useCallback(async () => {
-    try {
-      const params: Record<string, string | number[]> = {};
-      if (guildFilters.length > 0) {
-        params.guild_ids = guildFilters;
-      }
-      const response = await apiClient.get("/me/calendar-events/export.ics", {
-        params,
-        responseType: "blob",
-      });
-      const url = URL.createObjectURL(response.data as Blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "events.ics";
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
-      toast.error(t("calendars:export.exportError"));
-    }
-  }, [guildFilters, t]);
-
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
-            <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4" />
-            {t("calendars:export.exportIcs")}
-          </Button>
+        <div>
+          <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
+          <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
         </div>
 
         <ToolListToolbar

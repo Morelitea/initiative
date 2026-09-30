@@ -10,18 +10,18 @@ are already the seam or act on the caller's own community.
 A call site is a call, in one of those two trees, to something that routes a
 session into ``guild_<id>`` and is given a community to route into:
 
-* the primitives — ``set_rls_context`` with a ``guild_id``,
-  ``set_system_guild_context``,
-  ``establish_guild_access``, and the test helpers ``route_as`` /
-  ``route_system``;
+* the primitives — a routing shape that names a community (``SystemGuild``,
+  ``SystemMaintenance``, ``Member``, ``ContentGrantee``, ``SettingsGrantee``,
+  ``Install``), ``establish_guild_access``, and the test helpers ``route_as``
+  / ``route_system``;
 * a *wrapper* — a function in those trees, other than a route handler, that
   passes one of its own parameters as the community to any of the above (or to
   another wrapper). Its callers are the call sites, since they pick the
   community. The wrappers are pinned in ``_WRAPPERS`` so a new one is a
   decision too.
 
-``set_billing_context`` is not a routing into ``guild_<id>``: it assumes the
-billing service's own role, which reads billing rows only.
+``Billing`` is not a routing into ``guild_<id>``: it assumes the billing
+service's own role, which reads billing rows only.
 
 Each entry is keyed by (module, enclosing function) and carries the reason it
 is there. A call site missing from the list fails; an entry with no call site
@@ -37,6 +37,10 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.always
+
 
 _APP_DIR = Path(__file__).resolve().parents[1]
 _BACKEND_DIR = _APP_DIR.parent
@@ -46,8 +50,17 @@ _SCANNED = ("api/v1/platform_endpoints", "services/platform")
 #: Callee name → (keyword naming the community, its position when passed
 #: positionally, or None where it is keyword-only).
 _PRIMITIVES: dict[str, tuple[str, int | None]] = {
-    "set_rls_context": ("guild_id", 2),
-    "set_system_guild_context": ("guild_id", None),
+    **{
+        shape: ("guild_id", 0)
+        for shape in (
+            "SystemGuild",
+            "SystemMaintenance",
+            "Member",
+            "ContentGrantee",
+            "SettingsGrantee",
+            "Install",
+        )
+    },
     "establish_guild_access": ("guild_id", 2),
     "route_as": ("guild_id", None),
     "route_system": ("guild_id", None),
@@ -69,9 +82,6 @@ _WRAPPERS: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/users.py", "soft_delete_user.scrub"): (
         "scrubs a purged account's mentions and keys in one community, on that "
         "community's cohort session"
-    ),
-    (f"{_SERVICES}/billing.py", "guild_storage_usage"): (
-        "storage aggregate for the billing service"
     ),
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
@@ -132,9 +142,6 @@ _ALLOWED: dict[tuple[str, str], str] = {
         "the scheduled sweep that deletes communities whose hold ran out"
     ),
     # --- Aggregates ----------------------------------------------------------
-    (f"{_ENDPOINTS}/billing.py", "guild_usage"): (
-        "storage usage for the billing service"
-    ),
     # --- Account closure and erasure -----------------------------------------
     # --- Intake: the platform owner's setting, in the operations community ---
     (f"{_SERVICES}/intake.py", "stream_is_bound"): (

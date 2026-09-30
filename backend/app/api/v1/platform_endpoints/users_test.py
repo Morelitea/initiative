@@ -24,9 +24,12 @@ from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
 from app.services.platform import profile_decorations as profile_decorations_service
-from app.services.platform import user_stream
 from app.services.content_sockets import sockets as content_sockets
-from app.testing.sockets import FakeWebSocket, watch_events_bus
+from app.testing.sockets import (
+    FakeWebSocket,
+    open_account_socket,
+    watch_events_bus,
+)
 from app.testing.factories import (
     create_federated_identity,
     create_guild,
@@ -299,19 +302,23 @@ async def test_switching_assignment_channels_off_keeps_the_queue_while_one_is_on
 
 
 async def test_list_users_lists_this_guilds_members(client, acting_user):
-    """The roster is this guild's members and nobody else's.
+    """The roster is this guild's members and nobody else's, a page at a time.
 
     Members are named by handle. An address is never a guild's to hand out, so
-    it is absent from the shape entirely.
+    it is absent from the shape entirely. Pages are ordered by name, and a
+    search narrows them the way the picker's does.
     """
     caller = await acting_user(
-        guild_role=GuildRole.member, username="user-one", full_name="User One"
+        guild_role=GuildRole.member,
+        username="user-one",
+        full_name="User One",
+        initiative=True,
     )
     await acting_user(
         guild_role=GuildRole.member,
         guild=caller.guild,
-        username="user-two",
-        full_name="User Two",
+        username="zed-two",
+        full_name="Zed Two",
     )
     await acting_user(guild_role=GuildRole.member)  # somebody in another guild
 
@@ -319,8 +326,32 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
 
     assert response.status_code == 200
     data = response.json()
-    assert {user["username"] for user in data} == {"user-one", "user-two"}
-    assert all("email" not in user for user in data)
+    assert data["total_count"] == 2
+    assert {user["username"] for user in data["items"]} == {"user-one", "zed-two"}
+    assert all("email" not in user for user in data["items"])
+    [roles] = [
+        u["initiative_roles"] for u in data["items"] if u["id"] == caller.user.id
+    ]
+    assert [(r["initiative_id"], r["role"]) for r in roles] == [
+        (caller.initiative.id, "project_manager")
+    ]
+
+    pages = [
+        (
+            await client.get(
+                caller.g(f"/users/?page={page}&page_size=1"), headers=caller.headers
+            )
+        ).json()
+        for page in (1, 2)
+    ]
+    assert [p["items"][0]["username"] for p in pages] == ["user-one", "zed-two"]
+    assert [(p["has_next"], p["has_prev"]) for p in pages] == [
+        (True, False),
+        (False, True),
+    ]
+
+    searched = await client.get(caller.g("/users/?search=zed"), headers=caller.headers)
+    assert [u["username"] for u in searched.json()["items"]] == ["zed-two"]
 
 
 async def test_search_users_returns_slim_paginated_envelope(client, acting_user):
@@ -570,16 +601,21 @@ async def test_deletion_eligibility_surfaces_the_services_answer(client, acting_
     assert body["blockers"] == []
 
 
-async def test_delete_user_as_admin(client, acting_user):
-    """A guild admin removes a member from the guild."""
+async def test_delete_user_as_admin(client, acting_user, monkeypatch):
+    """A guild admin removes a member from the guild, and billing hears of it."""
+    from app.services.platform import billing_ping
+
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    pinged: list[int] = []
+    monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
 
     response = await client.delete(
         admin.g(f"/users/{member.user.id}"), headers=admin.headers
     )
 
     assert response.status_code == 204
+    assert pinged == [admin.guild.id]
 
 
 async def test_user_cannot_update_email_via_patch(client, acting_user):
@@ -773,47 +809,6 @@ async def test_task_completion_audio_and_haptic_round_trip(client, acting_user):
         assert result["task_completion_haptic_feedback"] is value
 
 
-async def test_approve_user_answers_with_the_guild_read(client, session, acting_user):
-    """Approving a member answers with the guild's read of that account.
-
-    The guild here renders real names, which is the loudest this shape ever
-    gets: the reply still carries the handle and the standing that just
-    changed, and none of the account itself — no name, no address, no platform
-    tier, none of its settings.
-    """
-    admin = await acting_user(guild_role=GuildRole.admin)
-    assert admin.guild.show_member_names is True
-    pending = await acting_user(
-        guild=admin.guild,
-        username="pending-one",
-        full_name="Pending Person",
-        status=UserStatus.deactivated,
-    )
-
-    response = await client.post(
-        admin.g(f"/users/{pending.user.id}/approve"), headers=admin.headers
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["id"] == pending.user.id
-    assert body["username"] == "pending-one"
-    assert body["status"] == UserStatus.active.value
-
-    for absent in (
-        "full_name",
-        "email",
-        "role",
-        "email_verified",
-        "timezone",
-        "locale",
-    ):
-        assert absent not in body, absent
-
-    await session.refresh(pending.user)
-    assert pending.user.status == UserStatus.active
-
-
 def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:
     """Strip the UTF-8 BOM and parse the CSV body into (headers, rows)."""
     import csv
@@ -848,10 +843,14 @@ def _export_id(members: dict, name: str) -> int:
     return _NO_SUCH_USER.get(name) or members[name].user.id
 
 
-async def test_export_users_csv_as_admin(client, csv_guild):
+async def test_export_users_csv_as_admin(client, session, csv_guild):
     """A guild admin exports its members: a BOM'd CSV attachment carrying one
-    row per member of this guild, each named by handle."""
+    row per member of this guild it lists, each named by handle."""
     admin = csv_guild["admin"]
+    suspended = await session.get(User, csv_guild["two"].user.id)
+    suspended.status = UserStatus.suspended
+    session.add(suspended)
+    await session.commit()
 
     response = await client.get(admin.g("/users/export.csv"), headers=admin.headers)
 
@@ -875,7 +874,7 @@ async def test_export_users_csv_as_admin(client, csv_guild):
     ]
     assert {row[1] for row in data_rows} == {
         f"{who.user.username}#{who.user.discriminator:04d}"
-        for who in (admin, csv_guild["one"], csv_guild["two"])
+        for who in (admin, csv_guild["one"])
     }
     # No address anywhere in the file.
     assert not any("@" in cell for row in data_rows for cell in row)
@@ -1214,9 +1213,12 @@ async def _open_guild_events(session: AsyncSession, subject: User):
 
 async def _open_notification_stream(session: AsyncSession, subject: User):
     """A tab anywhere in the app: the bell has no guild in its address."""
-    socket = object()
-    await user_stream.stream.connect(subject.id, socket)
-    return lambda: user_stream.stream.disconnect(socket)
+    socket = open_account_socket(subject.id)
+
+    async def close() -> None:
+        content_sockets.leave(socket)  # type: ignore[arg-type]
+
+    return close
 
 
 @pytest.mark.parametrize(
@@ -1259,14 +1261,13 @@ async def test_profile_stays_online_while_any_socket_is_open(
     guild = await create_guild(session)
     await create_guild_membership(session, user=subject, guild=guild)
 
-    bell, events = object(), FakeWebSocket()
-    await user_stream.stream.connect(subject.id, bell)
+    bell, events = open_account_socket(subject.id), FakeWebSocket()
     watch_events_bus(guild.id, [], events, user_id=subject.id)
     try:
         content_sockets.leave(events)  # type: ignore[arg-type]
         response = await client.get(_profile_url(subject), headers=caller.headers)
     finally:
-        await user_stream.stream.disconnect(bell)
+        content_sockets.leave(bell)  # type: ignore[arg-type]
 
     assert response.json()["presence"] == "online"
 
@@ -1280,14 +1281,11 @@ async def test_profile_shows_what_someone_picked(
     caller = await acting_user()
     subject = await create_user(session)
 
-    socket = object()
-    await user_stream.stream.connect(
-        subject.id, socket, chosen_presence=Presence(chosen)
-    )
+    socket = open_account_socket(subject.id, chosen_presence=Presence(chosen))
     try:
         response = await client.get(_profile_url(subject), headers=caller.headers)
     finally:
-        await user_stream.stream.disconnect(socket)
+        content_sockets.leave(socket)  # type: ignore[arg-type]
 
     assert response.json()["presence"] == chosen
 
@@ -1298,8 +1296,7 @@ async def test_presence_change_reaches_readers_without_a_reconnect(client, actin
     subject = await acting_user()
     profile_url = _profile_url(subject.user)
 
-    socket = object()
-    await user_stream.stream.connect(subject.user.id, socket)
+    socket = open_account_socket(subject.user.id)
     try:
         assert (await client.get(profile_url, headers=caller.headers)).json()[
             "presence"
@@ -1317,7 +1314,7 @@ async def test_presence_change_reaches_readers_without_a_reconnect(client, actin
             "presence"
         ] == "offline"
     finally:
-        await user_stream.stream.disconnect(socket)
+        content_sockets.leave(socket)  # type: ignore[arg-type]
 
 
 async def test_presence_outlives_the_socket_that_set_it(client, session, acting_user):
@@ -1333,14 +1330,11 @@ async def test_presence_outlives_the_socket_that_set_it(client, session, acting_
     assert saved.status_code == 200
 
     await session.refresh(subject.user)
-    socket = object()
-    await user_stream.stream.connect(
-        subject.user.id, socket, chosen_presence=subject.user.presence
-    )
+    socket = open_account_socket(subject.user.id, chosen_presence=subject.user.presence)
     try:
         response = await client.get(_profile_url(subject.user), headers=caller.headers)
     finally:
-        await user_stream.stream.disconnect(socket)
+        content_sockets.leave(socket)  # type: ignore[arg-type]
 
     assert response.json()["presence"] == "busy"
 

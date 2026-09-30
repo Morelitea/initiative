@@ -38,6 +38,7 @@ from app.schemas.tenant.calendar import (
     CalendarUpdate,
 )
 from app.schemas.tenant.tool import serialize_tool
+from app.services.tenant import attachments as attachments_service
 from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_apps as guild_apps_service
@@ -190,6 +191,7 @@ async def create_calendar(
             tag_ids=calendar_in.tag_ids,
         )
 
+    await attachments_service.claim_uploads(session, calendar)
     await session.commit()
     hydrated = await _refetch_calendar(session, calendar.id)
     return serialize_tool(
@@ -231,6 +233,7 @@ async def update_calendar(
     if updated:
         calendar.updated_at = datetime.now(timezone.utc)
         session.add(calendar)
+        await attachments_service.claim_uploads(session, calendar)
         await session.commit()
 
     hydrated = await _refetch_calendar(session, calendar.id)

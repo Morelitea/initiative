@@ -68,10 +68,10 @@ class GuildRoleKind(StrEnum):
     #: SELECT-only on ``SUPPORT_WRITE_PROTECTED_TABLES``, so the grantee cannot
     #: manage who is in the guild or who can see what.
     support = "_support"
-    #: The SQL query surface: ``USAGE`` on the schema and ``SELECT`` on its
-    #: tables. Not ``_ro``: two identities that hold the same privileges today
-    #: are still two identities, and an audit should tell a grantee's read from
-    #: a member's query. Initiative RLS still applies, because the policies read
+    #: The SQL query surface: ``USAGE`` on the schema, ``SELECT`` on its
+    #: tables, and in ``public`` only the routed community's members
+    #: (``current_guild_members``). No shared floor, so a statement reaches no
+    #: other community. Initiative RLS still applies, because the policies read
     #: the request's identity rather than its role.
     query = "_q"
     #: The seat: inherits the full role and ``app_superadmin``, the floor
@@ -589,8 +589,10 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
     role (assumed by PAM read grants) gets SELECT only, so a write is denied.
     The support role (scoped read_write grants) gets DML on content but is
     revoked write on the structural/permission tables — the DB-enforced
-    "no member/permission management" line. The app role (an installed app's
-    requests) holds only what ``_app_role_grant_statements`` renders.
+    "no member/permission management" line. The query role holds no shared
+    floor: its schema and the routed community's members. The app role (an
+    installed app's requests) holds only what ``_app_role_grant_statements``
+    renders.
     """
     role, ro_role, support_role, query_role, seat_role, app_role = _guild_roles(
         guild_id
@@ -598,6 +600,11 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
+        # Its grants are cleared first, like the app role's, so a re-provision
+        # leaves it holding what the registry says now rather than what an
+        # earlier release granted too.
+        f'REVOKE ALL ON ALL TABLES IN SCHEMA "{schema}" FROM "{SYSTEM_LOGIN_ROLE}"',
+        f'REVOKE ALL ON ALL SEQUENCES IN SCHEMA "{schema}" FROM "{SYSTEM_LOGIN_ROLE}"',
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{SYSTEM_LOGIN_ROLE}"',
         *(
             f"GRANT {', '.join(privileges)} ON TABLE "
@@ -646,15 +653,18 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
         # Query role: SELECT on the schema's tables and nothing else. No
         # sequences — a read names no sequence — and no DML at any level.
         #
-        # The shared floor is the read-only one: app_guild_base carries DML on
-        # the shared tables, and a privilege reached by inheritance cannot be
-        # revoked back off. Reading them is needed — the guild policies call
-        # public.guild_auth_satisfied(), which reads public.guild_auth_policies.
+        # No shared floor: a query reads its own community and nothing in
+        # ``public`` but the routed community's members. ``USAGE`` on
+        # ``public`` names that view and the types the gates take, and holds
+        # no table. The floor it once inherited is revoked, for the schemas
+        # provisioned while it did.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{query_role}"',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '
         f'GRANT SELECT ON TABLES TO "{query_role}"',
         f'GRANT SELECT ON ALL TABLES IN SCHEMA "{schema}" TO "{query_role}"',
-        f'GRANT app_guild_base_ro TO "{query_role}"',
+        f'REVOKE app_guild_base_ro FROM "{query_role}"',
+        f'GRANT USAGE ON SCHEMA public TO "{query_role}"',
+        f'GRANT SELECT ON public.current_guild_members TO "{query_role}"',
         f'GRANT "{query_role}" TO "{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}" '
         f"WITH INHERIT FALSE",
         # Seat role: the full guild role's reach into the schema and the
@@ -901,9 +911,6 @@ async def backfill_guild_schemas() -> BackfillSummary:
     # actor — FORCE RLS filters its unrouted data reads to zero rows (by
     # design). Reading data is the system engine's job (BYPASSRLS).
     async with db_session.system_engine.connect() as conn:
-        # Pooled connection: shed any guild role a previous checkout assumed
-        # (a leaked role would RLS-filter public.guilds to zero rows).
-        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         rows = (
             await conn.execute(
                 text(
@@ -1472,9 +1479,9 @@ async def verify_engine_identities() -> None:
         logger.warning(
             "\n%s\n"
             "PRIVILEGE DRIFT: the request login %r holds TEMPORARY on database\n"
-            "%r. The app creates no temporary objects, so this grant is unused;\n"
-            "the bootstrap revokes it from PUBLIC. Deployments created before\n"
-            "that still carry it. To align, run as the database\n"
+            "%r. The request path creates no temporary objects, so this grant\n"
+            "is unused; the bootstrap revokes it from PUBLIC. Deployments\n"
+            "created before that still carry it. To align, run as the database\n"
             "owner:\n"
             "  REVOKE TEMPORARY ON DATABASE %s FROM PUBLIC;\n"
             "or set DATABASE_URL_BOOTSTRAP and restart, which does this and\n"

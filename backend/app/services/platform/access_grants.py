@@ -23,6 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import (
     ROLE_MAX_GRANT_MINUTES,
     Capability,
+    capabilities_for,
     roles_with_capability,
 )
 from app.core.login_methods import LoginMethod
@@ -317,22 +318,19 @@ async def request_grants(
     return created
 
 
-async def demands_second_factor(session: AsyncSession) -> bool:
-    """Whether breaking glass has to carry the account's own second factor.
+async def demands_second_factor(session: AsyncSession, *, actor: User) -> bool:
+    """Whether breaking glass has to carry this account's own second factor.
 
-    Derived rather than configured, from two things that must both hold: the
-    deployment offers the authenticator app, and some active ``data.bypass``
-    holder has confirmed one.
+    Asked of this account alone, and for one of two reasons: it holds a factor
+    of its own, or the deployment's second-factor requirement covers its rung.
+    An account with neither breaks glass on its reason alone. One the
+    requirement covers that holds nothing is answered by its identity
+    provider's factor, when the sign-in carried one, and is otherwise sent to
+    its Security page first.
 
-    The pair is what keeps the rule answerable. A holder who has neither is
-    refused until they set one up, and the way back is their own Security page
-    — so the rule may only ask while that page can actually give them one. A
-    deployment that has withdrawn a method refuses new enrolments of it, which
-    is why both have to be gone before it stops asking, rather than it asking
-    for something it will not let anybody obtain.
-
-    Either method answers, so either keeps the rule alive: an authenticator
-    code or an assertion from one of the account's passkeys.
+    Only a method the deployment still offers counts. One it has withdrawn
+    refuses new enrolments, so asking for it would ask for something the
+    Security page cannot give.
     """
     offered = [
         method
@@ -342,34 +340,29 @@ async def demands_second_factor(session: AsyncSession) -> bool:
     if not offered:
         return False
 
-    # Only a factor held in a method still offered keeps the rule alive: one
-    # the deployment has withdrawn is not a way back for the holder who has
-    # nothing.
     held = []
     if LoginMethod.totp in offered:
         held.append(
             select(UserTotp.user_id)
-            .where(UserTotp.user_id == User.id, UserTotp.confirmed_at.is_not(None))
+            .where(UserTotp.user_id == actor.id, UserTotp.confirmed_at.is_not(None))
             .exists()
         )
     if LoginMethod.passkey in offered:
         held.append(
-            select(UserPasskey.user_id).where(UserPasskey.user_id == User.id).exists()
+            select(UserPasskey.user_id).where(UserPasskey.user_id == actor.id).exists()
         )
+    if await session.scalar(select(or_(*held))):
+        return True
 
-    roles = list(roles_with_capability(Capability.DATA_BYPASS))
-    found = (
-        await session.exec(
-            select(User.id)
-            .where(
-                User.role.in_(roles),
-                User.status == UserStatus.active,
-                or_(*held),
-            )
-            .limit(1)
+    from app.core import auth_context
+    from app.services.auth.assurance import SECOND_FACTOR_AMR
+
+    return (
+        auth_posture.rule_covers(
+            await auth_posture.second_factor_requirement(session), actor.role
         )
-    ).first()
-    return found is not None
+        and SECOND_FACTOR_AMR not in auth_context.session_amr()
+    )
 
 
 async def break_glass(
@@ -533,8 +526,16 @@ async def approve(
 
     # Cap by the GRANTEE's role (an approver shortening/extending can't exceed
     # the recipient's tier).
+    # The grantee is asked about as they stand now, not as they stood when the
+    # request was made.
     grantee = await session.get(User, grant.user_id)
-    grantee_role = grantee.role if grantee else UserRole.support
+    if (
+        grantee is None
+        or grantee.status != UserStatus.active
+        or Capability.ACCESS_REQUEST not in capabilities_for(grantee.role)
+    ):
+        raise AccessGrantError("GRANTEE_INELIGIBLE")
+    grantee_role = grantee.role
     duration = _capped_duration(
         duration_minutes or grant.requested_duration_minutes, grantee_role
     )
@@ -647,6 +648,29 @@ async def cancel_own_pending(
     await session.flush()
 
 
+async def get_live_grants(
+    session: AsyncSession, *, user_id: int, guild_id: int
+) -> dict[AccessGrantPurpose, AccessGrant]:
+    """Return the user's currently-live grants for ``guild_id``, one per purpose.
+
+    Used when resolving guild session context so a grantee can act in a guild
+    they aren't a member of, for the grant's window only. Keyed by purpose so a
+    grant issued for one authority is never spent as another.
+    """
+    result = await session.exec(
+        select(AccessGrant)
+        .where(
+            AccessGrant.user_id == user_id,
+            AccessGrant.guild_id == guild_id,
+            AccessGrant.live(utcnow()),
+        )
+        # At most one open grant per (user, guild, purpose) is allowed at
+        # request time; the latest-expiring wins just in case.
+        .order_by(AccessGrant.expires_at)
+    )
+    return {AccessGrantPurpose(grant.purpose): grant for grant in result.all()}
+
+
 async def get_live_grant(
     session: AsyncSession,
     *,
@@ -654,27 +678,10 @@ async def get_live_grant(
     guild_id: int,
     purpose: AccessGrantPurpose = AccessGrantPurpose.content,
 ) -> Optional[AccessGrant]:
-    """Return the user's currently-live grant for ``guild_id``, if any.
-
-    Used when resolving guild session context so a grantee can act in a guild
-    they aren't a member of, for the grant's window only. Scoped to ``purpose``
-    so a grant issued for one authority is never spent as another — the default
-    keeps the content path seeing only content grants.
-    """
-    now = utcnow()
-    result = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.user_id == user_id,
-            AccessGrant.guild_id == guild_id,
-            AccessGrant.purpose == purpose.value,
-            AccessGrant.status == AccessGrantStatus.approved.value,
-            AccessGrant.expires_at > now,
-        )
-    )
-    # At most one open grant per (user, guild) is allowed at request time;
-    # pick the latest-expiring just in case.
-    grants = sorted(result.all(), key=lambda g: g.expires_at or now, reverse=True)
-    return grants[0] if grants else None
+    """Return the user's currently-live grant of ``purpose`` for ``guild_id``,
+    if any — content unless another is named."""
+    grants = await get_live_grants(session, user_id=user_id, guild_id=guild_id)
+    return grants.get(purpose)
 
 
 async def list_grants(
@@ -689,8 +696,8 @@ async def list_grants(
     """List grants, optionally filtered to one grantee and/or a set of statuses.
 
     Approvers pass ``user_id=None`` for the full queue; requesters pass their
-    own id for "my requests". ``live_only`` keeps only grants that haven't yet
-    expired (pair with ``statuses=["approved"]`` for the currently-usable set).
+    own id for "my requests". ``live_only`` keeps only grants that are live:
+    approved and unexpired.
     ``limit``/``offset`` page the result (ordered newest-first) so a list that
     grows with users/usage stays bounded.
     """
@@ -700,7 +707,7 @@ async def list_grants(
     if statuses:
         stmt = stmt.where(AccessGrant.status.in_(statuses))
     if live_only:
-        stmt = stmt.where(AccessGrant.expires_at > utcnow())
+        stmt = stmt.where(AccessGrant.live(utcnow()))
     stmt = stmt.order_by(AccessGrant.requested_at.desc())
     if offset:
         stmt = stmt.offset(offset)
@@ -735,7 +742,7 @@ async def expire_due(session: AsyncSession) -> int:
 
 async def _enrichment(
     session: AsyncSession, *, user_ids: set[int], guild_ids: set[int]
-) -> tuple[dict[int | None, User], dict[int, str], dict[int, Guild]]:
+) -> tuple[dict[int | None, User], dict[int, str], dict[int | None, Guild]]:
     """The people and communities a page of grants names, for display."""
     users_result = await session.exec(select(User).where(User.id.in_(user_ids)))
     users = {u.id: u for u in users_result.all()}
@@ -743,11 +750,10 @@ async def _enrichment(
     addresses_by_user = await addresses.primary_addresses(
         session, user_ids=sorted(user_ids)
     )
-    guilds = {}
-    for gid in guild_ids:
-        guild = await guilds_service.get_guild(session, guild_id=gid)
-        if guild is not None:
-            guilds[gid] = guild
+    # A community the lookup does not find leaves its rows unnamed rather
+    # than failing the page.
+    guilds_result = await session.exec(select(Guild).where(Guild.id.in_(guild_ids)))
+    guilds = {g.id: g for g in guilds_result.all()}
     return users, addresses_by_user, guilds
 
 
@@ -814,6 +820,7 @@ __all__ = [
     "revoke",
     "cancel_own_pending",
     "get_live_grant",
+    "get_live_grants",
     "list_grants",
     "expire_due",
     "to_read",

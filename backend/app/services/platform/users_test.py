@@ -11,6 +11,7 @@ Tests the business logic in app.services.users including:
 from datetime import datetime, timezone
 
 import pytest
+from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,6 +25,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_user,
 )
+from app.db.request_context import SystemGuild, Unattributed
 
 
 async def test_the_sole_seat_is_reported(session: AsyncSession):
@@ -234,9 +236,12 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     assert reloaded.status == UserStatus.deactivated
 
 
-async def test_deactivate_user(session: AsyncSession):
-    """Deactivation flips status, drops memberships, bumps token_version,
-    and leaves PII intact so an operator can later reactivate."""
+async def test_deactivate_user(session: AsyncSession, monkeypatch):
+    """Deactivation flips status, drops memberships (telling billing),
+    bumps token_version, and leaves PII intact so an operator can later
+    reactivate."""
+    from app.services.platform import billing_ping
+
     user = await create_user(
         session, email="todeactivate@example.com", full_name="Original Name"
     )
@@ -251,8 +256,11 @@ async def test_deactivate_user(session: AsyncSession):
     )
 
     original_token_version = user.token_version
+    pinged: list[int] = []
+    monkeypatch.setattr(billing_ping, "notify_membership_changed", pinged.append)
 
     await user_service.deactivate_user(session, user.id)
+    assert pinged == [guild.id]
 
     stmt = select(User).where(User.id == user.id)
     result = await session.exec(stmt)
@@ -717,7 +725,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     await create_initiative_member(session, initiative=initiative, user=member)
 
     # Sanity: the membership exists in the guild schema before deletion.
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     before = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -730,7 +738,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     after = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -739,7 +747,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     assert after == []
 
     # And the user row itself (shared/public) is anonymized.
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     refreshed = (await session.exec(select(User).where(User.id == member.id))).one()
     assert refreshed.status == UserStatus.anonymized
 
@@ -863,7 +871,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
 
     from app.db.session import set_rls_context
 
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     await session.exec(
         text(
             f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".comments '
@@ -927,7 +935,13 @@ async def test_soft_delete_scrubs_embedded_mentions(
     assert project_description == f"lead: @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
 
     for model, row_id in ((Document, document.id), (WikiPage, page.id)):
-        refreshed = (await session.exec(select(model).where(model.id == row_id))).one()
+        refreshed = (
+            await session.exec(
+                select(model)
+                .where(model.id == row_id)
+                .options(undefer(model.content), undefer(model.yjs_state))
+            )
+        ).one()
         node = refreshed.content["root"]["children"][0]["children"][0]
         assert node["mentionName"] == ANONYMIZED_MENTION_NAME, model
         assert node["text"] == ANONYMIZED_MENTION_NAME, model

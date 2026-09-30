@@ -62,7 +62,7 @@
   "send": "Envoyer",
   "sendFailed": "Ce message n'a pas pu être envoyé.",
   "recipientHasNoDevice": "{{name}} n'a pas encore configuré les messages chiffrés, ceci n'a donc pas pu être remis.",
-  "recipientDevicesUnverified": "{{name}} utilise un appareil que vous n'avez pas encore vérifié, donc le message n'a pas été envoyé. Comparez les images ci-dessus ensemble, puis choisissez « J'ai vérifié ».",
+  "peerDevicesChanged": "Les appareils de {{name}} ont changé",
   "deviceFailed": "Les messages chiffrés n'ont pas pu être configurés sur cet appareil.",
   "loading": "Chargement…",
   "unsupportedBrowser": "Les messages chiffrés ont besoin d'une connexion sécurisée et d'un navigateur capable de les exécuter. Vérifie que l'adresse commence par https (ou est localhost), ou utilise l'application.",
@@ -101,33 +101,33 @@
   },
   "newDevice": {
     "title": "Nouvel appareil connecté",
-    "body": "{{device}} s'est connecté à ton compte. Est-ce le tien ? Il devrait afficher ces images, dans le même ordre.",
+    "body": "{{device}} s'est connecté à ton compte. Si c'est le tien, vérifie-le : les deux écrans afficheront les mêmes quatre images à comparer.",
     "unknownDevice": "Un appareil",
     "sendHistory": "Lui envoyer mon historique de messages",
-    "confirm": "Oui, c'est le mien",
-    "remove": "Non, le retirer",
+    "verify": "Vérifier",
+    "remove": "Pas le mien, le retirer",
     "error": "Impossible d'enregistrer ta réponse. Réessaie."
   },
-  "deviceCode": {
-    "label": "Code de l'appareil"
-  },
   "historyAsk": {
-    "title": "Confirme cet appareil sur un autre des tiens",
-    "body": "Ouvre Messages sur un appareil que tu utilises déjà et confirme celui-ci là-bas. Il t'affichera ces images. Ton historique de messages arrive dès que c'est fait.",
+    "title": "Vérifie cet appareil depuis un autre des tiens",
+    "body": "Ouvre Messages sur un appareil que tu utilises déjà et choisis Vérifier là-bas. Garde celui-ci ouvert : les deux afficheront les mêmes quatre images à comparer. Ton historique de messages arrive dès que c'est fait.",
     "dismiss": "Masquer",
-    "dismissNote": "Masquer ne fait que cacher cet avis. Tes messages arriveront quand même dès que tu confirmeras cet appareil sur l'autre."
+    "dismissNote": "Masquer ne fait que cacher cet avis. Tes messages arriveront quand même dès que tu vérifieras cet appareil depuis l'autre."
   },
-  "peerKeyChange": {
-    "title": "Les appareils de {{name}} ont changé",
-    "body": "Le plus souvent, cela signifie que cette personne a ajouté, remplacé ou réinstallé un appareil. Cela peut aussi signifier que quelqu'un d'autre a ajouté un appareil en son nom. Comparez votre numéro de sécurité par un autre moyen qu'ici avant d'envoyer quoi que ce soit de confidentiel.",
-    "compare": "Comparer le numéro de sécurité"
-  },
-  "safetyNumber": {
-    "title": "Numéro de sécurité avec {{name}}",
-    "description": "Lisez ces chiffres avec {{name}} en personne ou lors d'un appel. Si les deux écrans affichent les mêmes chiffres, vos messages n'atteignent que les appareils que vous attendez tous les deux.",
-    "you": "Toi",
-    "matches": "Ils correspondent",
-    "verified": "Tu as comparé ce numéro avec {{name}}."
+  "verification": {
+    "title": "Comparer avec {{device}}",
+    "waiting": "En attente de ton autre appareil. Garde Messages ouvert dessus.",
+    "compare": "Vérifie que les deux écrans affichent ces images, dans le même ordre.",
+    "label": "Images à comparer",
+    "match": "Elles correspondent",
+    "noMatch": "Elles ne correspondent pas",
+    "waitingForOther": "En attente de la confirmation de ton autre appareil.",
+    "verified": "Vérifié. Cet appareil peut maintenant lire et envoyer tes messages.",
+    "mismatch": "Non vérifié, et rien n'a été modifié. Si tu ne reconnais pas cet appareil, retire-le.",
+    "cancelled": "La vérification a été arrêtée sur l'autre appareil. Rien n'a été modifié.",
+    "timeout": "La vérification a pris trop de temps et a été arrêtée. Rien n'a été modifié. Réessaie.",
+    "elsewhere": "Une vérification est déjà en cours dans un autre onglet.",
+    "error": "Impossible de vérifier l'appareil. Réessaie."
   },
   "safetyEmoji": {
     "dog": "Chien",

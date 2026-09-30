@@ -18,7 +18,7 @@ from sqlalchemy import text
 
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
-from app.testing import push_switched_on, set_notification_prefs
+from app.testing import push_switched_on, set_notification_prefs, signed_in_headers
 
 
 @pytest.fixture(autouse=True)
@@ -183,6 +183,12 @@ class TestMessageRequests:
         await client.post(
             f"/api/v1/me/connections/{ada.user.id}/accept", headers=bo.headers
         )
+        # Closed, so asking again writes a grant rather than finding the one the
+        # connection opened.
+        closed = await client.delete(
+            f"/api/v1/me/message-requests/{bo.user.id}", headers=ada.headers
+        )
+        assert closed.status_code == 204, closed.text
 
         response = await client.post(
             "/api/v1/me/message-requests",
@@ -190,6 +196,7 @@ class TestMessageRequests:
             headers=ada.headers,
         )
         assert response.status_code == 202, response.text
+        assert response.json()["state"] == "accepted"
 
         assert await _lines(session, bo.user.id, "message_request_received") == []
 
@@ -204,7 +211,7 @@ class TestPush:
         await client.post(
             "/api/v1/push/register",
             json={"push_token": "fcm-bo", "platform": "android"},
-            headers=bo.headers,
+            headers=await signed_in_headers(session, bo.user),
         )
 
         with patch(
@@ -229,11 +236,12 @@ class TestPush:
         ada = await acting_user()
         bo = await acting_user()
         await _reachable(session, ada.user, bo.user)
+        headers = await signed_in_headers(session, bo.user)
         for name in ("fcm-phone", "fcm-tablet"):
             await client.post(
                 "/api/v1/push/register",
                 json={"push_token": name, "platform": "android"},
-                headers=bo.headers,
+                headers=headers,
             )
 
         with patch(
@@ -258,7 +266,7 @@ class TestPush:
         await client.post(
             "/api/v1/push/register",
             json={"push_token": "fcm-bo", "platform": "android"},
-            headers=bo.headers,
+            headers=await signed_in_headers(session, bo.user),
         )
         await set_notification_prefs(
             session, bo.user, {"categories": {"direct_messages": {"push": False}}}

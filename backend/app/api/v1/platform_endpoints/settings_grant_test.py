@@ -462,7 +462,7 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
 
     roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
     assert roster.status_code == 200, roster.text
-    assert {row["id"] for row in roster.json()} == {owner.id}
+    assert {row["id"] for row in roster.json()["items"]} == {owner.id}
 
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code in (403, 404), content.text

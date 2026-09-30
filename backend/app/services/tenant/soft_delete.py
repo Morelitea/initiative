@@ -16,8 +16,9 @@ walks here are ordered against that: a stamp goes deepest-first, a restore
 shallowest-first, and each level is flushed before the next so the order is the
 one the database sees rather than the one the unit of work picks.
 
-That same read-only rule is why a row which holds a NAME lets go of it on the
-way INTO the bin rather than on the way out — see ``RELEASED_NAMES``.
+A row which holds a NAME lets go of it in the same write that bins it, and
+takes it back in the same write that restores it — see
+``app.db.frozen.RELEASED_NAMES``.
 
 Hard-purge is admin-only at the DB layer on EVERY soft-delete table: the
 ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (rendered by
@@ -37,21 +38,23 @@ from typing import Iterable, Optional
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from sqlalchemy import text
+from sqlalchemy.orm import undefer
 
-from app.db.frozen import PURGE_GUC
+from app.db import gucs
+from app.db.frozen import PARK, RELEASED_NAMES
+from app.db.query import ids_in
+from app.db.session import raise_flag
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.gallery import GalleryImage
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.task import Task
-from app.models.tenant.wiki import WikiPage
 from app.services.tenant.lifecycle_tree import (
     CASCADE_CHILDREN,
     Level,
     delete_rows,
-    ids_in,
     set_columns,
     subtree_levels,
 )
@@ -67,30 +70,6 @@ __all__ = [
 ]
 
 
-#: Rows that hold a NAME which is unique among their siblings, mapped to the
-#: column holding it and the column that says which siblings it competes with.
-#:
-#: A name is an address somebody types, not a fact about the row, so a row in
-#: the bin has no business keeping one: a wiki page called "Step 1", thrown
-#: away, must not stop the next "Step 1" from being written. It therefore
-#: PARKS its name when it is stamped and takes it back when it is restored —
-#: with a suffix, if somebody has taken it in the meantime, because coming back
-#: under a slightly different address always beats not coming back.
-#:
-#: Which way round that happens is forced by the freeze: a trashed row takes no
-#: content writes, so the park rides along in the same UPDATE as the stamp, and
-#: the reclaim is a second UPDATE once the row is live again.
-RELEASED_NAMES: dict[type, tuple[str, str]] = {
-    WikiPage: ("slug", "wiki_id"),
-}
-
-#: What a parked name is parked behind. Deliberately outside the alphabet these
-#: names are generated from (see ``names.slugify``), so a parked name
-#: can never be one a live row would pick, and the id after it makes it unique
-#: among everything else in the bin.
-_PARK = "~"
-
-
 def _name_limit(model: type, column: str, fallback: int) -> int:
     """How long the column lets a name be."""
     return model.__table__.c[column].type.length or fallback
@@ -103,29 +82,30 @@ def _park_name(row: SoftDeleteMixin) -> None:
         return
     column, _scope = spec
     current = getattr(row, column, None)
-    if not current or _PARK in current:
+    if not current or PARK in current:
         return
-    suffix = f"{_PARK}{row.id}"
+    suffix = f"{PARK}{row.id}"
     limit = _name_limit(type(row), column, len(current) + len(suffix))
     setattr(row, column, f"{current[: limit - len(suffix)]}{suffix}")
 
 
 async def _reclaim_name(session: AsyncSession, row: SoftDeleteMixin) -> None:
-    """Take the name back, now that the row is live enough to be written.
+    """Take the name back, in the same write that restores the row.
 
     The one it parked, if it is still free; the same with ``-2``, ``-3``, … if
     a row written since has it. Live siblings only — the query goes through the
     session's soft-delete filter — so two rows in the bin never argue over a
-    name neither of them is using.
+    name neither of them is using. Asked before the row is written, while it
+    is still in the bin and so not one of its own siblings.
     """
     spec = RELEASED_NAMES.get(type(row))
     if spec is None:
         return
     column, scope_column = spec
     parked = getattr(row, column, None) or ""
-    if _PARK not in parked:
+    if PARK not in parked:
         return
-    wanted = parked.rsplit(_PARK, 1)[0]
+    wanted = parked.rsplit(PARK, 1)[0]
     model = type(row)
     statement = select(getattr(model, column)).where(
         getattr(model, scope_column) == getattr(row, scope_column)
@@ -140,8 +120,6 @@ async def _reclaim_name(session: AsyncSession, row: SoftDeleteMixin) -> None:
         candidate = f"{wanted[: limit - len(tail)]}{tail}"
         suffix += 1
     setattr(row, column, candidate)
-    session.add(row)
-    await session.flush()
 
 
 def _compute_purge_at(
@@ -158,14 +136,14 @@ async def _write_level(
     values: dict[str, object],
     *,
     park: bool = False,
-) -> list[SoftDeleteMixin]:
+) -> None:
     """Write ``values`` onto every row of one level, a statement per table.
 
     A table that holds a name is loaded instead, because each of its rows parks
-    (``park=True``) or later reclaims its own name; those rows are returned for
-    the reclaim. The level is flushed before this returns.
+    (``park=True``) or reclaims its own name in the same write. Those rows are
+    written one at a time, so a sibling reclaiming after it sees the name it
+    took. The level is flushed before this returns.
     """
-    named: list[SoftDeleteMixin] = []
     for model, ids in level.items():
         if model not in RELEASED_NAMES:
             await set_columns(session, model, ids, values)
@@ -176,14 +154,14 @@ async def _write_level(
             )
         ).all()
         for row in rows:
+            if not park:
+                await _reclaim_name(session, row)
             for column, value in values.items():
                 setattr(row, column, value)
             if park:
                 _park_name(row)
             session.add(row)
-        named.extend(rows)
-    await session.flush()
-    return named
+            await session.flush()
 
 
 async def trash(
@@ -261,8 +239,7 @@ async def restore_entity(
     )
     cleared = {"deleted_at": None, "deleted_by": None, "purge_at": None}
     for level in levels:
-        for row in await _write_level(session, level, cleared):
-            await _reclaim_name(session, row)
+        await _write_level(session, level, cleared)
 
 
 async def _purge_relationships(session: AsyncSession, doomed: Level) -> None:
@@ -280,8 +257,14 @@ async def _purge_relationships(session: AsyncSession, doomed: Level) -> None:
             await relationships.purge_for_entities(session, kind, ids)
 
 
-#: The tables whose rows the purge hooks read, not just their ids.
-_PURGE_LOADS = (Comment, GalleryImage, Task, Document)
+#: The tables whose rows the purge hooks read, not just their ids, with the
+#: deferred columns those hooks read.
+_PURGE_LOADS: dict[type, tuple] = {
+    Comment: (),
+    GalleryImage: (),
+    Task: (),
+    Document: (undefer(Document.content),),
+}
 
 
 async def hard_purge_entity(
@@ -317,6 +300,7 @@ async def hard_purge_entities(
     from app.services.tenant.attachments import (
         purge_document_uploads,
         purge_gallery_image_uploads,
+        purge_initiative_uploads,
         purge_pasted_images,
     )
     from app.services.tenant.reactions import purge_comment_reactions
@@ -328,10 +312,8 @@ async def hard_purge_entities(
 
     # Purge is the one lifecycle step that writes frozen content instead of only
     # removing it — the wikilink unresolve below reaches documents that are
-    # themselves in the trash. Transaction-local (see app.db.frozen.PURGE_GUC).
-    await session.exec(
-        text("SELECT set_config(:name, 'true', true)").bindparams(name=PURGE_GUC)
-    )
+    # themselves in the trash. Transaction-local (see app.db.gucs.PURGING).
+    await raise_flag(session, gucs.PURGING)
 
     levels = await subtree_levels(session, roots)
     doomed: Level = {}
@@ -340,14 +322,14 @@ async def hard_purge_entities(
             doomed.setdefault(model, []).extend(ids)
 
     loaded: dict[type, list] = {}
-    for model in _PURGE_LOADS:
+    for model, options in _PURGE_LOADS.items():
         if doomed.get(model):
             loaded[model] = list(
                 (
                     await session.exec(
-                        select_including_deleted(model).where(
-                            ids_in(model.id, doomed[model])
-                        )
+                        select_including_deleted(model)
+                        .where(ids_in(model.id, doomed[model]))
+                        .options(*options)
                     )
                 ).all()
             )
@@ -377,6 +359,10 @@ async def hard_purge_entities(
         # it are still there to find the documents carrying those links.
         for doc in loaded[Document]:
             await unresolve_wikilinks_to_document(session, deleted_document_id=doc.id)
+
+    # What is left of an initiative's files goes with it.
+    if doomed.get(Initiative):
+        released |= await purge_initiative_uploads(session, doomed[Initiative])
 
     # Edges name both ends polymorphically, so nothing carries them out with
     # the thing they connect. Tombstones go too: what one remembers is a link

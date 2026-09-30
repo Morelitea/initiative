@@ -58,8 +58,9 @@ from app.schemas.tenant.dashboard import (
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
-from app.db.session import rls_context_params
+from app.db.session import routed_context
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
+from app.services.tenant import attachments as attachments_service
 from app.services.permissions import Action
 from app.services import audit as audit_service
 from app.services import query as query_service
@@ -287,6 +288,7 @@ async def create_dashboard(
             tag_ids=dashboard_in.tag_ids,
         )
 
+    await attachments_service.claim_uploads(session, dashboard)
     await session.commit()
     if listing_id is not None:
         await count_install(guild_context.guild_id, listing_id)
@@ -347,6 +349,7 @@ async def update_dashboard(
     if updated:
         dashboard.updated_at = datetime.now(timezone.utc)
         session.add(dashboard)
+        await attachments_service.claim_uploads(session, dashboard)
         await session.commit()
 
     hydrated = await _refetch_dashboard(session, dashboard.id)
@@ -578,7 +581,7 @@ async def load_dashboard_data(
     try:
         outcomes = await query_service.execute_canvas(
             statements,
-            context=rls_context_params(session),
+            context=routed_context(session),
             initiative_id=dashboard.initiative_id,
             via_dashboard_id=through,
         )
@@ -628,7 +631,7 @@ async def run_widget_query(
     try:
         result = await query_service.run(
             sql,
-            context=rls_context_params(session),
+            context=routed_context(session),
             initiative_id=dashboard.initiative_id,
             via_dashboard_id=through,
         )

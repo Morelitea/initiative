@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from secrets import token_urlsafe
 from typing import Optional, Sequence, Tuple
@@ -15,6 +15,8 @@ from app.services import audit as audit_service
 
 API_KEY_PREFIX = "ppk_"
 API_KEY_DISPLAY_PREFIX_LENGTH = 12
+#: How stale ``last_used_at`` may be before a request writes it again.
+API_KEY_LAST_USED_RESOLUTION = timedelta(hours=1)
 
 
 def _hash_token(token: str) -> str:
@@ -152,9 +154,14 @@ async def authenticate_api_key(
         if not user or user.status != UserStatus.active:
             return None
 
-        # Record use only once an active user is confirmed (matches prior order).
-        api_key.last_used_at = now
-        await system_session.commit()
+        # Record use only once an active user is confirmed, and at most once
+        # per resolution window, so a busy key does not write on every request.
+        if (
+            api_key.last_used_at is None
+            or now - api_key.last_used_at >= API_KEY_LAST_USED_RESOLUTION
+        ):
+            api_key.last_used_at = now
+            await system_session.commit()
 
     return user, api_key
 

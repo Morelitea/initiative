@@ -253,6 +253,39 @@ async def test_a_scope_the_pinned_version_dropped_is_not_issued(
     assert sorted(row.granted_scopes) == ["comments:read", "documents:write"]
 
 
+async def test_a_scope_the_ceiling_no_longer_allows_is_not_issued(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """Narrowing the registration's ceiling narrows the next token, whatever
+    the seat granted before."""
+    from app.models.platform.app_service_registration import AppServiceRegistration
+    from app.services.marketplace import registration_lookup
+
+    installed = await install_app(
+        session,
+        acting_user,
+        role_session,
+        granted=["documents:write", "comments:read"],
+    )
+    installation = await _installation(installed)
+
+    registration = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == CLIENT
+            )
+        )
+    ).one()
+    registration.scope_ceiling = ["comments:read"]
+    session.add(registration)
+    await session.commit()
+    registration_lookup.invalidate_registrations()
+
+    after = await _ask(client, installation=installation)
+    assert after.status_code == 200, after.text
+    assert after.json()["scope"] == "comments:read"
+
+
 async def test_a_placed_initiative_narrows_the_token(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):

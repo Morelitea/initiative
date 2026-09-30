@@ -7,15 +7,14 @@ import type {
   TagSummary,
   TaskListReadRecurrenceStrategy,
   TaskPriority,
-  TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { type MemberLike, MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyFields, propertyStubFromDefinition } from "@/components/properties/PropertyFields";
+import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import { TagPicker } from "@/components/tags";
 import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
@@ -38,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { dateRangeBounds } from "@/lib/dateRange";
+import type { RecurrenceRule } from "@/lib/recurrence";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
 /** The full editable state of a task form, owned by the parent so it can
@@ -54,7 +54,8 @@ export interface TaskFormValue {
   assigneeIds: number[];
   startDate: string;
   dueDate: string;
-  recurrence: TaskRecurrenceOutput | null;
+  /** `"custom"` is a stored rule the form can't show, kept until replaced. */
+  recurrence: RecurrenceRule | "custom" | null;
   recurrenceStrategy: TaskListReadRecurrenceStrategy;
   tags: TagSummary[];
   /** Attached property rows — real server rows or locally-added stubs. */
@@ -137,6 +138,8 @@ export interface TaskFormProps {
   descriptionSlot?: ReactNode;
   /** Reference date for the recurrence "occurs on" preview. */
   recurrenceReferenceDate?: string | null;
+  /** The stored repeat and its shift, previewed while it is kept as custom. */
+  storedRecurrence?: { rule: string; shift: number } | null;
 
   /** ``dialog`` tucks everything but the title into a collapsible section;
    *  ``page`` renders every field flat. */
@@ -162,6 +165,7 @@ export const TaskForm = ({
   disabled = false,
   descriptionSlot,
   recurrenceReferenceDate,
+  storedRecurrence,
   layout = "page",
   autoFocusTitle = false,
 }: TaskFormProps) => {
@@ -315,13 +319,15 @@ export const TaskForm = ({
   );
 
   const recurrenceField = (
-    <TaskRecurrenceSelector
-      recurrence={value.recurrence}
+    <RecurrenceEditor
+      kind="task"
+      value={value.recurrence}
       onChange={(recurrence) => set({ recurrence })}
       strategy={value.recurrenceStrategy}
       onStrategyChange={(recurrenceStrategy) => set({ recurrenceStrategy })}
       disabled={disabled}
       referenceDate={recurrenceReferenceDate ?? value.dueDate ?? value.startDate}
+      stored={storedRecurrence}
     />
   );
 

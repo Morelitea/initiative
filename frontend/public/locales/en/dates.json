@@ -50,6 +50,7 @@
     "second": "second",
     "third": "third",
     "fourth": "fourth",
+    "fifth": "fifth",
     "last": "last"
   },
   "recurrenceSummary": {
@@ -72,6 +73,15 @@
     "inMonth": "in {{month}}",
     "afterCompletion": "after completion",
     "untilDate": "until {{date}}",
-    "forOccurrences": "for {{count}} occurrences"
+    "forOccurrences": "for {{count}} occurrences",
+    "custom": "Repeats on a custom schedule",
+    "onDays": "on days {{days}}",
+    "onLastDay": "on the last day",
+    "lastDayItem": "the last day",
+    "onEveryWeekdays": "on every {{weekdays}}",
+    "onFirstWorkDay": "on the first weekday",
+    "onLastWorkDay": "on the last weekday",
+    "onFirstOf": "on the first {{weekdays}}",
+    "onLastOf": "on the last {{weekdays}}"
   }
 }

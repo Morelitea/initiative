@@ -516,6 +516,21 @@ def get_auth_headers(user: User) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+async def signed_in_headers(session: AsyncSession, user: User) -> dict[str, str]:
+    """Authorization headers naming a real ``auth_sessions`` row, as a signed-in
+    app's do — for what is tied to the sign-in behind a request, such as a
+    registered push token."""
+    from app.services.auth import sessions as session_service
+
+    user_id = user.id
+    issued = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    session_id = issued.session.id
+    await session.commit()
+    return {"Authorization": f"Bearer {get_auth_token(user, session_id=session_id)}"}
+
+
 async def create_initiative(
     session: AsyncSession,
     guild: Guild,
@@ -1290,7 +1305,7 @@ async def create_app_service_registration(
     session: AsyncSession,
     *,
     public_id: str = "tests.app-service",
-    base_url: str = "https://app.example.test",
+    base_url: str | None = "https://app.example.test",
     listing_uid: str | None = None,
     allowed_origins: list[str] | None = None,
     mandatory: bool = False,
@@ -1863,7 +1878,8 @@ async def create_document(
     # rest of the caller's transaction.
     await (session.commit() if commit else session.flush())
     if commit:
-        await session.refresh(document)
+        # Every column, the deferred body included: tests read it off the row.
+        await session.refresh(document, [c.key for c in Document.__table__.columns])
     await create_resource_grant(
         session, document, level=ResourceAccessLevel.owner, user=creator, commit=commit
     )

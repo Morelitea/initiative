@@ -24,6 +24,7 @@ from app.models.platform.user import User
 from app.schemas.ai_settings import MyAIConnectionRow
 from app.services.ai_settings import get_member_ai_view
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.db.request_context import Platform
 
 # Mounted under /api/v1/me (no guild path segment) — see api.py.
 me_router = APIRouter()
@@ -45,7 +46,7 @@ async def list_my_ai(
     # Guild names up-front under the user-only context (the user is a member, so
     # RLS admits these rows), so each row carries its guild's name without a
     # per-guild shared-table read inside the routed loop.
-    await set_rls_context(session, user_id=current_user.id)
+    await set_rls_context(session, Platform(user_id=current_user.id))
     name_rows = await session.exec(
         select(Guild.id, Guild.name).where(Guild.id.in_(tuple(target_guilds)))
     )

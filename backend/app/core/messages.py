@@ -154,6 +154,7 @@ class GuildMessages:
     SUPPORT_INTAKE_NOT_CONFIGURED = "SUPPORT_INTAKE_NOT_CONFIGURED"
     GUILD_CREATION_DISABLED = "GUILD_CREATION_DISABLED"
     FREE_COMMUNITY_ALREADY_HELD = "FREE_COMMUNITY_ALREADY_HELD"
+    GUILD_CREATION_LIMIT_REACHED = "GUILD_CREATION_LIMIT_REACHED"
     GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED"
     # Naming another user as a new guild's admin is platform-staff only.
     GUILD_OWNER_REQUIRES_CAPABILITY = "GUILD_OWNER_REQUIRES_CAPABILITY"
@@ -600,8 +601,16 @@ class IntakeMessages:
 class OperatorMessages:
     CANNOT_RESET_INACTIVE = "OPERATOR_CANNOT_RESET_INACTIVE"
     USER_ALREADY_ACTIVE = "OPERATOR_USER_ALREADY_ACTIVE"
+    #: Reactivate is for a deactivated account; a suspension is lifted and a
+    #: deletion restored through their own actions.
+    USER_NOT_DEACTIVATED = "OPERATOR_USER_NOT_DEACTIVATED"
+    #: Account actions reach only accounts at or below the caller's own rung.
+    CANNOT_MANAGE_HIGHER_ROLE = "OPERATOR_CANNOT_MANAGE_HIGHER_ROLE"
     #: Restore was asked for an account that has not been deleted.
     USER_NOT_DELETED = "OPERATOR_USER_NOT_DELETED"
+    #: A confirmation letter was asked for an account with no address left to
+    #: confirm.
+    NOTHING_TO_VERIFY = "OPERATOR_NOTHING_TO_VERIFY"
     CANNOT_SUSPEND_SELF = "OPERATOR_CANNOT_SUSPEND_SELF"
     CANNOT_SUSPEND_INACTIVE = "OPERATOR_CANNOT_SUSPEND_INACTIVE"
     CANNOT_SUSPEND_HIGHER_ROLE = "OPERATOR_CANNOT_SUSPEND_HIGHER_ROLE"
@@ -626,6 +635,9 @@ class AccessGrantMessages:
     NOT_ACTIVE = "ACCESS_GRANT_NOT_ACTIVE"
     CANNOT_APPROVE_OWN = "ACCESS_GRANT_CANNOT_APPROVE_OWN"
     CANNOT_CANCEL_OTHERS = "ACCESS_GRANT_CANNOT_CANCEL_OTHERS"
+    #: Approving asks whether the requester may still request access: an
+    #: active account whose role holds ``access.request``.
+    GRANTEE_INELIGIBLE = "ACCESS_GRANT_GRANTEE_INELIGIBLE"
     #: A settings rung reads; changing what it reaches takes a read_write
     #: content grant beside it.
     WRITE_GRANT_REQUIRED = "ACCESS_GRANT_WRITE_REQUIRED"
@@ -689,7 +701,6 @@ class UserMessages:
     AVATAR_TOO_LARGE_DIMENSIONS = "USER_AVATAR_TOO_LARGE_DIMENSIONS"
     # A read payload's ``avatar_url`` is a path this API serves; writing one
     # back would store it as though it were an external picture URL.
-    AVATAR_URL_NOT_EXTERNAL = "USER_AVATAR_URL_NOT_EXTERNAL"
     #: A decoration this account's library does not answer for — one it does
     #: not have, or one it has for a different slot.
     DECORATION_NOT_OWNED = "USER_DECORATION_NOT_OWNED"
@@ -717,6 +728,9 @@ class ExportMessages:
     EXPORT_NOT_READY = "EXPORT_NOT_READY"
     #: A finished export whose artifact is past its expiry.
     EXPORT_EXPIRED = "EXPORT_EXPIRED"
+    #: A finished export holding content from an initiative the caller no
+    #: longer reaches.
+    EXPORT_OUT_OF_REACH = "EXPORT_OUT_OF_REACH"
     EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
     EXPORT_THIRD_PARTY_APP = "EXPORT_THIRD_PARTY_APP"
     EXPORT_DESTINATION_REQUIRED = "EXPORT_DESTINATION_REQUIRED"
@@ -883,6 +897,9 @@ class CalendarEventMessages:
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
     ENDS_BEFORE_START = "CALENDAR_EVENT_ENDS_BEFORE_START"
+    # A repeat rule that can't be read, or asks for more than tasks and
+    # events repeat by (``app.core.recurrence``).
+    RECURRENCE_INVALID = "RECURRENCE_INVALID"
     # A guild calendar holds guild-level content only. Things defined on an
     # initiative — custom properties, documents — have no counterpart at guild
     # scope, so an event there cannot carry them; and an event cannot be moved
@@ -891,6 +908,8 @@ class CalendarEventMessages:
     GUILD_CALENDAR_NO_PROPERTIES = "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES"
     GUILD_CALENDAR_NO_DOCUMENTS = "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS"
     CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
+    # A calendar read's date window ends before it starts or spans too long.
+    WINDOW_INVALID = "CALENDAR_WINDOW_INVALID"
 
 
 class DashboardMessages:
@@ -991,6 +1010,9 @@ class WikiMessages:
     HOME_NOT_IN_WIKI = "WIKI_HOME_NOT_IN_WIKI"
     #: So does the page new ones are copied from.
     TEMPLATE_NOT_IN_WIKI = "WIKI_TEMPLATE_NOT_IN_WIKI"
+    #: A page with a live collaboration room has that room as the writer of
+    #: its content; a save from outside the session is refused.
+    LIVE_SESSION_OWNS_CONTENT = "WIKI_LIVE_SESSION_OWNS_CONTENT"
 
 
 class MarketplaceMessages:
@@ -1077,8 +1099,6 @@ class MarketplaceRegistryMessages:
     SOURCE_CONFLICT = "MARKETPLACE_REGISTRY_SOURCE_CONFLICT"
     #: This deployment's operator added a publisher with the same prefix.
     PUBLISHER_CONFLICT = "MARKETPLACE_REGISTRY_PUBLISHER_CONFLICT"
-    #: This deployment's operator registered an app with the same id.
-    REGISTRATION_CONFLICT = "MARKETPLACE_REGISTRY_REGISTRATION_CONFLICT"
     #: The listing itself was refused by the catalog's validator.
     LISTING_REJECTED = "MARKETPLACE_REGISTRY_LISTING_REJECTED"
 
@@ -1239,8 +1259,6 @@ class AppServiceMessages:
     #: address Initiative's own server calls.
     INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
     INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
-    #: A scope ceiling naming something outside the app scope vocabulary.
-    UNKNOWN_SCOPE = "APP_SERVICE_UNKNOWN_SCOPE"
     #: The key set is not a JWKS this build can verify against, or an entry in
     #: it carries no ``kid`` for a JWT to name.
     INVALID_JWKS = "APP_SERVICE_INVALID_JWKS"
@@ -1248,8 +1266,9 @@ class AppServiceMessages:
     #: has no fallback, so registration fails closed until an operator
     #: supplies one.
     SIGNING_NOT_CONFIGURED = "APP_SERVICE_SIGNING_NOT_CONFIGURED"
-    #: The listing uid is missing or is not a catalog uid.
-    INVALID_LISTING_UID = "APP_SERVICE_INVALID_LISTING_UID"
+    #: A registration entry or request named something only the app's
+    #: listing states (its listing, scope ceiling, image or sectors).
+    STATED_BY_LISTING = "APP_SERVICE_STATED_BY_LISTING"
     #: The key set address is not https on the base URL's own origin.
     INVALID_JWKS_URI = "APP_SERVICE_INVALID_JWKS_URI"
     #: No publisher has that id.
@@ -1260,9 +1279,8 @@ class AppServiceMessages:
     INVALID_PUBLISHER_PREFIX = "APP_PUBLISHER_INVALID_PREFIX"
     #: A publisher's name is empty or too long.
     INVALID_PUBLISHER_NAME = "APP_PUBLISHER_INVALID_NAME"
-    #: The registration arrived from the registry, which keeps the fields
-    #: asked to change. The operator keeps its switch, mandatory flag, origins
-    #: and, for a container, its location.
+    #: The registration's app facts come from the registry, whose next refresh
+    #: would bring it back, so it is switched off rather than removed.
     REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
     #: A vendor value named a field the app's manifest does not declare.
     UNKNOWN_VENDOR_FIELD = "APP_SERVICE_UNKNOWN_VENDOR_FIELD"
@@ -1518,6 +1536,10 @@ class DirectMessageTransportMessages:
     #: A device's or key's signature is missing where one is required, or does
     #: not verify against the device's own fingerprint key.
     INVALID_SIGNATURE = "DM_INVALID_SIGNATURE"
+    #: A verification addressed from a device to itself.
+    VERIFY_SAME_DEVICE = "DM_VERIFY_SAME_DEVICE"
+    #: The account already has as many verification messages waiting as it may.
+    TOO_MANY_VERIFICATIONS = "DM_TOO_MANY_VERIFICATIONS"
 
 
 class ContactGrantMessages:

@@ -39,6 +39,7 @@ from time import monotonic
 from typing import Dict, Optional, Set
 
 from app.models.platform.user import Presence
+from app.db.request_context import Unattributed
 
 #: How long a person's tabs go without a sign of them before they read as idle.
 #: Long enough to sit through reading a document, short enough that a tab left
@@ -194,7 +195,7 @@ async def process_activity_flush() -> None:
     if not user_ids:
         return
     async with SystemSessionLocal() as session:
-        await set_rls_context(session)
+        await set_rls_context(session, Unattributed())
         await session.exec(
             text(
                 "UPDATE users SET last_active_at = now() "

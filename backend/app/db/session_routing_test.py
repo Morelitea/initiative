@@ -1,224 +1,201 @@
-"""Unit tests for the role-routing decision in ``_render_context_bind_params``.
+"""Which role and path each routing shape assumes, and what it writes.
 
-The pure function is the single place that decides which Postgres role a
-request assumes; these pin the ``read_only`` (guild lifecycle status) leg
-against the pre-existing PAM read-grant leg.
+``_bind_params`` renders a shape into the one statement that routes a
+transaction; these pin the role picked for each kind of access, the schemas it
+resolves in, and the variables that say which community it is.
 """
 
 import pytest
 
+from app.db.guild_standing import GuildContext, InstallContext
+from app.db.request_context import (
+    Billing,
+    ContentGrantee,
+    Install,
+    Member,
+    Platform,
+    SettingsGrantee,
+    SystemGuild,
+    Unattributed,
+)
 from app.db.schema_provisioning import (
     GuildRoleKind,
-    guild_schema_name,
     guild_role_name,
+    guild_schema_name,
 )
-from app.db.session import _render_context_bind_params
+from app.db.session import _bind_params
+
+_STANDING = GuildContext(guild=None, user_id=7, guild_id=3)
 
 
-def _params(**overrides):
-    base = {
-        "user_id": 7,
-        "guild_id": None,
-        "context": None,
-        "pam_guild_id": None,
-        "pam_read": False,
-        "pam_write": False,
-        "settings_guild_id": None,
-        "seat": False,
-        "platform_role": None,
-        "read_only": False,
-    }
-    base.update(overrides)
-    return base
+def _member(**overrides) -> dict[str, str]:
+    return _bind_params(Member(guild_id=3, user_id=7, standing=_STANDING, **overrides))
 
 
-def test_member_routes_to_full_guild_role():
-    bind = _render_context_bind_params(_params(guild_id=3))
-    assert bind["role"] == guild_role_name(3)
-    assert bind["gid"] == "3"
+def _grantee(**overrides) -> dict[str, str]:
+    return _bind_params(ContentGrantee(guild_id=3, user_id=7, **overrides))
 
 
-def test_read_only_member_routes_to_ro_role_keeping_membership_gucs():
-    """A member of a read_only community assumes the SELECT-only role while the
-    community context stays set — writes die in Postgres, reads (and the
-    membership legs, once the standing is computed) behave normally."""
-    bind = _render_context_bind_params(_params(guild_id=3, read_only=True))
-    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
-    assert bind["gid"] == "3"
-
-
-def test_read_only_admin_also_routes_to_ro_role():
-    bind = _render_context_bind_params(_params(guild_id=3, read_only=True))
-    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
-
-
-def test_pam_read_grant_still_routes_to_ro_role():
-    bind = _render_context_bind_params(_params(pam_guild_id=3, pam_read=True))
-    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
-    assert bind["gid"] == ""
-
-
-def test_pam_write_grant_routes_to_support_role():
-    """A scoped read_write grant (the ``support`` identity) routes into the
-    restricted ``guild_<id>_support`` role — not the full member role — so its
-    write cap (no member/permission-table writes) is Postgres-enforced."""
-    bind = _render_context_bind_params(
-        _params(pam_guild_id=3, pam_read=True, pam_write=True)
+def _settings(**overrides) -> dict[str, str]:
+    return _bind_params(
+        SettingsGrantee(guild_id=3, user_id=7, standing=_STANDING, **overrides)
     )
-    assert bind["role"] == guild_role_name(3, GuildRoleKind.support)
 
 
-def test_settings_grant_routes_without_content_grant_flags():
-    """A settings rung on its own reads: the SELECT-only role, no content flags."""
-    bind = _render_context_bind_params(_params(settings_guild_id=3))
-    assert bind["role"] == guild_role_name(3, GuildRoleKind.read_only)
-    assert bind["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
-    assert bind["gid"] == ""
-    assert bind["pgid"] == ""
-    assert bind["pr"] == "false"
-    assert bind["pw"] == "false"
-
-
-def test_member_and_break_glass_keep_full_role():
-    """A real member / break-glass (guild_id set) keeps the full role — only a
-    scoped grant (guild_id unset) is downgraded to _ro / _support."""
-    member = _render_context_bind_params(_params(guild_id=3))
-    assert member["role"] == guild_role_name(3)
-    # break-glass routes with guild_id set beside its grant
-    bg = _render_context_bind_params(
-        _params(guild_id=3, pam_guild_id=3, pam_write=True)
+def test_a_member_routes_by_the_community_and_its_hold():
+    """A member assumes the community's role; in a ``read_only`` community the
+    SELECT-only one, with the community still named — writes die in Postgres,
+    reads and the membership legs behave normally. A standing that also shows a
+    grant does not change a member's role."""
+    member = _member()
+    assert (member["role"], member["current_guild_id"]) == (guild_role_name(3), "3")
+    held = _member(read_only=True)
+    assert held["role"] == guild_role_name(3, GuildRoleKind.read_only)
+    assert held["current_guild_id"] == "3"
+    granted = _STANDING.with_standing(
+        {"standing_guild_id": "3", "pam_read": "true", "pam_write": "true"}
     )
-    assert bg["role"] == guild_role_name(3)
+    also_granted = _bind_params(Member(guild_id=3, user_id=7, standing=granted))
+    assert also_granted["role"] == guild_role_name(3)
 
 
-class TestSearchPathNamesEverySchema:
-    """The routed path names every schema it resolves against, in priority
-    order, ending at ``pg_temp`` (see ``_search_path``). Guild content resolves
-    in the guild schema first; the platform and billing routes resolve in
-    ``public``."""
+def test_a_content_grant_routes_by_its_level():
+    """A read grant reads; a read_write grant is the restricted ``support``
+    role — no member or permission-table writes. Either names the community
+    on its own axis, never as a membership."""
+    read = _grantee()
+    assert read["role"] == guild_role_name(3, GuildRoleKind.read_only)
+    assert (read["current_guild_id"], read["pam_guild_id"]) == ("", "3")
+    write = _grantee(read_write=True)
+    assert write["role"] == guild_role_name(3, GuildRoleKind.support)
 
-    def test_guild_route_names_guild_schema_then_public(self):
-        out = _render_context_bind_params(_params(guild_id=3))
-        assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
 
-    def test_platform_route_names_public(self):
-        out = _render_context_bind_params(_params(platform_role="member"))
-        assert out["sp"] == "public, pg_temp"
-
-    def test_billing_route_names_public(self):
-        out = _render_context_bind_params(_params(billing_guild_id=5))
-        assert out["sp"] == "public, pg_temp"
-
-    @pytest.mark.parametrize(
-        "overrides",
-        [
-            {"guild_id": 3},
-            {"guild_id": 3, "read_only": True},
-            {"pam_guild_id": 4, "pam_read": True},
-            {"pam_guild_id": 4, "pam_write": True},
-            {"settings_guild_id": 4},
-            {"platform_role": "owner"},
-            {"billing_guild_id": 5},
-            {},
-        ],
-        ids=[
-            "member",
-            "read-only",
-            "pam-read",
-            "pam-write",
-            "settings",
-            "platform",
-            "billing",
-            "unrouted",
-        ],
+def test_a_settings_grant_reads_and_carries_no_content_flags():
+    out = _settings()
+    assert out["role"] == guild_role_name(3, GuildRoleKind.read_only)
+    assert out["search_path"] == f"{guild_schema_name(3)}, public, pg_temp"
+    assert (out["current_guild_id"], out["pam_guild_id"], out["settings_guild_id"]) == (
+        "",
+        "",
+        "3",
     )
-    def test_every_route_ends_at_pg_temp(self, overrides):
-        """One helper renders them all, so no route can drift off the pattern."""
-        out = _render_context_bind_params(_params(**overrides))
-        assert out["sp"].endswith(", pg_temp")
+    assert (out["pam_read"], out["pam_write"]) == ("false", "false")
+
+
+def test_break_glass_names_the_community_on_both_axes():
+    """Break-glass is a pair: the settings half names the community on its own
+    axis, and the content half is what picks the role."""
+    read = _grantee(settings=True)
+    assert read["role"] == guild_role_name(3, GuildRoleKind.read_only)
+    assert (read["pam_guild_id"], read["settings_guild_id"]) == ("3", "3")
+    write = _grantee(settings=True, read_write=True)
+    assert write["role"] == guild_role_name(3, GuildRoleKind.support)
+
+
+def test_the_seat_is_asked_for_not_held():
+    """``guild_<id>_superadmin`` is assumed by a seat route, by a member or a
+    settings grantee; an ordinary request by the same person routes the
+    ordinary way."""
+    assert _member(seat=True)["role"] == guild_role_name(3, GuildRoleKind.seat)
+    assert _settings(seat=True)["role"] == guild_role_name(3, GuildRoleKind.seat)
+    assert _member()["role"] == guild_role_name(3)
+
+
+def test_a_query_sees_its_own_community_alone():
+    out = _member(query=True, scope_initiative_id=9)
+    assert out["role"] == guild_role_name(3, GuildRoleKind.query)
+    assert out["search_path"] == f"{guild_schema_name(3)}, pg_temp"
+    assert (out["query"], out["scope_initiative_id"]) == ("true", "9")
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        Member(guild_id=3, user_id=7, standing=_STANDING),
+        ContentGrantee(guild_id=3, user_id=7),
+        SettingsGrantee(guild_id=3, user_id=7, standing=_STANDING),
+        SystemGuild(3),
+        SystemGuild(3, read_only=True),
+        Platform(user_id=7, tier="owner"),
+        Billing(5),
+        Unattributed(),
+    ],
+    ids=[
+        "member",
+        "grantee",
+        "settings",
+        "system",
+        "system-read-only",
+        "platform",
+        "billing",
+        "unrouted",
+    ],
+)
+def test_every_route_names_its_schemas_and_ends_at_pg_temp(shape):
+    """Guild content resolves in the guild schema first; the platform and
+    billing routes resolve in ``public``. One helper renders them all, so no
+    route can drift off the pattern."""
+    expected = (
+        f"{guild_schema_name(3)}, public, pg_temp"
+        if shape.guild_id is not None
+        else "public, pg_temp"
+    )
+    assert _bind_params(shape)["search_path"] == expected
 
 
 class TestTheInstallRoute:
     """An installed app routes into the community's app role, as nobody."""
 
     def _install(self, **overrides):
-        return _render_context_bind_params(
-            {
-                "guild_id": 3,
-                "install_id": 5,
-                "token_client_id": "tests.app",
-                "token_scopes": frozenset({"documents:write", "comments:read"}),
-                **overrides,
-            }
+        return _bind_params(
+            Install(
+                **{
+                    "guild_id": 3,
+                    "install_id": 5,
+                    "standing": InstallContext(
+                        guild_id=3,
+                        install_id=5,
+                        client_id="tests.app",
+                        token_scopes=frozenset(),
+                    ),
+                    "token_client_id": "tests.app",
+                    "token_scopes": frozenset({"documents:write", "comments:read"}),
+                    **overrides,
+                }
+            )
         )
 
     def test_it_assumes_the_app_role_and_names_no_person(self):
-        out = self._install()
+        out = self._install(scope_initiative_id=9)
         assert out["role"] == guild_role_name(3, GuildRoleKind.app)
-        assert out["sp"] == f"{guild_schema_name(3)}, public, pg_temp"
-        assert out["uid"] == ""
-        assert out["gid"] == "3"
-        assert (out["pgid"], out["setgid"], out["pr"], out["pw"]) == (
-            "",
-            "",
-            "false",
-            "false",
-        )
-        assert out["iid"] == "5"
-        assert out["tcid"] == "tests.app"
-        assert out["tsc"] == "comments:read,documents:write"
+        assert out["search_path"] == f"{guild_schema_name(3)}, public, pg_temp"
+        assert (out["current_user_id"], out["current_guild_id"]) == ("", "3")
+        assert (
+            out["pam_guild_id"],
+            out["settings_guild_id"],
+            out["pam_read"],
+            out["pam_write"],
+        ) == ("", "", "false", "false")
+        assert out["current_install_id"] == "5"
+        assert out["token_client_id"] == "tests.app"
+        assert out["token_scopes"] == "comments:read,documents:write"
+        assert out["scope_initiative_id"] == "9"
 
     def test_until_its_standing_is_computed_it_stands_nowhere(self):
         out = self._install()
-        assert out["gok"] == "false"
-        assert (out["sgid"], out["minit"], out["rgr"], out["iread"]) == (
-            "",
-            "",
-            "",
-            "",
-        )
-
-    def test_it_narrows_to_one_initiative(self):
-        assert self._install(scope_initiative_id=9)["sinit"] == "9"
+        assert out["guild_auth_ok"] == "false"
+        assert (
+            out["standing_guild_id"],
+            out["member_initiatives"],
+            out["role_grants"],
+            out["install_read"],
+        ) == ("", "", "", "")
 
     def test_a_person_route_names_no_install(self):
-        out = _render_context_bind_params(_params(guild_id=3))
-        assert (out["iid"], out["tcid"], out["tsc"], out["iread"]) == ("", "", "", "")
-
-
-class TestTheSeatRoute:
-    """``guild_<id>_superadmin`` is assumed by asking for it, not by holding
-    the seat: an ordinary request routes the ordinary way."""
-
-    def test_a_seat_request_by_a_member_assumes_the_seat_role(self):
-        out = _render_context_bind_params(_params(guild_id=3, seat=True))
-        assert out["role"] == guild_role_name(3, GuildRoleKind.seat)
-        assert out["gid"] == "3"
-
-    def test_a_seat_request_by_a_settings_grantee_assumes_it_too(self):
-        out = _render_context_bind_params(_params(settings_guild_id=4, seat=True))
-        assert out["role"] == guild_role_name(4, GuildRoleKind.seat)
-        assert out["setgid"] == "4"
-
-    def test_an_ordinary_request_by_the_same_person_does_not(self):
-        out = _render_context_bind_params(_params(guild_id=3))
-        assert out["role"] == guild_role_name(3)
-
-    def test_a_settings_grant_beside_a_read_grant_still_reads_read_only(self):
-        """Break-glass is a pair. The settings half names the community on its
-        own axis; the content half is what picks the role."""
-        out = _render_context_bind_params(
-            _params(pam_guild_id=4, pam_read=True, settings_guild_id=4)
-        )
-        assert out["role"] == guild_role_name(4, GuildRoleKind.read_only)
-        assert out["setgid"] == "4"
-
-    def test_a_settings_only_grant_reads(self):
-        """The rung alone is a view; a read_write grant beside it is what
-        picks the writable role."""
-        out = _render_context_bind_params(_params(settings_guild_id=4))
-        assert out["role"] == guild_role_name(4, GuildRoleKind.read_only)
-        paired = _render_context_bind_params(
-            _params(pam_guild_id=4, pam_write=True, settings_guild_id=4)
-        )
-        assert paired["role"] == guild_role_name(4, GuildRoleKind.support)
+        out = _member()
+        assert (
+            out["current_install_id"],
+            out["token_client_id"],
+            out["token_scopes"],
+            out["install_read"],
+        ) == ("", "", "", "")

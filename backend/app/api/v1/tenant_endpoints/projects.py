@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.relationships import (
     DERIVED_TYPES,
     Provenance,
@@ -18,6 +19,7 @@ from app.core.relationships import (
 from app.models.tenant.relationship import EntityRelationship
 from app.core.search import SearchEntityType
 from app.services.permissions import Action
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references, relationships
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -241,7 +243,8 @@ async def _duplicate_template_tasks(
     *,
     status_mapping: dict[int, int],
     fallback_status_ids: dict[TaskStatusCategory, int],
-) -> None:
+) -> list[Task]:
+    """Copy the template's tasks into ``new_project``; returns the copies."""
     task_stmt = (
         select(Task)
         .options(
@@ -254,7 +257,7 @@ async def _duplicate_template_tasks(
     task_result = await session.exec(task_stmt)
     template_tasks = task_result.all()
     if not template_tasks:
-        return
+        return []
 
     now = datetime.now(timezone.utc)
     categories = await task_completion.status_categories(session, new_project.id)
@@ -275,11 +278,14 @@ async def _duplicate_template_tasks(
             mapped_status_id = next(iter(fallback_status_ids.values()))
         start_date = template_task.start_date
         due_date = template_task.due_date
+        repeat = template_task.recurrence
         if date_shift is not None:
             if start_date is not None:
                 start_date = start_date + date_shift
             if due_date is not None:
                 due_date = due_date + date_shift
+            if repeat is not None:
+                repeat = recurrence.moved(repeat, date_shift)
         new_task = Task(
             project_id=new_project.id,
             title=template_task.title,
@@ -288,6 +294,9 @@ async def _duplicate_template_tasks(
             priority=template_task.priority,
             start_date=start_date,
             due_date=due_date,
+            recurrence=repeat,
+            recurrence_shift=template_task.recurrence_shift,
+            recurrence_strategy=template_task.recurrence_strategy,
             position=template_task.position,
             checklist=checklist_service.cloned(template_task.checklist, keep_done=True),
         )
@@ -310,20 +319,18 @@ async def _duplicate_template_tasks(
             for assignee in template_task.assignees
             if assignee.id in can_open
         )
-        await tags_service.copy_entity_tags(
-            session,
-            tags_service.TAG_LINKS["task"],
-            source_id=template_task.id,
-            target_id=new_task.id,
-        )
         if new_task.description:
             await task_description_service.record_references(
                 session, new_task, author_id=None
             )
-    await _copy_task_relationships(
-        session,
-        {s.id: c.id for s, c in copies if s.id is not None and c.id is not None},
+    copied_ids = {
+        s.id: c.id for s, c in copies if s.id is not None and c.id is not None
+    }
+    await tags_service.copy_entity_tags(
+        session, tags_service.TAG_LINKS["task"], copied_ids
     )
+    await _copy_task_relationships(session, copied_ids)
+    return [task for _, task in copies]
 
 
 #: Edge types a task copy does not carry. Tags travel through
@@ -825,8 +832,9 @@ async def create_project(
         )
     await filter_presets_service.ensure_default_presets(session, project.id)
 
+    copied: list[Task] = []
     if template_project:
-        await _duplicate_template_tasks(
+        copied = await _duplicate_template_tasks(
             session,
             template_project,
             project,
@@ -837,10 +845,12 @@ async def create_project(
         await tags_service.copy_entity_tags(
             session,
             tags_service.TOOL_TAG_LINKS[Tool.project],
-            source_id=template_project.id,
-            target_id=project.id,
+            {template_project.id: project.id},
         )
 
+    # One claim for the project and its tasks, so a file they share is copied
+    # into another initiative once.
+    await attachments_service.claim_uploads(session, project, *copied)
     await session.commit()
 
     project = await _get_project_or_404(
@@ -921,8 +931,7 @@ async def duplicate_project(
     await tags_service.copy_entity_tags(
         session,
         tags_service.TOOL_TAG_LINKS[Tool.project],
-        source_id=source_project.id,
-        target_id=new_project.id,
+        {source_project.id: new_project.id},
     )
 
     # Clone task statuses from source project to new project
@@ -1138,6 +1147,7 @@ async def update_project(
     project.updated_at = datetime.now(timezone.utc)
 
     session.add(project)
+    await attachments_service.claim_uploads(session, project)
     await session.commit()
     project = await _get_project_or_404(
         project.id,

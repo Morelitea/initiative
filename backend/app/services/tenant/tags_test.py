@@ -28,6 +28,7 @@ from app.testing.factories import (
 )
 from app.testing.schema_harness import route_session_to_guild
 from app.testing import create_guild_membership, route_as
+from app.db.request_context import SystemGuild
 
 
 def test_every_taggable_kind_can_sit_on_an_edge():
@@ -132,7 +133,7 @@ async def test_purging_a_tag_takes_its_assignments(session: AsyncSession, acting
     session.add(tag)
     await session.commit()
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     await hard_purge_entity(session, tag)
     await session.commit()
 

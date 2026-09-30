@@ -42,7 +42,14 @@ interface CommentSectionProps {
   initiativeId: number;
 }
 
-// Build comment tree from flat list
+/** Later first; the id breaks a tie, since it only ever grows. */
+const newestFirst = (a: CommentRead, b: CommentRead) =>
+  Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id;
+
+/**
+ * The thread as it reads: newest conversation at the top, under the box that
+ * starts one, and each conversation's replies in the order they were said.
+ */
 function buildCommentTree(comments: CommentRead[]): CommentWithReplies[] {
   const map = new Map<number, CommentWithReplies>();
   const roots: CommentWithReplies[] = [];
@@ -62,7 +69,7 @@ function buildCommentTree(comments: CommentRead[]): CommentWithReplies[] {
     }
   }
 
-  return roots;
+  return roots.sort(newestFirst);
 }
 
 export const CommentSection = ({

@@ -51,6 +51,7 @@ history/
 - **Dev ports are per checkout.** The main working tree keeps `8000`/`5173`; each linked worktree is allocated the lowest free offset (`8001`/`5174`, `8002`/`5175`, …), so several agents can run a dev environment at once. `scripts/dev-ports.sh` is the single source of truth — every dev script sources it, and it exports `DEV_BACKEND_PORT`, `DEV_FRONTEND_PORT`, `VITE_API_URL`, `VITE_DEV_PROXY_TARGET` and per-checkout log paths. Offsets live in `~/.cache/initiative/dev-ports`, keyed by checkout path: a checkout keeps its ports for as long as it exists, and a deleted one's slot is reused. There is no derived fallback — if the registry can't be read or written the dev scripts stop and say so, because a guessed pair could already be another checkout's. Pin a checkout by setting `DEV_BACKEND_PORT`/`DEV_FRONTEND_PORT` yourself. The VSCode "Dev Environment" debug config works in any worktree: launch.json cannot run a shell, so it starts `backend/scripts/dev_api.py`, which asks `dev-ports.sh` for the port and runs uvicorn in-process. Starting a dev environment on a port something else already holds reports it and stops, rather than taking the port.
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && pnpm lint` — run tests and linters. Tests are co-located alongside source files in `app/` (not in a separate `tests/` directory).
+- `scripts/ci/check` — the fast checks CI runs (ruff, ruff format, ty, frozen migrations and one Alembic head, biome, tsc, and generated-types / `env-contract.json` drift), for what the branch changed against `origin/dev`. CI calls the same script for those steps, and the husky pre-push hook runs it (`git push --no-verify` skips it once). No tests and no database. `scripts/ci/check all` runs everything; `scripts/ci/check codegen` regenerates drifted files for you to review and commit.
 
 ## Generated API Types (Orval)
 
@@ -96,8 +97,9 @@ The native (Capacitor) app receives web-bundle updates over the air: each Docker
 - `scripts/promote.sh` bumps `MIN_NATIVE_VERSION` to the release version automatically when it detects a native change between `main` and `dev` (a `frontend/capacitor.config.ts` change, a committed change under `frontend/android`/`frontend/ios`, or an added/removed/bumped `@capacitor*`/`@capgo` dependency in `frontend/package.json`). Web-only releases leave it untouched.
 - CI (`docker-publish.yml` `decide` job) compares `MIN_NATIVE_VERSION` against the previous tag: if it moved, it builds and attaches a fresh APK; if not, the **Android build is skipped** and the release ships Docker-only — existing installs update over the air.
 - The app refuses a bundle whose `minNativeVersion` exceeds the installed native app version and prompts the user to update from the store/APK instead.
-- **Every update the app installs is signed.** The image build signs a statement of the bundle (version, sha256, `minNativeVersion`) with the ECDSA P-256 key in the `ota-release` environment secret `OTA_SIGNING_KEY` (`frontend/scripts/sign-ota.mjs`, passed as the BuildKit secret `ota_signing_key`), and `/native/bundle/manifest` serves it. The app verifies it against the public keys in `frontend/src/lib/otaTrust.ts` (the release key, then an offline backup) and ignores an unsigned bundle, so local and dev images never update the app.
+- **Every update the app installs is signed.** The image build signs a statement of the bundle (version, sha256, `minNativeVersion`) with the ECDSA P-256 key in the `ota-release` environment secret `OTA_SIGNING_KEY` (`frontend/scripts/sign-ota.mjs`, passed as the BuildKit secret `ota_signing_key`), and `/native/bundle/manifest` serves it. The app verifies it against the public keys in `frontend/src/lib/otaTrust.ts` (the release key, then an offline backup) and ignores an unsigned bundle, so local images never update the app.
   - **The release build fails without the key** (`Require the app update signing key` in `docker-publish.yml`), so an official image never ships unsigned. `ota-release` releases the secret only to `v*` tags and `main`.
+  - **Dev images are signed with a separate dev key** (`OTA_SIGNING_KEY` in the `ota-dev` environment, `dev` branch only; public half in `.github/ota-dev-key.pub`, baked in as `VITE_OTA_DEV_KEY`). Only the dev app trusts it: `dev-app.yml` builds it as `com.morelitea.initiative.dev` ("Initiative Dev"), signed with the dev keystore in the same environment. See CONTRIBUTING.md.
   - **The backup key is held offline by the owners.** To retire the release key: set `OTA_SIGNING_KEY` to the backup private key (every installed app already trusts it), then ship an app update whose `otaTrust.ts` replaces the retired public key with a new backup. No APK is needed, and servers do nothing.
   - **This key is the project's, not an operator's.** Unlike `SECRET_KEY`, which each deployment owns because it protects that deployment's own data, the update key vouches for code the project publishes to one app that talks to every server; a key held by each server would only prove what the server already sent.
 - Edge case the detector can't see: a native-affecting change that lands **only** via `pnpm-lock.yaml` (no `package.json` range change). Force a rebuild by editing `MIN_NATIVE_VERSION` manually that release.
@@ -357,15 +359,60 @@ and opens its own engines, ~500MB resident each, so `conftest.py`'s
 takes the lower of that and the core count (16 cores + 16GB RAM → 8 workers).
 Override with `PYTEST_XDIST_AUTO_NUM_WORKERS` on a host that knows better.
 
-The suite is also the cluster's heaviest **writer** — a TRUNCATE per test and a
-CREATE/DROP of a ~60-table schema per guild test — and what that fills is WAL,
+**Guild schemas are pooled per worker.** Building one costs ~0.8s and ~6MB of
+WAL, and guild ids restart at 1 every test, so each worker keeps the schemas
+for guild ids 1–3 instead of dropping them. A finished test's schema is emptied
+(only the tables it wrote to, sequences back to 1) and parked as
+`test_pool_<id>`, a name no `guild_[0-9]+` enumerator sees. The next test that
+provisions that id gets it back by rename. A schema that a test changed is
+dropped and rebuilt: an event trigger logs DDL on guild schemas, and a
+fingerprint covers the grants and role memberships DDL events can't see. See
+`app/testing/guild_pool.py`. A test *about* provisioning takes
+`@pytest.mark.fresh_guild_schema`; `PYTEST_GUILD_POOL=0` turns the pool off
+for a whole run, to rule it in or out when a failure looks order-dependent.
+A test that leaves `guild_template` changed fails at teardown, because the
+worker renders provisioning from the template once.
+
+The suite is also the cluster's heaviest **writer** — a TRUNCATE per test, and
+a guild schema built for every guild id above the pool — and what that fills is WAL,
 not table data (per-worker databases sit near 100MB; `pg_wal` was measured at
-2.5GB). Writing it grows the page cache, which is what makes a WSL2 VM balloon
+2.5GB before the pool). Writing it grows the page cache, which is what makes a WSL2 VM balloon
 past its ceiling and die mid-run. The local `docker-compose.yml` db service
 therefore also runs with `fsync=off`, `full_page_writes=off`,
 `synchronous_commit=off`, `wal_level=minimal`, `max_wal_senders=0` and
 `max_wal_size=512MB` — safe for a cluster holding only the dev database and
 throwaway test databases, and not something to copy into any deployment.
+
+**Which backend tests a pull request runs.** CI picks one of two modes in its
+Detect Changes job, and the run's summary page says which:
+
+- **Every test**, when the change touches something test selection cannot
+  see: `alembic/` (migrations run before any test), `app/db/`,
+  `app/core/capabilities.py` or `config.py` (the roles, grants and policies a
+  start renders), `app/testing/`, `conftest.py`, `pytest.ini`, the
+  dependencies, `backend/scripts/ci/`, non-Python files under `app/`, or the CI
+  workflow. Every push to `main` and `dev` runs every test too.
+- **Only the always-run core** when nothing in `backend/` changed but
+  something other than documentation did: the core holds the backend's checks
+  on files elsewhere (the locale catalogues, the app-kit contract, the Android
+  channels).
+- **Otherwise, two passes**: the **always-run core**, then the tests the
+  change reaches. The second pass uses
+  [pytest-testmon](https://testmon.org): every full run records which code each
+  test executed, dev's recording is published as the `test-selection-data`
+  artifact, and a pull request runs the tests whose recorded code it changed.
+  A change inside a function selects the tests that ran it; a change at a
+  file's top level (a pydantic field, a constant) selects every test that used
+  the file.
+
+The **always-run core** is every test marked `always` (a file's
+`pytestmark = pytest.mark.always`, or `@pytest.mark.always` on one test). Mark
+a test `always` when it checks something across *every* table, route,
+registry, capability or migration, scans the source tree for a pattern, or
+reads a file outside `backend/`: selection only knows code a test has already
+run, so a new file (a model, a route, a revision) or a frontend file reaches no
+test until one of these catches it. Keep the core cheap: it runs on every pull
+request.
 
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:
@@ -392,6 +439,10 @@ cd backend && ./scripts/test-changed.sh
 
 # Run tests for staged files only
 cd backend && ./scripts/test-changed.sh --staged
+
+# The request-context seam's conformance suite (deselected by default; CI runs
+# it on integration pushes and on pull requests that touch the seam)
+cd backend && pytest -m seam app/db/seam_conformance_test.py
 
 # Run all frontend tests
 cd frontend && pnpm test:run

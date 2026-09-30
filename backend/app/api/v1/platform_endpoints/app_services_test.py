@@ -1,7 +1,8 @@
 """Endpoint tests for the app service registry and its publishers.
 
-Only the owner tier reaches this surface; a registration is what the operator
-states about an app, and is shown whole, since none of it is secret.
+Only the owner tier reaches this surface. It writes a registration's
+deployment facts; its app facts come from the app's listing. A registration is
+shown whole, since none of it is secret.
 """
 
 import pytest
@@ -10,7 +11,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.messages import AppServiceMessages, AuthMessages
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.app_service_registration import (
+    LISTING_STATED_FIELDS,
+    AppServiceRegistration,
+)
 from app.models.platform.user import UserRole
 from app.testing.factories import (
     create_app_service_registration,
@@ -24,7 +28,7 @@ BASE = "/api/v1/app-services/"
 PUBLISHERS = "/api/v1/app-publishers/"
 APP_URL = "http://127.0.0.1:9100"
 LISTING_UID = "K7M2QX8N4TVB9C"
-NEW = {"public_id": "acme.widgets", "listing_uid": LISTING_UID, "base_url": APP_URL}
+NEW = {"public_id": "acme.widgets", "base_url": APP_URL}
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +54,14 @@ async def _seed(session: AsyncSession, **overrides) -> AppServiceRegistration:
     )
 
 
+async def _listed(client: AsyncClient, headers: dict[str, str], row_id: int) -> dict:
+    """One registration as the operator's list shows it."""
+    response = await client.get(BASE, headers=headers)
+    assert response.status_code == 200, response.text
+    (entry,) = [entry for entry in response.json() if entry["id"] == row_id]
+    return entry
+
+
 # --- capability gating -------------------------------------------------------
 
 
@@ -69,7 +81,6 @@ async def test_non_owner_tiers_are_refused(
     create = await client.post(BASE, headers=headers, json=NEW)
     assert create.status_code == 403
     assert create.json()["detail"] == AuthMessages.INSUFFICIENT_PRIVILEGES
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).status_code == 403
     assert (
         await client.patch(f"{BASE}{row.id}", headers=headers, json={"enabled": False})
     ).status_code == 403
@@ -105,7 +116,8 @@ async def test_owner_creates_a_registration_as_stated(
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["public_id"] == "acme.widgets"
-    assert body["listing_uid"] == LISTING_UID
+    # Its app facts wait for its listing.
+    assert (body["listing_uid"], body["scope_ceiling"]) == (None, [])
     assert body["publisher_prefix"] == "acme"
     assert body["publisher_enabled"] is True
     # No key set yet, so it is not live.
@@ -134,15 +146,23 @@ async def test_owner_lists_registrations_with_their_publisher(
     assert entry["jwks"]["keys"]
 
 
-async def test_create_needs_a_listing(client: AsyncClient, session: AsyncSession):
+@pytest.mark.parametrize("stated", LISTING_STATED_FIELDS)
+async def test_a_request_takes_deployment_facts_only(
+    client: AsyncClient, session: AsyncSession, stated: str
+):
     headers = await _owner_headers(session)
+    row = await _seed(session, scope_ceiling=["projects:read"])
 
-    response = await client.post(
-        BASE, headers=headers, json={**NEW, "listing_uid": "nope"}
+    created = await client.post(BASE, headers=headers, json={**NEW, stated: None})
+    edited = await client.patch(
+        f"{BASE}{row.id}", headers=headers, json={stated: ["projects:write"]}
     )
 
-    assert response.status_code == 400, response.text
-    assert response.json()["detail"] == AppServiceMessages.INVALID_LISTING_UID
+    for response in (created, edited):
+        assert response.status_code == 422, response.text
+        assert AppServiceMessages.STATED_BY_LISTING in response.text
+    await session.refresh(row)
+    assert (row.listing_uid, row.scope_ceiling) == (LISTING_UID, ["projects:read"])
 
 
 async def test_the_key_set_address_round_trips(
@@ -191,41 +211,6 @@ async def test_patch_sets_the_operator_only_fields(
     assert body["enabled"] is False
 
 
-async def test_the_scope_ceiling_round_trips(
-    client: AsyncClient, session: AsyncSession
-):
-    headers = await _owner_headers(session)
-    row = await _seed(session)
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).json()[
-        "scope_ceiling"
-    ] == []
-
-    response = await client.patch(
-        f"{BASE}{row.id}",
-        headers=headers,
-        json={"scope_ceiling": ["projects:write", "comments:read"]},
-    )
-
-    assert response.status_code == 200, response.text
-    assert response.json()["scope_ceiling"] == ["comments:read", "projects:write"]
-
-
-async def test_patch_refuses_a_scope_outside_the_vocabulary(
-    client: AsyncClient, session: AsyncSession
-):
-    headers = await _owner_headers(session)
-    row = await _seed(session, scope_ceiling=["projects:read"])
-
-    response = await client.patch(
-        f"{BASE}{row.id}", headers=headers, json={"scope_ceiling": ["root:write"]}
-    )
-
-    assert response.status_code == 400, response.text
-    assert response.json()["detail"] == AppServiceMessages.UNKNOWN_SCOPE
-    await session.refresh(row)
-    assert row.scope_ceiling == ["projects:read"]
-
-
 async def test_the_browser_address_round_trips_and_clears(
     client: AsyncClient, session: AsyncSession
 ):
@@ -250,11 +235,6 @@ async def test_the_browser_address_round_trips_and_clears(
 @pytest.mark.parametrize(
     ("case", "body", "detail"),
     [
-        (
-            "a scope outside the vocabulary",
-            {**NEW, "scope_ceiling": ["root:write"]},
-            AppServiceMessages.UNKNOWN_SCOPE,
-        ),
         (
             "a malformed base url",
             {**NEW, "base_url": "ftp://app.example.com"},
@@ -312,7 +292,7 @@ async def test_owner_deletes_a_registration(client: AsyncClient, session: AsyncS
     row = await _seed(session)
 
     assert (await client.delete(f"{BASE}{row.id}", headers=headers)).status_code == 204
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).status_code == 404
+    assert (await client.get(BASE, headers=headers)).json() == []
 
 
 async def test_missing_registration_is_a_404(
@@ -320,7 +300,9 @@ async def test_missing_registration_is_a_404(
 ):
     headers = await _owner_headers(session)
 
-    response = await client.get(f"{BASE}999999", headers=headers)
+    response = await client.patch(
+        f"{BASE}999999", headers=headers, json={"enabled": False}
+    )
 
     assert response.status_code == 404
     assert response.json()["detail"] == AppServiceMessages.NOT_FOUND
@@ -377,7 +359,7 @@ async def test_switching_a_publisher_off_takes_its_apps_out_of_service(
 ):
     headers = await _owner_headers(session)
     row = await _seed(session)
-    assert (await client.get(f"{BASE}{row.id}", headers=headers)).json()["live"]
+    assert (await _listed(client, headers, row.id))["live"]
 
     off = await client.patch(
         f"{PUBLISHERS}{row.publisher_id}",
@@ -388,7 +370,7 @@ async def test_switching_a_publisher_off_takes_its_apps_out_of_service(
     assert off.status_code == 200, off.text
     assert off.json()["enabled"] is False
     assert off.json()["display_name"] == "Acme, paused"
-    read = (await client.get(f"{BASE}{row.id}", headers=headers)).json()
+    read = await _listed(client, headers, row.id)
     assert read["enabled"] is True
     assert read["publisher_enabled"] is False
     assert read["live"] is False
@@ -449,7 +431,7 @@ async def test_the_form_shows_the_fields_the_listing_asks_for(
     headers = await _owner_headers(session)
     row = await _seed(session)
 
-    body = (await client.get(f"{BASE}{row.id}", headers=headers)).json()
+    body = await _listed(client, headers, row.id)
 
     assert [field["key"] for field in body["vendor_fields"]] == [
         "client_id",
@@ -535,22 +517,3 @@ async def test_a_value_the_listing_does_not_ask_for_is_refused(
 
     assert response.status_code == 400
     assert response.json()["detail"] == AppServiceMessages.UNKNOWN_VENDOR_FIELD
-
-
-async def test_a_registry_registration_takes_its_vendor_values(
-    client: AsyncClient, session: AsyncSession
-):
-    """The registry states what an app is; the vendor client it uses here is
-    this deployment's, like its address."""
-    await _vendor_listing(session)
-    headers = await _owner_headers(session)
-    row = await _seed(session, source="registry")
-
-    response = await client.patch(
-        f"{BASE}{row.id}",
-        headers=headers,
-        json={"vendor_values": {"client_id": "a", "client_secret": "b"}},
-    )
-
-    assert response.status_code == 200, response.text
-    assert response.json()["vendor_ready"] is True

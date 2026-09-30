@@ -170,6 +170,7 @@ _TIER_NAME_ALLOWED = {
 }
 
 
+@pytest.mark.always
 def test_tier_name_confined_to_the_billing_surface():
     app_dir = Path(__file__).resolve().parents[3]
     assert app_dir.name == "app"

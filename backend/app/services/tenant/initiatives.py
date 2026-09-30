@@ -11,10 +11,11 @@ from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import select, delete, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.query import ids_in
 from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
 from app.core.messages import InitiativeMessages
-from app.db.session import rls_context_params
+from app.db.session import routed_context
 from app.models.tenant.initiative import (
     BUILTIN_ROLES,
     Initiative,
@@ -249,7 +250,7 @@ async def load_user_initiative_roles(
         .outerjoin(
             InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
         )
-        .where(InitiativeMember.user_id.in_(tuple(user_ids)))
+        .where(ids_in(InitiativeMember.user_id, user_ids))
     )
     result = await session.exec(stmt)
     assignments: dict[int, list[UserInitiativeRole]] = {
@@ -518,6 +519,25 @@ async def count_role_members(
     return result.one()
 
 
+async def count_members_by_role(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+) -> dict[int, int]:
+    """Members per role across one initiative, in one query. A role nobody
+    holds is absent."""
+    stmt = (
+        select(InitiativeMember.role_id, func.count())
+        .where(InitiativeMember.initiative_id == initiative_id)
+        .group_by(InitiativeMember.role_id)
+    )
+    return {
+        role_id: count
+        for role_id, count in (await session.exec(stmt)).all()
+        if role_id is not None
+    }
+
+
 # ============================================================================
 # Discovery: directory, self-join, join settings
 # ============================================================================
@@ -674,7 +694,7 @@ def _acting_user_id(session: AsyncSession) -> int | None:
     every request path is recorded against the account making it.
     """
     try:
-        return rls_context_params(session).get("user_id")
+        return routed_context(session).user_id
     except RuntimeError:
         return None
 

@@ -46,6 +46,7 @@ from app.models.tenant.moderation import ModerationReport, ModerationReportRepor
 from app.models.tenant.search_entry import SearchEntry
 from app.services.platform.intake import CaseRefs, open_case
 from app.services.tenant.search import search_scope_clause
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +154,12 @@ async def file_report(
                 moment=moment,
             )
             return ReportFiled(ReportVenue.initiative)
-        # The community could not take it — nothing there answers to that id
-        # for this reader. The platform is the backstop: a report that resolves
-        # nowhere is a report nobody sees.
-        logger.info("report on %s:%s fell back to the platform", target, target_id)
+        # Nothing in the community answers to that id for this reader, and a
+        # report names only something its reporter can see.
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=ModerationMessages.TARGET_NOT_FOUND,
+        )
 
     if isinstance(target, PlatformReportTarget) and not await _platform_target_visible(
         reporter_session, target, target_id
@@ -204,7 +207,7 @@ async def _place_in_initiative(
     must not be able to read it back.
     """
     async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, guild_id=guild_id)
+        await set_rls_context(session, SystemGuild(guild_id))
         # Two people reporting the same thing in the same instant both look for
         # an open row before either writes one. They queue here instead, so the
         # second joins the first rather than losing the unique index. Held for
@@ -326,6 +329,7 @@ async def _open_platform_case(
     moment: datetime,
     note: Optional[str] = None,
     reporter_ids: tuple[int, ...] = (),
+    guild_id: Optional[int] = None,
 ) -> bool:
     """File the report as an intake case in the operations guild.
 
@@ -349,12 +353,19 @@ async def _open_platform_case(
         refs=CaseRefs(
             # The subject is who or what was reported — never the reporter.
             subject_user=target_id if target in _ACCOUNT_TARGETS else None,
+            subject_guild=guild_id,
             resource_type=target.value,
             resource_id=target_id,
             reported_at=moment,
             severity=reason.value,
         ),
-        dedupe_key=f"report:{target.value}:{target_id}",
+        # Content ids are numbered per community, so its community is part
+        # of what names it.
+        dedupe_key=(
+            f"report:{guild_id}:{target.value}:{target_id}"
+            if guild_id is not None
+            else f"report:{target.value}:{target_id}"
+        ),
     )
     return outcome is not None
 
@@ -366,6 +377,7 @@ async def settle_report(
     outcome: ReportOutcome,
     note: Optional[str],
     decided_by: int,
+    guild_id: int,
     now: Optional[datetime] = None,
 ) -> ModerationReport:
     """Close a community report. Every outcome closes it.
@@ -419,6 +431,7 @@ async def settle_report(
             moment=moment,
             note=note,
             reporter_ids=tuple(reporters),
+            guild_id=guild_id,
         )
         if not opened:
             # Nothing is bound to receive it, so the report stays open and the

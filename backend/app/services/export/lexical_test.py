@@ -467,6 +467,15 @@ def test_a_callout_exports_as_obsidian_markdown():
     assert lines[:4] == ["> [!warning]", "> Careful", ">", "> - one"]
 
 
+def test_a_folded_callout_exports_with_obsidians_fold_marker():
+    folded = _state([{**CALLOUT["root"]["children"][0], "collapsed": True}])
+    blocks, _assets = blocks_from_editor_state(folded, guild_id=GUILD)
+    content, _ctype, _name = render_markdown(
+        {"title": "", "blocks": blocks}, lambda key: b""
+    )
+    assert content.decode().strip().splitlines()[:2] == ["> [!warning]-", "> Careful"]
+
+
 def test_an_embed_exports_as_a_callout_holding_its_name():
     state = _state(
         [

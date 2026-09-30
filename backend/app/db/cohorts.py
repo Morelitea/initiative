@@ -150,7 +150,7 @@ def _build_makers(
 ) -> list[async_sessionmaker[AsyncSession]]:
     """A sessionmaker per cohort on ``url``. ``pool`` sizes each cohort's pool,
     ``DB_POOL_SIZE`` and ``DB_MAX_OVERFLOW`` unless it says otherwise."""
-    from app.db.session import instrument_engine
+    from app.db.session import instrument_engine, prepare_query_engine
 
     pool.setdefault("pool_size", settings.DB_POOL_SIZE)
     pool.setdefault("max_overflow", settings.DB_MAX_OVERFLOW)
@@ -166,6 +166,8 @@ def _build_makers(
         instrument_engine(
             engine, f"{label}/{cohort}" if divided else label, log_text=log_text
         )
+        if label == "query":
+            prepare_query_engine(engine)
         if divided:
             tag_engine(engine, cohort)
         makers.append(_sessionmaker(engine))
@@ -308,6 +310,11 @@ def mark_request_session(session: AsyncSession) -> None:
     session.info[_KIND_KEY] = _REQUEST
 
 
+def is_request_session(session: AsyncSession) -> bool:
+    """Whether ``session`` was handed out by the request path."""
+    return session.info.get(_KIND_KEY) == _REQUEST
+
+
 def mark_system_session(session: AsyncSession) -> None:
     session.info[_KIND_KEY] = _SYSTEM
 
@@ -332,20 +339,6 @@ async def community_session(
         if read_only:
             session.info[READ_ONLY_INFO_KEY] = True
         yield session
-
-
-def routed_guild_id(params: Mapping[str, Any]) -> int | None:
-    """The community a stored context routes into, whichever way it names it."""
-    for key in (
-        "guild_id",
-        "pam_guild_id",
-        "settings_guild_id",
-        "system_guild_id",
-    ):
-        value = params.get(key)
-        if value is not None:
-            return int(value)
-    return None
 
 
 def note_route(connection: "Connection | None", guild_id: int | None) -> None:

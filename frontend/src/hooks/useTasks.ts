@@ -45,6 +45,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
+import { withZone } from "@/lib/recurrence";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
 import type { MutationOpts } from "@/types/mutation";
@@ -166,7 +167,7 @@ export const useUpdateTask = (
   return useMutation({
     ...rest,
     mutationFn: async ({ taskId, data, params }: UpdateTaskVariables) => {
-      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, data, params);
+      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(data), params);
     },
     onMutate: ({ taskId, statusChange }) => {
       // Snapshot the task's previous status category so onSuccess can detect
@@ -293,7 +294,7 @@ export const useUpdateTaskInGuild = (
       taskId: number;
       data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
     }) => {
-      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, data);
+      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(data));
     },
     onMutate: ({ guildId, taskId }) => {
       const cached = findCachedTask(guildId, queryClient, taskId);
@@ -359,7 +360,9 @@ export const useBulkUpdateTasks = (
     {
       mutationFn: (guildId, { taskIds, changes }) =>
         Promise.all(
-          taskIds.map((taskId) => updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, changes))
+          taskIds.map((taskId) =>
+            updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(changes))
+          )
         ),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkUpdateError",

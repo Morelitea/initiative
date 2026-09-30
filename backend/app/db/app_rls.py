@@ -24,6 +24,7 @@ from enum import Enum
 
 from app.core.app_scopes import AppScopeResource, READ_ONLY_RESOURCES, tool_resource
 from app.core.search import SearchEntityType
+from app.db import gucs
 from app.db.initiative_rls import INITIATIVE_PATHS, governing_path
 from app.db.search_index import SEARCH_SOURCES
 
@@ -158,17 +159,13 @@ APP_REFUSED_TABLES: frozenset[str] = frozenset(
 #: row outside any initiative: that is community level, and the calendar app
 #: whose install mounts it is named as its owner by the code that makes it.
 #: Shared, in ``public``; the row lands in the schema the trigger fired in.
-#: Restated in full by the migration that sets it (20260925_0403).
-INSTALL_OWNS_WHAT_IT_CREATES = """
+#: Restated in full by the migration that sets it (20260927_0407).
+INSTALL_OWNS_WHAT_IT_CREATES = f"""
 CREATE OR REPLACE FUNCTION public.fn_install_owns_what_it_creates() RETURNS trigger
     LANGUAGE plpgsql AS $owns$
 DECLARE
-    v_install integer := NULLIF(
-        current_setting('app.current_install_id', true), ''
-    )::integer;
-    v_member integer := NULLIF(
-        current_setting('app.current_user_id', true), ''
-    )::integer;
+    v_install integer := {gucs.INSTALL_ID};
+    v_member integer := {gucs.USER_ID};
 BEGIN
     IF NEW.initiative_id IS NULL OR (v_install IS NULL AND v_member IS NULL) THEN
         RETURN NULL;

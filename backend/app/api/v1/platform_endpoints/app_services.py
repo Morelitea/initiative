@@ -1,13 +1,12 @@
 """Operator CRUD for the app service registry (``app_service_registrations``)
 and its publishers (``publishers``).
 
-A listing declares what an app is; a registration is this deployment's separate
-statement that the app is wired up — which listing it is, its addresses, its
-public keys, its scope ceiling, and the reach (``mandatory``) an operator
-confers on it. A publisher is the prefix of an app's ``public_id``, with a
-switch that stops every app under it. Nothing here can be claimed by a
-manifest, which is why the whole surface is gated on ``apps.manage`` (owner
-tier) rather than on anything a publisher supplies.
+A listing declares what an app is, and gives its registration the app facts:
+which listing it is, its image and its scope ceiling. The operator gives the
+deployment facts here: its addresses, its public keys, its vendor values, the
+switch and the reach (``mandatory``) it confers. A publisher is the prefix of
+an app's ``public_id``, with a switch that stops every app under it. The whole
+surface is gated on ``apps.manage`` (owner tier).
 
 Every route runs on the system engine: neither table carries a request-path
 write grant. The logic lives in ``app.services.marketplace.registrations`` and
@@ -128,34 +127,23 @@ async def create_app_service(
     session: SystemSessionDep,
     owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
-    """Register an app service as stated: its id, its listing, its addresses
-    and its keys. Its publisher is the one its id's prefix names, added
-    unverified when there is none."""
+    """Set up an app service's deployment facts before its listing arrives:
+    its id, its addresses and its keys. Its publisher is the one its id's
+    prefix names, added unverified when there is none."""
     row = await registrations_service.create_registration(
         session,
         public_id=payload.public_id,
-        listing_uid=payload.listing_uid,
         base_url=payload.base_url,
         embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
         jwks=payload.jwks,
         jwks_uri=payload.jwks_uri,
-        scope_ceiling=payload.scope_ceiling,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
         vendor_values=payload.vendor_values,
         actor_user_id=owner.id,
     )
     return await _read_one(session, row.id)
-
-
-@router.get("/{registration_id}", response_model=AppServiceRegistrationRead)
-async def read_app_service(
-    registration_id: int,
-    session: SystemSessionDep,
-    _owner: AppsManageDep,
-) -> AppServiceRegistrationRead:
-    return await _read_one(session, registration_id)
 
 
 @router.patch("/{registration_id}", response_model=AppServiceRegistrationRead)
@@ -165,18 +153,16 @@ async def update_app_service(
     session: SystemSessionDep,
     owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
-    """Enable/disable, change the listing, repoint either address, replace the
-    keys, change the powers conferred, or set the vendor values."""
+    """Enable/disable, repoint either address, replace the keys, change the
+    reach conferred, or set the vendor values."""
     row = await registrations_service.update_registration(
         session,
         registration_id,
-        listing_uid=payload.listing_uid,
         base_url=payload.base_url,
         embed_origin=payload.embed_origin,
         allowed_origins=payload.allowed_origins,
         jwks=payload.jwks,
         jwks_uri=payload.jwks_uri,
-        scope_ceiling=payload.scope_ceiling,
         mandatory=payload.mandatory,
         enabled=payload.enabled,
         vendor_values=payload.vendor_values,

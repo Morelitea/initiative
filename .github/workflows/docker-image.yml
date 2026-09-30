@@ -25,19 +25,18 @@ on:
         description: docker/metadata-action tag rules for the merged manifest. The highest-priority tag is the one inspected.
         required: true
         type: string
-      signed:
-        description: Sign the app update with OTA_SIGNING_KEY from the ota-release environment, and fail without it.
+      signing-environment:
+        description: The environment whose OTA_SIGNING_KEY signs the app update (ota-release, ota-dev); the build fails without it. Empty builds an unsigned image.
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: ""
     secrets:
       DOCKERHUB_USERNAME:
         required: false
       DOCKERHUB_TOKEN:
         required: false
-      # Read from the ota-release environment when `signed`; callers pass nothing.
-      OTA_SIGNING_KEY:
-        required: false
+      # OTA_SIGNING_KEY comes from `signing-environment`, which reaches this
+      # workflow only when the caller passes `secrets: inherit`.
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
@@ -49,24 +48,29 @@ jobs:
       matrix:
         include:
           - platform: linux/amd64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     # Holds OTA_SIGNING_KEY, the key the app's updates are signed with.
-    environment: ${{ inputs.signed && 'ota-release' || '' }}
+    environment: ${{ inputs.signing-environment }}
     steps:
       - name: Prepare platform pair
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
-          platform=${{ matrix.platform }}
-          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+          echo "PLATFORM_PAIR=${PLATFORM//\//-}" >> "$GITHUB_ENV"
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check for required secrets
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
             echo "::error::Required secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not set"
             echo "::error::Please configure these secrets in your repository settings"
             echo "::error::See .github/DOCKER_SETUP.md for instructions"
@@ -91,18 +95,21 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
 
       - name: Require the app update signing key
-        if: inputs.signed
+        if: inputs.signing-environment != ''
         env:
           OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+          SIGNING_ENVIRONMENT: ${{ inputs.signing-environment }}
         run: |
           if [ -z "$OTA_SIGNING_KEY" ]; then
-            echo "::error::OTA_SIGNING_KEY is not set in the ota-release environment; a release image must carry a signed app update."
+            echo "::error::OTA_SIGNING_KEY is not set in the $SIGNING_ENVIRONMENT environment; this image must carry a signed app update."
             exit 1
           fi
 
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
         with:
           context: .
           file: ./Dockerfile
@@ -113,16 +120,19 @@ jobs:
           build-args: |
             APT_REFRESH=${{ github.run_id }}-${{ github.run_attempt }}
             ${{ inputs.build-args }}
-          secrets: ${{ inputs.signed && format('ota_signing_key={0}', secrets.OTA_SIGNING_KEY) || '' }}
+          # From the environment: the key is a multi-line PEM, which the
+          # line-per-entry `secrets` input splits apart.
+          secret-envs: ${{ inputs.signing-environment != '' && 'ota_signing_key=OTA_SIGNING_KEY' || '' }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
           cache-to: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }},mode=max
 
       - name: Export digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          mkdir -p ${{ runner.temp }}/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
 
       - name: Upload digest
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -134,7 +144,8 @@ jobs:
 
   merge:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - name: Download digests
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -164,9 +175,11 @@ jobs:
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.IMAGE_NAME }}@sha256:%s ' *)
+            $(printf "$IMAGE_NAME@sha256:%s " *)
 
       - name: Inspect image
         if: steps.meta.outputs.version != ''
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          docker buildx imagetools inspect ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect "$IMAGE_NAME:$VERSION"

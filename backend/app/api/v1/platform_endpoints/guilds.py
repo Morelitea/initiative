@@ -37,7 +37,7 @@ from app.api.v1.platform_endpoints.password_recheck import (
 )
 from app.core import auth_context
 from app.core.intake import IntakeStream
-from app.core.auth_context import satisfied_provider_ids
+from app.core.auth_context import satisfied_providers
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
@@ -146,7 +146,7 @@ def _can_of(guild_context: GuildContext) -> GuildCan:
         administer=holds_guild_role(guild_context, GuildRole.admin, settings=True),
         configure=guild_context.writes_settings,
         administer_content=holds_guild_role(guild_context, GuildRole.admin),
-        seat=guild_context.seat,
+        seat=guild_context.guild_seat,
     )
 
 
@@ -585,6 +585,16 @@ async def create_guild(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.GUILD_NAME_REQUIRED,
+        )
+
+    if not user_has_capability(
+        current_user, Capability.GUILDS_MANAGE
+    ) and not await guilds_service.may_create_another_guild(
+        session, user_id=current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=GuildMessages.GUILD_CREATION_LIMIT_REACHED,
         )
 
     owner = await _resolve_guild_owner(session, guild_in, current_user)
@@ -1398,7 +1408,7 @@ async def set_guild_auth_policy(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
             )
-        if provider.id not in satisfied_provider_ids():
+        if provider.id not in satisfied_providers():
             raise _auth_policy_refusal(
                 GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, "provider"
             )

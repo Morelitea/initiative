@@ -8,13 +8,17 @@ about what the request path actually gets.
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
+from app.db.request_context import Platform
+from app.db.session import set_rls_context
 from app.models.platform.contact_grant import (
     ContactGrant,
     ContactGrantKind,
     ContactGrantState,
     canonical_pair,
 )
+from app.models.platform.user import UserRole
 from app.models.platform.user_dm_settings import DmPolicy, UserDmSettings
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.user_ignore import UserIgnore
@@ -269,3 +273,143 @@ async def test_an_ignored_account_still_lists_the_person_ignoring_them(session):
 
     assert await _listable(session, bram, guild) == {ada.id}
     assert await _listable(session, ada, guild) == set()
+
+
+# --------------------------------------------------------- writing a grant ---
+
+
+async def _route(session, user) -> None:
+    """Act as ``user`` on the platform path, where the table policies apply."""
+    await set_rls_context(
+        session, Platform(user_id=user.id, tier=UserRole.member.value)
+    )
+
+
+async def _accept(session, a, b, kind: ContactGrantKind) -> int:
+    low, high = canonical_pair(a.id, b.id)
+    result = await session.exec(
+        text(
+            "UPDATE public.contact_grants "
+            "SET state = 'accepted', responded_at = now() "
+            f"WHERE user_id_low = :lo AND user_id_high = :hi AND kind = '{kind.value}'"
+        ).bindparams(lo=low, hi=high)
+    )
+    return result.rowcount
+
+
+async def _write_accepted(session, a, b, kind: ContactGrantKind, requested_by) -> None:
+    low, high = canonical_pair(a.id, b.id)
+    await session.exec(
+        text(
+            "INSERT INTO public.contact_grants (user_id_low, user_id_high, kind, "
+            "state, requested_by, created_at, responded_at) "
+            f"VALUES (:lo, :hi, '{kind.value}', 'accepted', :by, now(), now())"
+        ).bindparams(lo=low, hi=high, by=requested_by.id)
+    )
+
+
+async def _refused(session, write, match: str = "row-level security") -> None:
+    with pytest.raises(DBAPIError, match=match):
+        async with session.begin_nested():
+            await write()
+
+
+async def test_a_request_is_accepted_by_the_other_party_only(session):
+    a = await create_user(session)
+    b = await create_user(session)
+    await _grant(session, a, b, ContactGrantKind.connection, ContactGrantState.pending)
+
+    await _route(session, a)
+    await _refused(session, lambda: _accept(session, a, b, ContactGrantKind.connection))
+
+    await _route(session, b)
+    assert await _accept(session, b, a, ContactGrantKind.connection) == 1
+
+
+async def test_an_answer_changes_only_the_state(session):
+    a = await create_user(session)
+    b = await create_user(session)
+    await _grant(session, a, b, ContactGrantKind.connection, ContactGrantState.pending)
+    low, high = canonical_pair(a.id, b.id)
+
+    await _route(session, b)
+    await _refused(
+        session,
+        lambda: session.exec(
+            text(
+                "UPDATE public.contact_grants SET requested_by = :b "
+                "WHERE user_id_low = :lo AND user_id_high = :hi"
+            ).bindparams(b=b.id, lo=low, hi=high)
+        ),
+        match="permission denied",
+    )
+
+
+async def test_only_a_connection_opens_a_message_grant_unasked(session):
+    """The message grant a connection opens is written accepted, by either of
+    the pair; nothing else is."""
+    a = await create_user(session)
+    b = await create_user(session)
+    c = await create_user(session)
+    await _grant(session, c, a, ContactGrantKind.connection)
+
+    await _route(session, a)
+    await _refused(
+        session,
+        lambda: _write_accepted(session, a, b, ContactGrantKind.message, b),
+    )
+    await _refused(
+        session,
+        lambda: _write_accepted(session, a, b, ContactGrantKind.connection, b),
+    )
+    await _write_accepted(session, a, c, ContactGrantKind.message, a)
+
+
+async def test_a_message_grant_a_connection_opens_names_who_asked(session):
+    """Written already accepted, it names its writer or whoever asked for the
+    connection, and nobody else."""
+    a = await create_user(session)
+    b = await create_user(session)
+    c = await create_user(session)
+    await _grant(session, a, b, ContactGrantKind.connection)
+    await _grant(session, c, a, ContactGrantKind.connection)
+
+    await _route(session, a)
+    await _refused(
+        session,
+        lambda: _write_accepted(session, a, b, ContactGrantKind.message, b),
+    )
+    await _write_accepted(session, a, b, ContactGrantKind.message, a)
+    await _write_accepted(session, a, c, ContactGrantKind.message, c)
+
+
+async def test_an_accepted_grant_is_not_answered_again(session):
+    a = await create_user(session)
+    b = await create_user(session)
+    await _grant(session, a, b, ContactGrantKind.connection)
+    low, high = canonical_pair(a.id, b.id)
+
+    await _route(session, b)
+    reverted = await session.exec(
+        text(
+            "UPDATE public.contact_grants SET state = 'pending' "
+            "WHERE user_id_low = :lo AND user_id_high = :hi"
+        ).bindparams(lo=low, hi=high)
+    )
+    assert reverted.rowcount == 0
+
+
+async def test_accepting_a_connection_opens_the_accepters_own_message_request(
+    session,
+):
+    """What ``_open_message_grant`` writes when the accepter had already asked
+    to message the other."""
+    a = await create_user(session)
+    b = await create_user(session)
+    await _grant(session, a, b, ContactGrantKind.message, ContactGrantState.pending)
+    await _grant(session, b, a, ContactGrantKind.connection, ContactGrantState.pending)
+
+    await _route(session, a)
+    await _refused(session, lambda: _accept(session, a, b, ContactGrantKind.message))
+    assert await _accept(session, a, b, ContactGrantKind.connection) == 1
+    assert await _accept(session, a, b, ContactGrantKind.message) == 1

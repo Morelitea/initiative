@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
+import zipfile
 from datetime import date, datetime, time
 from typing import Any
 
@@ -62,6 +64,10 @@ MAX_IMPORT_CELLS: int = 500_000
 # from the declared rectangle before anything is read, so a sheet that would
 # take too long never starts.
 MAX_IMPORT_SCAN: int = 2_000_000
+
+# The most a workbook's parts may add up to once decompressed, read from the
+# sizes its zip directory declares before the workbook is opened.
+MAX_IMPORT_XLSX_BYTES: int = 100 * 1024 * 1024
 
 #: A table of text, read as one sheet. Such a file becomes a spreadsheet
 #: rather than a file document, which cannot hold it.
@@ -141,7 +147,7 @@ def _parse_csv(data: bytes, name: str, *, tab: bool) -> dict[str, Any]:
 # What a number looks like, matching ``coerceScalar`` in
 # ``frontend/src/lib/spreadsheet/csv.ts``. A field pasted from the clipboard
 # and the same field read from a file have to become the same value.
-_NUMERIC_RE = re.compile(r"^-?\d+(\.\d+)?([eE][-+]?\d+)?$")
+_NUMERIC_RE = re.compile(r"^-?\d*\.?\d+([eE][-+]?\d+)?$")
 
 
 def _scalar(text: str) -> Any:
@@ -169,6 +175,8 @@ def _scalar(text: str) -> Any:
             number = float(trimmed)
         except ValueError:
             return text
+        if not math.isfinite(number):
+            return text
         if number == int(number) and "." not in trimmed and "e" not in lower:
             return int(number)
         return number
@@ -178,7 +186,21 @@ def _scalar(text: str) -> Any:
 # ── XLSX ─────────────────────────────────────────────────────────────────────
 
 
+def _refuse_oversized_package(data: bytes) -> None:
+    """Refuse a workbook whose parts declare more than one import reads."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as package:
+            declared = sum(info.file_size for info in package.infolist())
+    except zipfile.BadZipFile as exc:
+        raise DocumentContentError(
+            DocumentMessages.SPREADSHEET_UNREADABLE_FILE
+        ) from exc
+    if declared > MAX_IMPORT_XLSX_BYTES:
+        raise DocumentContentError(DocumentMessages.SPREADSHEET_FILE_TOO_LARGE)
+
+
 def _parse_xlsx(data: bytes) -> list[dict[str, Any]]:
+    _refuse_oversized_package(data)
     try:
         # ``data_only=False`` keeps a formula as its ``=`` text, matching how
         # the renderer writes one and how the grid stores it.

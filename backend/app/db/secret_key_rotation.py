@@ -66,6 +66,7 @@ from app.core.encryption import (
 from app.db import cohorts
 from app.db import session as db_session
 from app.db.schema_provisioning import guild_schema_name
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -434,9 +435,6 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
     # second (engine.begin()) — separate connections so an open read cursor and the
     # UPDATEs don't collide on asyncpg. The write txn commits together, resumable.
     async with engine.connect() as read_conn, engine.begin() as write_conn:
-        for conn_ in (read_conn, write_conn):
-            # Pooled connections: shed any guild role a prior checkout assumed.
-            await conn_.execute(text("SELECT set_config('role', 'none', false)"))
         summary.columns.append(
             await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
         )
@@ -472,10 +470,6 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
     # Guild-scoped live copies: one write transaction per guild schema (independently
     # resumable). A guild whose schema is missing/broken is logged and skipped.
     async with engine.connect() as conn:
-        # Pooled connection: shed any guild role a prior checkout assumed (a
-        # lingering role would RLS-filter public.guilds to zero rows and the
-        # sweep would silently skip every guild schema).
-        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         guild_ids = (
             (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
             .scalars()
@@ -489,7 +483,7 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                 cohorts.system_session(gid) as writer,
             ):
                 for session in (reader, writer):
-                    await db_session.set_rls_context(session, guild_id=gid)
+                    await db_session.set_rls_context(session, SystemGuild(gid))
                 read_conn = await reader.connection()
                 write_conn = await writer.connection()
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:

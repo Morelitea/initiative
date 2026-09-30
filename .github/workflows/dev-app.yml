@@ -1,0 +1,110 @@
+name: Dev App
+
+# Builds the dev channel's Android app: installed beside the published app as
+# "Initiative Dev", it trusts app updates signed with the dev key, so it
+# follows the dev image over the air. Download it from the run's artifacts.
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - "frontend/**"
+      - "VERSION"
+      - "MIN_NATIVE_VERSION"
+      - ".github/ota-dev-key.pub"
+      - ".github/actions/setup-frontend/**"
+      - ".github/workflows/dev-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to dev replaces an app build still in progress.
+concurrency:
+  group: dev-app
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Holds the dev Android keystore.
+    environment: ota-dev
+    steps:
+      - name: Require the dev keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not set in the ota-dev environment."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Build frontend for Capacitor
+        working-directory: frontend
+        run: |
+          short=$(git rev-parse --short HEAD)
+          echo "SHORT_SHA=$short" >> "$GITHUB_ENV"
+          VITE_VERSION_SUFFIX="-dev-$short" \
+          VITE_OTA_DEV_KEY="$(tr -d '[:space:]' < ../.github/ota-dev-key.pub)" \
+            pnpm build:capacitor
+
+      - name: Set up Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: platform-tools
+
+      - name: Sync Capacitor
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Stage the signing keystore outside the workspace
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/signing"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d \
+            > "$RUNNER_TEMP/signing/dev.jks"
+
+      - name: Build signed APK
+        working-directory: frontend/android
+        env:
+          ORG_GRADLE_PROJECT_initiativeAppIdSuffix: .dev
+          ORG_GRADLE_PROJECT_initiativeAppLabel: Initiative Dev
+          ORG_GRADLE_PROJECT_initiativeSigningStoreFile: ${{ runner.temp }}/signing/dev.jks
+          ORG_GRADLE_PROJECT_initiativeSigningStorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_initiativeSigningKeyAlias: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_initiativeSigningKeyPassword: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Remove the staged signing keystore
+        if: always()
+        run: rm -rf "${RUNNER_TEMP:?}/signing"
+
+      # app-release.apk exists only when Gradle signed it.
+      - name: Stage the APK for upload
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp frontend/android/app/build/outputs/apk/release/app-release.apk \
+            "artifacts/initiative-dev-$SHORT_SHA.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: initiative-dev-apk
+          path: artifacts/*.apk

@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, func
+from sqlalchemy import ColumnElement, Table, and_, func, true
 from sqlmodel import select
 
 from app.core.smart_chips import (
@@ -31,6 +31,7 @@ from app.core.smart_chips import (
     SmartChipTone,
 )
 from app.core.references import REF_SEPARATOR, parse_ref as parse_bare_ref
+from app.core import recurrence
 from app.core.search import SearchEntityType
 from app.db import reference_targets
 from app.core.user_display import display_name
@@ -38,6 +39,7 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.counter import Counter
+from app.models.tenant.document import DocumentType
 from app.models.tenant.project import Project
 from app.models.tenant.task import (
     Task,
@@ -233,17 +235,27 @@ async def _counter_value(
 async def _event_when(
     session: AsyncSession, ids: list[int]
 ) -> dict[int, SmartChipValue]:
+    """When an event starts: a repeating one's next occurrence, muted once the
+    series has ended, on its last."""
     rows = (
         await session.exec(
-            select(CalendarEvent.id, CalendarEvent.start_at).where(
-                CalendarEvent.id.in_(ids), CalendarEvent.deleted_at.is_(None)
-            )
+            select(
+                CalendarEvent.id,
+                CalendarEvent.start_at,
+                CalendarEvent.recurrence,
+                CalendarEvent.recurrence_shift,
+            ).where(CalendarEvent.id.in_(ids), CalendarEvent.deleted_at.is_(None))
         )
     ).all()
     now = datetime.now(timezone.utc)
     values: dict[int, SmartChipValue] = {}
-    for event_id, start in rows:
+    for event_id, start, repeat, shift in rows:
         moment = start if start.tzinfo else start.replace(tzinfo=timezone.utc)
+        if repeat:
+            try:
+                moment = recurrence.upcoming(repeat, moment, shift, now)
+            except ValueError:
+                pass
         values[event_id] = SmartChipValue(
             text=moment.date().isoformat(),
             tone=SmartChipTone.muted if moment < now else SmartChipTone.neutral,
@@ -514,6 +526,39 @@ async def _descriptions(
     return {entity_id: text for entity_id, text in rows if text}
 
 
+#: The kinds whose body is prose, and which of their rows are: an embed of one
+#: shows what it says, not only what it is called. A document is prose only as
+#: a text document; a spreadsheet or a whiteboard embeds as its name.
+_PROSE: dict[SearchEntityType, Callable[[Table], ColumnElement[bool]]] = {
+    SearchEntityType.document: lambda t: t.c["document_type"] == DocumentType.native,
+    SearchEntityType.wiki_page: lambda t: true(),
+}
+
+
+async def _bodies(
+    session: AsyncSession, entity_type: SearchEntityType, ids: list[int]
+) -> dict[int, dict]:
+    """What these things say, in full — for the kinds in :data:`_PROSE`.
+
+    An empty body is left out, the way an empty description is: there is
+    nothing to show under the name. A wiki page still being drafted is left
+    out for anyone who cannot edit it by the table's own read policy, which
+    this request's session is under, as every other read of a page is.
+    """
+    prose = _PROSE.get(entity_type)
+    if prose is None:
+        return {}
+    table = reference_targets.id_column(entity_type).table
+    rows = (
+        await session.exec(
+            select(table.c["id"], table.c["content"]).where(
+                table.c["id"].in_(ids), prose(table)
+            )
+        )
+    ).all()
+    return {entity_id: body for entity_id, body in rows if body}
+
+
 async def read_embeds(
     session: AsyncSession, *, user_id: int, refs: list[str]
 ) -> list[ReferenceEmbed]:
@@ -535,12 +580,14 @@ async def read_embeds(
     visible = await _visible(session, user_id=user_id, wanted=wanted)
     names: dict[SearchEntityType, dict[int, str]] = {}
     described: dict[SearchEntityType, dict[int, str]] = {}
+    bodies: dict[SearchEntityType, dict[int, dict]] = {}
     for entity_type, ids in visible.items():
         if not ids:
             continue
         allowed = sorted(ids)
         names[entity_type] = await _titles(session, entity_type, allowed)
         described[entity_type] = await _descriptions(session, entity_type, allowed)
+        bodies[entity_type] = await _bodies(session, entity_type, allowed)
 
     return [
         ReferenceEmbed(
@@ -548,6 +595,7 @@ async def read_embeds(
             entity_type=entity_type,
             title=names[entity_type][entity_id],
             description=described[entity_type].get(entity_id),
+            body=bodies[entity_type].get(entity_id),
         )
         for ref, entity_type, entity_id in parsed
         if entity_id in names.get(entity_type, {})

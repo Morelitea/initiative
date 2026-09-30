@@ -62,6 +62,7 @@ from app.api.v1.tenant_endpoints import (
 )
 from app.api.v1.platform_endpoints import (
     field_catalog,
+    recurrence,
     access_grants,
     announcements,
     ai_settings as platform_ai_settings,
@@ -111,6 +112,7 @@ api_router = APIRouter()
 # These do NOT take a guild path segment.
 # ---------------------------------------------------------------------------
 api_router.include_router(field_catalog.router, tags=["fields"])
+api_router.include_router(recurrence.router, prefix="/recurrence", tags=["recurrence"])
 api_router.include_router(version.router, tags=["version"])
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(native.router, tags=["native"])
@@ -333,7 +335,7 @@ guild_router.include_router(
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
-# Recent views: POST/DELETE /{tool}/{id}/view, mounted once per Tool at each
+# Recent views: POST /{tool}/{id}/view, mounted once per Tool at each
 # tool's own path. The routes carry their own tags (see tenant_endpoints/
 # tool_views.py), so none is added here.
 guild_router.include_router(tool_views.router)

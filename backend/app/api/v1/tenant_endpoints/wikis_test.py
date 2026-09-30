@@ -912,6 +912,63 @@ async def test_a_draft_page_reads_as_missing_to_a_reader(
 
 
 # ---------------------------------------------------------------------------
+# Live editing
+# ---------------------------------------------------------------------------
+
+
+async def test_a_body_saved_outside_a_live_session_is_refused(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    """A page being edited live has its room as the writer of its body, as a
+    document's does. A body arriving over REST is refused; a rename is not."""
+    from app.services.tenant.collaboration import collaboration_manager
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, title="Live")
+    url = a.g(f"/wikis/{wiki.id}/pages/{page.id}")
+    monkeypatch.setattr(
+        collaboration_manager, "has_active_collaborators", lambda *_a: True
+    )
+
+    refused = await client.patch(
+        url, headers=a.headers, json={"content": {"root": "written outside"}}
+    )
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "WIKI_LIVE_SESSION_OWNS_CONTENT"
+    await session.refresh(page, ["content"])
+    assert page.content != {"root": "written outside"}
+
+    renamed = await client.patch(url, headers=a.headers, json={"title": "Renamed"})
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["title"] == "Renamed"
+
+
+async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
+    client: AsyncClient, acting_user, session
+):
+    """Stored Yjs state predates a body saved over REST; left in place, the
+    next live session would load it and save it back over the edit."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(
+        session, wiki, a.user, title="Stale", yjs_state=b"stale yjs blob"
+    )
+
+    saved = await client.patch(
+        a.g(f"/wikis/{wiki.id}/pages/{page.id}"),
+        headers=a.headers,
+        json={"content": {"root": {"children": [], "type": "root"}}},
+    )
+
+    assert saved.status_code == 200, saved.text
+    await session.refresh(page, ["yjs_state"])
+    assert page.yjs_state is None
+
+
+# ---------------------------------------------------------------------------
 # The home page
 # ---------------------------------------------------------------------------
 

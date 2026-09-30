@@ -23,11 +23,15 @@ class ICalParseResult(SanitizedBaseModel):
 
 class ICalParseRequest(SanitizedBaseModel):
     ics_content: RawTextStr = Field(..., max_length=2_000_000)
+    # The zone a floating time in the file is read in.
+    tz: Optional[str] = Field(default=None, max_length=64)
 
 
 class ICalImportRequest(SanitizedBaseModel):
     calendar_id: int
     ics_content: RawTextStr = Field(..., max_length=2_000_000)
+    # The zone a floating time in the file is read in.
+    tz: Optional[str] = Field(default=None, max_length=64)
 
 
 class ICalImportResult(SanitizedBaseModel):

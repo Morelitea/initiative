@@ -67,6 +67,7 @@ from app.db.session import set_rls_context
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.initiative import InitiativeMember
 from app.services.content_sockets import guild_room, initiative_room, sockets
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -277,7 +278,7 @@ async def deliver(payload: str) -> None:
         return
     try:
         async with cohorts.system_session(guild_id) as session:
-            await set_rls_context(session, guild_id=guild_id)
+            await set_rls_context(session, SystemGuild(guild_id))
             rows = await _rows_of_transaction(session, int(txn))
             if guild_id not in _delivered:
                 # First read of this guild here. Everything else already in the
@@ -311,7 +312,7 @@ async def process_room_sweep() -> None:
     for guild_id in watched:
         async with cohorts.system_session(guild_id) as session:
             try:
-                await set_rls_context(session, guild_id=guild_id)
+                await set_rls_context(session, SystemGuild(guild_id))
                 rows = await _rows_in_window(session)
                 await _open_new_rooms(session, guild_id, rows)
                 sent = _delivered.get(guild_id)

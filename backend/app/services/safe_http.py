@@ -20,7 +20,14 @@ from app.services.webhook_target_url import resolve_validated_target_async
 
 
 class ResponseTooLargeError(Exception):
-    """The response body, decoded, ran past the caller's ``max_bytes``."""
+    """The response body, decoded, ran past the caller's ``max_bytes``.
+
+    ``status_code`` is the status the response carried, for a caller that
+    only needed that."""
+
+    def __init__(self, max_bytes: int, *, status_code: int | None = None):
+        super().__init__(max_bytes)
+        self.status_code = status_code
 
 
 def _authority(url: httpx.URL) -> str:
@@ -155,7 +162,7 @@ async def _read_bounded(response: httpx.Response, max_bytes: int) -> httpx.Respo
         async for chunk in response.aiter_bytes():
             body += chunk
             if len(body) > max_bytes:
-                raise ResponseTooLargeError(max_bytes)
+                raise ResponseTooLargeError(max_bytes, status_code=response.status_code)
     finally:
         await response.aclose()
     headers = [

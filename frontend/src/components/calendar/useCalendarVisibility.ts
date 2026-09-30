@@ -94,6 +94,13 @@ export const useCalendarVisibility = (storageKey: string) => {
         current.calendars.has(keyOf(guildId, calendarId)),
       isProjectHidden: (guildId: Id, projectId: number) =>
         current.projects.has(keyOf(guildId, projectId)),
+      /** Every calendar switched off in `guildId`, loaded on this page or not. */
+      hiddenCalendarIds: (guildId: Id): number[] => {
+        const prefix = keyOf(guildId, 0).slice(0, -1);
+        return [...current.calendars]
+          .filter((key) => key.startsWith(prefix))
+          .map((key) => Number(key.slice(prefix.length)));
+      },
       hiddenCount: current.calendars.size + current.projects.size,
     }),
     [actions, current]

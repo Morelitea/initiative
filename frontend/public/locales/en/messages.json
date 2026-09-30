@@ -62,7 +62,7 @@
   "send": "Send",
   "sendFailed": "That message could not be sent.",
   "recipientHasNoDevice": "{{name}} has not set up encrypted messages yet, so this could not be delivered.",
-  "recipientDevicesUnverified": "{{name}} is using a device you haven't checked yet, so this wasn't sent. Compare the pictures above with them, then choose \"I've checked this\".",
+  "peerDevicesChanged": "{{name}}'s devices changed",
   "deviceFailed": "Encrypted messages could not be set up on this device.",
   "loading": "Loading…",
   "unsupportedBrowser": "Encrypted messages need a secure connection and a browser that can run them. Check the address starts with https (or is localhost), or try the app.",
@@ -101,33 +101,33 @@
   },
   "newDevice": {
     "title": "New device signed in",
-    "body": "{{device}} signed in to your account. Is this yours? It should be showing these pictures, in the same order.",
+    "body": "{{device}} signed in to your account. If it's yours, verify it: both screens will show the same four pictures to compare.",
     "unknownDevice": "A device",
     "sendHistory": "Send it my message history",
-    "confirm": "Yes, it's mine",
-    "remove": "No, remove it",
+    "verify": "Verify",
+    "remove": "Not mine, remove it",
     "error": "Couldn't save your answer. Try again."
   },
-  "deviceCode": {
-    "label": "Device code"
-  },
   "historyAsk": {
-    "title": "Confirm this device on another of yours",
-    "body": "Open Messages on a device you already use and confirm this one there. It will show you these pictures. Your message history arrives once you do.",
+    "title": "Verify this device from another of yours",
+    "body": "Open Messages on a device you already use and choose Verify there. Keep this one open: both will show the same four pictures to compare. Your message history arrives once you do.",
     "dismiss": "Dismiss",
-    "dismissNote": "Dismissing this only hides it. Your messages still arrive once you confirm this device on your other one."
+    "dismissNote": "Dismissing this only hides it. Your messages still arrive once you verify this device from your other one."
   },
-  "peerKeyChange": {
-    "title": "{{name}}'s devices changed",
-    "body": "Usually that means they added, replaced, or reinstalled a device. It can also mean someone else added a device in their name. Compare your safety number with them somewhere other than here before you send anything private.",
-    "compare": "Compare safety number"
-  },
-  "safetyNumber": {
-    "title": "Safety number with {{name}}",
-    "description": "Read these numbers with {{name}} in person or on a call. If both screens show the same numbers, your messages reach only the devices you both expect.",
-    "you": "You",
-    "matches": "They match",
-    "verified": "You've compared this number with {{name}}."
+  "verification": {
+    "title": "Compare with {{device}}",
+    "waiting": "Waiting for your other device. Keep Messages open on it.",
+    "compare": "Check that both screens show these pictures, in the same order.",
+    "label": "Pictures to compare",
+    "match": "They match",
+    "noMatch": "They don't match",
+    "waitingForOther": "Waiting for your other device to confirm.",
+    "verified": "Verified. This device can now read and send your messages.",
+    "mismatch": "Not verified, and nothing was changed. If you don't recognise this device, remove it.",
+    "cancelled": "The verification was stopped on the other device. Nothing was changed.",
+    "timeout": "The verification took too long and was stopped. Nothing was changed. Try again.",
+    "elsewhere": "A verification is already running in another tab.",
+    "error": "Couldn't verify the device. Try again."
   },
   "safetyEmoji": {
     "dog": "Dog",

@@ -70,9 +70,9 @@ async def _asked(client: AsyncClient, installed: InstalledApp, member) -> int:
     )
     assert asked.status_code in (200, 201), asked.text
     listed = await client.get(
-        member.g(f"/apps/{installed.app.id}/consents"), headers=member.headers
+        member.g(f"/apps/{installed.app.id}"), headers=member.headers
     )
-    (row,) = listed.json()
+    (row,) = listed.json()["consents"]
     return row["id"]
 
 

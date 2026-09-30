@@ -207,7 +207,7 @@ class TestSuspension:
             f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(member)
         )
         assert response.status_code == 200
-        assert member.id in {row["id"] for row in response.json()}
+        assert member.id in {row["id"] for row in response.json()["items"]}
 
     async def test_they_vanish_from_the_roster(
         self, client, session, moderator_and_member
@@ -223,7 +223,7 @@ class TestSuspension:
         response = await client.get(
             f"/api/v1/c/{guild.id}/users/", headers=get_auth_headers(onlooker)
         )
-        assert member.id not in {row["id"] for row in response.json()}
+        assert member.id not in {row["id"] for row in response.json()["items"]}
 
     async def test_they_vanish_from_the_picker(
         self, client, session, moderator_and_member
@@ -330,7 +330,7 @@ class TestSuspension:
 
 
 class TestLiftingASignInLock:
-    async def test_a_moderator_lifts_a_hold(self, client, session):
+    async def test_a_moderator_lifts_a_lock(self, client, session):
         from app.services.auth import sign_in_locks
 
         moderator = await create_user(session, role=UserRole.moderator)
@@ -346,7 +346,6 @@ class TestLiftingASignInLock:
         )
         assert lifted.status_code == 200, lifted.text
         assert lifted.json()["sign_in_locked_until"] is None
-        assert lifted.json()["sign_in_held_at"] is None
         assert not await sign_in_locks.is_locked(session, subject.id)
 
         again = await client.delete(
@@ -395,6 +394,9 @@ class TestNothingElse:
             ("/api/v1/operator/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.
             ("/api/v1/operator/users/{user_id}/reset-password", "POST"),
+            # Sends the sign-up confirmation letter again; it never marks an
+            # address confirmed.
+            ("/api/v1/operator/users/{user_id}/verification-email", "POST"),
             # Clears a second factor the holder can no longer present — the
             # lost-phone path. Like the reset above it is a removal, never a
             # read: nothing here hands back the seed or the recovery codes.
@@ -403,6 +405,65 @@ class TestNothingElse:
             ("/api/v1/operator/users/{user_id}/platform-role", "PATCH"),
             ("/api/v1/operator/users/{user_id}", "DELETE"),
         }
+
+    @pytest.mark.parametrize(
+        ("method", "path", "body"),
+        [
+            ("DELETE", "/avatar", None),
+            ("PATCH", "/username", {"username": "renamed"}),
+            ("DELETE", "/sign-in-lock", None),
+            ("POST", "/reactivate", None),
+            ("POST", "/restore", None),
+            ("DELETE", "/second-factor", None),
+            ("POST", "/reset-password", None),
+            ("POST", "/verification-email", None),
+            ("DELETE", "/age-block", None),
+            ("GET", "/deletion-eligibility", None),
+            ("DELETE", "", {"action": "hard_delete"}),
+        ],
+    )
+    async def test_an_account_that_outranks_you_is_out_of_reach(
+        self, client, session, method, path, body
+    ):
+        """Every account action holds the rank bound a suspension and a role
+        change hold."""
+        operator = await create_user(session, role=UserRole.operator)
+        owner = await create_user(session, role=UserRole.owner)
+
+        response = await client.request(
+            method,
+            f"/api/v1/operator/users/{owner.id}{path}",
+            headers=get_auth_headers(operator),
+            json=body,
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"] == "OPERATOR_CANNOT_MANAGE_HIGHER_ROLE"
+
+    async def test_reactivate_reopens_only_a_deactivated_account(
+        self, client, session, capfd
+    ):
+        """A suspension and a pending deletion have their own ways back; the one
+        reactivate takes is recorded."""
+        moderator = await create_user(session, role=UserRole.moderator)
+        headers = get_auth_headers(moderator)
+        for held in (UserStatus.suspended, UserStatus.deleted):
+            subject = await create_user(session, status=held)
+            response = await client.post(
+                f"/api/v1/operator/users/{subject.id}/reactivate", headers=headers
+            )
+            assert response.status_code == 409
+            assert response.json()["detail"] == "OPERATOR_USER_NOT_DEACTIVATED"
+
+        closed = await create_user(session, status=UserStatus.deactivated)
+        response = await client.post(
+            f"/api/v1/operator/users/{closed.id}/reactivate", headers=headers
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "active"
+        assert [e["event_type"] for e in _audit_entries(capfd, closed.id)] == [
+            "user.reactivated"
+        ]
 
 
 class TestTheAggregateRoutes:

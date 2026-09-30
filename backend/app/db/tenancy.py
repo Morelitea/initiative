@@ -107,6 +107,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "dm_conversations",
         "dm_conversation_members",
         "dm_queue",
+        # The verification relay between one account's own devices: public
+        # keys and MACs, deleted when collected or ten minutes after writing.
+        "dm_verification_messages",
         # What a moderator did, and to whom. Cross-guild platform security
         # that has to outlive any guild — and every reference in it is a plain
         # integer, so it outlives the accounts it names too.
@@ -242,10 +245,6 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "app_schedule_runs",  # when an install's schedules last ran and run
         # next; read through the install (LEDGER_TABLES below).
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
-        "uploads",  # guild blob store: no FK to any initiative entity (documents
-        # reference blobs by file_url string, and a blob can be pinned by
-        # documents across initiatives), so it can't use initiative_access;
-        # blob *content* access is already gated at the document layer.
         # Structural initiative tables — guild-scoped for reading (a roster is
         # read by its co-members, and the standing statement reads it before
         # any standing exists), written by the initiative's managers: see

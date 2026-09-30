@@ -457,6 +457,9 @@ describe("LoginPage passkey", () => {
     renderLogin();
 
     await user.click(await passkeyButton());
+    // The click only starts the trip: the device name and the challenge's
+    // digest are awaited before the browser opens.
+    await waitFor(() => expect(Browser.open).toHaveBeenCalledTimes(1));
 
     // The browser is sent the challenge of a sign-in this app has written down,
     // so the code it hands back can only be redeemed here.

@@ -15,6 +15,7 @@ import {
   useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost,
   useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost,
   useIgnoreAccountApiV1MeIgnoredUserIdPut,
+  useIgnoreAccountByHandleApiV1MeIgnoredPost,
   useListConnectionsApiV1MeConnectionsGet,
   useListIgnoredAccountsApiV1MeIgnoredGet,
   useListMessageRequestsApiV1MeMessageRequestsGet,
@@ -192,11 +193,13 @@ export const useRemoveMessageRequest = () =>
   useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete(reportAndRefresh);
 
 export const useIgnoreAccount = () => useIgnoreAccountApiV1MeIgnoredUserIdPut(reportAndRefresh);
+export const useIgnoreAccountByHandle = () =>
+  useIgnoreAccountByHandleApiV1MeIgnoredPost(refreshOnly);
 export const useStopIgnoring = () =>
   useStopIgnoringAccountApiV1MeIgnoredUserIdDelete(reportAndRefresh);
 
 /**
- * A handle typed as `name#1234`, split for the connection endpoint.
+ * A handle typed as `name#1234`, split for the connection and ignore endpoints.
  *
  * A connection is addressed by handle whatever the target's policy: it is the
  * only shape that reaches an account on Private, which is never offered from a

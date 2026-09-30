@@ -42,7 +42,6 @@ from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool
 from app.core.messages import ImportEngineMessages
-from app.db.session import SYSTEM_SATISFIED
 from app.models.platform.user import User
 from app.schemas.tenant.backup_export import (
     BACKUP_SCHEMA_VERSION,
@@ -64,6 +63,7 @@ from app.services.import_engine.archive_assets import (
     restore_assets,
 )
 from app.services.import_engine.common import handle_key, unique_name
+from app.services.tenant.attachments import claim_shown
 from app.services.import_engine.contract import (
     EnvelopeImportResult,
     ImportEngineError,
@@ -374,9 +374,7 @@ async def apply_backup(
 
         for mi in manifest.initiatives:
             # System sentinel: user-attributed job, gate passed at enqueue.
-            await establish_guild_access(
-                session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-            )
+            await establish_guild_access(session, user, guild_id, on_behalf=True)
             entries_here = entries_by_initiative.get(mi.id, [])
             if mi.target_initiative_id is not None:
                 initiative = await _resolve_target_initiative(
@@ -420,7 +418,7 @@ async def apply_backup(
                 if since_refresh >= _REFRESH_EVERY:
                     await session.commit()
                     await establish_guild_access(
-                        session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
+                        session, user, guild_id, on_behalf=True
                     )
                     # Re-load the initiative on the refreshed transaction.
                     initiative = (
@@ -452,9 +450,7 @@ async def apply_backup(
             await session.commit()
 
         # Everything is in the database; now the names can become edges.
-        await establish_guild_access(
-            session, user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-        )
+        await establish_guild_access(session, user, guild_id, on_behalf=True)
         resolution = await context.links.resolve(session, created_by=user.id)
         result.links_created = resolution.created
         result.links_unresolved = resolution.unresolved
@@ -464,6 +460,8 @@ async def apply_backup(
         # bundle becomes a mention of that page.
         await resolve_page_links(session, context.links, site_url=context.source_url)
         await _file_documents_under_pages(session, context)
+        # The files the entries show are kept for the initiative each went into.
+        await claim_shown(session, set(assets_by_key))
         await session.commit()
 
         return result

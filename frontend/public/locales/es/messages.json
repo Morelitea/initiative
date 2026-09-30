@@ -62,7 +62,7 @@
   "send": "Enviar",
   "sendFailed": "No se pudo enviar ese mensaje.",
   "recipientHasNoDevice": "{{name}} todavía no ha configurado los mensajes cifrados, así que no se pudo entregar.",
-  "recipientDevicesUnverified": "{{name}} usa un dispositivo que aún no has comprobado, así que no se envió. Comparad las imágenes de arriba y luego elige «Lo he comprobado».",
+  "peerDevicesChanged": "Los dispositivos de {{name}} han cambiado",
   "deviceFailed": "No se pudieron configurar los mensajes cifrados en este dispositivo.",
   "loading": "Cargando…",
   "unsupportedBrowser": "Los mensajes cifrados necesitan una conexión segura y un navegador capaz de ejecutarlos. Comprueba que la dirección empiece por https (o sea localhost), o prueba con la aplicación.",
@@ -101,33 +101,33 @@
   },
   "newDevice": {
     "title": "Se ha iniciado sesión en un dispositivo nuevo",
-    "body": "{{device}} ha iniciado sesión en tu cuenta. ¿Es tuyo? Debería mostrar estas imágenes, en el mismo orden.",
+    "body": "{{device}} ha iniciado sesión en tu cuenta. Si es tuyo, verifícalo: las dos pantallas mostrarán las mismas cuatro imágenes para comparar.",
     "unknownDevice": "Un dispositivo",
     "sendHistory": "Enviarle mi historial de mensajes",
-    "confirm": "Sí, es mío",
-    "remove": "No, quitarlo",
+    "verify": "Verificar",
+    "remove": "No es mío, quitarlo",
     "error": "No se pudo guardar tu respuesta. Inténtalo de nuevo."
   },
-  "deviceCode": {
-    "label": "Código del dispositivo"
-  },
   "historyAsk": {
-    "title": "Confirma este dispositivo en otro de los tuyos",
-    "body": "Abre Mensajes en un dispositivo que ya uses y confirma este allí. Te mostrará estas imágenes. Tu historial de mensajes llegará en cuanto lo hagas.",
+    "title": "Verifica este dispositivo desde otro de los tuyos",
+    "body": "Abre Mensajes en un dispositivo que ya uses y elige Verificar allí. Mantén este abierto: los dos mostrarán las mismas cuatro imágenes para comparar. Tu historial de mensajes llegará en cuanto lo hagas.",
     "dismiss": "Descartar",
-    "dismissNote": "Descartarlo solo lo oculta. Tus mensajes seguirán llegando en cuanto confirmes este dispositivo en el otro."
+    "dismissNote": "Descartarlo solo lo oculta. Tus mensajes seguirán llegando en cuanto verifiques este dispositivo desde el otro."
   },
-  "peerKeyChange": {
-    "title": "Los dispositivos de {{name}} han cambiado",
-    "body": "Normalmente significa que ha añadido, sustituido o reinstalado un dispositivo. También puede significar que otra persona ha añadido un dispositivo en su nombre. Compara vuestro número de seguridad por un medio distinto a este antes de enviar nada privado.",
-    "compare": "Comparar número de seguridad"
-  },
-  "safetyNumber": {
-    "title": "Número de seguridad con {{name}}",
-    "description": "Lee estos números con {{name}} en persona o en una llamada. Si las dos pantallas muestran los mismos números, vuestros mensajes solo llegan a los dispositivos que ambos esperáis.",
-    "you": "Tú",
-    "matches": "Coinciden",
-    "verified": "Has comparado este número con {{name}}."
+  "verification": {
+    "title": "Comparar con {{device}}",
+    "waiting": "Esperando a tu otro dispositivo. Mantén Mensajes abierto en él.",
+    "compare": "Comprueba que las dos pantallas muestran estas imágenes, en el mismo orden.",
+    "label": "Imágenes para comparar",
+    "match": "Coinciden",
+    "noMatch": "No coinciden",
+    "waitingForOther": "Esperando a que tu otro dispositivo confirme.",
+    "verified": "Verificado. Este dispositivo ya puede leer y enviar tus mensajes.",
+    "mismatch": "No se ha verificado y no se ha cambiado nada. Si no reconoces este dispositivo, quítalo.",
+    "cancelled": "La verificación se detuvo en el otro dispositivo. No se ha cambiado nada.",
+    "timeout": "La verificación tardó demasiado y se detuvo. No se ha cambiado nada. Inténtalo de nuevo.",
+    "elsewhere": "Ya hay una verificación en curso en otra pestaña.",
+    "error": "No se pudo verificar el dispositivo. Inténtalo de nuevo."
   },
   "safetyEmoji": {
     "dog": "Perro",

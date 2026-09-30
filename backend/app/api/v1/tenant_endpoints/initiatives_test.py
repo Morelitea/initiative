@@ -804,7 +804,8 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A member's row carries the role they actually hold — its own name,
-    display name, and manager standing — for custom roles too."""
+    display name, and manager standing — for custom roles too, and the role
+    list counts each role's holders."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -833,6 +834,13 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     assert row["role_name"] == "leads"
     assert row["role_display_name"] == "Leads"
     assert row["is_manager"] is True
+
+    roles = await client.get(
+        admin.g(f"/initiatives/{admin.initiative.id}/roles"), headers=admin.headers
+    )
+    assert roles.status_code == 200, roles.text
+    counts = {r["name"]: r["member_count"] for r in roles.json()}
+    assert (counts["leads"], counts["member"], sum(counts.values())) == (1, 0, 2)
 
 
 @pytest.mark.parametrize(
@@ -2281,3 +2289,53 @@ async def test_initiative_member_search_finds_a_misspelled_name(
     )
     assert response.status_code == 200, response.text
     assert member.user.username in {u["username"] for u in response.json()["items"]}
+
+
+async def test_changing_what_an_initiative_allows_rechecks_its_members(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    """Switching a tool off or changing what a role may do re-checks the open
+    connections of the people it applies to once it commits."""
+    from app.api.v1.tenant_endpoints import initiatives as initiatives_routes
+    from app.models.tenant.initiative import InitiativeRoleModel
+
+    manager = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild=manager.guild, initiative=manager.initiative, initiative_role="member"
+    )
+    initiative_id = manager.initiative.id
+    rechecked: list[set[int]] = []
+
+    async def _record(guild_id, user_ids):
+        rechecked.append(set(user_ids))
+
+    monkeypatch.setattr(initiatives_routes.content_sockets, "refresh_users", _record)
+
+    switched = await client.patch(
+        manager.g(f"/initiatives/{initiative_id}"),
+        headers=manager.headers,
+        json={"documents_enabled": False},
+    )
+    assert switched.status_code == 200, switched.text
+    assert rechecked.pop() == {manager.user.id, member.user.id}
+
+    member_role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative_id,
+                InitiativeRoleModel.name == "member",
+            )
+        )
+    ).one()
+    roles = await client.get(
+        manager.g(f"/initiatives/{initiative_id}/roles"), headers=manager.headers
+    )
+    (current,) = [r for r in roles.json() if r["id"] == member_role.id]
+    flipped = not current["permissions"]["create_documents"]
+    changed = await client.patch(
+        manager.g(f"/initiatives/{initiative_id}/roles/{member_role.id}"),
+        headers=manager.headers,
+        json={"permissions": {"create_documents": flipped}},
+    )
+    assert changed.status_code == 200, changed.text
+    assert rechecked.pop() == {member.user.id}

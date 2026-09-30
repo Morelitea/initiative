@@ -239,9 +239,17 @@ def test_true_and_false_arrive_as_booleans() -> None:
 def test_a_field_reads_the_same_from_a_file_as_from_the_clipboard() -> None:
     """The rule lives twice — here and in ``coerceScalar`` on the client — so
     this is the check that the two still say the same thing."""
-    sheets = parse_spreadsheet_file("x.csv", b" 42 ,1e3,-7,=A1\n")
+    sheets = parse_spreadsheet_file("x.csv", b" 42 ,1e3,-7,=A1,.7,-.25,1e309\n")
 
-    assert sheets[0]["cells"] == {"0:0": 42, "0:1": 1000.0, "0:2": -7, "0:3": "=A1"}
+    assert sheets[0]["cells"] == {
+        "0:0": 42,
+        "0:1": 1000.0,
+        "0:2": -7,
+        "0:3": "=A1",
+        "0:4": 0.7,
+        "0:5": -0.25,
+        "0:6": "1e309",
+    }
 
 
 # ── refusing what cannot be carried whole ────────────────────────────────────
@@ -275,6 +283,31 @@ def test_a_workbook_with_too_many_tabs_is_refused() -> None:
 
     with pytest.raises(DocumentContentError) as excinfo:
         parse_spreadsheet_file("many.xlsx", buffer.getvalue())
+
+    assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
+
+
+def test_a_workbook_declaring_more_than_one_import_reads_is_refused(
+    monkeypatch,
+) -> None:
+    """Judged from the sizes the package declares, before the workbook opens."""
+    import io as _io
+
+    from openpyxl import Workbook
+
+    from app.services.tenant import spreadsheet_import
+
+    buffer = _io.BytesIO()
+    Workbook().save(buffer)
+    monkeypatch.setattr(spreadsheet_import, "MAX_IMPORT_XLSX_BYTES", 1024)
+    monkeypatch.setattr(
+        spreadsheet_import,
+        "load_workbook",
+        lambda *a, **k: pytest.fail("the workbook was opened"),
+    )
+
+    with pytest.raises(DocumentContentError) as excinfo:
+        parse_spreadsheet_file("big.xlsx", buffer.getvalue())
 
     assert excinfo.value.code == DocumentMessages.SPREADSHEET_FILE_TOO_LARGE
 

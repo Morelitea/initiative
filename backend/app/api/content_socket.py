@@ -203,7 +203,7 @@ async def hold_open(
     finally:
         # Unconditional, cancellation included: a register entry left behind
         # would keep a writer and a room seat for a socket nobody holds.
-        sockets.leave(sub.websocket)
+        (sub.register or sockets).leave(sub.websocket)
 
 
 def tool_room(guild_id: int, tool: Tool, resource_id: int) -> RoomKey:

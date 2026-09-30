@@ -260,6 +260,11 @@ async def prepare_database() -> None:
 
     await reject_privileged_database_url()
     await migrate_database()
+    # Who may write the request's session variables. After the migrations,
+    # which create the shared floors that keep the right to.
+    from app.db.bootstrap import ensure_set_config_narrowed
+
+    await ensure_set_config_narrowed()
     # The functions every guild policy defers to, from the module that owns
     # them (app.db.authorization). Before the back-fill below, so a schema
     # rendered in this same boot finds each one its policies name.
@@ -463,10 +468,11 @@ async def prepare_database() -> None:
                     app_service_session
                 )
             logger.info(
-                "app services: %d created, %d updated, %d unchanged, %d skipped",
-                reconciled.created,
+                "app services: %d updated, %d unchanged, %d waiting for their "
+                "listing, %d skipped",
                 reconciled.updated,
                 reconciled.unchanged,
+                reconciled.waiting,
                 reconciled.skipped,
             )
         except Exception:

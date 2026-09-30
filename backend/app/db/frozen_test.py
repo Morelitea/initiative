@@ -15,10 +15,13 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.errors import dbapi_sqlstate
-from app.db.frozen import FROZEN_SQLSTATE, mark_restructuring
+from app.db import gucs
+from app.db.frozen import FROZEN_SQLSTATE
+from app.db.session import raise_flag
 from app.services.tenant import archive as archive_service
 from app.services.tenant.soft_delete import soft_delete_entity
 from app.models.platform.guild import GuildRole
+from app.models.tenant.project import Project
 from app.testing import (
     create_comment,
     create_guild,
@@ -26,6 +29,7 @@ from app.testing import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_resource_grant,
     create_task,
     create_task_status,
     create_user,
@@ -228,31 +232,44 @@ class TestAncestorFreeze:
             )
         assert "frozen_ancestor_insert" in str(excinfo.value)
 
-    async def test_the_first_grant_on_a_new_resource_is_not_sharing(
+    async def test_an_archived_project_can_still_be_unshared(
         self, session, routed, workspace
     ):
-        """A grant is what makes a resource reachable, so the first one is
-        written while the resource still answers to nobody. Asked the way every
-        other ancestor is asked, no resource could ever be created."""
-        user, guild, initiative, project, _t = workspace
-        # The state a resource is in between its own INSERT and its owner
-        # grant: it exists, and it answers to nobody yet.
-        await session.exec(
-            text(
-                "DELETE FROM resource_grants "
-                "WHERE resource_type = 'project' AND resource_id = :pid"
-            ).bindparams(pid=project.id)
-        )
-        await session.commit()
+        """Taking somebody's access away changes who can reach the project,
+        not the project, so the archive does not hold it."""
+        _user, guild, _i, project, _t = workspace
+        other = await create_user(session)
+        await create_guild_membership(session, user=other, guild=guild)
+        grant = await create_resource_grant(session, project, user=other)
+        await _archive(session, project)
 
         await routed.exec(
-            text(
-                "INSERT INTO resource_grants "
-                "(resource_type, resource_id, user_id, level, "
-                " initiative_id, created_at) "
-                "VALUES ('project', :pid, :uid, 'owner', :iid, now())"
-            ).bindparams(pid=project.id, uid=user.id, iid=initiative.id)
+            text("DELETE FROM resource_grants WHERE id = :id").bindparams(id=grant.id)
         )
+        await routed.commit()
+
+    async def test_the_first_grant_on_a_new_resource_is_not_sharing(
+        self, routed, workspace
+    ):
+        """A grant is what makes a resource reachable, so the first one is
+        written while the resource still answers to nobody: by the table's
+        create trigger, as the row goes in. Asked the way every other ancestor
+        is asked, no resource could ever be created."""
+        user, _g, initiative, _p, _t = workspace
+        routed.add(Project(name="Fresh", initiative_id=initiative.id))
+        await routed.flush()
+
+        owners = (
+            await routed.exec(
+                text(
+                    "SELECT g.user_id FROM resource_grants g "
+                    "JOIN projects p ON p.id = g.resource_id "
+                    "WHERE g.resource_type = 'project' AND g.level = 'owner' "
+                    "AND p.name = 'Fresh'"
+                )
+            )
+        ).all()
+        assert [row[0] for row in owners] == [user.id]
 
     async def test_a_trashed_project_takes_no_new_sharing(
         self, session, role_session, workspace
@@ -414,6 +431,33 @@ class TestAncestorFreeze:
             )
         assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
 
+    @pytest.mark.parametrize("task_archived", [False, True])
+    async def test_a_reply_cannot_come_out_from_under_a_trashed_comment(
+        self, session, routed, workspace, task_archived
+    ):
+        """A reply thrown away before its comment keeps a stamp of its own, so
+        the comment's restore leaves it where it is — and it may not come back
+        before the comment it answers does. An archive on the task does not
+        hide the trash on the comment: they are two different ways up."""
+        user, _g, _i, _p, task = workspace
+        comment = await create_comment(session, user, task=task)
+        reply = await create_comment(
+            session, user, task=task, parent_comment_id=comment.id
+        )
+        await _trash(session, reply, by=user.id)
+        await _trash(session, comment, by=user.id)
+        if task_archived:
+            await _archive(session, task)
+
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text(
+                    "UPDATE comments SET deleted_at = NULL, deleted_by = NULL, "
+                    "purge_at = NULL WHERE id = :id"
+                ).bindparams(id=reply.id)
+            )
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
+
     async def test_a_comment_under_an_archived_task_is_still_read_only(
         self, session, routed, workspace
     ):
@@ -524,7 +568,7 @@ class TestRowFreeze:
         _u, _g, _i, project, task = workspace
         other = await create_task_status(session, project, name="Elsewhere")
         await _archive(session, task)
-        await mark_restructuring(routed)
+        await raise_flag(routed, gucs.RESTRUCTURING)
         await routed.exec(
             text("UPDATE tasks SET task_status_id = :status WHERE id = :id").bindparams(
                 status=other.id, id=task.id
@@ -537,7 +581,7 @@ class TestRowFreeze:
     ):
         _u, _g, _i, _p, task = workspace
         await _archive(session, task)
-        await mark_restructuring(routed)
+        await raise_flag(routed, gucs.RESTRUCTURING)
         await routed.commit()
         with pytest.raises(DBAPIError) as excinfo:
             await routed.exec(

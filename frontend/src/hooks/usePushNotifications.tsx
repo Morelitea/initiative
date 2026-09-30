@@ -4,9 +4,9 @@ import { type PermissionStatus, PushNotifications } from "@capacitor/push-notifi
 import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { registerPushTokenApiV1PushRegisterPost } from "@/api/generated/push/push";
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
+import { registerPushToken } from "@/lib/pushRegistration";
 import { returnPath } from "@/lib/returnPath";
 import FirebaseRuntime from "@/plugins/firebaseRuntime";
 
@@ -74,10 +74,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             console.log("Push registration success, token:", token.value);
             // Send token to backend
             try {
-              await registerPushTokenApiV1PushRegisterPost({
-                push_token: token.value,
-                platform: Capacitor.getPlatform(),
-              });
+              await registerPushToken(token.value, Capacitor.getPlatform());
               console.log("Push token registered with backend");
             } catch (err) {
               console.error("Failed to register push token with backend:", err);

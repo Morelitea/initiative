@@ -13,7 +13,7 @@
  */
 
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
   acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost as acceptInvitation,
@@ -25,30 +25,33 @@ import {
   markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
 import { invalidate, q } from "@/api/query-keys";
-import type { PeerKeyChange, SafetyNumber, StoredMessage } from "@/crypto/messaging";
+import type { PeerKeyChange, StoredMessage } from "@/crypto/messaging";
 import {
-  acknowledgeSafetyNumber,
   answerNewDevice,
+  cancelVerification,
   collect,
+  collectVerification,
+  confirmMatch,
+  dismissVerification,
   ensureDevice,
-  ensureDeviceContext,
   historyAsk,
   historyAskWaiting,
   markRead,
   messageLog,
   ownDeviceWaiting,
-  pairSafetyNumber,
-  peerKeyChangesWaiting,
+  peerDeviceChanges,
   registeredDevice,
+  rejectMatch,
   sendEdit,
   sendReaction,
   sendRemove,
   sendText,
-  thisDevice,
+  startVerification,
+  subscribeVerification,
   unreadIn,
+  verificationView,
   wantThreadHistory,
 } from "@/crypto/messaging";
-import { type CodeKeys, deviceCode } from "@/crypto/safetyCode";
 import {
   useDirectMessagesEnabled,
   useDmSettings,
@@ -76,11 +79,10 @@ export const messageKeys = {
   ownDevice: ["dm", "own-device"] as const,
   /** This device's own outstanding ask for its history. */
   historyAsk: ["dm", "history-ask"] as const,
-  peerKeyChanges: ["dm", "peer-key-changes"] as const,
-  // Outside the `["dm", …]` family: each is thousands of hashes, and nothing a
-  // socket frame says changes a key this browser already holds.
-  thisDevice: ["dm-this-device"] as const,
-  safetyNumber: (userId: number) => ["dm-safety-number", userId] as const,
+  /** When other people's devices changed, noted locally for their conversations. */
+  peerDeviceChanges: ["dm", "peer-device-changes"] as const,
+  /** This device's verification inbox, which a socket frame asks to be read. */
+  verification: ["dm", "verification"] as const,
   /** The family a socket frame invalidates, which is everything read locally. */
   all: ["dm"] as const,
 };
@@ -142,7 +144,7 @@ export function useSendMessage(conversationId: string, memberIds: number[]) {
     // Settled, not success: reading the directory happens before the send, so
     // a send that fails afterwards can still have found something to say.
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerDeviceChanges });
     },
   });
 }
@@ -159,7 +161,7 @@ export function useMessageActions(conversationId: string, memberIds: number[]) {
   const queryClient = useQueryClient();
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: messageKeys.thread(conversationId) });
-    void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.peerDeviceChanges });
   };
 
   const react = useMutation({
@@ -226,7 +228,7 @@ export function useCollectMessages(enabled: boolean) {
       void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
       // Same reason: a directory read during this collection can record a key
       // change locally, and nothing else asks that query again.
-      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
+      void queryClient.invalidateQueries({ queryKey: messageKeys.peerDeviceChanges });
       if (touched.length > 0) {
         void queryClient.invalidateQueries({ queryKey: messageKeys.conversations });
         void queryClient.invalidateQueries({ queryKey: ["dm", "unread"] });
@@ -262,7 +264,60 @@ export function useCollectMessagesWhereRegistered() {
   // this browser may be set up while the app is running, by the one page that
   // does it, and collection should start then rather than on the next load.
   const device = useQuery({ queryKey: messageKeys.device, queryFn: skipToken });
-  return useCollectMessages(Boolean(registered.data ?? device.data));
+  const enabled = Boolean(registered.data ?? device.data);
+  useCollectVerification(enabled);
+  return useCollectMessages(enabled);
+}
+
+/** The comparison this tab is running or showing, as the verification dialog draws it. */
+export function useVerification() {
+  return useSyncExternalStore(subscribeVerification, verificationView);
+}
+
+/**
+ * Read this device's verification inbox whenever a socket frame says there is
+ * something, and every couple of seconds while a comparison is running, since
+ * the other device is waiting on each step.
+ */
+function useCollectVerification(enabled: boolean) {
+  const dmEnabled = useDirectMessagesEnabled();
+  const queryClient = useQueryClient();
+  const { phase } = useVerification();
+  const running = phase === "waiting" || phase === "compare";
+  // A comparison that ends verified released a device from this browser's own
+  // store, which only these queries read: the prompt about it, and the
+  // collection that was leaving its messages waiting.
+  useEffect(() => {
+    if (phase !== "verified") return;
+    void queryClient.invalidateQueries({ queryKey: messageKeys.ownDevice });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.inbox });
+  }, [phase, queryClient]);
+  return useQuery({
+    queryKey: messageKeys.verification,
+    queryFn: () => collectVerification().then(() => null),
+    enabled: enabled && dmEnabled,
+    refetchInterval: running ? 2_000 : false,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
+
+/** What the prompt and the dialog can do about a comparison. */
+export function useVerificationActions() {
+  const onError = (error: unknown) =>
+    toast.error(getErrorMessage(error, "messages:verification.error"));
+  return {
+    start: useMutation({
+      mutationFn: ({ change, sendHistory }: { change: PeerKeyChange; sendHistory: boolean }) =>
+        startVerification(change, { sendHistory }),
+      onError,
+    }),
+    confirm: useMutation({ mutationFn: confirmMatch, onError }),
+    reject: useMutation({ mutationFn: rejectMatch, onError }),
+    cancel: useMutation({ mutationFn: cancelVerification }),
+    dismiss: dismissVerification,
+  };
 }
 
 /**
@@ -309,21 +364,9 @@ export function useAnswerNewDevice() {
   });
 }
 
-/** This browser's device keys, for drawing its code; `null` where it is not set up. */
-export function useThisDevice() {
-  return useQuery({
-    queryKey: messageKeys.thisDevice,
-    queryFn: () => thisDevice(),
-    enabled: useDirectMessagesEnabled(),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-}
-
 /**
- * This device waiting to be confirmed by another of this account's.
- *
- * The pair of the prompt above: one screen decides, the other is being decided
- * about, and both draw the same code so a person can compare them.
+ * This device waiting to be verified by another of this account's and sent
+ * its history.
  */
 export function useHistoryAsk() {
   return useQuery({
@@ -338,50 +381,12 @@ export function useHistoryAsk() {
   });
 }
 
-/**
- * Conversation partners whose device key changed under an existing thread.
- *
- * In the `["dm", …]` family so it is re-asked whenever anything in messages
- * moves. The change is found while sending, so the send that found it is
- * exactly the moment this needs to be asked again.
- */
-export function usePeerKeyChanges() {
+/** When other people's devices changed, by user id, for their conversations to say so. */
+export function usePeerDeviceChanges() {
   return useQuery({
-    queryKey: messageKeys.peerKeyChanges,
-    queryFn: () => peerKeyChangesWaiting(),
+    queryKey: messageKeys.peerDeviceChanges,
+    queryFn: () => peerDeviceChanges.all(),
     staleTime: 0,
-  });
-}
-
-/** One device's code, worked out only where it is drawn: it is thousands of hashes. */
-export function useDeviceCode(userId: number, keys: CodeKeys) {
-  return useQuery({
-    queryKey: ["dm-device-code", userId, keys.fingerprintKey, keys.identityKey],
-    queryFn: () => deviceCode(userId, keys),
-    staleTime: Number.POSITIVE_INFINITY,
-  });
-}
-
-/** The safety number with one person, worked out only while it is on screen. */
-export function usePairSafetyNumber(userId: number | null) {
-  return useQuery({
-    queryKey: messageKeys.safetyNumber(userId ?? 0),
-    queryFn: async () => pairSafetyNumber(await ensureDeviceContext(), userId as number),
-    enabled: userId !== null,
-    staleTime: 0,
-  });
-}
-
-/** The person compared the safety number: their held devices are released. */
-export function useAcknowledgeSafetyNumber() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ userId, number }: { userId: number; number: SafetyNumber }) =>
-      acknowledgeSafetyNumber(userId, number),
-    onSuccess: (_, { userId }) => {
-      void queryClient.invalidateQueries({ queryKey: messageKeys.peerKeyChanges });
-      void queryClient.invalidateQueries({ queryKey: messageKeys.safetyNumber(userId) });
-    },
   });
 }
 

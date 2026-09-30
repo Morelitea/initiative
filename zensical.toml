@@ -109,6 +109,7 @@ nav = [
     "en/running-a-server/platform-roles.md",
     "en/running-a-server/announcements.md",
     "en/running-a-server/backups-and-updates.md",
+    "en/running-a-server/building-your-own-image.md",
     "en/running-a-server/maintaining-these-docs.md",
   ] },
   { "Help & reference" = [

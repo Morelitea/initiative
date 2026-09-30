@@ -6,12 +6,11 @@ import type {
   TaskListRead,
   TaskListReadRecurrenceStrategy,
   TaskPriority,
-  TaskRecurrenceOutput,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
 import {
   Accordion,
@@ -37,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { type RecurrenceRule, rulePayload } from "@/lib/recurrence";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
 export type TaskBulkUpdate = {
@@ -45,7 +45,9 @@ export type TaskBulkUpdate = {
   assignee_ids: number[];
   task_status_id: number;
   priority: TaskPriority;
-  recurrence: TaskRecurrenceOutput | null;
+  recurrence: string | null;
+  /** The zone the rule's days are in; each task's rule is stored from its own start. */
+  tz: string;
   recurrence_strategy: TaskListReadRecurrenceStrategy;
 };
 
@@ -73,7 +75,7 @@ export const TaskBulkEditDialog = ({
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [statusId, setStatusId] = useState<string>("");
   const [priority, setPriority] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
+  const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
 
@@ -103,7 +105,7 @@ export const TaskBulkEditDialog = ({
     }
 
     if (recurrence) {
-      changes.recurrence = recurrence;
+      Object.assign(changes, rulePayload(recurrence));
       changes.recurrence_strategy = recurrenceStrategy;
     }
 
@@ -205,8 +207,9 @@ export const TaskBulkEditDialog = ({
             <AccordionContent className="space-y-4 pb-4">
               <div className="space-y-2">
                 <Label>{t("bulkEdit.recurringSchedule")}</Label>
-                <TaskRecurrenceSelector
-                  recurrence={recurrence}
+                <RecurrenceEditor
+                  kind="task"
+                  value={recurrence}
                   onChange={setRecurrence}
                   strategy={recurrenceStrategy}
                   onStrategyChange={setRecurrenceStrategy}

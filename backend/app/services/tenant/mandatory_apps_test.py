@@ -38,6 +38,7 @@ from app.testing import (
     marketplace_uid,
     route_session_to_guild,
 )
+from app.db.request_context import SystemGuild
 
 
 PROVIDED_ID = "platform.provided"
@@ -443,7 +444,7 @@ class TestScopesOnAnInstallAlreadyThere:
             from app.db import session as db_session
 
             async with cohorts.system_session(guild.id) as system:
-                await db_session.set_rls_context(system, guild_id=guild.id)
+                await db_session.set_rls_context(system, SystemGuild(guild.id))
                 row = (
                     await system.exec(select(GuildApp).where(GuildApp.id == app.id))
                 ).one()

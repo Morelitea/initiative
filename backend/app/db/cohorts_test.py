@@ -18,6 +18,7 @@ from app.db import session as db_session
 from app.db.session import get_session, set_rls_context
 from app.services.cross_guild import gather_across_guilds
 from app.testing import create_guild, create_user, platform_session
+from app.db.request_context import SystemGuild
 
 
 def _connection(path_params: dict[str, str]) -> HTTPConnection:
@@ -85,11 +86,11 @@ async def test_a_route_outside_the_connections_cohort_is_refused(session):
     assert cohorts.cohort_of(other_cohort) != cohorts.cohort_of(guild.id)
 
     async with cohorts.request_sessionmaker(guild.id)() as own:
-        await set_rls_context(own, guild_id=guild.id)
+        await set_rls_context(own, SystemGuild(guild.id))
         assert (await own.exec(text("SELECT 1"))).one()[0] == 1
 
     async with cohorts.request_sessionmaker(other_cohort)() as elsewhere:
-        await set_rls_context(elsewhere, guild_id=guild.id)
+        await set_rls_context(elsewhere, SystemGuild(guild.id))
         with pytest.raises(cohorts.CrossCohortRoute):
             await elsewhere.exec(text("SELECT 1"))
 
@@ -101,13 +102,13 @@ async def test_a_system_session_routes_only_into_its_own_cohort(session):
     async with cohorts.system_session(guild.id) as own:
         assert own.bind is cohorts.system_sessionmaker(guild.id).kw["bind"]
         assert own.bind is not cohorts.request_sessionmaker(guild.id).kw["bind"]
-        await set_rls_context(own, guild_id=guild.id)
+        await set_rls_context(own, SystemGuild(guild.id))
         connection = await own.connection()
         assert connection.info["initiative_cohort"] == cohorts.cohort_of(guild.id)
         assert (await own.exec(text("SELECT 1"))).one()[0] == 1
 
     async with cohorts.system_session(other_cohort) as elsewhere:
-        await set_rls_context(elsewhere, guild_id=guild.id)
+        await set_rls_context(elsewhere, SystemGuild(guild.id))
         with pytest.raises(cohorts.CrossCohortRoute):
             await elsewhere.exec(text("SELECT 1"))
 
@@ -116,7 +117,7 @@ async def test_the_platform_system_pool_is_refused_in_a_community(session):
     guild = await create_guild(session)
     async with db_session.SystemSessionLocal() as system:
         with pytest.raises(cohorts.CrossCohortRoute):
-            await set_rls_context(system, guild_id=guild.id)
+            await set_rls_context(system, SystemGuild(guild.id))
             await system.exec(text("SELECT 1"))
 
 
@@ -155,7 +156,7 @@ async def test_a_read_across_communities_reads_each_from_its_own_cohort(session,
             return [int(count[0])]
 
         results = await gather_across_guilds(
-            parent, user.id, [first.id, second.id], fetch, satisfied_providers=[]
+            parent, user.id, [first.id, second.id], fetch
         )
 
     assert len(results) == 2

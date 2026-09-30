@@ -74,6 +74,7 @@ def test_a_guild_shape_declares_the_name_it_may_render(schema) -> None:
     assert "full_name" in schema.model_fields
 
 
+@pytest.mark.always
 def test_no_guild_content_reads_a_person_from_the_users_table() -> None:
     """Why none of those shapes needs a rule of its own about names.
 

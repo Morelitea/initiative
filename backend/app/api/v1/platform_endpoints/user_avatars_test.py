@@ -183,8 +183,8 @@ async def test_a_read_payload_url_cannot_be_written_back_as_an_external_one(
     client: AsyncClient, session: AsyncSession
 ):
     """``avatar_url`` reads as the path this API serves and writes as a picture
-    hosted elsewhere, so handing a read payload straight back is refused rather
-    than recorded as though it named somewhere else."""
+    hosted elsewhere at an https address, so a read payload handed straight
+    back, or any other address, is refused."""
     user = await create_user(session)
 
     response = await client.patch(
@@ -192,8 +192,15 @@ async def test_a_read_payload_url_cannot_be_written_back_as_an_external_one(
         headers=get_auth_headers(user),
         json={"avatar_url": f"/api/v1/users/{user.id}/avatar/{'ab' * 32}"},
     )
+    assert response.status_code == 422
 
-    assert response.status_code == 400
+    for elsewhere in ("http://example.com/me.png", "data:image/png;base64,AAAA"):
+        response = await client.patch(
+            "/api/v1/users/me",
+            headers=get_auth_headers(user),
+            json={"avatar_url": elsewhere},
+        )
+        assert response.status_code == 422
 
 
 async def test_setting_an_external_picture_drops_the_uploaded_one(

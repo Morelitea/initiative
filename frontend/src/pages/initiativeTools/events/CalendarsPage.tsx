@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CalendarSummary,
+  ExportEventsApiV1CGuildIdExportsEventsGetParams,
   FilterCondition,
   FilterGroup,
   ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams,
@@ -14,8 +15,10 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
+  allDayRange,
   buildEventCalendarEntry,
   buildTaskCalendarEntries,
+  buildTaskOccurrenceEntries,
   CALENDAR_VIEW_MODE_KEY,
   type CalendarEntry,
   type CalendarEntryReschedule,
@@ -26,6 +29,7 @@ import {
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
+import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   CalendarPanelDropdown,
@@ -75,6 +79,7 @@ import { eventRoute, taskRoute, toolSettingsRoute } from "@/lib/tools";
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
+const ICS_FORMATS: ExportFormatOption[] = [{ format: "ics", labelKey: "export.formatIcs" }];
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
@@ -312,6 +317,41 @@ export const CalendarsView = ({
 
   const entriesQuery = useCalendarEntries(entriesParams);
 
+  // Export every date of the calendars on screen, through the same scope and
+  // filters as the grid. Hidden calendars are left out by their saved ids, so
+  // one past the loaded page of calendars stays out too.
+  const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
+    const allHidden = calendars.every((calendar) =>
+      visibility.isCalendarHidden(guildId, calendar.id)
+    );
+    if (!solo && allHidden && !calendarsQuery.data?.has_next) {
+      return null;
+    }
+    const hidden = visibility.hiddenCalendarIds(guildId);
+    return {
+      ...(solo
+        ? { calendar_ids: [soloCalendar.id] }
+        : guildScope
+          ? { scope: "guild" as const }
+          : initiativeId
+            ? { initiative_id: initiativeId }
+            : {}),
+      ...(!solo && hidden.length > 0 ? { exclude_calendar_ids: hidden } : {}),
+      ...(!guildOnly && propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
+    };
+  }, [
+    calendars,
+    calendarsQuery.data?.has_next,
+    visibility,
+    guildId,
+    solo,
+    soloCalendar?.id,
+    guildScope,
+    guildOnly,
+    initiativeId,
+    propertyFiltersParam,
+  ]);
+
   // Same param shape the sidebar and dashboard use, so this shares their cache.
   const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !guildOnly });
   const projectNamesById = useMemo(() => {
@@ -324,7 +364,8 @@ export const CalendarsView = ({
   // fully derived from the entries payload, never stored.
   const projectCalendars = useMemo<ProjectTaskCalendar[]>(() => {
     const seen = new Map<number, ProjectTaskCalendar>();
-    for (const task of entriesQuery.data?.tasks ?? []) {
+    const data = entriesQuery.data;
+    for (const task of [...(data?.tasks ?? []), ...(data?.task_occurrences ?? [])]) {
       if (task.project_id == null || seen.has(task.project_id)) continue;
       seen.set(task.project_id, {
         projectId: task.project_id,
@@ -378,6 +419,12 @@ export const CalendarsView = ({
       // Task chips stay non-draggable here: per-project edit rights vary
       // across the visible projects; the task page is the editing surface.
       entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id), false));
+    }
+    for (const task of entriesQuery.data?.task_occurrences ?? []) {
+      if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
+        continue;
+      }
+      entries.push(...buildTaskOccurrenceEntries(task, getProjectColor(task.project_id)));
     }
 
     return entries;
@@ -452,11 +499,15 @@ export const CalendarsView = ({
           projectId?: number;
           eventId?: number;
           calendarId?: number;
+          occurrence?: string;
         }
       | undefined;
     if (!meta) return;
     if (meta.type === "event" && meta.eventId && meta.calendarId) {
-      void router.navigate({ to: gp(eventRoute(initiativeId, meta.calendarId, meta.eventId)) });
+      void router.navigate({
+        to: gp(eventRoute(initiativeId, meta.calendarId, meta.eventId)),
+        search: meta.occurrence ? { occurrence: meta.occurrence } : {},
+      });
     } else if (meta.type === "task" && meta.taskId && meta.projectId) {
       void router.navigate({ to: gp(taskRoute(initiativeId, meta.projectId, meta.taskId)) });
     }
@@ -475,7 +526,7 @@ export const CalendarsView = ({
       if (meta.type === "event" && meta.eventId) {
         rescheduleEvent.mutate({
           eventId: meta.eventId,
-          data: { start_at: startAt, end_at: endAt },
+          data: entry.allDay ? allDayRange(startAt, endAt) : { start_at: startAt, end_at: endAt },
         });
         return;
       }
@@ -549,6 +600,17 @@ export const CalendarsView = ({
           guildOnly
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
+        }
+        trailing={
+          exportParams ? (
+            <ExportButton
+              endpoint="/exports/events"
+              params={exportParams}
+              formats={ICS_FORMATS}
+              filenameStem="events"
+              resumePending
+            />
+          ) : null
         }
         actions={
           guildScope && canCreateCalendars ? (

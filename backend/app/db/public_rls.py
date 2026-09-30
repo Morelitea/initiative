@@ -48,6 +48,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
+from app.db import gucs
 from app.db.authorization import GUILD_ADMIN, SETTINGS_ADMIN, SYSTEM_SESSION
 from app.models.platform.user import UserRole
 
@@ -72,46 +73,22 @@ __all__ = [
 ]
 
 # --- The request context a policy reads ---------------------------------------
-# NULLIF-guarded casts throughout: a PAM grantee, and any unset context, leaves
-# the value empty, and a bare ''::int raises and faults the whole query for
-# every PERMISSIVE policy on the table (CLAUDE.md §6).
-UID = "NULLIF(current_setting('app.current_user_id', true), '')::int"
-GID = "NULLIF(current_setting('app.current_guild_id', true), '')::int"
-PAM_GID = "NULLIF(current_setting('app.pam_guild_id', true), '')::int"
-SETTINGS_GID = "NULLIF(current_setting('app.settings_guild_id', true), '')::int"
-BILLING_GID = "NULLIF(current_setting('app.billing_guild_id', true), '')::int"
-#: The community this request is in, however it was reached: as a member, on a
-#: content grant, or on a settings grant. One of the three names a community,
-#: and a row belongs to this request's community when it names that one.
-ROUTED_GID = f"COALESCE({GID}, {PAM_GID}, {SETTINGS_GID})"
-#: The community whose own configuration this request administers. A content
-#: grant names none: what it reaches is the community's work, not its settings,
-#: so the two are kept apart here rather than in each policy.
-CONFIGURED_GID = f"COALESCE({GID}, {SETTINGS_GID})"
+# Every variable is read through ``app.db.gucs``. The community whose own
+# configuration this request administers: a content grant names none, since
+# what it reaches is the community's work, not its settings, so the two are kept
+# apart here rather than in each policy.
+CONFIGURED_GID = f"COALESCE({gucs.GUILD_ID}, {gucs.SETTINGS_GUILD_ID})"
 #: The reader administers the routed community. A lookup on the membership
 #: row, made by the standing statement and written where a policy can read it
 #: — the same leg the guild schemas' gates carry, from one definition — beside
 #: the rung a live settings grant confers, which is its own axis.
 ROUTED_ADMIN = f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR {SETTINGS_ADMIN})"
-PAM_READ = "current_setting('app.pam_read', true) = 'true'"
-PAM_WRITE = "current_setting('app.pam_write', true) = 'true'"
 #: The reader changes what they administer. The membership row's admin does;
 #: a settings rung reads, and writes only beside a live read_write content
 #: grant — the two asks together.
 ROUTED_ADMIN_WRITE = (
-    f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR ({SETTINGS_ADMIN} AND {PAM_WRITE}))"
+    f"({SYSTEM_SESSION} OR {GUILD_ADMIN} OR ({SETTINGS_ADMIN} AND {gucs.PAM_WRITE}))"
 )
-#: Who a notification is being written for. The bell is the one table whose
-#: rows are written by somebody other than the person they belong to, so the
-#: writer names its recipient and the policy holds it to that one account.
-#: Set by ``user_notifications.name_recipient``.
-NOTIFY_TARGET = "NULLIF(current_setting('app.notify_target_user_id', true), '')::int"
-#: The client an installed app's token was issued to, written by the install
-#: routing from the verified token.
-TOKEN_CLIENT_ID = "NULLIF(current_setting('app.token_client_id', true), '')"
-#: The install an installed app's request is routed as, written by the same
-#: routing.
-INSTALL_ID = "NULLIF(current_setting('app.current_install_id', true), '')::int"
 
 # --- Predicate builders -------------------------------------------------------
 # Each returns the SQL of a policy predicate. ``{table}`` is replaced with the
@@ -119,12 +96,12 @@ INSTALL_ID = "NULLIF(current_setting('app.current_install_id', true), '')::int"
 
 OPEN = "true"  # the role is the rule: whoever may assume it reads every row
 CLOSED = "false"
-SIGNED_IN = f"{UID} IS NOT NULL"
+SIGNED_IN = f"{gucs.USER_ID} IS NOT NULL"
 
 
 def own_row(col: str = "user_id") -> str:
     """The row belongs to the reader."""
-    return f"{col} = {UID}"
+    return f"{col} = {gucs.USER_ID}"
 
 
 def guild_scoped(col: str = "guild_id") -> str:
@@ -146,11 +123,11 @@ def routed_admin_write(col: str = "guild_id") -> str:
 
 
 def routed_or_own(guild_col: str, user_col: str) -> str:
-    return f"{guild_col} = {ROUTED_GID} OR {user_col} = {UID}"
+    return f"{guild_col} = {gucs.ROUTED_GUILD_ID} OR {user_col} = {gucs.USER_ID}"
 
 
 def routed_and_own(guild_col: str, user_col: str) -> str:
-    return f"{guild_col} = {GID} AND {user_col} = {UID}"
+    return f"{guild_col} = {gucs.GUILD_ID} AND {user_col} = {gucs.USER_ID}"
 
 
 def member_of_guild(col: str = "guild_id") -> str:
@@ -158,61 +135,100 @@ def member_of_guild(col: str = "guild_id") -> str:
     return (
         "EXISTS (SELECT 1 FROM guild_memberships"
         f" WHERE guild_memberships.guild_id = {{table}}.{col}"
-        f" AND guild_memberships.user_id = {UID})"
+        f" AND guild_memberships.user_id = {gucs.USER_ID})"
     )
 
 
 def routed_or_member(col: str = "guild_id") -> str:
     """The routed community, or one the reader belongs to (the pre-routing
     reads: a member's guild list, an invite preview, a guild image)."""
-    return f"{col} = {ROUTED_GID} OR {member_of_guild(col)}"
+    return f"{col} = {gucs.ROUTED_GUILD_ID} OR {member_of_guild(col)}"
 
 
 def routed_or_pam(col: str = "guild_id") -> str:
     """The routed community, whichever of the three named it."""
-    return f"{col} = {ROUTED_GID}"
+    return f"{col} = {gucs.ROUTED_GUILD_ID}"
 
 
 def pam_read(col: str = "guild_id") -> str:
     """A live read grant on the row's community (the PAM leg)."""
-    return f"{col} = {PAM_GID} AND {PAM_READ}"
+    return f"{col} = {gucs.PAM_GUILD_ID} AND {gucs.PAM_READ}"
 
 
 def billing_scoped(col: str = "guild_id") -> str:
     """The community the billing role was routed to (``SET ROLE`` + GUC)."""
-    return f"{col} = {BILLING_GID}"
+    return f"{col} = {gucs.BILLING_GUILD_ID}"
 
 
 def seat(col: str = "guild_id") -> str:
     """The community this request configures, and the reader holds its
     superadmin seat — by the membership row, or by a live settings grant at
     that rung, which is what ``guild_superadmin()`` asks."""
-    return f"{col} = {CONFIGURED_GID} AND guild_superadmin({col}, {UID})"
+    return f"{col} = {CONFIGURED_GID} AND guild_superadmin({col}, {gucs.USER_ID})"
 
 
 def seat_write(col: str = "guild_id") -> str:
     """The seat, changing what it holds: by the membership row, or lent by a
     settings grant beside a live read_write content grant."""
-    return f"{seat(col)} AND ({GUILD_ADMIN} OR {PAM_WRITE})"
+    return f"{seat(col)} AND ({GUILD_ADMIN} OR {gucs.PAM_WRITE})"
 
 
 # Predicates one table family shares, named once.
-EITHER_END = f"(user_id_low = {UID}) OR (user_id_high = {UID})"
+EITHER_END = f"(user_id_low = {gucs.USER_ID}) OR (user_id_high = {gucs.USER_ID})"
 OWN_DEVICE_KEY = (
     "EXISTS (SELECT 1 FROM dm_devices d"
-    f" WHERE d.id = dm_one_time_keys.device_id AND d.user_id = {UID})"
+    f" WHERE d.id = dm_one_time_keys.device_id AND d.user_id = {gucs.USER_ID})"
 )
 OWN_DEVICE_QUEUE = (
     "recipient_device_id IN"
-    f" (SELECT dm_devices.id FROM dm_devices WHERE dm_devices.user_id = {UID})"
+    f" (SELECT dm_devices.id FROM dm_devices WHERE dm_devices.user_id = {gucs.USER_ID})"
+)
+#: A verification message the account writes between two of its own devices.
+OWN_DEVICE_PAIR = (
+    f"({own_row('user_id')}) AND (sender_device_id IN"
+    f" (SELECT dm_devices.id FROM dm_devices WHERE dm_devices.user_id = {gucs.USER_ID}))"
+    " AND (recipient_device_id IN"
+    f" (SELECT dm_devices.id FROM dm_devices WHERE dm_devices.user_id = {gucs.USER_ID}))"
 )
 OWN_OR_DM_OPEN = (
-    f"(user_id = {UID}) OR"
-    f" (({UID} IS NOT NULL) AND (dm_apparent_permission(user_id) = 'open'))"
+    f"(user_id = {gucs.USER_ID}) OR"
+    f" (({gucs.USER_ID} IS NOT NULL) AND (dm_apparent_permission(user_id) = 'open'))"
 )
-OWN_OR_DM_NOT_DENIED = (
-    f"(user_id = {UID}) OR"
-    f" (({UID} IS NOT NULL) AND (dm_apparent_permission(user_id) <> 'denied'))"
+#: A membership is written as the service writes one, on a conversation whose
+#: roster names both the writer and the member. The writer's own row, only while
+#: nobody on the conversation has accepted: the one opening or proposing it.
+#: Somebody else's row pending, as an invitation to anybody the writer may ask;
+#: or accepted, only on a pair the writer may already message.
+DM_MEMBER_WRITE = (
+    f"({gucs.USER_ID} IS NOT NULL)"
+    f" AND dm_roster_names(conversation_id, ARRAY[{gucs.USER_ID}, user_id]) AND ("
+    f"((user_id = {gucs.USER_ID}) AND NOT dm_roster_answered(conversation_id)) OR"
+    f" ((user_id <> {gucs.USER_ID}) AND ("
+    "((accepted_at IS NULL) AND (dm_apparent_permission(user_id) <> 'denied')) OR"
+    " ((accepted_at IS NOT NULL) AND dm_conversation_direct(conversation_id)"
+    " AND (dm_apparent_permission(user_id) = 'open')))))"
+)
+#: An invitation is answered once, by the one it was sent to.
+DM_MEMBER_ANSWER = f"({own_row('user_id')}) AND (accepted_at IS NULL)"
+#: A message grant is accepted without an answer only between connected accounts.
+CONNECTED_MESSAGE = (
+    "(kind = 'message') AND dm_pair_connected(user_id_low, user_id_high)"
+)
+#: A grant is written as a request from the writer, or as the message grant a
+#: connection opens, naming the writer or whoever asked for the connection.
+CONTACT_GRANT_WRITE = (
+    f"({EITHER_END}) AND ("
+    f"((state = 'pending') AND (requested_by = {gucs.USER_ID})) OR"
+    f" ((state = 'accepted') AND {CONNECTED_MESSAGE} AND ("
+    f"(requested_by = {gucs.USER_ID}) OR"
+    " (requested_by = dm_connection_requester(user_id_low, user_id_high)))))"
+)
+#: Only a request is answered.
+CONTACT_GRANT_PENDING = f"({EITHER_END}) AND (state = 'pending')"
+#: Nobody accepts their own request, beyond the message grant a connection opens.
+CONTACT_GRANT_ANSWER = (
+    f"({EITHER_END}) AND ((state <> 'accepted') OR"
+    f" (requested_by <> {gucs.USER_ID}) OR ({CONNECTED_MESSAGE}))"
 )
 LIVE_WINDOW = (
     "(published_at IS NOT NULL) AND (published_at <= now())"
@@ -221,14 +237,12 @@ LIVE_WINDOW = (
 CLIENT_SECTOR = "purpose = 'client' AND entity_type = 'user'"
 #: A reference in the routed install's own sector: what an installed app's
 #: request calls somebody, and nothing any other install or purpose holds.
-INSTALL_SECTOR = (
-    f"purpose = 'app' AND sector_guild_id = {GID} AND sector_id = {INSTALL_ID}"
-)
+INSTALL_SECTOR = f"purpose = 'app' AND sector_guild_id = {gucs.GUILD_ID} AND sector_id = {gucs.INSTALL_ID}"
 #: A reference an installed app's request mints: in its own sector, live, and
 #: naming a person or its own community.
 INSTALL_SECTOR_MINT = (
     f"{INSTALL_SECTOR} AND retired_at IS NULL"
-    f" AND (entity_type = 'user' OR (entity_type = 'guild' AND entity_id = {GID}))"
+    f" AND (entity_type = 'user' OR (entity_type = 'guild' AND entity_id = {gucs.GUILD_ID}))"
 )
 MEMBER_ROLE_ONLY = f"role = '{UserRole.member.value}'"
 
@@ -571,7 +585,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "contact_grants_self_insert",
                     INSERT,
                     ("platform_base",),
-                    check=EITHER_END,
+                    check=CONTACT_GRANT_WRITE,
                 ),
                 Policy(
                     "contact_grants_self_select",
@@ -583,14 +597,17 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "contact_grants_self_update",
                     UPDATE,
                     ("platform_base",),
-                    using=EITHER_END,
+                    using=CONTACT_GRANT_PENDING,
+                    check=CONTACT_GRANT_ANSWER,
                 ),
                 Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
             ),
         ),
         grants=Grants(
             app_admin=frozenset({SELECT, DELETE}),
-            platform_base=DML,
+            # UPDATE is column-scoped to state and responded_at (migration
+            # 0411), so it lives in the column ACL, not here.
+            platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
     "dm_conversation_members": SharedTable(
@@ -606,7 +623,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "dm_conversation_members_self_insert",
                     INSERT,
                     ("platform_base",),
-                    check=OWN_OR_DM_NOT_DENIED,
+                    check=DM_MEMBER_WRITE,
                 ),
                 Policy(
                     "dm_conversation_members_self_select",
@@ -618,7 +635,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "dm_conversation_members_self_update",
                     UPDATE,
                     ("platform_base",),
-                    using=own_row("user_id"),
+                    using=DM_MEMBER_ANSWER,
+                    check=own_row("user_id"),
                 ),
                 Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
             ),
@@ -650,12 +668,17 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("platform_base",),
                     using="dm_on_roster(id)",
                 ),
+                # A member's one write to the row: releasing the roster's name.
                 Policy(
                     "dm_conversations_self_update",
                     UPDATE,
                     ("platform_base",),
                     using="dm_in_conversation(id)",
+                    check="dm_in_conversation(id) AND (roster_key IS NULL)",
                 ),
+                # ``dm_conversation_direct`` and ``dm_roster_names`` read the
+                # kind and the roster (0411).
+                Policy("dm_reader_read", SELECT, ("app_dm_reader",), using=OPEN),
             ),
         ),
         grants=Grants(
@@ -765,6 +788,35 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
         grants=Grants(
             # The transport: cleared and swept as dm_devices is, never written.
             app_admin=frozenset({SELECT, DELETE}),
+            platform_base=frozenset({SELECT, INSERT, DELETE}),
+        ),
+    ),
+    "dm_verification_messages": SharedTable(
+        rls=TableRls(
+            policies=(
+                Policy(
+                    "dm_verification_messages_self_delete",
+                    DELETE,
+                    ("platform_base",),
+                    using=own_row("user_id"),
+                ),
+                Policy(
+                    "dm_verification_messages_self_insert",
+                    INSERT,
+                    ("platform_base",),
+                    check=OWN_DEVICE_PAIR,
+                ),
+                Policy(
+                    "dm_verification_messages_self_select",
+                    SELECT,
+                    ("platform_base",),
+                    using=own_row("user_id"),
+                ),
+            ),
+        ),
+        grants=Grants(
+            # The verification relay between one account's own devices: its own
+            # session writes, reads and deletes it, and nothing else touches it.
             platform_base=frozenset({SELECT, INSERT, DELETE}),
         ),
     ),
@@ -1071,7 +1123,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "install_reads_its_member",
                     SELECT,
                     ("app_install_base",),
-                    using=f"guild_id = {GID} AND {own_row('user_id')}",
+                    using=f"guild_id = {gucs.GUILD_ID} AND {own_row('user_id')}",
                 ),
             ),
         ),
@@ -1204,7 +1256,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "install_reads_its_guild",
                     SELECT,
                     ("app_install_base",),
-                    using=f"id = {GID}",
+                    using=f"id = {gucs.GUILD_ID}",
                 ),
             ),
         ),
@@ -1855,7 +1907,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "install_reads_its_registration",
                     SELECT,
                     ("app_install_base",),
-                    using=f"public_id = {TOKEN_CLIENT_ID}",
+                    using=f"public_id = {gucs.TOKEN_CLIENT_ID}",
                 ),
             ),
         ),
@@ -1890,7 +1942,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     using=(
                         "EXISTS (SELECT 1 FROM public.app_service_registrations r "
                         "WHERE r.publisher_id = publishers.id "
-                        f"AND r.public_id = {TOKEN_CLIENT_ID})"
+                        f"AND r.public_id = {gucs.TOKEN_CLIENT_ID})"
                     ),
                 ),
             ),
@@ -2207,19 +2259,19 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "notifications_write_named_recipient",
                     SELECT,
                     ("app_guild_base", "app_install_base"),
-                    using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+                    using=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
                 ),
                 Policy(
                     "notifications_insert_named_recipient",
                     INSERT,
                     ("app_guild_base", "app_install_base"),
-                    check=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+                    check=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
                 ),
                 Policy(
                     "notifications_update_named_recipient",
                     UPDATE,
                     ("app_guild_base", "app_install_base"),
-                    using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+                    using=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
                 ),
                 # A line whose every rolled-up event has been taken back is removed
                 # outright, from the request that took the last one back.
@@ -2227,7 +2279,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     "notifications_delete_named_recipient",
                     DELETE,
                     ("app_guild_base",),
-                    using=f"user_id = {NOTIFY_TARGET} AND {guild_scoped()}",
+                    using=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
                 ),
             ),
         ),

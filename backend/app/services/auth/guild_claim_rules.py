@@ -42,10 +42,10 @@ from app.schemas.platform.settings import (
     GuildClaimRuleCreate,
     GuildClaimRuleRead,
     GuildClaimRulesResponse,
-    GuildClaimRuleUpdate,
 )
 from app.services import audit as audit_service
 from app.services.platform import provider_placement
+from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ async def reset_to_system_baseline(session: AsyncSession) -> None:
     role, which has no write access to shared ``public`` config tables. Reset
     to the system login role before writing a rule back to ``public``.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
 
 
 async def lookup_guild_initiative(
@@ -89,7 +89,7 @@ async def lookup_guild_initiative(
     already in the identity map from being returned stale — ids are unique only
     within a schema.
     """
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     try:
         initiative = (
             await session.exec(
@@ -208,7 +208,6 @@ async def _require_unique(
     provider_id: int,
     claim_value: str,
     initiative_id: int | None,
-    excluding: int | None = None,
 ) -> None:
     stmt = select(OIDCClaimMapping.id).where(
         OIDCClaimMapping.author == ClaimRuleAuthor.community,
@@ -220,8 +219,6 @@ async def _require_unique(
         stmt = stmt.where(OIDCClaimMapping.initiative_id.is_(None))
     else:
         stmt = stmt.where(OIDCClaimMapping.initiative_id == initiative_id)
-    if excluding is not None:
-        stmt = stmt.where(OIDCClaimMapping.id != excluding)
     if (await session.exec(stmt.limit(1))).first() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -391,64 +388,6 @@ async def create_rule(
             ),
         },
     )
-    await session.commit()
-    await session.refresh(row)
-    return await _rule_read(session, row, providers={provider.id: provider})
-
-
-async def update_rule(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    rule_id: int,
-    payload: GuildClaimRuleUpdate,
-    actor_user_id: int | None = None,
-) -> GuildClaimRuleRead:
-    row = await _editable_rule(session, rule_id, guild_id=guild_id)
-    provider = await _connected_provider(
-        session, guild_id=guild_id, provider_id=row.provider_id
-    )
-    before = audit_service.snapshot(row, AUDITED_FIELDS)
-    data = payload.model_dump(exclude_unset=True)
-
-    if "guild_role" in data and data["guild_role"] is not None:
-        _require_mappable_role(data["guild_role"])
-        row.guild_role = data["guild_role"]
-    if "claim_value" in data and data["claim_value"] is not None:
-        row.claim_value = data["claim_value"].strip()
-    if "initiative_id" in data:
-        row.initiative_id = data["initiative_id"]
-    if "initiative_role_id" in data:
-        row.initiative_role_id = data["initiative_role_id"]
-
-    row.target_type = await _resolve_destination(
-        session,
-        guild_id=guild_id,
-        initiative_id=row.initiative_id,
-        initiative_role_id=row.initiative_role_id,
-    )
-    await _require_unique(
-        session,
-        guild_id=guild_id,
-        provider_id=row.provider_id,
-        claim_value=row.claim_value,
-        initiative_id=row.initiative_id,
-        excluding=row.id,
-    )
-    session.add(row)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(row, AUDITED_FIELDS)
-    )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.CLAIM_RULE_UPDATED,
-            actor_user_id=actor_user_id,
-            guild_id=guild_id,
-            target_type="claim_rule",
-            target_id=row.id,
-            detail={"via": "guild", **changed},
-        )
     await session.commit()
     await session.refresh(row)
     return await _rule_read(session, row, providers={provider.id: provider})

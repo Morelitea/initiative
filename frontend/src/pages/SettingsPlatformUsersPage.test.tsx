@@ -31,6 +31,7 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
     return { data: buildPage(state.roster), isLoading: false, isError: false };
   },
   useOperatorTriggerPasswordReset: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorResendVerification: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorLiftSignInLock: () => ({ mutate: vi.fn(), isPending: false }),
@@ -96,11 +97,12 @@ describe("SettingsPlatformUsersPage", () => {
 
   it("marks an account whose password sign-in is turned off", async () => {
     const rows = masked();
-    rows[1].sign_in_held_at = "2026-09-24T12:00:00Z";
+    rows[1].sign_in_locked_until = "2026-09-24T12:00:00Z";
     renderRoster(rows);
 
     await screen.findByText("owner");
     expect(screen.getAllByText("Password sign-in off")).toHaveLength(1);
+    expect(screen.getAllByText(/^Until .*2026/)).toHaveLength(1);
   });
 
   it("searches the server with a whole handle pasted in", async () => {

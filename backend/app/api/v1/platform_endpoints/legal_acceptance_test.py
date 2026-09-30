@@ -19,6 +19,7 @@ from app.core.messages import LegalMessages
 from app.models.platform.legal_acceptance import LegalAcceptance
 from app.models.platform.user import User
 from app.services.platform import legal as legal_service
+from app.db.request_context import Platform
 
 PORTAL = "https://billing.example.com"
 
@@ -208,7 +209,7 @@ async def test_a_consent_record_is_one_account_s_own(
 
     scoped = await role_session("app_user")
     await set_rls_context(
-        scoped, user_id=theirs.user.id, platform_role=theirs.user.role.value
+        scoped, Platform(user_id=theirs.user.id, tier=theirs.user.role.value)
     )
     rows = (await scoped.exec(select(LegalAcceptance.user_id))).all()
 

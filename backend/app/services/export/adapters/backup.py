@@ -296,7 +296,7 @@ async def _count_scope(
         if scope_kind == "guild":
             from app.services.tenant.attachments import get_guild_storage_usage
 
-            upload_bytes = await get_guild_storage_usage(session)
+            upload_bytes = await get_guild_storage_usage(guild_id)
         else:
             upload_bytes = await _known_upload_bytes(session, ids["document"])
         if upload_bytes > export_limits.EXPORT_MAX_BACKUP_UPLOAD_BYTES:
@@ -415,6 +415,9 @@ async def _build_scope(
         template_id="data-table",
         format="zip",
         batch=tuple(items),
+        initiative_ids=frozenset(
+            {initiative.id for initiative in initiatives} | builder.reach
+        ),
     )
 
 
@@ -469,6 +472,9 @@ class _ScopeBuilder:
         self._asset_index: dict[str, Any] = {}
         self._asset_bytes = 0
         self._since_refresh = 0
+        #: The initiatives beyond those in scope whose documents and tasks
+        #: the items name.
+        self.reach: set[int] = set()
         # The images each native document embeds, and the stored size and
         # type of each, loaded once per initiative's documents.
         self._embedded: dict[int, list[dict]] = {}
@@ -486,13 +492,12 @@ class _ScopeBuilder:
         if not force and self._since_refresh < _REFRESH_EVERY:
             return
         from app.api.deps import establish_guild_access
-        from app.db.session import SYSTEM_SATISFIED
 
         await establish_guild_access(
             self.session,
             self.user,
             self.guild_id,
-            satisfied_providers=SYSTEM_SATISFIED,
+            on_behalf=True,
         )
         self._since_refresh = 0
 
@@ -539,6 +544,9 @@ class _ScopeBuilder:
                     guild_id=self.guild_id,
                     now=self.now,
                     prepared=await adapter.prepare(self.session, entities),
+                )
+                self.reach |= await adapter.prepared_reach(
+                    self.session, replace(ctx, format=self._tool_format(section))
                 )
                 if section.preload is not None:
                     await section.preload(self, entities)
@@ -1182,19 +1190,25 @@ class _ScopeBuilder:
         nobody currently points at — an image removed from a page, anything
         uploaded and not yet placed — would be the one thing a "full backup"
         silently dropped. Guild scope only: the store is guild-wide, and an
-        initiative export has no claim on it.
+        initiative export has no claim on it. Listed on
+        :func:`~app.services.tenant.attachments.guild_wide`, so it is every
+        file whoever can read it.
         """
         if self.mode != "backup" or not _include_uploads(self.params):
             return
         from sqlmodel import select
 
         from app.models.tenant.upload import Upload
+        from app.services.tenant.attachments import guild_wide
 
-        rows = await self.session.exec(
-            select(Upload.filename, Upload.size_bytes, Upload.content_type).order_by(
-                Upload.id.asc()
-            )
-        )
+        async with guild_wide(self.guild_id) as session:
+            rows = (
+                await session.exec(
+                    select(
+                        Upload.filename, Upload.size_bytes, Upload.content_type
+                    ).order_by(Upload.id.asc())
+                )
+            ).all()
         for storage_key, size_bytes, content_type in rows:
             if storage_key in self._asset_index:
                 continue
@@ -1501,7 +1515,7 @@ async def estimate_backup(
             ).one()
         if scope == "guild":
             # Exact total blob usage — an upper bound on what ships.
-            uploads_bytes = await get_guild_storage_usage(session)
+            uploads_bytes = await get_guild_storage_usage(guild_id)
         else:
             uploads_bytes = await _known_upload_bytes(session, ids["document"])
         estimated_rows += uploads_bytes // _MIB

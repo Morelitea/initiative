@@ -13,6 +13,7 @@ from asyncpg.exceptions import DatabaseDroppedError, SerializationError
 
 from app.core.messages import QueryMessages
 from app.db.guild_standing import GuildContext
+from app.db.request_context import ContentGrantee, Member, Platform
 from app.models.platform.guild import Guild
 from app.db.schema_provisioning import drop_guild_schema, provision_guild_schema
 from app.services.fields.spec import FieldType
@@ -30,7 +31,7 @@ from app.services.query import (
 _GID = 990_200
 
 
-def _context(guild_id: int, **extra) -> dict:
+def _context(guild_id: int) -> Member:
     """What the request's own session would have established.
 
     The reader's standing rides along as the ``GuildContext`` the seam built,
@@ -44,10 +45,10 @@ def _context(guild_id: int, **extra) -> dict:
         user_id=1,
         guild_id=guild_id,
         standing_guild_id=guild_id,
-        admin=True,
+        guild_admin=True,
         guild_auth_ok=True,
     )
-    return {"user_id": 1, "guild_id": guild_id, "context": standing, **extra}
+    return Member(guild_id=guild_id, user_id=1, standing=standing)
 
 
 @pytest.fixture
@@ -112,22 +113,29 @@ async def test_a_read_the_database_stopped_on_its_own_can_be_asked_again(
     assert stopped.value.code == QueryMessages.INTERRUPTED
 
 
-async def test_the_transaction_refuses_a_write(guild):
+@pytest.mark.parametrize(
+    ("sql", "answer"),
+    [
+        # The role holds no write on any table.
+        (f"INSERT INTO guild_{_GID}.tasks (title) VALUES ('x')", "permission"),
+        # A write the role may make is refused by the transaction, which is
+        # read-only before the reader's first statement.
+        ("SELECT lo_create(0)", "read-only"),
+        # The role cannot change its session's settings: not the transaction's
+        # mode, and not what the policies read.
+        ("SELECT set_config('transaction_read_only', 'off', true)", "permission"),
+        ("SELECT set_config('app.guild_admin', 'true', true)", "permission"),
+    ],
+)
+async def test_the_transaction_refuses_a_write(guild, sql, answer):
     """Reached past the validator on purpose: the transaction and the role
     answer for themselves, so a statement that never went through resolve is
     still refused."""
     statement = resolve("SELECT title FROM tasks")
-    write = type(statement)(
-        sql=f"INSERT INTO guild_{_GID}.tasks (title) VALUES ('x')",
-        parameters=(),
-        relations=("tasks",),
-    )
+    write = type(statement)(sql=sql, parameters=(), relations=("tasks",))
     with pytest.raises(Exception) as refused:
         await execute(write, context=_context(guild))
-    assert (
-        "read-only" in str(refused.value).lower()
-        or "permission" in str(refused.value).lower()
-    )
+    assert answer in str(refused.value).lower()
 
 
 async def test_more_rows_than_one_query_returns_are_cut_off(guild, monkeypatch):
@@ -148,19 +156,14 @@ async def test_a_grantee_routes_by_the_grant(guild):
     executor takes whichever the request's own session recorded."""
     result = await run(
         "SELECT title FROM tasks",
-        context={
-            "user_id": 1,
-            "guild_id": None,
-            "pam_guild_id": guild,
-            "pam_read": True,
-        },
+        context=ContentGrantee(guild_id=guild, user_id=1),
     )
     assert result.columns == (QueryColumn(name="title", type=FieldType.text),)
 
 
 async def test_a_context_that_routes_nowhere_is_refused(guild):
     with pytest.raises(QueryError) as refused:
-        await run("SELECT title FROM tasks", context={"user_id": 1})
+        await run("SELECT title FROM tasks", context=Platform(user_id=1))
     assert refused.value.code == QueryMessages.MISSING_RELATION
 
 

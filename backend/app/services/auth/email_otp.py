@@ -169,7 +169,9 @@ async def claim_ticket(session: AsyncSession, *, ticket: str) -> AuthChallenge |
 
 
 def is_native(challenge: AuthChallenge) -> bool:
-    """Whether this challenge was opened by the app rather than a browser."""
-    return (
-        challenge.purpose == challenge_service.ChallengePurpose.email_otp_native.value
+    """Whether this challenge — a code or a registration ticket — was opened by
+    the app rather than a browser."""
+    return challenge.purpose in (
+        challenge_service.ChallengePurpose.email_otp_native.value,
+        challenge_service.ChallengePurpose.email_otp_register_native.value,
     )

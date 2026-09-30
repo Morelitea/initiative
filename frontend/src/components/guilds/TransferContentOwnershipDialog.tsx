@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Blocks, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +16,8 @@ import {
   transferOwnershipApiV1CGuildIdUsersUserIdTransferOwnershipPost,
 } from "@/api/generated/users/users";
 import { invalidate, q } from "@/api/query-keys";
+import type { MemberLike } from "@/components/members/MemberSearchSelect";
+import { AsyncCombobox } from "@/components/ui/async-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,18 +28,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import type { SearchableComboboxItem } from "@/components/ui/searchable-combobox";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { USER_ID_LOOKUP_MAX, useUserSearch } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { isAdminRole } from "@/lib/permissions";
 import { toolCamelPlural } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
@@ -73,10 +69,8 @@ interface TransferContentOwnershipDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Whose content moves. Null claims everything nobody owns instead. */
   member: UserGuildMember | null;
-  /** Guild admins eligible to receive it. */
-  admins: UserGuildMember[];
   /** Pre-selected recipient — the acting admin. */
-  defaultRecipientId?: number;
+  defaultRecipient?: MemberLike | null;
   onSuccess?: () => void;
 }
 
@@ -96,14 +90,15 @@ export const TransferContentOwnershipDialog = ({
   open,
   onOpenChange,
   member,
-  admins,
-  defaultRecipientId,
+  defaultRecipient: defaultRecipientUser,
   onSuccess,
 }: TransferContentOwnershipDialogProps) => {
   const { t } = useTranslation(["guilds", "common"]);
   const guildId = useActiveGuildId();
-  const defaultRecipient = defaultRecipientId != null ? personRecipient(defaultRecipientId) : "";
+  const defaultRecipient = defaultRecipientUser ? personRecipient(defaultRecipientUser.id) : "";
   const [recipientId, setRecipientId] = useState<string>(defaultRecipient);
+  // The picked recipient's name, held because the search that offered it moves on.
+  const [recipientLabel, setRecipientLabel] = useState<string | null>(null);
   const [content, setContent] = useState<OwnedContentResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -118,6 +113,7 @@ export const TransferContentOwnershipDialog = ({
     setContent(null);
     setLoading(true);
     setRecipientId(defaultRecipient);
+    setRecipientLabel(null);
 
     const load = async () => {
       try {
@@ -145,6 +141,38 @@ export const TransferContentOwnershipDialog = ({
   const toolCounts = useToolCounts(content?.counts);
   const nothingToMove = !loading && (content?.total ?? 0) === 0;
   const eligibleApps = content?.eligible_apps ?? [];
+
+  // Admins are found by name on the server rather than read from the whole
+  // roster: the closest matches, of which the admins are offered. The few apps
+  // the server listed are matched here.
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const adminSearch = useUserSearch({
+    search,
+    pageSize: USER_ID_LOOKUP_MAX,
+    enabled: open && pickerOpen,
+  });
+  const recipients = useMemo<SearchableComboboxItem[]>(() => {
+    const term = search.trim().toLowerCase();
+    return [
+      ...(adminSearch.data?.items ?? [])
+        .filter((user) => isAdminRole(user.guild_role) && user.status !== "anonymized")
+        .map((admin) => ({ value: personRecipient(admin.id), label: getUserDisplayName(admin) })),
+      ...(content?.eligible_apps ?? [])
+        .filter((app) => app.name.toLowerCase().includes(term))
+        .map((app) => ({
+          value: appRecipient(app.id),
+          label: app.name,
+          icon: Blocks,
+          hint: t("transferOwnership.appHint"),
+        })),
+    ];
+  }, [adminSearch.data, content, search, t]);
+  const selectedLabel =
+    recipientLabel ??
+    (recipientId && recipientId === defaultRecipient && defaultRecipientUser
+      ? getUserDisplayName(defaultRecipientUser)
+      : null);
 
   const handleSubmit = async () => {
     if (!recipientId) return;
@@ -208,34 +236,21 @@ export const TransferContentOwnershipDialog = ({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="transfer-recipient">{t("transferOwnership.recipientLabel")}</Label>
-              <Select value={recipientId} onValueChange={setRecipientId}>
-                <SelectTrigger id="transfer-recipient">
-                  <SelectValue placeholder={t("transferOwnership.recipientPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {eligibleApps.length > 0 && (
-                      <SelectLabel>{t("transferOwnership.adminsGroup")}</SelectLabel>
-                    )}
-                    {admins.map((admin) => (
-                      <SelectItem key={admin.id} value={personRecipient(admin.id)}>
-                        {getUserDisplayName(admin)}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                  {eligibleApps.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel>{t("transferOwnership.appsGroup")}</SelectLabel>
-                      {eligibleApps.map((app) => (
-                        <SelectItem key={app.id} value={appRecipient(app.id)}>
-                          {app.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )}
-                </SelectContent>
-              </Select>
+              <Label>{t("transferOwnership.recipientLabel")}</Label>
+              <AsyncCombobox
+                items={recipients}
+                value={recipientId}
+                onValueChange={(value) => {
+                  setRecipientId(value);
+                  setRecipientLabel(recipients.find((item) => item.value === value)?.label ?? null);
+                }}
+                onSearchChange={setSearch}
+                onOpenChange={setPickerOpen}
+                selectedLabel={selectedLabel}
+                loading={adminSearch.isFetching && recipients.length === 0}
+                placeholder={t("transferOwnership.recipientPlaceholder")}
+                aria-label={t("transferOwnership.recipientLabel")}
+              />
               <p className="text-muted-foreground text-xs">
                 {eligibleApps.length > 0
                   ? t("transferOwnership.adminsOrApps")

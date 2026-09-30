@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import timedelta
 
 from app.core.relationships import RelationshipType
@@ -19,8 +18,9 @@ from app.services.tenant import relationships as relationships_service
 
 from seed.common import NOW, Community, share, tag
 
-#: Each event. ``recurrence`` is JSON-encoded into its column, ``attendees``
-#: are ``(person, RSVP)``, and ``documents`` are attached by the creator.
+#: Each event. ``recurrence`` is RRULE lines repeating on the start's own
+#: weekday, ``attendees`` are ``(person, RSVP)``, and ``documents`` are
+#: attached by the creator.
 EVENTS: dict[str, list[dict]] = {
     "primary": [
         {
@@ -51,13 +51,7 @@ EVENTS: dict[str, list[dict]] = {
             "start_at": NOW + timedelta(days=7, hours=1),
             "end_at": NOW + timedelta(days=7, hours=5),
             "created_by": "Dungeon Master",
-            "recurrence": {
-                "frequency": "weekly",
-                "interval": 1,
-                "weekdays": ["fr"],
-                "ends": "after_occurrences",
-                "end_after_occurrences": 12,
-            },
+            "recurrence": "RRULE:FREQ=WEEKLY;COUNT=12",
             "attendees": [
                 ("Dungeon Master", RSVPStatus.accepted),
                 ("Thorn Ironforge", RSVPStatus.accepted),
@@ -138,13 +132,7 @@ EVENTS: dict[str, list[dict]] = {
             "start_at": NOW + timedelta(days=10, hours=2),
             "end_at": NOW + timedelta(days=10, hours=5),
             "created_by": "Admin User",
-            "recurrence": {
-                "frequency": "weekly",
-                "interval": 2,
-                "weekdays": ["sa"],
-                "ends": "after_occurrences",
-                "end_after_occurrences": 8,
-            },
+            "recurrence": "RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=8",
             "attendees": [
                 ("Admin User", RSVPStatus.accepted),
                 ("Kael Windrunner", RSVPStatus.accepted),
@@ -224,12 +212,7 @@ EVENTS: dict[str, list[dict]] = {
             "start_at": NOW + timedelta(days=6, hours=2),
             "end_at": NOW + timedelta(days=6, hours=5),
             "created_by": "Finley Goldtongue",
-            "recurrence": {
-                "frequency": "weekly",
-                "interval": 1,
-                "weekdays": ["su"],
-                "ends": "never",
-            },
+            "recurrence": "RRULE:FREQ=WEEKLY",
             "attendees": [
                 ("Finley Goldtongue", RSVPStatus.accepted),
                 ("Kael Windrunner", RSVPStatus.accepted),
@@ -291,7 +274,6 @@ async def seed(c: Community) -> None:
             calendars[d["initiative"]] = calendar
             c.ids["calendars"].append(calendar.id)
             share(c, Tool.calendar, calendar, creator, general=ResourceAccessLevel.read)
-        recurrence = d.get("recurrence")
         event = CalendarEvent(
             calendar_id=calendar.id,
             title=d["title"],
@@ -300,7 +282,7 @@ async def seed(c: Community) -> None:
             start_at=d["start_at"],
             end_at=d["end_at"],
             all_day=d.get("all_day", False),
-            recurrence=json.dumps(recurrence) if recurrence else None,
+            recurrence=d.get("recurrence"),
             created_by=creator.id,
         )
         c.session.add(event)

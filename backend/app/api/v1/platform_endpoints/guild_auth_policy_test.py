@@ -18,11 +18,11 @@ from app.api.deps import (
     establish_guild_access,
 )
 from app.core.auth_context import (
-    satisfied_provider_ids,
+    satisfied_providers,
     set_satisfied_claims,
     set_satisfied_providers,
 )
-from app.db.session import SYSTEM_SATISFIED, set_rls_context
+from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole
@@ -47,6 +47,7 @@ from app.testing.factories import (
     guild_administration,
 )
 from app.testing import route_as
+from app.db.request_context import SystemGuild
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -441,16 +442,20 @@ async def test_an_ordinary_admin_reads_the_seats_surfaces_but_writes_neither(
     assert offered.status_code == 200
 
     writes = (
-        client.put(_policy(guild_id), headers=admin.headers, json={"policy": "open"}),
-        client.put(
+        lambda: client.put(
+            _policy(guild_id), headers=admin.headers, json={"policy": "open"}
+        ),
+        lambda: client.put(
             _policy(guild_id),
             headers=admin.headers,
             json={"policy": "required", "provider_id": 1},
         ),
-        client.post(connections, headers=admin.headers, json={"provider_id": 1}),
+        lambda: client.post(
+            connections, headers=admin.headers, json={"provider_id": 1}
+        ),
     )
     for write in writes:
-        refused = await write
+        refused = await write()
         assert refused.status_code == 403, refused.text
         assert refused.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
 
@@ -568,7 +573,7 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
     # A session that satisfied nothing: authenticates, gate refuses.
     plain_user = await authenticate_ws_token(get_auth_token(member.user), session)
     assert plain_user is not None
-    assert satisfied_provider_ids() == frozenset()
+    assert satisfied_providers() == frozenset()
     with pytest.raises(GuildAccessError):
         await establish_guild_access(session, plain_user, guild_id)
 
@@ -582,7 +587,7 @@ async def test_ws_token_sat_gates_policy_guild(session: AsyncSession, acting_use
         session,
     )
     assert sat_user is not None
-    assert satisfied_provider_ids() == frozenset({provider_id})
+    assert satisfied_providers() == frozenset({provider_id})
     ctx = await establish_guild_access(session, sat_user, guild_id)
     assert ctx.guild_id == guild_id
 
@@ -626,9 +631,7 @@ async def test_system_sentinel_passes_policy_gate(session: AsyncSession, acting_
     await create_guild_auth_policy(session, member.guild, provider)
     guild_id = member.guild.id
 
-    ctx = await establish_guild_access(
-        session, member.user, guild_id, satisfied_providers=SYSTEM_SATISFIED
-    )
+    ctx = await establish_guild_access(session, member.user, guild_id, on_behalf=True)
     assert ctx.guild_id == guild_id
 
 
@@ -691,7 +694,7 @@ async def test_db_layer_blocks_unsatisfied_session(
         app_session,
         user_id=user_id,
         guild_id=guild_id,
-        satisfied_providers=SYSTEM_SATISFIED,
+        on_behalf=True,
     )
     assert await _visible_projects() == 1
 
@@ -704,7 +707,7 @@ async def test_db_layer_blocks_unsatisfied_session(
     # A routing with nobody behind it is not a session to gate — and on the
     # request login it is not a sweep either: what admits a sweep is the
     # connection's own login, which this is not, so it reads nothing.
-    await set_rls_context(app_session, guild_id=guild_id)
+    await set_rls_context(app_session, SystemGuild(guild_id))
     assert await _visible_projects() == 0
 
 
@@ -733,7 +736,7 @@ async def test_a_grantee_answers_the_rule_a_member_does(
         app_session,
         user_id=operator.id,
         guild_id=a.guild.id,
-        satisfied_providers=SYSTEM_SATISFIED,
+        on_behalf=True,
     )
     verdict = (
         await app_session.exec(

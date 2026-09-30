@@ -290,10 +290,6 @@ SECTION_TABLES: dict[str, str] = {
     "initiative_members": "initiatives",
     "initiative_roles": "initiatives",
     "initiative_role_permissions": "initiatives",
-    # The blob store. Referenced blobs ride with their document; a guild-scope
-    # backup with uploads on takes the rest too, which is the only way a file
-    # nothing currently points at survives.
-    "uploads": "uploads",
 }
 
 # Guild-level tables deliberately NOT exported, and why. A reason is required:

@@ -17,6 +17,7 @@ from app.testing.factories import (
     get_auth_headers,
 )
 from app.testing import route_as
+from app.db.request_context import Platform
 
 
 async def test_whoever_makes_a_community_holds_its_seat(
@@ -53,7 +54,7 @@ async def test_the_seat_is_read_from_postgres_not_from_the_enum(
     await session.commit()
 
     for user, expected in ((seat, True), (admin, False)):
-        await set_rls_context(session, user_id=int(user.id))
+        await set_rls_context(session, Platform(user_id=int(user.id)))
         held = (
             await session.exec(
                 select(func.guild_superadmin(int(guild.id), int(user.id)))

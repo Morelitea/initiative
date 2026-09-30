@@ -208,6 +208,7 @@
     "cancelDrawing": "Cancelar",
     "checklist": "Lista de verificación",
     "clearFormatting": "Limpiar formato",
+    "collapseCallout": "Contraer aviso",
     "colorBlack": "Negro",
     "colorBlue": "Azul",
     "colorDefault": "Predeterminado",
@@ -231,6 +232,7 @@
     "editStatus": "Cambiar estado",
     "embed": "Insertar",
     "embedContent": "Insertar {{contentName}}",
+    "expandCallout": "Expandir aviso",
     "fontSize": "Tamaño de fuente",
     "format": "Formato",
     "horizontalRule": "Línea horizontal",
@@ -284,7 +286,9 @@
   "embeds": {
     "insert": "Insertar",
     "showAsEmbed": "Mostrar completo",
-    "showAsLink": "Mostrar como enlace"
+    "showAsLink": "Mostrar como enlace",
+    "expand": "Expandir",
+    "collapse": "Contraer"
   },
   "outline": {
     "title": "Contenido",

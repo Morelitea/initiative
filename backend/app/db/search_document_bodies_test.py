@@ -20,13 +20,14 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.document import DocumentType
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import Actor, create_document
+from app.db.request_context import SystemGuild
 
 
 ActingUser = Callable[..., Awaitable[Actor]]
 
 
 async def _body(session: AsyncSession, guild_id: int, document_id: int) -> str:
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     rows = await session.exec(
         select(SearchEntry.body)
         .where(
@@ -39,7 +40,7 @@ async def _body(session: AsyncSession, guild_id: int, document_id: int) -> str:
 
 
 async def _finds(session: AsyncSession, guild_id: int, query: str) -> list[str]:
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     found = await session.exec(
         text(
             "SELECT title FROM search_entries WHERE entity_type = 'document' "

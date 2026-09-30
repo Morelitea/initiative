@@ -46,14 +46,3 @@ class SignInLock(SQLModel, table=True):
     first_lock_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-
-    #: Set when the locks added up: password and codes stay refused until a
-    #: moderator lifts it.
-    held_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
-    )
-
-    #: When the holder was last emailed about a lock.
-    notified_at: Optional[datetime] = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
-    )

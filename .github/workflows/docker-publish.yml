@@ -16,7 +16,8 @@ env:
 
 jobs:
   decide:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
@@ -76,7 +77,8 @@ jobs:
   build-android:
     needs: decide
     if: ${{ needs.decide.outputs.build_android == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     environment: android-release
     permissions:
       contents: read
@@ -222,7 +224,7 @@ jobs:
     with:
       name: release
       labels: true
-      signed: true
+      signing-environment: ota-release
       build-args: |
         VERSION=${{ needs.decide.outputs.version }}
         VITE_API_URL=/api/v1
@@ -231,9 +233,9 @@ jobs:
         type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
         type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', needs.decide.outputs.version) || '' }}
         type=raw,value=latest
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    # inherit, not a list: the called job's environment secrets
+    # (OTA_SIGNING_KEY) read as empty without it.
+    secrets: inherit
 
   release:
     needs: [decide, build-android, docker-public]
@@ -242,7 +244,8 @@ jobs:
     # *failure* on a native-change release is a hard error — publishing then would advertise
     # "updates over the air" while the bumped minNativeVersion blocks OTA and no new APK exists.
     if: always() && needs.docker-public.result == 'success' && needs.build-android.result != 'failure'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
 

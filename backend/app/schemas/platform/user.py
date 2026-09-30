@@ -219,6 +219,12 @@ class UserGuildMember(UserGuildRead):
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
 
 
+class UserGuildMemberListResponse(PageMeta):
+    """One page of the guild's roster."""
+
+    items: List[UserGuildMember]
+
+
 class UserSummary(UserIdentity):
     """Slim user projection for typeahead and picker surfaces.
 
@@ -706,9 +712,7 @@ class OperatorUserRead(UserRead):
     purge_at: Optional[datetime] = None
 
     #: Set while wrong passwords or codes have turned the account's password
-    #: and code sign-in off. ``sign_in_held_at`` stays until a moderator lifts
-    #: it; ``sign_in_locked_until`` lifts on its own at that time.
-    sign_in_held_at: Optional[datetime] = None
+    #: and code sign-in off; it turns back on by itself at that time.
     sign_in_locked_until: Optional[datetime] = None
 
     @field_validator("email", mode="after")
@@ -765,7 +769,8 @@ class UserSelfUpdate(SanitizedBaseModel):
     # Required to set a new ``password`` (verified server-side). Exempt for
     # OIDC-only accounts, which have no local password to confirm.
     current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
-    avatar_url: Optional[str] = None
+    # A picture hosted elsewhere, by an https address; empty takes it off.
+    avatar_url: Optional[str] = Field(default=None, max_length=2000)
     # Sending ``null`` takes the status off; leaving it out leaves it alone.
     custom_status: Optional[CustomStatus] = None
     presence: Optional[Presence] = None
@@ -782,6 +787,13 @@ class UserSelfUpdate(SanitizedBaseModel):
     task_completion_audio_feedback: Optional[bool] = None
     task_completion_haptic_feedback: Optional[bool] = None
     locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
+
+    @field_validator("avatar_url")
+    @classmethod
+    def _https_picture(cls, value: Optional[str]) -> Optional[str]:
+        if value and not (value.startswith("https://") and len(value) > 8):
+            raise ValueError("avatar_url must be an https:// URL")
+        return value
 
 
 class AccountDeletionRequest(SanitizedBaseModel):

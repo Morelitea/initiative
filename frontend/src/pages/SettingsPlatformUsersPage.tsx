@@ -1,5 +1,13 @@
 import type { PaginationState, SortingState } from "@tanstack/react-table";
-import { CalendarClock, Download, LockOpen, Mail, Trash2, UserCheck } from "lucide-react";
+import {
+  CalendarClock,
+  Download,
+  LockOpen,
+  Mail,
+  MailCheck,
+  Trash2,
+  UserCheck,
+} from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,12 +35,14 @@ import {
   useOperatorClearAgeBlock,
   useOperatorLiftSignInLock,
   useOperatorReactivateUser,
+  useOperatorResendVerification,
   useOperatorRestoreUser,
   useOperatorTriggerPasswordReset,
   usePlatformUsers,
 } from "@/hooks/useOperatorUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { formatDateTime } from "@/lib/formatDate";
 import { Capability, hasCapability } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
 import { getUserHandle } from "@/lib/userDisplay";
@@ -113,6 +123,16 @@ export const SettingsPlatformUsersPage = () => {
     onError: (error: unknown) => {
       toast.error(getErrorMessage(error, "settings:platformUsers.resetError"));
       setResettingUserId(null);
+    },
+  });
+
+  const resendVerification = useOperatorResendVerification({
+    onSuccess: (_data, userId) => {
+      const handle = rows.find((u) => u.id === userId)?.username ?? "account";
+      toast.success(t("platformUsers.resendVerificationSuccess", { handle }));
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "settings:platformUsers.resendVerificationError"));
     },
   });
 
@@ -265,13 +285,17 @@ export const SettingsPlatformUsersPage = () => {
           platformUser.status === "active"
             ? "text-sm text-green-600 dark:text-green-400"
             : "text-muted-foreground text-sm";
-        const signInLocked = platformUser.sign_in_held_at || platformUser.sign_in_locked_until;
         return (
           <div className="space-y-0.5">
             <span className={className}>{t(labelKey)}</span>
-            {signInLocked && (
+            {platformUser.sign_in_locked_until && (
               <div>
                 <Badge variant="outline">{t("platformUsers.signInLocked")}</Badge>
+                <p className="text-muted-foreground text-xs">
+                  {t("platformUsers.signInLockedUntil", {
+                    time: formatDateTime(platformUser.sign_in_locked_until),
+                  })}
+                </p>
               </div>
             )}
           </div>
@@ -341,16 +365,24 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </DropdownMenuItem>
             )}
-            {abilities.canManageUsers &&
-              (platformUser.sign_in_held_at || platformUser.sign_in_locked_until) && (
-                <DropdownMenuItem
-                  onSelect={() => liftSignInLock.mutate(platformUser.id)}
-                  disabled={liftSignInLock.isPending}
-                >
-                  <LockOpen className="h-4 w-4" />
-                  {t("platformUsers.liftSignInLock")}
-                </DropdownMenuItem>
-              )}
+            {canReactivate && platformUser.status === "active" && !platformUser.email_verified && (
+              <DropdownMenuItem
+                onSelect={() => resendVerification.mutate(platformUser.id)}
+                disabled={resendVerification.isPending}
+              >
+                <MailCheck className="h-4 w-4" />
+                {t("platformUsers.resendVerification")}
+              </DropdownMenuItem>
+            )}
+            {abilities.canManageUsers && platformUser.sign_in_locked_until && (
+              <DropdownMenuItem
+                onSelect={() => liftSignInLock.mutate(platformUser.id)}
+                disabled={liftSignInLock.isPending}
+              >
+                <LockOpen className="h-4 w-4" />
+                {t("platformUsers.liftSignInLock")}
+              </DropdownMenuItem>
+            )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}

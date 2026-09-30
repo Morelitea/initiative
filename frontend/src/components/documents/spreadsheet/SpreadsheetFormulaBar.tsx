@@ -1,8 +1,11 @@
 import { type FocusEvent, type KeyboardEvent, type RefObject, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { type DraftStore, useDraft } from "@/components/documents/spreadsheet/draftStore";
 import { FormulaCellInput } from "@/components/documents/spreadsheet/FormulaCellInput";
 import type { FormulaRefToken } from "@/lib/spreadsheet/formula-refs";
+
+const NO_TOKENS: FormulaRefToken[] = [];
 
 interface SpreadsheetFormulaBarProps {
   /** A1 reference of the active cell or range (``"B4"`` / ``"A1:C3"``) — the
@@ -10,10 +13,12 @@ interface SpreadsheetFormulaBarProps {
   selectionLabel: string;
   /** Go-to: navigate/select the cell or range the name box text names. */
   onNavigate: (text: string) => void;
-  /** The active cell's raw text — its formula/value, or the live edit draft. */
+  /** The active cell's raw text — its formula or value — shown while no
+   *  edit is open. */
   value: string;
-  /** References in ``value`` while a formula is being edited (colors them). */
-  tokens: FormulaRefToken[];
+  /** The edit's text, shown (with its references colored) while one is. */
+  draft: DraftStore;
+  editing: boolean;
   /** Ref to the formula-bar ``<input>`` so the editor can drive point-mode
    *  reference insertion and caret restoration against it. */
   inputRef: RefObject<HTMLInputElement | null>;
@@ -35,7 +40,8 @@ export const SpreadsheetFormulaBar = ({
   selectionLabel,
   onNavigate,
   value,
-  tokens,
+  draft,
+  editing,
   inputRef,
   onChange,
   onFocus,
@@ -44,6 +50,7 @@ export const SpreadsheetFormulaBar = ({
   readOnly,
 }: SpreadsheetFormulaBarProps) => {
   const { t } = useTranslation(["documents", "common"]);
+  const live = useDraft(draft);
   // Local name-box draft, synced to the selection unless the user is editing it.
   const [nameDraft, setNameDraft] = useState(selectionLabel);
   const [nameFocused, setNameFocused] = useState(false);
@@ -97,8 +104,8 @@ export const SpreadsheetFormulaBar = ({
           <FormulaCellInput
             inputRef={inputRef}
             ariaLabel={t("documents:spreadsheet.formulaBar.inputLabel")}
-            value={value}
-            tokens={tokens}
+            value={editing ? live.value : value}
+            tokens={editing ? live.tokens : NO_TOKENS}
             onChange={onChange}
             onFocus={onFocus}
             onKeyDown={onKeyDown}

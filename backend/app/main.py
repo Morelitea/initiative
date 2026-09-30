@@ -10,6 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from pydantic import TypeAdapter
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -32,7 +33,7 @@ from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
-from app.core.messages import CommonMessages, GuildMessages
+from app.core.messages import AttachmentMessages, CommonMessages, GuildMessages
 from app.core.rate_limit import limiter
 from app.core.security import (
     billing_support_handoff_enabled,
@@ -41,6 +42,7 @@ from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.logging_config import configure_logging
 from app.core.request_audit import RequestAuditMiddleware
 from app.core.version import __version__
+from app.core.smart_chips import SmartChipKind
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
 from app.db.session import SystemSessionLocal
@@ -48,6 +50,7 @@ from app.models.platform.user import User
 from app.services import background_tasks as background_tasks_service
 from app.services import captcha_config
 from app.services.marketplace.installs import ListingInstallError
+from app.services.tenant.attachments import StorageQuotaExceededError
 from app.services.platform.users import SeatWouldBeEmptied
 
 # Before anything in this process logs: the served wiring for the application
@@ -369,6 +372,22 @@ async def listing_install_error_handler(
             status.HTTP_404_NOT_FOUND if exc.not_found else status.HTTP_409_CONFLICT
         ),
         content={"detail": exc.code},
+    )
+
+
+@app.exception_handler(StorageQuotaExceededError)
+async def storage_quota_exceeded_handler(
+    request: Request, exc: StorageQuotaExceededError
+) -> JSONResponse:
+    """A write whose files would take the community past its storage limit.
+
+    Handled here rather than at each save route because saving content can copy
+    the files it shows (``attachments.claim_uploads``), and every save goes
+    through that.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+        content={"detail": AttachmentMessages.STORAGE_QUOTA_EXCEEDED},
     )
 
 
@@ -701,6 +720,12 @@ def custom_openapi() -> dict:
     )
 
     _inject_query_schemas(openapi_schema)
+
+    # The chips an editor may offer. No route returns the list, but the client
+    # builds its menu from this enum, so it is published for Orval to generate.
+    components.setdefault("schemas", {})["SmartChipKind"] = TypeAdapter(
+        SmartChipKind
+    ).json_schema()
 
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():

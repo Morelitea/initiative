@@ -22,6 +22,7 @@ import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizar
 import { DocumentOutlineScope } from "@/components/documents/DocumentOutline";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
 import { Galaxy } from "@/components/icons/Galaxy";
+import { DeviceVerificationDialog } from "@/components/messages/DeviceVerificationDialog";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
@@ -51,6 +52,7 @@ import {
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAreas } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
@@ -276,6 +278,7 @@ function AppLayout() {
           that grows to fit them. */}
       <div className="relative flex h-screen flex-col overflow-clip bg-background">
         <PushPermissionPrompt />
+        <DeviceVerificationDialog />
         <div className="flex min-h-0 flex-1">
           {/* The live editor's headings, shared by the page that hosts the
               editor and the sidebar beside it — a wiki lists a page's headings
@@ -473,8 +476,9 @@ function NoGuildState({
         toast.info(t("billingSetup.opening", { guild: guild.name }));
         await openPortal(guild.id, "upgrade", billingTab);
       }
-    } catch {
+    } catch (err) {
       billingTab?.close();
+      toast.error(getErrorMessage(err, "guilds:unableToCreateGuild"));
       setCreating(false);
     }
   };

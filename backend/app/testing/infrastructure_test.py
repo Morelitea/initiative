@@ -115,6 +115,66 @@ async def test_tenant_rows_land_in_guild_schema(session: AsyncSession, acting_us
     assert count == 1
 
 
+async def test_a_pooled_guild_schema_comes_back_as_built(session: AsyncSession, engine):
+    """A guild schema is parked out of sight between tests and handed back
+    empty, with its ids starting over; one a test changed is not parked, and
+    one whose roles went while it was parked is not handed back."""
+    from sqlalchemy import text
+
+    from app.db.guild_migrations import GUILD_SCHEMA_REGEX
+    from app.db import schema_provisioning
+    from app.db.schema_provisioning import drop_guild_schema, get_provisioning_bundle
+    from app.testing import create_guild, create_initiative, guild_pool
+
+    if not guild_pool.ENABLED:
+        pytest.skip("PYTEST_GUILD_POOL=0")
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_initiative(session, guild, user)
+    gid, schema = guild.id, f"guild_{guild.id}"
+    await session.commit()
+
+    assert await guild_pool.park(engine, gid)
+    async with engine.connect() as conn:
+        visible = await conn.scalar(
+            text("SELECT count(*) FROM pg_namespace WHERE nspname ~ :p"),
+            {"p": GUILD_SCHEMA_REGEX},
+        )
+    assert visible == 0
+
+    stamp = (await get_provisioning_bundle()).stamp
+    assert await guild_pool.activate(engine, gid, stamp) is True
+    async with engine.connect() as conn:
+        rows = await conn.scalar(text(f'SELECT count(*) FROM "{schema}".initiatives'))
+        drawn = await conn.scalar(
+            text(
+                "SELECT count(*) FROM pg_sequences "
+                "WHERE schemaname = :s AND last_value IS NOT NULL"
+            ),
+            {"s": schema},
+        )
+    assert (rows, drawn) == (0, 0)
+
+    # Dropping a guild's roles while its schema is parked retires the schema.
+    assert await guild_pool.park(engine, gid)
+    async with engine.begin() as conn:
+        await drop_guild_schema(conn, gid)
+    assert await guild_pool.activate(engine, gid, stamp) is False
+    await schema_provisioning.provision_guild(gid)
+
+    # A grant reaches no event trigger; the permissions check catches it.
+    async with engine.begin() as conn:
+        await conn.execute(text(f'GRANT SELECT ON "{schema}".initiatives TO app_user'))
+    assert schema not in await guild_pool.take_changed(engine)
+    assert not await guild_pool.park(engine, gid)
+
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(f'ALTER TABLE "{schema}".initiatives ADD COLUMN probe int')
+        )
+    assert schema in await guild_pool.take_changed(engine)
+
+
 async def test_unrouted_tenant_write_fails_closed(session: AsyncSession, acting_user):
     """A tenant write that carries no guild_id on an unrouted session must
     raise the harness's explicit error, not fall through toward public."""

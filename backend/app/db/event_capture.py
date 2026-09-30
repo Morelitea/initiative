@@ -55,6 +55,7 @@ from typing import Any, Callable
 from sqlalchemy import Column
 from sqlmodel import SQLModel
 
+from app.db import gucs
 from app.db.initiative_rls import (
     EVENTED_TABLES,
     INITIATIVE_PATHS,
@@ -540,8 +541,8 @@ BEGIN
     -- for a member. Each is read on its own from the request context, and an
     -- anonymous table names neither.
     IF TG_ARGV[9] <> 'anonymous' THEN
-        v_actor := NULLIF(current_setting('app.current_user_id', true), '')::integer;
-        v_install := NULLIF(current_setting('app.current_install_id', true), '')::integer;
+        v_actor := {gucs.USER_ID};
+        v_install := {gucs.INSTALL_ID};
     END IF;
 
     -- Write to the outbox of the schema the CHANGED ROW lives in, named from

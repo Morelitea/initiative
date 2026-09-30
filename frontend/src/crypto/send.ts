@@ -28,22 +28,6 @@ export class RecipientHasNoDeviceError extends Error {
 }
 
 /**
- * Every device the recipient has is being withheld pending a check.
- *
- * Separate from having no device at all, because the two need different
- * sentences and different next actions. "They have not set up encrypted
- * messages" is about the other person and there is nothing the reader can do;
- * this one is about a check the reader has not finished, on the notice beside
- * the composer, and it clears as soon as they do.
- */
-export class RecipientDevicesUnverifiedError extends Error {
-  constructor() {
-    super("every device for that account is waiting on a safety-code check");
-    this.name = "RecipientDevicesUnverifiedError";
-  }
-}
-
-/**
  * Encrypt one envelope for each destination and hand the copies to the server.
  *
  * `to` is who it is for and `copies` who else keeps it -- this account's own
@@ -123,14 +107,7 @@ export async function sendEnvelope(
   const directories = await Promise.all(
     memberIds.map(async (userId) => ({ userId, ...(await ctx.directory(userId)) }))
   );
-  if (directories.every(({ devices }) => devices.length === 0)) {
-    // Withholding is this client's own doing and is undone by acknowledging the
-    // notice, so it is not the same outcome as an account with no device.
-    if (directories.some(({ held }) => held.length > 0)) {
-      throw new RecipientDevicesUnverifiedError();
-    }
-    return false;
-  }
+  if (directories.every(({ devices }) => devices.length === 0)) return false;
 
   const theirs: Destination[] = directories.flatMap(({ devices }) =>
     devices.map((device) => ({ ...device, origin: "other" as const }))

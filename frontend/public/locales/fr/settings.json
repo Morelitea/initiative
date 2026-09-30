@@ -774,6 +774,9 @@
     "roleChangeError": "Impossible de changer le rôle de l'utilisateur",
     "resetSuccess": "Réinitialisation du mot de passe envoyée pour {{handle}}.",
     "resetError": "Impossible d'envoyer la réinitialisation du mot de passe",
+    "resendVerification": "Renvoyer l'e-mail de vérification",
+    "resendVerificationSuccess": "E-mail de vérification envoyé à {{handle}}.",
+    "resendVerificationError": "Impossible d'envoyer l'e-mail de vérification",
     "reactivateSuccess": "{{handle}} peut se reconnecter.",
     "reactivateError": "Impossible de réactiver l'utilisateur",
     "permissionRequired": "Vous n'avez pas la permission de voir les utilisateurs de la plateforme.",
@@ -806,6 +809,7 @@
     "clearAgeBlock": "Réinitialiser la question d'âge",
     "ageBlockCleared": "La question sur l'âge peut être répondue à nouveau.",
     "signInLocked": "Connexion par mot de passe désactivée",
+    "signInLockedUntil": "Jusqu'au {{time}}",
     "liftSignInLock": "Réactiver la connexion par mot de passe",
     "signInLockLifted": "Cette personne peut de nouveau se connecter avec un mot de passe.",
     "sheet": {
@@ -957,8 +961,8 @@
     "loading": "Chargement des services applicatifs…",
     "loadError": "Impossible de charger les services applicatifs.",
     "title": "Services applicatifs",
-    "description": "Les applications que cette instance exécute. L'enregistrement indique quelle fiche est chaque application, où elle répond et les clés avec lesquelles elle signe.",
-    "empty": "Aucun service applicatif n'est encore enregistré. Ajoutez-en un pour chaque application que cette instance exécute.",
+    "description": "Les applications que cette instance exécute. La fiche d'une application dit ce qu'elle est et ce qu'elle peut faire ; ici, vous indiquez où elle répond et les clés avec lesquelles elle signe.",
+    "empty": "Aucun service applicatif pour l'instant. Une application apparaît ici quand sa fiche arrive, ou quand vous l'ajoutez.",
     "addService": "Ajouter un service applicatif",
     "edit": "Modifier",
     "delete": "Supprimer",
@@ -973,7 +977,8 @@
     "needsAddress": "S'exécute dans un conteneur. Modifiez-la et indiquez l'adresse où vous l'exécutez pour la rendre active.",
     "publisherSummary": "Éditeur : {{name}}",
     "listingSummary": "Fiche :",
-    "noListing": "Aucune fiche définie",
+    "noListing": "En attente de sa fiche",
+    "scopeCeilingSummary": "Portées, d'après sa fiche : {{scopes}}",
     "allowedOriginsSummary": "Origines autorisées : {{origins}}",
     "disabledBadge": "Désactivé",
     "disabledHelp": "Cette application est arrêtée pour toutes les communautés qui l'ont installée. Rien n'a été supprimé.",
@@ -1001,15 +1006,12 @@
     "setupUrlLabel": "Adresse d'installation",
     "createTitle": "Ajouter un service applicatif",
     "editTitle": "Modifier le service applicatif",
-    "createDescription": "Enregistrez une application que cette instance exécute. Elle devient active dès qu'elle a des clés de signature.",
+    "createDescription": "Donnez à une application son adresse et ses clés avant que sa fiche n'arrive. Ce qu'elle est et ce qu'elle peut faire vient de sa fiche. Elle devient active dès qu'elle a des clés de signature.",
     "editDescription": "Les modifications s'appliquent à toutes les communautés qui ont installé cette application.",
     "publicIdLabel": "Identifiant de l'application",
     "publicIdPlaceholder": "editeur.nom-app",
     "publicIdHelp": "S'écrit editeur.nom-de-app, en minuscules. La partie avant le point désigne l'éditeur de l'application.",
     "publicIdHelpEdit": "L'identifiant ne peut plus être modifié une fois l'enregistrement créé.",
-    "listingUidLabel": "Fiche",
-    "listingUidPlaceholder": "UID de fiche à 14 caractères",
-    "listingUidHelp": "L'UID à 14 caractères de la fiche de cette application dans le catalogue.",
     "baseUrlLabel": "URL de base",
     "baseUrlPlaceholder": "http://initiative-github:8080",
     "baseUrlHelp": "Là où le serveur d'Initiative appelle l'application. Ce peut être une adresse privée à l'intérieur de votre réseau.",
@@ -1736,7 +1738,9 @@
       "title": "Comptes ignorés",
       "description": "Vous ne serez pas notifié lorsque ces comptes vous mentionnent, vous répondent ou réagissent, et rien de ce qu'ils vous envoient n'arrive — messages, demandes de message, demandes de connexion. Vous verrez toujours vos activités respectives dans les communautés partagées et pourrez utiliser tous les outils normalement.",
       "empty": "Vous n'ignorez personne.",
-      "stop": "Ne plus ignorer"
+      "stop": "Ne plus ignorer",
+      "add": "Ignorer par identifiant",
+      "ignore": "Ignorer"
     },
     "cookies": {
       "title": "Cookies",
@@ -1831,10 +1835,6 @@
     "addFromBrowser": "Une clé d'accès s'ajoute depuis un navigateur connecté à ce site. « Ajouter une clé d'accès » en ouvre un pour vous.",
     "notOffered": "Ce site ne propose pas de clés d'accès. Celles que vous avez sont conservées.",
     "error": "Cela n'a pas fonctionné. Réessayez."
-  },
-  "messagesDevice": {
-    "title": "Code de cet appareil pour les messages",
-    "description": "Quand tu confirmes un nouvel appareil ou que tu compares avec quelqu'un à qui tu écris, c'est le code qu'affiche cet appareil."
   },
   "providerDefaults": {
     "title": "Ce dont hérite une communauté",

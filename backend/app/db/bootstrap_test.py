@@ -98,7 +98,7 @@ def test_printed_sql_covers_both_halves():
     body = bootstrap_sql()
     # Roles, database and schema ownership.
     assert "CREATE" in body and "ALTER" in body
-    assert "GRANT CREATE, CONNECT ON DATABASE" in body
+    assert "GRANT CREATE, CONNECT, TEMPORARY ON DATABASE" in body
     assert "ALTER SCHEMA public OWNER TO" in body
     assert "WITH ADMIN OPTION" in body
     # The search operator.
@@ -391,6 +391,7 @@ async def test_the_handover_claims_every_function_the_outgoing_login_owns(sessio
         await set_local(
             "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
         )
+        await set_local("app._bootstrap_kept_owners", "")
 
         claimed = {
             label.removeprefix("function ")
@@ -419,17 +420,20 @@ async def test_the_handover_claims_every_function_the_outgoing_login_owns(sessio
         await session.exec(text(f"DROP FUNCTION IF EXISTS public.{probe}()"))
 
 
-async def test_the_handover_leaves_the_bootstraps_own_functions_alone(session):
+async def test_the_handover_leaves_alone_what_a_login_never_held(session):
     """The match function is installed over the bootstrap connection and
-    re-asserted from it on every boot, so it stays with that login."""
+    re-asserted from it on every boot, so it stays with that login. A function
+    a migration gave to one of the app's shared roles stays with that role."""
     from sqlalchemy import text
 
     from app.db.bootstrap import (
         _TRANSFER_STATEMENTS,
         BOOTSTRAP_OWNED_FUNCTIONS,
         SEARCH_MATCH_FUNCTION,
+        _kept_owners,
     )
     from app.db.system_grants import GRANTABLE_SHARED_TABLES
+    from conftest import RUN_ID
 
     async def set_local(key: str, value: str) -> None:
         await session.exec(
@@ -441,6 +445,7 @@ async def test_the_handover_leaves_the_bootstraps_own_functions_alone(session):
     await set_local(
         "app._bootstrap_functions", ",".join(sorted(BOOTSTRAP_OWNED_FUNCTIONS))
     )
+    await set_local("app._bootstrap_kept_owners", _kept_owners())
 
     owner = (
         await session.exec(
@@ -455,10 +460,25 @@ async def test_the_handover_leaves_the_bootstraps_own_functions_alone(session):
         f"{SEARCH_MATCH_FUNCTION} is not owned by this login, so this proves nothing"
     )
 
-    labels = [
-        label for label, _stmt in (await session.exec(text(_TRANSFER_STATEMENTS))).all()
-    ]
+    definer = f"test_{RUN_ID}_reader_definer"
+    await session.exec(
+        text(
+            f"CREATE FUNCTION public.{definer}() RETURNS boolean "
+            f"LANGUAGE sql SECURITY DEFINER AS $probe$ SELECT true $probe$"
+        )
+    )
+    try:
+        await session.exec(
+            text(f"ALTER FUNCTION public.{definer}() OWNER TO app_dm_reader")
+        )
+        labels = [
+            label
+            for label, _stmt in (await session.exec(text(_TRANSFER_STATEMENTS))).all()
+        ]
+    finally:
+        await session.exec(text(f"DROP FUNCTION IF EXISTS public.{definer}()"))
     assert not any(SEARCH_MATCH_FUNCTION in label for label in labels)
+    assert not any(definer in label for label in labels), labels
 
 
 async def test_the_handover_claims_an_object_owned_by_a_third_login(session):
@@ -490,6 +510,7 @@ async def test_the_handover_claims_an_object_owned_by_a_third_login(session):
             ("app._bootstrap_role", provisioner),
             ("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
             ("app._bootstrap_functions", ""),
+            ("app._bootstrap_kept_owners", ""),
         ):
             await session.exec(
                 text("SELECT set_config(:key, :value, true)").bindparams(
@@ -534,6 +555,7 @@ async def test_the_handover_leaves_alone_what_the_target_already_owns(session):
             ("app._bootstrap_role", provisioner),
             ("app._bootstrap_tables", ",".join(sorted(GRANTABLE_SHARED_TABLES))),
             ("app._bootstrap_functions", ""),
+            ("app._bootstrap_kept_owners", ""),
         ):
             await session.exec(
                 text("SELECT set_config(:key, :value, true)").bindparams(

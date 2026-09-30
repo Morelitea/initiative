@@ -207,8 +207,49 @@ async def test_a_project_filter_that_narrows_nothing_does_not_widen_access(
     assert hidden.id not in {t["id"] for t in response.json()["items"]}
 
 
+async def test_an_archived_project_still_lists_its_tasks(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Archiving a project stamps its tasks with the project's own
+    ``archived_at``; opened on its own, the project still shows them.
+
+    A task archived earlier, on its own, carries a different stamp and stays
+    behind the "show archived" toggle, as it does in a live project.
+    """
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    earlier = await create_task(session, a.project, title="Archived earlier")
+    await client.post(a.g(f"/archive/task/{earlier.id}"), headers=a.headers)
+    task = await create_task(session, a.project, title="Archived with project")
+    archived = await client.post(
+        a.g(f"/archive/project/{a.project.id}"), headers=a.headers
+    )
+    assert archived.status_code == 200
+
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+    )
+    assert response.status_code == 200
+    assert {t["id"] for t in response.json()["items"]} == {task.id}
+
+    response = await client.get(
+        a.g(f"/tasks/?conditions={conditions}&include_archived=true"),
+        headers=a.headers,
+    )
+    assert response.status_code == 200
+    assert {t["id"] for t in response.json()["items"]} == {task.id, earlier.id}
+
+    # Spanning every project, an archived one stays out.
+    response = await client.get(a.g("/tasks/"), headers=a.headers)
+    assert response.status_code == 200
+    assert task.id not in {t["id"] for t in response.json()["items"]}
+
+
 async def test_create_task(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test creating a new task."""
+    """Creating a task. Its repeat is stored as picked, with the shift from the
+    zone it was picked in; a repeat a task can't have is refused."""
     from app.services.tenant import task_statuses as task_statuses_service
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -224,6 +265,10 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
         "project_id": a.project.id,
         "task_status_id": status.id,
         "priority": "high",
+        # Mondays at midnight in Berlin are Sundays in UTC.
+        "due_date": "2026-10-04T22:00:00Z",
+        "recurrence": "FREQ=WEEKLY;BYDAY=MO",
+        "tz": "Europe/Berlin",
     }
 
     response = await client.post(a.g("/tasks/"), headers=a.headers, json=payload)
@@ -233,6 +278,15 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
     assert data["title"] == "New Task"
     assert data["description"] == "Task description"
     assert data["priority"] == "high"
+    assert (data["recurrence"], data["recurrence_shift"]) == (
+        "RRULE:FREQ=WEEKLY;BYDAY=MO",
+        1440,
+    )
+
+    hourly = await client.post(
+        a.g("/tasks/"), headers=a.headers, json={**payload, "recurrence": "FREQ=HOURLY"}
+    )
+    assert hourly.status_code == 422
 
 
 async def test_create_task_with_status(
@@ -1269,26 +1323,21 @@ async def recurring_task_env(session: AsyncSession, acting_user):
         (
             "rolling",
             datetime(2026, 1, 20, 17, 0, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 3, "ends": "never"},
+            "RRULE:FREQ=DAILY;INTERVAL=3",
             time(17, 0),
             None,
         ),
         (
             "fixed",
             datetime(2026, 1, 20, 9, 30, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 2, "ends": "never"},
+            "RRULE:FREQ=DAILY;INTERVAL=2",
             time(9, 30),
             date(2026, 1, 22),
         ),
         (
             "rolling",
             datetime(2026, 1, 20, 0, 0, 0, tzinfo=timezone.utc),
-            {
-                "frequency": "weekly",
-                "interval": 1,
-                "weekdays": ["monday"],
-                "ends": "never",
-            },
+            "RRULE:FREQ=WEEKLY;BYDAY=MO",
             time(0, 0),
             None,
         ),
@@ -1305,7 +1354,7 @@ async def test_completing_a_recurring_task_opens_the_next_occurrence(
     recurring_task_env,
     strategy: str,
     due: datetime,
-    recurrence: dict,
+    recurrence: str,
     next_time: time,
     next_date: date | None,
 ):
@@ -1361,18 +1410,18 @@ async def test_completing_a_recurring_task_opens_the_next_occurrence(
             # 5pm Los Angeles on Sunday 2026-05-03, which is already the 4th
             # in UTC, completed at 9pm the same Sunday.
             datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 3, "ends": "never"},
+            "RRULE:FREQ=DAILY;INTERVAL=3",
             datetime(2026, 5, 4, 4, 0, 0, tzinfo=timezone.utc),
             datetime(2026, 5, 6, 17, 0, 0, tzinfo=LOS_ANGELES),
         ),
         (
             # 2:30 AM Los Angeles, completed on the US spring-forward day.
-            # 2:30 AM does not exist that night, and the next occurrence lands
-            # on the following day, where it does.
+            # 2:30 AM does not exist that night, so the day's time is 3:30,
+            # and the next occurrence is a day on from it.
             datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 1, "ends": "never"},
+            "RRULE:FREQ=DAILY",
             datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc),
-            datetime(2026, 3, 9, 2, 30, 0, tzinfo=LOS_ANGELES),
+            datetime(2026, 3, 9, 3, 30, 0, tzinfo=LOS_ANGELES),
         ),
     ],
     ids=[
@@ -1384,13 +1433,13 @@ async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
     session: AsyncSession,
     recurring_task_env,
     due: datetime,
-    recurrence: dict,
+    recurrence: str,
     completed_at: datetime,
     next_local: datetime,
 ):
-    """A rolling occurrence lands on the user's local calendar day, carrying
-    the original's local time of day — alarm-clock semantics: "every day at
-    2:30 AM" goes on firing at 2:30 AM once the clocks have moved.
+    """A rolling occurrence counts from the user's local calendar day, at the
+    original's local time of day; from there the rule steps in UTC terms, as
+    every repeat does.
     """
     a, todo, done = await recurring_task_env(timezone="America/Los_Angeles")
 
@@ -1450,7 +1499,7 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         title="Tagged recurring task",
         task_status_id=todo.id,
         due_date=datetime(2026, 5, 4, 12, 0, 0, tzinfo=timezone.utc),
-        recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
+        recurrence="RRULE:FREQ=DAILY",
         recurrence_strategy="fixed",
     )
     await tags_service.set_entity_tags(

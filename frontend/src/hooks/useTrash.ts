@@ -1,7 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   EntityType,
+  ListGuildTrashApiV1CGuildIdTrashGetParams,
+  ListMyTrashApiV1MeTrashGetParams,
   RestoreResponse,
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -21,27 +23,36 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /**
- * The current user's own trashed items across every guild they belong to.
- * Powers the personal trash view on the user settings page — user-scoped, no
- * guild context. Restore/purge are addressed per item via its `guild_id`.
+ * One page of the current user's own trashed items across every guild they
+ * belong to, newest deletion first. Powers the personal trash view on the user
+ * settings page — user-scoped, no guild context. Restore/purge are addressed
+ * per item via its `guild_id`.
  */
-export const useMyTrashList = (options?: QueryOpts<TrashListResponse>) =>
+export const useMyTrashList = (
+  params: ListMyTrashApiV1MeTrashGetParams,
+  options?: QueryOpts<TrashListResponse>
+) =>
   useQuery<TrashListResponse>({
-    queryKey: getListMyTrashApiV1MeTrashGetQueryKey(),
-    queryFn: () => listMyTrashApiV1MeTrashGet(),
+    queryKey: getListMyTrashApiV1MeTrashGetQueryKey(params),
+    queryFn: () => listMyTrashApiV1MeTrashGet(params),
+    placeholderData: keepPreviousData,
     ...options,
   });
 
 /**
- * Everything in the active guild's trash — the guild-admin settings view.
- * Regular members never call this (the backend 403s); they use
- * {@link useMyTrashList} instead.
+ * One page of the active guild's trash, newest deletion first — the
+ * guild-admin settings view. Regular members never call this (the backend
+ * 403s); they use {@link useMyTrashList} instead.
  */
-export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
+export const useGuildTrashList = (
+  params: ListGuildTrashApiV1CGuildIdTrashGetParams,
+  options?: QueryOpts<TrashListResponse>
+) => {
   const guildId = useActiveGuildId();
   return useQuery<TrashListResponse>({
-    queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(guildId),
-    queryFn: () => listGuildTrashApiV1CGuildIdTrashGet(guildId),
+    queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(guildId, params),
+    queryFn: () => listGuildTrashApiV1CGuildIdTrashGet(guildId, params),
+    placeholderData: keepPreviousData,
     ...options,
   });
 };
@@ -100,8 +111,9 @@ export const useRestoreTrashEntity = (
       ),
     onSuccess: (...args) => {
       const [, variables] = args;
-      // Invalidate both trash views (personal /me and the item's guild) so the
-      // restored row disappears from each.
+      // Invalidate both trash views (personal /me and the item's guild), every
+      // page of each (the keys without params are prefixes), so the restored
+      // row disappears from both.
       void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
       void queryClient.invalidateQueries({
         queryKey: getListGuildTrashApiV1CGuildIdTrashGetQueryKey(variables.guildId),

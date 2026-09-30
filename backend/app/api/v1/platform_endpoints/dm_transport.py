@@ -48,6 +48,8 @@ from app.schemas.platform.dm_transport import (
     DmSendRequest,
     DmSendResponse,
     DmSessionKeysResponse,
+    DmVerificationInbox,
+    DmVerificationSend,
 )
 from app.services.platform import dm_notifications, dm_stream
 from app.services.platform import dm_transport as service
@@ -74,6 +76,8 @@ _STATUS = {
     Messages.NO_INVITATION: status.HTTP_404_NOT_FOUND,
     Messages.MESSAGE_TOO_LARGE: status.HTTP_413_CONTENT_TOO_LARGE,
     Messages.RECIPIENT_QUEUE_FULL: status.HTTP_507_INSUFFICIENT_STORAGE,
+    Messages.VERIFY_SAME_DEVICE: status.HTTP_409_CONFLICT,
+    Messages.TOO_MANY_VERIFICATIONS: status.HTTP_429_TOO_MANY_REQUESTS,
 }
 
 
@@ -309,11 +313,18 @@ async def check_roster(
     proposal enforces the same rule again — this is the question, not the gate.
     """
     members = sorted(set(body.user_ids) | {current_user.id})
-    pair = await service.unreachable_pair(session, member_ids=members)
+    too_large = len(members) > MAX_GROUP_MEMBERS
+    pair = (
+        None
+        if too_large
+        else await service.unreachable_pair(
+            session, actor_id=current_user.id, member_ids=members
+        )
+    )
     return DmRosterCheckResponse(
         unreachable_pair=list(pair) if pair else [],
         max_members=MAX_GROUP_MEMBERS,
-        too_large=len(members) > MAX_GROUP_MEMBERS,
+        too_large=too_large,
     )
 
 
@@ -524,3 +535,44 @@ async def acknowledge_queue(
         raise _error(exc) from exc
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@me_router.post("/dm/verification", status_code=status.HTTP_204_NO_CONTENT)
+async def send_verification(
+    body: DmVerificationSend,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> Response:
+    """Relay one message of a verification to another of this account's
+    devices. The body is the client's own and is not read here."""
+    try:
+        await service.send_verification(
+            session,
+            user_id=current_user.id,
+            device_id=body.device_id,
+            to_device_id=body.to_device_id,
+            body=body.body,
+        )
+    except service.DmTransportError as exc:
+        raise _error(exc) from exc
+    await session.commit()
+    await dm_stream.signal_dm(current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@me_router.get("/dm/verification", response_model=DmVerificationInbox)
+async def collect_verification(
+    device_id: uuid.UUID,
+    session: UserSessionDep,
+    current_user: CurrentUser,
+) -> DmVerificationInbox:
+    """Verification messages waiting for one device, oldest first. Collecting
+    deletes them."""
+    try:
+        items = await service.collect_verification(
+            session, user_id=current_user.id, device_id=device_id
+        )
+    except service.DmTransportError as exc:
+        raise _error(exc) from exc
+    await session.commit()
+    return DmVerificationInbox(items=items)

@@ -90,7 +90,7 @@ from app.schemas.platform.user import (
     ProfileDecorations,
     UsernameClaim,
     UserGuildMember,
-    UserGuildRead,
+    UserGuildMemberListResponse,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -136,6 +136,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import cookie_consent as cookie_consent_service
+from app.services.platform import billing_ping
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
 from app.services.platform import legal as legal_service
@@ -278,43 +279,70 @@ async def get_user_stats(
     return stats
 
 
-@guild_router.get("/", response_model=List[UserGuildMember])
+@guild_router.get("/", response_model=UserGuildMemberListResponse)
 async def list_users(
     session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: SettingsContextDep,
-) -> List[UserGuildMember]:
-    """The community's roster.
+    search: Optional[str] = Query(
+        default=None,
+        description=(
+            "Matches members the way ``/search`` does: the handle, a whole "
+            "handle pinning one member, and real names in a guild that shows "
+            "them."
+        ),
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> UserGuildMemberListResponse:
+    """The community's roster, a page at a time.
 
     On the configuration session rather than the content one: who is in a
     community is part of running it, which is what a settings grant reaches
     and what an administrator keeps while its content is closed.
+
+    Ordered like ``/search``: nearest first while searching, otherwise by name
+    where the guild shows names, then by handle.
     """
-    stmt = (
+    base = (
         select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
         )
-        .order_by(MemberProfile.created_at.asc())
     )
-    result = await session.exec(stmt)
-    rows = result.all()
+    shows_names = bool(guild_context.guild.show_member_names)
+    closest = None
+    if search and (term := search.strip()):
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        base = base.where(matches)
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(
+        *users_service.member_order(closest, shows_names=shows_names),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
+    )
+    rows, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
     # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
     # SSO placed somebody, not which provider did.
-    response = []
+    items = []
     for user, guild_role, oidc_provider_id in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
-        # Copy initiative_roles from loaded user
         member.initiative_roles = getattr(user, "initiative_roles", [])
-        response.append(member)
-    return response
+        items.append(member)
+    return UserGuildMemberListResponse(
+        **build_paginated_response(items, total_count, actual_page, page_size)
+    )
 
 
 def _in_initiative(initiative_id: int):
@@ -849,7 +877,10 @@ async def export_users_csv(
     stmt = (
         select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-        .where(GuildMembership.guild_id == guild_context.guild_id)
+        .where(
+            GuildMembership.guild_id == guild_context.guild_id,
+            users_service.visible_to_other_people(MemberProfile.status),
+        )
         .order_by(MemberProfile.created_at.asc())
     )
     if user_id:
@@ -1144,7 +1175,7 @@ async def list_my_addresses(
 async def add_my_address(
     request: Request,
     payload: UserEmailCreate,
-    session: SessionDep,
+    session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> VerificationSendResponse:
@@ -1314,14 +1345,6 @@ async def update_users_me(
     if "avatar_url" in update_data:
         url_value = update_data["avatar_url"]
         if url_value:
-            # Read payloads carry the path this API serves the picture from, so
-            # one handed straight back would be stored as though it named an
-            # image somewhere else. Uploads come through PUT /users/me/avatar.
-            if user_avatars_service.is_avatar_url(url_value):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.AVATAR_URL_NOT_EXTERNAL,
-                )
             # A linked picture and an uploaded one are alternatives; taking one
             # drops the other.
             await user_avatars_service.delete_avatar(session, user_id=current_user.id)
@@ -1435,62 +1458,6 @@ async def update_users_me(
     payload.has_federated_identity = is_sso_account
     payload.has_password = has_usable_password(current_user.hashed_password)
     return payload
-
-
-@guild_router.post("/{user_id}/approve", response_model=UserGuildRead)
-async def approve_user(
-    user_id: int,
-    session: SystemSessionDep,
-    guild_session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildAdminContext,
-) -> User:
-    """Let a pending member of this guild sign in.
-
-    The account write runs on the system engine: the row is another account's,
-    and an account is not a guild's to write. ``GuildAdminContext`` plus the
-    membership join below are the authorization — the guild admin may only
-    reach someone who is already a member of the guild they administer.
-
-    Answers with ``UserGuildRead`` — the account as the guild reads it, which
-    is the standing that just changed and the handle it belongs to. The row
-    loaded here is the whole ``User``, because the write needs it; what leaves
-    is the guild's read of it, with its initiative roles read on the request's
-    own routed session.
-    """
-    stmt = (
-        select(User)
-        .join(GuildMembership, GuildMembership.user_id == User.id)
-        .where(
-            User.id == user_id,
-            GuildMembership.guild_id == guild_context.guild_id,
-        )
-    )
-    result = await session.exec(stmt)
-    user = result.one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
-        )
-
-    if user.status == UserStatus.anonymized:
-        # Anonymized rows are permanently empty husks — no PII to restore,
-        # no login to reactivate. Refuse rather than misleadingly succeed.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AuthMessages.CANNOT_REACTIVATE_ANONYMIZED,
-        )
-
-    if user.status != UserStatus.active:
-        user.status = UserStatus.active
-        user.updated_at = datetime.now(timezone.utc)
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-    # Initiative roles live in the guild schema, which the routed session
-    # reads as the admin the caller is.
-    await initiatives_service.load_user_initiative_roles(guild_session, [user])
-    return user
 
 
 @router.get("/me/deletion-eligibility", response_model=DeletionEligibilityResponse)
@@ -1941,6 +1908,7 @@ async def delete_user(
         target_id=guild_context.guild_id,
         detail={"role": removed_role.value, "via": "admin"},
     )
+    billing_ping.notify_membership_changed(guild_context.guild_id)
     await session.commit()
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.

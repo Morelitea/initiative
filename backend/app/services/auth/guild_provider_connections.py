@@ -522,7 +522,7 @@ async def admits_this_session(
     are passed in because this runs before the session context exists, which
     is where the policy legs read them from.
     """
-    providers = sorted(auth_context.satisfied_provider_ids())
+    providers = sorted(auth_context.satisfied_providers())
     if not providers:
         return False
     claims = auth_context.satisfied_claims()

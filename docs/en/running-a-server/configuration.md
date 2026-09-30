@@ -25,6 +25,8 @@ See [Installation](installation.md#the-database-connection) for what it's used f
 |---|---|---|
 | `ENABLE_PUBLIC_REGISTRATION` | Allow people to register without an invite link. Set `false` for invite-only. | `true` |
 | `DISABLE_GUILD_CREATION` | Stop regular users from creating new communities (they must be invited to one). | `false` |
+| `GUILD_CREATION_DAILY_LIMIT` | How many communities one person can create in a day. Operators and owners have no limit. `0` turns the limit off. | `5` |
+| `REGISTRATION_CREATES_GUILD` | Give everybody who signs up without an invite a community of their own on the spot. Off, they land on a page that lets them create one or join one, and the one they create counts toward the daily limit. | `true` |
 
 Between them, you can run anything from a wide-open public server to a locked-down, invite-only, one-organization deployment.
 

@@ -78,6 +78,7 @@ from app.testing.factories import (
     create_user,
     set_notification_prefs,
     get_auth_headers,
+    signed_in_headers,
     get_auth_token,
 )
 from app.testing.passkeys import (
@@ -173,6 +174,7 @@ __all__ = [
     "create_user",
     "set_notification_prefs",
     "get_auth_headers",
+    "signed_in_headers",
     "get_auth_token",
     "guild_of",
     "platform_session",

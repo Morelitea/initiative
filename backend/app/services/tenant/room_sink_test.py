@@ -24,6 +24,7 @@ from app.testing import (
     create_tag,
     create_task,
 )
+from app.db.request_context import SystemGuild
 
 
 #: A socket belonging to nobody in particular. Rooms are otherwise recomputed
@@ -180,7 +181,7 @@ async def test_what_is_remembered_is_pruned_to_the_window(session, acting_user):
         from app.db.session import set_rls_context
         from sqlmodel import select
 
-        await set_rls_context(session, guild_id=a.guild.id)
+        await set_rls_context(session, SystemGuild(a.guild.id))
         in_window = {
             row.id
             for row in await session.exec(
@@ -224,7 +225,7 @@ async def _txn_of(session, guild_id: int, resource_type: str, resource_id: int) 
     from app.db.session import set_rls_context
     from sqlmodel import select
 
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     row = (
         await session.exec(
             select(EventOutbox)
@@ -371,7 +372,7 @@ async def _age_the_log(session: AsyncSession, guild_id: int) -> None:
     from app.db.session import set_rls_context
     from sqlalchemy import text
 
-    await set_rls_context(session, guild_id=guild_id)
+    await set_rls_context(session, SystemGuild(guild_id))
     await session.exec(
         text("UPDATE event_outbox SET occurred_at = occurred_at - interval '1 day'")
     )

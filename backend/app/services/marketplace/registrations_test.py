@@ -1,6 +1,8 @@
 """Tests for the app service registration service.
 
-A registration is stated, not discovered: nothing here calls an app.
+A registration is stated, not discovered: nothing here calls an app. Its app
+facts come from its listing, whatever the source; its deployment facts from
+the operator.
 """
 
 import json
@@ -11,11 +13,21 @@ from sqlmodel import select
 
 from app.core.config import settings
 from app.core.messages import AppServiceMessages
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.app_service_registration import (
+    LISTING_STATED_FIELDS,
+    AppServiceRegistration,
+)
 from app.models.platform.publisher import Publisher
+from app.services.marketplace.catalog import (
+    CatalogError,
+    CatalogSourceConflict,
+    upsert_listing,
+)
 from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.marketplace import registrations as service
 from app.services.marketplace.registration_lookup import load_registrations
+from app.testing import create_app_service_registration, sample_app_jwks
+from app.testing.tuf_repository import service_app_definition
 
 
 #: Where the deployment calls the app.
@@ -156,12 +168,7 @@ def test_embed_origin_accepts_a_base_and_reports_its_own_code():
 
 
 async def _create(session, **overrides):
-    fields = {
-        "public_id": "acme.widgets",
-        "listing_uid": LISTING_UID,
-        "base_url": BASE_URL,
-        **overrides,
-    }
+    fields = {"public_id": "acme.widgets", "base_url": BASE_URL, **overrides}
     return await service.create_registration(session, **fields)
 
 
@@ -181,23 +188,16 @@ async def test_registration_fails_closed_without_a_signing_key(session, monkeypa
 
 
 async def test_create_stores_what_it_is_told(session):
-    """Nothing is fetched: the id, the listing and the keys are the operator's."""
+    """Nothing is fetched: the id and the keys are the operator's, and the app
+    facts wait for its listing."""
     key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
     row = await _create(session, jwks=key_set)
 
     assert row.public_id == "acme.widgets"
-    assert row.listing_uid == LISTING_UID
+    assert row.listing_uid is None
+    assert row.scope_ceiling == []
     assert row.jwks == key_set
     assert row.jwks_uri is None
-
-
-@pytest.mark.parametrize("value", ["", "short", "K7M2QX8N4TVB9CX", "k7m2qx8n4tvb9c"])
-async def test_create_refuses_a_listing_uid_that_is_not_one(session, value):
-    with pytest.raises(HTTPException) as excinfo:
-        await _create(session, listing_uid=value)
-
-    assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.INVALID_LISTING_UID
 
 
 async def test_duplicate_public_id_is_refused(session):
@@ -349,70 +349,118 @@ async def test_clearing_the_browser_address_puts_both_surfaces_back(session):
     assert updated.allowed_origins == [BASE_URL]
 
 
-async def test_update_changes_the_listing(session):
-    row = await _create(session)
+# --- app facts, from a listing ------------------------------------------------
 
-    updated = await service.update_registration(
-        session, row.id, listing_uid="ABCDEFGHJKMNPQ"
+
+def _app_listing(registration, *, uid=LISTING_UID, public_id="acme.widgets") -> dict:
+    return {
+        "uid": uid,
+        "public_id": public_id,
+        "kind": "app",
+        "name": "Widgets",
+        "publisher": "Acme",
+        "description": "Widgets for tests.",
+        "version": "1.0.0",
+        "definition": service_app_definition(public_id),
+        "registration": registration,
+    }
+
+
+CONTAINER = {"kind": "container", "scope_ceiling": ["projects:write", "comments:read"]}
+
+
+async def _registration(session, public_id="acme.widgets") -> AppServiceRegistration:
+    session.expire_all()
+    return (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == public_id
+            )
+        )
+    ).one()
+
+
+@pytest.mark.parametrize("source", ["builtin", "operator", "local"])
+async def test_a_listing_from_any_source_writes_the_app_facts(session, source):
+    image = "ghcr.io/acme/widgets@sha256:" + "0" * 64
+    await upsert_listing(
+        session, _app_listing({**CONTAINER, "image": image}), source=source
     )
+    await session.commit()
 
-    assert updated.listing_uid == "ABCDEFGHJKMNPQ"
+    row = await _registration(session)
+    assert row.listing_uid == LISTING_UID
+    assert row.scope_ceiling == ["comments:read", "projects:write"]
+    assert row.image_digest == image
+    assert row.source == "operator"
+    # Where it runs and its keys are the deployment's to give.
+    assert (row.base_url, row.jwks) == (None, None)
+    assert (await load_registrations(force=True))["acme.widgets"].live is False
 
 
-# --- scope ceiling -----------------------------------------------------------
+async def test_a_listing_fills_in_the_registration_set_up_before_it(session):
+    set_up = await _create(session, jwks=sample_app_jwks(), mandatory=True)
+
+    await upsert_listing(session, _app_listing(CONTAINER), source="local")
+    await session.commit()
+
+    row = await _registration(session)
+    assert row.id == set_up.id
+    assert (row.listing_uid, row.base_url, row.mandatory) == (
+        LISTING_UID,
+        BASE_URL,
+        True,
+    )
+    assert row.scope_ceiling == ["comments:read", "projects:write"]
 
 
-def test_scope_ceiling_accepts_known_scopes_sorted_once():
-    assert service.normalize_scope_ceiling(
-        ["projects:write", "comments:read", "projects:write"]
-    ) == ["comments:read", "projects:write"]
-    assert service.normalize_scope_ceiling(None) == []
-    assert service.normalize_scope_ceiling([]) == []
+async def test_a_listing_republished_without_a_scope_takes_it_away(session):
+    await upsert_listing(session, _app_listing(CONTAINER), source="operator")
+    await upsert_listing(
+        session,
+        {
+            **_app_listing({**CONTAINER, "scope_ceiling": ["comments:read"]}),
+            "version": "1.1.0",
+        },
+        source="operator",
+    )
+    await session.commit()
+
+    assert (await _registration(session)).scope_ceiling == ["comments:read"]
 
 
 @pytest.mark.parametrize(
-    "value",
+    "block",
     [
-        ["projects:admin"],
-        ["nothing:read"],
-        # Members are read-only, so there is no write scope to cap at.
-        ["members:write"],
-        [7],
-        "projects:read",
+        {**CONTAINER, "kind": "hosted"},
+        {**CONTAINER, "base_url": BASE_URL},
+        {**CONTAINER, "jwks": {"keys": []}},
+        {**CONTAINER, "image": "ghcr.io/acme/widgets:latest"},
     ],
+    ids=["hosted", "location", "keys", "unpinned-image"],
 )
-def test_scope_ceiling_outside_the_vocabulary_is_refused(value):
-    with pytest.raises(HTTPException) as excinfo:
-        service.normalize_scope_ceiling(value)
-    assert excinfo.value.status_code == 400
-    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_SCOPE
+async def test_a_listing_block_is_a_container_with_no_location_or_keys(session, block):
+    with pytest.raises(CatalogError):
+        await upsert_listing(session, _app_listing(block), source="local")
 
 
-async def test_create_and_update_store_the_scope_ceiling(session):
-    row = await _create(session, scope_ceiling=["projects:write", "comments:read"])
-    assert row.scope_ceiling == ["comments:read", "projects:write"]
+@pytest.mark.parametrize("source", ["builtin", "operator", "local"])
+async def test_reference_sectors_are_honoured_only_from_the_registry(session, source):
+    with pytest.raises(CatalogError, match="reference sectors"):
+        await upsert_listing(
+            session,
+            _app_listing({**CONTAINER, "reference_sectors": ["billing"]}),
+            source=source,
+        )
 
-    updated = await service.update_registration(
-        session, row.id, scope_ceiling=["documents:read"]
+
+async def test_a_registration_another_listing_holds_is_refused(session):
+    await create_app_service_registration(
+        session, public_id="acme.widgets", listing_uid="ABCDEFGHJKMNPQ"
     )
-    assert updated.scope_ceiling == ["documents:read"]
 
-    untouched = await service.update_registration(session, row.id, enabled=True)
-    assert untouched.scope_ceiling == ["documents:read"]
-
-
-async def test_a_registration_with_no_ceiling_names_none(session):
-    row = await _create(session)
-    assert row.scope_ceiling == []
-
-
-async def test_update_refuses_a_scope_outside_the_vocabulary(session):
-    row = await _create(session)
-
-    with pytest.raises(HTTPException) as excinfo:
-        await service.update_registration(session, row.id, scope_ceiling=["all:write"])
-
-    assert excinfo.value.detail == AppServiceMessages.UNKNOWN_SCOPE
+    with pytest.raises(CatalogSourceConflict):
+        await upsert_listing(session, _app_listing(CONTAINER), source="local")
 
 
 # --- boot reconciliation -----------------------------------------------------
@@ -424,9 +472,22 @@ def _write_config(tmp_path, entries) -> str:
     return str(path)
 
 
-async def test_reconcile_creates_registrations_from_the_mounted_file(
+async def _listed(session, public_id: str) -> AppServiceRegistration:
+    """A registration as its listing leaves it: app facts, no placement."""
+    return await create_app_service_registration(
+        session,
+        public_id=public_id,
+        listing_uid=LISTING_UID,
+        base_url=None,
+        allowed_origins=[],
+        jwks={},
+    )
+
+
+async def test_reconcile_writes_the_deployment_facts_from_the_mounted_file(
     session, tmp_path, monkeypatch
 ):
+    await _listed(session, "acme.declared")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -436,7 +497,6 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
                 {
                     "public_id": "acme.declared",
                     "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
                     "allowed_origins": ["https://app.example.com"],
                     "mandatory": True,
                 }
@@ -446,18 +506,63 @@ async def test_reconcile_creates_registrations_from_the_mounted_file(
 
     result = await service.reconcile_from_config(session)
 
-    assert (result.created, result.skipped) == (1, 0)
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "acme.declared"
-            )
-        )
-    ).one()
+    assert (result.updated, result.skipped) == (1, 0)
+    row = await _registration(session, "acme.declared")
     assert row.base_url == BASE_URL
     assert row.allowed_origins == ["https://app.example.com"]
     assert row.mandatory is True
     assert row.listing_uid == LISTING_UID
+
+
+async def test_an_entry_waits_for_its_listing(session, tmp_path, monkeypatch):
+    """An entry whose app has no listing here yet is kept, and the listing
+    apply that creates the registration applies it."""
+    monkeypatch.setattr(
+        settings,
+        "APP_SERVICES_CONFIG",
+        _write_config(
+            tmp_path,
+            [
+                {
+                    "public_id": "acme.widgets",
+                    "base_url": BASE_URL,
+                    "jwks": sample_app_jwks(),
+                    "mandatory": True,
+                }
+            ],
+        ),
+    )
+    result = await service.reconcile_from_config(session)
+    assert (result.waiting, result.updated) == (1, 0)
+    assert (await session.exec(select(AppServiceRegistration))).all() == []
+
+    await upsert_listing(session, _app_listing(CONTAINER), source="operator")
+    await session.commit()
+
+    row = await _registration(session)
+    assert (row.base_url, row.jwks, row.mandatory) == (
+        BASE_URL,
+        sample_app_jwks(),
+        True,
+    )
+    assert (await load_registrations(force=True))["acme.widgets"].live is True
+
+
+@pytest.mark.parametrize("stated", LISTING_STATED_FIELDS)
+async def test_an_entry_naming_what_the_listing_states_is_refused(
+    session, tmp_path, monkeypatch, stated
+):
+    await _listed(session, "acme.widgets")
+    entry = {"public_id": "acme.widgets", "base_url": BASE_URL, stated: True}
+    monkeypatch.setattr(
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
+    )
+
+    result = await service.reconcile_from_config(session)
+
+    assert (result.updated, result.skipped) == (0, 1)
+    assert service.configured_facts("acme.widgets") is None
+    assert (await _registration(session)).base_url is None
 
 
 async def test_reconcile_seals_the_vendor_values_it_names(
@@ -466,11 +571,11 @@ async def test_reconcile_seals_the_vendor_values_it_names(
     """``vendor_env`` names environment variables; their values are sealed into
     the registration on every pass, so rotating one is changing the variable
     and restarting."""
+    await _listed(session, "acme.vendored")
     monkeypatch.setenv("TEST_VENDOR_SECRET", "first-secret")
     entry = {
         "public_id": "acme.vendored",
         "base_url": BASE_URL,
-        "listing_uid": LISTING_UID,
         "vendor_env": {"client_secret": "TEST_VENDOR_SECRET", "absent": "NOT_SET_X"},
     }
     monkeypatch.setattr(
@@ -487,13 +592,7 @@ async def test_reconcile_seals_the_vendor_values_it_names(
     assert await load_vendor_values("acme.vendored") == {
         "client_secret": "rotated-secret"
     }
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "acme.vendored"
-            )
-        )
-    ).one()
+    row = await _registration(session, "acme.vendored")
     # Sealed, never stored as the variable held it.
     assert "rotated-secret" not in str(row.vendor_values)
 
@@ -503,11 +602,8 @@ async def test_reconcile_reads_the_browser_address_from_the_file(
 ):
     """A chart states both addresses, so the two-address case is wired with no
     owner clicks — and adding one later is an update."""
-    entry = {
-        "public_id": "acme.two-addresses",
-        "base_url": BASE_URL,
-        "listing_uid": LISTING_UID,
-    }
+    await _listed(session, "acme.two-addresses")
+    entry = {"public_id": "acme.two-addresses", "base_url": BASE_URL}
     monkeypatch.setattr(
         settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
     )
@@ -519,39 +615,27 @@ async def test_reconcile_reads_the_browser_address_from_the_file(
     )
     result = await service.reconcile_from_config(session)
 
-    assert (result.created, result.updated, result.unchanged) == (0, 1, 0)
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "acme.two-addresses"
-            )
-        )
-    ).one()
+    assert (result.updated, result.unchanged) == (1, 0)
+    row = await _registration(session, "acme.two-addresses")
     assert row.embed_origin == EMBED_ORIGIN
     assert row.allowed_origins == [EMBED_ORIGIN]
 
 
 async def test_reconcile_is_idempotent(session, tmp_path, monkeypatch):
+    await _listed(session, "acme.idempotent")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
         _write_config(
-            tmp_path,
-            [
-                {
-                    "public_id": "acme.idempotent",
-                    "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
-                }
-            ],
+            tmp_path, [{"public_id": "acme.idempotent", "base_url": BASE_URL}]
         ),
     )
 
     first = await service.reconcile_from_config(session)
     second = await service.reconcile_from_config(session)
 
-    assert first.created == 1
-    assert (second.created, second.updated, second.unchanged) == (0, 0, 1)
+    assert first.updated == 1
+    assert (second.updated, second.unchanged) == (0, 1)
 
 
 async def test_reconcile_never_re_enables_a_disabled_registration(
@@ -559,76 +643,30 @@ async def test_reconcile_never_re_enables_a_disabled_registration(
 ):
     """Deactivating an app is the operator's kill switch, so a restart must not
     quietly reverse it — the file still governs everything else."""
+    row = await _listed(session, "acme.killswitch")
+    entry = {"public_id": "acme.killswitch", "base_url": BASE_URL, "mandatory": False}
     monkeypatch.setattr(
-        settings,
-        "APP_SERVICES_CONFIG",
-        _write_config(
-            tmp_path,
-            [
-                {
-                    "public_id": "acme.killswitch",
-                    "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
-                    "mandatory": False,
-                }
-            ],
-        ),
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
     )
     await service.reconcile_from_config(session)
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "acme.killswitch"
-            )
-        )
-    ).one()
     await service.update_registration(session, row.id, enabled=False)
 
+    entry["mandatory"] = True
     monkeypatch.setattr(
-        settings,
-        "APP_SERVICES_CONFIG",
-        _write_config(
-            tmp_path,
-            [
-                {
-                    "public_id": "acme.killswitch",
-                    "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
-                    "mandatory": True,
-                }
-            ],
-        ),
+        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
     )
     result = await service.reconcile_from_config(session)
 
     assert result.updated == 1
-    session.expunge_all()
-    stored = await session.get(AppServiceRegistration, row.id)
+    stored = await _registration(session, "acme.killswitch")
     assert stored.enabled is False
     assert stored.mandatory is True
 
 
-async def test_reconcile_skips_an_entry_naming_no_listing(
-    session, tmp_path, monkeypatch
-):
-    monkeypatch.setattr(
-        settings,
-        "APP_SERVICES_CONFIG",
-        _write_config(
-            tmp_path,
-            [{"public_id": "acme.nolisting", "base_url": BASE_URL}],
-        ),
-    )
-
-    result = await service.reconcile_from_config(session)
-
-    assert (result.created, result.skipped) == (0, 1)
-
-
 async def test_reconcile_reads_the_key_set_address(session, tmp_path, monkeypatch):
+    await _listed(session, "acme.published")
     entry = {
         "public_id": "acme.published",
-        "listing_uid": LISTING_UID,
         "base_url": HTTPS_BASE_URL,
         "jwks_uri": f"{HTTPS_BASE_URL}/jwks.json",
     }
@@ -636,14 +674,8 @@ async def test_reconcile_reads_the_key_set_address(session, tmp_path, monkeypatc
         settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
     )
 
-    assert (await service.reconcile_from_config(session)).created == 1
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "acme.published"
-            )
-        )
-    ).one()
+    assert (await service.reconcile_from_config(session)).updated == 1
+    row = await _registration(session, "acme.published")
     assert row.jwks_uri == f"{HTTPS_BASE_URL}/jwks.json"
 
 
@@ -651,8 +683,9 @@ async def test_reconcile_ignores_grants_in_a_file_written_for_an_earlier_release
     session, tmp_path, monkeypatch, caplog
 ):
     """A registration no longer has grants. An entry that still names them is
-    registered without them and the pass says so, so the file does not stop a
+    applied without them and the pass says so, so the file does not stop a
     boot."""
+    await _listed(session, "acme.earlier")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
@@ -662,7 +695,6 @@ async def test_reconcile_ignores_grants_in_a_file_written_for_an_earlier_release
                 {
                     "public_id": "acme.earlier",
                     "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
                     "grants": ["delegation", "app_directory"],
                 }
             ],
@@ -672,74 +704,10 @@ async def test_reconcile_ignores_grants_in_a_file_written_for_an_earlier_release
     with caplog.at_level("WARNING", logger="app.services.marketplace.registrations"):
         result = await service.reconcile_from_config(session)
 
-    assert (result.created, result.skipped) == (1, 0)
+    assert (result.updated, result.skipped) == (1, 0)
     assert any("names grants" in record.getMessage() for record in caplog.records)
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "acme.earlier"
-            )
-        )
-    ).one()
+    row = await _registration(session, "acme.earlier")
     assert not hasattr(row, "grants")
-
-
-async def test_reconcile_reads_the_scope_ceiling_from_the_file(
-    session, tmp_path, monkeypatch
-):
-    entry = {
-        "public_id": "acme.scoped",
-        "base_url": BASE_URL,
-        "listing_uid": LISTING_UID,
-        "scope_ceiling": ["projects:write", "comments:read"],
-    }
-    monkeypatch.setattr(
-        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
-    )
-    assert (await service.reconcile_from_config(session)).created == 1
-
-    row = (
-        await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "acme.scoped"
-            )
-        )
-    ).one()
-    assert row.scope_ceiling == ["comments:read", "projects:write"]
-
-    # Changing the ceiling in the file is an update on the next pass.
-    entry["scope_ceiling"] = ["projects:read"]
-    monkeypatch.setattr(
-        settings, "APP_SERVICES_CONFIG", _write_config(tmp_path, [entry])
-    )
-    result = await service.reconcile_from_config(session)
-    assert (result.updated, result.unchanged) == (1, 0)
-    await session.refresh(row)
-    assert row.scope_ceiling == ["projects:read"]
-
-
-async def test_reconcile_skips_an_entry_naming_an_unknown_scope(
-    session, tmp_path, monkeypatch
-):
-    monkeypatch.setattr(
-        settings,
-        "APP_SERVICES_CONFIG",
-        _write_config(
-            tmp_path,
-            [
-                {
-                    "public_id": "acme.overscoped",
-                    "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
-                    "scope_ceiling": ["everything:write"],
-                }
-            ],
-        ),
-    )
-
-    result = await service.reconcile_from_config(session)
-
-    assert (result.created, result.skipped) == (0, 1)
 
 
 async def test_reconcile_is_a_no_op_without_the_setting(session, monkeypatch):
@@ -759,43 +727,25 @@ async def test_reconcile_survives_an_unreadable_file(session, tmp_path, monkeypa
 async def test_a_repeated_public_id_costs_only_that_entry(
     session, tmp_path, monkeypatch
 ):
-    """A duplicate in the file is one operator mistake, not a failed boot.
-
-    Rows are pending rather than flushed during the pass, so a second entry
-    naming the same app looks absent, inserts a duplicate, and fails the unique
-    constraint at the shared commit — which would take every other registration
-    in the file with it. The later entry is skipped instead.
-    """
+    """A duplicate in the file is one operator mistake, not a failed boot: the
+    later entry is skipped, and the first one applies."""
+    await _listed(session, "acme.twice")
+    await _listed(session, "acme.innocent")
     monkeypatch.setattr(
         settings,
         "APP_SERVICES_CONFIG",
         _write_config(
             tmp_path,
             [
-                {
-                    "public_id": "acme.twice",
-                    "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
-                },
-                {
-                    "public_id": "acme.twice",
-                    "base_url": "https://other.example.com",
-                    "listing_uid": LISTING_UID,
-                },
-                {
-                    "public_id": "acme.innocent",
-                    "base_url": BASE_URL,
-                    "listing_uid": LISTING_UID,
-                },
+                {"public_id": "acme.twice", "base_url": BASE_URL},
+                {"public_id": "acme.twice", "base_url": "https://other.example.com"},
+                {"public_id": "acme.innocent", "base_url": BASE_URL},
             ],
         ),
     )
 
     result = await service.reconcile_from_config(session)
 
-    assert (result.created, result.skipped) == (2, 1)
-    rows = (await session.exec(select(AppServiceRegistration))).all()
-    assert sorted(row.public_id for row in rows) == ["acme.innocent", "acme.twice"]
+    assert (result.updated, result.skipped) == (2, 1)
     # The first entry won, so the duplicate did not quietly retarget the app.
-    kept = next(row for row in rows if row.public_id == "acme.twice")
-    assert kept.base_url == BASE_URL
+    assert (await _registration(session, "acme.twice")).base_url == BASE_URL

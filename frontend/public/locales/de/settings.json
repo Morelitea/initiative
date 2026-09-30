@@ -777,6 +777,9 @@
     "roleChangeError": "Benutzerrolle konnte nicht geändert werden",
     "resetSuccess": "Passwort-Zurücksetzung für {{handle}} gesendet.",
     "resetError": "Passwort-Zurücksetzung konnte nicht gesendet werden",
+    "resendVerification": "Bestätigungs-E-Mail erneut senden",
+    "resendVerificationSuccess": "Bestätigungs-E-Mail an {{handle}} gesendet.",
+    "resendVerificationError": "Bestätigungs-E-Mail konnte nicht gesendet werden",
     "reactivateSuccess": "{{handle}} kann sich wieder anmelden.",
     "reactivateError": "Benutzer konnte nicht wieder aktiviert werden",
     "permissionRequired": "Du hast keine Berechtigung, Plattformbenutzer anzuzeigen.",
@@ -806,6 +809,7 @@
     "clearAgeBlock": "Altersfrage zurücksetzen",
     "ageBlockCleared": "Die Altersfrage kann erneut beantwortet werden.",
     "signInLocked": "Anmeldung mit Passwort aus",
+    "signInLockedUntil": "Bis {{time}}",
     "liftSignInLock": "Anmeldung mit Passwort wieder einschalten",
     "signInLockLifted": "Die Person kann sich wieder mit Passwort anmelden.",
     "sheet": {
@@ -957,8 +961,8 @@
     "loading": "App-Dienste werden geladen…",
     "loadError": "App-Dienste konnten nicht geladen werden.",
     "title": "App-Dienste",
-    "description": "Die Apps, die diese Instanz ausführt. Eine Registrierung hält fest, welches Listing eine App ist, wo sie antwortet und mit welchen Schlüsseln sie signiert.",
-    "empty": "Es ist noch kein App-Dienst registriert. Füge für jede App, die diese Instanz ausführt, einen hinzu.",
+    "description": "Die Apps, die diese Instanz ausführt. Das Listing einer App sagt, was sie ist und darf; hier gibst du an, wo sie antwortet und mit welchen Schlüsseln sie signiert.",
+    "empty": "Noch keine App-Dienste. Eine App erscheint hier, sobald ihr Listing eintrifft oder du sie hinzufügst.",
     "addService": "App-Dienst hinzufügen",
     "edit": "Bearbeiten",
     "delete": "Löschen",
@@ -973,7 +977,8 @@
     "needsAddress": "Läuft als Container. Bearbeite sie und gib die Adresse an, unter der du sie betreibst, damit sie aktiv wird.",
     "publisherSummary": "Herausgeber: {{name}}",
     "listingSummary": "Listing:",
-    "noListing": "Kein Listing festgelegt",
+    "noListing": "Wartet auf ihr Listing",
+    "scopeCeilingSummary": "Berechtigungsbereiche, aus ihrem Listing: {{scopes}}",
     "allowedOriginsSummary": "Erlaubte Herkünfte: {{origins}}",
     "disabledBadge": "Deaktiviert",
     "disabledHelp": "Diese App ist für jede Community gestoppt, die sie installiert hat. Es wurde nichts gelöscht.",
@@ -1001,15 +1006,12 @@
     "setupUrlLabel": "Einrichtungs-Adresse",
     "createTitle": "App-Dienst hinzufügen",
     "editTitle": "App-Dienst bearbeiten",
-    "createDescription": "Registriere eine App, die diese Instanz ausführt. Sie ist aktiv, sobald sie Signaturschlüssel hat.",
+    "createDescription": "Gib einer App ihre Adresse und Schlüssel, bevor ihr Listing eintrifft. Was sie ist und darf, kommt aus ihrem Listing. Sie ist aktiv, sobald sie Signaturschlüssel hat.",
     "editDescription": "Änderungen gelten für jede Community, die diese App installiert hat.",
     "publicIdLabel": "App-Kennung",
     "publicIdPlaceholder": "herausgeber.app-name",
     "publicIdHelp": "Geschrieben als herausgeber.app-name, in Kleinbuchstaben. Der Teil vor dem Punkt ist der Herausgeber der App.",
     "publicIdHelpEdit": "Die Kennung lässt sich nach dem Anlegen der Registrierung nicht mehr ändern.",
-    "listingUidLabel": "Listing",
-    "listingUidPlaceholder": "14-stellige Listing-UID",
-    "listingUidHelp": "Die 14-stellige UID des Listings dieser App im Katalog.",
     "baseUrlLabel": "Basis-URL",
     "baseUrlPlaceholder": "http://initiative-github:8080",
     "baseUrlHelp": "Wohin der Server von Initiative die App ruft. Das darf eine private Adresse im eigenen Netz sein.",
@@ -1736,7 +1738,9 @@
       "title": "Ignorierte Konten",
       "description": "Du wirst nicht benachrichtigt, wenn diese Konten dich erwähnen, dir antworten oder reagieren, und nichts, was sie dir senden, kommt an — Nachrichten, Nachrichtenanfragen, Verbindungsanfragen. Ihr seht weiterhin die Aktivitäten des anderen in gemeinsamen Communities und könnt alle Werkzeuge normal nutzen.",
       "empty": "Du ignorierst niemanden.",
-      "stop": "Nicht mehr ignorieren"
+      "stop": "Nicht mehr ignorieren",
+      "add": "Über Handle ignorieren",
+      "ignore": "Ignorieren"
     },
     "cookies": {
       "title": "Cookies",
@@ -1831,10 +1835,6 @@
     "addFromBrowser": "Ein Passkey wird in einem Browser hinzugefügt, der auf dieser Seite angemeldet ist. „Passkey hinzufügen“ öffnet einen für dich.",
     "notOffered": "Diese Seite bietet keine Passkeys an. Die vorhandenen bleiben erhalten.",
     "error": "Das hat nicht geklappt. Versuche es erneut."
-  },
-  "messagesDevice": {
-    "title": "Code dieses Geräts für Nachrichten",
-    "description": "Wenn du ein neues Gerät bestätigst oder dich mit jemandem vergleichst, dem du schreibst, ist das der Code, den dieses Gerät zeigt."
   },
   "providerDefaults": {
     "title": "Was eine Community erbt",

@@ -8,7 +8,8 @@ on:
 jobs:
   tag:
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
       actions: write
@@ -35,12 +36,14 @@ jobs:
           echo "Extracted version: $VERSION from branch: $BRANCH"
 
       - name: Create and push tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
-          echo "Created and pushed tag ${{ steps.version.outputs.tag }}"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "Created and pushed tag $TAG"
 
       - name: Create PR to merge main back into dev
         run: |
@@ -52,19 +55,22 @@ jobs:
             gh pr create \
               --base dev \
               --head main \
-              --title "Merge main back into dev after ${{ steps.version.outputs.tag }}" \
-              --body "Automated PR to sync \`main\` back into \`dev\` after release ${{ steps.version.outputs.tag }}." \
+              --title "Merge main back into dev after $TAG" \
+              --body "Automated PR to sync \`main\` back into \`dev\` after release $TAG." \
               --label "sync" \
               || echo "PR already exists or branches are identical"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
 
       - name: Trigger Build and Release workflow
         run: |
           gh workflow run "Build and Release" \
-            --ref "${{ steps.version.outputs.tag }}" \
-            -f version="${{ steps.version.outputs.version }}"
-          echo "Triggered Build and Release for ${{ steps.version.outputs.tag }}"
+            --ref "$TAG" \
+            -f version="$VERSION"
+          echo "Triggered Build and Release for $TAG"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}

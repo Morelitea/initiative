@@ -342,7 +342,12 @@ async def install_tool_listing(
     # this community's storage.
     try:
         body = await copy_assets_in(
-            session, tool=tool, envelope=body, guild_id=guild_id, user_id=user.id
+            session,
+            tool=tool,
+            envelope=body,
+            guild_id=guild_id,
+            user_id=user.id,
+            initiative_id=initiative.id,
         )
     except StorageQuotaExceededError as exc:
         raise ImportEngineError(

@@ -1,35 +1,32 @@
 """iCal (.ics) import/export service.
 
-Handles conversion between CalendarEvent models and iCalendar format.
+Handles conversion between CalendarEvent models and iCalendar format. A stored
+repeat is already RFC 5545 in UTC terms (``app.core.recurrence``), so export
+writes it as it is, and import only moves a file's rule into UTC terms.
 """
 
-import json
 import logging
-from datetime import date, datetime, timezone
+import math
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import List, Optional, Sequence, Tuple
+from zoneinfo import ZoneInfo
 
 import icalendar
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.relationships import Related
+from app.core.user_input_validators import resolve_zone
 from app.models.tenant.calendar_event import CalendarEvent
-from app.schemas.tenant.calendar_event import EventRecurrence
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
 from app.services.export.property_values import property_export_dict
 from app.core.user_display import display_name
 
 logger = logging.getLogger(__name__)
 
-# Weekday position mapping: app -> RRULE positional prefix
-_POSITION_MAP = {
-    "first": 1,
-    "second": 2,
-    "third": 3,
-    "fourth": 4,
-    "last": -1,
-}
-_POSITION_REVERSE = {v: k for k, v in _POSITION_MAP.items()}
+# The last second of a day: an all-day event's end
+_END_OF_DAY = time(23, 59, 59)
 
 # RSVP status mapping: app -> iCal PARTSTAT
 _RSVP_TO_PARTSTAT = {
@@ -45,57 +42,6 @@ _RSVP_TO_PARTSTAT = {
 # ---------------------------------------------------------------------------
 
 
-def _recurrence_to_rrule(recurrence: Optional[dict]) -> Optional[dict]:
-    """Convert a parsed recurrence dict (EventRecurrence shape) to an RRULE
-    dict for icalendar."""
-    if not recurrence:
-        return None
-    try:
-        rec = EventRecurrence(**recurrence)
-    except Exception:
-        return None
-
-    rule: dict = {"FREQ": [rec.frequency.upper()]}
-
-    if rec.interval and rec.interval > 1:
-        rule["INTERVAL"] = [rec.interval]
-
-    if rec.weekdays:
-        rule["BYDAY"] = rec.weekdays
-
-    if rec.monthly_mode == "weekday" and rec.weekday_position and rec.weekday:
-        pos = _POSITION_MAP.get(rec.weekday_position)
-        if pos is not None:
-            rule["BYDAY"] = [f"{pos}{rec.weekday.upper()}"]
-
-    if rec.monthly_mode == "day_of_month" and rec.day_of_month:
-        rule["BYMONTHDAY"] = [rec.day_of_month]
-
-    if rec.month:
-        rule["BYMONTH"] = [rec.month]
-
-    if rec.ends == "on_date" and rec.end_date:
-        if isinstance(rec.end_date, datetime):
-            rule["UNTIL"] = [rec.end_date.astimezone(timezone.utc)]
-        else:
-            rule["UNTIL"] = [
-                datetime(
-                    rec.end_date.year,
-                    rec.end_date.month,
-                    rec.end_date.day,
-                    23,
-                    59,
-                    59,
-                    tzinfo=timezone.utc,
-                )
-            ]
-
-    if rec.ends == "after_occurrences" and rec.end_after_occurrences:
-        rule["COUNT"] = [rec.end_after_occurrences]
-
-    return rule
-
-
 def event_export_dict(
     event: CalendarEvent, documents: "Sequence[Related]" = ()
 ) -> dict:
@@ -108,14 +54,6 @@ def event_export_dict(
     are guild-local, an import can't rebind them); tags by name; linked
     documents by name — handed in, because the edges live in their own table
     and a calendar export renders every event at once."""
-    recurrence: Optional[dict] = None
-    if event.recurrence:
-        try:
-            recurrence = EventRecurrence(**json.loads(event.recurrence)).model_dump(
-                mode="json"
-            )
-        except Exception:
-            recurrence = None
     return {
         "id": event.id,
         # The name this event answers to across one import. An id is guild-
@@ -128,7 +66,8 @@ def event_export_dict(
         "start_at": event.start_at.isoformat(),
         "end_at": event.end_at.isoformat(),
         "all_day": bool(event.all_day),
-        "recurrence": recurrence,
+        "recurrence": event.recurrence,
+        "recurrence_shift": event.recurrence_shift,
         "created_at": event.created_at.isoformat(),
         "updated_at": event.updated_at.isoformat(),
         "attendees": [
@@ -163,7 +102,10 @@ def _dt(value: str) -> datetime:
 def ical_from_export_dicts(events: List[dict]) -> bytes:
     """Serialize event export dicts (``event_export_dict`` shape) to iCal
     bytes — the render half of the split, callable from the export engine's
-    worker replay where only JSON survives."""
+    worker replay where only JSON survives.
+
+    Times are UTC and an all-day event's days are its UTC dates, as stored, so
+    every client shows the file in its own zone."""
     cal = icalendar.Calendar()
     cal.add("prodid", "-//Initiative//EN")
     cal.add("version", "2.0")
@@ -174,14 +116,21 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
         vevent.add("uid", f"event-{event.get('id')}@initiative")
         vevent.add("summary", event.get("title") or "")
 
-        start_at = _dt(event["start_at"])
-        end_at = _dt(event["end_at"])
+        start_at = _dt(event["start_at"]).astimezone(timezone.utc)
+        end_at = _dt(event["end_at"]).astimezone(timezone.utc)
         if event.get("all_day"):
-            vevent.add("dtstart", start_at.date())
-            vevent.add("dtend", end_at.date())
+            # An all-day event runs to its last day's 23:59:59; DTEND is the
+            # day after, exclusive.
+            start_day = start_at.date()
+            last_day = max((end_at - timedelta(seconds=1)).date(), start_day)
+            vevent.add("dtstart", start_day)
+            vevent.add("dtend", last_day + timedelta(days=1))
         else:
-            vevent.add("dtstart", start_at.astimezone(timezone.utc))
-            vevent.add("dtend", end_at.astimezone(timezone.utc))
+            # A repeat's days are where it was picked, so the start is written
+            # in a fixed offset that puts it on that day.
+            zone = _picked_zone(start_at, event.get("recurrence_shift") or 0)
+            vevent.add("dtstart", start_at.astimezone(zone))
+            vevent.add("dtend", end_at.astimezone(zone))
 
         if event.get("description"):
             vevent.add("description", event["description"])
@@ -195,9 +144,22 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
                 "last-modified", _dt(event["updated_at"]).astimezone(timezone.utc)
             )
 
-        rrule = _recurrence_to_rrule(event.get("recurrence"))
-        if rrule:
-            vevent.add("rrule", rrule)
+        if event.get("recurrence"):
+            repeat = recurrence.parse(event["recurrence"])
+            vevent.add("rrule", repeat.rule)
+
+            # A skipped or extra start takes the start's own type.
+            def typed(value: date | datetime) -> date | datetime:
+                if event.get("all_day"):
+                    return value.date() if isinstance(value, datetime) else value
+                if isinstance(value, datetime):
+                    return value
+                return datetime.combine(value, start_at.timetz())
+
+            for value in repeat.exdates:
+                vevent.add("exdate", typed(value))
+            for value in repeat.rdates:
+                vevent.add("rdate", typed(value))
 
         for attendee in event.get("attendees") or []:
             email = attendee.get("email")
@@ -213,21 +175,25 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
 
         cal.add_component(vevent)
 
+    cal.add_missing_timezones()
     return cal.to_ical()
 
 
-def events_to_ical(
-    events: "List[tuple[CalendarEvent, Sequence[Related]]]",
-) -> bytes:
-    """Serialize events and their attachments to iCal bytes.
-
-    Takes pairs rather than a list plus a lookup: an event's attachments travel
-    WITH it, so nothing has to key them. Ids are unique only inside one guild's
-    schema, and this is fed by a walk across several.
-    """
-    return ical_from_export_dicts(
-        [event_export_dict(event, documents) for event, documents in events]
-    )
+def _picked_zone(start: datetime, shift: int) -> tzinfo:
+    """A fixed offset, in whole hours where it can be, whose date for ``start``
+    is the one the repeat was picked on (``app.core.recurrence``)."""
+    if shift == 0:
+        return timezone.utc
+    if shift % 1440 == 0:
+        hours = (
+            start - start.replace(hour=0, minute=0, second=0)
+        ).total_seconds() / 3600
+        offset = math.ceil(24 - hours) if shift > 0 else -(math.floor(hours) + 1)
+        offset = max(-12, min(14, offset))  # the offsets Etc/GMT names
+        return ZoneInfo(f"Etc/GMT{'-' if offset > 0 else '+'}{abs(offset)}")
+    if shift % 60 == 0:
+        return ZoneInfo(f"Etc/GMT{'-' if shift > 0 else '+'}{abs(shift) // 60}")
+    return timezone(timedelta(minutes=shift))
 
 
 async def documents_for_events(
@@ -262,81 +228,51 @@ async def documents_for_events(
 # ---------------------------------------------------------------------------
 
 
-def _rrule_to_recurrence(rrule) -> Optional[dict]:
-    """Convert an iCal RRULE to our EventRecurrence JSON dict. Best-effort."""
+def _repeat(component, start: datetime, zone: tzinfo) -> tuple[Optional[str], int]:
+    """A VEVENT's repeat and its shift, or none when it has none or uses parts
+    an event can't repeat by (a minutely rule, say).
+
+    The file's rule is kept as it is, its days picked in its start's own zone:
+    the ``TZID``, UTC, or for a floating time the importer's ``zone``. Its end,
+    skips and extra dates are moved to UTC."""
+    rule = component.get("rrule")
+    if rule is None or isinstance(rule, list):
+        return None, 0
+    picked_in = start.tzinfo or zone
+
+    def utc(value: date | datetime) -> date | datetime:
+        if not isinstance(value, datetime):
+            return value
+        aware = value if value.tzinfo else value.replace(tzinfo=picked_in)
+        return aware.astimezone(timezone.utc)
+
+    parts = {key.upper(): list(values) for key, values in rule.items()}
+    if until := parts.get("UNTIL"):
+        parts["UNTIL"] = [utc(until[0])]
     try:
-        freq = rrule.get("FREQ", [None])[0]
-        if not freq:
-            return None
-        freq_lower = freq.lower() if isinstance(freq, str) else freq
-
-        rec: dict = {"frequency": freq_lower}
-
-        interval = rrule.get("INTERVAL", [1])
-        if interval and interval[0] > 1:
-            rec["interval"] = interval[0]
-
-        byday = rrule.get("BYDAY", [])
-        if byday:
-            days = []
-            for d in byday:
-                day_str = str(d)
-                if len(day_str) > 2:
-                    pos_str = day_str[:-2]
-                    weekday = day_str[-2:]
-                    try:
-                        pos_num = int(pos_str)
-                        pos_name = _POSITION_REVERSE.get(pos_num)
-                        if pos_name:
-                            rec["monthly_mode"] = "weekday"
-                            rec["weekday_position"] = pos_name
-                            rec["weekday"] = weekday.upper()
-                    except ValueError:
-                        days.append(day_str.upper())
-                else:
-                    days.append(day_str.upper())
-            if days:
-                rec["weekdays"] = days
-
-        bymonthday = rrule.get("BYMONTHDAY", [])
-        if bymonthday:
-            rec["monthly_mode"] = "day_of_month"
-            rec["day_of_month"] = bymonthday[0]
-
-        bymonth = rrule.get("BYMONTH", [])
-        if bymonth:
-            rec["month"] = bymonth[0]
-
-        count = rrule.get("COUNT", [])
-        if count:
-            rec["ends"] = "after_occurrences"
-            rec["end_after_occurrences"] = count[0]
-
-        until = rrule.get("UNTIL", [])
-        if until:
-            rec["ends"] = "on_date"
-            end_val = until[0]
-            if isinstance(end_val, datetime):
-                rec["end_date"] = end_val.isoformat()
-            elif isinstance(end_val, date):
-                rec["end_date"] = datetime(
-                    end_val.year,
-                    end_val.month,
-                    end_val.day,
-                    tzinfo=timezone.utc,
-                ).isoformat()
-
-        if "ends" not in rec:
-            rec["ends"] = "never"
-
-        return rec
-    except Exception:
-        logger.warning("Failed to convert RRULE to recurrence", exc_info=True)
-        return None
+        kept = recurrence.normalize(
+            recurrence.Recurrence(
+                parts,
+                tuple(utc(value) for value in _dates(component.get("exdate"))),
+                tuple(utc(value) for value in _dates(component.get("rdate"))),
+            ).to_lines(),
+            kind="event",
+        )
+    except ValueError:
+        logger.info("iCal import kept an event without its repeat", exc_info=True)
+        return None, 0
+    return kept, recurrence.shift_for(kept, start, picked_in)
 
 
-def _extract_vevent(component) -> Optional[dict]:
-    """Extract event data from a VEVENT component."""
+def _dates(prop) -> List[date | datetime]:
+    lists = prop if isinstance(prop, list) else [prop] if prop else []
+    return [value.dt for dates in lists for value in dates.dts]
+
+
+def _extract_vevent(component, zone: tzinfo) -> Optional[dict]:
+    """Extract event data from a VEVENT component. An all-day event keeps its
+    dates as UTC dates, first midnight to last 23:59:59; a floating time is
+    read in ``zone``, the importer's."""
     summary = str(component.get("summary", "Untitled Event"))
     dtstart = component.get("dtstart")
     dtend = component.get("dtend")
@@ -345,38 +281,21 @@ def _extract_vevent(component) -> Optional[dict]:
         return None
 
     start_val = dtstart.dt
+    end_val = dtend.dt if dtend else start_val
     all_day = isinstance(start_val, date) and not isinstance(start_val, datetime)
 
     if all_day:
-        start_dt = datetime(
-            start_val.year,
-            start_val.month,
-            start_val.day,
-            tzinfo=timezone.utc,
-        )
-        if dtend:
-            end_val = dtend.dt
-            end_dt = datetime(
-                end_val.year,
-                end_val.month,
-                end_val.day,
-                tzinfo=timezone.utc,
-            )
-        else:
-            end_dt = start_dt
+        if isinstance(end_val, datetime):
+            end_val = end_val.date()
+        # DTEND is exclusive: the last day is the one before it.
+        last_day = max(end_val - timedelta(days=1), start_val)
+        start_dt = datetime.combine(start_val, time(), timezone.utc)
+        end_dt = datetime.combine(last_day, _END_OF_DAY, timezone.utc)
     else:
-        start_dt = (
-            start_val if start_val.tzinfo else start_val.replace(tzinfo=timezone.utc)
-        )
-        if dtend:
-            end_val = dtend.dt
-            end_dt = end_val if end_val.tzinfo else end_val.replace(tzinfo=timezone.utc)
-        else:
-            end_dt = start_dt
+        start_dt = start_val if start_val.tzinfo else start_val.replace(tzinfo=zone)
+        end_dt = end_val if end_val.tzinfo else end_val.replace(tzinfo=zone)
 
-    rrule = component.get("rrule")
-    recurrence = _rrule_to_recurrence(rrule) if rrule else None
-
+    repeat, shift = _repeat(component, start_dt, zone)
     return {
         "summary": summary,
         "description": str(component.get("description", "")) or None,
@@ -384,12 +303,14 @@ def _extract_vevent(component) -> Optional[dict]:
         "start_at": start_dt,
         "end_at": end_dt,
         "all_day": all_day,
-        "recurrence": recurrence,
+        "recurrence": repeat,
+        "recurrence_shift": shift,
     }
 
 
-def parse_ical(content: str) -> ICalParseResult:
+def parse_ical(content: str, tz: Optional[str] = None) -> ICalParseResult:
     """Parse an .ics string and return a preview of found events."""
+    zone = resolve_zone(tz)
     cal = icalendar.Calendar.from_ical(content)
     events: List[ICalEventPreview] = []
     has_recurring = False
@@ -397,7 +318,7 @@ def parse_ical(content: str) -> ICalParseResult:
     for component in cal.walk():
         if component.name != "VEVENT":
             continue
-        data = _extract_vevent(component)
+        data = _extract_vevent(component, zone)
         if not data:
             continue
         has_rec = data["recurrence"] is not None
@@ -425,12 +346,14 @@ def build_calendar_events(
     calendar_id: int,
     guild_id: int,
     created_by: int,
+    tz: Optional[str] = None,
 ) -> Tuple[List[CalendarEvent], List[str], int]:
     """Parse .ics content and build CalendarEvent model instances attached to
     the target calendar.
 
     Returns (events, errors, skipped_count). Does NOT persist — caller handles that.
     """
+    zone = resolve_zone(tz)
     cal = icalendar.Calendar.from_ical(content)
     events: List[CalendarEvent] = []
     errors: List[str] = []
@@ -440,7 +363,7 @@ def build_calendar_events(
         if component.name != "VEVENT":
             continue
         try:
-            data = _extract_vevent(component)
+            data = _extract_vevent(component, zone)
             if not data:
                 errors.append("Skipped event with no start date")
                 skipped += 1
@@ -454,15 +377,15 @@ def build_calendar_events(
                 start_at=data["start_at"],
                 end_at=data["end_at"],
                 all_day=data["all_day"],
-                recurrence=json.dumps(data["recurrence"])
-                if data["recurrence"]
-                else None,
+                recurrence=data["recurrence"],
+                recurrence_shift=data["recurrence_shift"],
                 created_by=created_by,
             )
             events.append(event)
-        except Exception as exc:
+        except Exception:
             summary = str(component.get("summary", "Unknown"))
-            errors.append(f"Failed to import '{summary}': {exc}")
+            logger.exception("iCal import could not read event %r", summary)
+            errors.append(f"Failed to import '{summary}'")
             skipped += 1
 
     return events, errors, skipped

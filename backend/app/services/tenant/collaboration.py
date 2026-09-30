@@ -30,11 +30,13 @@ from sqlmodel import select
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.services.content_sockets import resource_room, sockets
+from app.services.tenant import attachments as attachments_service
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
     YJS_UPDATED_COLUMN,
     resource_for,
 )
+from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,8 @@ class CollaborationRoom:
         # rendering of the document is only current if it came from the tab
         # that last moved it.
         self._last_writer: Any = None
+        #: Everyone who has changed the document in this room.
+        self.writers: set[int] = set()
         # A room dropped from the registry. Nothing should reach one — the
         # registry only drops rooms with no connections — but a write that does
         # would go nowhere, so it says so instead of swallowing it.
@@ -146,10 +150,12 @@ class CollaborationRoom:
             if self._loaded:
                 return
             spec = resource_for(self.resource_type)
-            statement = select(spec.model).where(spec.model.id == self.resource_id)
+            statement = select(
+                spec.model.id, getattr(spec.model, YJS_STATE_COLUMN)
+            ).where(spec.model.id == self.resource_id)
             row = (await session.exec(statement)).one_or_none()
             if row:
-                await self.initialize_from_db(yjs_state=getattr(row, YJS_STATE_COLUMN))
+                await self.initialize_from_db(yjs_state=row[1])
             self._loaded = True
 
     async def initialize_from_db(self, yjs_state: Optional[bytes]) -> None:
@@ -223,11 +229,15 @@ class CollaborationRoom:
             for client, clock in _clocks(self.state_vector()).items()
         )
 
-    def apply_update(self, update: bytes, connection: Any = None) -> None:
-        """Apply a Yjs update from a client."""
+    def apply_update(
+        self, update: bytes, connection: Any = None, user_id: int | None = None
+    ) -> None:
+        """Apply a Yjs update from a client, sent by ``user_id``."""
         self.doc.apply_update(update)
         self._revision += 1
         self._last_writer = connection
+        if user_id is not None:
+            self.writers.add(user_id)
 
     def offer_content(self, content: dict, connection: Any = None) -> bool:
         """Record the JSON an editor says this document now reads as.
@@ -414,7 +424,7 @@ class CollaborationManager:
         them depends on whose request happened to be last in the room.
         """
         async with cohorts.system_session(room.guild_id) as session:
-            await set_rls_context(session, guild_id=room.guild_id)
+            await set_rls_context(session, SystemGuild(room.guild_id))
             await self._write_room(room, session)
 
     async def leave(self, guild_id: int, resource_type: str, resource_id: int) -> None:
@@ -479,6 +489,15 @@ class CollaborationManager:
                 .where(spec.model.id == room.resource_id)
                 .values(**values)
             )
+            if content is not None and result.rowcount:
+                # The files its writers uploaded are claimed. Nothing is copied:
+                # the content is the editors' rendering of the room's document,
+                # which the next save writes again as they hold it.
+                await attachments_service.claim_uploads(
+                    session,
+                    await session.get(spec.model, room.resource_id),
+                    uploaded_by=room.writers,
+                )
             await session.commit()
             if result.rowcount:
                 room.mark_persisted(revision)

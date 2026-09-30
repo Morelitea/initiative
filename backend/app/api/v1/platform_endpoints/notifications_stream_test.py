@@ -11,11 +11,10 @@ the endpoint did to it.
 """
 
 import asyncio
+from typing import AsyncIterator
 
 import pytest
 from fastapi import WebSocketDisconnect
-from sqlalchemy.ext.asyncio import async_sessionmaker
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import content_socket
 from app.api.content_socket import MSG_AUTH
@@ -25,8 +24,8 @@ from app.api.v1.platform_endpoints.notifications import (
     websocket_notifications,
 )
 from app.core.security import SESSION_COOKIE_NAME
-from app.services.platform import presence, user_stream
-from app.services.platform.user_stream import UserStream
+from app.services.content_sockets import ContentSockets, account_room
+from app.services.platform import presence
 from app.testing import create_user, get_auth_token
 
 WS_POLICY_VIOLATION = 1008
@@ -78,25 +77,21 @@ def _auth_frame(payload: bytes) -> bytes:
 
 
 @pytest.fixture
-def stream(monkeypatch) -> UserStream:
-    """A registry of this test's own, so assertions see only its sockets."""
-    fresh = UserStream()
-    monkeypatch.setattr(user_stream, "stream", fresh)
-    return fresh
+async def register(monkeypatch) -> AsyncIterator[ContentSockets]:
+    """A register of this test's own, so assertions see only its sockets."""
+    fresh = ContentSockets()
+    monkeypatch.setattr(notifications_endpoint, "sockets", fresh)
+    yield fresh
+    for websocket in list(fresh._subs):
+        fresh.leave(websocket)
 
 
-@pytest.fixture
-def ws_sessions(monkeypatch, engine):
-    """Point the endpoint's own short-lived session factory at the test DB."""
-    monkeypatch.setattr(
-        notifications_endpoint,
-        "AsyncSessionLocal",
-        async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession),
-    )
+def _held(register: ContentSockets, user_id: int) -> int:
+    return register.room_size(account_room(user_id))
 
 
 async def test_a_valid_token_joins_and_then_leaves_the_registry(
-    session, stream, ws_sessions
+    session, register
 ) -> None:
     user = await create_user(session)
     await session.commit()
@@ -109,11 +104,11 @@ async def test_a_valid_token_joins_and_then_leaves_the_registry(
     assert websocket.closed_with is None
     # The keepalive loop ended with the client's disconnect, and the socket
     # left with it.
-    assert len(stream._sockets.get(user.id, ())) == 0
+    assert _held(register, user.id) == 0
 
 
 async def test_the_socket_is_registered_while_the_loop_runs(
-    session, stream, ws_sessions, monkeypatch
+    session, register, monkeypatch
 ) -> None:
     """The registry entry has to exist *during* the socket's life, which the
     disconnect above tears down before we can look at it."""
@@ -129,7 +124,7 @@ async def test_the_socket_is_registered_while_the_loop_runs(
     async def receive() -> dict:
         if websocket.pending:
             return await handshake()
-        counted.append(len(stream._sockets.get(user.id, ())))
+        counted.append(_held(register, user.id))
         return {"type": "websocket.disconnect", "code": 1000}
 
     monkeypatch.setattr(websocket, "receive", receive)
@@ -139,7 +134,7 @@ async def test_the_socket_is_registered_while_the_loop_runs(
 
 
 async def test_a_session_cookie_stands_in_for_a_null_token(
-    session, stream, ws_sessions, monkeypatch
+    session, register, monkeypatch
 ) -> None:
     """Web sessions hold the JWT in an HttpOnly cookie the page cannot read, so
     they send ``{"token": null}`` and the socket reads the cookie itself."""
@@ -157,7 +152,7 @@ async def test_a_session_cookie_stands_in_for_a_null_token(
     async def receive() -> dict:
         if websocket.pending:
             return await handshake()
-        counted.append(len(stream._sockets.get(user.id, ())))
+        counted.append(_held(register, user.id))
         return {"type": "websocket.disconnect", "code": 1000}
 
     monkeypatch.setattr(websocket, "receive", receive)
@@ -168,7 +163,7 @@ async def test_a_session_cookie_stands_in_for_a_null_token(
 
 
 async def test_an_active_frame_marks_its_person_present(
-    session, stream, ws_sessions, monkeypatch
+    session, register, monkeypatch
 ) -> None:
     """The one frame the client sends back says its person is at the keyboard,
     and names nobody — the socket already knows whose it is."""
@@ -188,7 +183,7 @@ async def test_an_active_frame_marks_its_person_present(
     assert websocket.closed_with is None
 
 
-async def test_an_invalid_token_is_refused(session, stream, ws_sessions) -> None:
+async def test_an_invalid_token_is_refused(session, register) -> None:
     websocket = FakeWebSocket([_auth_frame(b'{"token": "not-a-token"}')])
 
     await websocket_notifications(websocket)
@@ -196,7 +191,7 @@ async def test_an_invalid_token_is_refused(session, stream, ws_sessions) -> None
     assert websocket.closed_with == WS_POLICY_VIOLATION
 
 
-async def test_a_revoked_token_is_refused(session, stream, ws_sessions) -> None:
+async def test_a_revoked_token_is_refused(session, register) -> None:
     """Logout / password change revoke by bumping ``token_version``; the socket
     must honour that the same way the REST path does."""
     user = await create_user(session)
@@ -210,10 +205,10 @@ async def test_a_revoked_token_is_refused(session, stream, ws_sessions) -> None:
     await websocket_notifications(websocket)
 
     assert websocket.closed_with == WS_POLICY_VIOLATION
-    assert len(stream._sockets.get(user.id, ())) == 0
+    assert _held(register, user.id) == 0
 
 
-async def test_a_first_frame_that_is_not_msg_auth_is_refused(stream) -> None:
+async def test_a_first_frame_that_is_not_msg_auth_is_refused(register) -> None:
     websocket = FakeWebSocket([bytes([0]) + b"{}"])
 
     await websocket_notifications(websocket)
@@ -221,7 +216,7 @@ async def test_a_first_frame_that_is_not_msg_auth_is_refused(stream) -> None:
     assert websocket.closed_with == WS_POLICY_VIOLATION
 
 
-async def test_a_malformed_auth_payload_is_refused(stream) -> None:
+async def test_a_malformed_auth_payload_is_refused(register) -> None:
     websocket = FakeWebSocket([_auth_frame(b"not json")])
 
     await websocket_notifications(websocket)
@@ -229,7 +224,7 @@ async def test_a_malformed_auth_payload_is_refused(stream) -> None:
     assert websocket.closed_with == WS_POLICY_VIOLATION
 
 
-async def test_no_token_and_no_cookie_is_refused(stream) -> None:
+async def test_no_token_and_no_cookie_is_refused(register) -> None:
     websocket = FakeWebSocket([_auth_frame(b'{"token": null}')])
 
     await websocket_notifications(websocket)
@@ -238,7 +233,7 @@ async def test_no_token_and_no_cookie_is_refused(stream) -> None:
 
 
 async def test_a_socket_that_never_sends_its_first_frame_is_closed(
-    stream, monkeypatch
+    register, monkeypatch
 ) -> None:
     """An accepted socket is not held open waiting for a frame that may never
     come."""
@@ -256,7 +251,7 @@ async def test_a_socket_that_never_sends_its_first_frame_is_closed(
     assert websocket.sent == []
 
 
-async def test_hanging_up_before_authenticating_registers_nothing(stream) -> None:
+async def test_hanging_up_before_authenticating_registers_nothing(register) -> None:
     websocket = FakeWebSocket([])
 
     await websocket_notifications(websocket)
@@ -266,19 +261,17 @@ async def test_hanging_up_before_authenticating_registers_nothing(stream) -> Non
 
 
 async def test_the_socket_closes_when_its_sign_in_ends(
-    session, stream, ws_sessions, monkeypatch
+    session, register, monkeypatch
 ) -> None:
     """The bell is its account's socket in the register: a re-check while the
     sign-in stands leaves it open, and one after the sign-in ends closes it."""
     from sqlalchemy import update
 
     from app.models.platform.user import User
-    from app.services.content_sockets import WS_CREDENTIAL_ENDED, ContentSockets
+    from app.services.content_sockets import WS_CREDENTIAL_ENDED
 
     from app.services.auth import sessions as session_service
 
-    register = ContentSockets()
-    monkeypatch.setattr(notifications_endpoint, "sockets", register)
     user = await create_user(session)
     issued = await session_service.create_session(
         session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
@@ -308,4 +301,4 @@ async def test_the_socket_closes_when_its_sign_in_ends(
     await websocket_notifications(websocket)
 
     assert seen == [None, WS_CREDENTIAL_ENDED]
-    assert len(stream._sockets.get(user.id, ())) == 0
+    assert _held(register, user.id) == 0

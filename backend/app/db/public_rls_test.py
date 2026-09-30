@@ -28,6 +28,8 @@ from app.db.public_rls import (
 )
 from app.db.system_grants import GRANTABLE_SHARED_TABLES
 
+pytestmark = pytest.mark.always
+
 # --- unit ---------------------------------------------------------------------
 
 

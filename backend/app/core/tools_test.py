@@ -12,7 +12,11 @@ The plain ``set(registry) == set(enum)`` rows live together in
 ``app/core/registry_coverage_test.py``, one row per registry.
 """
 
+import pytest
+
 from app.core.tools import Tool
+
+pytestmark = pytest.mark.always
 
 
 def test_trash_listing_covers_every_soft_delete_model():
@@ -308,12 +312,13 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     assert set(enum_values) == {t.value for t in Tool}
 
 
-def test_every_tool_mounts_both_recent_view_routes():
-    # Opening and closing a tab is one pair of routes, mounted from the
-    # resource-access registry for every tool (tenant_endpoints/tool_views.py).
-    # The exact equality means a tool that loses a half — or a hand-written
-    # copy added back somewhere else — fails here. The operation ids are
-    # asserted too: they are the generated frontend client's function names.
+def test_every_tool_mounts_the_recent_view_route():
+    # Opening a tab is one route, mounted from the resource-access registry for
+    # every tool (tenant_endpoints/tool_views.py); closing one is
+    # tenant_endpoints/recents.py. The exact equality means a tool that loses
+    # its route — or a hand-written copy added back somewhere else — fails here.
+    # The operation ids are asserted too: they are the generated frontend
+    # client's function names.
     from app.api.resource_access import RESOURCE_ACCESS
     from app.main import app
 
@@ -332,9 +337,8 @@ def test_every_tool_mounts_both_recent_view_routes():
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
         )
         item = spec["paths"][path]
-        assert set(item) == {"post", "delete"}, tool
+        assert set(item) == {"post"}, tool
         assert item["post"]["operationId"].startswith(f"record_{tool.value}_view")
-        assert item["delete"]["operationId"].startswith(f"clear_{tool.value}_view")
 
 
 def test_every_tool_mounts_both_list_routes():
@@ -463,9 +467,9 @@ def test_export_adapters_cover_exactly_the_bulk_export_tools():
     derived = {tool_export_source(tool) for tool in BULK_EXPORT_TOOLS}
     extra = set(ADAPTERS) - derived
     assert derived <= set(ADAPTERS), f"missing adapters for {derived - set(ADAPTERS)}"
-    # "tasks" is a project sub-resource (the filterable task list), not a
+    # "tasks" and "events" are the filterable task and event lists, not a
     # Tool; "initiative"/"guild" are the aggregate backup/report scopes.
-    allowed = {"tasks", "initiative", "guild"}
+    allowed = {"tasks", "events", "initiative", "guild"}
     assert extra == allowed, f"unregistered export sources: {extra - allowed}"
     # Tools without the flag must not silently grow an adapter either.
     unflagged = {

@@ -27,8 +27,13 @@ vi.mock("@/api/generated/communities/communities", () => ({
 }));
 
 vi.mock("@/hooks/useUsers", () => ({
-  useUsers: () => ({ data: [], isLoading: false, isError: false }),
-  useApproveUser: () => ({ mutate: vi.fn() }),
+  USER_ID_LOOKUP_MAX: 100,
+  useUsers: () => ({
+    data: { items: [], total_count: 0, page: 1, page_size: 20, has_next: false, has_prev: false },
+    isLoading: false,
+    isError: false,
+  }),
+  useUserSearch: () => ({ data: undefined, isFetching: false }),
   useUpdateGuildMembership: () => ({ mutate: vi.fn() }),
   useExportGuildUsersCsv: () => ({ mutate: vi.fn() }),
 }));

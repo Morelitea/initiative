@@ -7,6 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.schema_provisioning import provision_guild
+from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.db.tenancy import GUILD_SCOPED_TABLES
 from app.models.platform.guild import Guild, GuildCategory, GuildMembership, GuildRole
@@ -121,7 +122,7 @@ async def open_community(
         [users[name] for name in spec["members"]],
         admins=[users[name] for name in spec["admins"]],
     )
-    await set_rls_context(session, guild_id=guild.id)
+    await set_rls_context(session, SystemGuild(guild.id))
     # Normally one row is inserted when a community is made, but the startup
     # back-fill can leave the table empty — create the row if it isn't there.
     await get_or_create_guild_settings(session, guild.id)
@@ -143,7 +144,7 @@ async def create_guild(
     exists. A bootstrap write with no community to be admin of yet, so it runs
     on the system engine at the bare login-role baseline.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild = await guilds_service.create_guild(
         session, name=name, description=description, creator=creator
     )
@@ -164,7 +165,7 @@ async def add_members(
     Membership rows carrying a role are a system-engine write, so any community
     routing left from a previous community is reset first.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     admin_ids = {u.id for u in admins or []}
     for user in users:
         role = GuildRole.admin if user.id in admin_ids else GuildRole.member
@@ -251,7 +252,7 @@ async def seat_superadmin(session: AsyncSession, user: User) -> int:
     is covered — the primary community included, which the seed finds rather
     than creates. Idempotent: a re-run leaves the rows it already wrote.
     """
-    await set_rls_context(session)
+    await set_rls_context(session, Unattributed())
     guild_ids = (await session.exec(select(Guild.id).order_by(Guild.id))).all()
     seated = 0
     for guild_id in guild_ids:

@@ -39,6 +39,7 @@ from app.testing import (
     create_task,
     route_system,
 )
+from app.db.request_context import SystemGuild
 
 
 async def _entries(
@@ -204,7 +205,7 @@ async def test_the_entry_is_full_text_searchable(session, acting_user):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="quarterly vendor renewal")
 
-    await set_rls_context(session, guild_id=a.guild.id)
+    await set_rls_context(session, SystemGuild(a.guild.id))
     found = await session.exec(
         text(
             "SELECT title FROM search_entries "

@@ -108,7 +108,9 @@ async def test_a_render_that_lost_its_row_writes_nothing(
             row.updated_at = datetime.now(timezone.utc)
             session.add(row)
             await session.commit()
-            return export_engine.ArtifactLocation(artifact_ref="exports/lost.pdf")
+            return frozenset(), export_engine.ArtifactLocation(
+                artifact_ref="exports/lost.pdf"
+            )
         return await real_execute(
             bookkeeping, running, guild_id=guild_id, heartbeat=heartbeat
         )
