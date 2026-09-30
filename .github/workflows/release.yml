@@ -32,8 +32,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  options:
+    # Before anyone is asked to approve: a combination promote.sh refuses.
+    name: Check the options
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Refuse a fresh app build without a version bump
+        if: inputs.kind == 'docs' && inputs.force-native
+        run: |
+          echo "::error::force-native builds the app for a new version; docs promotes no version."
+          exit 1
+
   promote:
     name: promote.sh --${{ inputs.kind }}
+    needs: options
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: release
@@ -48,7 +61,9 @@ jobs:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           # What promote.sh does: push a branch, open a labelled pull request,
-          # and read CI on dev.
+          # and read CI on dev. The release branch is cut from dev, whose
+          # workflows usually differ from main's, and GitHub refuses an app's
+          # push of such a branch without the workflows grant.
           permission-contents: write
           permission-pull-requests: write
           permission-issues: write
