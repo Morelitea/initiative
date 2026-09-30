@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A `stable` image tag.** We promote a release to it by hand once that release has been out at least three days with no open regression reported against it, while `latest` moves with every release. The bug report form asks for the version and how the server is set up, and reports are grouped by version.
 - **Change one occurrence of a repeating event.** Moving, renaming or re-inviting a repeating event (including dragging it on the calendar) asks whether it's for just this event, events after this point, or all events in the series. One occurrence changed on its own keeps following the series in everything else, and an occurrence can be skipped and brought back, added as an extra date, or made its own event. Answering an invitation is always for one occurrence, and attendees can do it without edit rights on the calendar; reminders follow those answers.
 - **Occurrences in the API and in exports.** `PATCH`, `DELETE` and `PUT …/attendees` on a calendar event take `scope` (`this`, `following`, `all`) and `occurrence`, and `PATCH …/rsvp` on a repeating event names its `occurrence`: an answer is for one event. New `POST …/occurrences` (`/detach`, `/restore`, `/add`) endpoints act on one occurrence. An occurrence changed alone reads as an event with `series_id` and `original_start`, and iCal exports carry it as the series' `UID` with a `RECURRENCE-ID`, which imports read back.
 

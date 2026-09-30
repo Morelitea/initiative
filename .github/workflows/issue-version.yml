@@ -1,0 +1,47 @@
+name: Label Issue Version
+
+# Labels a bug report with the version it names ("version: X.Y.Z"), so the
+# open regressions against a release are a search. Promote Stable reads it.
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    if: contains(github.event.issue.labels.*.name, 'bug')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Label the version the report names
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          # The report's own text: read from the environment, never
+          # interpolated into the script.
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          # The bug form renders its Version field as "### Version", then the
+          # answer on the next line that has text.
+          version=$(awk '/^### Version/ { found = 1; next } found && NF { print; exit }' <<< "$BODY" \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)
+          label="${version:+version: $version}"
+          # An edit that changes or clears the version takes the old label
+          # off, so a report counts only against the version it names now.
+          gh api "repos/$REPO/issues/$NUMBER/labels" -q '.[].name' | while read -r name; do
+            if [[ "$name" == "version: "* && "$name" != "$label" ]]; then
+              gh issue edit "$NUMBER" -R "$REPO" --remove-label "$name"
+            fi
+          done
+          if [[ -z "$label" ]]; then
+            echo "The report names no version."
+            exit 0
+          fi
+          gh label create "$label" -R "$REPO" --color ededed \
+            --description "Reported against $version" 2>/dev/null || true
+          gh issue edit "$NUMBER" -R "$REPO" --add-label "$label"
+          echo "Labelled #$NUMBER $label"
