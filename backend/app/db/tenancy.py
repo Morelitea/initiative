@@ -379,6 +379,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # Roster rows: the membership IS the fact, and ``user_id`` already names
         # whose it is.
         "calendar_event_attendees",
+        "calendar_event_answers",
         "initiative_members",
         "initiative_role_permissions",
         "task_assignees",

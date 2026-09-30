@@ -62,6 +62,7 @@ from app.models.platform.user_notification_prefs import (
 from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar_event import (
     CalendarEvent,
+    CalendarEventAnswer,
     CalendarEventAttendee,
     RSVPStatus,
 )
@@ -1653,6 +1654,35 @@ def _starts(
     return [start for start in starts if start > lower]
 
 
+async def _left_out(
+    session: AsyncSession, event_ids: Iterable[int]
+) -> tuple[dict[int, set[datetime]], set[tuple[int, int, datetime]]]:
+    """Occurrences of repeating events a reminder leaves out: those with a row
+    of their own, which is reminded of as itself, and (by attendee) those
+    declined alone."""
+    from app.services.tenant import calendar_occurrences
+
+    ids = sorted(set(event_ids))
+    if not ids:
+        return {}, set()
+    declined = (
+        await session.exec(
+            select(
+                CalendarEventAnswer.calendar_event_id,
+                CalendarEventAnswer.user_id,
+                CalendarEventAnswer.original_start,
+            ).where(
+                CalendarEventAnswer.calendar_event_id.in_(ids),
+                CalendarEventAnswer.rsvp_status == RSVPStatus.declined,
+            )
+        )
+    ).all()
+    return (
+        await calendar_occurrences.changed_starts(session, ids),
+        {(event_id, user_id, start) for event_id, user_id, start in declined},
+    )
+
+
 def _overdue_assignments(*columns: Any) -> Any:
     """Assigned, unfinished, past-due tasks in the routed guild schema.
 
@@ -2247,9 +2277,13 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                 )
             ).all()
         )
+        changed, declined = await _left_out(routed, {row[1] for row in rows if row[3]})
         for user_id, event_id, start_at, repeat, shift in rows:
             if any(
-                start - lead[user_id] <= now and (event_id, user_id, start) not in sent
+                start - lead[user_id] <= now
+                and (event_id, user_id, start) not in sent
+                and (event_id, user_id, start) not in declined
+                and start not in changed.get(event_id, ())
                 for start in _starts(start_at, repeat, shift, lower, horizon)
             ):
                 due_in.setdefault(user_id, set()).add(guild_id)
@@ -2275,6 +2309,9 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
             .all()
         )
         # Capture before the per-reminder commits expire/detach the rows.
+        changed, declined = await _left_out(
+            session, {event.id for event in events if event.recurrence}
+        )
         due = [
             (event.id, start)
             for event in events
@@ -2286,6 +2323,8 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                 horizon,
             )
             if start - lead[user_id] <= now
+            and (event.id, user_id, start) not in declined
+            and start not in changed.get(event.id, ())
         ]
         # A repeat's reminder opens the occurrence it is about.
         repeating = {event.id for event in events if event.recurrence}

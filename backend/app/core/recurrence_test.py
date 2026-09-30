@@ -171,3 +171,49 @@ def test_imports_read_either_shape():
     assert recurrence.imported(
         {"frequency": "hourly"}, kind="event", start=EAST, tz=None
     ) == (None, 0)
+
+
+def test_a_series_splits_skips_and_takes_extra_starts():
+    """Weekly on Mondays at 06:30 UTC from 5 October, three times: cut at the
+    second it is one Monday and the rest; a skip, a restore and an extra start
+    are lines the rule keeps when it is written again."""
+    start = datetime(2026, 10, 5, 6, 30, tzinfo=UTC)
+    second = start + timedelta(weeks=1)
+    rule = "RRULE:FREQ=WEEKLY;COUNT=3;BYDAY=MO"
+    assert recurrence.split(rule, start, 0, second) == (
+        "RRULE:FREQ=WEEKLY;COUNT=1;BYDAY=MO",
+        "RRULE:FREQ=WEEKLY;COUNT=2;BYDAY=MO",
+    )
+    assert recurrence.split(rule, start, 0, start)[0] is None
+    head, tail = recurrence.split("RRULE:FREQ=WEEKLY", start, 0, second)
+    assert head == "RRULE:FREQ=WEEKLY;UNTIL=20261012T062959Z"
+    assert tail == "RRULE:FREQ=WEEKLY"
+
+    skipped = recurrence.skipped(rule, 0, second)
+    assert recurrence.first(skipped, start, 0, 3) == [start, start + timedelta(weeks=2)]
+    assert recurrence.exception_starts(skipped, start, 0) == ([second], [])
+    assert recurrence.restored(skipped, 0, second) == rule
+    extra = recurrence.with_extra(rule, 0, datetime(2026, 10, 7, 9, tzinfo=UTC))
+    assert recurrence.kept_exceptions("RRULE:FREQ=DAILY", extra) == (
+        "RRULE:FREQ=DAILY\nRDATE:20261007T090000Z"
+    )
+    # An extra start taken out again is gone, not skipped.
+    assert recurrence.skipped(extra, 0, datetime(2026, 10, 7, 9, tzinfo=UTC)) == rule
+    assert recurrence.occurs(rule, start, 0, second)
+    assert not recurrence.occurs(rule, start, 0, second + timedelta(hours=1))
+    # Every four hours, moved half an hour: each start moves by as much, rather
+    # than every start of a day to one time. At named hours, each keeps its
+    # hour and takes the new minute.
+    later = start + timedelta(minutes=30)
+    assert recurrence.rehomed(
+        "RRULE:FREQ=HOURLY;INTERVAL=4", start + timedelta(hours=8), 0, 0, start, later
+    ) == start + timedelta(hours=8, minutes=30)
+    nine = datetime(2026, 10, 5, 9, tzinfo=UTC)
+    assert recurrence.rehomed(
+        "RRULE:FREQ=DAILY;BYHOUR=9,17",
+        nine + timedelta(hours=8),
+        0,
+        0,
+        nine,
+        nine + timedelta(hours=2, minutes=30),
+    ) == nine + timedelta(hours=8, minutes=30)
