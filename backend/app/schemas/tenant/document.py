@@ -68,12 +68,9 @@ class DocumentUpdate(SanitizedBaseModel):
     is_template: Optional[bool] = None
 
 
-class DocumentDuplicateRequest(SanitizedBaseModel):
-    name: Optional[str] = None
-
-
 class DocumentCopyRequest(SanitizedBaseModel):
-    target_initiative_id: int
+    #: Omitted, the copy lands in the source document's own initiative.
+    target_initiative_id: Optional[int] = None
     name: Optional[str] = None
 
 

@@ -447,19 +447,14 @@ def visible_project_conditions(
     return conditions
 
 
-async def _visible_projects(
-    session: SessionDep, current_user: User, *, action: Action | None = None
-) -> List[Project]:
-    """The live, non-template projects the user's sharing reaches — only those
-    the request may take ``action`` on, when it names one."""
+async def _visible_projects(session: SessionDep, current_user: User) -> List[Project]:
+    """The live, non-template projects the user's sharing reaches."""
     conditions = visible_project_conditions(
         current_user.id,
         context=require_guild_context(session),
         archived=None,
         template=None,
     )
-    if action is not None:
-        conditions.append(Project.actions.any(action.value))
     base_statement = select(Project).where(*conditions).options(*project_load_options())
     result = await session.exec(base_statement)
     return list(result.all())
@@ -731,19 +726,6 @@ async def _project_read_for_user(
 ) -> ProjectRead:
     payloads = await _project_reads_with_order(session, user_id, [project])
     return payloads[0]
-
-
-@router.get("/writable", response_model=List[ProjectRead])
-async def list_writable_projects(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[ProjectRead]:
-    return await _project_reads_with_order(
-        session,
-        current_user.id,
-        await _visible_projects(session, current_user, action=Action.edit),
-    )
 
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)

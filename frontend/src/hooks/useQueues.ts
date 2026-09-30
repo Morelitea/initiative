@@ -17,7 +17,6 @@ import {
   releaseHeldItemApiV1CGuildIdQueuesQueueIdReleaseItemIdPost,
   resetQueueApiV1CGuildIdQueuesQueueIdResetPost,
   setActiveItemApiV1CGuildIdQueuesQueueIdSetActiveItemIdPost,
-  setQueueItemTagsApiV1CGuildIdQueuesQueueIdItemsItemIdTagsPut,
   startQueueApiV1CGuildIdQueuesQueueIdStartPost,
   stopQueueApiV1CGuildIdQueuesQueueIdStopPost,
   updateQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdPatch,
@@ -562,22 +561,6 @@ export const useReleaseHeld = (
 };
 
 // ── Item Association Mutations ──────────────────────────────────────────────
-
-export const useSetQueueItemTags = (
-  queueId: number,
-  options?: MutationOpts<QueueItemRead, { itemId: number; tagIds: number[] }>
-) =>
-  useGuildMutation<QueueItemRead, { itemId: number; tagIds: number[] }>(
-    {
-      mutationFn: (guildId, { itemId, tagIds }) =>
-        setQueueItemTagsApiV1CGuildIdQueuesQueueIdItemsItemIdTagsPut(guildId, queueId, itemId, {
-          tag_ids: tagIds,
-        }),
-      invalidate: () => invalidateQueueAndList(queueId),
-      errorKey: "queues:error",
-    },
-    options
-  );
 
 /**
  * Set everything a queue item is linked to, whatever kinds those are.

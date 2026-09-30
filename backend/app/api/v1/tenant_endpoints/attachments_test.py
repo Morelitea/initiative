@@ -338,7 +338,7 @@ async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
     await session.commit()
 
     duplicate = await client.post(
-        a.g(f"/documents/{first.id}/duplicate"), headers=a.headers, json={"name": "C"}
+        a.g(f"/documents/{first.id}/copy"), headers=a.headers, json={"name": "C"}
     )
     assert duplicate.status_code == 201, duplicate.text
     copy = duplicate.json()["content"]["root"]["children"][0]["src"]

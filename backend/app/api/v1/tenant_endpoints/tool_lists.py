@@ -1,11 +1,12 @@
-"""Tool lists and their sidebar counts — one pair of routes per tool, mounted once.
+"""Tool lists and their sidebar counts — a list per tool, and one count for all.
 
-``GET /`` and ``GET /counts/by-initiative`` were nine copies each of the same
-hundred lines: scope the guild, honour the tool's switch, apply sharing, narrow
-by the search box and the tag filter, count, order, page, annotate, serialize.
-None of that depends on which tool it is beyond the model, what to eager-load
-and how a row becomes a summary — so the pair is mounted per ``Tool`` out of
-:data:`TOOL_LISTS` rather than written nine times over. The query itself is
+``GET /`` was nine copies of the same hundred lines: scope the guild, honour
+the tool's switch, apply sharing, narrow by the search box and the tag filter,
+count, order, page, annotate, serialize. None of that depends on which tool it
+is beyond the model, what to eager-load and how a row becomes a summary — so
+the list is mounted per ``Tool`` out of :data:`TOOL_LISTS` rather than written
+nine times over, and ``GET /tools/counts/by-initiative`` answers every tool's
+sidebar badge from the same registry in one statement. The query itself is
 :mod:`app.services.tenant.tool_listing`; the per-tool differences that survive
 are the registry's fields, and each is commented where it sits.
 
@@ -19,9 +20,8 @@ is what has been *granted* to the reader — the same rule their sidebar and the
 community front page list initiatives by. A badge that counted an admin's whole
 guild would not be a badge about them.
 
-Each route keeps the path, method, tag, name, summary and parameters its tool
-already had, so the published surface and the generated client are unchanged
-but for the ``tag_ids`` filter every tool now accepts.
+Each list keeps the path, method, tag, name, summary and parameters its tool
+already had.
 
 :data:`TOOL_LISTS` also carries each tool's **single-row** answer — its Read
 model and its own re-read-and-serialize — because that is the same per-tool
@@ -104,7 +104,7 @@ from app.schemas.tenant.gallery import (
     GalleryRead,
     GallerySummary,
 )
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
+from app.schemas.tenant.initiative import ToolCountsByInitiativeResponse
 from app.schemas.tenant.post import PostListResponse, PostRead
 from app.schemas.tenant.project import ProjectListResponse, ProjectRead
 from app.schemas.tenant.queue import (
@@ -118,6 +118,7 @@ from app.schemas.tenant.wiki import (
     WikiSummary,
 )
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
+from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
@@ -308,12 +309,11 @@ class ToolListSpec:
     extra_sort_fields: Optional[dict[str, Any]] = None
     #: (req) -> statement transform applied before ORDER BY reads it.
     refine: Optional[Callable[["ListRequest"], Callable[[Any], Any]]] = None
-    #: (user, guild_context) -> extra WHERE legs for the counts route.
-    counts_conditions: Optional[Callable[..., list]] = None
+    #: Extra WHERE legs for the sidebar counts.
+    counts_conditions: tuple[Any, ...] = ()
     #: (req) -> extra fields on the list response.
     response_extras: Optional[Callable[["ListRequest"], dict]] = None
     list_doc: Optional[str] = None
-    counts_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
     #: Whether an installed app may list this tool, under its read scope.
@@ -387,7 +387,7 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     # ``template`` is the projects list's own filter: a blueprint is not work
     # in progress, so it is left out unless it is asked for by name.
     values = req.values
-    return projects_endpoints.visible_project_conditions(
+    conditions = projects_endpoints.visible_project_conditions(
         req.user_id,
         context=req.guild_context,
         archived=values.get("archived"),
@@ -396,6 +396,9 @@ async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         tag_ids=values.get("tag_ids"),
         initiative_id=values.get("initiative_id"),
     )
+    if values.get("writable"):
+        conditions.append(Project.actions.any(Action.edit.value))
+    return conditions
 
 
 def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
@@ -628,7 +631,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         conditions=_project_conditions,
         refine=_project_refine,
         clamp_page=True,
-        counts_conditions=lambda user, guild_context: [Project.is_template.is_(False)],
+        counts_conditions=(Project.is_template.is_(False),),
         params=(
             _archived(described=False),
             ListParam("template", Optional[bool], Query(default=None)),
@@ -650,6 +653,17 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
+            ListParam(
+                "writable",
+                bool,
+                Query(
+                    default=False,
+                    description=(
+                        "Only projects the caller may edit — the pickers that "
+                        "move work into a project."
+                    ),
+                ),
+            ),
             sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit to keep "
                 "the reader's own manual order."
@@ -658,13 +672,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _tag_ids(Tool.project),
             page_param(),
             page_size_param(0, ge=0, le=100),
-        ),
-        counts_doc=(
-            "Visible-project counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for initiative landing-card badges — same\n"
-            "visibility rules as the default project list (non-archived,\n"
-            "non-template), one GROUP BY instead of walking the full corpus."
         ),
     ),
     Tool.document: ToolListSpec(
@@ -756,13 +763,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             'Cross-guild "my documents" lives under /me/documents (see '
             "list_my_documents)."
         ),
-        counts_doc=(
-            "Visible-document counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar and initiative landing-card\n"
-            "badges — same visibility filters as the document list, one GROUP BY\n"
-            "instead of walking the full corpus."
-        ),
     ),
     Tool.queue: ToolListSpec(
         tool=Tool.queue,
@@ -795,13 +795,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "DAC: Queues with explicit QueuePermission or role-based permission.\n"
             "Guild admins see all queues."
         ),
-        counts_doc=(
-            "Visible-queue counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules\n"
-            "as the queue list (queues-enabled initiatives, DAC), one GROUP BY\n"
-            "instead of a capped list page."
-        ),
     ),
     Tool.counter_group: ToolListSpec(
         tool=Tool.counter_group,
@@ -830,13 +823,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             _archived(),
             page_param(),
             page_size_param(20, ge=1, le=100),
-        ),
-        counts_doc=(
-            "Visible counter-group counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules\n"
-            "as the counter-group list (counters-enabled initiatives, DAC), one\n"
-            "GROUP BY instead of a capped list page."
         ),
     ),
     Tool.calendar: ToolListSpec(
@@ -880,17 +866,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "name\n"
             "rather than inferred from an absent ``initiative_id``."
         ),
-        counts_doc=(
-            "Visible-calendar counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules "
-            "as the\n"
-            "calendar list (calendars-enabled initiatives, DAC), one GROUP BY "
-            "instead of\n"
-            "a capped list page. Guild calendars belong to no initiative, so they "
-            "fall\n"
-            "outside every group here — the sidebar rows are initiative rows."
-        ),
     ),
     Tool.dashboard: ToolListSpec(
         tool=Tool.dashboard,
@@ -923,15 +898,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             page_size_param(100, ge=1, le=200),
         ),
         list_doc="List dashboards visible to the current user (guild admins see all).",
-        counts_doc=(
-            "Visible-dashboard counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules "
-            "as the\n"
-            "dashboard list (dashboards-enabled initiatives, DAC), one GROUP BY "
-            "instead\n"
-            "of a capped list page."
-        ),
     ),
     Tool.post: ToolListSpec(
         tool=Tool.post,
@@ -1007,13 +973,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "who\n"
             "could edit it; for everyone else the board starts when it goes up."
         ),
-        counts_doc=(
-            "Visible-post counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules "
-            "as the\n"
-            "post list, one GROUP BY instead of a capped list page."
-        ),
     ),
     Tool.gallery: ToolListSpec(
         tool=Tool.gallery,
@@ -1046,9 +1005,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             page_size_param(100, ge=0, le=500),
         ),
         list_doc="List galleries visible to the current user (guild admins see all).",
-        counts_doc=(
-            "Visible-gallery counts grouped by initiative, for the sidebar badges."
-        ),
     ),
     Tool.wiki: ToolListSpec(
         tool=Tool.wiki,
@@ -1076,9 +1032,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             page_size_param(100, ge=0, le=500),
         ),
         list_doc="List wikis visible to the current user (guild admins see all).",
-        counts_doc=(
-            "Visible-wiki counts grouped by initiative, for the sidebar badges."
-        ),
     ),
 }
 
@@ -1181,43 +1134,33 @@ def _mount_list(spec: ToolListSpec) -> None:
     )
 
 
-def _mount_counts(spec: ToolListSpec) -> None:
-    """Mount ``GET /counts/by-initiative`` for one tool."""
+@router.get(
+    "/tools/counts/by-initiative",
+    response_model=ToolCountsByInitiativeResponse,
+    tags=["tools"],
+)
+async def get_tool_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+) -> ToolCountsByInitiativeResponse:
+    """Every tool's visible-row counts, grouped by initiative.
 
-    async def counts_by_initiative(
-        session: RLSSessionDep,
-        current_user: CurrentUserDep,
-        guild_context: GuildContextDep,
-    ) -> InitiativeGroupedCountsResponse:
-        extra = (
-            spec.counts_conditions(current_user, guild_context)
-            if spec.counts_conditions
-            else ()
-        )
-        counts = await tool_listing.count_tool_rows_by_initiative(
-            session,
-            spec.tool,
-            spec.model,
-            spec.enabled_column,
-            user_id=current_user.id,
-            extra_conditions=extra,
-            context=guild_context,
-        )
-        return InitiativeGroupedCountsResponse(counts=counts)
-
-    router.add_api_route(
-        # Declared before the tools' own ``/{id}`` routes, so the literal path
-        # wins the match: this router is included first (see api.py).
-        f"/{spec.tool.route_segment}/counts/by-initiative",
-        counts_by_initiative,
-        methods=["GET"],
-        response_model=InitiativeGroupedCountsResponse,
-        name=f"get_{spec.tool.value}_counts_by_initiative",
-        description=spec.counts_doc,
-        tags=_tags(spec),
+    What the sidebar and the initiative directory badge — the same visibility
+    rules as each tool's default list (live rows, no project templates), one
+    statement for every tool rather than a request per tool.
+    """
+    counts = await tool_listing.count_tool_rows_by_initiative(
+        session,
+        [
+            (spec.tool, spec.model, spec.enabled_column, spec.counts_conditions)
+            for spec in TOOL_LISTS.values()
+        ],
+        user_id=current_user.id,
+        context=guild_context,
     )
+    return ToolCountsByInitiativeResponse(counts=counts)
 
 
 for _spec in TOOL_LISTS.values():
-    _mount_counts(_spec)
     _mount_list(_spec)

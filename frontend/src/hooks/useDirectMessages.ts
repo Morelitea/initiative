@@ -7,7 +7,7 @@
  * acted and a tab that only watched end up saying the same thing.
  */
 
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import {
@@ -19,7 +19,6 @@ import {
   useListConnectionsApiV1MeConnectionsGet,
   useListIgnoredAccountsApiV1MeIgnoredGet,
   useListMessageRequestsApiV1MeMessageRequestsGet,
-  useReadDmPermissionApiV1UsersUserIdDmPermissionGet,
   useReadDmSettingsApiV1MeDmSettingsGet,
   useRemoveConnectionApiV1MeConnectionsUserIdDelete,
   useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete,
@@ -28,7 +27,10 @@ import {
   useStopIgnoringAccountApiV1MeIgnoredUserIdDelete,
   useUpdateDmSettingsApiV1MeDmSettingsPatch,
 } from "@/api/generated/direct-messages/direct-messages";
-import type { DirectMessagePermissionsResponse } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  DirectMessagePermissionRead,
+  DirectMessagePermissionsResponse,
+} from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { toast } from "@/lib/chesterToast";
@@ -91,8 +93,16 @@ export const useDmSettings = () =>
  */
 export const useDmPermission = (userId: number | undefined) => {
   const dmEnabled = useDirectMessagesEnabled();
-  return useReadDmPermissionApiV1UsersUserIdDmPermissionGet(userId as number, {
-    query: { enabled: dmEnabled && typeof userId === "number" },
+  return useQuery({
+    // Keyed like the bulk read's page of one, so whatever makes those stale
+    // reaches this too.
+    queryKey: ["dm", "permissions", [userId]],
+    queryFn: () => readDmPermissionsApiV1MeDmPermissionsPost({ user_ids: [userId as number] }),
+    // Your own account is left out of the answer: every action on it is refused.
+    select: (data): DirectMessagePermissionRead =>
+      data.permissions[String(userId)] ?? { permission: "denied", may_connect: false },
+    staleTime: 30_000,
+    enabled: dmEnabled && typeof userId === "number",
   });
 };
 /** The most accounts one question may name, which the server enforces. */

@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - **More API routes the app no longer uses**: `PUT /tasks/{id}/tags` (send `tag_ids` to `PATCH /tasks/{id}`), `PUT /queues/{id}/items/reorder`, `GET /initiatives/{id}/join-requests/me`, `GET /property-definitions/{id}` and its `/entities`, `DELETE /dashboards/{id}/published/{type}/{id}` (publish the list without it), `DELETE /apps/{id}/placements/{initiative_id}`, and `GET /users/decoration-art`.
+- **API routes merged into ones that already existed.** The nine `GET /c/{guild_id}/<tool>/counts/by-initiative` routes are now one, `GET /c/{guild_id}/tools/counts/by-initiative`, which returns every tool's counts keyed by tool, so the sidebar loads its badges in one request. Also:
+  - `POST /documents/{id}/duplicate` → `POST /documents/{id}/copy`, which copies into the document's own initiative when `target_initiative_id` is left out.
+  - `GET /projects/writable` → `GET /projects/?writable=true`.
+  - `GET /settings/interface` → `GET /config`, which now includes the accent colours.
+  - `GET /users/{id}/dm-permission` → `POST /me/dm-permissions` with that one id.
+  - `PUT /calendar-events/{id}/tags` and `PUT /queues/{id}/items/{item_id}/tags` → `tag_ids` on each one's `PATCH`.
+  - `PUT /tasks/{id}/properties` → `property_values` on `PATCH /tasks/{id}`.
 
 ### Fixed
 

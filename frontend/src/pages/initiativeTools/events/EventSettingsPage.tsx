@@ -35,7 +35,6 @@ import {
   useCalendarEvent,
   useDeleteCalendarEvent,
   useSetEventAttendees,
-  useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
@@ -189,7 +188,9 @@ export function EventSettingsPage() {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
-  const setEventTags = useSetEventTags(eventId);
+  // Its own instance of the update, so a tag change saves without the
+  // details toast.
+  const saveTags = useUpdateCalendarEvent(eventId);
 
   // Tags persist immediately on change (like tasks/documents), no Save button.
   // Optimistically update, then roll back to the prior selection if the save
@@ -197,7 +198,7 @@ export function EventSettingsPage() {
   const handleTagsChange = (newTags: TagSummary[]) => {
     const previous = tags;
     setTags(newTags);
-    setEventTags.mutate(
+    saveTags.mutate(
       { tag_ids: newTags.map((tag) => tag.id) },
       { onError: () => setTags(previous) }
     );

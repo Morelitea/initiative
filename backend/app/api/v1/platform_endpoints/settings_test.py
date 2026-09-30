@@ -1249,7 +1249,7 @@ _COLOURS = {"light_accent_color": "#123456", "dark_accent_color": "#abcdef"}
 async def test_cookie_consent_starts_off(client, owner):
     """A deployment nobody arrives at uninvited is not asked to explain itself
     to arrivals. An owner running a public front door turns it on."""
-    response = await client.get(INTERFACE, headers=owner.headers)
+    response = await client.get("/api/v1/config")
 
     assert response.status_code == 200, response.text
     assert response.json()["cookie_consent_enabled"] is False

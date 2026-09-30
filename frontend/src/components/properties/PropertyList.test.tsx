@@ -107,8 +107,8 @@ describe("PropertyList", () => {
   it("fires the task mutation when entityKind is 'task'", async () => {
     const requests: Array<{ url: string }> = [];
     server.use(
-      guildHttp.put("/tasks/:taskId/properties", async ({ params }) => {
-        requests.push({ url: `/api/v1/tasks/${params.taskId}/properties` });
+      guildHttp.patch("/tasks/:taskId", async ({ params }) => {
+        requests.push({ url: `/api/v1/tasks/${params.taskId}` });
         return HttpResponse.json({ id: Number(params.taskId), properties: [] });
       })
     );
@@ -121,7 +121,7 @@ describe("PropertyList", () => {
     const input = screen.getByPlaceholderText("0") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "8" } });
     await advanceDebounce();
-    expect(requests).toEqual([{ url: "/api/v1/tasks/99/properties" }]);
+    expect(requests).toEqual([{ url: "/api/v1/tasks/99" }]);
   });
 
   it("omits the property from the payload when removed (remove button)", async () => {

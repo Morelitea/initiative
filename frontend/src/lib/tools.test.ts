@@ -397,20 +397,6 @@ describe("tool surfaces are wired, not just typed", () => {
       ).toEqual([]);
     }
   });
-
-  it("the sidebar asks for a count per tool", async () => {
-    // The sidebar fans out over the hook table rather than naming nine hooks,
-    // so the table is what has to carry a counts query addressed at each
-    // tool's own endpoint.
-    const { TOOL_HOOKS } = await import("@/hooks/toolHooks");
-    const { toolRouteSegment } = await import("@/lib/tools");
-    for (const tool of TOOLS) {
-      const { queryKey } = TOOL_HOOKS[tool].countsQuery(1);
-      expect(JSON.stringify(queryKey), `no counts query for ${tool}`).toContain(
-        `/${toolRouteSegment(tool)}/counts/by-initiative`
-      );
-    }
-  });
 });
 
 describe("tool exports", () => {

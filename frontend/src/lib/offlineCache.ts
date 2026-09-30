@@ -125,7 +125,6 @@ const PERSIST_DENYLIST = [
   "/api/v1/me/connections",
   "/api/v1/me/message-requests",
   "/dm/",
-  "/dm-permission",
 ] as const;
 
 const GUILD_SEGMENT = /^\/api\/v1\/c\/(\d+)(?=\/|$)/;

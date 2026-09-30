@@ -69,6 +69,8 @@ class QueueItemUpdate(SanitizedBaseModel):
     color: Optional[str] = None
     notes: Optional[RichTextStr] = None
     is_visible: Optional[bool] = None
+    #: Replaces every tag on the item; omitted leaves them as they are.
+    tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
 
 
 class QueueItemRead(QueueItemBase):

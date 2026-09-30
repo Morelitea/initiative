@@ -568,6 +568,8 @@ export interface AppConfig {
   community_age_gate_enabled: boolean;
   direct_messages_enabled: boolean;
   cookie_consent_enabled: boolean;
+  light_accent_color: string;
+  dark_accent_color: string;
   cookie_categories: string[];
   login_methods: string[];
   min_native_version: string;
@@ -1869,6 +1871,7 @@ export interface CalendarEventUpdate {
   recurrence?: string | null;
   tz?: string | null;
   calendar_id?: number | null;
+  tag_ids?: number[] | null;
 }
 
 /**
@@ -3327,7 +3330,7 @@ export interface DmVerificationSend {
 }
 
 export interface DocumentCopyRequest {
-  target_initiative_id: number;
+  target_initiative_id?: number | null;
   name?: string | null;
 }
 
@@ -3359,10 +3362,6 @@ export interface DocumentCreate {
   content?: DocumentCreateContent;
   document_type?: DocumentCreateDocumentType;
   grants?: ResourceGrantSchema[];
-}
-
-export interface DocumentDuplicateRequest {
-  name?: string | null;
 }
 
 /**
@@ -5206,18 +5205,6 @@ export interface InitiativeDirectoryEntry {
   role_display_name: string | null;
   has_pending_request: boolean;
   pending_join_request_count: number;
-}
-
-export type InitiativeGroupedCountsResponseCounts = { [key: string]: number };
-
-/**
- * Per-initiative resource counts (initiative_id -> visible count).
- *
- * Shared response shape for the documents/projects grouped-count
- * endpoints that back sidebar and landing-card badges.
- */
-export interface InitiativeGroupedCountsResponse {
-  counts: InitiativeGroupedCountsResponseCounts;
 }
 
 /**
@@ -7657,6 +7644,7 @@ export interface QueueItemUpdate {
   color?: string | null;
   notes?: string | null;
   is_visible?: boolean | null;
+  tag_ids?: number[] | null;
 }
 
 export interface QueueSummary {
@@ -8770,6 +8758,16 @@ export interface ToolCommentSettings {
   comments_enabled: boolean;
 }
 
+export type ToolCountsByInitiativeResponseCounts = Partial<Record<Tool, { [key: string]: number }>>;
+
+/**
+ * Each tool's visible-row counts, by initiative (tool -> initiative_id ->
+ * count) — what the sidebar and the initiative directory badge.
+ */
+export interface ToolCountsByInitiativeResponse {
+  counts: ToolCountsByInitiativeResponseCounts;
+}
+
 export interface TrashItem {
   entity_type: EntityType;
   entity_id: number;
@@ -9849,6 +9847,10 @@ export type ListProjectsApiV1CGuildIdProjectsGetParams = {
    * Return a lightweight projection (id, name, icon, initiative_id, can) without documents, grants, tags, or the nested initiative. For project pickers and other list-only callers.
    */
   slim?: boolean;
+  /**
+   * Only projects the caller may edit — the pickers that move work into a project.
+   */
+  writable?: boolean;
   /**
    * Order by one of: name, initiative, updated_at. Omit to keep the reader's own manual order.
    */

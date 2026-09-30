@@ -59,7 +59,6 @@ from app.db.session import require_actor_context
 from app.services.tenant import queues as queues_service
 from app.services.tenant import named_people
 from app.services.tenant import tags as tags_service
-from app.schemas.tenant.tag import TagSetRequest
 from app.services.content_sockets import sockets
 from app.api.content_socket import serve_tool_stream
 
@@ -442,6 +441,15 @@ async def update_queue_item(
         if field in update_data:
             setattr(item, field, update_data[field])
             updated = True
+    if update_data.get("tag_ids") is not None:
+        await tags_service.set_entity_tags(
+            session,
+            tags_service.TAG_LINKS["queue_item"],
+            guild_id=routed_guild_id(session),
+            entity_id=item.id,
+            tag_ids=update_data["tag_ids"],
+        )
+        updated = True
 
     if updated:
         session.add(item)
@@ -674,48 +682,6 @@ async def release_held_item(
     hydrated = await _refetch_queue(session, queue.id)
     result = await _serialized_queue(session, hydrated, user_id=guild_context.user_id)
     sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "turn_released")
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Item Tags
-# ---------------------------------------------------------------------------
-
-
-@router.put("/{queue_id}/items/{item_id}/tags", response_model=QueueItemRead)
-async def set_queue_item_tags(
-    queue_id: int,
-    item_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> QueueItemRead:
-    """Set tags on a queue item. Replaces all existing tags."""
-    await resource_access.load_authorized(
-        session, Tool.queue, queue_id, current_user, guild_context, access="write"
-    )
-    item = await _get_item_for_queue(session, queue_id, item_id)
-
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TAG_LINKS["queue_item"],
-        guild_id=routed_guild_id(session),
-        entity_id=item.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    await session.commit()
-
-    hydrated_item = await queues_service.get_queue_item(
-        session, item.id, populate_existing=True
-    )
-    if not hydrated_item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
-    result = await _serialized_queue_item(session, hydrated_item)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "tags_changed")
     return result
 
 
