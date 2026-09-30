@@ -226,6 +226,28 @@ async def test_removing_re_checks_the_password(
     assert response.json()["detail"] == "SIGN_IN_LOCKED"
 
 
+async def test_the_right_password_starts_the_count_over(
+    client: AsyncClient, session: AsyncSession
+):
+    """As a sign-in does: wrong answers either side of a right one do not add
+    up to a lock."""
+    user = await _account(session, "pl-recount@example.com")
+
+    async def begin(password: str) -> Response:
+        return await client.post(
+            "/api/v1/auth/passkeys/register/begin",
+            headers=get_auth_headers(user),
+            json={"current_password": password, "name": "Laptop"},
+        )
+
+    for _ in range(2):
+        for _ in range(sign_in_locks.LOCK_AFTER_FAILURES - 1):
+            response = await begin("not-it")
+            assert response.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
+        response = await begin(PASSWORD)
+        assert response.status_code == 200, response.text
+
+
 async def test_the_allowance_is_the_account_s_not_the_address_s(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
