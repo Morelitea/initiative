@@ -32,11 +32,11 @@ export const SettingsGuildDangerZonePage = () => {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Some accounts hold no password at all — provisioned through an identity
-  // provider, or signing in with a passkey. The server asks such an account
-  // for none, so the field is hidden. An account still on its way in is asked,
+  // Some accounts are not asked for a password — they hold none, or the
+  // deployment signs nobody in with one. The server asks for a recent sign-in
+  // instead, so the field is hidden. An account still on its way in is asked,
   // as it is today.
-  const passwordless = user?.has_password === false;
+  const passwordless = user?.password_required === false;
 
   // The whole phrase is uppercased, including the guild name, so casing
   // never trips up the confirmation. Mirrors the backend check.

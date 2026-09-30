@@ -93,6 +93,11 @@ class ChallengePurpose(str, Enum):
     email_otp_register = "email_otp_register"
     #: The same, from the native sign-up.
     email_otp_register_native = "email_otp_register_native"
+    #: A code has been sent to one of an account's proved addresses to confirm
+    #: the session already open, the way a passkey step-up does. Its own
+    #: purpose, so a code asked for at the sign-in page answers nothing here
+    #: and one asked for here opens no session of its own.
+    email_otp_step_up = "email_otp_step_up"
     #: A sign-in finished in the phone's browser, waiting for the app that
     #: began it. The value is the sealed code the browser hands back; the
     #: answer is the app's S256 challenge, so only the verifier behind it

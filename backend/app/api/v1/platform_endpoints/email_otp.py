@@ -1,7 +1,10 @@
 """Signing in with a one-time code sent to an address.
 
 Two routes. :func:`send_sign_in_code` opens a challenge and posts the code;
-:func:`verify_sign_in_code` takes the code back and opens the session.
+:func:`verify_sign_in_code` takes the code back and opens the session. Two more
+do the same against a session already open — :func:`send_step_up_code` and
+:func:`verify_step_up_code` — which is how an account confirms a change to how
+it signs in without signing out.
 
 Asking about an address answers the same way whoever holds it — a challenge
 is opened either way, and only whether a letter goes out differs. The handle
@@ -28,7 +31,7 @@ from fastapi import (
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import SystemSessionDep
+from app.api.deps import FactorExemptUser, SystemSessionDep, require_first_party_session
 from app.api.v1.platform_endpoints.session_opening import (
     EMAIL_CODE_LEG,
     count_wrong_answer,
@@ -36,12 +39,14 @@ from app.api.v1.platform_endpoints.session_opening import (
     record_sign_in_failure,
     refuse_if_locked,
     require_login_method,
+    require_session_row,
     second_factor_outstanding,
+    upgrade_session,
 )
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages
 from app.core.email_i18n import SUPPORTED_EMAIL_LOCALES
-from app.core.rate_limit import get_real_client_ip, limiter
+from app.core.rate_limit import get_real_client_ip, get_user_or_ip_key, limiter
 from app.db import session as db_session
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
@@ -58,6 +63,7 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.auth import challenges as challenge_service
 from app.services.auth import email_otp as email_otp_service
+from app.services.auth import sign_in_locks
 from app.services.content_sockets import sockets as content_sockets
 
 logger = logging.getLogger(__name__)
@@ -65,6 +71,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+#: Confirming a session is done by the person in it, not a standing credential.
+FirstPartyOnly = Depends(require_first_party_session)
 
 
 def _requested_locale(request: Request) -> str:
@@ -394,4 +402,101 @@ async def register_with_code(
         amr=EMAIL_CODE_LEG.amr,
         audit_detail={"method": EMAIL_CODE_LEG.method, "during": "registration"},
         return_refresh_token=email_otp_service.is_native(ticket),
+    )
+
+
+@router.post("/step-up/email-otp/send", response_model=EmailOtpSent)
+@limiter.limit("5/15minutes", key_func=get_user_or_ip_key)
+async def send_step_up_code(
+    request: Request,
+    background: BackgroundTasks,
+    session: SessionDep,
+    current_user: FactorExemptUser,
+    system_session: SystemSessionDep,
+    _first_party: str = FirstPartyOnly,
+) -> EmailOtpSent:
+    """Post a code confirming the session already open.
+
+    To the account's primary proved address, or its first proved one: an
+    address that was added and never proved is not known to be the account's.
+    """
+    await require_login_method(session, LoginMethod.email_otp)
+    # What the answer would be added to, asked for before a letter goes out.
+    require_session_row(request)
+    if not await email_service.email_configured(system_session):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_OTP_CANNOT_SEND,
+        )
+    proved = await addresses.proved_only(system_session, user_id=current_user.id)
+    if not proved:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_OTP_NO_PROVED_ADDRESS,
+        )
+
+    issued = await email_otp_service.issue_step_up(
+        system_session, user_id=current_user.id
+    )
+    await system_session.commit()
+    background.add_task(
+        _post_code_letter,
+        user_id=current_user.id,
+        email=proved[0],
+        code=issued.code,
+        minutes=int(email_otp_service.CODE_TTL.total_seconds() // 60),
+        locale=_requested_locale(request),
+    )
+    return EmailOtpSent(challenge=issued.handle)
+
+
+@router.post("/step-up/email-otp/verify", response_model=Token)
+@limiter.limit("10/15minutes", key_func=get_user_or_ip_key)
+async def verify_step_up_code(
+    request: Request,
+    response: Response,
+    payload: EmailOtpVerify,
+    session: SessionDep,
+    current_user: FactorExemptUser,
+    system_session: SystemSessionDep,
+    _first_party: str = FirstPartyOnly,
+) -> Token:
+    """Take the code back and confirm the session with it.
+
+    The session is upgraded as the other step-ups upgrade it, which opens a
+    new chain: a change asking for a recent sign-in takes it from here.
+    """
+    await require_login_method(session, LoginMethod.email_otp)
+    await refuse_if_locked(system_session, current_user.id)
+    claimed = await email_otp_service.claim(
+        system_session,
+        handle=payload.challenge,
+        code=payload.code,
+        purposes=email_otp_service.STEP_UP_PURPOSES,
+    )
+    challenge = claimed.challenge
+    if (
+        challenge is None
+        or challenge.user_id != current_user.id
+        or not claimed.answered
+        or not await challenge_service.consume(system_session, challenge)
+    ):
+        # Counted whether or not the handle was any good, so the commit comes
+        # before the refusal.
+        await count_wrong_answer(system_session, current_user.id)
+        await system_session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_OTP_INVALID,
+        )
+
+    # The right code starts the count over, as a sign-in does; it commits with
+    # the upgrade.
+    await sign_in_locks.record_success(system_session, current_user.id)
+    return await upgrade_session(
+        request,
+        response,
+        system_session,
+        user=current_user,
+        add_amr=EMAIL_CODE_LEG.amr,
     )

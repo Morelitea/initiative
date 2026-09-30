@@ -379,20 +379,29 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
               className="space-y-4"
               onSubmit={(event) => {
                 event.preventDefault();
-                removePassword.mutate({ data: { current_password: removeCurrentPassword } });
+                removePassword.mutate({
+                  data: { current_password: removeCurrentPassword || null },
+                });
               }}
             >
-              <div className="space-y-2">
-                <Label htmlFor="remove-current-password">{t("profile.currentPasswordLabel")}</Label>
-                <Input
-                  id="remove-current-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={removeCurrentPassword}
-                  onChange={(event) => setRemoveCurrentPassword(event.target.value)}
-                  required
-                />
-              </div>
+              {/* Where the password is not asked for, a recent sign-in answers
+                  instead, and the dialog that asks for one is raised on
+                  refusal. */}
+              {user.password_required ? (
+                <div className="space-y-2">
+                  <Label htmlFor="remove-current-password">
+                    {t("profile.currentPasswordLabel")}
+                  </Label>
+                  <Input
+                    id="remove-current-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={removeCurrentPassword}
+                    onChange={(event) => setRemoveCurrentPassword(event.target.value)}
+                    required
+                  />
+                </div>
+              ) : null}
               {removeError ? <p className="text-destructive text-sm">{removeError}</p> : null}
               <DialogFooter className="gap-2">
                 <Button type="button" variant="outline" onClick={closeRemove}>
@@ -401,7 +410,9 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                 <Button
                   type="submit"
                   variant="destructive"
-                  disabled={removePassword.isPending || !removeCurrentPassword}
+                  disabled={
+                    removePassword.isPending || (user.password_required && !removeCurrentPassword)
+                  }
                 >
                   {t("account.removePassword")}
                 </Button>

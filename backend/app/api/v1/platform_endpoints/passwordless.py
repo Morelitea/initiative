@@ -22,7 +22,9 @@ from app.api.deps import (
     SystemSessionDep,
     CurrentUser,
 )
-from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
+)
 from app.api.v1.platform_endpoints.session_opening import (
     count_wrong_answer,
     refuse_if_locked,
@@ -126,7 +128,9 @@ async def remove_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.PASSWORD_NOT_HELD,
         )
-    await require_password(system_session, current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
 
     # What the account would be left with. The deployment's posture is half of
     # that answer: a credential it does not accept opens nothing, so an account

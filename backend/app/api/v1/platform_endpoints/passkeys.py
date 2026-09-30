@@ -34,6 +34,7 @@ from app.api.deps import (
     CurrentUser,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
+    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import (
@@ -49,7 +50,6 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, NativeMessages
 from app.core.transitions import NATIVE_SIGN_IN_CODE
 from app.core.rate_limit import get_user_or_ip_key, limiter
-from app.core.security import has_usable_password
 from app.db.session import get_session
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_passkey import UserPasskey
@@ -182,7 +182,7 @@ async def list_passkeys(
     rows = await passkey_service.list_for_user(system_session, user_id=current_user.id)
     return PasskeyList(
         passkeys=[_read(row) for row in rows],
-        password_required=has_usable_password(current_user.hashed_password),
+        password_required=await password_confirms(system_session, current_user),
         limit=passkey_service.MAX_PASSKEYS_PER_USER,
         site_supported=passkey_service.site_refusal() is None,
         offered=await auth_posture.login_method_allowed(session, LoginMethod.passkey),

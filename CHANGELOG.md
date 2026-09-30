@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The notification list counts unread notifications on its first page only (API).** `unread_count` on `GET /notifications/` is `null` on any page read with a `cursor`; read it from the first page.
 - **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
 
+- **Confirming it's you follows how your server signs people in.** Where password sign-in is off, deleting your account or a community, setting up two-factor authentication, adding or removing a passkey and removing your password no longer ask for a password. They ask for a recent sign-in, and the "confirm it's you" dialog can email you a code to give one without signing out, where emailed codes are on. The code goes only to an address you've confirmed. `UserRead.password_required` says whether the password is asked for (API), and `POST /auth/step-up/email-otp/send` and `/verify` confirm a session with an emailed code (API).
+
 ### Removed
 
 - **More API routes the app no longer uses**: `PUT /tasks/{id}/tags` (send `tag_ids` to `PATCH /tasks/{id}`), `PUT /queues/{id}/items/reorder`, `GET /initiatives/{id}/join-requests/me`, `GET /property-definitions/{id}` and its `/entities` (an event about a property definition now names its initiative, with the field `properties`), `DELETE /dashboards/{id}/published/{type}/{id}` (publish the list without it), `DELETE /apps/{id}/placements/{initiative_id}`, and `GET /users/decoration-art`.

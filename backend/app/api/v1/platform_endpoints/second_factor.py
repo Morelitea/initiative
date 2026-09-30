@@ -26,7 +26,7 @@ from app.core.messages import AuthMessages
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
 from app.api.v1.platform_endpoints.password_recheck import (
-    require_password,
+    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import (
@@ -81,13 +81,13 @@ async def read_second_factor(
     """What the account holds. A started-but-unproved enrolment reads as not
     enrolled, because that is what the sign-in makes of it too."""
     offered = await auth_posture.login_method_allowed(system_session, LoginMethod.totp)
-    password_required = has_usable_password(current_user.hashed_password)
+    password_required = await password_confirms(system_session, current_user)
     factor = await totp_service.get_factor(system_session, user_id=current_user.id)
     enrolled = factor is not None and factor.confirmed_at is not None
     # An account that signs in without a password keeps a recovery set whether
     # or not it is enrolled: the codes answer for the account there rather than
     # for a factor, and setting a password again is what they are for.
-    passwordless = not password_required
+    passwordless = not has_usable_password(current_user.hashed_password)
     remaining = (
         await totp_service.remaining_recovery_codes(
             system_session, user_id=current_user.id
@@ -225,15 +225,18 @@ async def disable_second_factor(
 ) -> None:
     """Remove the factor, its seed and its recovery codes.
 
-    Asks for the password and for the factor itself — a live code, or one of
-    the recovery codes. Every other session goes with it; this one stays.
+    Asks for the password — or, where the password is not asked for, a
+    recent sign-in — and for the factor itself: a live code, or one of the
+    recovery codes. Every other session goes with it; this one stays.
     """
     if not await totp_service.is_enrolled(system_session, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    await require_password(system_session, current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     await refuse_if_locked(system_session, current_user.id)
 
     if payload.recovery_code:

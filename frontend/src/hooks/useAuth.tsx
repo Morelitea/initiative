@@ -72,6 +72,11 @@ interface StepUpPayload {
   recoveryCode?: string;
 }
 
+interface EmailCodeStepUpPayload {
+  challenge: string;
+  code: string;
+}
+
 interface RegisterPayload {
   email: string;
   password: string;
@@ -108,6 +113,7 @@ interface AuthContextValue {
   applyEmailOtpSignIn: (token: Token) => Promise<void>;
   stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
   stepUpWithPasskey: () => Promise<void>;
+  stepUpWithEmailCode: (payload: EmailCodeStepUpPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   /** Finish a sign-in that ended outside this page: a browser's, whose cookie
    *  the server set, or the app's, with what its callback redeemed. */
@@ -617,6 +623,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await adoptSteppedUpSession(await presentPasskeyForStepUp());
   };
 
+  /**
+   * The same move, answered with a code sent to one of the account's proved
+   * addresses. `challenge` is the handle the send route handed back.
+   */
+  const stepUpWithEmailCode = async ({ challenge, code }: EmailCodeStepUpPayload) => {
+    const response = await apiClient.post<Token>("/auth/step-up/email-otp/verify", {
+      challenge,
+      code,
+    });
+    await adoptSteppedUpSession(response.data);
+  };
+
   const register = async ({
     email,
     password,
@@ -778,6 +796,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     applyEmailOtpSignIn,
     stepUpWithFactor,
     stepUpWithPasskey,
+    stepUpWithEmailCode,
     register,
     completeOidcLogin,
     logout,

@@ -3117,8 +3117,9 @@ export const useConfirmSecondFactorApiV1AuthTotpConfirmPost = <
 /**
  * Remove the factor, its seed and its recovery codes.
  *
- * Asks for the password and for the factor itself — a live code, or one of
- * the recovery codes. Every other session goes with it; this one stays.
+ * Asks for the password — or, where the password is not asked for, a
+ * recent sign-in — and for the factor itself: a live code, or one of the
+ * recovery codes. Every other session goes with it; this one stays.
  * @summary Disable Second Factor
  */
 export const disableSecondFactorApiV1AuthTotpDisablePost = (
@@ -4862,6 +4863,197 @@ export const useRegisterWithCodeApiV1AuthEmailOtpRegisterPost = <
 > => {
   return useMutation(
     getRegisterWithCodeApiV1AuthEmailOtpRegisterPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Post a code confirming the session already open.
+ *
+ * To the account's primary proved address, or its first proved one: an
+ * address that was added and never proved is not known to be the account's.
+ * @summary Send Step Up Code
+ */
+export const sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<EmailOtpSent>(
+    { url: `/api/v1/auth/step-up/email-otp/send`, method: "POST", signal },
+    options
+  );
+};
+
+export const getSendStepUpCodeApiV1AuthStepUpEmailOtpSendPostMutationKey = () =>
+  ["sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost"] as const;
+
+export const getSendStepUpCodeApiV1AuthStepUpEmailOtpSendPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getSendStepUpCodeApiV1AuthStepUpEmailOtpSendPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost>>,
+    void
+  > = () => {
+    return sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendStepUpCodeApiV1AuthStepUpEmailOtpSendPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost>>
+>;
+
+export type SendStepUpCodeApiV1AuthStepUpEmailOtpSendPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Send Step Up Code
+ */
+export const useSendStepUpCodeApiV1AuthStepUpEmailOtpSendPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getSendStepUpCodeApiV1AuthStepUpEmailOtpSendPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Take the code back and confirm the session with it.
+ *
+ * The session is upgraded as the other step-ups upgrade it, which opens a
+ * new chain: a change asking for a recent sign-in takes it from here.
+ * @summary Verify Step Up Code
+ */
+export const verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost = (
+  emailOtpVerify: BodyType<EmailOtpVerify>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<Token>(
+    {
+      url: `/api/v1/auth/step-up/email-otp/verify`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: emailOtpVerify,
+      signal,
+    },
+    options
+  );
+};
+
+export const getVerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationKey = () =>
+  ["verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost"] as const;
+
+export const getVerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost>>,
+    TError,
+    VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost>>,
+  TError,
+  VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getVerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost>>,
+    VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost>>
+>;
+export type VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationBody =
+  BodyType<EmailOtpVerify>;
+export type VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationVariables = {
+  data: BodyType<EmailOtpVerify>;
+};
+
+/**
+ * @summary Verify Step Up Code
+ */
+export const useVerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost>>,
+      TError,
+      VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof verifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPost>>,
+  TError,
+  VerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getVerifyStepUpCodeApiV1AuthStepUpEmailOtpVerifyPostMutationOptions(options),
     queryClient
   );
 };

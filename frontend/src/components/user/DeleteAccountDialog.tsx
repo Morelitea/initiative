@@ -151,10 +151,10 @@ export function DeleteAccountDialog({
   };
 
   const expectedConfirmation = CONFIRMATION_PHRASES[action];
-  // Some accounts hold no password at all — provisioned through an identity
-  // provider, or signing in with a passkey. The server asks such an account
-  // for none, so the dialog offers no field to fill.
-  const passwordless = !user.has_password;
+  // Some accounts are not asked for a password — they hold none, or the
+  // deployment signs nobody in with one. The server asks for a recent sign-in
+  // instead, so the dialog offers no field to fill.
+  const passwordless = !user.password_required;
 
   // Validation
   const canProceedFromChooseType = action !== null;

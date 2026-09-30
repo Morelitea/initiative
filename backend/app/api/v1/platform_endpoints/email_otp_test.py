@@ -629,3 +629,114 @@ async def test_the_send_takes_the_token_the_card_carries(
 
     assert sent.status_code == 200, sent.text
     assert [address for address, _ in caught] == ["reader@example.com"]
+
+
+# ── Confirming a session already open ──────────────────────────────────────
+
+STEP_UP_SEND_URL = "/api/v1/auth/step-up/email-otp/send"
+STEP_UP_VERIFY_URL = "/api/v1/auth/step-up/email-otp/verify"
+REGENERATE_URL = "/api/v1/auth/recovery-codes/regenerate"
+
+
+async def _stale_session_headers(session: AsyncSession, user) -> dict[str, str]:
+    """A session signed into long enough ago that it no longer confirms."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.auth import sessions as session_service
+    from app.testing import get_auth_token
+
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["otp"], satisfied_providers=[]
+    )
+    issued.session.created_at = datetime.now(timezone.utc) - timedelta(minutes=11)
+    session.add(issued.session)
+    await session.commit()
+    return {
+        "Authorization": "Bearer "
+        + get_auth_token(user, session_id=issued.session.id, amr=["otp"])
+    }
+
+
+async def test_an_emailed_code_confirms_the_session_already_open(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A change that wants a recent sign-in takes the code instead of a
+    sign-out and back in."""
+    await _permit(session)
+    caught = _catch_codes(monkeypatch)
+    user = await create_user(session, email="confirm@example.com", hashed_password=None)
+    headers = await _stale_session_headers(session, user)
+
+    refused = await client.post(REGENERATE_URL, headers=headers, json={})
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "RECENT_PROOF_REQUIRED"
+
+    sent = await client.post(STEP_UP_SEND_URL, headers=headers)
+    assert sent.status_code == 200, sent.text
+    assert [address for address, _ in caught] == ["confirm@example.com"]
+
+    wrong = await client.post(
+        STEP_UP_VERIFY_URL,
+        headers=headers,
+        json={"challenge": sent.json()["challenge"], "code": "not-it"},
+    )
+    assert wrong.status_code == 400
+    assert wrong.json()["detail"] == "EMAIL_OTP_INVALID"
+
+    confirmed = await client.post(
+        STEP_UP_VERIFY_URL,
+        headers=headers,
+        json={"challenge": sent.json()["challenge"], "code": caught[0][1]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    fresh = {"Authorization": f"Bearer {confirmed.json()['access_token']}"}
+    # The wrong code before it no longer counts toward a lock.
+    from app.models.platform.sign_in_lock import SignInLock
+
+    user_id = user.id
+    session.expire_all()
+    assert (await session.get(SignInLock, user_id)).failures == 0
+
+    answered = await client.post(REGENERATE_URL, headers=fresh, json={})
+    assert answered.status_code == 200, answered.text
+
+
+async def test_a_sign_in_code_does_not_confirm_a_session(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The two are asked for against different purposes, so a handle from
+    the sign-in page answers nothing here."""
+    await _permit(session)
+    caught = _catch_codes(monkeypatch)
+    user = await create_user(session, email="apart@example.com", hashed_password=None)
+    handle = await _ask(client, "apart@example.com")
+
+    refused = await client.post(
+        STEP_UP_VERIFY_URL,
+        headers=await _stale_session_headers(session, user),
+        json={"challenge": handle, "code": caught[0][1]},
+    )
+
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == "EMAIL_OTP_INVALID"
+
+
+async def test_a_confirming_code_goes_only_to_a_proved_address(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _permit(session)
+    caught = _catch_codes(monkeypatch)
+    user = await create_user(
+        session,
+        email="unproved@example.com",
+        hashed_password=None,
+        email_verified=False,
+    )
+
+    refused = await client.post(
+        STEP_UP_SEND_URL, headers=await _stale_session_headers(session, user)
+    )
+
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["detail"] == "EMAIL_OTP_NO_PROVED_ADDRESS"
+    assert caught == []
