@@ -1825,19 +1825,8 @@ export interface CalendarEventListResponse {
   items: CalendarEventSummary[];
 }
 
-export type CalendarEventRSVPUpdateScope =
-  | (typeof CalendarEventRSVPUpdateScope)[keyof typeof CalendarEventRSVPUpdateScope]
-  | null;
-
-export const CalendarEventRSVPUpdateScope = {
-  this: "this",
-  following: "following",
-  all: "all",
-} as const;
-
 export interface CalendarEventRSVPUpdate {
   rsvp_status: RSVPStatus;
-  scope?: CalendarEventRSVPUpdateScope;
   occurrence?: string | null;
 }
 

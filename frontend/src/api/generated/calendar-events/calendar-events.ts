@@ -1533,11 +1533,8 @@ export const useSetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut = <
  * Update the current user's RSVP status. Read access on the calendar
  * suffices — RSVPing is answering an invitation, not editing the event.
  *
- * For a repeating event, ``scope`` is ``this`` occurrence (named by
- * ``occurrence``) or ``all`` of them, where an occurrence's own answer is
- * replaced only if it still said what the series did. Answering from some
- * occurrence on would start a new series, which takes write, so it is not
- * offered here.
+ * An answer is for one event: a repeating event is answered one occurrence
+ * at a time, named by ``occurrence``.
  * @summary Update Rsvp
  */
 export const updateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch = (
