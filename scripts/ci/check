@@ -171,7 +171,16 @@ done
 
 for name in "${CHECKS[@]}"; do
   say "$name"
-  "check_$name" || FAILED+=("$name")
+  # A function called as `f || …` runs with -e off, so a failed step would not
+  # stop its check. The subshell keeps -e on inside it.
+  set +e
+  (
+    set -e
+    "check_$name"
+  )
+  status=$?
+  set -e
+  [[ $status -eq 0 ]] || FAILED+=("$name")
 done
 
 echo
