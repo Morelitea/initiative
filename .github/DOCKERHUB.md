@@ -15,6 +15,7 @@ Full feature list, screenshots, and security architecture: **[github.com/Morelit
 ## Supported tags
 
 - `latest` — the most recent release
+- `stable` — a release that has been out three days with no open regression reported against it
 - `MAJOR`, `MAJOR.MINOR`, `MAJOR.MINOR.PATCH` — pin to a version (e.g. `0`, `0.49`, `0.49.9`)
 
 Images are multi-arch: `linux/amd64` and `linux/arm64`.
