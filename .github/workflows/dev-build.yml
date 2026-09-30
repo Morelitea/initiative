@@ -1,22 +1,19 @@
 name: Dev Build
 
 on:
-  push:
-    branches:
-      - dev
-    # Skip the dev image build on docs-only pushes.
-    paths-ignore:
-      - "docs/**"
-      - "zensical.toml"
-      - ".github/workflows/docs.yml"
-  workflow_dispatch: # Allow manual trigger
+  # A push to dev reaches this from CI, once every check has passed on it.
+  workflow_call:
+  # By hand from dev at any time, without waiting for CI. The ota-dev
+  # environment that signs the image is open to the dev branch only.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   sha:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       short: ${{ steps.sha.outputs.short }}
       ota-dev-key: ${{ steps.sha.outputs.ota-dev-key }}
@@ -31,6 +28,11 @@ jobs:
 
   docker:
     needs: sha
+    # One build publishes :dev at a time, so a manual run and CI's cannot
+    # finish out of order.
+    concurrency:
+      group: dev-image
+      cancel-in-progress: false
     uses: ./.github/workflows/docker-image.yml
     with:
       name: dev

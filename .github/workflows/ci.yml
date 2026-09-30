@@ -15,10 +15,18 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request replaces its run. A push to main or dev never
+# cancels one in progress: it waits, and a later push takes its place in the
+# queue, so the branch is always tested in order.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
       backend_scope: ${{ steps.diff.outputs.backend_scope }}
@@ -210,7 +218,8 @@ jobs:
     needs: changes
     # A failed change detection leaves the outputs empty, which runs the job.
     if: ${{ !cancelled() && needs.changes.outputs.backend != 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     services:
       postgres:
         image: postgres:17
@@ -342,7 +351,8 @@ jobs:
     needs: changes
     # A failed change detection leaves the outputs empty, which runs the job.
     if: ${{ !cancelled() && needs.changes.outputs.upgrade != 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     # Two servers, because roles are cluster-wide: the release's database and
     # a fresh install of this tree, compared once both are built.
     services:
@@ -412,7 +422,8 @@ jobs:
     name: Frontend Lint & Tests
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.frontend != 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -437,7 +448,8 @@ jobs:
     name: Check Generated Types
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.codegen != 'false' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -479,7 +491,8 @@ jobs:
 
   git-hooks:
     name: Git Hooks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -496,3 +509,25 @@ jobs:
 
       - name: Test the Android signing workflow
         run: python3 scripts/ci/android_signing_workflow_test.py
+
+  dev-image:
+    name: Dev Image
+    needs:
+      - changes
+      - backend-tests
+      - upgrade-from-release
+      - frontend-lint-and-test
+      - check-generated-types
+      - git-hooks
+    # Publishes :dev from a push to dev once every check above has passed on
+    # it (a check that had nothing to test is skipped, which counts as a pass).
+    # To build one without waiting, run Dev Build by hand.
+    if: >-
+      ${{ !cancelled()
+      && github.event_name == 'push' && github.ref == 'refs/heads/dev'
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled') }}
+    uses: ./.github/workflows/dev-build.yml
+    # inherit, not a list: the build's environment secrets (OTA_SIGNING_KEY)
+    # read as empty without it.
+    secrets: inherit
