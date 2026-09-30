@@ -42,8 +42,9 @@ export function useEventTiming(timing: EventTiming): { start_at: string; end_at:
   return useMemo(() => {
     if (!datesAreValid(allDay, startDate, startTime, endDate, endTime)) return null;
     const lastDate = endDate || startDate;
+    // An all-day event is its dates, the same for every viewer: stored as UTC.
     const [start, end] = allDay
-      ? [`${startDate}T00:00:00`, `${lastDate}T23:59:59`]
+      ? [`${startDate}T00:00:00Z`, `${lastDate}T23:59:59Z`]
       : [`${startDate}T${startTime}:00`, `${lastDate}T${endTime}:00`];
     return { start_at: new Date(start).toISOString(), end_at: new Date(end).toISOString() };
   }, [allDay, startDate, startTime, endDate, endTime]);

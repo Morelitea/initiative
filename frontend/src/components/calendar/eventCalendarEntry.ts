@@ -2,6 +2,9 @@ import type { CalendarEventSummary } from "@/api/generated/initiativeAPI.schemas
 
 import type { CalendarEntry } from "./CalendarView";
 
+/** The UTC date of an instant, as `YYYY-MM-DD`: an all-day event's day. */
+export const utcDateKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+
 /** A calendar's color when none is set — the server's own default. */
 export const DEFAULT_CALENDAR_COLOR = "#6366f1";
 
@@ -19,8 +22,9 @@ export const buildEventCalendarEntry = (
   id: `event-${event.guild_id}-${event.id}`,
   title: event.title,
   description: event.description,
-  startAt: event.start_at,
-  endAt: event.end_at,
+  // An all-day event's dates are UTC dates; drawn as the same dates here.
+  startAt: event.all_day ? `${utcDateKey(event.start_at)}T00:00:00` : event.start_at,
+  endAt: event.all_day ? `${utcDateKey(event.end_at)}T23:59:59` : event.end_at,
   allDay: event.all_day,
   color: calendarColor ?? DEFAULT_CALENDAR_COLOR,
   attendees: (event.attendee_previews ?? []).map((att) => ({

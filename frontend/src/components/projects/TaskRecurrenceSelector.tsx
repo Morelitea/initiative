@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  TaskListReadRecurrenceStrategy,
-  TaskRecurrenceOutput,
-  TaskRecurrenceOutputFrequency,
-  TaskRecurrenceOutputWeekdaysItem,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { TaskListReadRecurrenceStrategy } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
@@ -18,7 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TaskWeekPosition } from "@/lib/recurrence";
+import type {
+  RecurrenceFrequency,
+  RecurrenceRule,
+  RecurrenceWeekday,
+  TaskWeekPosition,
+} from "@/lib/recurrence";
 import {
   createRecurrenceFromPreset,
   detectRecurrencePreset,
@@ -61,7 +61,7 @@ const POSITION_KEYS: Record<TaskWeekPosition, string> = {
   last: "recurrence.positionLast",
 };
 
-const FREQUENCY_UNIT_KEYS: Record<TaskRecurrenceOutputFrequency, string> = {
+const FREQUENCY_UNIT_KEYS: Record<RecurrenceFrequency, string> = {
   daily: "recurrence.repeatEveryDays",
   weekly: "recurrence.repeatEveryWeeks",
   monthly: "recurrence.repeatEveryMonths",
@@ -69,8 +69,8 @@ const FREQUENCY_UNIT_KEYS: Record<TaskRecurrenceOutputFrequency, string> = {
 };
 
 type TaskRecurrenceSelectorProps = {
-  recurrence: TaskRecurrenceOutput | null;
-  onChange: (rule: TaskRecurrenceOutput | null) => void;
+  recurrence: RecurrenceRule | null;
+  onChange: (rule: RecurrenceRule | null) => void;
   strategy: TaskListReadRecurrenceStrategy;
   onStrategyChange: (value: TaskListReadRecurrenceStrategy) => void;
   disabled?: boolean;
@@ -103,7 +103,7 @@ export const TaskRecurrenceSelector = ({
   const anchorDate = getReferenceDate(referenceDate);
   const showCustomFields = forceCustomMode && recurrence !== null;
 
-  const ensureRule = (): TaskRecurrenceOutput => {
+  const ensureRule = (): RecurrenceRule => {
     if (recurrence) {
       return recurrence;
     }
@@ -125,9 +125,9 @@ export const TaskRecurrenceSelector = ({
     onChange(next);
   };
 
-  const handleFrequencyChange = (value: TaskRecurrenceOutputFrequency) => {
+  const handleFrequencyChange = (value: RecurrenceFrequency) => {
     const rule = ensureRule();
-    let next: TaskRecurrenceOutput = {
+    let next: RecurrenceRule = {
       ...rule,
       frequency: value,
       interval: 1,
@@ -164,7 +164,7 @@ export const TaskRecurrenceSelector = ({
     onChange({ ...rule, interval });
   };
 
-  const handleWeekdayToggle = (weekday: TaskRecurrenceOutputWeekdaysItem) => {
+  const handleWeekdayToggle = (weekday: RecurrenceWeekday) => {
     const rule = ensureRule();
     const set = new Set(rule.weekdays);
     if (set.has(weekday)) {
@@ -185,8 +185,7 @@ export const TaskRecurrenceSelector = ({
       const day = rule.day_of_month ?? anchorDate.getDate();
       onChange(updateMonthlyDay(rule, day));
     } else {
-      const weekday = (rule.weekday ??
-        getWeekdayFromDate(anchorDate)) as TaskRecurrenceOutputWeekdaysItem;
+      const weekday = (rule.weekday ?? getWeekdayFromDate(anchorDate)) as RecurrenceWeekday;
       const position = (rule.weekday_position ?? getWeekPosition(anchorDate)) as TaskWeekPosition;
       onChange(updateMonthlyWeekday(rule, position, weekday));
     }
@@ -220,7 +219,7 @@ export const TaskRecurrenceSelector = ({
   };
 
   const frequencyOptions = useMemo(
-    (): { value: TaskRecurrenceOutputFrequency; label: string }[] => [
+    (): { value: RecurrenceFrequency; label: string }[] => [
       { value: "daily", label: t("recurrence.frequencyDaily") },
       { value: "weekly", label: t("recurrence.frequencyWeekly") },
       { value: "monthly", label: t("recurrence.frequencyMonthly") },
@@ -262,7 +261,7 @@ export const TaskRecurrenceSelector = ({
   );
 
   const formatWeekdayList = useCallback(
-    (weekdays: TaskRecurrenceOutputWeekdaysItem[]) => {
+    (weekdays: RecurrenceWeekday[]) => {
       if (!weekdays.length) {
         return "";
       }
@@ -387,9 +386,7 @@ export const TaskRecurrenceSelector = ({
               <Label>{t("recurrence.frequency")}</Label>
               <Select
                 value={recurrence.frequency}
-                onValueChange={(value) =>
-                  handleFrequencyChange(value as TaskRecurrenceOutputFrequency)
-                }
+                onValueChange={(value) => handleFrequencyChange(value as RecurrenceFrequency)}
                 disabled={disabled}
               >
                 <SelectTrigger>
@@ -516,7 +513,7 @@ export const TaskRecurrenceSelector = ({
                           updateMonthlyWeekday(
                             ensureRule(),
                             value as TaskWeekPosition,
-                            (recurrence.weekday ?? "monday") as TaskRecurrenceOutputWeekdaysItem
+                            (recurrence.weekday ?? "monday") as RecurrenceWeekday
                           )
                         )
                       }
@@ -540,7 +537,7 @@ export const TaskRecurrenceSelector = ({
                           updateMonthlyWeekday(
                             ensureRule(),
                             (recurrence.weekday_position ?? "first") as TaskWeekPosition,
-                            value as TaskRecurrenceOutputWeekdaysItem
+                            value as RecurrenceWeekday
                           )
                         )
                       }
@@ -567,7 +564,7 @@ export const TaskRecurrenceSelector = ({
             <Label>{t("recurrence.ends")}</Label>
             <Select
               value={recurrence.ends ?? "never"}
-              onValueChange={(value) => handleEndsChange(value as TaskRecurrenceOutput["ends"])}
+              onValueChange={(value) => handleEndsChange(value as RecurrenceRule["ends"])}
               disabled={disabled}
             >
               <SelectTrigger>

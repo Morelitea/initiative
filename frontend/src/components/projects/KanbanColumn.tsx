@@ -35,7 +35,7 @@ import { Icon } from "@/components/ui/icon-picker";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
-import { summarizeRecurrence } from "@/lib/recurrence";
+import { summarizeStored } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import type { TranslateFn } from "@/types/i18n";
@@ -310,12 +310,10 @@ const KanbanCardContent = memo(
     const { shows, showsProperty } = visibleFields;
 
     const recurrenceSummary = task.recurrence
-      ? summarizeRecurrence(
+      ? summarizeStored(
           task.recurrence,
-          {
-            referenceDate: task.start_date || task.due_date,
-            strategy: task.recurrence_strategy,
-          },
+          task.due_date || task.start_date,
+          { strategy: task.recurrence_strategy },
           t as TranslateFn
         )
       : null;

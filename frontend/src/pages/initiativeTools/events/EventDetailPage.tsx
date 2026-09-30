@@ -55,11 +55,13 @@ const formatDateTime = (dateStr: string, allDay: boolean): string => {
   const date = new Date(dateStr);
 
   if (allDay) {
+    // An all-day event's date is its UTC date, the same for every viewer.
     return date.toLocaleDateString(undefined, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "UTC",
     });
   }
 

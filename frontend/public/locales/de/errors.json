@@ -654,6 +654,7 @@
   "OWNER_APP_NOT_ELIGIBLE": "Eine App kann dies nur besitzen, solange sie eingeschaltet ist, in der Initiative des Inhalts platziert ist und dieses Werkzeug ändern darf.",
   "CONTACT_CANNOT_FAVORITE_SELF": "Du kannst dich nicht selbst zu deinen Kontakten hinzufügen.",
   "ICAL_PARSE_FAILED": "Das ist keine Kalenderdatei, die wir lesen können.",
+  "RECURRENCE_INVALID": "Diese Wiederholung können wir nicht verwenden.",
   "ICAL_NO_EVENTS_FOUND": "Diese Kalenderdatei enthält keine Termine.",
   "WEBHOOK_SUBSCRIPTION_NOT_FOUND": "Webhook nicht gefunden",
   "WEBHOOK_INVALID_TARGET_URL": "Das ist keine gültige URL. Verwende eine vollständige https://-Adresse.",

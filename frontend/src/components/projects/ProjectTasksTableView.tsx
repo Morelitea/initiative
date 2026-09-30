@@ -44,7 +44,7 @@ import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useGuildPath } from "@/lib/guildUrl";
-import { summarizeRecurrence } from "@/lib/recurrence";
+import { summarizeStored } from "@/lib/recurrence";
 import type { AppColumnDef } from "@/lib/table";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
@@ -572,12 +572,10 @@ const TaskCell = ({ task, taskHref }: TaskCellProps) => {
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
     if (!task.recurrence) return null;
-    const summary = summarizeRecurrence(
+    const summary = summarizeStored(
       task.recurrence,
-      {
-        referenceDate: task.start_date || task.due_date,
-        strategy: task.recurrence_strategy,
-      },
+      task.due_date || task.start_date,
+      { strategy: task.recurrence_strategy },
       t as TranslateFn
     );
     return summary ? truncateText(summary, 100) : null;

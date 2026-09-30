@@ -6,7 +6,6 @@ import type {
   CalendarEventRead,
   CalendarSummary,
   TaskListReadRecurrenceStrategy,
-  TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
@@ -33,6 +32,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
+import { type RecurrenceRule, rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";
 import type { DialogProps } from "@/types/dialog";
 
@@ -85,7 +85,7 @@ export const CreateEventDialog = ({
   const [timing, setTiming] = useState(INITIAL_TIMING);
   const patchTiming = (patch: Partial<EventTiming>) => setTiming((prev) => ({ ...prev, ...patch }));
   const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
-  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
+  const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
   const [selectedCalendarId, setSelectedCalendarId] = useState(
@@ -185,21 +185,7 @@ export const CreateEventDialog = ({
       all_day: timing.allDay,
       calendar_id: effectiveCalendarId,
       attendee_ids: attendeeIds.length > 0 ? attendeeIds : undefined,
-      recurrence: recurrence
-        ? {
-            frequency: recurrence.frequency,
-            interval: recurrence.interval,
-            weekdays: recurrence.weekdays.length ? recurrence.weekdays : undefined,
-            monthly_mode: recurrence.monthly_mode ?? undefined,
-            day_of_month: recurrence.day_of_month ?? undefined,
-            weekday_position: recurrence.weekday_position ?? undefined,
-            weekday: recurrence.weekday ?? undefined,
-            month: recurrence.month ?? undefined,
-            ends: recurrence.ends ?? "never",
-            end_after_occurrences: recurrence.end_after_occurrences ?? undefined,
-            end_date: recurrence.end_date ?? undefined,
-          }
-        : undefined,
+      ...(recurrence ? rulePayload(recurrence, { allDay: timing.allDay }) : {}),
     });
   };
 

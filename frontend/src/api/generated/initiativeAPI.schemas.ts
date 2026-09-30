@@ -1522,26 +1522,6 @@ export interface CalendarCreate {
   grants?: ResourceGrantSchema[];
 }
 
-export interface EventRecurrence {
-  /** @pattern ^(daily|weekly|monthly|yearly)$ */
-  frequency: string;
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  interval?: number;
-  weekdays?: string[] | null;
-  monthly_mode?: string | null;
-  day_of_month?: number | null;
-  weekday_position?: string | null;
-  weekday?: string | null;
-  month?: number | null;
-  /** @pattern ^(never|on_date|after_occurrences)$ */
-  ends?: string;
-  end_after_occurrences?: number | null;
-  end_date?: string | null;
-}
-
 /**
  * Compact per-attendee snapshot for list responses.
  *
@@ -1636,7 +1616,7 @@ export interface CalendarEventSummary {
   start_at: string;
   end_at: string;
   all_day: boolean;
-  recurrence: EventRecurrence | null;
+  recurrence: string | null;
   id: number;
   calendar_id: number;
   initiative_id: number | null;
@@ -1660,90 +1640,6 @@ export const TaskPriority = {
   high: "high",
   urgent: "urgent",
 } as const;
-
-export type TaskRecurrenceOutputFrequency =
-  (typeof TaskRecurrenceOutputFrequency)[keyof typeof TaskRecurrenceOutputFrequency];
-
-export const TaskRecurrenceOutputFrequency = {
-  daily: "daily",
-  weekly: "weekly",
-  monthly: "monthly",
-  yearly: "yearly",
-} as const;
-
-export type TaskRecurrenceOutputWeekdaysItem =
-  (typeof TaskRecurrenceOutputWeekdaysItem)[keyof typeof TaskRecurrenceOutputWeekdaysItem];
-
-export const TaskRecurrenceOutputWeekdaysItem = {
-  monday: "monday",
-  tuesday: "tuesday",
-  wednesday: "wednesday",
-  thursday: "thursday",
-  friday: "friday",
-  saturday: "saturday",
-  sunday: "sunday",
-} as const;
-
-export type TaskRecurrenceOutputMonthlyMode =
-  (typeof TaskRecurrenceOutputMonthlyMode)[keyof typeof TaskRecurrenceOutputMonthlyMode];
-
-export const TaskRecurrenceOutputMonthlyMode = {
-  day_of_month: "day_of_month",
-  weekday: "weekday",
-} as const;
-
-export type TaskRecurrenceOutputWeekdayPosition =
-  | (typeof TaskRecurrenceOutputWeekdayPosition)[keyof typeof TaskRecurrenceOutputWeekdayPosition]
-  | null;
-
-export const TaskRecurrenceOutputWeekdayPosition = {
-  first: "first",
-  second: "second",
-  third: "third",
-  fourth: "fourth",
-  last: "last",
-} as const;
-
-export type TaskRecurrenceOutputWeekday =
-  | (typeof TaskRecurrenceOutputWeekday)[keyof typeof TaskRecurrenceOutputWeekday]
-  | null;
-
-export const TaskRecurrenceOutputWeekday = {
-  monday: "monday",
-  tuesday: "tuesday",
-  wednesday: "wednesday",
-  thursday: "thursday",
-  friday: "friday",
-  saturday: "saturday",
-  sunday: "sunday",
-} as const;
-
-export type TaskRecurrenceOutputEnds =
-  (typeof TaskRecurrenceOutputEnds)[keyof typeof TaskRecurrenceOutputEnds];
-
-export const TaskRecurrenceOutputEnds = {
-  never: "never",
-  on_date: "on_date",
-  after_occurrences: "after_occurrences",
-} as const;
-
-export interface TaskRecurrenceOutput {
-  frequency: TaskRecurrenceOutputFrequency;
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  interval: number;
-  weekdays: TaskRecurrenceOutputWeekdaysItem[];
-  monthly_mode: TaskRecurrenceOutputMonthlyMode;
-  day_of_month: number | null;
-  weekday_position: TaskRecurrenceOutputWeekdayPosition;
-  weekday: TaskRecurrenceOutputWeekday;
-  month: number | null;
-  ends: TaskRecurrenceOutputEnds;
-  end_after_occurrences: number | null;
-  end_date: string | null;
-}
 
 export type TaskListReadRecurrenceStrategy =
   (typeof TaskListReadRecurrenceStrategy)[keyof typeof TaskListReadRecurrenceStrategy];
@@ -1828,7 +1724,7 @@ export interface TaskListRead {
   priority: TaskPriority;
   start_date: string | null;
   due_date: string | null;
-  recurrence: TaskRecurrenceOutput | null;
+  recurrence: string | null;
   recurrence_strategy: TaskListReadRecurrenceStrategy;
   id: number;
   project_id: number;
@@ -1900,8 +1796,9 @@ export interface CalendarEventCreate {
   start_at: string;
   end_at: string;
   all_day?: boolean;
-  recurrence?: EventRecurrence | null;
+  recurrence?: string | null;
   calendar_id: number;
+  tz?: string | null;
   attendee_ids?: number[] | null;
   tag_ids?: number[] | null;
   document_ids?: number[] | null;
@@ -1937,7 +1834,7 @@ export interface CalendarEventRead {
   start_at: string;
   end_at: string;
   all_day: boolean;
-  recurrence: EventRecurrence | null;
+  recurrence: string | null;
   id: number;
   calendar_id: number;
   initiative_id: number | null;
@@ -1962,7 +1859,8 @@ export interface CalendarEventUpdate {
   start_at?: string | null;
   end_at?: string | null;
   all_day?: boolean | null;
-  recurrence?: EventRecurrence | null;
+  recurrence?: string | null;
+  tz?: string | null;
   calendar_id?: number | null;
 }
 
@@ -7970,6 +7868,43 @@ export interface RecoveryCodesRegenerate {
   current_password?: string | null;
 }
 
+export interface RecurrencePreview {
+  rule: string;
+  local_rule: string;
+  occurrences: string[];
+  exact: boolean;
+}
+
+export type RecurrencePreviewRequestKind =
+  (typeof RecurrencePreviewRequestKind)[keyof typeof RecurrencePreviewRequestKind];
+
+export const RecurrencePreviewRequestKind = {
+  task: "task",
+  event: "event",
+} as const;
+
+export type RecurrencePreviewRequestTerms =
+  (typeof RecurrencePreviewRequestTerms)[keyof typeof RecurrencePreviewRequestTerms];
+
+export const RecurrencePreviewRequestTerms = {
+  local: "local",
+  utc: "utc",
+} as const;
+
+export interface RecurrencePreviewRequest {
+  /** @maxLength 4000 */
+  rule: string;
+  start: string;
+  tz?: string | null;
+  kind: RecurrencePreviewRequestKind;
+  terms?: RecurrencePreviewRequestTerms;
+  /**
+   * @minimum 1
+   * @maximum 20
+   */
+  count?: number;
+}
+
 export type ReferenceEmbedBody = { [key: string]: unknown } | null;
 
 /**
@@ -8700,99 +8635,16 @@ export const TaskCreateRecurrenceStrategy = {
   rolling: "rolling",
 } as const;
 
-export type TaskRecurrenceInputFrequency =
-  (typeof TaskRecurrenceInputFrequency)[keyof typeof TaskRecurrenceInputFrequency];
-
-export const TaskRecurrenceInputFrequency = {
-  daily: "daily",
-  weekly: "weekly",
-  monthly: "monthly",
-  yearly: "yearly",
-} as const;
-
-export type TaskRecurrenceInputWeekdaysItem =
-  (typeof TaskRecurrenceInputWeekdaysItem)[keyof typeof TaskRecurrenceInputWeekdaysItem];
-
-export const TaskRecurrenceInputWeekdaysItem = {
-  monday: "monday",
-  tuesday: "tuesday",
-  wednesday: "wednesday",
-  thursday: "thursday",
-  friday: "friday",
-  saturday: "saturday",
-  sunday: "sunday",
-} as const;
-
-export type TaskRecurrenceInputMonthlyMode =
-  (typeof TaskRecurrenceInputMonthlyMode)[keyof typeof TaskRecurrenceInputMonthlyMode];
-
-export const TaskRecurrenceInputMonthlyMode = {
-  day_of_month: "day_of_month",
-  weekday: "weekday",
-} as const;
-
-export type TaskRecurrenceInputWeekdayPosition =
-  | (typeof TaskRecurrenceInputWeekdayPosition)[keyof typeof TaskRecurrenceInputWeekdayPosition]
-  | null;
-
-export const TaskRecurrenceInputWeekdayPosition = {
-  first: "first",
-  second: "second",
-  third: "third",
-  fourth: "fourth",
-  last: "last",
-} as const;
-
-export type TaskRecurrenceInputWeekday =
-  | (typeof TaskRecurrenceInputWeekday)[keyof typeof TaskRecurrenceInputWeekday]
-  | null;
-
-export const TaskRecurrenceInputWeekday = {
-  monday: "monday",
-  tuesday: "tuesday",
-  wednesday: "wednesday",
-  thursday: "thursday",
-  friday: "friday",
-  saturday: "saturday",
-  sunday: "sunday",
-} as const;
-
-export type TaskRecurrenceInputEnds =
-  (typeof TaskRecurrenceInputEnds)[keyof typeof TaskRecurrenceInputEnds];
-
-export const TaskRecurrenceInputEnds = {
-  never: "never",
-  on_date: "on_date",
-  after_occurrences: "after_occurrences",
-} as const;
-
-export interface TaskRecurrenceInput {
-  frequency: TaskRecurrenceInputFrequency;
-  /**
-   * @minimum 1
-   * @maximum 365
-   */
-  interval?: number;
-  weekdays?: TaskRecurrenceInputWeekdaysItem[];
-  monthly_mode?: TaskRecurrenceInputMonthlyMode;
-  day_of_month?: number | null;
-  weekday_position?: TaskRecurrenceInputWeekdayPosition;
-  weekday?: TaskRecurrenceInputWeekday;
-  month?: number | null;
-  ends?: TaskRecurrenceInputEnds;
-  end_after_occurrences?: number | null;
-  end_date?: string | null;
-}
-
 export interface TaskCreate {
   title: string;
   description?: string | null;
   priority?: TaskPriority;
   start_date?: string | null;
   due_date?: string | null;
-  recurrence?: TaskRecurrenceInput | null;
+  recurrence?: string | null;
   recurrence_strategy?: TaskCreateRecurrenceStrategy;
   project_id: number;
+  tz?: string | null;
   assignee_ids?: number[];
   task_status_id?: number | null;
   /** @maxItems 100 */
@@ -8840,7 +8692,7 @@ export interface TaskRead {
   priority: TaskPriority;
   start_date: string | null;
   due_date: string | null;
-  recurrence: TaskRecurrenceOutput | null;
+  recurrence: string | null;
   recurrence_strategy: TaskReadRecurrenceStrategy;
   id: number;
   project_id: number;
@@ -8931,7 +8783,8 @@ export interface TaskUpdate {
   assignee_ids?: number[] | null;
   start_date?: string | null;
   due_date?: string | null;
-  recurrence?: TaskRecurrenceInput | null;
+  recurrence?: string | null;
+  tz?: string | null;
   recurrence_strategy?: TaskUpdateRecurrenceStrategy;
   tag_ids?: number[] | null;
   property_values?: PropertyValueInput[] | null;
