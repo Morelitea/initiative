@@ -213,6 +213,15 @@ jobs:
           frontend
           codegen
 
+          {
+            echo "### What this run checks"
+            echo
+            echo "| Area | Decision |"
+            echo "|---|---|"
+            # shellcheck disable=SC2016 # literal backticks: Markdown code
+            sed -E 's/^([^=]+)=(.*)$/| \1 | `\2` |/' "$GITHUB_OUTPUT"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   backend-tests:
     name: Backend Lint & Tests
     needs: changes
@@ -258,26 +267,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Frozen migrations are unchanged
-        if: github.event_name == 'pull_request'
-        run: |
-          # A revision at or before RELEASED_MIGRATION has run on somebody's
-          # database and is fixed. A pull request adds revisions after it;
-          # it does not edit those (CLAUDE.md, "Never edit a migration that
-          # has shipped"). Additions pass; an edit, rename or deletion at or
-          # before the line fails. --no-renames reports a rename as the old
-          # path deleted, so the frozen name is what gets checked.
-          FROZEN=$(tr -d '[:space:]' < RELEASED_MIGRATION)
-          EDITED=$(git diff --name-only --no-renames --diff-filter=MDT "origin/$GITHUB_BASE_REF...HEAD" -- backend/alembic/versions \
-            | grep -oE '[0-9]{8}_[0-9]{4}' | awk -v frozen="$FROZEN" '$0 <= frozen' || true)
-          if [[ -n "$EDITED" ]]; then
-            echo "::error::Edited, renamed or removed a released migration (freeze line $FROZEN): $(echo $EDITED | tr '\n' ' ')"
-            echo "Add a new revision that converges both histories instead."
-            exit 1
-          fi
-          echo "No released migration edited (freeze line $FROZEN)"
-
       - uses: ./.github/actions/setup-backend
+
+      - name: Frozen migrations are unchanged, one Alembic head
+        # scripts/ci/check runs the same checks locally (and before a push).
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+        run: scripts/ci/check migrations
 
       - name: Bootstrap database roles
         # The same module a deployment runs at startup, over the same kind of
@@ -301,22 +298,16 @@ jobs:
           uv run alembic upgrade head
 
       - name: Lint with Ruff
-        run: |
-          cd backend
-          uv run ruff check app
+        run: scripts/ci/check ruff
 
       - name: Check formatting with Ruff
-        run: |
-          cd backend
-          uv run ruff format --check app
+        run: scripts/ci/check format
 
       - name: Type-check with ty
         # Full default rule set; the only exclusions are the SQLModel/ORM
         # false-positive rules disabled in backend/pyproject.toml
         # ([tool.ty.rules]), which is the single source of truth for the gate.
-        run: |
-          cd backend
-          uv run ty check app
+        run: scripts/ci/check ty
 
       - name: Start PgBouncer (transaction mode)
         # Runs as a step (not a service) so the committed reference config is
@@ -337,14 +328,22 @@ jobs:
           BACKEND_SCOPE: ${{ needs.changes.outputs.backend_scope || 'app/ alembic/' }}
         run: |
           cd backend
+          set -o pipefail
           # Unquoted: the scope is a space-separated list of test paths.
-          uv run python -m pytest $BACKEND_SCOPE -n auto --tb=short
+          uv run python -m pytest $BACKEND_SCOPE -n auto --tb=short --durations=15 \
+            | tee "$RUNNER_TEMP/pytest.log"
 
       - name: Prove the request-context seam
         if: needs.changes.outputs.seam == 'true'
         run: |
           cd backend
           uv run python -m pytest -m seam app/db/seam_conformance_test.py -n 2 --tb=short
+
+      - name: Summarise the test run
+        # The result, failures grouped by worker, and the slowest tests, on the
+        # run's summary page.
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest.log" >> "$GITHUB_STEP_SUMMARY"
 
   upgrade-from-release:
     name: Upgrade From Release
@@ -430,14 +429,10 @@ jobs:
       - uses: ./.github/actions/setup-frontend
 
       - name: Lint
-        run: |
-          cd frontend
-          pnpm lint
+        run: scripts/ci/check biome
 
       - name: TypeScript Check
-        run: |
-          cd frontend
-          pnpm typecheck
+        run: scripts/ci/check tsc
 
       - name: Run tests
         run: |
@@ -457,37 +452,10 @@ jobs:
         with:
           dev: "false"
 
-      - name: Check env-contract.json
-        run: |
-          (cd backend && uv run python ../scripts/build_env_contract.py)
-          if ! git diff --exit-code env-contract.json; then
-            echo ""
-            echo "ERROR: env-contract.json is out of date!"
-            echo "Run 'scripts/build_env_contract.py' under the backend venv and commit the result."
-            echo ""
-            exit 1
-          fi
-
-      - name: Export OpenAPI spec
-        run: |
-          cd backend
-          uv run python scripts/export_openapi.py "$RUNNER_TEMP/openapi.json"
-
       - uses: ./.github/actions/setup-frontend
 
-      - name: Regenerate types
-        run: frontend/scripts/generate-api.sh --from-spec "$RUNNER_TEMP/openapi.json"
-
-      - name: Check for drift
-        run: |
-          if ! git diff --exit-code frontend/src/api/generated/; then
-            echo ""
-            echo "ERROR: Generated types are out of date!"
-            echo "Run 'pnpm generate:api' in the frontend directory and commit the results."
-            echo ""
-            exit 1
-          fi
-          echo "Generated types are up to date."
+      - name: Check env-contract.json and the generated API client
+        run: scripts/ci/check codegen
 
   git-hooks:
     name: Git Hooks
@@ -509,6 +477,9 @@ jobs:
 
       - name: Test the Android signing workflow
         run: python3 scripts/ci/android_signing_workflow_test.py
+
+      - name: Test the test-run summary
+        run: python3 scripts/ci/pytest_summary_test.py
 
   dev-image:
     name: Dev Image

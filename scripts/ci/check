@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+# The fast checks CI runs, runnable on your machine. CI calls this same script
+# for these steps, so a failure here is the failure CI would report.
+#
+# Usage:
+#   scripts/ci/check              # the checks for what this branch changed
+#   scripts/ci/check all          # every check
+#   scripts/ci/check <name>...    # named checks, or the groups backend / frontend
+#
+# Checks:
+#   ruff        backend lint
+#   format      backend formatting
+#   ty          backend type check
+#   migrations  no released migration edited; one Alembic head
+#   biome       frontend lint
+#   tsc         frontend type check
+#   codegen     env-contract.json and the generated API client match the backend
+#
+# BASE_REF is what "changed" and "released migration edited" compare against:
+# origin/dev by default, the pull request's base in CI.
+#
+# Needs backend/.venv (cd backend && uv sync) and frontend/node_modules
+# (cd frontend && pnpm install). No database, no server, no tests.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+
+BASE_REF="${BASE_REF:-origin/dev}"
+FAILED=()
+
+say() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
+# In GitHub Actions, also an annotation on the run.
+error() {
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then echo "::error::$*"; else echo "$*"; fi
+}
+
+backend() { (cd backend && uv run --no-sync "$@"); }
+frontend() { (cd frontend && pnpm "$@"); }
+
+check_ruff() { backend ruff check app; }
+check_format() { backend ruff format --check app; }
+check_ty() { backend ty check app; }
+check_biome() { frontend lint; }
+check_tsc() { frontend typecheck; }
+
+check_migrations() {
+  # A revision at or before RELEASED_MIGRATION has run on somebody's database
+  # and is fixed; edit, rename or delete one and this fails. --no-renames
+  # reports a rename as the old path deleted, so the frozen name is checked.
+  local frozen edited
+  frozen=$(tr -d '[:space:]' < RELEASED_MIGRATION)
+  edited=$(git diff --name-only --no-renames --diff-filter=MDT "$BASE_REF...HEAD" -- backend/alembic/versions \
+    | grep -oE '[0-9]{8}_[0-9]{4}' | awk -v frozen="$frozen" '$0 <= frozen' || true)
+  if [[ -n "$edited" ]]; then
+    error "Edited, renamed or removed a released migration (freeze line $frozen): $(tr '\n' ' ' <<<"$edited")"
+    echo "Add a new revision that converges both histories instead (CLAUDE.md, \"Never edit a migration that has shipped\")."
+    return 1
+  fi
+  echo "No released migration edited (freeze line $frozen)."
+
+  # get_current_head() raises when the revisions have more than one head.
+  backend python -c "
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+print('One Alembic head:', ScriptDirectory.from_config(Config('alembic.ini')).get_current_head())
+"
+}
+
+check_codegen() {
+  local spec generated=(env-contract.json frontend/src/api/generated)
+  (cd backend && uv run --no-sync python ../scripts/build_env_contract.py)
+  spec=$(mktemp --suffix=.json)
+  backend python scripts/export_openapi.py "$spec"
+  frontend/scripts/generate-api.sh --from-spec "$spec" >/dev/null
+  rm -f "$spec"
+  if [[ -n "$(git status --porcelain -- "${generated[@]}")" ]]; then
+    git status --short -- "${generated[@]}"
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+      git --no-pager diff HEAD -- "${generated[@]}"
+    else
+      git --no-pager diff --stat HEAD -- "${generated[@]}"
+    fi
+    echo
+    error "Regenerated from the backend, and it differs from what is committed."
+    echo "Run scripts/ci/check codegen locally: it regenerates them. Review and commit the result."
+    return 1
+  fi
+  echo "env-contract.json and the generated API client are up to date."
+}
+
+# What this branch changed against BASE_REF, committed or not.
+changed_paths() {
+  {
+    git diff --name-only "$BASE_REF...HEAD" 2>/dev/null || echo "(no base)"
+    git diff --name-only HEAD
+    git ls-files --others --exclude-standard
+  } | sort -u
+}
+
+checks_for_changes() {
+  local changed
+  changed=$(changed_paths)
+  if grep -qx "(no base)" <<<"$changed"; then
+    echo "all"
+    return
+  fi
+  if grep -q '^backend/' <<<"$changed"; then
+    echo "ruff format ty"
+  fi
+  if grep -q '^backend/alembic/' <<<"$changed"; then
+    echo "migrations"
+  fi
+  if grep -q '^frontend/' <<<"$changed"; then
+    echo "biome tsc"
+  fi
+  # The same paths CI's codegen check watches.
+  if grep -qE '^(backend/|frontend/orval\.config\.ts$|frontend/src/api/mutator\.ts$|frontend/package\.json$|frontend/scripts/generate-api\.sh$|scripts/build_env_contract\.py$|env-contract\.json$)' <<<"$changed"; then
+    echo "codegen"
+  fi
+}
+
+expand() {
+  case "$1" in
+    all) echo "ruff format ty migrations biome tsc codegen" ;;
+    backend) echo "ruff format ty migrations" ;;
+    frontend) echo "biome tsc" ;;
+    ruff | format | ty | migrations | biome | tsc | codegen) echo "$1" ;;
+    *)
+      echo "Unknown check: $1 (see scripts/ci/check --help)" >&2
+      exit 2
+      ;;
+  esac
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
+  exit 0
+fi
+
+if [[ $# -eq 0 ]]; then
+  # shellcheck disable=SC2046 # one check name per word
+  set -- $(checks_for_changes)
+  if [[ $# -eq 0 ]]; then
+    echo "Nothing to check: no backend or frontend changes against $BASE_REF."
+    exit 0
+  fi
+fi
+
+CHECKS=()
+for arg in "$@"; do
+  for name in $(expand "$arg"); do
+    [[ " ${CHECKS[*]} " == *" $name "* ]] || CHECKS+=("$name")
+  done
+done
+
+for name in "${CHECKS[@]}"; do
+  say "$name"
+  "check_$name" || FAILED+=("$name")
+done
+
+echo
+if [[ ${#FAILED[@]} -gt 0 ]]; then
+  echo "Failed: ${FAILED[*]}"
+  exit 1
+fi
+echo "Passed: ${CHECKS[*]}"
