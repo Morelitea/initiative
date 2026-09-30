@@ -80,10 +80,12 @@ jobs:
         with:
           context: .
           # The OS packages are refreshed once a day; everything else reuses
-          # the cache until its inputs change.
+          # the amd64 image build's cache. Read only: a scope of its own held a
+          # second copy of every layer, and the repository's cache is capped at
+          # 10 GB, past which the oldest entries (the uv and pnpm caches among
+          # them) are evicted.
           build-args: APT_REFRESH=${{ steps.day.outputs.day }}
-          cache-from: type=gha,scope=image-scan
-          cache-to: type=gha,scope=image-scan,mode=max
+          cache-from: type=gha,scope=docker-build-linux-amd64
           # Load the built image into the local daemon so Trivy can scan it —
           # single-platform (amd64) is a requirement of `load`, and arm64's slim
           # base carries the same OS CVEs anyway.
