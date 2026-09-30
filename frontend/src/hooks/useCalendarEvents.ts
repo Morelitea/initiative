@@ -26,6 +26,7 @@ import type {
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
+import { withZone } from "@/lib/recurrence";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -68,7 +69,11 @@ export const useUpdateCalendarEvent = (
   useGuildMutation<CalendarEventRead, CalendarEventUpdate>(
     {
       mutationFn: (guildId, data) =>
-        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
+        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(
+          guildId,
+          eventId,
+          withZone(data)
+        ),
       invalidate: () => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },
@@ -86,7 +91,11 @@ export const useRescheduleCalendarEvent = (
   useGuildMutation<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>(
     {
       mutationFn: (guildId, { eventId, data }) =>
-        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(guildId, eventId, data),
+        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(
+          guildId,
+          eventId,
+          withZone(data)
+        ),
       invalidate: (_data, { eventId }) => invalidateEventAndList(eventId),
       errorKey: "calendars:error",
     },

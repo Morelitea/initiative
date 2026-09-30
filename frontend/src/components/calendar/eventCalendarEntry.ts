@@ -5,6 +5,15 @@ import type { CalendarEntry } from "./CalendarView";
 /** The UTC date of an instant, as `YYYY-MM-DD`: an all-day event's day. */
 export const utcDateKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
+/** The stored range for an all-day event dropped onto local days: those days as UTC dates. */
+export const allDayRange = (startAt: string, endAt: string) => {
+  const day = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  return { start_at: `${day(startAt)}T00:00:00Z`, end_at: `${day(endAt)}T23:59:59Z` };
+};
+
 /** A calendar's color when none is set — the server's own default. */
 export const DEFAULT_CALENDAR_COLOR = "#6366f1";
 

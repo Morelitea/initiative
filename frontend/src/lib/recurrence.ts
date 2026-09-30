@@ -676,3 +676,12 @@ export const rulePayload = (
   if (rule === null) return { recurrence: null };
   return { recurrence: toRRule(rule, options), tz: browserTimezone() };
 };
+
+/**
+ * A task or event update with the browser's zone beside it, so a stored
+ * repeat moves with a start that moved, its days kept where they were picked.
+ */
+export const withZone = <T extends object>(data: T): T & { tz?: string } => ({
+  tz: browserTimezone(),
+  ...data,
+});
