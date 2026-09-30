@@ -30,6 +30,8 @@ from app.services.fields import (
 from app.services.fields.registry import dataset_names
 from app.services.query.resolve import resolve
 
+pytestmark = pytest.mark.always
+
 
 def _names() -> list[str]:
     """The datasets, for parametrising. Read at collection so a new one is

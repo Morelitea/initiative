@@ -21,8 +21,8 @@ can't hold) is dropped, and the count is logged per schema. Every reader already
 ignored those rows. The downgrade drops the rules: a JSON object can't hold what
 an RRULE can.
 
-Revision ID: 20260930_0420
-Revises: 20260930_0419
+Revision ID: 20260930_0421
+Revises: 20260930_0420
 Create Date: 2026-09-30
 """
 
@@ -37,8 +37,8 @@ from alembic import op
 from app.core.recurrence import last_start, normalize, shift_for
 from app.db.guild_migrations import guild_schema_names, run_for_each_guild_schema
 
-revision = "20260930_0420"
-down_revision = "20260930_0419"
+revision = "20260930_0421"
+down_revision = "20260930_0420"
 branch_labels = None
 depends_on = None
 

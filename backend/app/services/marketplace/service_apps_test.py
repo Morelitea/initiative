@@ -23,6 +23,8 @@ import pytest
 
 from app.services.marketplace.definitions import normalize_listing_definition
 
+pytestmark = pytest.mark.always
+
 
 _PACKAGE = Path(__file__).resolve().parent
 

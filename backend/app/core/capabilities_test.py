@@ -1,5 +1,7 @@
 """Unit tests for the platform capability model."""
 
+import pytest
+
 from app.core.capabilities import (
     Capability,
     can_assign_role,
@@ -10,6 +12,8 @@ from app.core.capabilities import (
     user_has_capability,
 )
 from app.models.platform.user import UserRole, UserStatus
+
+pytestmark = pytest.mark.always
 
 
 class _Actor:

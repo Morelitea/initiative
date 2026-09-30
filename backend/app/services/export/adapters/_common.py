@@ -12,15 +12,21 @@ rows it loads and how one row serialises.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
+from app.core.relationships import Related
 from app.core.tools import Tool, tool_envelope_type, tool_export_source
 from app.models.platform.user import User
+from app.models.tenant.document import Document
+from app.models.tenant.project import Project
+from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
 from app.services.permissions import EXPORT_ACCESS
@@ -46,6 +52,21 @@ def selection_ids(params: dict, *, single_key: str, multi_key: str) -> list[int]
     except (TypeError, ValueError):
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
     return list(dict.fromkeys(ids))
+
+
+async def related_reach(session: AsyncSession, related: Iterable[Related]) -> set[int]:
+    """The initiatives of the documents and tasks at the far end of these
+    edges: a document's own, and a task's by its project."""
+    entities = [r.entity for r in related if r.entity is not None]
+    reach = {e.initiative_id for e in entities if isinstance(e, Document)}
+    project_ids = {e.project_id for e in entities if isinstance(e, Task)}
+    if project_ids:
+        reach |= set(
+            await session.exec(
+                select(Project.initiative_id).where(Project.id.in_(project_ids))
+            )
+        )
+    return reach
 
 
 def export_stem(name: str, date: str) -> str:
@@ -153,6 +174,20 @@ class ToolExportAdapter:
         beside it — a gallery's pictures ride next to its envelope."""
         return (self.item(entity, ctx),)
 
+    async def reach(
+        self, session: AsyncSession, params: dict, entities: list[Any], /
+    ) -> set[int]:
+        """The initiatives whose content these entities hold. A guild-level
+        entity holds none."""
+        return {entity.initiative_id for entity in entities} - {None}
+
+    async def prepared_reach(
+        self, session: AsyncSession, ctx: BuildContext, /
+    ) -> set[int]:
+        """The initiatives of what :meth:`prepare` loaded beside the entities,
+        when the items ``ctx.format`` writes name it."""
+        return set()
+
     async def prepare(self, session: AsyncSession, entities: list[Any], /) -> Any:
         """Anything the item builders need across the whole batch, loaded in
         one pass (they are synchronous and hold no session)."""
@@ -240,4 +275,8 @@ class ToolExportAdapter:
             template_id=self.template_id,
             format=format,
             batch=batch,
+            initiative_ids=frozenset(
+                await self.reach(session, params, entities)
+                | await self.prepared_reach(session, ctx)
+            ),
         )

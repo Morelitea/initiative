@@ -131,6 +131,19 @@ class WikiAdapter(ToolExportAdapter):
             session, user, guild_id, initiative_ids=[initiative_id]
         )
 
+    async def reach(
+        self, session: AsyncSession, params: dict, loaded: list[Loaded], /
+    ) -> set[int]:
+        # A document filed in the wiki can belong to another initiative.
+        return {
+            initiative_id
+            for wiki, _pages, documents in loaded
+            for initiative_id in (
+                wiki.initiative_id,
+                *(d.initiative_id for d in documents),
+            )
+        }
+
     def title(self, loaded: Loaded, /) -> str:
         wiki, _pages, _documents = loaded
         return wiki.name

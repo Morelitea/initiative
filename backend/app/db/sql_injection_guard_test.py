@@ -25,6 +25,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.always
+
 
 # app/ package dir and the backend root the keys are expressed relative to.
 _APP_DIR = Path(__file__).resolve().parents[1]

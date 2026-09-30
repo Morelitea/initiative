@@ -57,6 +57,10 @@ class RenderRequest:
     template_id: str
     format: str  # "pdf" (v1)
     batch: tuple[RenderItem, ...]
+    #: The initiatives whose content the batch holds. A queued job records
+    #: them, and its artifact is served only to someone who still reaches
+    #: every one.
+    initiative_ids: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True)

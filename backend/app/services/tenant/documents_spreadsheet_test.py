@@ -42,6 +42,7 @@ def _leaf_paths(value: Any, prefix: str = "") -> set[str]:
     return out
 
 
+@pytest.mark.always
 def test_schema_fixture_survives_normalization() -> None:
     """Every field the shared fixture defines comes back out.
 

@@ -265,6 +265,7 @@
   "EXPORT_JOB_NOT_FOUND": "Export not found.",
   "EXPORT_NOT_READY": "This export isn't ready to download yet.",
   "EXPORT_EXPIRED": "This export has expired. Start a new one to download it again.",
+  "EXPORT_OUT_OF_REACH": "You no longer have access to everything in this export, so it can't be downloaded.",
   "EXPORT_CREATOR_INACTIVE": "The export stopped because the account that started it is no longer active.",
   "EXPORT_ACCESS_REVOKED": "The export stopped because whoever started it no longer has access to this community.",
   "EXPORT_RENDER_FAILED": "The export failed. Try again.",

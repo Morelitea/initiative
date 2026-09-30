@@ -727,6 +727,9 @@ class ExportMessages:
     EXPORT_NOT_READY = "EXPORT_NOT_READY"
     #: A finished export whose artifact is past its expiry.
     EXPORT_EXPIRED = "EXPORT_EXPIRED"
+    #: A finished export holding content from an initiative the caller no
+    #: longer reaches.
+    EXPORT_OUT_OF_REACH = "EXPORT_OUT_OF_REACH"
     EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
     EXPORT_THIRD_PARTY_APP = "EXPORT_THIRD_PARTY_APP"
     EXPORT_DESTINATION_REQUIRED = "EXPORT_DESTINATION_REQUIRED"

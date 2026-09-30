@@ -3044,8 +3044,9 @@ export function useGetExportJobApiV1CGuildIdExportsJobIdGet<
 }
 
 /**
- * Stream a finished export's artifact. The RLS-gated job lookup is the
- * authorization; storage is touched only after it passes.
+ * Stream a finished export's artifact. The RLS-gated job lookup and the
+ * initiatives the artifact holds are the authorization, asked now rather
+ * than when it was rendered; storage is touched only after both pass.
  * @summary Download Export Artifact
  */
 export const downloadExportArtifactApiV1CGuildIdExportsJobIdDownloadGet = (

@@ -36,6 +36,8 @@ from app.db.user_columns import (
 from app.db.public_rls import PUBLIC_RLS, role_name
 from app.db.system_grants import ROLE_GRANTS, tier_table_grants
 
+pytestmark = pytest.mark.always
+
 
 # Shared tables that carry (FORCEd) row-level security: what the registry in
 # app.db.public_rls says is on. The catalog is the other side of the check.

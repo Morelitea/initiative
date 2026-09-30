@@ -142,6 +142,7 @@ async def test_a_stranger_cannot_ask_on_a_community_they_are_not_in(
     assert response.status_code == 403, response.text
 
 
+@pytest.mark.always
 async def test_every_support_error_code_is_localized():
     """A refusal reaches the reader as its own sentence."""
     import json
