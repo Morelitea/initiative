@@ -49,10 +49,14 @@ check_migrations() {
   # A revision at or before RELEASED_MIGRATION has run on somebody's database
   # and is fixed; edit, rename or delete one and this fails. --no-renames
   # reports a rename as the old path deleted, so the frozen name is checked.
-  local frozen edited
+  local frozen touched edited
+  if ! git rev-parse --verify --quiet "$BASE_REF^{commit}" >/dev/null; then
+    error "Cannot compare against $BASE_REF: it does not exist here. Run 'git fetch origin dev', or set BASE_REF."
+    return 1
+  fi
   frozen=$(tr -d '[:space:]' < RELEASED_MIGRATION)
-  edited=$(git diff --name-only --no-renames --diff-filter=MDT "$BASE_REF...HEAD" -- backend/alembic/versions \
-    | grep -oE '[0-9]{8}_[0-9]{4}' | awk -v frozen="$frozen" '$0 <= frozen' || true)
+  touched=$(git diff --name-only --no-renames --diff-filter=MDT "$BASE_REF...HEAD" -- backend/alembic/versions)
+  edited=$(grep -oE '[0-9]{8}_[0-9]{4}' <<<"$touched" | awk -v frozen="$frozen" '$0 <= frozen' || true)
   if [[ -n "$edited" ]]; then
     error "Edited, renamed or removed a released migration (freeze line $frozen): $(tr '\n' ' ' <<<"$edited")"
     echo "Add a new revision that converges both histories instead (CLAUDE.md, \"Never edit a migration that has shipped\")."
@@ -70,6 +74,14 @@ print('One Alembic head:', ScriptDirectory.from_config(Config('alembic.ini')).ge
 
 check_codegen() {
   local spec generated=(env-contract.json frontend/src/api/generated)
+  # Regenerating writes over these files, so they must hold nothing that is
+  # not committed yet. (CI always starts from a clean checkout.)
+  if [[ -n "$(git status --porcelain -- "${generated[@]}")" ]]; then
+    git status --short -- "${generated[@]}"
+    error "These generated files have uncommitted changes, which regenerating would overwrite."
+    echo "Commit them (or discard them), then run the check again."
+    return 1
+  fi
   (cd backend && uv run --no-sync python ../scripts/build_env_contract.py)
   spec=$(mktemp --suffix=.json)
   backend python scripts/export_openapi.py "$spec"
@@ -102,7 +114,9 @@ changed_paths() {
 checks_for_changes() {
   local changed
   changed=$(changed_paths)
-  if grep -qx "(no base)" <<<"$changed"; then
+  # No base to compare with, or a change to the checks themselves: run them all.
+  if grep -qx "(no base)" <<<"$changed" \
+    || grep -qE '^(scripts/ci/|\.github/workflows/ci\.yml$|\.github/actions/|frontend/\.husky/)' <<<"$changed"; then
     echo "all"
     return
   fi

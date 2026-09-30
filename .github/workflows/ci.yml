@@ -337,13 +337,17 @@ jobs:
         if: needs.changes.outputs.seam == 'true'
         run: |
           cd backend
-          uv run python -m pytest -m seam app/db/seam_conformance_test.py -n 2 --tb=short
+          set -o pipefail
+          uv run python -m pytest -m seam app/db/seam_conformance_test.py -n 2 --tb=short \
+            | tee "$RUNNER_TEMP/pytest-seam.log"
 
       - name: Summarise the test run
         # The result, failures grouped by worker, and the slowest tests, on the
         # run's summary page.
         if: ${{ !cancelled() }}
-        run: python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest.log" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest.log" "Backend tests" >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-seam.log" "Request-context seam" >> "$GITHUB_STEP_SUMMARY"
 
   upgrade-from-release:
     name: Upgrade From Release

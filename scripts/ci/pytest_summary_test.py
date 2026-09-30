@@ -62,6 +62,12 @@ class SummaryTest(unittest.TestCase):
         self.assertIn("12 passed in 3.00s", text)
         self.assertNotIn("Failures", text)
 
+    def test_each_log_gets_its_own_heading(self):
+        text = pytest_summary.render(
+            pytest_summary.parse("==== 3 passed in 1.00s ====\n"), "Request-context seam"
+        )
+        self.assertTrue(text.startswith("### Request-context seam"))
+
     def test_a_missing_log_prints_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(pytest_summary.main(["x", f"{tmp}/none.log"]), 0)

@@ -1,6 +1,6 @@
 """Turn a pytest log into a short Markdown summary for a CI run's summary page.
 
-    python3 scripts/ci/pytest_summary.py pytest.log >> "$GITHUB_STEP_SUMMARY"
+    python3 scripts/ci/pytest_summary.py pytest.log ["Heading"] >> "$GITHUB_STEP_SUMMARY"
 
 Reads the output of a pytest-xdist run (``-v -ra --durations=N``) and writes
 the result line, the failures grouped by worker, each failure with its short
@@ -75,8 +75,8 @@ def _reason(text: str, limit: int = 240) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;")
 
 
-def render(run: Run) -> str:
-    out = ["### Backend tests", ""]
+def render(run: Run, title: str = "Backend tests") -> str:
+    out = [f"### {title}", ""]
     out.append(run.result or "No result line: the run stopped before pytest finished.")
     if run.workers:
         total = sum(run.workers.values())
@@ -104,7 +104,8 @@ def main(argv: list[str]) -> int:
     path = Path(argv[1])
     if not path.exists():
         return 0
-    sys.stdout.write(render(parse(path.read_text(errors="replace"))))
+    title = argv[2] if len(argv) > 2 else "Backend tests"
+    sys.stdout.write(render(parse(path.read_text(errors="replace")), title))
     return 0
 
 
