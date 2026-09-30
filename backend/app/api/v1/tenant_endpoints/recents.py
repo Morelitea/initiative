@@ -18,8 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Annotated, Any, Callable, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload, undefer
+from fastapi import APIRouter, Depends, status
 from sqlmodel import select
 
 from app.db.session import require_guild_context
@@ -33,11 +32,9 @@ from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership
-from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
 from app.schemas.tenant.recent_view import RecentItemRead
-from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
 from app.services.cross_guild import gather_across_guilds
 from app.services.tenant.recent_views import RecentEntityType
@@ -105,32 +102,22 @@ async def _enrich_recent_rows(
 ) -> List[RecentItemRead]:
     """Resolve one guild's recent_views rows into render-only tab items.
 
-    Must run inside that guild's routed context — relationships and ids are
-    per-schema, and the standing the seam computed for that community is what
-    decides, so a row reaches the same verdict here as on its detail page.
+    Must run inside that guild's routed context — ids are per-schema, and the
+    routed session is what decides: a thing the reader may not read does not
+    load, so its tab is dropped, the same verdict its detail page reaches.
     """
     context = require_guild_context(session)
     ids_by_type = recent_views_service.group_ids_by_type(rows)
 
-    # One eager-load per tool that actually appears in this batch. Every
-    # recentable tool is a DAC resource with the same ``grants`` + ``initiative``
-    # shape, so the query is identical apart from the model.
+    # One query per tool that actually appears in this batch, reading the row
+    # alone: a tab shows a name, so nothing about its sharing is loaded.
     loaded: Dict[str, Dict[int, Any]] = {}
     for tool, spec in RECENT_TOOL_SPECS.items():
         ids = ids_by_type.get(tool.value)
         if not ids:
             continue
         model = spec.model
-        stmt = (
-            select(model)
-            .where(model.id.in_(ids))
-            .options(
-                selectinload(model.grants).selectinload(ResourceGrant.role),
-                selectinload(model.initiative),
-                undefer(model.actions),
-            )
-        )
-        result = await session.exec(stmt)
+        result = await session.exec(select(model).where(model.id.in_(ids)))
         loaded[tool.value] = {row.id: row for row in result.all()}
 
     items: List[RecentItemRead] = []
@@ -141,17 +128,6 @@ async def _enrich_recent_rows(
         tool, spec = entry
         entity = loaded.get(row.entity_type, {}).get(row.entity_id)
         if entity is None:
-            continue
-        try:
-            permissions_service.require_access(
-                permissions_service.DAC_RESOURCES[tool],
-                entity,
-                context=context,
-                access="read",
-            )
-        except HTTPException:
-            # Permission denied / not found — drop the row from the bar but let
-            # any other error bubble up so latent bugs stay visible.
             continue
         items.append(
             # ``model_construct`` skips the SanitizedBaseModel validator so

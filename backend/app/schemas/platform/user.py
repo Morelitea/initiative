@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, Dict, List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
 from pydantic import (
     ConfigDict,
@@ -437,16 +437,6 @@ class OwnedDecoration(SanitizedBaseModel):
     image_url: Optional[str] = None
 
 
-class DecorationArtResponse(SanitizedBaseModel):
-    """Pictures for decorations whose art is carried by their pack rather than
-    shipped with the client, by decoration id. An id the client draws itself,
-    or one no pack on this deployment names, is absent."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    art: Dict[str, str] = {}
-
-
 class DecorationPack(SanitizedBaseModel):
     """One installable set of decorations, and whether this account has it.
 
@@ -714,6 +704,10 @@ class OperatorUserRead(UserRead):
     #: Set while wrong passwords or codes have turned the account's password
     #: and code sign-in off; it turns back on by itself at that time.
     sign_in_locked_until: Optional[datetime] = None
+
+    #: Whether the account holds an authenticator it has proved — what the
+    #: roster offers to clear when its holder has lost it.
+    second_factor_enrolled: bool = False
 
     @field_validator("email", mode="after")
     @classmethod

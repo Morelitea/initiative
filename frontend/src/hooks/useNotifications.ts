@@ -219,28 +219,36 @@ export const useReadOnOpen = (kind: string, id: number | undefined) => {
  * A failure invalidates, so the server's answer replaces this rather than the
  * optimistic state standing.
  */
-/** Fold a read into one cached page, returning it unchanged when nothing moved. */
-const applyReadToPage = (
-  page: NotificationListResponse,
+/**
+ * Fold a read into a list's cached pages, or null when nothing moved. Only the
+ * first page carries the inbox's total, so a read on any page comes off it.
+ */
+const applyReadToPages = (
+  pages: NotificationListResponse[],
   matches: (notification: NotificationRead) => boolean,
   readAt: string
-): NotificationListResponse => {
+): NotificationListResponse[] | null => {
   let cleared = 0;
-  const notifications = page.notifications.map((notification) => {
-    if (notification.read_at || !matches(notification)) {
-      return notification;
-    }
-    cleared += 1;
-    return { ...notification, read_at: readAt };
+  const next = pages.map((page) => {
+    const before = cleared;
+    const notifications = page.notifications.map((notification) => {
+      if (notification.read_at || !matches(notification)) {
+        return notification;
+      }
+      cleared += 1;
+      return { ...notification, read_at: readAt };
+    });
+    return cleared === before ? page : { ...page, notifications };
   });
   if (cleared === 0) {
-    return page;
+    return null;
   }
-  return {
-    ...page,
-    notifications,
-    unread_count: Math.max(0, page.unread_count - cleared),
-  };
+  const [first, ...rest] = next;
+  const total = first.unread_count;
+  return [
+    { ...first, unread_count: total === null ? null : Math.max(0, total - cleared) },
+    ...rest,
+  ];
 };
 
 type CachedList =
@@ -260,12 +268,10 @@ const applyRead = (client: QueryClient, matches: (notification: NotificationRead
       }
       const readAt = new Date().toISOString();
       if ("pages" in current) {
-        const pages = current.pages.map((page) => applyReadToPage(page, matches, readAt));
-        return pages.some((page, index) => page !== current.pages[index])
-          ? { ...current, pages }
-          : current;
+        const pages = applyReadToPages(current.pages, matches, readAt);
+        return pages ? { ...current, pages } : current;
       }
-      return applyReadToPage(current, matches, readAt);
+      return applyReadToPages([current], matches, readAt)?.[0] ?? current;
     }
   );
 

@@ -645,33 +645,6 @@ async def create_join_request(
 
 
 @router.get(
-    "/{initiative_id}/join-requests/me",
-    response_model=List[InitiativeJoinRequestRead],
-)
-async def list_my_join_requests(
-    initiative_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
-) -> List[InitiativeJoinRequestRead]:
-    """The caller's own knocks at this door, newest first.
-
-    ``initiative_join_requests`` is a guild-level table — the schema boundary is
-    its only database gate, because a requester is by definition not yet a
-    member and an initiative-membership gate would hide their own row from them.
-    So who may read which rows is decided here: this route is scoped to the
-    caller's ``user_id`` and nothing else, and the queue below is manager-only.
-    """
-    await _get_initiative_or_404(initiative_id, session)
-    return await initiatives_service.list_join_requests(
-        session,
-        initiative_id=initiative_id,
-        status=None,
-        user_id=current_user.id,
-    )
-
-
-@router.get(
     "/{initiative_id}/join-requests",
     response_model=List[InitiativeJoinRequestRead],
 )
@@ -694,8 +667,7 @@ async def list_join_requests(
     """The join-request queue for one initiative.
 
     Manager-only, matching who may answer it; a plain member of the initiative
-    has no more business reading who asked to get in than a non-member does. A
-    requester reads their own rows through ``/join-requests/me`` instead.
+    has no more business reading who asked to get in than a non-member does.
     """
     initiative = await _get_initiative_or_404(initiative_id, session)
     await _require_manager_access(

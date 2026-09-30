@@ -95,14 +95,6 @@ class QueueItemRead(QueueItemBase):
     created_at: datetime
 
 
-class QueueItemReorderRequest(SanitizedBaseModel):
-    class ReorderItem(SanitizedBaseModel):
-        id: int
-        position: float
-
-    items: List[ReorderItem]
-
-
 class QueueReleaseRequest(SanitizedBaseModel):
     """Options for releasing a held queue item back into the rotation."""
 

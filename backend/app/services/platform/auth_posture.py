@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from fastapi import HTTPException, status
+from sqlalchemy import select as sa_select
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -124,15 +125,12 @@ async def holds_second_factor(session: AsyncSession, *, user_id: int) -> bool:
     )
 
 
-async def accounts_without_factor(
-    session: AsyncSession, *, level: SecondFactorRequirement
-) -> int:
-    """How many accounts ``level`` would ask to set one up.
+def _without_factor_clause(level: SecondFactorRequirement):
+    """Accounts ``level`` would ask to set one up.
 
     Live accounts the level covers that hold neither an authenticator nor a
-    key. It counts what the page states before the write, so an operator
-    turning the rule on knows how many people meet it the next time they open
-    the app.
+    key. Counted before the write, so an operator turning the rule on knows how
+    many people meet it the next time they open the app.
 
     An account whose identity provider carries out the second factor is
     counted here and asked for nothing in practice: the session it arrives on
@@ -140,14 +138,41 @@ async def accounts_without_factor(
     figure is therefore the most it could be, which is the honest direction
     for a warning.
     """
-    if level is SecondFactorRequirement.nobody:
-        return 0
-    conditions = [User.status == UserStatus.active, ~_holds_a_factor_clause()]
+    clause = (User.status == UserStatus.active) & ~_holds_a_factor_clause()
     if level is SecondFactorRequirement.platform_roles:
-        conditions.append(User.role != UserRole.member)
-    return (
-        await session.exec(select(func.count()).select_from(User).where(*conditions))
-    ).one()
+        clause = clause & (User.role != UserRole.member)
+    return clause
+
+
+#: The levels the settings page states a figure for. ``nobody`` asks nothing.
+_FACTOR_LEVELS = (
+    SecondFactorRequirement.platform_roles,
+    SecondFactorRequirement.everyone,
+)
+
+
+async def account_figures(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> tuple[dict[LoginMethod, int], dict[SecondFactorRequirement, int]]:
+    """What the settings page states about accounts, in one pass over them.
+
+    How many accounts withdrawing each permitted method would leave with no way
+    in (:func:`app.services.auth.identity.stranded_clause`) — a method not
+    permitted strands nobody — and how many each level of the second-factor
+    rule would ask to set one up.
+    """
+    withdrawable = [method for method in LoginMethod if method in permitted]
+    columns = [
+        func.count().filter(
+            identity_service.stranded_clause(
+                current=permitted, requested=permitted - {method}
+            )
+        )
+        for method in withdrawable
+    ] + [func.count().filter(_without_factor_clause(level)) for level in _FACTOR_LEVELS]
+    row = (await session.exec(sa_select(*columns).select_from(User))).one()
+    stranding = dict.fromkeys(LoginMethod, 0) | dict(zip(withdrawable, row))
+    return stranding, dict(zip(_FACTOR_LEVELS, row[len(withdrawable) :]))
 
 
 async def guilds_requiring_sign_in(session: AsyncSession) -> int:

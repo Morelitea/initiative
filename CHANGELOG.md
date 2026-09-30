@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **More ways to repeat.** A custom repeat can now fall on several days of the month or its last day, the fifth or last of a weekday, every chosen weekday of the month, the first or last work day of the month, and in several months a year. The form shows the next dates it will fall on, and an event's repeat can be changed from its settings. Events no longer offer the "after completion" choice, which only tasks use.
 - **Preview a stored repeat as it runs (API).** `POST /recurrence/preview` takes an optional `shift`, a stored rule's own, to list its dates without taking the shift again.
 - **`calendar-entries` returns occurrences (API).** A repeating event comes back once for each occurrence in the window, with `original_start` naming it, and repeating tasks' next dates come back in `task_occurrences`.
+- **Clear somebody's lost authenticator from the Users list.** On an account with two-factor authentication set up, the row's actions menu offers **Clear two-factor authentication** while password or emailed-code sign-in is on, for when its holder has lost their phone and their recovery codes. They're signed out everywhere and emailed, then sign in the way they usually do and set it up again. Moderator and above. The operator users list reports `second_factor_enrolled` for each account (API).
 
 ### Changed
 
@@ -23,10 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.
 - **An account can create up to five communities a day.** Change it with `GUILD_CREATION_DAILY_LIMIT` (`0` for no limit). Operators and owners aren't limited.
 - **Choose whether signing up creates a community.** Set `REGISTRATION_CREATES_GUILD=false` and a new account starts on the page for creating or joining one, instead of with a community of its own.
+- **The notification list counts unread notifications on its first page only (API).** `unread_count` on `GET /notifications/` is `null` on any page read with a `cursor`; read it from the first page.
 - **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
+
+### Removed
+
+- **More API routes the app no longer uses**: `PUT /tasks/{id}/tags` (send `tag_ids` to `PATCH /tasks/{id}`), `PUT /queues/{id}/items/reorder`, `GET /initiatives/{id}/join-requests/me`, `GET /property-definitions/{id}` and its `/entities`, `DELETE /dashboards/{id}/published/{type}/{id}` (publish the list without it), `DELETE /apps/{id}/placements/{initiative_id}`, and `GET /users/decoration-art`.
 
 ### Fixed
 
+- **Ending app connections answers right away.** Revoking every member's connection, uninstalling an app, removing a member, leaving or deleting a community no longer waits for each connected service to confirm, one at a time. The services are told in the background, several at once.
+- **A service's webhook reaches every connected community faster.** One delivery is passed to several communities at once instead of one after another, so a service that connected many of them no longer times out waiting.
 - **A project made from a template keeps each task's repeat**, moved with the task's dates.
 - **Nothing comes back from the trash under something that's still in it.** Restoring a sub-page whose parent page is still in the trash, a reply whose comment is, or a task or tool that was archived before it was trashed, now says to restore what it's inside first, instead of bringing it back where nobody can open it.
 - **Archived content can be thrown away and brought back.** Deleting an archived initiative or wiki that has pages, or a page inside one, works again, and whatever you restore into an archive comes back archived.

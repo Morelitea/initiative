@@ -38,7 +38,6 @@ from app.schemas.ai_generation import (
     GenerateDescriptionResponse,
 )
 from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.schemas.tenant.tag import TagSetRequest
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
@@ -1062,30 +1061,6 @@ async def generate_task_description(
         raise HTTPException(status_code=e.status_code, detail=e.code)
 
 
-@router.put("/{task_id}/tags", response_model=TaskRead)
-async def set_task_tags(
-    task_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Task:
-    """Set the tags for a task. Replaces all existing tags with the provided list."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TAG_LINKS["task"],
-        guild_id=guild_context.guild_id,
-        entity_id=task.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    now = datetime.now(timezone.utc)
-    task.updated_at = now
-    _touch_project(task.project, now)
-    await session.commit()
-    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
-
-
 @router.put("/{task_id}/properties", response_model=TaskRead)
 async def set_task_properties(
     task_id: int,
@@ -1096,7 +1071,7 @@ async def set_task_properties(
 ) -> Task:
     """Replace the custom property values on a task.
 
-    Requires write access (same permission gate as PUT /tags). Validates
+    Requires write access. Validates
     each value against its definition's type and options server-side. An
     installed app names the person a person-valued property holds by its
     reference for them.

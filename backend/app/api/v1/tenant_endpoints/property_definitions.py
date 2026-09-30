@@ -4,8 +4,6 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -21,29 +19,17 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.core.messages import InitiativeMessages, PropertyMessages
-from app.models.tenant.calendar import Calendar
-from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.property import (
-    CalendarEventPropertyValue,
-    DocumentPropertyValue,
     PropertyDefinition,
     PropertyType,
-    TaskPropertyValue,
 )
-from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.schemas.tenant.property import (
     PropertyDefinitionCreate,
     PropertyDefinitionRead,
     PropertyDefinitionUpdate,
     PropertyDefinitionUpdateResponse,
-)
-from app.schemas.tenant.tag import (
-    TaggedDocumentSummary,
-    TaggedEventSummary,
-    TaggedTaskSummary,
 )
 from app.services.tenant import properties as properties_service
 from app.services.tenant.names import ensure_name_free
@@ -55,16 +41,6 @@ router = APIRouter(route_class=ActorRoute)
 PropertyDefinitionsRead = Annotated[
     ActorContext, Depends(app_scope("initiatives:read"))
 ]
-
-
-class PropertyEntitiesResult(BaseModel):
-    """Response for GET /property-definitions/{id}/entities."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    tasks: List[TaggedTaskSummary] = Field(default_factory=list)
-    documents: List[TaggedDocumentSummary] = Field(default_factory=list)
-    events: List[TaggedEventSummary] = Field(default_factory=list)
 
 
 async def _get_definition_or_404(
@@ -258,16 +234,6 @@ async def create_property_definition(
     return defn
 
 
-@router.get("/{definition_id}", response_model=PropertyDefinitionRead)
-async def get_property_definition(
-    definition_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> PropertyDefinition:
-    """Fetch a single property definition."""
-    return await _get_definition_or_404(session, definition_id)
-
-
 @router.patch("/{definition_id}", response_model=PropertyDefinitionUpdateResponse)
 async def update_property_definition(
     definition_id: int,
@@ -368,92 +334,3 @@ async def delete_property_definition(
         raise _manager_required()
     await session.delete(defn)
     await session.commit()
-
-
-@router.get("/{definition_id}/entities", response_model=PropertyEntitiesResult)
-async def get_property_entities(
-    definition_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> PropertyEntitiesResult:
-    """List all documents and tasks with a value for this property.
-
-    Results are constrained by the user's project / document visibility.
-    """
-    defn = await _get_definition_or_404(session, definition_id)
-
-    tasks_stmt = (
-        select(Task)
-        .join(TaskPropertyValue, TaskPropertyValue.task_id == Task.id)
-        .where(
-            TaskPropertyValue.property_id == defn.id,
-        )
-        .options(selectinload(Task.project))
-    )
-    tasks_result = await session.exec(tasks_stmt)
-    tasks = tasks_result.all()
-    task_summaries = [
-        TaggedTaskSummary(
-            id=task.id,
-            title=task.title,
-            project_id=task.project_id,
-            project_name=task.project.name if task.project else None,
-        )
-        for task in tasks
-    ]
-
-    documents_stmt = (
-        select(Document)
-        .join(DocumentPropertyValue, DocumentPropertyValue.document_id == Document.id)
-        .where(
-            DocumentPropertyValue.property_id == defn.id,
-        )
-        .options(selectinload(Document.initiative))
-    )
-    documents_result = await session.exec(documents_stmt)
-    documents = documents_result.all()
-    document_summaries = [
-        TaggedDocumentSummary(
-            id=doc.id,
-            name=doc.name,
-            initiative_id=doc.initiative_id,
-            initiative_name=doc.initiative.name if doc.initiative else None,
-        )
-        for doc in documents
-    ]
-
-    # Events resolve their initiative through the parent calendar (the same
-    # project indirection tasks have); RLS on calendar_event_property_values
-    # already constrains visibility to initiatives the caller belongs to.
-    events_stmt = (
-        select(CalendarEvent)
-        .join(
-            CalendarEventPropertyValue,
-            CalendarEventPropertyValue.event_id == CalendarEvent.id,
-        )
-        .where(CalendarEventPropertyValue.property_id == defn.id)
-        .options(selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative))
-    )
-    events_result = await session.exec(events_stmt)
-    events = events_result.all()
-    event_summaries = [
-        TaggedEventSummary(
-            id=event.id,
-            title=event.title,
-            initiative_id=event.calendar.initiative_id,
-            initiative_name=(
-                event.calendar.initiative.name
-                if event.calendar and event.calendar.initiative
-                else None
-            ),
-        )
-        for event in events
-        if event.calendar is not None
-    ]
-
-    return PropertyEntitiesResult(
-        tasks=task_summaries,
-        documents=document_summaries,
-        events=event_summaries,
-    )

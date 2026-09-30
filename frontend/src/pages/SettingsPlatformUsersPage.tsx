@@ -5,6 +5,7 @@ import {
   LockOpen,
   Mail,
   MailCheck,
+  ShieldOff,
   Trash2,
   UserCheck,
 } from "lucide-react";
@@ -28,11 +29,13 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   useExportPlatformUsersCsv,
   useOperatorClearAgeBlock,
+  useOperatorClearSecondFactor,
   useOperatorLiftSignInLock,
   useOperatorReactivateUser,
   useOperatorResendVerification,
@@ -63,6 +66,9 @@ export const SettingsPlatformUsersPage = () => {
     userId: number;
     handle: string;
   } | null>(null);
+  const [clearSecondFactorTarget, setClearSecondFactorTarget] = useState<OperatorUserRead | null>(
+    null
+  );
   const [deleteUserTarget, setDeleteUserTarget] = useState<OperatorUserRead | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
 
@@ -74,6 +80,8 @@ export const SettingsPlatformUsersPage = () => {
   // account: getting somebody back in after a typo is support work.
   const canUnblockAge = hasCapability(user, Capability.usersAgeUnblock);
   const canReactivate = hasCapability(user, Capability.usersManage);
+  // Clearing an authenticator only matters where signing in asks for its code.
+  const { authenticatorAskedAtSignIn } = useAppConfig();
 
   // What the sheet may offer, by capability. Each maps to the capability its
   // endpoint actually requires: rename and picture removal are
@@ -143,6 +151,11 @@ export const SettingsPlatformUsersPage = () => {
 
   const liftSignInLock = useOperatorLiftSignInLock({
     onSuccess: () => toast.success(t("settings:platformUsers.signInLockLifted")),
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
+  });
+
+  const clearSecondFactor = useOperatorClearSecondFactor({
+    onSuccess: () => toast.success(t("settings:platformUsers.secondFactorCleared")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
@@ -383,6 +396,14 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.liftSignInLock")}
               </DropdownMenuItem>
             )}
+            {abilities.canManageUsers &&
+              authenticatorAskedAtSignIn &&
+              platformUser.second_factor_enrolled && (
+                <DropdownMenuItem onSelect={() => setClearSecondFactorTarget(platformUser)}>
+                  <ShieldOff className="h-4 w-4" />
+                  {t("platformUsers.clearSecondFactor")}
+                </DropdownMenuItem>
+              )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}
@@ -493,6 +514,22 @@ export const SettingsPlatformUsersPage = () => {
         cancelLabel={t("common:cancel")}
         onConfirm={confirmResetPassword}
         isLoading={resetPassword.isPending}
+      />
+
+      <ConfirmDialog
+        open={clearSecondFactorTarget !== null}
+        onOpenChange={(open) => !open && setClearSecondFactorTarget(null)}
+        title={t("platformUsers.clearSecondFactor")}
+        description={t("platformUsers.clearSecondFactorDescription", {
+          handle: clearSecondFactorTarget ? getUserHandle(clearSecondFactorTarget) : "",
+        })}
+        confirmLabel={t("platformUsers.clearSecondFactorConfirm")}
+        cancelLabel={t("common:cancel")}
+        onConfirm={() => {
+          if (clearSecondFactorTarget) clearSecondFactor.mutate(clearSecondFactorTarget.id);
+        }}
+        isLoading={clearSecondFactor.isPending}
+        destructive
       />
 
       {deleteUserTarget && (

@@ -125,11 +125,12 @@ async def test_taking_a_published_view_back_records_the_withdrawal(
         json={"resources": [{"resource_type": "project", "resource_id": project.id}]},
     )
 
-    revoked = await client.delete(
-        author.g(f"/dashboards/{dashboard_id}/published/project/{project.id}"),
+    revoked = await client.put(
+        author.g(f"/dashboards/{dashboard_id}/published"),
         headers=author.headers,
+        json={"resources": []},
     )
-    assert revoked.status_code == 204, revoked.text
+    assert revoked.status_code == 200, revoked.text
 
     rows = _published_rows(capfd)
     assert [(r["detail"]["from"], r["detail"]["to"]) for r in rows] == [

@@ -45,7 +45,6 @@ from app.models.platform.user import User
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.search_entry import SearchEntry
 from app.services.platform.intake import CaseRefs, open_case
-from app.services.tenant.search import search_scope_clause
 from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
@@ -557,9 +556,6 @@ async def _comment_parents(
 async def target_previews(
     session: AsyncSession,
     reports: list[ModerationReport],
-    *,
-    user_id: int,
-    guild_id: int,
 ) -> dict[int, TargetPreview]:
     """A line of each report's target, and what to open to reach it.
 
@@ -570,10 +566,10 @@ async def target_previews(
     every reportable kind is covered here without a switch over kinds, and a
     kind added later arrives with one.
 
-    Narrowed by ``search_scope_clause``, the same ``resource_access``
-    call the table's own policies make. A moderator's standing already clears
-    it for their initiative; a target they cannot reach comes back absent, and
-    so does one that has since been deleted — the index drops with the row.
+    Narrowed by the table's own policies, sharing included. A moderator's
+    standing already clears them for their initiative; a target they cannot
+    reach comes back absent, and so does one that has since been deleted — the
+    index drops with the row.
     """
     if not reports:
         return {}
@@ -611,7 +607,6 @@ async def target_previews(
             # The first chunk. Long text is split across rows, and the title is
             # the same on each of them.
             .where(SearchEntry.chunk_ix == 0)
-            .where(search_scope_clause(user_id, guild_id=guild_id))
         )
     ).all()
     found = {(row[0], row[1]): row for row in rows}

@@ -49,7 +49,6 @@ from app.schemas.tenant.queue import (
     QueueItemCreate,
     QueueItemUpdate,
     QueueItemRead,
-    QueueItemReorderRequest,
     QueueReleaseRequest,
     serialize_queue,
     serialize_queue_item,
@@ -489,38 +488,6 @@ async def delete_queue_item(
     )
     await session.commit()
     sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "item_removed")
-
-
-@router.put("/{queue_id}/items/reorder", response_model=QueueRead)
-async def reorder_queue_items(
-    queue_id: int,
-    reorder_in: QueueItemReorderRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> QueueRead:
-    """Bulk reorder queue items. Requires write access."""
-    queue = await resource_access.load_authorized(
-        session, Tool.queue, queue_id, current_user, guild_context, access="write"
-    )
-
-    # Build a map of existing items for validation
-    existing_items = {item.id: item for item in (queue.items or [])}
-
-    for reorder_item in reorder_in.items:
-        item = existing_items.get(reorder_item.id)
-        if item is not None:
-            item.position = reorder_item.position
-            session.add(item)
-
-    queue.updated_at = datetime.now(timezone.utc)
-    session.add(queue)
-    await session.commit()
-
-    hydrated = await _refetch_queue(session, queue.id)
-    result = await _serialized_queue(session, hydrated, user_id=current_user.id)
-    sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "items_reordered")
-    return result
 
 
 # ---------------------------------------------------------------------------

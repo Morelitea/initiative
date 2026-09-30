@@ -812,6 +812,10 @@
     "signInLockedUntil": "Hasta el {{time}}",
     "liftSignInLock": "Reactivar el inicio de sesión con contraseña",
     "signInLockLifted": "Ya puede volver a iniciar sesión con contraseña.",
+    "clearSecondFactor": "Quitar la autenticación en dos pasos",
+    "clearSecondFactorDescription": "¿Quitar el autenticador de la cuenta de {{handle}}? Es para cuando ha perdido el teléfono y los códigos de recuperación. Se cerrarán todas sus sesiones y recibirá un correo; después inicia sesión como de costumbre y puede configurarlo de nuevo.",
+    "clearSecondFactorConfirm": "Quitar",
+    "secondFactorCleared": "Autenticación en dos pasos quitada. Ya puede iniciar sesión como de costumbre.",
     "sheet": {
       "open": "Gestionar",
       "openLabel": "Gestionar la cuenta {{handle}}",

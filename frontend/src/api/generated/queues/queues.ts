@@ -27,7 +27,6 @@ import type {
   QueueCreate,
   QueueItemCreate,
   QueueItemRead,
-  QueueItemReorderRequest,
   QueueItemUpdate,
   QueueListResponse,
   QueueRead,
@@ -1201,114 +1200,6 @@ export const useDeleteQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdDelete = <
 > => {
   return useMutation(
     getDeleteQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Bulk reorder queue items. Requires write access.
- * @summary Reorder Queue Items
- */
-export const reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut = (
-  guildId: number,
-  queueId: number,
-  queueItemReorderRequest: BodyType<QueueItemReorderRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<QueueRead>(
-    {
-      url: `/api/v1/c/${guildId}/queues/${queueId}/items/reorder`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: queueItemReorderRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationKey = () =>
-  ["reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut"] as const;
-
-export const getReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut>>,
-    TError,
-    ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut>>,
-  TError,
-  ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut>>,
-    ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationVariables
-  > = (props) => {
-    const { guildId, queueId, data } = props ?? {};
-
-    return reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut(
-      guildId,
-      queueId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut>>
->;
-export type ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationBody =
-  BodyType<QueueItemReorderRequest>;
-export type ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationVariables = {
-  guildId: number;
-  queueId: number;
-  data: BodyType<QueueItemReorderRequest>;
-};
-
-/**
- * @summary Reorder Queue Items
- */
-export const useReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut>>,
-      TError,
-      ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof reorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPut>>,
-  TError,
-  ReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getReorderQueueItemsApiV1CGuildIdQueuesQueueIdItemsReorderPutMutationOptions(options),
     queryClient
   );
 };

@@ -1079,17 +1079,23 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
         )
 
 
-async def _sign_in_locks(user_ids: List[int]) -> dict[int, "SignInLock"]:
-    """The sign-in locks standing on these accounts, on the system engine.
+async def _sign_in_state(
+    user_ids: List[int],
+) -> tuple[dict[int, "SignInLock"], set[int]]:
+    """The sign-in locks standing on these accounts, and which of them hold a
+    second factor, on the system engine.
 
-    ``sign_in_locks`` carries no request-path grants, for the reason
-    ``user_emails`` does not. One query for the whole page.
+    ``sign_in_locks`` and ``user_totp`` carry no request-path grants, for the
+    reason ``user_emails`` does not. One query each for the whole page.
     """
     from app.db.session import SystemSessionLocal
     from app.services.auth import sign_in_locks
 
     async with SystemSessionLocal() as system_session:
-        return await sign_in_locks.closed(system_session, user_ids)
+        return (
+            await sign_in_locks.closed(system_session, user_ids),
+            await totp_service.enrolled_among(system_session, user_ids=user_ids),
+        )
 
 
 async def to_self_read(user: User) -> "UserRead":
@@ -1120,7 +1126,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     from app.schemas.platform.user import OperatorUserRead
 
     primary, proven = await _reach([u.id for u in users])
-    locks = await _sign_in_locks([u.id for u in users])
+    locks, enrolled = await _sign_in_state([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
     # which on an ordinary roster is nobody.
     retention = (
@@ -1134,6 +1140,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
         payload.purge_at = _erase_at(user, retention)
+        payload.second_factor_enrolled = user.id in enrolled
         lock = locks.get(user.id)
         if lock is not None:
             payload.sign_in_locked_until = lock.locked_until

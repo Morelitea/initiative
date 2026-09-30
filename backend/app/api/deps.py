@@ -657,6 +657,7 @@ async def _load_guild_context(
     guild_id: int,
     *,
     for_settings: bool = False,
+    factor_asked: bool = False,
 ) -> GuildContext:
     """Resolve and validate the guild context for one guild.
 
@@ -680,6 +681,10 @@ async def _load_guild_context(
     membership and grant. The rung guard on those routes has already refused
     anyone who does not administer it; what this establishes is the standing
     the database reads.
+
+    ``factor_asked`` says this request's :func:`get_current_active_user`
+    already put the deployment's second-factor question, so it is not put
+    twice. Only a REST dependency that takes that one passes it.
     """
     # A suspended account reaches no guild. Ahead of the branches below so it
     # holds for membership and for a grant alike, and it answers with the same
@@ -725,7 +730,7 @@ async def _load_guild_context(
         # because the sockets, the keepalive and the stream re-check resolve
         # their guild through this function and never run that one — off the
         # row the read above already carried.
-        if await platform_factor_unmet(
+        if not factor_asked and await platform_factor_unmet(
             session, current_user, guild_id=guild_id, level=asked
         ):
             raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
@@ -771,7 +776,7 @@ async def _load_guild_context(
             else GuildMessages.AGE_CONFIRMATION_REQUIRED
         )
     # And the deployment's own question, off the row the gate read carried.
-    if await platform_factor_unmet(
+    if not factor_asked and await platform_factor_unmet(
         session, current_user, guild_id=guild_id, level=asked
     ):
         raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
@@ -808,7 +813,9 @@ async def get_guild_membership(
     caches a dependency per request, so it hands back the session this routed.
     """
     try:
-        return await establish_guild_access(session, current_user, guild_id)
+        return await establish_guild_access(
+            session, current_user, guild_id, factor_asked=True
+        )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
 
@@ -1080,7 +1087,7 @@ async def get_guild_settings_context(
     """
     try:
         return await establish_guild_access(
-            session, current_user, guild_id, for_settings=True
+            session, current_user, guild_id, for_settings=True, factor_asked=True
         )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
@@ -1128,6 +1135,7 @@ async def establish_guild_access(
     on_behalf: bool = False,
     for_settings: bool = False,
     for_seat: bool = False,
+    factor_asked: bool = False,
 ) -> GuildContext:
     """Resolve guild access AND apply the session context — the single entry
     point for callers that can't use the REST dependency chain.
@@ -1151,6 +1159,8 @@ async def establish_guild_access(
     own request met the community's sign-in rule when it was made, so the
     routing answers that rule for them; membership, grants and the standing
     are resolved exactly as for the person themselves.
+
+    ``factor_asked`` is :func:`_load_guild_context`'s.
     """
     satisfied = (
         auth_context.satisfied_providers()
@@ -1158,7 +1168,11 @@ async def establish_guild_access(
         else satisfied_providers
     )
     guild_context = await _load_guild_context(
-        session, current_user, guild_id, for_settings=for_settings
+        session,
+        current_user,
+        guild_id,
+        for_settings=for_settings,
+        factor_asked=factor_asked,
     )
     looked_up = save_rls_context(session)
     guild_context = await apply_guild_session_context(
@@ -1662,7 +1676,12 @@ async def get_guild_seat_context(
     """
     try:
         context = await establish_guild_access(
-            session, current_user, guild_id, for_settings=True, for_seat=True
+            session,
+            current_user,
+            guild_id,
+            for_settings=True,
+            for_seat=True,
+            factor_asked=True,
         )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
