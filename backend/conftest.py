@@ -915,6 +915,12 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
         # superuser cleanup below to run unrouted.
         await bound_conn.rollback()
 
+    # Work a commit started on a session of its own (joining a community's
+    # auto-join initiatives, say) finishes before the tables it reads are
+    # emptied or dropped below. After the rollback, so that work is not left
+    # waiting on a lock the test's own transaction held.
+    await cohorts.settle_all()
+
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
     # connection: park the pooled guild schemas the test used and drop the rest,
