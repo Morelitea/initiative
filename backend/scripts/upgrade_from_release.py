@@ -23,7 +23,15 @@ and fails when:
   installs get the new body, and upgraded ones never do;
 * a second start of the fresh install changes its structure. A start repairs
   what is out of date, so one that changes a current database undoes what the
-  migrations set.
+  migrations set;
+* with ``--same-as``, the fresh install differs from the one another run built
+  in the other setup. One URL and explicit logins are two ways of giving the
+  app the same database, and they must end up with the same one, roles and
+  privileges included.
+
+"Structure" is every schema's tables, columns, constraints, indexes, triggers,
+policies, functions, grants and default privileges, and the app's roles: their
+attributes and memberships.
 
 Each database has its own Postgres server, because roles are cluster-wide and a
 community's roles would otherwise be shared between the two.
@@ -36,6 +44,12 @@ Usage, from ``backend/`` with ``SECRET_KEY`` set, as each boot reads it::
 
 ``--from`` defaults to the newest release tag. ``--walk`` starts at
 :data:`WALK_FROM` and boots every release after it, less :data:`WITHDRAWN`.
+
+``--one-url`` runs every boot, of each release and of the current tree, with a
+single ``DATABASE_URL`` naming the database owner, as ``docker-compose.example.yml``
+does: the app derives its three logins from it. Without it, each boot is given
+the three logins and the owner URL explicitly. The walk then starts at
+:data:`ONE_URL_FROM`, the first release that could run that way.
 """
 
 from __future__ import annotations
@@ -70,6 +84,9 @@ LOGINS = {
 #: everything ``upgrade_seed.py`` makes.
 WALK_FROM = "v0.70.0"
 
+#: The first release that derives its logins from one owner ``DATABASE_URL``.
+ONE_URL_FROM = "v0.72.0"
+
 #: Releases that could not upgrade a database, and the release that replaced
 #: them. A walk steps over each one, as the deployments it stopped did: what
 #: it shipped is fixed, so booting it would only fail again.
@@ -80,17 +97,24 @@ WITHDRAWN = {
 }
 
 
-def _environment(server: str) -> dict[str, str]:
-    """The app's database settings for ``server``, in the explicit shape."""
+#: Every database setting a boot may be given; each boot gets only its own.
+_DATABASE_SETTINGS = (*LOGINS, "DATABASE_URL_BOOTSTRAP")
+
+
+def _environment(server: str, *, one_url: bool) -> dict[str, str]:
+    """The app's database settings for ``server``: the owner's URL alone, or
+    the three logins and the owner explicitly."""
+    base = {k: v for k, v in os.environ.items() if k not in _DATABASE_SETTINGS}
+    owner = server.replace("postgresql://", "postgresql+asyncpg://") + f"/{DATABASE}"
+    if one_url:
+        return {**base, "DATABASE_URL": owner}
     host = server.split("@", 1)[1]
     env = {
         name: f"postgresql+asyncpg://{role}:{role}@{host}/{DATABASE}"
         for name, role in LOGINS.items()
     }
-    env["DATABASE_URL_BOOTSTRAP"] = (
-        server.replace("postgresql://", "postgresql+asyncpg://") + f"/{DATABASE}"
-    )
-    return {**os.environ, **env}
+    env["DATABASE_URL_BOOTSTRAP"] = owner
+    return {**base, **env}
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> None:
@@ -280,6 +304,35 @@ async def _snapshot(conn: asyncpg.Connection, schema: str) -> dict[str, str]:
     return shape
 
 
+#: The roles the app makes, read for their attributes and their memberships.
+_APP_ROLE = "^(app_|platform_|guild_)"
+
+_ROLES = {
+    "role": (
+        "SELECT rolname, rolsuper, rolinherit, rolcreaterole, rolcreatedb, "
+        "rolcanlogin, rolreplication, rolbypassrls, rolconnlimit "
+        f"FROM pg_roles WHERE rolname ~ '{_APP_ROLE}'"
+    ),
+    "membership": (
+        # One row per grantor: the same membership can be held twice.
+        "SELECT m.rolname || ' in ' || g.rolname || ' from ' || "
+        "pg_get_userbyid(a.grantor), a.admin_option, "
+        "a.inherit_option, a.set_option "
+        "FROM pg_auth_members a JOIN pg_roles m ON m.oid = a.member "
+        "JOIN pg_roles g ON g.oid = a.roleid "
+        f"WHERE m.rolname ~ '{_APP_ROLE}' OR g.rolname ~ '{_APP_ROLE}'"
+    ),
+}
+
+
+async def _roles(conn: asyncpg.Connection) -> dict[str, str]:
+    shape: dict[str, str] = {}
+    for kind, query in _ROLES.items():
+        for name, *rest in await conn.fetch(query):
+            shape[f"{kind} {_COMMUNITY.sub('guild_#', name)}"] = repr(rest)
+    return shape
+
+
 async def _schemas(server: str) -> dict[str, dict[str, str]]:
     conn = await asyncpg.connect(
         f"{server}/{DATABASE}", server_settings={"search_path": ""}
@@ -293,7 +346,9 @@ async def _schemas(server: str) -> dict[str, dict[str, str]]:
                 "OR nspname ~ '^guild_[0-9]+$' ORDER BY nspname"
             )
         ]
-        return {name: await _snapshot(conn, name) for name in names}
+        shapes = {name: await _snapshot(conn, name) for name in names}
+        shapes["roles"] = await _roles(conn)
+        return shapes
     finally:
         await conn.close()
 
@@ -329,11 +384,26 @@ def _divergence(
     assert communities, "the fresh install has no community schema to compare with"
     reference = fresh[communities[0]]
     lines: list[str] = []
-    for name in ("public", "guild_template"):
+    for name in ("public", "guild_template", "roles"):
         lines += _differences(name, upgraded[name], fresh[name])
     for name, shape in upgraded.items():
         if _COMMUNITY.fullmatch(name):
             lines += _differences(name, shape, reference)
+    return lines
+
+
+def _other_setup(
+    mine: dict[str, dict[str, str]], theirs: dict[str, dict[str, str]], shape: str
+) -> list[str]:
+    """Where this fresh install differs from the other setup's: ``public``, the
+    template and the roles, and one community schema against one of theirs."""
+    names = (shape, "other setup")
+    lines: list[str] = []
+    for name in ("public", "guild_template", "roles"):
+        lines += _differences(name, mine[name], theirs[name], names)
+    ours = sorted(name for name in mine if _COMMUNITY.fullmatch(name))
+    others = sorted(name for name in theirs if _COMMUNITY.fullmatch(name))
+    lines += _differences("community", mine[ours[0]], theirs[others[0]], names)
     return lines
 
 
@@ -400,6 +470,16 @@ def main() -> None:
         action="store_true",
         help="boot every release after --from in turn before the current tree",
     )
+    parser.add_argument(
+        "--one-url",
+        action="store_true",
+        help="give every boot one owner DATABASE_URL, as the example compose file does",
+    )
+    parser.add_argument(
+        "--same-as",
+        metavar="SERVER",
+        help="owner URL of the other setup's fresh-install server, to match exactly",
+    )
     parser.add_argument("--server", required=True, help="owner URL, no database")
     parser.add_argument(
         "--fresh-server", required=True, help="a second server for the fresh install"
@@ -407,14 +487,18 @@ def main() -> None:
     args = parser.parse_args()
 
     tags = _release_tags()
-    start = args.start or (WALK_FROM if args.walk else tags[-1])
+    walk_from = ONE_URL_FROM if args.one_url else WALK_FROM
+    start = args.start or (walk_from if args.walk else tags[-1])
+    if args.one_url and tags.index(start) < tags.index(ONE_URL_FROM):
+        parser.error(f"{start} predates one-URL setups; the first is {ONE_URL_FROM}")
     releases = (
         [tag for tag in tags[tags.index(start) :] if tag not in WITHDRAWN]
         if args.walk
         else [start]
     )
-    upgraded_env = _environment(args.server)
-    fresh_env = _environment(args.fresh_server)
+    upgraded_env = _environment(args.server, one_url=args.one_url)
+    fresh_env = _environment(args.fresh_server, one_url=args.one_url)
+    shape = "one DATABASE_URL" if args.one_url else "explicit logins"
 
     asyncio.run(_recreate_database(args.server))
     asyncio.run(_recreate_database(args.fresh_server))
@@ -460,13 +544,18 @@ def main() -> None:
     ]
     if problems:
         _fail(
-            f"Upgrading from {start} does not reach the schema a fresh install "
-            "keeps across restarts",
+            f"Upgrading from {start} ({shape}) does not reach the schema a fresh "
+            "install keeps across restarts",
             problems,
         )
+    if args.same_as:
+        other = _other_setup(fresh, asyncio.run(_schemas(args.same_as)), shape)
+        if other:
+            _fail(f"A fresh install with {shape} differs from the other setup's", other)
     print(
-        f"Upgraded {' → '.join(releases)} → current tree; "
-        "matches a fresh install, and a restart changes nothing."
+        f"Upgraded {' → '.join(releases)} → current tree ({shape}); "
+        "matches a fresh install, and a restart changes nothing"
+        + ("; the fresh install matches the other setup's." if args.same_as else ".")
     )
 
 

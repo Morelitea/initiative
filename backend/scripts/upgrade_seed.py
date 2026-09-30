@@ -8,8 +8,9 @@ which is what an upgrade from it has to carry. It is kept to the factories
 every supported release has; ``upgrade_from_release.py`` runs it against the
 release an upgrade starts from, and against the current tree.
 
-The connection is the database owner (``DATABASE_URL_BOOTSTRAP``), as the test
-suite's is: the factories write shared and guild tables directly, the way
+The connection is the database owner, as the test suite's is:
+``DATABASE_URL_BOOTSTRAP`` where the logins are given explicitly, and
+``DATABASE_URL`` where one owner URL is all the app is given: the factories write shared and guild tables directly, the way
 fixtures do, rather than through a request.
 """
 
@@ -98,7 +99,9 @@ async def seed(session: AsyncSession) -> None:
 
 async def main() -> None:
     install_guild_routing()
-    engine = create_async_engine(os.environ["DATABASE_URL_BOOTSTRAP"])
+    engine = create_async_engine(
+        os.environ.get("DATABASE_URL_BOOTSTRAP") or os.environ["DATABASE_URL"]
+    )
     try:
         async with AsyncSession(engine, expire_on_commit=False) as session:
             await seed(session)
