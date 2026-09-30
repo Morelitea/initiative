@@ -52,6 +52,7 @@ import {
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAreas } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
@@ -475,8 +476,9 @@ function NoGuildState({
         toast.info(t("billingSetup.opening", { guild: guild.name }));
         await openPortal(guild.id, "upgrade", billingTab);
       }
-    } catch {
+    } catch (err) {
       billingTab?.close();
+      toast.error(getErrorMessage(err, "guilds:unableToCreateGuild"));
       setCreating(false);
     }
   };

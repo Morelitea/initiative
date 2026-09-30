@@ -813,8 +813,9 @@ class Settings(BaseSettings):
     # holding ``guilds.manage`` are not held to it.
     GUILD_CREATION_DAILY_LIMIT: int = Field(default=5, ge=0)
     # Whether registering without an invite also creates the account a
-    # community of its own. Off, a new account creates its first one itself.
-    REGISTRATION_CREATES_GUILD: bool = False
+    # community of its own. Off, a new account creates its first one itself,
+    # which counts toward GUILD_CREATION_DAILY_LIMIT.
+    REGISTRATION_CREATES_GUILD: bool = True
     # Boot back-fill normally skips guild schemas stamped with the current
     # provisioning-artifact version; set true to force a full sweep once.
     FORCE_GUILD_BACKFILL: bool = False

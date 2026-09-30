@@ -673,16 +673,25 @@ async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
+_GUILD_CREATION_LOCK_NAMESPACE = 0x47435245  # 1195594309
+
+
 async def may_create_another_guild(session: AsyncSession, *, user_id: int) -> bool:
     """Has this account created fewer than ``GUILD_CREATION_DAILY_LIMIT``
     communities in the last day?
 
-    A deleted community still counts: its row stays for at least
+    Takes a per-account lock held until the transaction ends, so the guild the
+    caller then inserts is committed before the next creation for this account
+    counts. A deleted community still counts: its row stays for at least
     ``MIN_GUILD_RETENTION_DAYS`` after deletion, which is at least this window.
     """
     limit = settings.GUILD_CREATION_DAILY_LIMIT
     if not limit:
         return True
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
+        params={"ns": _GUILD_CREATION_LOCK_NAMESPACE, "uid": int(user_id)},
+    )
     since = datetime.now(timezone.utc) - timedelta(days=1)
     created = await session.scalar(
         select(func.count())
