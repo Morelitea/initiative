@@ -12,9 +12,9 @@ import type {
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { type MemberLike, MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
 import { PropertyFields, propertyStubFromDefinition } from "@/components/properties/PropertyFields";
+import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import { TagPicker } from "@/components/tags";
 import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
@@ -138,6 +138,8 @@ export interface TaskFormProps {
   descriptionSlot?: ReactNode;
   /** Reference date for the recurrence "occurs on" preview. */
   recurrenceReferenceDate?: string | null;
+  /** The stored repeat and its shift, previewed while it is kept as custom. */
+  storedRecurrence?: { rule: string; shift: number } | null;
 
   /** ``dialog`` tucks everything but the title into a collapsible section;
    *  ``page`` renders every field flat. */
@@ -163,6 +165,7 @@ export const TaskForm = ({
   disabled = false,
   descriptionSlot,
   recurrenceReferenceDate,
+  storedRecurrence,
   layout = "page",
   autoFocusTitle = false,
 }: TaskFormProps) => {
@@ -316,19 +319,16 @@ export const TaskForm = ({
   );
 
   const recurrenceField = (
-    <div className="space-y-2">
-      {value.recurrence === "custom" ? (
-        <p className="text-muted-foreground text-sm">{t("dates:recurrenceSummary.custom")}</p>
-      ) : null}
-      <TaskRecurrenceSelector
-        recurrence={value.recurrence === "custom" ? null : value.recurrence}
-        onChange={(recurrence) => set({ recurrence })}
-        strategy={value.recurrenceStrategy}
-        onStrategyChange={(recurrenceStrategy) => set({ recurrenceStrategy })}
-        disabled={disabled}
-        referenceDate={recurrenceReferenceDate ?? value.dueDate ?? value.startDate}
-      />
-    </div>
+    <RecurrenceEditor
+      kind="task"
+      value={value.recurrence}
+      onChange={(recurrence) => set({ recurrence })}
+      strategy={value.recurrenceStrategy}
+      onStrategyChange={(recurrenceStrategy) => set({ recurrenceStrategy })}
+      disabled={disabled}
+      referenceDate={recurrenceReferenceDate ?? value.dueDate ?? value.startDate}
+      stored={storedRecurrence}
+    />
   );
 
   const propertiesField = (

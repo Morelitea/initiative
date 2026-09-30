@@ -10,7 +10,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
 import {
   Accordion,
@@ -207,8 +207,9 @@ export const TaskBulkEditDialog = ({
             <AccordionContent className="space-y-4 pb-4">
               <div className="space-y-2">
                 <Label>{t("bulkEdit.recurringSchedule")}</Label>
-                <TaskRecurrenceSelector
-                  recurrence={recurrence}
+                <RecurrenceEditor
+                  kind="task"
+                  value={recurrence}
                   onChange={setRecurrence}
                   strategy={recurrenceStrategy}
                   onStrategyChange={setRecurrenceStrategy}

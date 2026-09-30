@@ -20,6 +20,14 @@ async def test_a_preview_lists_the_next_starts(client, acting_user):
         "occurrences": ["2026-10-11T22:30:00Z", "2026-11-08T22:30:00Z"],
     }
 
+    # A stored rule previews with its own shift, whatever zone asks.
+    stored = await client.post(
+        "/api/v1/recurrence/preview",
+        headers=a.headers,
+        json={**picked, "tz": "America/New_York", "shift": 1440},
+    )
+    assert stored.json()["occurrences"] == response.json()["occurrences"]
+
     refused = await client.post(
         "/api/v1/recurrence/preview",
         headers=a.headers,

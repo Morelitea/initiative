@@ -2,14 +2,10 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  CalendarEventRead,
-  CalendarSummary,
-  TaskListReadRecurrenceStrategy,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { CalendarEventRead, CalendarSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -86,8 +82,6 @@ export const CreateEventDialog = ({
   const patchTiming = (patch: Partial<EventTiming>) => setTiming((prev) => ({ ...prev, ...patch }));
   const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
   const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(null);
-  const [recurrenceStrategy, setRecurrenceStrategy] =
-    useState<TaskListReadRecurrenceStrategy>("fixed");
   const [selectedCalendarId, setSelectedCalendarId] = useState(
     defaultCalendarId ? String(defaultCalendarId) : ""
   );
@@ -153,7 +147,6 @@ export const CreateEventDialog = ({
       setTiming(INITIAL_TIMING);
       setAttendeeIds([]);
       setRecurrence(null);
-      setRecurrenceStrategy("fixed");
       setSelectedCalendarId(defaultCalendarId ? String(defaultCalendarId) : "");
     }
   }, [open, defaultCalendarId, defaultStartDate, defaultStartTime, user]);
@@ -289,12 +282,12 @@ export const CreateEventDialog = ({
           )}
 
           {/* Recurrence */}
-          <TaskRecurrenceSelector
-            recurrence={recurrence}
+          <RecurrenceEditor
+            kind="event"
+            value={recurrence}
             onChange={setRecurrence}
-            strategy={recurrenceStrategy}
-            onStrategyChange={setRecurrenceStrategy}
             referenceDate={referenceDate}
+            allDay={timing.allDay}
           />
 
           {/* No access section: sharing lives on the calendar, not the event. */}
