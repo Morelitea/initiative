@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A wiki page or a reply stays in the trash until what it's filed under comes back.** Restoring a page whose parent page is still in the trash, or a reply whose comment is, now says to restore that one first, instead of bringing it back under something nobody can open.
 - **Exporting a calendar with a repeating event works again.** A repeat such as "the second Monday of every month" no longer fails the export, and every repeat setting now carries over to other calendar apps and back on import.
 - **Wiki page edits are no longer lost to a later live session.** A page saved while nobody was editing it live keeps that save, and a save from a tab outside a live session is refused with a prompt to reconnect instead of being reported as saved.
 - **Exported and imported events keep their days in your timezone.** All-day events no longer land a day early, a repeat's weekdays and last day stay put, and an imported all-day event covers exactly its days.

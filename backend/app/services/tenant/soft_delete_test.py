@@ -843,6 +843,49 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
     assert sorted(pages.all()) == [("step-1", None), ("step-2", None)]
 
 
+async def test_a_page_waits_for_the_page_it_is_filed_under(
+    session: AsyncSession, client
+):
+    """A page binned before its parent keeps its own stamp, so it stays in the
+    bin when the parent comes back — and until then it cannot come back at all,
+    or it would be live under a page in the bin."""
+    from app.models.platform.guild import GuildRole
+    from app.testing.factories import (
+        create_guild_membership,
+        create_wiki,
+        create_wiki_page,
+        get_auth_headers,
+    )
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+    wiki = await create_wiki(session, initiative, user)
+    page = await create_wiki_page(session, wiki, user, title="Step 1")
+    child = await create_wiki_page(
+        session, wiki, user, title="Step 2", parent_page_id=page.id
+    )
+    for trashed in (child, page):
+        await soft_delete_entity(
+            session, trashed, deleted_by_user_id=user.id, retention_days=30
+        )
+        await session.commit()
+
+    headers = get_auth_headers(user)
+    restore_child = f"/api/v1/c/{guild.id}/trash/wiki_page/{child.id}/restore"
+    response = await client.post(restore_child, headers=headers)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "PARENT_IS_FROZEN"
+
+    response = await client.post(
+        f"/api/v1/c/{guild.id}/trash/wiki_page/{page.id}/restore", headers=headers
+    )
+    assert response.status_code == 200, response.text
+    response = await client.post(restore_child, headers=headers)
+    assert response.status_code == 200, response.text
+
+
 async def test_every_tool_takes_its_thread_to_the_trash_and_back(
     session: AsyncSession, client
 ):

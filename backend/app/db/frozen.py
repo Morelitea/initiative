@@ -111,6 +111,29 @@ FROZEN_TABLES: frozenset[str] = ARCHIVABLE_TABLES | TRASHABLE_TABLES
 SELF_STAMPED_TABLES: frozenset[str] = ARCHIVABLE_TABLES & TRASHABLE_TABLES
 
 
+def _derive_own_kind_parents() -> dict[str, tuple[str, ...]]:
+    found: dict[str, list[str]] = {}
+    for table in sorted(FROZEN_TABLES):
+        for fk in SQLModel.metadata.tables[table].foreign_keys:
+            if fk.column.table.name != table:
+                continue
+            if (fk.ondelete or "").upper() == "SET NULL":
+                continue
+            found.setdefault(table, []).append(fk.parent.name)
+    return {table: tuple(columns) for table, columns in found.items()}
+
+
+#: Rows filed under another row of the same table — a reply under its comment,
+#: a page under its page — mapped to the column naming that row.
+#:
+#: The sharing walk goes straight to the tool and never passes through these,
+#: but the trash does: a page thrown away on its own, and its parent after it,
+#: is still inside that parent. Read off the keys the way the trash reads its
+#: cascade (``lifecycle_tree``), so a key that lets go on delete is a pointer
+#: rather than a parent.
+_OWN_KIND_PARENTS: dict[str, tuple[str, ...]] = _derive_own_kind_parents()
+
+
 #: Tables the freeze does not reach, and why. Reading frozen content still
 #: happens, and reading writes rows — so the freeze would otherwise turn a page
 #: view of an archived project into an error.
@@ -268,7 +291,23 @@ def _trashed(alias: str, table: str) -> str | None:
 
 
 def _parent_call(table: str, alias: str, *, trashed_ok: str) -> str | None:
-    """The call that carries the walk one hop up from ``table``.
+    """What carries the walk up from ``table``: the hop toward its tool, and
+    the row it is filed under when that is one of its own kind."""
+    legs = [
+        f"({alias}.{column} IS NOT NULL AND resource_frozen("
+        f"'{table}', {alias}.{column}, {trashed_ok}))"
+        for column in _OWN_KIND_PARENTS.get(table, ())
+    ]
+    toward_tool = _tool_hop(table, alias, trashed_ok=trashed_ok)
+    if toward_tool is not None:
+        legs.insert(0, toward_tool)
+    if len(legs) < 2:
+        return legs[0] if legs else None
+    return "(" + " OR ".join(legs) + ")"
+
+
+def _tool_hop(table: str, alias: str, *, trashed_ok: str) -> str | None:
+    """The call that carries the walk one hop up from ``table``, toward its tool.
 
     Read off the join chain the table already declares for sharing: the first
     hop is the only one a caller needs, because the function walks the rest. A
