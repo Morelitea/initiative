@@ -6411,6 +6411,7 @@ export interface OperatorUserRead {
   locale: string;
   has_federated_identity: boolean;
   has_password: boolean;
+  password_required: boolean;
   initiative_roles: UserInitiativeRole[];
   purge_at: string | null;
   sign_in_locked_until: string | null;
@@ -6697,14 +6698,12 @@ export interface PasswordRecover {
 
 /**
  * Giving up the password. It is asked for one last time, as a change asks
- * for it; an account holding none has nothing to remove.
+ * for it; an account holding none has nothing to remove. Where the deployment
+ * signs nobody in with a password, a recent sign-in answers instead, and it
+ * is left out.
  */
 export interface PasswordRemove {
-  /**
-   * @minLength 1
-   * @maxLength 256
-   */
-  current_password: string;
+  current_password?: string | null;
 }
 
 export interface PasswordResetRequest {
@@ -8972,6 +8971,7 @@ export interface UserRead {
   locale: string;
   has_federated_identity: boolean;
   has_password: boolean;
+  password_required: boolean;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
   /**

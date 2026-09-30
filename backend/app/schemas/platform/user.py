@@ -641,6 +641,11 @@ class UserRead(UserBase):
     # hold both, and one that gave its password up holds neither. Populated by
     # the self endpoints; defaults False elsewhere.
     has_password: bool = False
+    # True when confirming a change asks this account for its password: it
+    # holds one and the deployment signs people in with passwords. Otherwise a
+    # recent sign-in answers. Populated by the self endpoints; defaults False
+    # elsewhere.
+    password_required: bool = False
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]

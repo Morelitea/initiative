@@ -538,11 +538,16 @@ jobs:
           sudo iptables -I OUTPUT -m owner --uid-owner 1999 ! -o lo -j image-egress
 
       - name: Upgrade a release's database to this tree (explicit logins)
+        # As a larger deployment runs: this tree's image pooled through
+        # PgBouncer with communities in cohorts and a query URL, uploads in
+        # Garage, and served over HTTPS by Caddy on initiative.test
+        # (upgrade_from_release.py, _explicit_logins).
         id: explicit
         if: matrix.arch == 'amd64'
         env:
           MODE: ${{ needs.changes.outputs.upgrade }}
         run: |
+          echo "127.0.0.1 initiative.test" | sudo tee -a /etc/hosts
           cd backend
           uv run python scripts/upgrade_from_release.py --image initiative:ci \
             $([[ "$MODE" == "walk" ]] && echo --walk) \

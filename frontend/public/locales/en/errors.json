@@ -746,6 +746,7 @@
   "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Set up email sending first — the code has no way to reach anybody.",
   "EMAIL_OTP_INVALID": "That code didn't work, or it has expired. Ask for a new one.",
   "EMAIL_OTP_CANNOT_SEND": "This server can't send email, so it can't send a code.",
+  "EMAIL_OTP_NO_PROVED_ADDRESS": "Your account has no confirmed email address to send a code to.",
   "GUILD_NOT_DELETED": "That community has not been deleted, so there is nothing to restore.",
   "GUILD_RESTORE_STATUS_INVALID": "Choose the state the community comes back in.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Choose who will run the community before restoring it.",

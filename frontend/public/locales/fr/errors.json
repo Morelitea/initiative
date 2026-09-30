@@ -746,6 +746,7 @@
   "SETTINGS_LOGIN_METHODS_NO_EMAIL": "Configurez d'abord l'envoi d'e-mails : le code n'a aucun moyen d'atteindre qui que ce soit.",
   "EMAIL_OTP_INVALID": "Ce code n'a pas fonctionné, ou il a expiré. Demandez-en un nouveau.",
   "EMAIL_OTP_CANNOT_SEND": "Ce serveur ne peut pas envoyer d'e-mails, donc pas de code non plus.",
+  "EMAIL_OTP_NO_PROVED_ADDRESS": "Votre compte n'a aucune adresse e-mail confirmée à laquelle envoyer un code.",
   "GUILD_NOT_DELETED": "Cette communauté n'a pas été supprimée, il n'y a donc rien à restaurer.",
   "GUILD_RESTORE_STATUS_INVALID": "Choisissez l'état dans lequel la communauté revient.",
   "GUILD_RESTORE_SEAT_REQUIRED": "Choisissez qui dirigera la communauté avant de la restaurer.",
