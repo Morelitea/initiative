@@ -164,7 +164,7 @@ const NativeBody = ({
         providerFactory={collaboration.providerFactory}
         // Always track changes so the page's copy stays updated for periodic saves
         trackChanges={true}
-        isSynced={collaboration.isSynced}
+        hasSynced={collaboration.hasSynced}
         initiativeId={document.initiative_id}
         subject={referenceRef(SearchEntityType.document, document.id)}
         supportsEntityMentions={supportsEntityMentions(document.document_type)}
@@ -244,6 +244,7 @@ const WhiteboardBody = ({
       readOnly={!canEdit}
       yDoc={room?.doc ?? null}
       isSynced={collaboration.isSynced}
+      hasSynced={collaboration.hasSynced}
       // The server roster includes ourselves — only *other* users make the
       // room's Yjs state authoritative over a local write-ahead cache.
       hasOtherCollaborators={collaboration.collaborators.some((c) => c.user_id !== currentUser?.id)}
@@ -293,6 +294,7 @@ const SpreadsheetBody = ({
       readOnly={!canEdit}
       yDoc={room?.doc ?? null}
       isSynced={collaboration.isSynced}
+      hasSynced={collaboration.hasSynced}
       awareness={room?.awareness ?? null}
       currentUser={currentUser}
       onImportFile={canEdit ? importSheets : undefined}

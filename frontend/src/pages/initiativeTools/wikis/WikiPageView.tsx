@@ -413,7 +413,7 @@ export const WikiPageView = () => {
                     // Always on, so the body the room is handed stays current
                     // between sweeps for anyone reading it over REST.
                     trackChanges
-                    isSynced={collaboration.isSynced}
+                    hasSynced={collaboration.hasSynced}
                     initiativeId={Number.isFinite(initiativeId) ? initiativeId : null}
                     subject={`wiki_page:${pageId}`}
                     supportsEntityMentions
