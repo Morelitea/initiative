@@ -250,6 +250,16 @@ export const SecondFactorStepUpDialog = () => {
                 />
               </div>
               {error && <p className="text-destructive text-sm">{error}</p>}
+              {/* A code lasts minutes and a few tries; a spent one is replaced
+                  here rather than by starting the change over. */}
+              <button
+                type="button"
+                className="text-primary text-sm underline-offset-4 hover:underline"
+                onClick={sendEmailCode}
+                disabled={submitting}
+              >
+                {t("factorStepUp.emailCodeResend")}
+              </button>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={dismiss}>
                   {t("factorStepUp.dismiss")}

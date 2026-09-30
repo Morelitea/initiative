@@ -690,6 +690,12 @@ async def test_an_emailed_code_confirms_the_session_already_open(
     )
     assert confirmed.status_code == 200, confirmed.text
     fresh = {"Authorization": f"Bearer {confirmed.json()['access_token']}"}
+    # The wrong code before it no longer counts toward a lock.
+    from app.models.platform.sign_in_lock import SignInLock
+
+    user_id = user.id
+    session.expire_all()
+    assert (await session.get(SignInLock, user_id)).failures == 0
 
     answered = await client.post(REGENERATE_URL, headers=fresh, json={})
     assert answered.status_code == 200, answered.text

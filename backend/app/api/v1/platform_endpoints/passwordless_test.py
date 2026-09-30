@@ -827,6 +827,19 @@ async def _set_a_password(
     )
 
 
+async def _turn_off_the_factor(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    from app.models.platform.user_totp import UserTotp
+
+    session.add(UserTotp(user_id=user.id, confirmed_at=datetime.now(timezone.utc)))
+    await session.commit()
+    codes = await _issue_codes(session, user)
+    return await client.post(
+        "/api/v1/auth/totp/disable", headers=headers, json={"recovery_code": codes[0]}
+    )
+
+
 _GATED = [
     ("delete-account", _delete_account, 200),
     ("enrol-a-factor", _enrol_a_factor, 200),
@@ -835,6 +848,7 @@ _GATED = [
     ("remove-a-passkey", _remove_passkey, 204),
     ("re-issue-the-codes", _regenerate_codes, 200),
     ("set-a-password", _set_a_password, 200),
+    ("turn-off-the-factor", _turn_off_the_factor, 204),
 ]
 
 

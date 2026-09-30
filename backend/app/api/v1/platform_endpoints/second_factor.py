@@ -27,7 +27,6 @@ from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import has_usable_password
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
-    require_password,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import (
@@ -226,15 +225,18 @@ async def disable_second_factor(
 ) -> None:
     """Remove the factor, its seed and its recovery codes.
 
-    Asks for the password and for the factor itself — a live code, or one of
-    the recovery codes. Every other session goes with it; this one stays.
+    Asks for the password — or, where the password is not asked for, a
+    recent sign-in — and for the factor itself: a live code, or one of the
+    recovery codes. Every other session goes with it; this one stays.
     """
     if not await totp_service.is_enrolled(system_session, user_id=current_user.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.TOTP_NOT_ENROLLED,
         )
-    await require_password(system_session, current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
     await refuse_if_locked(system_session, current_user.id)
 
     if payload.recovery_code:
