@@ -250,7 +250,7 @@ async def test_event_reminder_fires_for_each_occurrence_of_a_repeat(
         (
             upcoming.isoformat(),
             f"/go/calendar-event/{event.id}?"
-            + urlencode({"occurrence": upcoming.isoformat()}),
+            + urlencode({"occurrence": f"{upcoming:%Y-%m-%dT%H:%M:%SZ}"}),
         )
     ]
 

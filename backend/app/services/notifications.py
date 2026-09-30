@@ -2333,7 +2333,10 @@ async def reminder_scan(*, now: datetime) -> Scan | None:
                         {
                             "target_path": reference_path("calendar_event", event_id)
                             + "?"
-                            + urlencode({"occurrence": start_at.isoformat()})
+                            # In Z form: a "+" in a link reads back as a space.
+                            + urlencode(
+                                {"occurrence": f"{start_at:%Y-%m-%dT%H:%M:%SZ}"}
+                            )
                         }
                         if event_id in repeating
                         else {}
