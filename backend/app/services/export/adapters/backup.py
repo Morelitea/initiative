@@ -545,7 +545,9 @@ class _ScopeBuilder:
                     now=self.now,
                     prepared=await adapter.prepare(self.session, entities),
                 )
-                self.reach |= await adapter.prepared_reach(self.session, ctx.prepared)
+                self.reach |= await adapter.prepared_reach(
+                    self.session, replace(ctx, format=self._tool_format(section))
+                )
                 if section.preload is not None:
                     await section.preload(self, entities)
                 for entity_id, entity in zip(batch, entities):

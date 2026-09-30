@@ -1218,11 +1218,12 @@ async def test_queue_export_json_envelope(client: AsyncClient, acting_user, sess
     assert items[1]["documents"] == [] and items[1]["tasks"] == []
 
 
-async def test_a_queue_export_records_the_initiatives_of_its_attachments(
+async def test_a_queue_envelope_records_the_initiatives_of_its_attachments(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
-    """A queue item names what is attached to it, so the job records the
-    initiative of an attached document beside the queue's own."""
+    """A queue's envelope names what is attached to its items, so the job
+    records the initiative of an attached document beside the queue's own. A
+    report names only the queue's own fields, and records only its own."""
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a, queue = await _queue_with_items(acting_user, session)
     second = await create_initiative(session, a.guild, a.user, name="Second Front")
@@ -1233,13 +1234,19 @@ async def test_a_queue_export_records_the_initiatives_of_its_attachments(
         source=(SearchEntityType.queue_item, queue.current_item_id),
         target=(SearchEntityType.document, doc.id),
     )
-    guild_id, expected = a.guild.id, sorted([a.initiative.id, second.id])
-    resp = await _export(client, a, "queue", queue_id=queue.id, format="json")
-    job_id = resp.json()["id"]
-    await _run_worker()
+    guild_id, own, other = a.guild.id, a.initiative.id, second.id
+    jobs = {}
+    for fmt in ("json", "csv"):
+        resp = await _export(client, a, "queue", queue_id=queue.id, format=fmt)
+        jobs[fmt] = resp.json()["id"]
+        await _run_worker()
 
     await route_session_to_guild(session, guild_id)
-    assert (await session.get(ExportJob, job_id)).initiative_ids == expected
+    recorded = {
+        fmt: (await session.get(ExportJob, job_id)).initiative_ids
+        for fmt, job_id in jobs.items()
+    }
+    assert recorded == {"json": sorted([own, other]), "csv": [own]}
 
 
 _QUEUE_REPORTS: dict[str, dict[str, Any]] = {

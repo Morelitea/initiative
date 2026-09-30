@@ -107,8 +107,12 @@ class QueueAdapter(ToolExportAdapter):
         )
 
     async def prepared_reach(
-        self, session: AsyncSession, attachments: "Attachments", /
+        self, session: AsyncSession, ctx: BuildContext, /
     ) -> set[int]:
+        # Only the envelope names what is attached; the reports do not.
+        if ctx.format != "json":
+            return set()
+        attachments: Attachments = ctx.prepared
         return await related_reach(
             session,
             (

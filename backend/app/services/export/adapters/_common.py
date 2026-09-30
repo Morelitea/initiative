@@ -181,9 +181,11 @@ class ToolExportAdapter:
         entity holds none."""
         return {entity.initiative_id for entity in entities} - {None}
 
-    async def prepared_reach(self, session: AsyncSession, prepared: Any, /) -> set[int]:
+    async def prepared_reach(
+        self, session: AsyncSession, ctx: BuildContext, /
+    ) -> set[int]:
         """The initiatives of what :meth:`prepare` loaded beside the entities,
-        when their items name it."""
+        when the items ``ctx.format`` writes name it."""
         return set()
 
     async def prepare(self, session: AsyncSession, entities: list[Any], /) -> Any:
@@ -275,6 +277,6 @@ class ToolExportAdapter:
             batch=batch,
             initiative_ids=frozenset(
                 await self.reach(session, params, entities)
-                | await self.prepared_reach(session, ctx.prepared)
+                | await self.prepared_reach(session, ctx)
             ),
         )
