@@ -15,7 +15,7 @@ dependencies = [
     # 48523 alg-allowlist bypass with a PyJWK key, 48524 unbounded JWKS fetch).
     # We verify OIDC id_tokens with jwt.decode + PyJWKClient, so this is a security
     # floor, not a preference — an older install is exploitable.
-    "PyJWT>=2.13.0,<3",
+    "PyJWT>=2.14.0,<3",
     "argon2-cffi>=25.1.0,<26",
     "pyotp>=2.9.0,<3",                   # RFC 6238 TOTP arithmetic
     "webauthn>=2.5.0,<4",                # WebAuthn/FIDO2 ceremony verification
