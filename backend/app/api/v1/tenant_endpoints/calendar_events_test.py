@@ -285,8 +285,21 @@ async def test_one_occurrence_changes_alone(
         moved.json()["original_start"],
         moved.json()["overridden_fields"],
     ) == (series, second, ["all_day", "end_at", "start_at", "title"])
-    # A change to the series reaches the occurrence where it didn't change.
+    override = moved.json()["id"]
+    # A change to the series reaches the occurrence where it didn't change,
+    # and saving it again with that value doesn't make the value its own.
     await client.patch(at(""), headers=organizer.headers, json={"location": "Room 2"})
+    resaved = await client.patch(
+        organizer.g(f"/calendar-events/{override}"),
+        headers=organizer.headers,
+        json={"title": "Standup (moved)", "location": "Room 2"},
+    )
+    assert resaved.json()["overridden_fields"] == [
+        "all_day",
+        "end_at",
+        "start_at",
+        "title",
+    ]
     assert await month() == [
         ("Standup", "2026-10-05T09:00:00Z", "Room 2"),
         ("Standup (moved)", "2026-10-12T10:00:00Z", "Room 2"),
@@ -294,16 +307,25 @@ async def test_one_occurrence_changes_alone(
         ("Standup", fourth, "Room 2"),
     ]
 
+    # Deleting the moved one skips it, and tells its attendees; bringing it
+    # back brings back what it changed.
     skipped = await client.delete(
-        at(""), headers=organizer.headers, params={"scope": "this", "occurrence": third}
+        organizer.g(f"/calendar-events/{override}"), headers=organizer.headers
     )
     assert skipped.status_code == 204
     read = await client.get(at(""), headers=organizer.headers)
-    assert read.json()["skipped_starts"] == [third]
+    assert read.json()["skipped_starts"] == [second]
+    cancels = await _notifications_for(
+        session, attendee.user.id, NotificationType.event_cancelled
+    )
+    assert [notice.data["start_at"] for notice in cancels] == [
+        "2026-10-12T09:00:00+00:00"
+    ]
     restored = await client.post(
-        at("/occurrences/restore"), headers=organizer.headers, json={"start": third}
+        at("/occurrences/restore"), headers=organizer.headers, json={"start": second}
     )
     assert restored.json()["skipped_starts"] == []
+    assert "Standup (moved)" in [title for title, _start, _location in await month()]
 
     # Answering takes read access, so one occurrence's answer needs no row.
     declined = await client.patch(
@@ -331,6 +353,16 @@ async def test_one_occurrence_changes_alone(
     assert (await answer(series, fourth), await answer(series)) == (
         "declined",
         "pending",
+    )
+    # One with a row of its own is answered, and read back, on that row.
+    await client.patch(
+        attendee.g(f"/calendar-events/{series}/rsvp"),
+        headers=attendee.headers,
+        json={"rsvp_status": "tentative", "occurrence": second},
+    )
+    assert (await answer(series, second), await answer(override)) == (
+        "tentative",
+        "tentative",
     )
 
     retro = await client.patch(

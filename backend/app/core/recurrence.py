@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
-from itertools import islice
+from itertools import islice, takewhile
 from typing import Iterable, Literal
 
 import icalendar
@@ -299,7 +299,7 @@ def restarted(
     def move(value: date | datetime) -> date | datetime:
         if not isinstance(value, datetime):
             return value
-        return rehomed(value, shift, new_shift, new_start)
+        return rehomed(text, value, shift, new_shift, old_start, new_start)
 
     lines = Recurrence(
         repeat.rule,
@@ -310,10 +310,19 @@ def restarted(
 
 
 def rehomed(
-    value: datetime, old_shift: int, new_shift: int, new_start: datetime
+    text: str,
+    value: datetime,
+    old_shift: int,
+    new_shift: int,
+    old_start: datetime,
+    new_start: datetime,
 ) -> datetime:
     """An occurrence of a series whose start moved: the same picked day, at
-    the new start's time of day."""
+    the new start's time of day. A rule of hours has several a day, so each
+    moves by as much as the start did."""
+    rule = parse(text).rule
+    if rule["FREQ"][0] == "HOURLY" or "BYHOUR" in rule:
+        return value.astimezone(timezone.utc) + (new_start - old_start)
     day = (value.astimezone(timezone.utc) + timedelta(minutes=old_shift)).date()
     new = timedelta(minutes=new_shift)
     at = (new_start.astimezone(timezone.utc) + new).time()
@@ -415,9 +424,16 @@ def split(
 
     series, _ = _series(Recurrence(repeat.rule), start, shift)
     moved = (at + offset).replace(tzinfo=None)
-    done = len(series.between(datetime.min, moved, inc=False))
+    count = repeat.rule.get("COUNT")
+    # The rule's own starts before ``at``: counted only for a COUNT, which
+    # bounds them; otherwise all that matters is whether there is one.
+    done = (
+        sum(1 for _ in takewhile(lambda value: value < moved, series))
+        if count
+        else int(next(iter(series), moved) < moved)
+    )
     head_rule, tail_rule = dict(repeat.rule), dict(repeat.rule)
-    if count := repeat.rule.get("COUNT"):
+    if count:
         if count[0] <= done:
             raise ValueError("The series has ended before this occurrence.")
         head_rule["COUNT"], tail_rule["COUNT"] = [done], [count[0] - done]

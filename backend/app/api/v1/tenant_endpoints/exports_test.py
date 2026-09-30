@@ -2082,7 +2082,12 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         1440,
     )
     late = by_title["Session 13 (late)"]
-    assert (late.series, late.original_start) == (picked, session_start)
+    # It came without the series' description and place, so those are its own.
+    assert (late.series, late.original_start, late.overridden_fields) == (
+        picked,
+        session_start,
+        ["all_day", "description", "end_at", "location", "start_at", "title"],
+    )
     meeting = by_title["Guild meeting"]
     assert (meeting.start_at, meeting.end_at, meeting.recurrence) == (
         datetime(2026, 10, 12, tzinfo=timezone.utc),

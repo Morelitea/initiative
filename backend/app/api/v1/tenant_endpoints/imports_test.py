@@ -270,9 +270,10 @@ async def test_envelope_import_roundtrips_calendar(client, acting_user, session)
     by_title = {e.title: e for e in imported}
     assert set(by_title) == {"Session Zero", "One-shot", "Session Zero, again"}
     again = by_title["Session Zero, again"]
-    assert (again.series_id, again.original_start) == (
+    assert (again.series_id, again.original_start, again.overridden_fields) == (
         by_title["Session Zero"].id,
         second,
+        ["attendees", "properties", "tags", "title"],
     )
     # The exporter was the only attendee-resolvable member; attendee rows for
     # the creator resolve by email.

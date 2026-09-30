@@ -325,10 +325,11 @@ async def _notify_about_event(
     role: str,
     data: dict[str, Any] | None = None,
     values: dict[str, str] | None = None,
+    at: datetime | None = None,
 ) -> None:
     """Tell ``user_ids`` something about ``event``, naming whoever did it in
     ``role`` (organizer, editor, …): the person, or an installed app by its
-    name. The time is each reader's own."""
+    name. The time is each reader's own, and ``at`` names one occurrence."""
     name = notifications_service.actor_name(actor)
     await notifications_service.notify(
         session,
@@ -339,12 +340,12 @@ async def _notify_about_event(
         values={
             "event": event.title,
             role: name,
-            "when": lambda reader: notifications_service.event_when(event, reader),
+            "when": lambda reader: notifications_service.event_when(event, reader, at),
             **(values or {}),
         },
         data={
             "event_id": event.id,
-            "start_at": event.start_at.isoformat(),
+            "start_at": (at or event.start_at).isoformat(),
             f"{role}_name": name,
             **(data or {}),
         },
@@ -941,7 +942,6 @@ async def update_calendar_event(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=CalendarEventMessages.OCCURRENCE_FOLLOWS_SERIES,
                 )
-            occurrences_service.mark(event, changes)
             return await _apply_update(
                 session, event, changes, event_in, current_user, guild_context
             )
@@ -969,7 +969,6 @@ async def update_calendar_event(
         )
         await session.flush()
         target = await _refetch_event(session, made.id)
-        occurrences_service.mark(target, changes)
         return await _apply_update(
             session, target, changes, event_in, current_user, guild_context
         )
@@ -1104,6 +1103,9 @@ async def _apply_update(
             )
         event.updated_at = datetime.now(timezone.utc)
         session.add(event)
+        if event.series_id is not None:
+            # What this occurrence now says differently from its series.
+            await occurrences_service.remark(session, event)
 
         time_changed = event.start_at != old_start or event.end_at != old_end
         if event.series_id is None and (old_recurrence or event.recurrence):
@@ -1117,7 +1119,7 @@ async def _apply_update(
                     session,
                     event,
                     old_shift=old_shift,
-                    moved=event.start_at != old_start,
+                    old_start=old_start,
                     deleted_by=guild_context.user_id,
                 )
             changed = {
@@ -1197,6 +1199,8 @@ async def delete_calendar_event(
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, action=Action.contribute
     )
+    # Whose attendees hear of it: an occurrence's own row's, or the event's.
+    told = event
     if event.series_id is not None:
         at = event.original_start
         event = await _get_event_or_404(
@@ -1209,37 +1213,44 @@ async def delete_calendar_event(
         scope = scope or "this"
     else:
         at = occurrence
-    if event.recurrence and scope == "this":
-        await occurrences_service.skip(session, event, at, deleted_by=current_user.id)
-        await session.commit()
-        return
-    if (
-        event.recurrence
-        and scope == "following"
-        and await occurrences_service.end_before(
-            session, event, at, deleted_by=current_user.id
-        )
-    ):
-        await session.commit()
-        return
     # A declined attendee already isn't attending, so skip the cancellation
     # notice for them (consistent with update/reminder notifications).
     cancel_ids = [
         attendee.user_id
-        for attendee in event.attendees
+        for attendee in told.attendees
         if attendee.user_id
         and attendee.user_id != current_user.id
         and attendee.rsvp_status != RSVPStatus.declined
     ]
-    await _notify_about_event(
-        session,
-        NotificationType.event_cancelled,
-        cancel_ids,
-        event,
-        key="event.cancelled",
-        actor=current_user,
-        role="canceller",
-    )
+
+    async def tell(when: datetime | None = None) -> None:
+        await _notify_about_event(
+            session,
+            NotificationType.event_cancelled,
+            cancel_ids,
+            event,
+            key="event.cancelled",
+            actor=current_user,
+            role="canceller",
+            at=when,
+        )
+
+    if event.recurrence and scope == "this":
+        at = occurrences_service.require_occurrence(event, at)
+        await occurrences_service.skip(session, event, at, deleted_by=current_user.id)
+        await tell(at)
+        await session.commit()
+        return
+    if event.recurrence and scope == "following":
+        at = occurrences_service.require_occurrence(event, at)
+        if await occurrences_service.end_before(
+            session, event, at, deleted_by=current_user.id
+        ):
+            # Named by the first occurrence that no longer happens.
+            await tell(at)
+            await session.commit()
+            return
+    await tell()
     await trash(
         session,
         event,
@@ -1367,9 +1378,7 @@ async def restore_occurrence(
 ) -> CalendarEventRead:
     """Bring back a skipped occurrence of the series."""
     series = await _repeating_or_404(session, event_id, current_user, guild_context)
-    series.recurrence = recurrence.restored(
-        series.recurrence or "", series.recurrence_shift, body.start
-    )
+    await occurrences_service.bring_back(session, series, body.start)
     series.updated_at = datetime.now(timezone.utc)
     session.add(series)
     await session.commit()

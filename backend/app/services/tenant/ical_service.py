@@ -21,6 +21,7 @@ from app.core.user_input_validators import resolve_zone
 from app.models.tenant.calendar_event import CalendarEvent
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
 from app.services.export.property_values import property_export_dict
+from app.services.tenant import calendar_occurrences
 from app.core.user_display import display_name
 
 logger = logging.getLogger(__name__)
@@ -421,4 +422,8 @@ def build_calendar_events(
             at = datetime.combine(original, parent.start_at.timetz())
         event.series = parent
         event.original_start = at.astimezone(timezone.utc)
+        # What the file says differently for this occurrence stays its own.
+        event.overridden_fields = sorted(
+            calendar_occurrences.differences(event, parent)
+        )
     return events, errors, skipped

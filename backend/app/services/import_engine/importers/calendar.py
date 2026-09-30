@@ -54,6 +54,7 @@ from app.services.import_engine.people import (
     bring_in_named,
     initiative_member_id,
 )
+from app.services.tenant import calendar_occurrences
 from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 
@@ -252,8 +253,16 @@ class CalendarImporter(NamesPeopleInPassing):
         )
         original = parse_datetime(item.original_start) if item.original_start else None
         if item.series_ref in series_ids and original is not None:
+            series = await session.get(CalendarEvent, series_ids[item.series_ref])
             event.series_id = series_ids[item.series_ref]
             event.original_start = original
+            if series is not None:
+                # What it says differently stays its own, and so do the
+                # attendees, tags and properties it came with.
+                event.overridden_fields = sorted(
+                    calendar_occurrences.differences(event, series)
+                    | set(calendar_occurrences.LISTS)
+                )
         session.add(event)
         await session.flush()
         if item.external_ref and event.recurrence and event.id is not None:

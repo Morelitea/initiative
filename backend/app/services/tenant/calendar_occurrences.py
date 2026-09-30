@@ -68,6 +68,35 @@ def unmark(override: CalendarEvent, fields: Iterable[str]) -> None:
     override.overridden_fields = sorted(set(override.overridden_fields) - dropped)
 
 
+def differences(override: CalendarEvent, series: CalendarEvent) -> set[str]:
+    """What the override says differently from its series: a field, or its
+    times (another start or length than its occurrence's, or all day when the
+    series isn't)."""
+    found = {
+        name for name in SCALARS if getattr(override, name) != getattr(series, name)
+    }
+    if (
+        override.all_day != series.all_day
+        or override.original_start is None
+        or override.start_at != override.original_start
+        or override.end_at - override.start_at != series.end_at - series.start_at
+    ):
+        found |= set(TIMES)
+    return found
+
+
+async def remark(session: AsyncSession, override: CalendarEvent) -> None:
+    """Record what the override now changes: the fields that differ from its
+    series, and the lists it was given its own of."""
+    series = await session.get(CalendarEvent, override.series_id)
+    if series is None:
+        return
+    override.overridden_fields = sorted(
+        (set(override.overridden_fields) & set(LISTS)) | differences(override, series)
+    )
+    session.add(override)
+
+
 async def overrides(
     session: AsyncSession, series: CalendarEvent
 ) -> list[CalendarEvent]:
@@ -277,7 +306,23 @@ async def answer_occurrence(
 async def answers_for(
     session: AsyncSession, series_id: int, at: datetime
 ) -> dict[int, RSVPStatus]:
-    """The answers kept for one occurrence without a row of its own."""
+    """One occurrence's answers: its own row's, or those kept beside the
+    series when it has none."""
+    own = (
+        await session.exec(
+            select(CalendarEvent.id).where(
+                CalendarEvent.series_id == series_id,
+                CalendarEvent.original_start == _utc(at),
+            )
+        )
+    ).one_or_none()
+    if own is not None:
+        attendees = await session.exec(
+            select(CalendarEventAttendee).where(
+                CalendarEventAttendee.calendar_event_id == own
+            )
+        )
+        return {row.user_id: row.rsvp_status for row in attendees.all()}
     rows = await session.exec(
         select(CalendarEventAnswer).where(
             CalendarEventAnswer.calendar_event_id == series_id,
@@ -314,27 +359,40 @@ async def rehome(
     series: CalendarEvent,
     *,
     old_shift: int,
-    moved: bool,
+    old_start: datetime,
     deleted_by: int | None,
 ) -> int:
-    """Overrides of a series whose start or rule changed: on the same picked
-    day at the new time when the start moved, and binned where the series no
-    longer has that occurrence. Returns how many were binned."""
+    """Overrides and kept answers of a series whose start or rule changed:
+    moved with the start (``recurrence.rehomed``), and binned where the series
+    no longer has that occurrence. Returns how many overrides were binned."""
     from app.services.tenant.soft_delete import trash
 
     binned = 0
     length = series.end_at - series.start_at
+    moved = series.start_at != old_start
+
+    def rehomed(value: datetime) -> datetime:
+        if not moved or not series.recurrence:
+            return value
+        return recurrence.rehomed(
+            series.recurrence,
+            value,
+            old_shift,
+            series.recurrence_shift,
+            old_start,
+            series.start_at,
+        )
+
+    def occurs(value: datetime) -> bool:
+        return bool(series.recurrence) and recurrence.occurs(
+            series.recurrence or "", series.start_at, series.recurrence_shift, value
+        )
+
     for override in await overrides(session, series):
-        start = override.original_start
-        if start is None:
+        if override.original_start is None:
             continue
-        if moved:
-            start = recurrence.rehomed(
-                start, old_shift, series.recurrence_shift, series.start_at
-            )
-        if not series.recurrence or not recurrence.occurs(
-            series.recurrence, series.start_at, series.recurrence_shift, start
-        ):
+        start = rehomed(override.original_start)
+        if not occurs(start):
             await trash(session, override, deleted_by_user_id=deleted_by)
             binned += 1
             continue
@@ -350,21 +408,9 @@ async def rehome(
             )
         )
     ).all():
-        start = (
-            recurrence.rehomed(
-                answer.original_start,
-                old_shift,
-                series.recurrence_shift,
-                series.start_at,
-            )
-            if moved
-            else answer.original_start
-        )
-        still = series.recurrence and recurrence.occurs(
-            series.recurrence, series.start_at, series.recurrence_shift, start
-        )
+        start = rehomed(answer.original_start)
         await session.delete(answer)
-        if still:
+        if occurs(start):
             await session.flush()
             session.add(
                 CalendarEventAnswer(
@@ -487,6 +533,30 @@ async def skip(
         series.recurrence or "", series.recurrence_shift, at
     )
     session.add(series)
+
+
+async def bring_back(
+    session: AsyncSession, series: CalendarEvent, at: datetime
+) -> None:
+    """Un-skip the series' occurrence at ``at``, with its own row if skipping
+    put one in the bin."""
+    from app.services.tenant.soft_delete import restore_entity
+
+    series.recurrence = recurrence.restored(
+        series.recurrence or "", series.recurrence_shift, at
+    )
+    session.add(series)
+    binned = (
+        await session.exec(
+            select_including_deleted(CalendarEvent).where(
+                CalendarEvent.series_id == series.id,
+                CalendarEvent.original_start == _utc(at),
+                CalendarEvent.deleted_at.isnot(None),
+            )
+        )
+    ).one_or_none()
+    if binned is not None:
+        await restore_entity(session, binned)
 
 
 async def detach(
