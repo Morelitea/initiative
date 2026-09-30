@@ -1,5 +1,5 @@
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { CalendarDays, MapPin, Settings, Trash2, Users } from "lucide-react";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { CalendarDays, MapPin, Repeat, Settings, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -31,9 +31,11 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { summarizeStored } from "@/lib/recurrence";
 import { hour12Option } from "@/lib/timeFormat";
 import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
+import type { TranslateFn } from "@/types/i18n";
 
 const RSVP_LABEL_KEYS: Record<
   string,
@@ -135,11 +137,13 @@ const rsvpBadgeVariant = (
 };
 
 export function EventDetailPage() {
-  const { t } = useTranslation(["calendars", "common"]);
+  const { t } = useTranslation(["calendars", "common", "dates"]);
   const { eventId, calendarId: calendarIdParam } = useParams({ strict: false }) as {
     eventId: string;
     calendarId?: string;
   };
+  // Opened from a calendar, a repeating event names the occurrence it was.
+  const { occurrence } = useSearch({ strict: false }) as { occurrence?: string };
   const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
   const parsedId = Number(eventId);
   const navigate = useNavigate();
@@ -211,6 +215,15 @@ export function EventDetailPage() {
     );
   }
 
+  // The occurrence is the series at that start, with the series' length.
+  const shownStart =
+    event.recurrence && occurrence && !Number.isNaN(Date.parse(occurrence))
+      ? occurrence
+      : event.start_at;
+  const shownEnd = new Date(
+    Date.parse(shownStart) + Date.parse(event.end_at) - Date.parse(event.start_at)
+  ).toISOString();
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb header */}
@@ -255,11 +268,23 @@ export function EventDetailPage() {
           <div className="flex items-start gap-3">
             <CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div>
-              <p className="font-medium">
-                {formatDateRange(event.start_at, event.end_at, event.all_day)}
-              </p>
+              <p className="font-medium">{formatDateRange(shownStart, shownEnd, event.all_day)}</p>
             </div>
           </div>
+
+          {event.recurrence && (
+            <div className="flex items-start gap-3">
+              <Repeat className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+              <p className="text-sm">
+                {summarizeStored(
+                  event.recurrence,
+                  event.start_at,
+                  { shift: event.recurrence_shift },
+                  t as TranslateFn
+                )}
+              </p>
+            </div>
+          )}
 
           {event.location && (
             <div className="flex items-start gap-3">

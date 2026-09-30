@@ -6,6 +6,7 @@ test harness commits real data and truncates between tests).
 """
 
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 
 import re
 
@@ -217,6 +218,41 @@ async def test_event_reminder_fires_once_within_lead_window(
         )
     )
     assert len(list(dispatches.all())) == 1
+
+
+async def test_event_reminder_fires_for_each_occurrence_of_a_repeat(
+    session: AsyncSession,
+):
+    """A daily event that began last week reminds of today's occurrence."""
+    creator = await create_user(session)
+    attendee = await create_user(session, event_reminder_minutes_before=15)
+    _guild, initiative, calendar = await _events_initiative(session, creator)
+    upcoming = (datetime.now(timezone.utc) + timedelta(minutes=10)).replace(
+        microsecond=0
+    )
+    event = await create_calendar_event(
+        session,
+        calendar,
+        creator,
+        start_at=upcoming - timedelta(days=7),
+        end_at=upcoming - timedelta(days=7, minutes=-30),
+        recurrence="RRULE:FREQ=DAILY",
+    )
+    await _add_attendee(session, initiative, event, attendee)
+
+    await _dispatch(session)
+    await _dispatch(session)
+    reminders = await _reminders_for(session, attendee.id)
+    assert [
+        (reminder.data["start_at"], reminder.data["target_path"])
+        for reminder in reminders
+    ] == [
+        (
+            upcoming.isoformat(),
+            f"/go/calendar-event/{event.id}?"
+            + urlencode({"occurrence": f"{upcoming:%Y-%m-%dT%H:%M:%SZ}"}),
+        )
+    ]
 
 
 async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):

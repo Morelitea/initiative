@@ -20,5 +20,10 @@ from app.schemas.tenant.task import TaskListRead
 class CalendarEntriesResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    #: A repeating event once for each of its occurrences in the window.
     events: List[CalendarEventSummary] = []
     tasks: List[TaskListRead] = []
+    #: The upcoming occurrences of repeating tasks in the window: each the
+    #: series' current task with its dates moved there. They are not tasks yet;
+    #: completing the current one creates the next.
+    task_occurrences: List[TaskListRead] = []

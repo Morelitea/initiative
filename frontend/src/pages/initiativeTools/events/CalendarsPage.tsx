@@ -18,6 +18,7 @@ import {
   allDayRange,
   buildEventCalendarEntry,
   buildTaskCalendarEntries,
+  buildTaskOccurrenceEntries,
   CALENDAR_VIEW_MODE_KEY,
   type CalendarEntry,
   type CalendarEntryReschedule,
@@ -363,7 +364,8 @@ export const CalendarsView = ({
   // fully derived from the entries payload, never stored.
   const projectCalendars = useMemo<ProjectTaskCalendar[]>(() => {
     const seen = new Map<number, ProjectTaskCalendar>();
-    for (const task of entriesQuery.data?.tasks ?? []) {
+    const data = entriesQuery.data;
+    for (const task of [...(data?.tasks ?? []), ...(data?.task_occurrences ?? [])]) {
       if (task.project_id == null || seen.has(task.project_id)) continue;
       seen.set(task.project_id, {
         projectId: task.project_id,
@@ -417,6 +419,12 @@ export const CalendarsView = ({
       // Task chips stay non-draggable here: per-project edit rights vary
       // across the visible projects; the task page is the editing surface.
       entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id), false));
+    }
+    for (const task of entriesQuery.data?.task_occurrences ?? []) {
+      if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
+        continue;
+      }
+      entries.push(...buildTaskOccurrenceEntries(task, getProjectColor(task.project_id)));
     }
 
     return entries;
@@ -491,11 +499,15 @@ export const CalendarsView = ({
           projectId?: number;
           eventId?: number;
           calendarId?: number;
+          occurrence?: string;
         }
       | undefined;
     if (!meta) return;
     if (meta.type === "event" && meta.eventId && meta.calendarId) {
-      void router.navigate({ to: gp(eventRoute(initiativeId, meta.calendarId, meta.eventId)) });
+      void router.navigate({
+        to: gp(eventRoute(initiativeId, meta.calendarId, meta.eventId)),
+        search: meta.occurrence ? { occurrence: meta.occurrence } : {},
+      });
     } else if (meta.type === "task" && meta.taskId && meta.projectId) {
       void router.navigate({ to: gp(taskRoute(initiativeId, meta.projectId, meta.taskId)) });
     }

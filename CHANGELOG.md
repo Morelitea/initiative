@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Repeating events show on every date they happen.** A calendar draws each occurrence in view, not only the first, and opening one shows its own date along with how the event repeats. Each occurrence sends its own reminder, and a smart chip for a repeating event shows its next date. A repeating task's next dates show on the calendar too; opening one opens the current task. Dragging a repeating event on the calendar is turned off for now; change its time from the event's settings.
+- **`calendar-entries` returns occurrences (API).** A repeating event comes back once for each occurrence in the window, with `original_start` naming it, and repeating tasks' next dates come back in `task_occurrences`.
+
 ### Changed
 
 - **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import.

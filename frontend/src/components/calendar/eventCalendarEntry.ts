@@ -21,14 +21,17 @@ export const DEFAULT_CALENDAR_COLOR = "#6366f1";
  * The calendar entry for one event, drawn in its calendar's color.
  *
  * The id carries the guild because the cross-guild calendar holds events whose
- * per-guild ids collide; `meta` carries everything either calendar navigates by.
+ * per-guild ids collide, and a repeating event's occurrence because the series
+ * is there once for each; `meta` carries everything either calendar navigates
+ * by. An occurrence is not dragged: moving one alone needs a choice of which
+ * occurrences to move, which the event page makes.
  */
 export const buildEventCalendarEntry = (
   event: CalendarEventSummary,
   calendarColor: string | undefined,
   unread: boolean
 ): CalendarEntry => ({
-  id: `event-${event.guild_id}-${event.id}`,
+  id: `event-${event.guild_id}-${event.id}${event.original_start ? `@${event.original_start}` : ""}`,
   title: event.title,
   description: event.description,
   // An all-day event's dates are UTC dates; drawn as the same dates here.
@@ -43,12 +46,13 @@ export const buildEventCalendarEntry = (
   })),
   properties: event.property_values,
   tags: event.tags,
-  draggable: event.can.edit,
+  draggable: event.can.edit && !event.recurrence,
   unread,
   meta: {
     type: "event",
     eventId: event.id,
     calendarId: event.calendar_id,
     guildId: event.guild_id,
+    occurrence: event.original_start ?? undefined,
   },
 });
