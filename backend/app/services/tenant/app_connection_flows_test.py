@@ -1126,16 +1126,26 @@ class TestVendorWebhooks:
         assert _key("203.0.113.7") == _key("203.0.113.7")
 
     async def test_a_delivery_reaches_each_community_that_connected_it_once(
-        self, client: AsyncClient, acting_user, session, vendor, listing
+        self, client: AsyncClient, acting_user, session, vendor, listing, monkeypatch
     ):
         """Two communities connected installation 42 and a third connected 7.
-        A delivery for 42 is forwarded to each of the two, on a lifecycle
-        token naming that install, and a redelivery forwards nothing."""
+        A delivery for 42 is forwarded to each of the two at once, on a
+        lifecycle token naming that install, and a redelivery forwards
+        nothing."""
         seats = [await acting_user(guild_role=GuildRole.superadmin) for _ in range(3)]
         apps = [
             await _install(session, seat, config=_connected(value))
             for seat, value in zip(seats, ("42", "42", "7"))
         ]
+        # Each forward waits for the other, so both go only when sent together.
+        both = asyncio.Barrier(2)
+        call_hook = app_connection_flows.call_hook
+
+        async def together(*args, **kwargs):
+            await asyncio.wait_for(both.wait(), timeout=1)
+            return await call_hook(*args, **kwargs)
+
+        monkeypatch.setattr(app_connection_flows, "call_hook", together)
         body, headers = vendor.webhook({"action": "opened", "installation": {"id": 42}})
 
         response = await client.post(HOOK_ROUTE, content=body, headers=headers)
