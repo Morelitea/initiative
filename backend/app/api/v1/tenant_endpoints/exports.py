@@ -24,7 +24,7 @@ from typing import Annotated, Any, List, Literal, Optional, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import func
+from sqlalchemy import func, not_
 from sqlmodel import select
 
 from app.api.deps import (
@@ -788,20 +788,21 @@ async def _require_reach(
     session: RLSSessionDep, user: User, initiative_ids: list[int]
 ) -> None:
     """Refuse unless the caller reaches every initiative in ``initiative_ids``
-    now."""
+    that still exists. One deleted since the render, in the trash or purged,
+    is skipped."""
     if not initiative_ids:
         return
-    reached = (
+    unreached = (
         await session.exec(
             select(func.count())
             .select_from(Initiative)
             .where(
                 Initiative.id.in_(initiative_ids),
-                initiative_scope_clause(user.id, Initiative.id),
+                not_(initiative_scope_clause(user.id, Initiative.id)),
             )
         )
     ).one()
-    if reached < len(set(initiative_ids)):
+    if unreached:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ExportMessages.EXPORT_OUT_OF_REACH,

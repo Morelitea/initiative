@@ -36,7 +36,7 @@ from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.document import DocumentType
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
-from app.models.tenant.initiative import InitiativeMember
+from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.services import storage as storage_module
@@ -472,21 +472,26 @@ async def test_jobs_are_own_row_isolated(
     ] == [job_id]
 
 
-async def test_an_export_is_not_served_after_its_initiative_is_left(
+async def test_an_export_is_served_while_its_initiatives_are_reached(
     client: AsyncClient, acting_user, session, monkeypatch
 ):
     """The job records the initiatives its artifact holds, and the download
-    asks for them again: a member removed from one after the render is
-    refused for the rest of the artifact's life."""
+    asks for each one that still exists: a member removed from one is refused,
+    and one deleted since the render, purged or in the trash, is skipped."""
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 0)
     a = await _actor_with_tasks(acting_user, session)
     guild_id, initiative_id, user_id = a.guild.id, a.initiative.id, a.user.id
     job_id = (await _export(client, a, "tasks")).json()["id"]
     await _run_worker()
-    await _download(client, a, job_id)
 
     await route_session_to_guild(session, guild_id)
-    assert (await session.get(ExportJob, job_id)).initiative_ids == [initiative_id]
+    job = await session.get(ExportJob, job_id)
+    assert job.initiative_ids == [initiative_id]
+    job.initiative_ids = [initiative_id, initiative_id + 1000]
+    session.add(job)
+    await session.commit()
+    await _download(client, a, job_id)
+
     await session.exec(
         sa_delete(InitiativeMember).where(
             InitiativeMember.initiative_id == initiative_id,
@@ -494,10 +499,15 @@ async def test_an_export_is_not_served_after_its_initiative_is_left(
         )
     )
     await session.commit()
-
     dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
     assert dl.status_code == 403
     assert dl.json()["detail"] == "EXPORT_OUT_OF_REACH"
+
+    initiative = await session.get(Initiative, initiative_id)
+    initiative.deleted_at = datetime.now(timezone.utc)
+    session.add(initiative)
+    await session.commit()
+    await _download(client, a, job_id)
 
 
 async def test_worker_renders_job_and_download_succeeds(
