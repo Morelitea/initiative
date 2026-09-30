@@ -24,7 +24,9 @@ dashboards and exports, not every page.
 
 Both probes are unauthenticated, and all three routes are exempt from the
 global rate limit: a probe answered with a 429 reports a failure the process
-does not have.
+does not have. ``/readyz`` holds its answer for ``READY_CACHE_SECONDS``
+instead, so however often it is called, each process checks its dependencies
+at most once in that window.
 
 ``/metrics`` answers Prometheus's text format for a scrape presenting
 ``METRICS_TOKEN`` as a bearer token, and ``404`` while no token is set. What it
@@ -36,6 +38,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
+import time
 from typing import Awaitable, Callable
 
 import anyio
@@ -63,6 +66,17 @@ CHECK_TIMEOUT_SECONDS = 3.0
 #: Checks whose failure means "send this pod no traffic". Everything else is
 #: reported and does not change the verdict — see the module docstring.
 REQUIRED = frozenset({"database", "database_system", "database_provisioning"})
+
+#: How long one readiness answer is reused. Shorter than a probe's default
+#: ``periodSeconds`` (10), so each scheduled probe gets a fresh answer, and
+#: longer than ``CHECK_TIMEOUT_SECONDS``, so a run finishes before its answer
+#: expires.
+READY_CACHE_SECONDS = 5.0
+
+#: When the current answer was started, and the run producing it. Callers
+#: that arrive while it is still running wait for that run.
+_ready_started_at = 0.0
+_ready_run: asyncio.Task[tuple[int, dict[str, object]]] | None = None
 
 
 async def _ping(engine_name: str) -> None:
@@ -138,22 +152,36 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/readyz", include_in_schema=False)
-@limiter.exempt
-async def readyz(response: Response) -> dict[str, object]:
+async def _readiness() -> tuple[int, dict[str, object]]:
     names = list(CHECKS)
     results = await asyncio.gather(*(_run(name, CHECKS[name]) for name in names))
     checks = dict(zip(names, results))
 
     failed = {name for name, result in checks.items() if result != "ok"}
     if failed & REQUIRED:
-        overall = "unavailable"
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-    elif failed:
-        overall = "degraded"
-    else:
-        overall = "ok"
-    return {"status": overall, "checks": checks}
+        return status.HTTP_503_SERVICE_UNAVAILABLE, {
+            "status": "unavailable",
+            "checks": checks,
+        }
+    return status.HTTP_200_OK, {
+        "status": "degraded" if failed else "ok",
+        "checks": checks,
+    }
+
+
+@router.get("/readyz", include_in_schema=False)
+@limiter.exempt
+async def readyz(response: Response) -> dict[str, object]:
+    global _ready_started_at, _ready_run
+    now = time.monotonic()
+    if _ready_run is None or now - _ready_started_at >= READY_CACHE_SECONDS:
+        _ready_started_at = now
+        _ready_run = asyncio.ensure_future(_readiness())
+    # Shielded so a caller that disconnects does not cancel the run the
+    # others are waiting for.
+    status_code, body = await asyncio.shield(_ready_run)
+    response.status_code = status_code
+    return body
 
 
 def _presents_token(request: Request, token: str) -> bool:

@@ -20,6 +20,12 @@ def request_engine_on_the_test_database(engine, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(db_session, "engine", engine)
 
 
+@pytest.fixture(autouse=True)
+def no_held_readiness_answer(monkeypatch: pytest.MonkeyPatch):
+    """Each test swaps the checks, so none may be answered from the last."""
+    monkeypatch.setattr(health, "_ready_run", None)
+
+
 async def test_healthz_answers_without_touching_anything(client: AsyncClient):
     """Liveness is about this process only, so it answers the same whether or
     not its dependencies are reachable."""
@@ -105,6 +111,34 @@ async def test_readyz_reports_a_hung_dependency_rather_than_hanging(
     resp = await client.get("/api/v1/readyz")
     assert resp.status_code == 200, resp.text
     assert resp.json()["checks"]["storage"] == "error"
+
+
+async def test_readyz_checks_once_per_window_however_often_it_is_called(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    """Callers inside the window, together or one after another, share one
+    run of the checks; the first call after it runs them again."""
+    import asyncio
+
+    runs = 0
+
+    async def counted() -> None:
+        nonlocal runs
+        runs += 1
+        await asyncio.sleep(0.01)
+
+    for name in health.CHECKS:
+        monkeypatch.setitem(health.CHECKS, name, lambda: asyncio.sleep(0))
+    monkeypatch.setitem(health.CHECKS, "database", counted)
+
+    responses = await asyncio.gather(*(client.get("/api/v1/readyz") for _ in range(5)))
+    responses.append(await client.get("/api/v1/readyz"))
+    assert all(resp.status_code == 200 for resp in responses)
+    assert runs == 1
+
+    monkeypatch.setattr(health, "READY_CACHE_SECONDS", 0.0)
+    await client.get("/api/v1/readyz")
+    assert runs == 2
 
 
 @pytest.mark.parametrize("path", ["/api/v1/healthz", "/api/v1/readyz"])
