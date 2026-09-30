@@ -391,8 +391,9 @@ jobs:
     if: ${{ !cancelled() && needs.changes.outputs.upgrade != 'false' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # Two servers, because roles are cluster-wide: the release's database and
-    # a fresh install of this tree, compared once both are built.
+    # Two servers per setup, because roles are cluster-wide: the release's
+    # database and a fresh install of this tree, compared once both are built.
+    # The explicit-logins run uses 5432/5433, the one-URL run 5434/5435.
     services:
       upgraded:
         image: postgres:17
@@ -418,6 +419,30 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      upgraded-one-url:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      fresh-one-url:
+        image: postgres:17
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     env:
       # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
@@ -431,7 +456,8 @@ jobs:
 
       - uses: ./.github/actions/setup-backend
 
-      - name: Upgrade a release's database to this tree
+      - name: Upgrade a release's database to this tree (explicit logins)
+        id: explicit
         env:
           MODE: ${{ needs.changes.outputs.upgrade }}
         run: |
@@ -440,6 +466,24 @@ jobs:
             $([[ "$MODE" == "walk" ]] && echo --walk) \
             --server postgresql://initiative:initiative@localhost:5432 \
             --fresh-server postgresql://initiative:initiative@localhost:5433
+
+      - name: Upgrade a release's database to this tree (one DATABASE_URL)
+        # How docker-compose.example.yml runs it: the app derives its logins
+        # from one owner URL. Its fresh install must be the same database as the
+        # explicit run's, roles and privileges included, so a fix reaches both
+        # setups alike. Runs even when the explicit run failed, so each setup
+        # reports on its own, and compares with it only when it passed.
+        if: ${{ !cancelled() }}
+        env:
+          MODE: ${{ needs.changes.outputs.upgrade }}
+          EXPLICIT: ${{ steps.explicit.outcome }}
+        run: |
+          cd backend
+          uv run python scripts/upgrade_from_release.py --one-url \
+            $([[ "$MODE" == "walk" ]] && echo --walk) \
+            $([[ "$EXPLICIT" == "success" ]] && echo --same-as postgresql://initiative:initiative@localhost:5433) \
+            --server postgresql://initiative:initiative@localhost:5434 \
+            --fresh-server postgresql://initiative:initiative@localhost:5435
 
       - name: The dev seed fills a fresh install
         # The fresh install the step above built, with a first owner for the
