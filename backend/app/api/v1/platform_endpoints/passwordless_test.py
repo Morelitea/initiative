@@ -27,6 +27,7 @@ from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import email_outbox
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import user_tokens
@@ -206,14 +207,59 @@ async def test_the_only_way_in_stays(client: AsyncClient, session: AsyncSession)
 async def test_removing_re_checks_the_password(
     client: AsyncClient, session: AsyncSession
 ):
+    """Wrong answers count against the account, as they do at sign-in: once it
+    is locked, the right password is refused too."""
     user = await _account(session, "pl-wrongpw@example.com")
     await _seed_passkey(session, user)
 
+    for _ in range(sign_in_locks.LOCK_AFTER_FAILURES):
+        response = await client.post(
+            REMOVE, json={"current_password": "not-it"}, headers=get_auth_headers(user)
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
+
     response = await client.post(
-        REMOVE, json={"current_password": "not-it"}, headers=get_auth_headers(user)
+        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
     )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
+    assert response.status_code == 429
+    assert response.json()["detail"] == "SIGN_IN_LOCKED"
+
+
+async def test_the_allowance_is_the_account_s_not_the_address_s(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Two accounts behind one address: one running out leaves the other its
+    own allowance."""
+    from app.core.rate_limit import limiter
+
+    monkeypatch.setattr(limiter, "enabled", True)
+    monkeypatch.setattr(limiter, "_default_limits", [])
+    limiter.reset()
+    spent = await _account(session, "pl-spent@example.com")
+    neighbour = await _account(session, "pl-neighbour@example.com")
+
+    try:
+        for _ in range(5):
+            response = await client.post(
+                REMOVE,
+                json={"current_password": PASSWORD},
+                headers=get_auth_headers(spent),
+            )
+            assert response.status_code == 409
+        response = await client.post(
+            REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(spent)
+        )
+        assert response.status_code == 429
+
+        response = await client.post(
+            REMOVE,
+            json={"current_password": PASSWORD},
+            headers=get_auth_headers(neighbour),
+        )
+        assert response.status_code == 409
+    finally:
+        limiter.reset()
 
 
 async def test_an_account_holding_none_has_nothing_to_remove(

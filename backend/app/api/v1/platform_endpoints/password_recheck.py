@@ -7,6 +7,9 @@ all of them ask the same question in the same words.
 An account that holds no password has nothing to re-check, so what stands in
 for it is the sign-in itself: :func:`require_password_or_recent_proof` asks
 such an account to be on a session opened within the last few minutes.
+
+A wrong password here counts against the account as one at sign-in does, and
+an account whose password is turned off is refused here too.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -17,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.platform_endpoints.session_opening import (
     chain_started_at,
+    count_wrong_answer,
+    refuse_if_locked,
     require_session_row,
 )
 from app.core.messages import AuthMessages, UserMessages
@@ -30,8 +35,12 @@ from app.models.platform.user import User
 RECENT_PROOF_MINUTES = 10
 
 
-def require_password(
-    user: User, supplied: Optional[str], *, detail: Optional[str] = None
+async def require_password(
+    system_session: AsyncSession,
+    user: User,
+    supplied: Optional[str],
+    *,
+    detail: Optional[str] = None,
 ) -> None:
     """Re-check the password, as a password change does.
 
@@ -45,15 +54,19 @@ def require_password(
     ``detail`` is the one code to answer with, for a form that reads a missing
     password and a wrong one as the same refusal. Left unset, the two are told
     apart — which is what a field asking for the current password wants.
+
+    Commits ``system_session`` when it counts a wrong password.
     """
     if not has_usable_password(user.hashed_password):
         return
+    await refuse_if_locked(system_session, user.id)
     if not supplied:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=detail or UserMessages.CURRENT_PASSWORD_REQUIRED,
         )
     if not verify_password(supplied, user.hashed_password):
+        await count_wrong_answer(system_session, user.id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=detail or UserMessages.CURRENT_PASSWORD_INCORRECT,
@@ -92,7 +105,7 @@ async def require_password_or_recent_proof(
     person prove themselves again and carry on.
     """
     if has_usable_password(user.hashed_password):
-        require_password(user, supplied, detail=detail)
+        await require_password(system_session, user, supplied, detail=detail)
         return
 
     session_id = require_session_row(request)
