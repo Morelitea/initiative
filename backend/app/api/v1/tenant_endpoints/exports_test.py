@@ -2009,6 +2009,23 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         "ends": "on_date",
         "end_date": "2026-12-14T00:00:00",
     }
+    # A rule the model cannot hold imports as one event, not another schedule;
+    # a cutoff before the day's start ends the repeats the day before.
+    foreign, _, _ = ical_service.build_calendar_events(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Month end\r\nDTSTART:20261031T090000Z\r\n"
+        "RRULE:FREQ=MONTHLY;BYMONTHDAY=-1\r\nEND:VEVENT\r\n"
+        "BEGIN:VEVENT\r\nSUMMARY:Late night\r\nDTSTART:20261005T213000Z\r\n"
+        "RRULE:FREQ=DAILY;UNTIL=20261006T190000Z\r\nEND:VEVENT\r\n"
+        "END:VCALENDAR\r\n",
+        calendar.id,
+        a.guild.id,
+        a.user.id,
+        tz="Europe/Berlin",
+    )
+    foreign_rules = {e.title: json.loads(e.recurrence or "null") for e in foreign}
+    assert foreign_rules["Month end"] is None
+    assert foreign_rules["Late night"]["end_date"] == "2026-10-05T00:00:00"
 
     js = await _export(client, a, "calendar", format="json")
     envelope = json.loads(_assert_export(js, "json"))

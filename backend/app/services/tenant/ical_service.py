@@ -9,6 +9,7 @@ from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import List, Optional, Sequence, Tuple
 
 import icalendar
+from pydantic import ValidationError
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,6 +43,19 @@ _BYDAY_CODE = {
 }
 
 # RSVP status mapping: app -> iCal PARTSTAT
+# The RRULE parts EventRecurrence can hold
+_RRULE_PARTS = {
+    "FREQ",
+    "INTERVAL",
+    "COUNT",
+    "UNTIL",
+    "BYDAY",
+    "BYMONTHDAY",
+    "BYMONTH",
+    "BYSETPOS",
+    "WKST",
+}
+
 # The last second of a day: an all-day event's end, a repeat's last day
 _END_OF_DAY = time(23, 59, 59)
 
@@ -97,10 +111,9 @@ def _recurrence_to_rrule(
         rule["BYMONTH"] = [rec.month or start.month]
 
     if rec.ends == "on_date" and rec.end_date:
-        # The form stores a picked day as its midnight with no zone; the last
-        # repeat falls on that day, inclusive.
-        end = rec.end_date
-        last_day = (end.astimezone(start.tzinfo) if end.tzinfo else end).date()
+        # The last repeat falls on the day the stored value is written with,
+        # the day the form shows, inclusive.
+        last_day = rec.end_date.date()
         rule["UNTIL"] = [
             last_day
             if all_day
@@ -277,64 +290,78 @@ async def documents_for_events(
 # ---------------------------------------------------------------------------
 
 
-def _rrule_to_recurrence(rrule, zone: tzinfo) -> Optional[dict]:
-    """Convert an iCal RRULE to our EventRecurrence JSON dict. Best-effort:
-    parts the model has no field for are dropped, and a rule the model
-    refuses (an hourly frequency, an interval past its bound) imports as a
-    single event."""
-    try:
-        freq = str(rrule.get("FREQ", [""])[0]).lower()
-        rec: dict = {"frequency": freq}
+def _rrule_to_recurrence(rrule, start: datetime, zone: tzinfo) -> Optional[dict]:
+    """Convert an iCal RRULE to our EventRecurrence JSON dict, read in
+    ``zone`` against the event's first ``start``. A rule the model cannot
+    hold as written — an hourly frequency, the last day of a month, a fifth
+    Monday — returns None and imports as a single event, never as a
+    different schedule."""
+    if set(rrule) - _RRULE_PARTS:
+        return None
+    freq = str(rrule.get("FREQ", [""])[0]).lower()
+    byday = [str(day).upper() for day in rrule.get("BYDAY", [])]
+    bymonthday = rrule.get("BYMONTHDAY", [])
+    bymonth = rrule.get("BYMONTH", [])
+    setpos = rrule.get("BYSETPOS", [])
+    rec: dict = {"frequency": freq, "interval": rrule.get("INTERVAL", [1])[0]}
 
-        interval = rrule.get("INTERVAL", [1])
-        if interval and interval[0] > 1:
-            rec["interval"] = interval[0]
-
-        byday = [str(day).upper() for day in rrule.get("BYDAY", [])]
-        if freq == "weekly":
-            days = [_WEEKDAY_BY_CODE[day] for day in byday if day in _WEEKDAY_BY_CODE]
-            if days:
-                rec["weekdays"] = days
-        elif freq in ("monthly", "yearly"):
+    if freq == "weekly":
+        if bymonthday or bymonth or setpos:
+            return None
+        if any(day not in _WEEKDAY_BY_CODE for day in byday):
+            return None
+        if byday:
+            rec["weekdays"] = [_WEEKDAY_BY_CODE[day] for day in byday]
+    elif freq in ("monthly", "yearly"):
+        if byday:
             # "The second Monday" is BYDAY=2MO, or BYDAY=MO;BYSETPOS=2.
-            setpos = rrule.get("BYSETPOS", [])
-            if len(byday) == 1:
-                weekday = _WEEKDAY_BY_CODE.get(byday[0][-2:])
-                prefix = byday[0][:-2] or (str(setpos[0]) if len(setpos) == 1 else "")
-                try:
-                    position = _POSITION_REVERSE.get(int(prefix))
-                except ValueError:
-                    position = None
-                if weekday and position:
-                    rec["monthly_mode"] = "weekday"
-                    rec["weekday_position"] = position
-                    rec["weekday"] = weekday
-            bymonthday = rrule.get("BYMONTHDAY", [])
-            if "monthly_mode" not in rec and len(bymonthday) == 1:
-                if 1 <= bymonthday[0] <= 31:
-                    rec["monthly_mode"] = "day_of_month"
-                    rec["day_of_month"] = bymonthday[0]
-            bymonth = rrule.get("BYMONTH", [])
-            if freq == "yearly" and len(bymonth) == 1:
-                rec["month"] = bymonth[0]
+            prefix = byday[0][:-2]
+            if len(byday) != 1 or bymonthday or len(setpos) > 1 or (prefix and setpos):
+                return None
+            try:
+                position = _POSITION_REVERSE.get(int(prefix or setpos[0]))
+            except (ValueError, IndexError):
+                return None
+            weekday = _WEEKDAY_BY_CODE.get(byday[0][-2:])
+            if position is None or weekday is None:
+                return None
+            rec["monthly_mode"] = "weekday"
+            rec["weekday_position"] = position
+            rec["weekday"] = weekday
+        elif bymonthday:
+            if len(bymonthday) != 1 or setpos:
+                return None
+            rec["monthly_mode"] = "day_of_month"
+            rec["day_of_month"] = bymonthday[0]
+        elif setpos:
+            return None
+        if bymonth:
+            if freq == "monthly" or len(bymonth) != 1:
+                return None
+            rec["month"] = bymonth[0]
+    elif byday or bymonthday or bymonth or setpos:
+        return None
 
-        count = rrule.get("COUNT", [])
-        if count:
-            rec["ends"] = "after_occurrences"
-            rec["end_after_occurrences"] = count[0]
+    count = rrule.get("COUNT", [])
+    if count:
+        rec["ends"] = "after_occurrences"
+        rec["end_after_occurrences"] = count[0]
 
-        until = rrule.get("UNTIL", [])
-        if until:
-            # Stored the way the form stores a picked day: its midnight, no zone.
-            last = until[0]
-            if isinstance(last, datetime):
-                last = (last.astimezone(zone) if last.tzinfo else last).date()
-            rec["ends"] = "on_date"
-            rec["end_date"] = datetime.combine(last, time())
+    until = rrule.get("UNTIL", [])
+    if until:
+        # The last repeat is the last start at or before UNTIL, stored the way
+        # the form stores a picked day: its midnight, no zone.
+        last = until[0]
+        if isinstance(last, datetime):
+            last = last.astimezone(zone) if last.tzinfo else last.replace(tzinfo=zone)
+            first = start.astimezone(zone)
+            last = last.date() - timedelta(days=int(first.time() > last.time()))
+        rec["ends"] = "on_date"
+        rec["end_date"] = datetime.combine(last, time())
 
+    try:
         return EventRecurrence(**rec).model_dump(mode="json", exclude_none=True)
-    except Exception:
-        logger.warning("Failed to convert RRULE to recurrence", exc_info=True)
+    except ValidationError:
         return None
 
 
@@ -365,7 +392,7 @@ def _extract_vevent(component, zone: tzinfo) -> Optional[dict]:
         end_dt = end_val if end_val.tzinfo else end_val.replace(tzinfo=zone)
 
     rrule = component.get("rrule")
-    recurrence = _rrule_to_recurrence(rrule, zone) if rrule else None
+    recurrence = _rrule_to_recurrence(rrule, start_dt, zone) if rrule else None
 
     return {
         "summary": summary,
