@@ -240,6 +240,10 @@ jobs:
         if: steps.diff.outputs.tooling == 'true'
         run: python3 scripts/ci/pytest_summary_test.py
 
+      - name: Test the change detection
+        if: steps.diff.outputs.tooling == 'true'
+        run: python3 scripts/ci/change_detection_test.py
+
   backend-tests:
     name: Backend Lint & Tests
     needs: changes
