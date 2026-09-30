@@ -107,7 +107,7 @@ Published images run on `linux/amd64` and `linux/arm64`. Pick a tag by how you f
 | Tag | Moves to | Suits you if |
 |---|---|---|
 | `latest` | every release, the day it ships | you like new things, and you'll say something when one bites |
-| `stable` | a release once it has been out three days with no open regression reported against it | you would rather somebody else found it first |
+| `stable` | a release we have promoted by hand, after it was out at least three days with no open regression reported against it | you would rather somebody else found it first |
 | `0.53`, `0` | the newest release in that line | you want fixes without choosing each one |
 | `0.53.3` | nowhere, ever | you upgrade when you decide to, and not a minute before |
 
@@ -117,7 +117,7 @@ The example compose file uses `latest`. To follow `stable`, change its `image:` 
 docker compose pull && docker compose up -d
 ```
 
-A release with a security fix can reach `stable` sooner. And `stable` only works because people run `latest`: a bug report with the **Version** filled in is exactly what holds a release back from it.
+Three days is the least a release waits, not a timer: `stable` moves when we promote the next release that qualifies, so it can sit on one version for a while. A release with a security fix can reach it sooner. And `stable` only works because people run `latest`: a bug report with the **Version** filled in is exactly what holds a release back from it.
 
 ## First-time setup checklist
 

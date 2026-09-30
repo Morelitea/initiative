@@ -29,18 +29,19 @@ jobs:
           # answer on the next line that has text.
           version=$(awk '/^### Version/ { found = 1; next } found && NF { print; exit }' <<< "$BODY" \
             | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)
-          if [[ -z "$version" ]]; then
-            echo "The report names no version."
-            exit 0
-          fi
-          label="version: $version"
-          gh label create "$label" -R "$REPO" --color ededed \
-            --description "Reported against $version" 2>/dev/null || true
-          # An edit that changes the version replaces the label.
+          label="${version:+version: $version}"
+          # An edit that changes or clears the version takes the old label
+          # off, so a report counts only against the version it names now.
           gh api "repos/$REPO/issues/$NUMBER/labels" -q '.[].name' | while read -r name; do
             if [[ "$name" == "version: "* && "$name" != "$label" ]]; then
               gh issue edit "$NUMBER" -R "$REPO" --remove-label "$name"
             fi
           done
+          if [[ -z "$label" ]]; then
+            echo "The report names no version."
+            exit 0
+          fi
+          gh label create "$label" -R "$REPO" --color ededed \
+            --description "Reported against $version" 2>/dev/null || true
           gh issue edit "$NUMBER" -R "$REPO" --add-label "$label"
           echo "Labelled #$NUMBER $label"
