@@ -319,20 +319,17 @@ async def _duplicate_template_tasks(
             for assignee in template_task.assignees
             if assignee.id in can_open
         )
-        await tags_service.copy_entity_tags(
-            session,
-            tags_service.TAG_LINKS["task"],
-            source_id=template_task.id,
-            target_id=new_task.id,
-        )
         if new_task.description:
             await task_description_service.record_references(
                 session, new_task, author_id=None
             )
-    await _copy_task_relationships(
-        session,
-        {s.id: c.id for s, c in copies if s.id is not None and c.id is not None},
+    copied_ids = {
+        s.id: c.id for s, c in copies if s.id is not None and c.id is not None
+    }
+    await tags_service.copy_entity_tags(
+        session, tags_service.TAG_LINKS["task"], copied_ids
     )
+    await _copy_task_relationships(session, copied_ids)
     return [task for _, task in copies]
 
 
@@ -848,8 +845,7 @@ async def create_project(
         await tags_service.copy_entity_tags(
             session,
             tags_service.TOOL_TAG_LINKS[Tool.project],
-            source_id=template_project.id,
-            target_id=project.id,
+            {template_project.id: project.id},
         )
 
     # One claim for the project and its tasks, so a file they share is copied
@@ -935,8 +931,7 @@ async def duplicate_project(
     await tags_service.copy_entity_tags(
         session,
         tags_service.TOOL_TAG_LINKS[Tool.project],
-        source_id=source_project.id,
-        target_id=new_project.id,
+        {source_project.id: new_project.id},
     )
 
     # Clone task statuses from source project to new project

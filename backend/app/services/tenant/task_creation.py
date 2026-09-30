@@ -253,8 +253,7 @@ async def advance_recurrence_if_needed(
     await tags_service.copy_entity_tags(
         session,
         tags_service.TAG_LINKS["task"],
-        source_id=task.id,
-        target_id=new_task.id,
+        {task.id: new_task.id},
     )
     if new_task.description:
         await task_description_service.record_references(

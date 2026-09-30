@@ -994,14 +994,10 @@ async def list_initiative_roles(
         session, initiative_id=initiative_id
     )
 
-    # Get member counts for each role
-    result = []
-    for role in roles:
-        member_count = await initiatives_service.count_role_members(
-            session, role_id=role.id
-        )
-        result.append(serialize_role(role, member_count=member_count))
-    return result
+    counts = await initiatives_service.count_members_by_role(
+        session, initiative_id=initiative_id
+    )
+    return [serialize_role(role, member_count=counts.get(role.id, 0)) for role in roles]
 
 
 @router.post(

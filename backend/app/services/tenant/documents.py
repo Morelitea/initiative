@@ -329,8 +329,7 @@ async def duplicate_document(
     await tags_service.copy_entity_tags(
         session,
         tags_service.TOOL_TAG_LINKS[Tool.document],
-        source_id=source.id,
-        target_id=duplicated.id,
+        {source.id: duplicated.id},
     )
 
     # Copy property values ONLY when the target initiative matches the

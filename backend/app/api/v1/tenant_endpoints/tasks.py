@@ -727,8 +727,7 @@ async def duplicate_task(
     await tags_service.copy_entity_tags(
         session,
         tags_service.TAG_LINKS["task"],
-        source_id=original_task.id,
-        target_id=new_task.id,
+        {original_task.id: new_task.id},
     )
 
     # Copy property values — duplicate stays in the same project and

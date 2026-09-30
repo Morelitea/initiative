@@ -23,7 +23,7 @@ and every count and filter here agrees on that.
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Iterable, Sequence, Type
+from typing import Any, Iterable, Mapping, Sequence, Type
 
 from fastapi import HTTPException, status
 from sqlalchemy import (
@@ -397,12 +397,18 @@ async def set_entity_tags(
 
 
 async def copy_entity_tags(
-    session: AsyncSession, spec: TagLinkSpec, *, source_id: int, target_id: int
+    session: AsyncSession, spec: TagLinkSpec, copies: Mapping[int, int]
 ) -> None:
-    """Copy assignments from one entity to another, dropping any whose tag has
-    been trashed. Does not commit."""
-    for tag_id in await active_tag_ids(session, spec, source_id):
-        session.add(_new_edge(spec, target_id, tag_id))
+    """Copy assignments from each source entity to its copy
+    (``{source_id: target_id}``), dropping any whose tag has been trashed. Two
+    queries however many entities are copied. Does not commit."""
+    grouped = await _tags_for(session, spec, list(copies))
+    session.add_all(
+        _new_edge(spec, copies[source_id], tag.id)
+        for source_id, tags in grouped.items()
+        for tag in tags
+        if tag.id is not None
+    )
 
 
 async def bulk_edit_tags(

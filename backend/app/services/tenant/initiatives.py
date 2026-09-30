@@ -519,6 +519,25 @@ async def count_role_members(
     return result.one()
 
 
+async def count_members_by_role(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+) -> dict[int, int]:
+    """Members per role across one initiative, in one query. A role nobody
+    holds is absent."""
+    stmt = (
+        select(InitiativeMember.role_id, func.count())
+        .where(InitiativeMember.initiative_id == initiative_id)
+        .group_by(InitiativeMember.role_id)
+    )
+    return {
+        role_id: count
+        for role_id, count in (await session.exec(stmt)).all()
+        if role_id is not None
+    }
+
+
 # ============================================================================
 # Discovery: directory, self-join, join settings
 # ============================================================================

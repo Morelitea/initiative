@@ -119,46 +119,67 @@ async def _validate_target_url(url: str) -> None:
 
 
 async def _named(
-    row: WebhookSubscription,
+    rows: list[WebhookSubscription],
     *,
     guild_id: int,
-    dead_letter_count: int,
+    dead_letter_counts: dict[int, int],
     actor: ActorContext | None = None,
-) -> WebhookSubscriptionRead:
-    """One subscription, with the guild and its creator named for its receiver.
+) -> list[WebhookSubscriptionRead]:
+    """Subscriptions, with the guild and each creator named for its receiver.
 
     Minted rather than stored, and in the same sector its deliveries use, so
-    what a receiver reads here is what it will be sent. An installed app that
-    registered one names no person on it, and its standing already carries
-    what the install calls the guild, so nothing is minted for it here.
+    what a receiver reads here is what it will be sent — all of them in one
+    session. An installed app that registered one names no person on it, and
+    its standing already carries what the install calls the guild, so nothing
+    is minted for it here.
     """
-    if (
-        isinstance(actor, InstallContext)
-        and actor.guild_ref is not None
-        and row.app_install_id == actor.install_id
-        and row.created_by is None
-    ):
-        guild_ref, actor_refs = actor.guild_ref, {}
-    else:
-        guild_ref, actor_refs = await webhook_refs.name_for_subscriber(
+    own_ref: str | None = None
+    own: set[int | None] = set()
+    if isinstance(actor, InstallContext) and actor.guild_ref is not None:
+        own_ref = actor.guild_ref
+        own = {
+            row.id
+            for row in rows
+            if row.app_install_id == actor.install_id and row.created_by is None
+        }
+    minted = iter(
+        await webhook_refs.names_for_subscribers(
             guild_id=guild_id,
-            app_install_id=row.app_install_id,
-            subscription_id=row.id,
-            actor_ids=() if row.created_by is None else (row.created_by,),
+            subscribers=[
+                (
+                    row.app_install_id,
+                    row.id,
+                    () if row.created_by is None else (row.created_by,),
+                )
+                for row in rows
+                if row.id not in own
+            ],
         )
-    return WebhookSubscriptionRead(
-        id=row.id,
-        guild_ref=guild_ref,
-        initiative_id=row.initiative_id,
-        created_by_ref=(None if row.created_by is None else actor_refs[row.created_by]),
-        target_url=row.target_url,
-        event_types=row.event_types,
-        fields=row.fields,
-        active=row.active,
-        dead_letter_count=dead_letter_count,
-        created_at=row.created_at,
-        updated_at=row.updated_at,
     )
+    reads = []
+    for row in rows:
+        if own_ref is not None and row.id in own:
+            guild_ref, actor_refs = own_ref, {}
+        else:
+            guild_ref, actor_refs = next(minted)
+        reads.append(
+            WebhookSubscriptionRead(
+                id=row.id,
+                guild_ref=guild_ref,
+                initiative_id=row.initiative_id,
+                created_by_ref=(
+                    None if row.created_by is None else actor_refs[row.created_by]
+                ),
+                target_url=row.target_url,
+                event_types=row.event_types,
+                fields=row.fields,
+                active=row.active,
+                dead_letter_count=dead_letter_counts.get(row.id, 0),
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+            )
+        )
+    return reads
 
 
 @router.post(
@@ -219,12 +240,12 @@ async def create_subscription(
         # A subscription that was just created has no delivery history yet.
         **(
             await _named(
-                subscription,
+                [subscription],
                 guild_id=guild_context.guild_id,
-                dead_letter_count=0,
+                dead_letter_counts={},
                 actor=guild_context,
             )
-        ).model_dump(),
+        )[0].model_dump(),
         hmac_secret=secret,
     )
 
@@ -243,14 +264,9 @@ async def list_subscriptions(
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id for row in rows]
     )
-    return [
-        await _named(
-            row,
-            guild_id=guild_context.guild_id,
-            dead_letter_count=counts.get(row.id, 0),
-        )
-        for row in rows
-    ]
+    return await _named(
+        rows, guild_id=guild_context.guild_id, dead_letter_counts=counts
+    )
 
 
 @router.patch(
@@ -293,11 +309,10 @@ async def update_subscription(
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id]
     )
-    return await _named(
-        row,
-        guild_id=guild_context.guild_id,
-        dead_letter_count=counts.get(row.id, 0),
+    (read,) = await _named(
+        [row], guild_id=guild_context.guild_id, dead_letter_counts=counts
     )
+    return read
 
 
 @router.delete(
