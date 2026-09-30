@@ -13,6 +13,17 @@ backend/.coveragerc
 **/*.pyc
 backend/.venv
 
+# What a local checkout accumulates, which a build from it would otherwise copy
+# in: files uploaded to a dev server, and test and tool output.
+backend/uploads/
+backend/.coverage*
+backend/htmlcov/
+backend/.hypothesis/
+backend/.testmondata*
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+
 # Node / frontend build artifacts — installed fresh inside the image. Copying the host's
 # (macOS) node_modules over the container's would corrupt the install and bloat the context.
 **/node_modules
