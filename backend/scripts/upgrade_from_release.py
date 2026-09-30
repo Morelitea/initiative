@@ -599,6 +599,12 @@ def _explicit_logins_services(servers: dict[str, str]) -> Iterator[ssl.SSLContex
             "".join(f'"{role}" "{role}"\n' for role in ("app_user", "app_admin"))
         )
         (config / "garage.toml").write_text(store_config + "\n")
+        for address in (
+            POOLER,
+            STORE.removeprefix("http://"),
+            f"127.0.0.1:{urlsplit(PROXIED_AT).port}",
+        ):
+            _free(address)
         try:
             pooler, store, proxy = names
             _docker(
@@ -689,6 +695,14 @@ def _get(path: str, setup: Setup = Setup()) -> tuple[int, bytes]:
         return error.code, error.read()
 
 
+def _free(address: str) -> None:
+    """Fail if something already listens on ``address``, which a container
+    started on the host's network could not then take."""
+    host, port = address.rsplit(":", 1)
+    with contextlib.suppress(OSError), socket.create_connection((host, int(port)), 2):
+        _fail(f"Something already listens on {address}; stop it first", [])
+
+
 def _listening(address: str, seconds: int = 60) -> None:
     host, port = address.rsplit(":", 1)
     deadline = time.monotonic() + seconds
@@ -736,6 +750,73 @@ def _ready(setup: Setup, seconds: int = 60) -> str | None:
         if time.monotonic() > deadline:
             return f"/api/v1/readyz answered {status}: {body[:300]!r}"
         time.sleep(2)
+
+
+#: Run inside ``--image`` once it serves, with its own code and settings: a
+#: connection from every pool of every cohort, each to its own cohort's
+#: database, and an object written, read back and removed through the storage
+#: uploads use. Prints what failed, one line each.
+_IN_THE_IMAGE = """
+import asyncio
+from sqlalchemy import text
+from app.core.config import settings
+from app.db import cohorts
+from app.services import storage
+
+
+async def pools():
+    kinds = {
+        "request": cohorts.request_sessionmaker,
+        "system": cohorts.system_sessionmaker,
+        "read": cohorts.read_sessionmaker,
+        "query": cohorts.query_sessionmaker,
+    }
+    for guild_id in range(cohorts.cohort_count()):
+        cohort = cohorts.cohort_of(guild_id)
+        for kind, maker in kinds.items():
+            try:
+                async with maker(guild_id)() as session:
+                    await session.execute(text("SELECT 1"))
+                    database = session.bind.url.database
+            except Exception as error:
+                print(f"cohort {cohort}'s {kind} pool: {error!r}")
+                continue
+            template = settings.DB_COHORT_DATABASE
+            if template and database != template.format(cohort=cohort):
+                print(f"cohort {cohort}'s {kind} pool connected to {database}")
+
+
+def objects():
+    store = storage.get_guild_storage(1)
+    key = "upgrade-from-release-probe"
+    try:
+        store.write(key, b"probe", content_type="text/plain")
+        blob = store.open_readable(key)
+        if blob is None:
+            print("storage: a written object reads back as missing")
+        elif blob.stream is not None and b"".join(blob.stream) != b"probe":
+            print("storage: a written object reads back changed")
+        store.delete(key)
+    except Exception as error:
+        print(f"storage: {error!r}")
+
+
+asyncio.run(pools())
+objects()
+"""
+
+
+def _in_the_image(name: str) -> list[str]:
+    result = subprocess.run(
+        ["docker", "exec", "-u", f"{IMAGE_UID}:{IMAGE_UID}", name]
+        + ["python", "-c", _IN_THE_IMAGE],
+        capture_output=True,
+        text=True,
+    )
+    problems = result.stdout.splitlines()
+    if result.returncode != 0:
+        problems.append(f"the probe exited {result.returncode}: {result.stderr[-500:]}")
+    return problems
 
 
 def _serving(setup: Setup) -> list[str]:
@@ -807,7 +888,7 @@ def _boot(
     _docker("-d", "--name", name, image, env=env, image_env=image_env)
     try:
         _answering(name)
-        problems = _serving(setup) if setup is not None else []
+        problems = [*_serving(setup), *_in_the_image(name)] if setup is not None else []
         if problems:
             subprocess.run(["docker", "logs", name])
             _fail(f"{image} booted, but does not serve what it should", problems)
