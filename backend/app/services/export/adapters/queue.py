@@ -38,6 +38,7 @@ from app.services.export.adapters._common import (
     ToolExportAdapter,
     envelope_key,
     export_stem,
+    related_reach,
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
@@ -103,6 +104,19 @@ class QueueAdapter(ToolExportAdapter):
         # is exactly where a per-item fetch would show.
         return await queue_attachments_for(
             session, [item for queue in queues for item in queue.items]
+        )
+
+    async def prepared_reach(
+        self, session: AsyncSession, attachments: "Attachments", /
+    ) -> set[int]:
+        return await related_reach(
+            session,
+            (
+                related
+                for by_item in (attachments.documents, attachments.tasks)
+                for items in by_item.values()
+                for related in items
+            ),
         )
 
     def item(self, queue: Queue, ctx: BuildContext, /) -> RenderItem:

@@ -415,7 +415,9 @@ async def _build_scope(
         template_id="data-table",
         format="zip",
         batch=tuple(items),
-        initiative_ids=frozenset(initiative.id for initiative in initiatives),
+        initiative_ids=frozenset(
+            {initiative.id for initiative in initiatives} | builder.reach
+        ),
     )
 
 
@@ -470,6 +472,9 @@ class _ScopeBuilder:
         self._asset_index: dict[str, Any] = {}
         self._asset_bytes = 0
         self._since_refresh = 0
+        #: The initiatives beyond those in scope whose documents and tasks
+        #: the items name.
+        self.reach: set[int] = set()
         # The images each native document embeds, and the stored size and
         # type of each, loaded once per initiative's documents.
         self._embedded: dict[int, list[dict]] = {}
@@ -540,6 +545,7 @@ class _ScopeBuilder:
                     now=self.now,
                     prepared=await adapter.prepare(self.session, entities),
                 )
+                self.reach |= await adapter.prepared_reach(self.session, ctx.prepared)
                 if section.preload is not None:
                     await section.preload(self, entities)
                 for entity_id, entity in zip(batch, entities):

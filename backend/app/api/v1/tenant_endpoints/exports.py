@@ -798,6 +798,7 @@ async def _require_reach(
             .select_from(Initiative)
             .where(
                 Initiative.id.in_(initiative_ids),
+                Initiative.deleted_at.is_(None),
                 not_(initiative_scope_clause(user.id, Initiative.id)),
             )
         )

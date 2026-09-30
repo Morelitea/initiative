@@ -18,10 +18,12 @@ from typing import Any
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.relationships import Related
 from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
+from app.services.export.adapters._common import related_reach
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.tenant.ical_service import documents_for_events, event_export_dict
 
@@ -67,13 +69,17 @@ class CalendarEventsAdapter:
                     data={"layout": "ical", "events": dicts, "tz": params.get("tz")},
                 ),
             ),
-            initiative_ids=await _reach(session, events),
+            initiative_ids=await _reach(session, events, documents),
         )
 
 
-async def _reach(session: AsyncSession, events: list[CalendarEvent]) -> frozenset[int]:
-    """The initiatives the events' calendars sit in. A guild calendar sits in
-    none."""
+async def _reach(
+    session: AsyncSession,
+    events: list[CalendarEvent],
+    documents: dict[int, list[Related]],
+) -> frozenset[int]:
+    """The initiatives the events' calendars sit in, and those of the
+    documents attached to them. A guild calendar sits in none."""
     calendar_ids = {event.calendar_id for event in events}
     if not calendar_ids:
         return frozenset()
@@ -82,7 +88,10 @@ async def _reach(session: AsyncSession, events: list[CalendarEvent]) -> frozense
             Calendar.id.in_(calendar_ids), Calendar.initiative_id.is_not(None)
         )
     )
-    return frozenset(rows)
+    attached = await related_reach(
+        session, (related for items in documents.values() for related in items)
+    )
+    return frozenset(rows) | attached
 
 
 async def _query(
