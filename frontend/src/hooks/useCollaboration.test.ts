@@ -100,4 +100,21 @@ describe("useCollaboration", () => {
 
     expect(calls).toEqual(['send {"a":2}']);
   });
+
+  it("stays synced once through a reconnect, until the room changes", () => {
+    const { result, rerender } = renderHook(({ socketPath }) => useCollaboration({ socketPath }), {
+      initialProps: { socketPath: "documents/7/collaborate" },
+    });
+    act(() => {
+      result.current.providerFactory?.("7", new Map());
+    });
+    const onSync = provider.on.mock.calls.filter(([event]) => event === "sync").at(-1)?.[1];
+
+    act(() => onSync(true));
+    act(() => onSync(false));
+    expect(result.current).toMatchObject({ isSynced: false, hasSynced: true });
+
+    rerender({ socketPath: "documents/8/collaborate" });
+    expect(result.current.hasSynced).toBe(false);
+  });
 });

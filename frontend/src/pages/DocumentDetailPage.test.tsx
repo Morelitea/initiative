@@ -16,6 +16,7 @@ vi.mock("@/hooks/useCollaboration", () => ({
     providerFactory: null,
     connectionStatus: collaborating.value ? "connected" : "disconnected",
     isSynced: collaborating.value,
+    hasSynced: collaborating.value,
     collaborators: [],
     collaboratorsReady: collaborating.value,
     isCollaborating: collaborating.value,

@@ -7,6 +7,7 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import type { EditorState, SerializedEditorState } from "lexical";
 import { Loader2 } from "lucide-react";
 import { useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type * as Y from "yjs";
 
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
@@ -35,7 +36,9 @@ export interface EditorProps {
   collaborative?: boolean;
   providerFactory?: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   trackChanges?: boolean;
-  isSynced?: boolean;
+  /** Whether the room has synced at least once. The editor is covered until
+   *  it has; a reconnect after that leaves it open. */
+  hasSynced?: boolean;
   initiativeId?: number | null;
   /** What is being written, as a reference (`document:12`) — see
    *  `Plugins.subject`. Absent while it does not exist yet, which is a thing
@@ -68,7 +71,7 @@ export function Editor({
   collaborative = false,
   providerFactory,
   trackChanges,
-  isSynced = true,
+  hasSynced = true,
   initiativeId = null,
   subject,
   supportsEntityMentions = false,
@@ -78,6 +81,7 @@ export function Editor({
   onWikilinkNavigate,
   onCreateReferencedThing,
 }: EditorProps) {
+  const { t } = useTranslation("documents");
   const { user } = useAuth();
   const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
   const userName = getUserDisplayName(user, "Anonymous");
@@ -90,7 +94,7 @@ export function Editor({
       ? JSON.stringify(editorSerializedState)
       : undefined;
 
-  const showSyncingOverlay = useCollaborativeMode && !isSynced;
+  const showSyncingOverlay = useCollaborativeMode && !hasSynced;
 
   // Capture initial editor configuration at first mount. LexicalExtensionComposer
   // recreates (and disposes) the editor whenever the `extension` prop reference
@@ -132,7 +136,7 @@ export function Editor({
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Syncing document...</span>
+            <span>{t("collab.syncing")}</span>
           </div>
         </div>
       )}

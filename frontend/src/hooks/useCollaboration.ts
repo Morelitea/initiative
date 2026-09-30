@@ -62,8 +62,13 @@ export interface UseCollaborationResult {
   providerFactory: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   /** Current connection status */
   connectionStatus: ConnectionStatus;
-  /** Whether the initial sync is complete */
+  /** Whether the doc is in step with the room right now. False again while
+   *  a dropped socket reconnects. */
   isSynced: boolean;
+  /** Whether this room has synced at least once. Stays true through
+   *  reconnects: the doc keeps what it loaded, edits made meanwhile reach the
+   *  room on the next handshake, so the editor has no reason to be closed. */
+  hasSynced: boolean;
   /** List of current collaborators */
   collaborators: CollaboratorInfo[];
   /** Whether the server's collaborator roster has been received for this
@@ -97,6 +102,7 @@ export function useCollaboration({
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isSynced, setIsSynced] = useState(false);
+  const [hasSynced, setHasSynced] = useState(false);
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([]);
   const [collaboratorsReady, setCollaboratorsReady] = useState(false);
 
@@ -190,6 +196,7 @@ export function useCollaboration({
       // Reset state when switching bodies - critical for navigation
       setConnectionStatus("disconnected");
       setIsSynced(false);
+      setHasSynced(false);
       setCollaborators([]);
       setCollaboratorsReady(false);
     }
@@ -228,6 +235,7 @@ export function useCollaboration({
       // Reset state for the new document
       setConnectionStatus("disconnected");
       setIsSynced(false);
+      setHasSynced(false);
       setCollaborators([]);
       setCollaboratorsReady(false);
 
@@ -305,6 +313,7 @@ export function useCollaboration({
         provider.on("sync", (synced: boolean) => {
           setIsSynced(synced);
           if (synced) {
+            setHasSynced(true);
             // Clear sync timeout on successful sync
             if (syncTimeoutRef.current) {
               clearTimeout(syncTimeoutRef.current);
@@ -343,6 +352,7 @@ export function useCollaboration({
         setCollaborators(currentProvider.collaborators);
         setCollaboratorsReady(currentProvider.collaborators.length > 0);
         setIsSynced(currentProvider.synced);
+        setHasSynced((prev) => prev || currentProvider.synced);
         // Use the provider's tracked status instead of inferring it
         const providerStatus = currentProvider.status;
         if (
@@ -364,6 +374,7 @@ export function useCollaboration({
     if (!isReady) {
       setConnectionStatus("disconnected");
       setIsSynced(false);
+      setHasSynced(false);
       setCollaborators([]);
       setCollaboratorsReady(false);
     }
@@ -408,6 +419,7 @@ export function useCollaboration({
       providerFactory,
       connectionStatus,
       isSynced,
+      hasSynced,
       collaborators,
       collaboratorsReady,
       isCollaborating,
@@ -419,6 +431,7 @@ export function useCollaboration({
       providerFactory,
       connectionStatus,
       isSynced,
+      hasSynced,
       collaborators,
       collaboratorsReady,
       isCollaborating,

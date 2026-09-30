@@ -16,6 +16,7 @@ vi.mock("@/hooks/useCollaboration", () => ({
     providerFactory: null,
     connectionStatus: "disconnected",
     isSynced: false,
+    hasSynced: false,
     collaborators: [],
     collaboratorsReady: false,
     isCollaborating: false,

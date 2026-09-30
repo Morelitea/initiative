@@ -84,10 +84,13 @@ interface SpreadsheetDocumentEditorProps {
    *  not yet ready), the editor falls back to local component state
    *  with the same UX. */
   yDoc?: Y.Doc | null;
-  /** Whether the collaboration provider has completed its initial sync.
-   *  Until then the workbook must not be seeded from ``initialContent``
+  /** Whether the collaboration provider is in step with the room. Until
+   *  then the workbook must not be seeded from ``initialContent``
    *  (see ``useSpreadsheetSheets``). Ignored when ``yDoc`` is null. */
   isSynced?: boolean;
+  /** Whether the room has synced at least once. The grid is covered until
+   *  it has; a reconnect after that leaves it open. */
+  hasSynced?: boolean;
   /** Read a file into sheets. Supplied by the host, which knows the document
    *  and guild this editor is showing; absent when import is unavailable. */
   onImportFile?: (file: File) => Promise<SpreadsheetSheetContent[]>;
@@ -120,6 +123,7 @@ export const SpreadsheetDocumentEditor = ({
   className,
   yDoc = null,
   isSynced = true,
+  hasSynced = true,
   onImportFile,
   awareness = null,
   currentUser = null,
@@ -1018,7 +1022,7 @@ export const SpreadsheetDocumentEditor = ({
         className
       )}
     >
-      {yDoc !== null && !isSynced && (
+      {yDoc !== null && !hasSynced && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />

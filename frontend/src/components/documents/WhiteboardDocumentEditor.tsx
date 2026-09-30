@@ -60,6 +60,9 @@ export interface WhiteboardDocumentEditorProps {
   yDoc?: Y.Doc | null;
   /** Whether the Yjs provider has fully synced from the server. */
   isSynced?: boolean;
+  /** Whether the room has synced at least once. The canvas is covered until
+   *  it has; a reconnect after that leaves it open. */
+  hasSynced?: boolean;
   /** True if other users are currently connected to the same Yjs room.
    *  When true AND initialSceneFromCache is true, the cache is considered
    *  stale (another user has continued editing while we were gone) and
@@ -100,6 +103,7 @@ export function WhiteboardDocumentEditor({
   className,
   yDoc = null,
   isSynced = true,
+  hasSynced = true,
   hasOtherCollaborators = false,
   collaboratorsReady = true,
   awareness = null,
@@ -434,7 +438,7 @@ export function WhiteboardDocumentEditor({
         className
       )}
     >
-      {collaborative && !isSynced && (
+      {collaborative && !hasSynced && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
