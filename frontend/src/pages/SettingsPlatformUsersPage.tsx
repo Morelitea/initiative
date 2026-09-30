@@ -29,6 +29,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
@@ -79,6 +80,8 @@ export const SettingsPlatformUsersPage = () => {
   // account: getting somebody back in after a typo is support work.
   const canUnblockAge = hasCapability(user, Capability.usersAgeUnblock);
   const canReactivate = hasCapability(user, Capability.usersManage);
+  // Clearing an authenticator only matters where signing in asks for its code.
+  const { authenticatorAskedAtSignIn } = useAppConfig();
 
   // What the sheet may offer, by capability. Each maps to the capability its
   // endpoint actually requires: rename and picture removal are
@@ -393,12 +396,14 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.liftSignInLock")}
               </DropdownMenuItem>
             )}
-            {abilities.canManageUsers && platformUser.second_factor_enrolled && (
-              <DropdownMenuItem onSelect={() => setClearSecondFactorTarget(platformUser)}>
-                <ShieldOff className="h-4 w-4" />
-                {t("platformUsers.clearSecondFactor")}
-              </DropdownMenuItem>
-            )}
+            {abilities.canManageUsers &&
+              authenticatorAskedAtSignIn &&
+              platformUser.second_factor_enrolled && (
+                <DropdownMenuItem onSelect={() => setClearSecondFactorTarget(platformUser)}>
+                  <ShieldOff className="h-4 w-4" />
+                  {t("platformUsers.clearSecondFactor")}
+                </DropdownMenuItem>
+              )}
             {canUnblockAge && platformUser.age_below_minimum_at && (
               <DropdownMenuItem
                 onSelect={() => clearAgeBlock.mutate(platformUser.id)}
