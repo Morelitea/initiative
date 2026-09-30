@@ -29,11 +29,6 @@ export const propertyHandlers = [
     );
   }),
 
-  guildHttp.get("/property-definitions/:definitionId", ({ params }) => {
-    const id = Number(params.definitionId);
-    return HttpResponse.json(buildPropertyDefinition({ id }));
-  }),
-
   guildHttp.patch("/property-definitions/:definitionId", async ({ params, request }) => {
     const id = Number(params.definitionId);
     const body = (await request.json()) as Record<string, unknown>;
@@ -48,10 +43,6 @@ export const propertyHandlers = [
 
   guildHttp.delete("/property-definitions/:definitionId", () => {
     return new HttpResponse(null, { status: 204 });
-  }),
-
-  guildHttp.get("/property-definitions/:definitionId/entities", () => {
-    return HttpResponse.json({ tasks: [], documents: [] });
   }),
 
   // ── Attach values ─────────────────────────────────────────────────────────

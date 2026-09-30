@@ -100,7 +100,6 @@ __all__ = [
     "placed_initiative_ids",
     "placement_role_ids",
     "placements_by_install",
-    "remove_placement",
     "set_placed_initiatives",
     "set_placement_roles",
     "store_secrets",
@@ -784,24 +783,6 @@ async def set_placement_roles(
     session.add(placement)
     await session.flush()
     return placement
-
-
-async def remove_placement(
-    session: AsyncSession, app: GuildApp, initiative_id: int
-) -> bool:
-    """Take the install out of one initiative. Answers whether it was there.
-
-    A mandatory install may be removed from an initiative like any other; it
-    stays removed, since only a new initiative is placed automatically.
-    """
-    result = await session.exec(
-        delete(AppPlacement).where(
-            AppPlacement.install_id == app.id,
-            AppPlacement.initiative_id == initiative_id,
-        )
-    )
-    await session.flush()
-    return bool(result.rowcount)
 
 
 async def set_placed_initiatives(

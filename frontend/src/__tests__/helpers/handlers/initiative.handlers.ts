@@ -39,10 +39,6 @@ export const initiativeHandlers = [
     return HttpResponse.json([]);
   }),
 
-  guildHttp.get("/initiatives/:id/join-requests/me", () => {
-    return HttpResponse.json([]);
-  }),
-
   guildHttp.post("/initiatives/:id/join-requests", ({ params }) => {
     return HttpResponse.json(buildInitiativeJoinRequest({ initiative_id: Number(params.id) }), {
       status: 201,

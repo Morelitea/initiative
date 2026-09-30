@@ -8,7 +8,6 @@ Covers /api/v1/property-definitions CRUD including:
 - Option validation on create/update
 - Orphaned-value counting on PATCH
 - Cascade delete to attached values
-- /{id}/entities lookup
 """
 
 from httpx import AsyncClient
@@ -314,43 +313,22 @@ async def test_create_select_duplicate_option_values_rejected(
 
 
 # ---------------------------------------------------------------------------
-# GET /{id}
+# PATCH /{id}
 # ---------------------------------------------------------------------------
 
 
-async def test_get_definition_returns_definition(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    defn = await create_property_definition(session, a.initiative, name="Phase")
-
-    response = await client.get(
-        a.g(f"/property-definitions/{defn.id}"),
-        headers=a.headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json()["id"] == defn.id
-
-
-async def test_get_definition_for_missing_id_returns_404(
-    client: AsyncClient, acting_user
-):
+async def test_patch_missing_definition_returns_404(client: AsyncClient, acting_user):
     """Unknown definition id → 404 with the canonical error code."""
     a = await acting_user(guild_role=GuildRole.admin)
 
-    response = await client.get(
+    response = await client.patch(
         a.g("/property-definitions/99999"),
         headers=a.headers,
+        json={"name": "Gone"},
     )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "PROPERTY_DEFINITION_NOT_FOUND"
-
-
-# ---------------------------------------------------------------------------
-# PATCH /{id}
-# ---------------------------------------------------------------------------
 
 
 async def test_patch_renames_color_and_position(
@@ -535,33 +513,3 @@ async def test_delete_definition_cascades_to_values(
         select(PropertyDefinition).where(PropertyDefinition.id == defn.id)
     )
     assert defn_row.one_or_none() is None
-
-
-# ---------------------------------------------------------------------------
-# GET /{id}/entities
-# ---------------------------------------------------------------------------
-
-
-async def test_get_entities_returns_attached_docs_and_tasks(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    defn = await create_property_definition(session, a.initiative, name="Owner Tag")
-
-    project = await create_project(session, a.initiative, a.user, name="Proj")
-    task = await create_task(session, project, title="Task 1")
-    doc = await create_document(session, a.initiative, a.user, name="Doc 1")
-
-    await create_document_property_value(session, doc, defn, value_text="x")
-    await create_task_property_value(session, task, defn, value_text="y")
-
-    response = await client.get(
-        a.g(f"/property-definitions/{defn.id}/entities"),
-        headers=a.headers,
-    )
-    assert response.status_code == 200
-    data = response.json()
-    task_ids = {entry["id"] for entry in data["tasks"]}
-    doc_ids = {entry["id"] for entry in data["documents"]}
-    assert task.id in task_ids
-    assert doc.id in doc_ids

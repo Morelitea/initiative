@@ -285,7 +285,7 @@ def test_a_tag_assignment_is_an_edge_like_any_other():
 def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     # ONE generic route serves every tool — its {tool} path param is the Tool
     # enum itself, so a new member is covered with no new endpoint. Only the
-    # two content-level extras keep hand-written set-tags routes; the exact
+    # content-level extras keep hand-written set-tags routes; the exact
     # equality means a re-added per-tool copy fails here.
     from app.main import app
 
@@ -297,7 +297,6 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     }
     generic = "/api/v1/c/{guild_id}/tools/{tool}/{tool_id}/tags"
     extras = {
-        "/api/v1/c/{guild_id}/tasks/{task_id}/tags",
         "/api/v1/c/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
         "/api/v1/c/{guild_id}/calendar-events/{event_id}/tags",
     }

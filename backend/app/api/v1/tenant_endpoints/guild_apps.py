@@ -899,45 +899,6 @@ async def put_guild_app_placement(
     return AppPlacementRead(initiative_id=initiative_id, role_ids=after)
 
 
-@router.delete(
-    "/{app_id}/placements/{initiative_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_guild_app_placement(
-    app_id: int,
-    initiative_id: int,
-    session: SeatWriteSessionDep,
-    current_user: CurrentUser,
-    guild_context: SeatWriteContextDep,
-) -> None:
-    """Take the app out of one initiative.
-
-    Allowed for a mandatory app too: the deployment decides that the app
-    exists, and the seat still decides where it appears. The removal stays;
-    only an initiative created later is placed automatically.
-    """
-    app = await _load(session, app_id)
-    before = await guild_apps_service.placement_role_ids(session, app.id, initiative_id)
-    if await guild_apps_service.remove_placement(session, app, initiative_id):
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.APP_UPDATED,
-            actor_user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-            target_type="app",
-            target_id=app.id,
-            detail={
-                "area": "placement",
-                "initiative_id": initiative_id,
-                **audit_service.changed_fields(
-                    {"placed": True, "role_ids": before},
-                    {"placed": False, "role_ids": None},
-                ),
-            },
-        )
-    await session.commit()
-
-
 @router.put("/{app_id}/scopes", response_model=GuildAppRead)
 async def put_guild_app_scopes(
     app_id: int,

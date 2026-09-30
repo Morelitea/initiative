@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, Dict, List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
 from pydantic import (
     ConfigDict,
@@ -435,16 +435,6 @@ class OwnedDecoration(SanitizedBaseModel):
     #: The picture its pack carries for it, served by the marketplace. Absent
     #: where the client ships the art for the id itself.
     image_url: Optional[str] = None
-
-
-class DecorationArtResponse(SanitizedBaseModel):
-    """Pictures for decorations whose art is carried by their pack rather than
-    shipped with the client, by decoration id. An id the client draws itself,
-    or one no pack on this deployment names, is absent."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    art: Dict[str, str] = {}
 
 
 class DecorationPack(SanitizedBaseModel):
