@@ -253,6 +253,7 @@
   "EXPORT_JOB_NOT_FOUND": "Export introuvable.",
   "EXPORT_NOT_READY": "Cet export n’est pas encore prêt à être téléchargé.",
   "EXPORT_EXPIRED": "Cet export a expiré. Lancez-en un nouveau pour le télécharger à nouveau.",
+  "EXPORT_OUT_OF_REACH": "Vous n’avez plus accès à tout le contenu de cet export, il ne peut donc pas être téléchargé.",
   "EXPORT_CREATOR_INACTIVE": "L’export s’est arrêté car le compte qui l’a lancé n’est plus actif.",
   "EXPORT_ACCESS_REVOKED": "L’export s’est arrêté car la personne qui l’a lancé n’a plus accès à cette communauté.",
   "EXPORT_RENDER_FAILED": "L’export a échoué. Réessayez.",

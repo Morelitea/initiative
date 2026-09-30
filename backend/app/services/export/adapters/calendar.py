@@ -34,6 +34,7 @@ from app.services.export.adapters._common import (
     ToolExportAdapter,
     envelope_key,
     export_stem,
+    related_reach,
 )
 from app.services.export.contract import RenderItem
 from app.services.permissions import EXPORT_ACCESS
@@ -152,6 +153,18 @@ class CalendarAdapter(ToolExportAdapter):
         # synchronous and hold no session.
         return await documents_for_events(
             session, [event for calendar in calendars for event in calendar.events]
+        )
+
+    async def prepared_reach(
+        self, session: AsyncSession, ctx: BuildContext, /
+    ) -> set[int]:
+        # Only the envelope names the attached documents; an iCalendar file
+        # does not.
+        if ctx.format != "json":
+            return set()
+        return await related_reach(
+            session,
+            (related for items in ctx.prepared.values() for related in items),
         )
 
     def item(self, calendar: Calendar, ctx: BuildContext, /) -> RenderItem:

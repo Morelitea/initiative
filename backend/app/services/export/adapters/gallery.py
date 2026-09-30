@@ -76,6 +76,11 @@ class GalleryAdapter(ToolExportAdapter):
             session, user, guild_id, initiative_ids=[initiative_id]
         )
 
+    async def reach(
+        self, session: AsyncSession, params: dict, loaded: list[Loaded], /
+    ) -> set[int]:
+        return {gallery.initiative_id for gallery, _images in loaded}
+
     def title(self, loaded: Loaded, /) -> str:
         gallery, _images = loaded
         return gallery.name

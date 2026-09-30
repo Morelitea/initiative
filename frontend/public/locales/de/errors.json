@@ -265,6 +265,7 @@
   "EXPORT_JOB_NOT_FOUND": "Export nicht gefunden.",
   "EXPORT_NOT_READY": "Dieser Export ist noch nicht zum Herunterladen bereit.",
   "EXPORT_EXPIRED": "Dieser Export ist abgelaufen. Starte einen neuen, um ihn erneut herunterzuladen.",
+  "EXPORT_OUT_OF_REACH": "Du hast keinen Zugriff mehr auf alles in diesem Export, daher kann er nicht heruntergeladen werden.",
   "EXPORT_CREATOR_INACTIVE": "Der Export wurde abgebrochen, weil das Konto, das ihn gestartet hat, nicht mehr aktiv ist.",
   "EXPORT_ACCESS_REVOKED": "Der Export wurde abgebrochen, weil die Person, die ihn gestartet hat, keinen Zugriff mehr auf diese Community hat.",
   "EXPORT_RENDER_FAILED": "Der Export ist fehlgeschlagen. Versuche es erneut.",
