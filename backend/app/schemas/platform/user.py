@@ -715,6 +715,10 @@ class OperatorUserRead(UserRead):
     #: and code sign-in off; it turns back on by itself at that time.
     sign_in_locked_until: Optional[datetime] = None
 
+    #: Whether the account holds an authenticator it has proved — what the
+    #: roster offers to clear when its holder has lost it.
+    second_factor_enrolled: bool = False
+
     @field_validator("email", mode="after")
     @classmethod
     def _mask_email(cls, value: str) -> str:

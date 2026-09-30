@@ -6416,6 +6416,7 @@ export interface OperatorUserRead {
   initiative_roles: UserInitiativeRole[];
   purge_at: string | null;
   sign_in_locked_until: string | null;
+  second_factor_enrolled: boolean;
   readonly can_create_guilds: boolean;
   /**
    * Platform capabilities granted by this user's standing role — none

@@ -15,6 +15,7 @@ import type {
 import {
   checkUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGet,
   clearAgeBlockApiV1OperatorUsersUserIdAgeBlockDelete,
+  clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete,
   deleteUserApiV1OperatorUsersUserIdDelete,
   exportPlatformUsersCsvApiV1OperatorUsersExportCsvGet,
   getCheckUserDeletionEligibilityApiV1OperatorUsersUserIdDeletionEligibilityGetQueryKey,
@@ -200,6 +201,18 @@ export const useOperatorLiftSignInLock = (options?: MutationOpts<OperatorUserRea
   useApiMutation<OperatorUserRead, number>(
     {
       mutationFn: (userId) => liftSignInLockApiV1OperatorUsersUserIdSignInLockDelete(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
+    },
+    options
+  );
+
+/** Take an authenticator off an account whose holder has lost it
+ *  (``users.manage``). Signs them out everywhere; they sign in with their
+ *  password and set one up again. */
+export const useOperatorClearSecondFactor = (options?: MutationOpts<void, number>) =>
+  useApiMutation<void, number>(
+    {
+      mutationFn: (userId) => clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options

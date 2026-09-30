@@ -144,6 +144,18 @@ async def is_enrolled(session: AsyncSession, *, user_id: int) -> bool:
     return factor is not None and factor.confirmed_at is not None
 
 
+async def enrolled_among(session: AsyncSession, *, user_ids: list[int]) -> set[int]:
+    """Which of these accounts hold a factor they have proved. One query for
+    the whole page."""
+    rows = await session.exec(
+        select(UserTotp.user_id).where(
+            UserTotp.user_id.in_(user_ids),
+            UserTotp.confirmed_at.is_not(None),
+        )
+    )
+    return set(rows.all())
+
+
 async def _read_secret(session: AsyncSession, *, user_id: int) -> str | None:
     row = (
         await session.exec(
