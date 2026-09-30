@@ -425,6 +425,14 @@ describe("LoginPage passkey", () => {
     expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
   });
 
+  it("says so where no way in is offered, rather than showing an empty card", async () => {
+    mocks.config = { passwordLoginEnabled: false, passkeyLoginEnabled: false };
+    renderLogin();
+
+    expect(await screen.findByText(/offers no way to sign in/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+  });
+
   it("takes one fresh turn in autofill when the challenge it waited on has lapsed", async () => {
     mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
     mocks.signInWithPasskey.mockRejectedValue(lapsedChallenge());

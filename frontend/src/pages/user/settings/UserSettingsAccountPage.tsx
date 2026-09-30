@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useServer } from "@/hooks/useServer";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
@@ -99,6 +100,10 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   // not from the app, which signs in with a device token. An account that holds
   // no password has nothing to give up either.
   const offersRemoval = user.has_password && !isNativePlatform;
+  // A password is offered only where this deployment signs anybody in with
+  // one. Where it does not, the section says so and keeps only the way to
+  // give up one the account already holds.
+  const { passwordLoginEnabled } = useAppConfig();
   // What else the account could sign in with. Nothing else on this page reads
   // it, so it is asked for only where the offer stands.
   const passkeys = useListPasskeysApiV1AuthPasskeysGet({
@@ -242,11 +247,17 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
         </SettingsSection>
 
         <SettingsSection
-          title={user.has_password ? t("account.passwordTitle") : t("account.setPasswordTitle")}
+          title={
+            user.has_password || !passwordLoginEnabled
+              ? t("account.passwordTitle")
+              : t("account.setPasswordTitle")
+          }
           description={
-            user.has_password
-              ? t("account.passwordDescription")
-              : t("account.setPasswordDescription")
+            !passwordLoginEnabled
+              ? t("account.passwordsOffDescription")
+              : user.has_password
+                ? t("account.passwordDescription")
+                : t("account.setPasswordDescription")
           }
           footer={
             <>
@@ -271,7 +282,7 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
             </>
           }
         >
-          {user.has_password ? (
+          {passwordLoginEnabled && user.has_password ? (
             <div className="space-y-2">
               <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
               <Input
@@ -285,38 +296,40 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
             </div>
           ) : null}
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="password">{t("profile.newPasswordLabel")}</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder={t("profile.passwordPlaceholder")}
-                minLength={password.length > 0 ? PASSWORD_MIN_LENGTH : undefined}
-              />
-              <p
-                className={
-                  password.length > 0 && password.length < PASSWORD_MIN_LENGTH
-                    ? "text-destructive text-xs"
-                    : "text-muted-foreground text-xs"
-                }
-              >
-                {t("auth:passwordPolicy.minLengthHelp")}
-              </p>
+          {passwordLoginEnabled ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="password">{t("profile.newPasswordLabel")}</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder={t("profile.passwordPlaceholder")}
+                  minLength={password.length > 0 ? PASSWORD_MIN_LENGTH : undefined}
+                />
+                <p
+                  className={
+                    password.length > 0 && password.length < PASSWORD_MIN_LENGTH
+                      ? "text-destructive text-xs"
+                      : "text-muted-foreground text-xs"
+                  }
+                >
+                  {t("auth:passwordPolicy.minLengthHelp")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">{t("profile.confirmPasswordLabel")}</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder={t("profile.passwordPlaceholder")}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">{t("profile.confirmPasswordLabel")}</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder={t("profile.passwordPlaceholder")}
-              />
-            </div>
-          </div>
+          ) : null}
 
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
 

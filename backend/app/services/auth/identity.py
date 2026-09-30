@@ -380,15 +380,18 @@ async def stranded_between(
     *,
     current: frozenset[LoginMethod],
     requested: frozenset[LoginMethod],
+    user_id: int | None = None,
 ) -> int:
-    """How many accounts :func:`stranded_clause` matches."""
-    return (
-        await session.exec(
-            select(func.count())
-            .select_from(User)
-            .where(stranded_clause(current=current, requested=requested))
-        )
-    ).one()
+    """How many accounts :func:`stranded_clause` matches — of every account,
+    or of the one ``user_id`` names."""
+    query = (
+        select(func.count())
+        .select_from(User)
+        .where(stranded_clause(current=current, requested=requested))
+    )
+    if user_id is not None:
+        query = query.where(User.id == user_id)
+    return (await session.exec(query)).one()
 
 
 async def _permitted_methods(session: AsyncSession) -> frozenset[LoginMethod]:

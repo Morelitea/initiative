@@ -81,7 +81,7 @@ export const SettingsPlatformUsersPage = () => {
   const canUnblockAge = hasCapability(user, Capability.usersAgeUnblock);
   const canReactivate = hasCapability(user, Capability.usersManage);
   // Clearing an authenticator only matters where signing in asks for its code.
-  const { authenticatorAskedAtSignIn } = useAppConfig();
+  const { authenticatorAskedAtSignIn, passwordLoginEnabled } = useAppConfig();
 
   // What the sheet may offer, by capability. Each maps to the capability its
   // endpoint actually requires: rename and picture removal are
@@ -369,7 +369,9 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.restore")}
               </DropdownMenuItem>
             )}
-            {canReactivate && platformUser.status === "active" && (
+            {/* The link it mails ends in a password, which this deployment
+                may not take. */}
+            {canReactivate && platformUser.status === "active" && passwordLoginEnabled && (
               <DropdownMenuItem
                 onSelect={() => handleResetPassword(platformUser.id, platformUser.username)}
                 disabled={isResetting || resetPassword.isPending}

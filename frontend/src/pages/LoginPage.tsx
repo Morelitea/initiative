@@ -121,6 +121,7 @@ export const LoginPage = () => {
   // one thing at a time, and the other ways in are not among them.
   const [emailOtpOpen, setEmailOtpOpen] = useState(false);
   const [providers, setProviders] = useState<LoginProviderEntry[]>([]);
+  const [providersLoaded, setProvidersLoaded] = useState(false);
   const [bootstrapStatus, setBootstrapStatus] = useState<"loading" | "required" | "ready">(
     "loading"
   );
@@ -151,6 +152,8 @@ export const LoginPage = () => {
         setProviders(response.providers);
       } catch {
         setProviders([]);
+      } finally {
+        setProvidersLoaded(true);
       }
     };
     void fetchProviders();
@@ -563,6 +566,15 @@ export const LoginPage = () => {
                   {t("login.continueWith", { provider: provider.display_name })}
                 </Button>
               ))}
+              {/* Every way in is withdrawn or unavailable here, so there is
+                  nothing to render but the reason. */}
+              {!passwordLoginEnabled &&
+              !passkeyOffered &&
+              !emailOtpLoginEnabled &&
+              providersLoaded &&
+              providers.length === 0 ? (
+                <p className="text-muted-foreground text-sm">{t("login.nothingOffered")}</p>
+              ) : null}
               {error ? <p className="text-destructive text-sm">{error}</p> : null}
             </form>
           )}

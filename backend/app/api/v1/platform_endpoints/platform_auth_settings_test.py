@@ -137,6 +137,32 @@ async def test_withdrawing_a_method_reports_who_it_strands(
     assert enabled == {"password"}
 
 
+async def test_the_account_making_the_change_cannot_strand_itself(
+    client: AsyncClient, session: AsyncSession
+):
+    """The owner holding only a password cannot withdraw it, whatever number
+    comes back: they add another way in first, and then it goes through."""
+    owner, headers = await _owner(session)
+
+    refused = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    assert refused.status_code == 409, refused.text
+    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND_SELF"
+    assert "X-Affected-Count" not in refused.headers
+
+    acknowledged = await client.put(
+        METHODS_URL,
+        headers=headers,
+        json={"methods": ["sso"], "acknowledge_stranded": 1},
+    )
+    assert acknowledged.status_code == 409, acknowledged.text
+    assert acknowledged.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND_SELF"
+
+    provider = await create_auth_provider(session, slug="corp")
+    await create_federated_identity(session, owner, provider=provider)
+    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    assert put.status_code == 200, put.text
+
+
 async def test_withdrawing_sso_waits_for_guild_requirements(
     client: AsyncClient, session: AsyncSession
 ):
@@ -244,18 +270,15 @@ async def test_withdrawing_sso_closes_a_guilds_provider_routes_too(
 async def test_withdrawing_password_closes_its_routes(
     client: AsyncClient, session: AsyncSession
 ):
-    """The sign-in, the registration that mints one, and both halves of reset."""
-    _, headers = await _owner(session)
+    """The sign-in, the registration that mints one, and every half of reset."""
+    owner, headers = await _owner(session)
     provider = await create_auth_provider(session, slug="corp")
+    await create_federated_identity(session, owner, provider=provider)
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
-    put = await client.put(
-        METHODS_URL,
-        headers=headers,
-        json={"methods": ["sso"], "acknowledge_stranded": 1},
-    )
-    assert put.status_code == 200
+    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    assert put.status_code == 200, put.text
 
     token = await client.post(
         "/api/v1/auth/token",
@@ -292,6 +315,13 @@ async def test_withdrawing_password_closes_its_routes(
     )
     assert forgot.status_code == 403
 
+    # An operator mailing someone a reset link is the same errand.
+    mailed = await client.post(
+        f"/api/v1/operator/users/{member.id}/reset-password", headers=headers
+    )
+    assert mailed.status_code == 403
+    assert mailed.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
+
 
 async def test_an_account_with_only_a_guild_provider_counts_as_signed_in(
     client: AsyncClient, session: AsyncSession
@@ -322,17 +352,14 @@ async def test_withdrawing_a_method_signs_nobody_out(
     client: AsyncClient, session: AsyncSession
 ):
     """Sessions already open keep working; this gates opening a new one."""
-    _, headers = await _owner(session)
+    owner, headers = await _owner(session)
     provider = await create_auth_provider(session, slug="corp")
+    await create_federated_identity(session, owner, provider=provider)
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
-    put = await client.put(
-        METHODS_URL,
-        headers=headers,
-        json={"methods": ["sso"], "acknowledge_stranded": 1},
-    )
-    assert put.status_code == 200
+    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    assert put.status_code == 200, put.text
 
     still_in = await client.get(READ_URL, headers=headers)
     assert still_in.status_code == 200
@@ -436,23 +463,10 @@ async def test_passkeys_alone_can_begin_a_session(
 ):
     """A deployment may offer them and nothing else: a passkey opens a session
     by itself, which is what the rule asks for."""
-    _, headers = await _owner(session)
+    owner, headers = await _owner(session)
+    await _store_passkey(session, owner, credential_id=b"owner-credential")
 
-    # The owner holds a password, so the withdrawal is acknowledged first.
-    refused = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["passkey"]}
-    )
-    assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
-
-    put = await client.put(
-        METHODS_URL,
-        headers=headers,
-        json={
-            "methods": ["passkey"],
-            "acknowledge_stranded": int(refused.headers["X-Affected-Count"]),
-        },
-    )
+    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["passkey"]})
     assert put.status_code == 200, put.text
     assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"passkey"}
 
@@ -463,7 +477,9 @@ async def test_withdrawing_two_ways_in_at_once_counts_them_together(
     """An account holding a password and a credential is stranded by the two
     going together and by neither alone, so the figure it is refused with is
     taken over the whole write rather than one method at a time."""
-    _, headers = await _owner(session)
+    owner, headers = await _owner(session)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_federated_identity(session, owner, provider=provider)
     holder = await create_user(session)
     await _store_passkey(session, holder, credential_id=b"two-ways-in")
 
