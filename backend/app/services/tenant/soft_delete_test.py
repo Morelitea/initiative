@@ -848,6 +848,39 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
     assert sorted(pages.all()) == [("step-1", None), ("step-2", None)]
 
 
+async def test_restored_siblings_do_not_take_the_same_name(session: AsyncSession):
+    """Pages coming back together each take a name the others have not: a live
+    page holding "foo" sends the first to "foo-2", which the second was about
+    to take back, so the second has to see that and go on."""
+    from app.models.tenant.wiki import WikiPage
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    wiki = await create_wiki(session, initiative, user)
+    page = await create_wiki_page(session, wiki, user, title="Steps")
+    for title in ("foo", "foo 2"):
+        await create_wiki_page(session, wiki, user, title=title, parent_page_id=page.id)
+    await soft_delete_entity(
+        session, page, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+    await create_wiki_page(session, wiki, user, title="foo")
+
+    await restore_entity(session, page)
+    await session.commit()
+
+    children = await session.exec(
+        select_including_deleted(WikiPage.slug).where(
+            WikiPage.parent_page_id == page.id
+        )
+    )
+    slugs = children.all()
+    assert len(set(slugs)) == 2, slugs
+    assert not any("~" in slug for slug in slugs), slugs
+
+
 async def _file(
     session: AsyncSession,
     model: type,

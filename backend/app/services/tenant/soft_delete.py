@@ -140,8 +140,9 @@ async def _write_level(
     """Write ``values`` onto every row of one level, a statement per table.
 
     A table that holds a name is loaded instead, because each of its rows parks
-    (``park=True``) or reclaims its own name in the same write. The level is
-    flushed before this returns.
+    (``park=True``) or reclaims its own name in the same write. Those rows are
+    written one at a time, so a sibling reclaiming after it sees the name it
+    took. The level is flushed before this returns.
     """
     for model, ids in level.items():
         if model not in RELEASED_NAMES:
@@ -160,7 +161,7 @@ async def _write_level(
             if park:
                 _park_name(row)
             session.add(row)
-    await session.flush()
+            await session.flush()
 
 
 async def trash(
