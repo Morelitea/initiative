@@ -465,11 +465,19 @@ def render_frozen_ancestor_fn() -> str:
     table and both reasons — a frozen ancestry, and a row's own frozen state on
     a delete. It keeps the name it was created under: the triggers that call it
     depend on it, so renaming it would mean dropping and rebuilding every one.
+
+    A trigger that refuses on account of the thing ABOVE the row names
+    ``FROZEN_PARENT_CONSTRAINT`` as its argument, so the refusal says so.
     """
     return f"""
 CREATE OR REPLACE FUNCTION public.fn_frozen_ancestor_guard() RETURNS trigger
     LANGUAGE plpgsql AS $frozen_ancestor$
 BEGIN
+    IF TG_NARGS > 0 AND TG_ARGV[0] = '{FROZEN_PARENT_CONSTRAINT}' THEN
+        RAISE EXCEPTION 'what this is inside is archived or in the trash'
+            USING ERRCODE = '{FROZEN_SQLSTATE}',
+                  CONSTRAINT = '{FROZEN_PARENT_CONSTRAINT}';
+    END IF;
     RAISE EXCEPTION 'archived or trashed content is read-only'
         USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
 END;
@@ -494,6 +502,10 @@ def frozen_write_triggers(table: str) -> list[str]:
     * an UPDATE guard on the ancestry it would END UP under, because no cascade
       can have stamped a row for a parent it has not reached yet — the same
       reason INSERT keeps its walk.
+    * a guard on coming out of the trash under something still in it. A row
+      trashed before its parent keeps its own stamp, and an archive reaches it
+      in the trash, so it can leave the trash still archived: stamped, but out
+      of the trash while the thing above it is in.
 
     A row with nothing of its own to read inherits instead, and asks about both
     ancestries: the one it has as well as the one it is moving to.
@@ -525,6 +537,16 @@ def frozen_write_triggers(table: str) -> list[str]:
                 f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
                 f"BEFORE UPDATE ON {table} FOR EACH ROW WHEN ({moving_into}) "
                 f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
+            )
+        under_trash = _trashed_ancestor_leg(table, "NEW")
+        if under_trash is not None:
+            out.append(
+                f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_trashed_ancestor_update "
+                f"BEFORE UPDATE ON {table} FOR EACH ROW "
+                f"WHEN (OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL "
+                f"AND {under_trash}) "
+                f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard("
+                f"'{FROZEN_PARENT_CONSTRAINT}')"
             )
         return out
 
