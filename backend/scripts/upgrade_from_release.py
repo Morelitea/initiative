@@ -16,8 +16,16 @@ one starts where a deployment does:
 
 A boot is the image's own start: its entrypoint runs the migrations and serves.
 It has booted when it answers on its port; ``--image`` must then also report
-itself ready and serve the web app, its version and the app-update manifest,
-over plain HTTP at an address other than ``APP_URL``.
+every dependency ready and serve the web app, its version and the app-update
+manifest.
+
+``--image`` runs as each setup the documentation describes. With one
+``DATABASE_URL``, it is reached over plain HTTP at an address other than
+``APP_URL``. With explicit logins, it runs as a larger deployment does:
+requests, system work and dashboard reads through PgBouncer in transaction
+mode, communities in :data:`COHORTS` cohorts, uploads in Garage (S3), and
+served over HTTPS by Caddy on :data:`HOSTNAME`, which must resolve to this
+host. Releases boot with the logins alone.
 
 and fails when:
 
@@ -43,7 +51,8 @@ Each database has its own Postgres server, because roles are cluster-wide and a
 community's roles would otherwise be shared between the two.
 
 The containers use the host's network, so the servers' URLs are the same for
-them as for this script, and the image's port (8173) must be free.
+them as for this script, and the ports they take (8173, and with explicit
+logins 3900, 3901, 6432 and 8443) must be free.
 
 Usage, from ``backend/`` with ``SECRET_KEY`` set, as each boot reads it::
 
@@ -67,17 +76,23 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
 import re
+import socket
+import ssl
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import asyncpg
 
@@ -105,6 +120,18 @@ IMAGE_UID = "1999"
 #: as on an air-gapped install that has no mirror. Its refresh still runs, and
 #: fails without leaving the host.
 OFFLINE_REGISTRY = "http://127.0.0.1:9/"
+
+#: What the explicit-logins deployment runs beside the image.
+POOLER_IMAGE = "docker.io/edoburu/pgbouncer:v1.24.1-p1@sha256:3db3d7223e93af52b4116f642951a1a5fa44702a88c2a59cf7562cac19320c9e"
+STORE_IMAGE = "docker.io/dxflrs/garage:v2.4.1@sha256:9c96caa2612d3411acc5b0e6701fb238dbfba33e533a6d7d3d811a4b12d0d020"
+PROXY_IMAGE = "docker.io/library/caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b"
+POOLER = "127.0.0.1:6432"
+STORE = "http://127.0.0.1:3900"
+HOSTNAME = "initiative.test"
+PROXIED_AT = f"https://{HOSTNAME}:8443"
+COHORTS = 3
+STORE_KEY = "GK0123456789abcdef01234567"
+STORE_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 # The login roles every release since the bootstrap module creates for itself,
 # with the passwords CI gives them.
@@ -493,12 +520,200 @@ def _docker(
     _run(["docker", "run", "--network", "host", *names, *args], cwd=REPO, env=env)
 
 
-def _get(path: str) -> tuple[int, bytes]:
+def _explicit_logins(name: str) -> dict[str, str]:
+    """What the explicit-logins deployment tells the image beyond its logins,
+    for the server the pooler calls ``name``: requests, system work and
+    dashboard reads pooled, communities in cohorts, uploads in object storage,
+    and a proxy in front."""
+    pooled = f"{POOLER}/{name}"
+    return {
+        "DATABASE_URL_APP": f"postgresql+asyncpg://app_user:app_user@{pooled}",
+        "DATABASE_URL_ADMIN": f"postgresql+asyncpg://app_admin:app_admin@{pooled}",
+        "DATABASE_URL_QUERY": f"postgresql+asyncpg://app_user:app_user@{pooled}",
+        "DB_COHORTS": str(COHORTS),
+        "DB_COHORT_DATABASE": f"{name}_c{{cohort}}",
+        "STORAGE_BACKEND": "s3",
+        "S3_BUCKET": "uploads",
+        "S3_ENDPOINT_URL": STORE,
+        "S3_REGION": "garage",
+        "S3_USE_PATH_STYLE": "true",
+        "S3_ACCESS_KEY_ID": STORE_KEY,
+        "S3_SECRET_ACCESS_KEY": STORE_SECRET,
+        "BEHIND_PROXY": "true",
+        "APP_URL": PROXIED_AT,
+    }
+
+
+@contextlib.contextmanager
+def _explicit_logins_services(servers: dict[str, str]) -> Iterator[ssl.SSLContext]:
+    """Run what the explicit-logins deployment runs beside the image, and stop
+    it after: PgBouncer in transaction mode, with a database for each of
+    ``servers`` (a name and an owner URL) and one for each of its cohorts;
+    Garage with an ``uploads`` bucket; and Caddy serving :data:`PROXIED_AT`
+    over HTTPS from its own certificate authority, whose root the context
+    yielded trusts."""
+    tag = os.getpid()
+    names = [
+        f"upgrade-from-release-{part}-{tag}" for part in ("pooler", "store", "proxy")
+    ]
+    databases = []
+    for name, server in servers.items():
+        url = urlsplit(server)
+        target = f"host={url.hostname} port={url.port} dbname={DATABASE}"
+        aliases = [name, *(f"{name}_c{cohort}" for cohort in range(COHORTS))]
+        databases += [f"{alias} = {target}" for alias in aliases]
+    pooler_config = "\n".join(
+        [
+            "[databases]",
+            *databases,
+            "[pgbouncer]",
+            f"listen_addr = {POOLER.split(':')[0]}",
+            f"listen_port = {POOLER.split(':')[1]}",
+            "auth_type = scram-sha-256",
+            "auth_file = /etc/pgbouncer/userlist.txt",
+            "pool_mode = transaction",
+            "max_prepared_statements = 500",
+            "max_client_conn = 500",
+            "default_pool_size = 20",
+            "ignore_startup_parameters = extra_float_digits",
+        ]
+    )
+    store_config = "\n".join(
+        [
+            'metadata_dir = "/tmp/meta"',
+            'data_dir = "/tmp/data"',
+            'db_engine = "sqlite"',
+            "replication_factor = 1",
+            'rpc_bind_addr = "127.0.0.1:3901"',
+            'rpc_public_addr = "127.0.0.1:3901"',
+            f'rpc_secret = "{STORE_SECRET}"',
+            "[s3_api]",
+            's3_region = "garage"',
+            f'api_bind_addr = "{STORE.removeprefix("http://")}"',
+        ]
+    )
+    with tempfile.TemporaryDirectory(prefix="upgrade-from-release-") as scratch:
+        config = Path(scratch)
+        (config / "pgbouncer.ini").write_text(pooler_config + "\n")
+        (config / "userlist.txt").write_text(
+            "".join(f'"{role}" "{role}"\n' for role in ("app_user", "app_admin"))
+        )
+        (config / "garage.toml").write_text(store_config + "\n")
+        for address in (
+            POOLER,
+            STORE.removeprefix("http://"),
+            f"127.0.0.1:{urlsplit(PROXIED_AT).port}",
+        ):
+            _free(address)
+        try:
+            pooler, store, proxy = names
+            _docker(
+                "-d",
+                "--name",
+                pooler,
+                "-v",
+                f"{config}/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro",
+                "-v",
+                f"{config}/userlist.txt:/etc/pgbouncer/userlist.txt:ro",
+                POOLER_IMAGE,
+            )
+            _docker(
+                "-d",
+                "--name",
+                store,
+                "-v",
+                f"{config}/garage.toml:/etc/garage.toml:ro",
+                "-e",
+                f"GARAGE_DEFAULT_ACCESS_KEY={STORE_KEY}",
+                "-e",
+                f"GARAGE_DEFAULT_SECRET_KEY={STORE_SECRET}",
+                "-e",
+                "GARAGE_DEFAULT_BUCKET=uploads",
+                STORE_IMAGE,
+                "/garage",
+                "server",
+                "--single-node",
+                "--default-bucket",
+            )
+            _docker(
+                "-d",
+                "--name",
+                proxy,
+                PROXY_IMAGE,
+                "caddy",
+                "reverse-proxy",
+                "--from",
+                PROXIED_AT,
+                "--to",
+                SERVED_AT.removeprefix("http://"),
+                "--internal-certs",
+                "--disable-redirects",
+            )
+            _listening(POOLER)
+            _listening(STORE.removeprefix("http://"))
+            deadline = time.monotonic() + 60
+            while True:
+                root = subprocess.run(
+                    [
+                        "docker",
+                        "exec",
+                        proxy,
+                        "cat",
+                        "/data/caddy/pki/authorities/local/root.crt",
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                if root.returncode == 0:
+                    break
+                if time.monotonic() > deadline:
+                    _fail("Caddy made no certificate authority", [root.stderr])
+                time.sleep(1)
+            yield ssl.create_default_context(cadata=root.stdout)
+        finally:
+            for name in names:
+                subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+
+
+@dataclass(frozen=True)
+class Setup:
+    """How ``--image`` is deployed: what it is told beyond its logins, and
+    where the check reaches it."""
+
+    settings: dict[str, str] = field(default_factory=dict)
+    url: str = SERVED_AT
+    tls: ssl.SSLContext | None = None
+
+
+def _get(path: str, setup: Setup = Setup()) -> tuple[int, bytes]:
     try:
-        with urllib.request.urlopen(f"{SERVED_AT}{path}", timeout=10) as response:
+        with urllib.request.urlopen(
+            f"{setup.url}{path}", timeout=10, context=setup.tls
+        ) as response:
             return response.status, response.read()
     except urllib.error.HTTPError as error:
         return error.code, error.read()
+
+
+def _free(address: str) -> None:
+    """Fail if something already listens on ``address``, which a container
+    started on the host's network could not then take."""
+    host, port = address.rsplit(":", 1)
+    with contextlib.suppress(OSError), socket.create_connection((host, int(port)), 2):
+        _fail(f"Something already listens on {address}; stop it first", [])
+
+
+def _listening(address: str, seconds: int = 60) -> None:
+    host, port = address.rsplit(":", 1)
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        with (
+            contextlib.suppress(OSError),
+            socket.create_connection((host, int(port)), 2),
+        ):
+            return
+        time.sleep(1)
+    _fail(f"Nothing is listening on {address}", [])
 
 
 def _answering(name: str) -> None:
@@ -522,22 +737,109 @@ def _answering(name: str) -> None:
     _fail(f"{name} did not start answering on {SERVED_AT}", [])
 
 
-def _serving() -> list[str]:
+def _ready(setup: Setup, seconds: int = 60) -> str | None:
+    """Wait for every dependency to report ready; what it said last if not.
+
+    Some connect after the app starts serving (the notification bus), so a
+    first answer of ``degraded`` is asked again."""
+    deadline = time.monotonic() + seconds
+    while True:
+        status, body = _get("/api/v1/readyz", setup)
+        if status == 200 and json.loads(body).get("status") == "ok":
+            return None
+        if time.monotonic() > deadline:
+            return f"/api/v1/readyz answered {status}: {body[:300]!r}"
+        time.sleep(2)
+
+
+#: Run inside ``--image`` once it serves, with its own code and settings: a
+#: connection from every pool of every cohort, each to its own cohort's
+#: database, and an object written, read back and removed through the storage
+#: uploads use. Prints what failed, one line each.
+_IN_THE_IMAGE = """
+import asyncio
+from sqlalchemy import text
+from app.core.config import settings
+from app.db import cohorts
+from app.services import storage
+
+
+async def pools():
+    kinds = {
+        "request": cohorts.request_sessionmaker,
+        "system": cohorts.system_sessionmaker,
+        "read": cohorts.read_sessionmaker,
+        "query": cohorts.query_sessionmaker,
+    }
+    for guild_id in range(cohorts.cohort_count()):
+        cohort = cohorts.cohort_of(guild_id)
+        for kind, maker in kinds.items():
+            try:
+                async with maker(guild_id)() as session:
+                    await session.execute(text("SELECT 1"))
+                    database = session.bind.url.database
+            except Exception as error:
+                print(f"cohort {cohort}'s {kind} pool: {error!r}")
+                continue
+            template = settings.DB_COHORT_DATABASE
+            if template and database != template.format(cohort=cohort):
+                print(f"cohort {cohort}'s {kind} pool connected to {database}")
+
+
+def objects():
+    store = storage.get_guild_storage(1)
+    key = "upgrade-from-release-probe"
+    try:
+        store.write(key, b"probe", content_type="text/plain")
+        blob = store.open_readable(key)
+        if blob is None:
+            print("storage: a written object reads back as missing")
+        else:
+            # Object storage streams it; local storage names the file.
+            if blob.stream is not None:
+                data = b"".join(blob.stream)
+            elif blob.path is not None:
+                data = blob.path.read_bytes()
+            else:
+                data = None
+            if data != b"probe":
+                print(f"storage: a written object reads back as {data!r}")
+        store.delete(key)
+    except Exception as error:
+        print(f"storage: {error!r}")
+
+
+asyncio.run(pools())
+objects()
+"""
+
+
+def _in_the_image(name: str) -> list[str]:
+    result = subprocess.run(
+        ["docker", "exec", "-u", f"{IMAGE_UID}:{IMAGE_UID}", name]
+        + ["python", "-c", _IN_THE_IMAGE],
+        capture_output=True,
+        text=True,
+    )
+    problems = result.stdout.splitlines()
+    if result.returncode != 0:
+        problems.append(f"the probe exited {result.returncode}: {result.stderr[-500:]}")
+    return problems
+
+
+def _serving(setup: Setup) -> list[str]:
     """Whatever ``--image`` does not serve that a deployment needs."""
-    problems = []
-    status, body = _get("/api/v1/readyz")
-    if status != 200:
-        problems.append(f"/api/v1/readyz answered {status}: {body[:300]!r}")
-    status, body = _get("/")
+    problems = [problem] if (problem := _ready(setup)) else []
+    status, body = _get("/", setup)
     if status != 200 or b'<div id="root">' not in body:
         problems.append(f"/ answered {status} without the web app")
     version = (REPO / "VERSION").read_text().strip()
-    status, body = _get("/api/v1/version")
+    status, body = _get("/api/v1/version", setup)
     if status != 200 or json.loads(body).get("version") != version:
         problems.append(
             f"/api/v1/version answered {status} {body[:200]!r}, not {version}"
         )
-    status, body = _get("/api/v1/native/bundle/manifest")
+    status, body = _get("/api/v1/native/bundle/manifest", setup)
     if status != 200 or json.loads(body).get("version") != version:
         problems.append(
             f"/api/v1/native/bundle/manifest answered {status} {body[:200]!r}, "
@@ -547,27 +849,31 @@ def _serving() -> list[str]:
 
 
 def _boot(
-    image: str, env: dict[str, str], *, current: bool = False, bootstrap: bool = False
+    image: str,
+    env: dict[str, str],
+    *,
+    setup: Setup | None = None,
+    bootstrap: bool = False,
 ) -> None:
     """Start ``image`` as a deployment does, wait until it answers, check what
-    it serves when it is this tree's, and stop it.
+    it serves when it is this tree's (``setup``), and stop it.
 
     Releases before 0.72 did not run the bootstrap when they started (their
     CI ran it as a step of its own), so they are given it first. It changes
     nothing where it has already run."""
-    image_env = (
-        "SECRET_KEY",
-        "APP_URL",
-        *(k for k in env if k.startswith("DATABASE_URL")),
-    )
-    env = {**env, "APP_URL": APP_URL}
-    if current:
-        image_env += ("PUID", "PGID", "MARKETPLACE_REGISTRY_URL")
-        env |= {
+    given = {"APP_URL": APP_URL}
+    if setup is not None:
+        given |= {
             "PUID": IMAGE_UID,
             "PGID": IMAGE_UID,
             "MARKETPLACE_REGISTRY_URL": OFFLINE_REGISTRY,
+            **setup.settings,
         }
+    env = {**env, **given}
+    image_env = (
+        "SECRET_KEY",
+        *(k for k in env if k.startswith("DATABASE_URL") or k in given),
+    )
     # The image binds its port once its migrations have run; until then,
     # anything else answering there would read as this boot.
     try:
@@ -590,7 +896,7 @@ def _boot(
     _docker("-d", "--name", name, image, env=env, image_env=image_env)
     try:
         _answering(name)
-        problems = _serving() if current else []
+        problems = [*_serving(setup), *_in_the_image(name)] if setup is not None else []
         if problems:
             subprocess.run(["docker", "logs", name])
             _fail(f"{image} booted, but does not serve what it should", problems)
@@ -616,11 +922,11 @@ def _boot_keeping_rows(
     image: str,
     env: dict[str, str],
     *,
-    current: bool = False,
+    setup: Setup | None = None,
     bootstrap: bool = False,
 ) -> None:
     before = asyncio.run(_row_counts(server))
-    _boot(image, env, current=current, bootstrap=bootstrap)
+    _boot(image, env, setup=setup, bootstrap=bootstrap)
     lost = _lost(before, asyncio.run(_row_counts(server)))
     if lost:
         _fail(f"Booting {label} lost rows it held", lost)
@@ -709,17 +1015,37 @@ def main() -> None:
                         cwd=REPO,
                     )
 
-    _boot_keeping_rows(
-        "the current tree", args.server, args.image, upgraded_env, current=True
-    )
-    _seed(BACKEND, sys.executable, upgraded_env)
+    with contextlib.ExitStack() as stack:
+        if args.one_url:
+            upgraded_setup = fresh_setup = Setup()
+        else:
+            tls = stack.enter_context(
+                _explicit_logins_services(
+                    {"upgraded": args.server, "fresh": args.fresh_server}
+                )
+            )
+            upgraded_setup = Setup(_explicit_logins("upgraded"), PROXIED_AT, tls)
+            fresh_setup = Setup(_explicit_logins("fresh"), PROXIED_AT, tls)
 
-    _boot(args.image, fresh_env, current=True)
-    _seed(BACKEND, sys.executable, fresh_env)
-    fresh = asyncio.run(_schemas(args.fresh_server))
-    _boot_keeping_rows(
-        "a fresh install again", args.fresh_server, args.image, fresh_env, current=True
-    )
+        _boot_keeping_rows(
+            "the current tree",
+            args.server,
+            args.image,
+            upgraded_env,
+            setup=upgraded_setup,
+        )
+        _seed(BACKEND, sys.executable, upgraded_env)
+
+        _boot(args.image, fresh_env, setup=fresh_setup)
+        _seed(BACKEND, sys.executable, fresh_env)
+        fresh = asyncio.run(_schemas(args.fresh_server))
+        _boot_keeping_rows(
+            "a fresh install again",
+            args.fresh_server,
+            args.image,
+            fresh_env,
+            setup=fresh_setup,
+        )
 
     problems = [
         *_restart_changes(fresh, asyncio.run(_schemas(args.fresh_server))),
