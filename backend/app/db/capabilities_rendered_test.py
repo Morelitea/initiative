@@ -36,6 +36,8 @@ from app.testing import (
 )
 from app.db.request_context import Platform
 
+pytestmark = pytest.mark.always
+
 
 def test_a_capability_is_spelled_as_the_tiers_holding_it():
     policy = Policy("p", SELECT, Capability.USERS_READ, using="true")

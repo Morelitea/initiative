@@ -28,6 +28,10 @@ import ast
 import re
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.always
+
 
 _APP_DIR = Path(__file__).resolve().parents[1]
 _BACKEND_DIR = _APP_DIR.parent

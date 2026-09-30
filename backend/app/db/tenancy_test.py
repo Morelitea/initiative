@@ -9,6 +9,7 @@ table would leak across tenants) breaks CI here.
 Pure metadata checks — no database required.
 """
 
+import pytest
 from sqlmodel import SQLModel
 
 from app.db import base  # noqa: F401  # populates SQLModel.metadata with every table
@@ -27,6 +28,8 @@ from app.db.tenancy import (
     is_initiative_scoped,
     is_shared,
 )
+
+pytestmark = pytest.mark.always
 
 
 def _metadata_tables() -> set[str]:

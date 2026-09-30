@@ -9,6 +9,7 @@ registered channels together.
 import re
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 from sqlmodel import select
 
@@ -77,6 +78,7 @@ def test_in_app_only_types_fall_back_to_the_general_channel():
     assert channel_for(None) == DEFAULT_CHANNEL
 
 
+@pytest.mark.always
 def test_channels_are_registered_by_the_android_app():
     """Every channel the backend routes to must be one the app creates on
     launch. A channel id the app never created is not an error anywhere — the
@@ -98,6 +100,7 @@ def test_channels_are_registered_by_the_android_app():
     )
 
 
+@pytest.mark.always
 def test_the_manifest_falls_back_to_a_channel_the_app_creates():
     """The web bundle updates over the air; channels ship with the APK.
 
