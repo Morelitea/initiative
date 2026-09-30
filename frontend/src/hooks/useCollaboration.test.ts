@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setAuthToken } from "@/api/client";
+
 import { useCollaboration } from "./useCollaboration";
 
 const calls: string[] = [];
@@ -63,6 +65,7 @@ describe("useCollaboration", () => {
     });
     const fetch = vi.fn(() => Promise.resolve({ ok: true } as Response));
     vi.stubGlobal("fetch", fetch);
+    setAuthToken("device", true);
 
     const { result, unmount } = renderHook(() =>
       useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => ({ a: 1 }) })
@@ -76,6 +79,8 @@ describe("useCollaboration", () => {
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("/api/v1/c/1/collaboration/documents/7/collaborate");
     expect(init.keepalive).toBe(true);
+    expect(init.headers).toMatchObject({ Authorization: "DeviceToken device" });
+    setAuthToken(null);
     expect(JSON.parse(init.body as string)).toEqual({
       update: "AQI=",
       state_vector: "Aw==",

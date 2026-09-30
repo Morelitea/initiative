@@ -30,22 +30,33 @@ function apiServerBase(): string {
 }
 
 /**
- * Resolve an `/api/v1/...` path for a request that can't carry an Authorization
- * header — a download served via iframe/window.open, or a `keepalive`/sendBeacon
- * POST fired on page unload. On native platforms, prepends the API server origin
- * and appends a SHORT-LIVED, uploads-scoped ?token= for auth (native WebViews
- * can't send Authorization headers or HttpOnly cookies). The long-lived session
- * JWT is never put in a URL — see {@link getUploadToken}. On web, returns the API
- * path as-is (same-origin, the HttpOnly session cookie handles auth — send the
- * request with `credentials: "include"`).
+ * Resolve an `/api/v1/...` path for a request made outside the API client (a
+ * `fetch`). On native platforms, prepends the API server origin; on web,
+ * returns the path as-is (same-origin).
+ */
+export function resolveApiUrl(apiPath: string): string {
+  if (!Capacitor.isNativePlatform()) {
+    return apiPath;
+  }
+  const origin = apiServerBase();
+  return origin ? `${origin}${apiPath}` : apiPath;
+}
+
+/**
+ * Resolve an `/api/v1/...` path for a GET that can't carry an Authorization
+ * header — a download served via iframe/window.open. On native platforms,
+ * prepends the API server origin and appends a SHORT-LIVED, uploads-scoped
+ * ?token= for auth (native WebViews can't send Authorization headers or
+ * HttpOnly cookies on these). The long-lived session JWT is never put in a
+ * URL — see {@link getUploadToken}. On web, returns the API path as-is
+ * (same-origin, the HttpOnly session cookie handles auth).
  */
 export function resolveHeaderlessApiUrl(apiPath: string): string {
   if (!Capacitor.isNativePlatform()) {
     return apiPath;
   }
 
-  const origin = apiServerBase();
-  const resolved = origin ? `${origin}${apiPath}` : apiPath;
+  const resolved = resolveApiUrl(apiPath);
   const token = getUploadToken();
   if (token) {
     const sep = resolved.includes("?") ? "&" : "?";

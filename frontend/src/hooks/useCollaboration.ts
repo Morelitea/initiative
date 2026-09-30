@@ -14,8 +14,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import { getAuthHeaders } from "@/api/client";
 import { toBase64 } from "@/lib/base64";
-import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
+import { resolveApiUrl } from "@/lib/uploadUrl";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
@@ -157,10 +158,10 @@ export function useCollaboration({
     };
     let body = JSON.stringify({ ...edits, content: rendering ?? null });
     if (body.length > KEEPALIVE_LIMIT) body = JSON.stringify(edits);
-    fetch(resolveHeaderlessApiUrl(path), {
+    fetch(resolveApiUrl(path), {
       method: "POST",
       body,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       credentials: "include",
       keepalive: body.length <= KEEPALIVE_LIMIT,
     })
