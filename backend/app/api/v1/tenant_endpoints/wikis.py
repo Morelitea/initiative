@@ -63,6 +63,7 @@ from app.schemas.tenant.wiki import (
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant.collaboration import collaboration_manager
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
@@ -563,6 +564,19 @@ async def update_wiki_page(
         session, wiki_id, page_id, current_user, guild_context, access="write"
     )
     data = page_in.model_dump(exclude_unset=True)
+    content_updated = "content" in data and data["content"] is not None
+    # A page with a live collaboration room has that room as the writer of its
+    # content, as a document's does: its editors report their rendering over
+    # their own sockets, so a body arriving here is from a tab outside the
+    # session and is refused rather than saved over. A patch with no body (a
+    # rename, a draft flag, tags) still applies.
+    if content_updated and collaboration_manager.has_active_collaborators(
+        guild_context.guild_id, SearchEntityType.wiki_page.value, page.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=WikiMessages.LIVE_SESSION_OWNS_CONTENT,
+        )
 
     if "is_draft" in data and data["is_draft"] is not None:
         page.is_draft = data["is_draft"]
@@ -573,8 +587,11 @@ async def update_wiki_page(
             page.slug = await wikis_service.unique_page_slug(
                 session, page.wiki_id, title, exclude_page_id=page.id
             )
-    if "content" in data and data["content"] is not None:
+    if content_updated:
         page.content = data["content"]
+        # No room is live, so this edit is newer than any stored Yjs state.
+        # Clearing it makes the next session start from this content.
+        page.yjs_state = None
 
     session.add(page)
     await session.flush()
@@ -596,6 +613,12 @@ async def update_wiki_page(
         )
     await attachments_service.claim_uploads(session, page)
     await session.commit()
+    if content_updated:
+        # A room left in memory would still hold the state from before this
+        # edit; dropping it makes the next session load from the database.
+        await collaboration_manager.invalidate_room_if_empty(
+            guild_context.guild_id, SearchEntityType.wiki_page.value, page.id
+        )
     await session.refresh(page)
     await tags_service.annotate_tags(session, [page])
     return serialize_wiki_page(page, context=guild_context)
