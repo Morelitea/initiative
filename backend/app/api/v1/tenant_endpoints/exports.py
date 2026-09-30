@@ -204,6 +204,11 @@ async def export_events(
     property_filters: Optional[str] = Query(
         default=None, description="Same JSON property filters as the event list"
     ),
+    tz: Optional[str] = Query(
+        default=None,
+        max_length=64,
+        description="IANA timezone the events' dates and repeats are read in",
+    ),
 ) -> Union[Response, JSONResponse]:
     """Export calendar events (the same visibility and filters as ``GET
     /calendar-events/``) as one iCalendar file, every date included. Small
@@ -221,6 +226,7 @@ async def export_events(
             "calendar_ids": calendar_ids,
             "exclude_calendar_ids": exclude_calendar_ids,
             "property_filters": property_filters,
+            "tz": tz,
         },
     )
     return _export_response(result, guild_context)

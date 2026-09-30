@@ -384,7 +384,7 @@ async def parse_ical_file(
 ) -> ICalParseResult:
     """Parse an .ics file and return a preview of found events."""
     try:
-        result = ical_service.parse_ical(body.ics_content)
+        result = ical_service.parse_ical(body.ics_content, body.tz)
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -417,6 +417,7 @@ async def import_ical_events(
             calendar_id=calendar.id,
             guild_id=guild_context.guild_id,
             created_by=current_user.id,
+            tz=body.tz,
         )
     except Exception:
         raise HTTPException(

@@ -5,7 +5,7 @@ Handles conversion between CalendarEvent models and iCalendar format.
 
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from typing import List, Optional, Sequence, Tuple
 
 import icalendar
@@ -13,10 +13,12 @@ import icalendar
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import Related
+from app.core.user_input_validators import resolve_zone
 from app.models.tenant.calendar_event import CalendarEvent
 from app.schemas.tenant.calendar_event import EventRecurrence
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
 from app.services.export.property_values import property_export_dict
+from app.services.tenant.recurrence import WEEKDAY_NAMES
 from app.core.user_display import display_name
 
 logger = logging.getLogger(__name__)
@@ -31,7 +33,18 @@ _POSITION_MAP = {
 }
 _POSITION_REVERSE = {v: k for k, v in _POSITION_MAP.items()}
 
+# Weekday mapping: app name ("monday") <-> RRULE BYDAY code ("MO")
+_WEEKDAY_BY_CODE = {name[:2].upper(): name for name in WEEKDAY_NAMES}
+# Export also accepts a code, the form imports stored before they mapped it
+_BYDAY_CODE = {
+    **{name: code for code, name in _WEEKDAY_BY_CODE.items()},
+    **{code.lower(): code for code in _WEEKDAY_BY_CODE},
+}
+
 # RSVP status mapping: app -> iCal PARTSTAT
+# The last second of a day: an all-day event's end, a repeat's last day
+_END_OF_DAY = time(23, 59, 59)
+
 _RSVP_TO_PARTSTAT = {
     "pending": "NEEDS-ACTION",
     "accepted": "ACCEPTED",
@@ -45,9 +58,13 @@ _RSVP_TO_PARTSTAT = {
 # ---------------------------------------------------------------------------
 
 
-def _recurrence_to_rrule(recurrence: Optional[dict]) -> Optional[dict]:
+def _recurrence_to_rrule(
+    recurrence: Optional[dict], start: datetime, all_day: bool
+) -> Optional[dict]:
     """Convert a parsed recurrence dict (EventRecurrence shape) to an RRULE
-    dict for icalendar."""
+    dict for icalendar, against the event's start in the export's zone. Each
+    field is written only for the frequencies the recurrence engine reads it
+    for, since the form keeps the others."""
     if not recurrence:
         return None
     try:
@@ -60,35 +77,37 @@ def _recurrence_to_rrule(recurrence: Optional[dict]) -> Optional[dict]:
     if rec.interval and rec.interval > 1:
         rule["INTERVAL"] = [rec.interval]
 
-    if rec.weekdays:
-        rule["BYDAY"] = rec.weekdays
+    if rec.frequency == "weekly" and rec.weekdays:
+        codes = [_BYDAY_CODE.get(day.lower()) for day in rec.weekdays]
+        if codes := [code for code in codes if code]:
+            rule["BYDAY"] = codes
 
-    if rec.monthly_mode == "weekday" and rec.weekday_position and rec.weekday:
-        pos = _POSITION_MAP.get(rec.weekday_position)
-        if pos is not None:
-            rule["BYDAY"] = [f"{pos}{rec.weekday.upper()}"]
+    if rec.frequency in ("monthly", "yearly"):
+        if rec.monthly_mode == "weekday" and rec.weekday_position and rec.weekday:
+            pos = _POSITION_MAP.get(rec.weekday_position)
+            code = _BYDAY_CODE.get(rec.weekday.lower())
+            if pos is not None and code:
+                rule["BYDAY"] = [f"{pos}{code}"]
+        elif rec.monthly_mode == "day_of_month" and rec.day_of_month:
+            rule["BYMONTHDAY"] = [rec.day_of_month]
 
-    if rec.monthly_mode == "day_of_month" and rec.day_of_month:
-        rule["BYMONTHDAY"] = [rec.day_of_month]
-
-    if rec.month:
-        rule["BYMONTH"] = [rec.month]
+    # A yearly BYDAY or BYMONTHDAY without BYMONTH repeats in every month;
+    # the engine falls back to the start's month, so the rule names it.
+    if rec.frequency == "yearly":
+        rule["BYMONTH"] = [rec.month or start.month]
 
     if rec.ends == "on_date" and rec.end_date:
-        if isinstance(rec.end_date, datetime):
-            rule["UNTIL"] = [rec.end_date.astimezone(timezone.utc)]
-        else:
-            rule["UNTIL"] = [
-                datetime(
-                    rec.end_date.year,
-                    rec.end_date.month,
-                    rec.end_date.day,
-                    23,
-                    59,
-                    59,
-                    tzinfo=timezone.utc,
-                )
-            ]
+        # The form stores a picked day as its midnight with no zone; the last
+        # repeat falls on that day, inclusive.
+        end = rec.end_date
+        last_day = (end.astimezone(start.tzinfo) if end.tzinfo else end).date()
+        rule["UNTIL"] = [
+            last_day
+            if all_day
+            else datetime.combine(last_day, _END_OF_DAY, start.tzinfo).astimezone(
+                timezone.utc
+            )
+        ]
 
     if rec.ends == "after_occurrences" and rec.end_after_occurrences:
         rule["COUNT"] = [rec.end_after_occurrences]
@@ -160,10 +179,14 @@ def _dt(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def ical_from_export_dicts(events: List[dict]) -> bytes:
+def ical_from_export_dicts(events: List[dict], tz: Optional[str] = None) -> bytes:
     """Serialize event export dicts (``event_export_dict`` shape) to iCal
     bytes — the render half of the split, callable from the export engine's
-    worker replay where only JSON survives."""
+    worker replay where only JSON survives.
+
+    Times are written in ``tz``, the zone the exporter plans in: the form
+    picks an all-day event's days and a repeat's weekdays in that zone."""
+    zone = resolve_zone(tz)
     cal = icalendar.Calendar()
     cal.add("prodid", "-//Initiative//EN")
     cal.add("version", "2.0")
@@ -174,14 +197,19 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
         vevent.add("uid", f"event-{event.get('id')}@initiative")
         vevent.add("summary", event.get("title") or "")
 
-        start_at = _dt(event["start_at"])
-        end_at = _dt(event["end_at"])
-        if event.get("all_day"):
-            vevent.add("dtstart", start_at.date())
-            vevent.add("dtend", end_at.date())
+        start_at = _dt(event["start_at"]).astimezone(zone)
+        end_at = _dt(event["end_at"]).astimezone(zone)
+        all_day = bool(event.get("all_day"))
+        if all_day:
+            # An all-day event runs to its last day's 23:59:59; DTEND is the
+            # day after, exclusive.
+            start_day = start_at.date()
+            last_day = max((end_at - timedelta(seconds=1)).date(), start_day)
+            vevent.add("dtstart", start_day)
+            vevent.add("dtend", last_day + timedelta(days=1))
         else:
-            vevent.add("dtstart", start_at.astimezone(timezone.utc))
-            vevent.add("dtend", end_at.astimezone(timezone.utc))
+            vevent.add("dtstart", start_at)
+            vevent.add("dtend", end_at)
 
         if event.get("description"):
             vevent.add("description", event["description"])
@@ -195,7 +223,7 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
                 "last-modified", _dt(event["updated_at"]).astimezone(timezone.utc)
             )
 
-        rrule = _recurrence_to_rrule(event.get("recurrence"))
+        rrule = _recurrence_to_rrule(event.get("recurrence"), start_at, all_day)
         if rrule:
             vevent.add("rrule", rrule)
 
@@ -213,6 +241,7 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
 
         cal.add_component(vevent)
 
+    cal.add_missing_timezones()
     return cal.to_ical()
 
 
@@ -248,50 +277,46 @@ async def documents_for_events(
 # ---------------------------------------------------------------------------
 
 
-def _rrule_to_recurrence(rrule) -> Optional[dict]:
-    """Convert an iCal RRULE to our EventRecurrence JSON dict. Best-effort."""
+def _rrule_to_recurrence(rrule, zone: tzinfo) -> Optional[dict]:
+    """Convert an iCal RRULE to our EventRecurrence JSON dict. Best-effort:
+    parts the model has no field for are dropped, and a rule the model
+    refuses (an hourly frequency, an interval past its bound) imports as a
+    single event."""
     try:
-        freq = rrule.get("FREQ", [None])[0]
-        if not freq:
-            return None
-        freq_lower = freq.lower() if isinstance(freq, str) else freq
-
-        rec: dict = {"frequency": freq_lower}
+        freq = str(rrule.get("FREQ", [""])[0]).lower()
+        rec: dict = {"frequency": freq}
 
         interval = rrule.get("INTERVAL", [1])
         if interval and interval[0] > 1:
             rec["interval"] = interval[0]
 
-        byday = rrule.get("BYDAY", [])
-        if byday:
-            days = []
-            for d in byday:
-                day_str = str(d)
-                if len(day_str) > 2:
-                    pos_str = day_str[:-2]
-                    weekday = day_str[-2:]
-                    try:
-                        pos_num = int(pos_str)
-                        pos_name = _POSITION_REVERSE.get(pos_num)
-                        if pos_name:
-                            rec["monthly_mode"] = "weekday"
-                            rec["weekday_position"] = pos_name
-                            rec["weekday"] = weekday.upper()
-                    except ValueError:
-                        days.append(day_str.upper())
-                else:
-                    days.append(day_str.upper())
+        byday = [str(day).upper() for day in rrule.get("BYDAY", [])]
+        if freq == "weekly":
+            days = [_WEEKDAY_BY_CODE[day] for day in byday if day in _WEEKDAY_BY_CODE]
             if days:
                 rec["weekdays"] = days
-
-        bymonthday = rrule.get("BYMONTHDAY", [])
-        if bymonthday:
-            rec["monthly_mode"] = "day_of_month"
-            rec["day_of_month"] = bymonthday[0]
-
-        bymonth = rrule.get("BYMONTH", [])
-        if bymonth:
-            rec["month"] = bymonth[0]
+        elif freq in ("monthly", "yearly"):
+            # "The second Monday" is BYDAY=2MO, or BYDAY=MO;BYSETPOS=2.
+            setpos = rrule.get("BYSETPOS", [])
+            if len(byday) == 1:
+                weekday = _WEEKDAY_BY_CODE.get(byday[0][-2:])
+                prefix = byday[0][:-2] or (str(setpos[0]) if len(setpos) == 1 else "")
+                try:
+                    position = _POSITION_REVERSE.get(int(prefix))
+                except ValueError:
+                    position = None
+                if weekday and position:
+                    rec["monthly_mode"] = "weekday"
+                    rec["weekday_position"] = position
+                    rec["weekday"] = weekday
+            bymonthday = rrule.get("BYMONTHDAY", [])
+            if "monthly_mode" not in rec and len(bymonthday) == 1:
+                if 1 <= bymonthday[0] <= 31:
+                    rec["monthly_mode"] = "day_of_month"
+                    rec["day_of_month"] = bymonthday[0]
+            bymonth = rrule.get("BYMONTH", [])
+            if freq == "yearly" and len(bymonth) == 1:
+                rec["month"] = bymonth[0]
 
         count = rrule.get("COUNT", [])
         if count:
@@ -300,29 +325,23 @@ def _rrule_to_recurrence(rrule) -> Optional[dict]:
 
         until = rrule.get("UNTIL", [])
         if until:
+            # Stored the way the form stores a picked day: its midnight, no zone.
+            last = until[0]
+            if isinstance(last, datetime):
+                last = (last.astimezone(zone) if last.tzinfo else last).date()
             rec["ends"] = "on_date"
-            end_val = until[0]
-            if isinstance(end_val, datetime):
-                rec["end_date"] = end_val.isoformat()
-            elif isinstance(end_val, date):
-                rec["end_date"] = datetime(
-                    end_val.year,
-                    end_val.month,
-                    end_val.day,
-                    tzinfo=timezone.utc,
-                ).isoformat()
+            rec["end_date"] = datetime.combine(last, time())
 
-        if "ends" not in rec:
-            rec["ends"] = "never"
-
-        return rec
+        return EventRecurrence(**rec).model_dump(mode="json", exclude_none=True)
     except Exception:
         logger.warning("Failed to convert RRULE to recurrence", exc_info=True)
         return None
 
 
-def _extract_vevent(component) -> Optional[dict]:
-    """Extract event data from a VEVENT component."""
+def _extract_vevent(component, zone: tzinfo) -> Optional[dict]:
+    """Extract event data from a VEVENT component. Dates and floating times
+    are read in ``zone``, the importer's; an all-day event is stored the way
+    the form stores one, first midnight to last 23:59:59."""
     summary = str(component.get("summary", "Untitled Event"))
     dtstart = component.get("dtstart")
     dtend = component.get("dtend")
@@ -331,37 +350,22 @@ def _extract_vevent(component) -> Optional[dict]:
         return None
 
     start_val = dtstart.dt
+    end_val = dtend.dt if dtend else start_val
     all_day = isinstance(start_val, date) and not isinstance(start_val, datetime)
 
     if all_day:
-        start_dt = datetime(
-            start_val.year,
-            start_val.month,
-            start_val.day,
-            tzinfo=timezone.utc,
-        )
-        if dtend:
-            end_val = dtend.dt
-            end_dt = datetime(
-                end_val.year,
-                end_val.month,
-                end_val.day,
-                tzinfo=timezone.utc,
-            )
-        else:
-            end_dt = start_dt
+        if isinstance(end_val, datetime):
+            end_val = end_val.date()
+        # DTEND is exclusive: the last day is the one before it.
+        last_day = max(end_val - timedelta(days=1), start_val)
+        start_dt = datetime.combine(start_val, time(), zone)
+        end_dt = datetime.combine(last_day, _END_OF_DAY, zone)
     else:
-        start_dt = (
-            start_val if start_val.tzinfo else start_val.replace(tzinfo=timezone.utc)
-        )
-        if dtend:
-            end_val = dtend.dt
-            end_dt = end_val if end_val.tzinfo else end_val.replace(tzinfo=timezone.utc)
-        else:
-            end_dt = start_dt
+        start_dt = start_val if start_val.tzinfo else start_val.replace(tzinfo=zone)
+        end_dt = end_val if end_val.tzinfo else end_val.replace(tzinfo=zone)
 
     rrule = component.get("rrule")
-    recurrence = _rrule_to_recurrence(rrule) if rrule else None
+    recurrence = _rrule_to_recurrence(rrule, zone) if rrule else None
 
     return {
         "summary": summary,
@@ -374,8 +378,9 @@ def _extract_vevent(component) -> Optional[dict]:
     }
 
 
-def parse_ical(content: str) -> ICalParseResult:
+def parse_ical(content: str, tz: Optional[str] = None) -> ICalParseResult:
     """Parse an .ics string and return a preview of found events."""
+    zone = resolve_zone(tz)
     cal = icalendar.Calendar.from_ical(content)
     events: List[ICalEventPreview] = []
     has_recurring = False
@@ -383,7 +388,7 @@ def parse_ical(content: str) -> ICalParseResult:
     for component in cal.walk():
         if component.name != "VEVENT":
             continue
-        data = _extract_vevent(component)
+        data = _extract_vevent(component, zone)
         if not data:
             continue
         has_rec = data["recurrence"] is not None
@@ -411,12 +416,14 @@ def build_calendar_events(
     calendar_id: int,
     guild_id: int,
     created_by: int,
+    tz: Optional[str] = None,
 ) -> Tuple[List[CalendarEvent], List[str], int]:
     """Parse .ics content and build CalendarEvent model instances attached to
     the target calendar.
 
     Returns (events, errors, skipped_count). Does NOT persist — caller handles that.
     """
+    zone = resolve_zone(tz)
     cal = icalendar.Calendar.from_ical(content)
     events: List[CalendarEvent] = []
     errors: List[str] = []
@@ -426,7 +433,7 @@ def build_calendar_events(
         if component.name != "VEVENT":
             continue
         try:
-            data = _extract_vevent(component)
+            data = _extract_vevent(component, zone)
             if not data:
                 errors.append("Skipped event with no start date")
                 skipped += 1

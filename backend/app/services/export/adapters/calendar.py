@@ -155,7 +155,9 @@ class CalendarAdapter(ToolExportAdapter):
         )
 
     def item(self, calendar: Calendar, ctx: BuildContext, /) -> RenderItem:
-        return build_calendar_item(calendar, ctx.format, ctx.date, ctx.prepared)
+        return build_calendar_item(
+            calendar, ctx.format, ctx.date, ctx.prepared, tz=str(ctx.now.tzinfo)
+        )
 
 
 def _is_selection(params: dict) -> bool:
@@ -169,6 +171,7 @@ def build_calendar_item(
     format: str,
     date: str,
     documents: dict[int, list] | None = None,
+    tz: str | None = None,
 ) -> RenderItem:
     """One render item per calendar: an ``ics`` VCALENDAR or an importable
     ``initiative-calendar`` JSON envelope, both carrying every event."""
@@ -189,7 +192,7 @@ def build_calendar_item(
     stem = export_stem(calendar.name, date)
     return RenderItem(
         key=stem,
-        data={"layout": "ical", "events": dicts},
+        data={"layout": "ical", "events": dicts, "tz": tz},
         filename=f"{stem}.ics",
     )
 

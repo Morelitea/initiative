@@ -15,6 +15,7 @@ import zipfile
 import zlib
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from typing import Any
 
@@ -41,6 +42,7 @@ from app.services import storage as storage_module
 from app.services.export import worker as export_worker
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.storage import get_guild_storage
+from app.services.tenant import ical_service
 from app.testing import create_resource_grant, route_session_to_guild
 from app.testing.factories import (
     assign_tag,
@@ -1919,19 +1921,49 @@ async def _events_enabled(session, initiative):
 
 
 async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, session):
-    """A calendar exports as one multi-event iCalendar file (RRULE preserved)
-    or one importable envelope carrying the calendar plus every event."""
+    """A calendar exports as one multi-event iCalendar file (RRULE preserved,
+    and read back by the ics import) or one importable envelope carrying the
+    calendar plus every event. Both sides read dates and weekdays in the
+    requester's zone, the one the form picked them in."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Raid Nights")
+    berlin = ZoneInfo("Europe/Berlin")
+    # Monday 00:30 in Berlin is still Sunday in UTC.
+    session_start = datetime(2026, 10, 5, 0, 30, tzinfo=berlin)
     recurring_event = await create_calendar_event(
         session,
         calendar,
         a.user,
         title="Session 13",
+        start_at=session_start,
+        end_at=session_start + timedelta(hours=3),
         description="Return to the castle",
         location="Roll20",
-        recurrence='{"frequency": "weekly", "interval": 1, "ends": "never"}',
+        # "WE" is the form earlier imports stored a weekday in.
+        recurrence=json.dumps(
+            {"frequency": "weekly", "weekdays": ["monday", "WE"], "ends": "never"}
+        ),
+    )
+    await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        title="Guild meeting",
+        # All day on Monday 12 October, stored the way the form stores it.
+        all_day=True,
+        start_at=datetime(2026, 10, 12, tzinfo=berlin),
+        end_at=datetime(2026, 10, 12, 23, 59, 59, tzinfo=berlin),
+        recurrence=json.dumps(
+            {
+                "frequency": "monthly",
+                "monthly_mode": "weekday",
+                "weekday_position": "second",
+                "weekday": "monday",
+                "ends": "on_date",
+                "end_date": "2026-12-14",
+            }
+        ),
     )
     definition = await create_property_definition(session, a.initiative, name="Table")
     await create_calendar_event_property_value(
@@ -1940,12 +1972,43 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     await create_calendar_event(session, calendar, a.user, title="One-shot night")
 
     body = _assert_export(
-        await _export(client, a, "calendar", format="ics"),
+        await _export(client, a, "calendar", format="ics", tz="Europe/Berlin"),
         "ics",
         disposition=('filename="raid_nights-',),
-        present=("SUMMARY:Session 13", "RRULE:FREQ=WEEKLY", "LOCATION:Roll20"),
+        present=(
+            "SUMMARY:Session 13",
+            "DTSTART;TZID=Europe/Berlin:20261005T003000",
+            "BEGIN:VTIMEZONE",
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,WE",
+            "DTSTART;VALUE=DATE:20261012",
+            "DTEND;VALUE=DATE:20261013",
+            "RRULE:FREQ=MONTHLY;UNTIL=20261214;BYDAY=2MO",
+            "LOCATION:Roll20",
+        ),
     )
-    assert body.count("BEGIN:VEVENT") == 2
+    assert body.count("BEGIN:VEVENT") == 3
+    imported, errors, _ = ical_service.build_calendar_events(
+        body, calendar.id, a.guild.id, a.user.id, tz="Europe/Berlin"
+    )
+    assert errors == []
+    by_title = {event.title: event for event in imported}
+    assert by_title["Session 13"].start_at == session_start
+    meeting = by_title["Guild meeting"]
+    assert (meeting.start_at, meeting.end_at) == (
+        datetime(2026, 10, 12, tzinfo=berlin),
+        datetime(2026, 10, 12, 23, 59, 59, tzinfo=berlin),
+    )
+    recurrences = {e.title: json.loads(e.recurrence or "null") for e in imported}
+    assert recurrences["Session 13"]["weekdays"] == ["monday", "wednesday"]
+    assert recurrences["Guild meeting"] == {
+        "frequency": "monthly",
+        "interval": 1,
+        "monthly_mode": "weekday",
+        "weekday_position": "second",
+        "weekday": "monday",
+        "ends": "on_date",
+        "end_date": "2026-12-14T00:00:00",
+    }
 
     js = await _export(client, a, "calendar", format="json")
     envelope = json.loads(_assert_export(js, "json"))
@@ -1953,7 +2016,7 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
     assert envelope["schema_version"] == 1
     assert envelope["name"] == "Raid Nights"
     titles = {e["title"] for e in envelope["events"]}
-    assert titles == {"Session 13", "One-shot night"}
+    assert titles == {"Session 13", "Guild meeting", "One-shot night"}
     recurring = next(e for e in envelope["events"] if e["title"] == "Session 13")
     assert recurring["recurrence"]["frequency"] == "weekly"
     assert recurring["description"] == "Return to the castle"
@@ -2030,10 +2093,12 @@ async def test_calendar_export_applies_calendar_sharing(
 
     # The events export is a formatted read: what b can see, and nothing more.
     body = _assert_export(
-        await _export(client, a, "events", headers=b.headers, format="ics"),
+        await _export(
+            client, a, "events", headers=b.headers, format="ics", tz="Asia/Tokyo"
+        ),
         "ics",
         disposition=('filename="events.ics"',),
-        present=("SUMMARY:Their session", "SUMMARY:Read only"),
+        present=("SUMMARY:Their session", "SUMMARY:Read only", "TZID=Asia/Tokyo"),
         absent=("SUMMARY:Hidden",),
     )
     assert body.count("BEGIN:VEVENT") == 2
