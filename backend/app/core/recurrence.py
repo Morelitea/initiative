@@ -318,10 +318,17 @@ def rehomed(
     new_start: datetime,
 ) -> datetime:
     """An occurrence of a series whose start moved: the same picked day, at
-    the new start's time of day. A rule of hours has several a day, so each
-    moves by as much as the start did."""
+    the new start's time of day. A rule of named hours keeps its hour and takes
+    the new start's minute; a rule of every so many hours moves each start by
+    as much as the first moved."""
     rule = parse(text).rule
-    if rule["FREQ"][0] == "HOURLY" or "BYHOUR" in rule:
+    if "BYHOUR" in rule:
+        local = value.astimezone(timezone.utc) + timedelta(minutes=old_shift)
+        anchor = new_start.astimezone(timezone.utc) + timedelta(minutes=new_shift)
+        return local.replace(
+            minute=anchor.minute, second=anchor.second, microsecond=0
+        ) - timedelta(minutes=new_shift)
+    if rule["FREQ"][0] == "HOURLY":
         return value.astimezone(timezone.utc) + (new_start - old_start)
     day = (value.astimezone(timezone.utc) + timedelta(minutes=old_shift)).date()
     new = timedelta(minutes=new_shift)

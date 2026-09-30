@@ -1213,14 +1213,30 @@ async def delete_calendar_event(
         scope = scope or "this"
     else:
         at = occurrence
+    if scope in ("following", "all") and event.recurrence:
+        # Everyone whose meeting goes: the series', and each occurrence's own
+        # from the one named on.
+        told_ids = [event.id] + [
+            override.id
+            for override in await occurrences_service.overrides(session, event)
+            if scope == "all"
+            or at is None
+            or (
+                override.original_start is not None
+                and override.original_start.astimezone(timezone.utc)
+                >= at.astimezone(timezone.utc)
+            )
+        ]
+    else:
+        told_ids = [told.id]
     # A declined attendee already isn't attending, so skip the cancellation
     # notice for them (consistent with update/reminder notifications).
-    cancel_ids = [
-        attendee.user_id
-        for attendee in told.attendees
-        if attendee.user_id
-        and attendee.user_id != current_user.id
-        and attendee.rsvp_status != RSVPStatus.declined
+    cancel_ids: list[int | None] = [
+        user_id
+        for user_id, answer in (
+            await occurrences_service.attendees_of(session, told_ids)
+        ).items()
+        if user_id != current_user.id and answer != RSVPStatus.declined
     ]
 
     async def tell(when: datetime | None = None) -> None:

@@ -86,14 +86,13 @@ def differences(override: CalendarEvent, series: CalendarEvent) -> set[str]:
 
 
 async def remark(session: AsyncSession, override: CalendarEvent) -> None:
-    """Record what the override now changes: the fields that differ from its
-    series, and the lists it was given its own of."""
+    """Record what the override now changes: the fields it differs from its
+    series in. What it already owns it keeps, even where the series comes to
+    say the same; only a change for the series hands it back (``unmark``)."""
     series = await session.get(CalendarEvent, override.series_id)
     if series is None:
         return
-    override.overridden_fields = sorted(
-        (set(override.overridden_fields) & set(LISTS)) | differences(override, series)
-    )
+    mark(override, differences(override, series))
     session.add(override)
 
 
@@ -108,6 +107,23 @@ async def overrides(
             )
         ).all()
     )
+
+
+async def attendees_of(
+    session: AsyncSession, event_ids: Iterable[int]
+) -> dict[int, RSVPStatus]:
+    """Everyone attending any of the events, with an answer: declined only
+    where they declined all of them."""
+    found: dict[int, RSVPStatus] = {}
+    rows = await session.exec(
+        select(CalendarEventAttendee).where(
+            CalendarEventAttendee.calendar_event_id.in_(sorted(set(event_ids)))
+        )
+    )
+    for row in rows.all():
+        if found.get(row.user_id) in (None, RSVPStatus.declined):
+            found[row.user_id] = row.rsvp_status
+    return found
 
 
 async def changed_starts(

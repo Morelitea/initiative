@@ -201,10 +201,19 @@ def test_a_series_splits_skips_and_takes_extra_starts():
     assert recurrence.skipped(extra, 0, datetime(2026, 10, 7, 9, tzinfo=UTC)) == rule
     assert recurrence.occurs(rule, start, 0, second)
     assert not recurrence.occurs(rule, start, 0, second + timedelta(hours=1))
-    # An hourly series moved half an hour moves each start by as much, rather
-    # than every start of a day to one time.
-    hourly = "RRULE:FREQ=HOURLY;BYHOUR=9,17"
+    # Every four hours, moved half an hour: each start moves by as much, rather
+    # than every start of a day to one time. At named hours, each keeps its
+    # hour and takes the new minute.
     later = start + timedelta(minutes=30)
     assert recurrence.rehomed(
-        hourly, start + timedelta(hours=8), 0, 0, start, later
+        "RRULE:FREQ=HOURLY;INTERVAL=4", start + timedelta(hours=8), 0, 0, start, later
     ) == start + timedelta(hours=8, minutes=30)
+    nine = datetime(2026, 10, 5, 9, tzinfo=UTC)
+    assert recurrence.rehomed(
+        "RRULE:FREQ=DAILY;BYHOUR=9,17",
+        nine + timedelta(hours=8),
+        0,
+        0,
+        nine,
+        nine + timedelta(hours=2, minutes=30),
+    ) == nine + timedelta(hours=8, minutes=30)
