@@ -11096,16 +11096,6 @@ export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams = {
   user_id?: number[] | null;
 };
 
-export type HandOverDocumentEditsApiV1CGuildIdCollaborationDocumentsDocumentIdCollaboratePostParams =
-  {
-    token?: string | null;
-  };
-
-export type HandOverWikiPageEditsApiV1CGuildIdCollaborationWikisWikiIdPagesPageIdCollaboratePostParams =
-  {
-    token?: string | null;
-  };
-
 export type ListMyTasksApiV1MeTasksGetParams = {
   conditions?: (FilterCondition | FilterGroup)[];
   /**

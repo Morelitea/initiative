@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { apiClient } from "@/api/client";
+
 import { useCollaboration } from "./useCollaboration";
 
 const calls: string[] = [];
@@ -31,6 +33,7 @@ describe("useCollaboration", () => {
     provider.connected = true;
     provider.unsentEdits.mockReturnValue(null);
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("hands the room the last rendering before the socket closes", () => {
@@ -61,8 +64,7 @@ describe("useCollaboration", () => {
       update: new Uint8Array([1, 2]),
       stateVector: new Uint8Array([3]),
     });
-    const fetch = vi.fn(() => Promise.resolve({ ok: true } as Response));
-    vi.stubGlobal("fetch", fetch);
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
 
     const { result, unmount } = renderHook(() =>
       useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => ({ a: 1 }) })
@@ -72,11 +74,11 @@ describe("useCollaboration", () => {
     });
     unmount();
 
-    expect(fetch).toHaveBeenCalledTimes(1);
-    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/api/v1/c/1/collaboration/documents/7/collaborate");
-    expect(init.keepalive).toBe(true);
-    expect(JSON.parse(init.body as string)).toEqual({
+    expect(post).toHaveBeenCalledTimes(1);
+    const [url, body, config] = post.mock.calls[0];
+    expect(url).toBe("/c/1/collaboration/documents/7/collaborate");
+    expect(config).toMatchObject({ adapter: "fetch", fetchOptions: { keepalive: true } });
+    expect(JSON.parse(body as string)).toEqual({
       update: "AQI=",
       state_vector: "Aw==",
       content: { a: 1 },
