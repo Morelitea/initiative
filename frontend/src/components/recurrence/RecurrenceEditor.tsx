@@ -23,6 +23,7 @@ import {
   detectRecurrencePreset,
   getReferenceDate,
   type MonthlyMode,
+  maxOccurrences,
   type RecurrenceFrequency,
   type RecurrencePreset,
   type RecurrenceRule,
@@ -459,14 +460,14 @@ export const RecurrenceEditor = ({
               <Input
                 type="number"
                 min={1}
-                max={10000}
-                value={rule.end_after_occurrences ?? 5}
+                max={maxOccurrences(rule)}
+                value={Math.min(rule.end_after_occurrences ?? 5, maxOccurrences(rule))}
                 onChange={(event) =>
                   onChange({
                     ...rule,
                     end_after_occurrences: Math.max(
                       1,
-                      Math.min(10000, Number(event.target.value) || 1)
+                      Math.min(maxOccurrences(rule), Number(event.target.value) || 1)
                     ),
                   })
                 }

@@ -54,6 +54,13 @@ describe("toRRule", () => {
         allDay: true,
       })
     ).toBe("RRULE:FREQ=DAILY;UNTIL=20261214");
+    // A counted repeat's steps take a hundred years at most.
+    expect(
+      toRRule(rule({ frequency: "yearly", ends: "after_occurrences", end_after_occurrences: 500 }))
+    ).toBe("RRULE:FREQ=YEARLY;COUNT=100");
+    expect(
+      toRRule(rule({ frequency: "daily", ends: "after_occurrences", end_after_occurrences: 500 }))
+    ).toBe("RRULE:FREQ=DAILY;COUNT=500");
   });
 });
 
