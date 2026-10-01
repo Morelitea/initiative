@@ -223,7 +223,9 @@ _SIGIL_EXEMPT: frozenset[str] = frozenset(
         # legitimately carry either character.
         "app.schemas.tenant.document.DocumentCreate.name",
         "app.schemas.tenant.document.DocumentUpdate.name",
-        "app.schemas.tenant.document.DocumentCopyRequest.name",
+        # Any tool's copy: held in ``tool_copy.duplicate`` to the rule its
+        # tool's own name follows, since a document's may carry either.
+        "app.schemas.tenant.tool.ToolDuplicateRequest.name",
         # Configuration labels: named by whoever administers the thing, and not
         # written into the search index.
         "app.schemas.ai_settings.AIConnectionCreate.label",

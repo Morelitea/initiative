@@ -18,6 +18,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
@@ -34,6 +35,7 @@ from app.models.tenant._mixins import (
 from app.models.tenant.counter import Counter
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
+from app.schemas.base import RESERVED_SIGIL_CODE, RESERVED_SIGILS
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
@@ -65,6 +67,9 @@ class ToolCopier:
     #: The refusal when the target initiative already has one of this name;
     #: ``None`` where names may repeat.
     name_taken: Optional[str] = None
+    #: Whether a name may carry the reserved sigils, as a document's may: it
+    #: starts life as a filename.
+    name_takes_sigils: bool = False
     #: async (session, copy_id, user): tell people about the copy, once it is
     #: committed.
     announce: Optional[Callable[[AsyncSession, int, User], Awaitable[None]]] = None
@@ -143,6 +148,11 @@ async def duplicate(
     beside = initiative_id == source.initiative_id
     await resource_access.prepare_create(session, tool, initiative_id, user, actor)
     name = (name or "").strip() or (f"{source.name} (Copy)" if beside else source.name)
+    if not copier.name_takes_sigils and RESERVED_SIGILS.intersection(name):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=RESERVED_SIGIL_CODE,
+        )
     if copier.name_taken is not None:
         await ensure_name_free(
             session,
@@ -240,6 +250,7 @@ TOOL_COPIERS: dict[Tool, ToolCopier] = {
         contents=documents_service.copy_contents,
         reset={"is_template": False, "yjs_state": None, "yjs_updated_at": None},
         name_taken=DocumentMessages.NAME_ALREADY_EXISTS,
+        name_takes_sigils=True,
     ),
     Tool.counter_group: ToolCopier(
         copies=frozenset({Counter}),
