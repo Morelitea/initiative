@@ -12,8 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ServerRequiredRouteImport } from './routes/_serverRequired'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ServerRequiredAuthenticatedRouteImport } from './routes/_serverRequired/_authenticated'
+import { Route as ServerRequiredDownloadRouteImport } from './routes/_serverRequired/download'
 import { Route as ServerRequiredForgotPasswordRouteImport } from './routes/_serverRequired/forgot-password'
 import { Route as ServerRequiredLoginRouteImport } from './routes/_serverRequired/login'
+import { Route as ServerRequiredPricingRouteImport } from './routes/_serverRequired/pricing'
 import { Route as ServerRequiredRegisterRouteImport } from './routes/_serverRequired/register'
 import { Route as ServerRequiredResetPasswordRouteImport } from './routes/_serverRequired/reset-password'
 import { Route as ServerRequiredStartRouteImport } from './routes/_serverRequired/start'
@@ -182,6 +184,11 @@ const ServerRequiredAuthenticatedRoute =
     id: '/_authenticated',
     getParentRoute: () => ServerRequiredRoute,
   } as any)
+const ServerRequiredDownloadRoute = ServerRequiredDownloadRouteImport.update({
+  id: '/download',
+  path: '/download',
+  getParentRoute: () => ServerRequiredRoute,
+} as any)
 const ServerRequiredForgotPasswordRoute =
   ServerRequiredForgotPasswordRouteImport.update({
     id: '/forgot-password',
@@ -191,6 +198,11 @@ const ServerRequiredForgotPasswordRoute =
 const ServerRequiredLoginRoute = ServerRequiredLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => ServerRequiredRoute,
+} as any)
+const ServerRequiredPricingRoute = ServerRequiredPricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => ServerRequiredRoute,
 } as any)
 const ServerRequiredRegisterRoute = ServerRequiredRegisterRouteImport.update({
@@ -1331,8 +1343,10 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsE
 export interface FileRoutesByFullPath {
   '/': typeof ServerRequiredAuthenticatedIndexRoute
   '/connect': typeof ConnectRoute
+  '/download': typeof ServerRequiredDownloadRoute
   '/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/login': typeof ServerRequiredLoginRoute
+  '/pricing': typeof ServerRequiredPricingRoute
   '/register': typeof ServerRequiredRegisterRoute
   '/reset-password': typeof ServerRequiredResetPasswordRoute
   '/start': typeof ServerRequiredStartRoute
@@ -1489,8 +1503,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof ServerRequiredAuthenticatedIndexRoute
   '/connect': typeof ConnectRoute
+  '/download': typeof ServerRequiredDownloadRoute
   '/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/login': typeof ServerRequiredLoginRoute
+  '/pricing': typeof ServerRequiredPricingRoute
   '/register': typeof ServerRequiredRegisterRoute
   '/reset-password': typeof ServerRequiredResetPasswordRoute
   '/start': typeof ServerRequiredStartRoute
@@ -1632,8 +1648,10 @@ export interface FileRoutesById {
   '/_serverRequired': typeof ServerRequiredRouteWithChildren
   '/connect': typeof ConnectRoute
   '/_serverRequired/_authenticated': typeof ServerRequiredAuthenticatedRouteWithChildren
+  '/_serverRequired/download': typeof ServerRequiredDownloadRoute
   '/_serverRequired/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/_serverRequired/login': typeof ServerRequiredLoginRoute
+  '/_serverRequired/pricing': typeof ServerRequiredPricingRoute
   '/_serverRequired/register': typeof ServerRequiredRegisterRoute
   '/_serverRequired/reset-password': typeof ServerRequiredResetPasswordRoute
   '/_serverRequired/start': typeof ServerRequiredStartRoute
@@ -1793,8 +1811,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/connect'
+    | '/download'
     | '/forgot-password'
     | '/login'
+    | '/pricing'
     | '/register'
     | '/reset-password'
     | '/start'
@@ -1951,8 +1971,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/connect'
+    | '/download'
     | '/forgot-password'
     | '/login'
+    | '/pricing'
     | '/register'
     | '/reset-password'
     | '/start'
@@ -2093,8 +2115,10 @@ export interface FileRouteTypes {
     | '/_serverRequired'
     | '/connect'
     | '/_serverRequired/_authenticated'
+    | '/_serverRequired/download'
     | '/_serverRequired/forgot-password'
     | '/_serverRequired/login'
+    | '/_serverRequired/pricing'
     | '/_serverRequired/register'
     | '/_serverRequired/reset-password'
     | '/_serverRequired/start'
@@ -2279,6 +2303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
+    '/_serverRequired/download': {
+      id: '/_serverRequired/download'
+      path: '/download'
+      fullPath: '/download'
+      preLoaderRoute: typeof ServerRequiredDownloadRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
     '/_serverRequired/forgot-password': {
       id: '/_serverRequired/forgot-password'
       path: '/forgot-password'
@@ -2291,6 +2322,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof ServerRequiredLoginRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/pricing': {
+      id: '/_serverRequired/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof ServerRequiredPricingRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/register': {
@@ -4014,8 +4052,10 @@ const ServerRequiredAuthenticatedRouteWithChildren =
 
 interface ServerRequiredRouteChildren {
   ServerRequiredAuthenticatedRoute: typeof ServerRequiredAuthenticatedRouteWithChildren
+  ServerRequiredDownloadRoute: typeof ServerRequiredDownloadRoute
   ServerRequiredForgotPasswordRoute: typeof ServerRequiredForgotPasswordRoute
   ServerRequiredLoginRoute: typeof ServerRequiredLoginRoute
+  ServerRequiredPricingRoute: typeof ServerRequiredPricingRoute
   ServerRequiredRegisterRoute: typeof ServerRequiredRegisterRoute
   ServerRequiredResetPasswordRoute: typeof ServerRequiredResetPasswordRoute
   ServerRequiredStartRoute: typeof ServerRequiredStartRoute
@@ -4030,8 +4070,10 @@ interface ServerRequiredRouteChildren {
 const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
   ServerRequiredAuthenticatedRoute:
     ServerRequiredAuthenticatedRouteWithChildren,
+  ServerRequiredDownloadRoute: ServerRequiredDownloadRoute,
   ServerRequiredForgotPasswordRoute: ServerRequiredForgotPasswordRoute,
   ServerRequiredLoginRoute: ServerRequiredLoginRoute,
+  ServerRequiredPricingRoute: ServerRequiredPricingRoute,
   ServerRequiredRegisterRoute: ServerRequiredRegisterRoute,
   ServerRequiredResetPasswordRoute: ServerRequiredResetPasswordRoute,
   ServerRequiredStartRoute: ServerRequiredStartRoute,
