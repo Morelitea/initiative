@@ -29,6 +29,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.core.user_input_validators import resolve_zone
 from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.schemas.query import FilterCondition, FilterOp
@@ -40,6 +41,7 @@ from app.services.export.adapters._common import (
     export_stem,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.filters import parse_filters
 from app.services.export.i18n import et, export_locale
 from app.services.permissions import EXPORT_ACCESS
 
@@ -101,12 +103,25 @@ class ProjectAdapter(ToolExportAdapter):
         # have to be built to know.
         from app.api.v1.tenant_endpoints.projects import count_project_export_rows
 
+        from app.models.tenant.task import Task
+
         total = 0
         for project_id in self.selection(params):
             total += await count_project_export_rows(
                 session, user, guild_id, project_id=project_id
             )
-        return total
+        tasks = getattr(parse_filters(self.tool, params.get("filters")), "tasks", None)
+        if tasks is None:
+            return total
+        # Every project is authorized above; its size is what the filter leaves.
+        task_ids = await session.exec(
+            select(Task.id).where(Task.project_id.in_(self.selection(params)))
+        )
+        return len(
+            await matching_tasks(
+                session, user, list(task_ids), tasks, resolve_zone(params.get("tz")).key
+            )
+        )
 
     async def fetch(
         self,
@@ -169,13 +184,7 @@ class ProjectAdapter(ToolExportAdapter):
         /,
     ) -> set[str | None] | None:
         """The refs of the tasks the export's task filters leave; ``None``
-        keeps every task.
-
-        Each project is asked about on its own, as its task list is: a list
-        that names its project reads it by the rule for that project, which
-        is what the export has already been allowed."""
-        from app.models.tenant.task import Task
-        from app.services.tenant import task_queries
+        keeps every task."""
         from app.services.tenant.project_export import task_ref
 
         tasks = getattr(ctx.filters, "tasks", None)
@@ -187,41 +196,9 @@ class ProjectAdapter(ToolExportAdapter):
             for task in envelope.tasks
             if task.external_ref
         ]
-        by_project: dict[int, list[int]] = defaultdict(list)
-        for task_id, project_id in await session.exec(
-            select(Task.id, Task.project_id).where(Task.id.in_(ids))
-        ):
-            by_project[project_id].append(task_id)
-        query = await task_queries.parse_task_list_query(
-            session, tasks.conditions, None, getattr(ctx.now.tzinfo, "key", None)
+        kept = await matching_tasks(
+            session, ctx.user, ids, tasks, getattr(ctx.now.tzinfo, "key", None)
         )
-        kept: set[int] = set()
-        for project_id, task_ids in by_project.items():
-            # Confined after parsing, so naming the project is not one more of
-            # the conditions a list may hold.
-            confined = replace(
-                query,
-                user_conditions=[
-                    FilterCondition(
-                        field="project_id", op=FilterOp.eq, value=project_id
-                    ),
-                    *query.user_conditions,
-                ],
-                project_id=project_id,
-            )
-            build = await task_queries.guild_task_query_builder(
-                session,
-                ctx.user,
-                require_guild_context(session),
-                q=confined,
-                include_archived=tasks.include_archived,
-            )
-            if build is not None:
-                kept.update(
-                    await session.exec(
-                        build(select(Task.id)).where(Task.id.in_(task_ids))
-                    )
-                )
         return {task_ref(task_id) for task_id in kept}
 
     def title(self, envelope: ProjectExportEnvelope, /) -> str:
@@ -252,6 +229,55 @@ class ProjectAdapter(ToolExportAdapter):
         return build_project_item(
             envelope, ctx.format, ctx.user, ctx.now, filtered=kept is not None
         )
+
+
+async def matching_tasks(
+    session: AsyncSession,
+    user: User,
+    task_ids: list[int],
+    tasks: TaskFilters,
+    tz: str | None,
+) -> set[int]:
+    """Which of these tasks the task list shows with ``tasks``.
+
+    Each project is asked about on its own, as its task list is: a list that
+    names its project reads it by the rule for that project, which is what
+    the export has already been allowed."""
+    from app.models.tenant.task import Task
+    from app.services.tenant import task_queries
+
+    by_project: dict[int, list[int]] = defaultdict(list)
+    for task_id, project_id in await session.exec(
+        select(Task.id, Task.project_id).where(Task.id.in_(task_ids))
+    ):
+        by_project[project_id].append(task_id)
+    query = await task_queries.parse_task_list_query(
+        session, tasks.conditions, None, tz
+    )
+    kept: set[int] = set()
+    for project_id, ids in by_project.items():
+        # Confined after parsing, so naming the project is not one more of the
+        # conditions a list may hold.
+        confined = replace(
+            query,
+            user_conditions=[
+                FilterCondition(field="project_id", op=FilterOp.eq, value=project_id),
+                *query.user_conditions,
+            ],
+            project_id=project_id,
+        )
+        build = await task_queries.guild_task_query_builder(
+            session,
+            user,
+            require_guild_context(session),
+            q=confined,
+            include_archived=tasks.include_archived,
+        )
+        if build is not None:
+            kept.update(
+                await session.exec(build(select(Task.id)).where(Task.id.in_(ids)))
+            )
+    return kept
 
 
 def build_project_item(
