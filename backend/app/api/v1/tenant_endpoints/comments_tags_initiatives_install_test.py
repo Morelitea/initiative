@@ -75,7 +75,7 @@ async def test_reads_the_comments_on_what_it_can_read(
         guild_url(guild_id, f"/comments/?document_id={in_a.id}"), headers=headers
     )
     assert listed.status_code == 200, listed.text
-    [comment] = listed.json()
+    [comment] = listed.json()["comments"]
     assert comment["content"] == "Seen in A"
     assert comment["reactions"] == []
     # The author is named by the install's own reference for them.

@@ -9,6 +9,7 @@ from app.core.notification_categories import PERSONAL_TYPES, Channel
 from app.db import gucs
 from app.db.session import raise_flag
 from app.models.platform.notification import Notification, NotificationType
+from app.services import keyset_cursor
 from app.services.platform import notification_prefs, notification_stream
 
 
@@ -192,26 +193,6 @@ async def delete_notification(
     notification_stream.queue_signal(session, user_id, "withdrawn")
 
 
-def _decode_cursor(cursor: str | None) -> tuple[datetime, int] | None:
-    """``<iso8601>|<id>`` — the sort key of the last row of the previous page.
-
-    The id breaks ties, so two notifications written in the same instant cannot
-    hide each other at a page boundary. A cursor that does not parse is treated
-    as no cursor: a malformed one should start the list again, not fail it.
-    """
-    if not cursor:
-        return None
-    stamp, _, raw_id = cursor.partition("|")
-    try:
-        return datetime.fromisoformat(stamp), int(raw_id)
-    except (ValueError, TypeError):
-        return None
-
-
-def encode_cursor(notification: Notification) -> str:
-    return f"{notification.created_at.isoformat()}|{notification.id}"
-
-
 async def list_notifications(
     session: AsyncSession,
     *,
@@ -236,7 +217,7 @@ async def list_notifications(
         stmt = stmt.where(Notification.guild_id == guild_id)
     if personal_only:
         stmt = stmt.where(Notification.type.in_(sorted(PERSONAL_TYPES)))
-    position = _decode_cursor(cursor)
+    position = keyset_cursor.decode(cursor)
     if position is not None:
         stamp, last_id = position
         stmt = stmt.where(
@@ -250,9 +231,10 @@ async def list_notifications(
     notifications = [row[0] if isinstance(row, tuple) else row for row in rows]
     # One more than asked for is how "is there another page" is answered
     # without a second count query.
-    next_cursor = (
-        encode_cursor(notifications[limit - 1]) if len(notifications) > limit else None
-    )
+    next_cursor = None
+    if len(notifications) > limit:
+        last = notifications[limit - 1]
+        next_cursor = keyset_cursor.encode(last.created_at, last.id)
     notifications = notifications[:limit]
     unread = await unread_count(session, user_id=user_id) if position is None else None
     return notifications, unread, next_cursor

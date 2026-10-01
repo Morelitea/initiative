@@ -1,10 +1,6 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListCommentsApiV1CGuildIdCommentsGetQueryKey,
-  listCommentsApiV1CGuildIdCommentsGet,
-} from "@/api/generated/comments/comments";
-import {
   getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
   readProjectApiV1CGuildIdProjectsProjectIdGet,
 } from "@/api/generated/projects/projects";
@@ -16,6 +12,7 @@ import {
   getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
   readTaskApiV1CGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
+import { commentThreadQueryOptions } from "@/hooks/useComments";
 
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId"
@@ -37,9 +34,8 @@ export const Route = createFileRoute(
         queryFn: () => readTaskApiV1CGuildIdTasksTaskIdGet(guildId, taskId),
         staleTime: 30_000,
       }),
-      queryClient.ensureQueryData({
-        queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId, { task_id: taskId }),
-        queryFn: () => listCommentsApiV1CGuildIdCommentsGet(guildId, { task_id: taskId }),
+      queryClient.ensureInfiniteQueryData({
+        ...commentThreadQueryOptions(guildId, { task_id: taskId }),
         staleTime: 30_000,
       }),
       queryClient.ensureQueryData({
