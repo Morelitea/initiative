@@ -7,7 +7,8 @@
     "signIn": "Sign in",
     "signUp": "Sign up",
     "menu": "Menu",
-    "mainAria": "Main"
+    "mainAria": "Main",
+    "skip": "Skip to content"
   },
   "hero": {
     "titleLine1": "Out of the group chat.",
@@ -53,7 +54,9 @@
       "mushrooms": "Morel Hunters Club",
       "startup": "Brightline Studio",
       "family": "The Parker Family"
-    }
+    },
+    "pause": "Pause",
+    "play": "Play"
   },
   "tools": {
     "title": "Learn one tool, know the rest",
@@ -224,7 +227,8 @@
       "m2": "which thing",
       "m3": "you know which thing"
     },
-    "imports": "Moving in from somewhere else?"
+    "imports": "Moving in from somewhere else?",
+    "cardsAria": "Features every tool shares"
   },
   "safe": {
     "title": "You cannot break this",
@@ -326,7 +330,6 @@
     "tagline": "Open source, and staying that way.",
     "getIt": "Get it",
     "docs": "Docs",
-    "project": "The project",
     "download": "Download",
     "pricing": "Pricing",
     "changelog": "What's new",
@@ -334,8 +337,32 @@
     "faq": "FAQ",
     "server": "Running a server",
     "security": "Security & privacy",
-    "source": "Source code",
     "cookies": "Cookies",
-    "copyright": "© {{year}} Initiative"
+    "copyright": "© {{year}} Initiative",
+    "socials": "Socials",
+    "github": "GitHub"
+  },
+  "whatsNew": {
+    "title": "What's new",
+    "description": "Everything that's changed in Initiative, newest first.",
+    "metaTitle": "What's new · Initiative",
+    "postTitle": "Initiative {{version}}",
+    "postMetaTitle": "Initiative {{version}} · What's new",
+    "readMore": "Read the whole post",
+    "readMoreAria": "Read the whole post about Initiative {{version}}",
+    "older": "Show older posts",
+    "back": "All posts",
+    "loading": "Loading…",
+    "empty": "Nothing here yet.",
+    "notFound": "Couldn't find that release. It may not have shipped yet.",
+    "error": "Couldn't load what's new. Give it a minute and try again."
+  },
+  "meta": {
+    "homeTitle": "Initiative: out of the group chat, into one place",
+    "homeDescription": "Your group's projects, tasks, documents, events and conversations in one place, on the web, Android, iPhone and your computer.",
+    "downloadTitle": "Download Initiative",
+    "downloadDescription": "Get Initiative on Android, iPhone, iPad or your computer, or keep using it in the browser.",
+    "pricingTitle": "Pricing · Initiative",
+    "pricingDescription": "Plans for Initiative, and what each one includes."
   }
 }

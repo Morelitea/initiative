@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { catalogUrl, portalPricingUrl } from "@/hooks/useBillingCatalog";
-import { androidApkUrl, docsUrl } from "@/lib/links";
+import { androidApkUrl, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
 import { TOOLS, toolCamelPlural } from "@/lib/tools";
 
 import landing from "../../../public/locales/en/landing.json";
 import { DownloadPage } from "./DownloadPage";
 import { HomePage } from "./HomePage";
 import { PricingPage } from "./PricingPage";
+import { WhatsNewPage, WhatsNewPostPage } from "./WhatsNewPage";
 
 const PORTAL = "https://billing.example.com";
 const NATIVE_FLOOR = "0.69.0";
@@ -218,6 +219,41 @@ describe("HomePage", () => {
     );
   });
 
+  it("names itself to the browser and search engines", async () => {
+    renderHome();
+    await waitFor(() => {
+      expect(document.title).toBe(landing.meta.homeTitle);
+    });
+  });
+
+  it("lets a keyboard skip straight to the content", async () => {
+    renderHome();
+    expect(await screen.findByRole("link", { name: landing.nav.skip })).toHaveAttribute(
+      "href",
+      "#landing-main"
+    );
+  });
+
+  it("can pause the scrolling communities", async () => {
+    renderHome();
+    const pause = await screen.findByRole("button", { name: landing.communities.pause });
+    fireEvent.click(pause);
+    expect(screen.getByRole("button", { name: landing.communities.play })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("keeps what's new in the app, and GitHub under socials", async () => {
+    renderHome();
+    expect(await screen.findByRole("link", { name: landing.footer.changelog })).toHaveAttribute(
+      "href",
+      "/whats-new"
+    );
+    expect(screen.getByRole("heading", { name: landing.footer.socials })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "GitHub" })).toHaveAttribute("href", REPO_URL);
+  });
+
   it("links the docs", async () => {
     renderHome();
 
@@ -374,6 +410,64 @@ describe("PricingPage", () => {
     renderPricing();
 
     expect(await screen.findByText(landing.pricing.unavailableTitle)).toBeInTheDocument();
+  });
+});
+
+const RELEASES = [
+  {
+    version: "0.73.2",
+    date: "2026-09-29",
+    changes:
+      "### Fixed\n\n- **Uploads resume after a dropped connection.** See [Installation](docs/en/running-a-server/installation.md#checking-an-image-is-ours).\n- **Calendars load faster.**",
+  },
+  {
+    version: "0.73.1",
+    date: "2026-09-28",
+    changes: "### Fixed\n\n- **Search finds archived wikis.**",
+  },
+];
+
+const stubChangelog = () =>
+  http.get("/api/v1/changelog", ({ request }) => {
+    const version = new URL(request.url).searchParams.get("version");
+    return HttpResponse.json({
+      entries: version ? RELEASES.filter((entry) => entry.version === version) : RELEASES,
+    });
+  });
+
+describe("WhatsNewPage", () => {
+  it("lists each release as a post with its headlines", async () => {
+    server.use(stubChangelog());
+    renderPage(WhatsNewPage, signedOut);
+
+    const post = await screen.findByRole("link", {
+      name: landing.whatsNew.postTitle.replace("{{version}}", "0.73.2"),
+    });
+    expect(post).toHaveAttribute("href", "/whats-new/0.73.2");
+    expect(screen.getByText("Uploads resume after a dropped connection")).toBeInTheDocument();
+    expect(screen.getByText("Search finds archived wikis")).toBeInTheDocument();
+  });
+
+  it("says so when the changelog can't be read", async () => {
+    server.use(http.get("/api/v1/changelog", () => HttpResponse.json({}, { status: 500 })));
+    renderPage(WhatsNewPage, signedOut);
+
+    expect(await screen.findByText(landing.whatsNew.error)).toBeInTheDocument();
+  });
+
+  it("shows a whole release, with its docs links pointing at the docs site", async () => {
+    server.use(stubChangelog());
+    renderPage(WhatsNewPostPage, {
+      ...signedOut,
+      initialRoute: "/whats-new/$version",
+      routeParams: { version: "0.73.2" },
+    });
+
+    expect(await screen.findByRole("link", { name: "Installation" })).toHaveAttribute(
+      "href",
+      `${DOCS_URL}running-a-server/installation/#checking-an-image-is-ours`
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Fixed" })).toBeInTheDocument();
   });
 });
 

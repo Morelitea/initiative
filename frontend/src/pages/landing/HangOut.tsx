@@ -31,12 +31,12 @@ import { DarkBand } from "./DarkBand";
 import { useFrontDoor } from "./useFrontDoor";
 
 const AVATAR_COLORS = {
-  MA: "#db2777",
-  DV: "#0891b2",
-  PR: "#ef4444",
-  LU: "#65a30d",
-  SM: "#14b8a6",
-  HA: "#7c3aed",
+  MA: "#be185d",
+  DV: "#0e7490",
+  PR: "#b91c1c",
+  LU: "#4d7c0f",
+  SM: "#0f766e",
+  HA: "#6d28d9",
 } as const;
 
 type Initials = keyof typeof AVATAR_COLORS;
@@ -116,7 +116,7 @@ const CommunityDrawing = () => {
             {t("hangout.community.tagline")}
           </p>
         </div>
-        <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap font-semibold text-green-600 text-sm dark:text-green-400">
+        <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap font-semibold text-green-700 text-sm dark:text-green-400">
           <i className="h-2 w-2 rounded-full bg-green-500" />
           {t("hangout.community.online")}
         </span>
@@ -291,7 +291,7 @@ const Directory = () => {
                 aria-pressed={front === card.key}
                 onClick={() => setFront(card.key)}
                 className={cn(
-                  "min-h-10 rounded-full border px-3.5 font-semibold text-sm",
+                  "min-h-10 rounded-full border px-3.5 font-semibold text-sm focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2",
                   front === card.key
                     ? "border-amber-400 bg-amber-400 text-amber-950"
                     : "border-white/25 text-slate-200 hover:bg-white/8"
@@ -339,7 +339,7 @@ const Directory = () => {
                 <div className="min-w-0">
                   <h3 className="truncate font-semibold">{d(`${card.key}.name`)}</h3>
                   <p className="flex flex-wrap items-center gap-x-1.5 text-muted-foreground text-xs">
-                    <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400">
                       <span className="size-1.5 rounded-full bg-emerald-500" />
                       {d(`${card.key}.online`)}
                     </span>
