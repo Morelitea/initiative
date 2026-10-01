@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from functools import lru_cache
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Literal, Mapping, Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -917,6 +917,7 @@ async def send_community_on_hold_email(
     recipients: list[str],
     community: str,
     contact: str | None,
+    guild_id: int,
     delete_at: datetime | None = None,
     plan_managed: bool = False,
     locale: str = "en",
@@ -926,7 +927,8 @@ async def send_community_on_hold_email(
 
     ``delete_at`` is None where this deployment never deletes a held community.
     ``plan_managed`` says what lifts the hold: on a deployment whose plans the
-    billing service sets, restoring the plan; elsewhere, whoever put it there.
+    billing service sets, restoring the plan, which the letter's button leads
+    to; elsewhere, whoever put it there, and the letter has no button.
     """
     settings_obj, accent = await _email_context(session)
     next_step = (
@@ -942,9 +944,21 @@ async def send_community_on_hold_email(
     else:
         body_key = "bodyDeletingUnlessLifted"
     text_key = "textB" + body_key[1:]
+    # Where billing sets plans, restoring the plan lifts the hold, so the
+    # letter leads there.
+    button = text_link = ""
+    if plan_managed:
+        link = community_billing_link(guild_id, "manage")
+        label = email_t("communityOnHold.buttonLabel", locale=locale)
+        button = f'<p style="margin:24px 0;">{_cta_button(label, link, accent)}</p>'
+        plain_label = email_t(
+            "communityOnHold.buttonLabel", locale=locale, escape=False
+        )
+        text_link = f"\n\n{plain_label}: {link}"
     body = f"""
     <p>{email_t("communityOnHold.greeting", locale=locale)}</p>
     <p>{email_t(f"communityOnHold.{body_key}", locale=locale, community=community, date=day or "")}</p>
+    {button}
     <p>{next_step}</p>
     """
     html_body = _build_html_layout(
@@ -978,7 +992,8 @@ async def send_community_on_hold_email(
                 ),
                 text_next,
             )
-        ),
+        )
+        + text_link,
         settings_obj=settings_obj,
     )
 
@@ -998,7 +1013,8 @@ def community_trial_pieces(
     ``kind`` is one of the billing notice kinds; the words are this
     deployment's. Written into the notice outbox beside the bell line, so the
     outbox worker sends it and retries it; the button leads to the community's
-    Plan & usage tab, where the billing portal is one more click.
+    billing page, which signs the reader in and forwards them to the billing
+    portal to choose a plan.
     """
     section = _TRIAL_NOTICE_SECTIONS[kind]
     day = email_date(trial_ends_on, locale)
@@ -1014,14 +1030,35 @@ def community_trial_pieces(
             f"{section}.title", locale=locale, community=community, date=day
         ),
         body=email_t(f"{section}.body", locale=locale, community=community, date=day),
-        link=community_plan_link(guild_id),
+        link=community_billing_link(guild_id, "upgrade"),
         link_label=email_t(f"{section}.buttonLabel", locale=locale),
     )
 
 
-def community_plan_link(guild_id: int) -> str:
-    """The community's Plan & usage tab, for a letter's button."""
-    return _frontend_url(f"/c/{guild_id}/settings/usage")
+def community_welcome_pieces(
+    *, community: str, guild_id: int, locale: str
+) -> EmailPieces:
+    """A newly made community's welcome as notification mail, in ``locale``.
+
+    Written into the notice outbox beside the bell line, like a trial notice;
+    the button leads to the community's billing page, where its plan is set up.
+    """
+    return EmailPieces(
+        subject=email_t(
+            "communityWelcome.subject", locale=locale, community=community, escape=False
+        ),
+        headline=email_t("communityWelcome.title", locale=locale, community=community),
+        body=email_t("communityWelcome.body", locale=locale, community=community),
+        link=community_billing_link(guild_id, "upgrade"),
+        link_label=email_t("communityWelcome.buttonLabel", locale=locale),
+    )
+
+
+def community_billing_link(guild_id: int, page: Literal["upgrade", "manage"]) -> str:
+    """The community's billing page, for a letter's button. It signs the
+    reader in and forwards them to the billing portal's ``page``: ``upgrade``
+    to choose a plan, ``manage`` to look after the one it has."""
+    return _frontend_url(f"/c/{guild_id}/billing?page={page}")
 
 
 async def _queue_account_notice(

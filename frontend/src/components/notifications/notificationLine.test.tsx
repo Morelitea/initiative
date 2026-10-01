@@ -81,7 +81,7 @@ describe("notificationText — account notices", () => {
     ).toContain("notifications.guildOnHoldDeleting(");
   });
 
-  it("says when a trial ends, and that it has", () => {
+  it("says when a trial ends, that it has, and that a new community is ready", () => {
     const ending = notificationText(
       notice("guild_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
       t
@@ -91,6 +91,9 @@ describe("notificationText — account notices", () => {
     expect(ending).toContain("2026");
     expect(notificationText(notice("guild_trial_ended", { community: "Acme" }), t)).toContain(
       "notifications.guildTrialEnded"
+    );
+    expect(notificationText(notice("guild_welcome", { community: "Acme" }), t)).toBe(
+      'notifications.guildWelcome({"community":"Acme"})'
     );
   });
 

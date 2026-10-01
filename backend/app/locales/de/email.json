@@ -380,19 +380,26 @@
     "textBodyDeleting": "{{community}} ist pausiert und wird am {{date}} gelöscht, wenn ihr Tarif nicht wiederhergestellt wird. Bis dahin kann sie niemand öffnen, und nichts darin wurde geändert oder entfernt.",
     "textBodyDeletingUnlessLifted": "{{community}} ist pausiert und wird am {{date}} gelöscht, wenn die Pause nicht aufgehoben wird. Bis dahin kann sie niemand öffnen, und nichts darin wurde geändert oder entfernt.",
     "textContact": "Wende dich an {{contact}}, um das zu klären.",
-    "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären."
+    "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "buttonLabel": "Tarif wiederherstellen"
   },
   "communityTrialEnding": {
     "subject": "Die Testphase von {{community}} endet am {{date}}",
     "title": "Die Testphase von {{community}} endet am {{date}}",
     "body": "Die Testphase von <strong>{{community}}</strong> endet am <strong>{{date}}</strong>. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können – danach ist die Community schreibgeschützt, bis ein Tarif gewählt ist.",
-    "buttonLabel": "Tarif & Nutzung öffnen"
+    "buttonLabel": "Abrechnungsportal öffnen"
   },
   "communityTrialEnded": {
     "subject": "Die Testphase von {{community}} ist beendet",
     "title": "Die Testphase von {{community}} ist beendet",
     "body": "Die Testphase von <strong>{{community}}</strong> ist beendet, und die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können. Es wurde nichts gelöscht.",
     "buttonLabel": "Tarif wählen"
+  },
+  "communityWelcome": {
+    "subject": "{{community}} ist bereit",
+    "title": "{{community}} ist bereit",
+    "body": "<strong>{{community}}</strong> ist eingerichtet und bereit für ihre Mitglieder. Richte ihren Tarif im Abrechnungsportal ein, sobald du so weit bist.",
+    "buttonLabel": "Tarif einrichten"
   },
   "signInLocked": {
     "fallbackText": "Wenn du das warst, musst du nichts weiter tun. Wenn nicht, kennt vielleicht jemand deine E-Mail-Adresse. Dein Passwort ist weiterhin sicher, aber überlege, dich mit einem Passkey anzumelden.",

@@ -47,6 +47,9 @@ class NotificationType(str, Enum):
     #: notice billing sends.
     guild_trial_ending = "guild_trial_ending"
     guild_trial_ended = "guild_trial_ended"
+    #: A community made for this account, by them or by staff on their behalf.
+    #: Written once, where billing sets plans, inviting them to set up its plan.
+    guild_welcome = "guild_welcome"
     connection_requested = "connection_requested"
     connection_accepted = "connection_accepted"
     message_request_received = "message_request_received"

@@ -479,6 +479,10 @@ export const notificationText = (
       return t("notifications.guildTrialEnded", {
         community: typeof data.community === "string" ? data.community : "",
       });
+    case "guild_welcome":
+      return t("notifications.guildWelcome", {
+        community: typeof data.community === "string" ? data.community : "",
+      });
     default:
       return t("notifications.defaultNotification");
   }

@@ -380,19 +380,26 @@
     "textBodyDeleting": "{{community}} está en pausa y se eliminará el {{date}} a menos que se restablezca su plan. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
     "textBodyDeletingUnlessLifted": "{{community}} está en pausa y se eliminará el {{date}} a menos que se levante la pausa. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
     "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
-    "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo."
+    "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
+    "buttonLabel": "Restablecer el plan"
   },
   "communityTrialEnding": {
     "subject": "La prueba de {{community}} termina el {{date}}",
     "title": "La prueba de {{community}} termina el {{date}}",
     "body": "La prueba de <strong>{{community}}</strong> termina el <strong>{{date}}</strong>. Suscríbete en el portal de facturación antes de esa fecha para seguir editando; después, la comunidad pasará a ser de solo lectura hasta que se elija un plan.",
-    "buttonLabel": "Abrir Plan y uso"
+    "buttonLabel": "Abrir el portal de facturación"
   },
   "communityTrialEnded": {
     "subject": "La prueba de {{community}} ha terminado",
     "title": "La prueba de {{community}} ha terminado",
     "body": "La prueba de <strong>{{community}}</strong> ha terminado y la comunidad ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando. No se ha eliminado nada.",
     "buttonLabel": "Elegir un plan"
+  },
+  "communityWelcome": {
+    "subject": "{{community}} está lista",
+    "title": "{{community}} está lista",
+    "body": "<strong>{{community}}</strong> está configurada y lista para sus miembros. Cuando quieras, configura su plan en el portal de facturación.",
+    "buttonLabel": "Configurar el plan"
   },
   "signInLocked": {
     "fallbackText": "Si fuiste tú, no tienes que hacer nada más. Si no, puede que alguien conozca tu dirección de correo. Tu contraseña sigue a salvo, pero plantéate iniciar sesión con una llave de acceso.",

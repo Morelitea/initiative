@@ -16,7 +16,8 @@
  *                 community directory. Render the chromeless
  *                 ``NoGuildSettingsShell`` so the user can still reach
  *                 Danger Zone / platform configuration — or join a guild
- *                 without waiting for an invite.
+ *                 without waiting for an invite, or reach the billing
+ *                 portal for a community that is on hold.
  * - ``"empty"`` — no guilds and no exempt path; show
  *                 ``NoGuildState`` (the create / join / logout
  *                 landing page).
@@ -26,6 +27,8 @@
  * Keeping the checks aligned guarantees the no-guild shell never admits
  * anyone who couldn't already reach the page in the normal sidebar layout.
  */
+import { isBillingForwardPath } from "@/lib/guildUrl";
+
 export type NoGuildLayoutChoice = "main" | "shell" | "empty";
 
 export interface NoGuildLayoutInputs {
@@ -60,6 +63,7 @@ export function chooseNoGuildLayout({
   if (hasGuilds) return "main";
   if (isUserSettingsPath(pathname)) return "shell";
   if (isCommunityPath(pathname)) return "shell";
+  if (isBillingForwardPath(pathname)) return "shell";
   if (isPlatformSettingsPath(pathname) && canAccessPlatformAreas) return "shell";
   return "empty";
 }

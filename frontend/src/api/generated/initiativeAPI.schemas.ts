@@ -6199,6 +6199,7 @@ export const NotificationType = {
   guild_on_hold: "guild_on_hold",
   guild_trial_ending: "guild_trial_ending",
   guild_trial_ended: "guild_trial_ended",
+  guild_welcome: "guild_welcome",
   connection_requested: "connection_requested",
   connection_accepted: "connection_accepted",
   message_request_received: "message_request_received",

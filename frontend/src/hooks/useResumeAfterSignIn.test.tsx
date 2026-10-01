@@ -89,6 +89,11 @@ describe("resuming after sign-in", () => {
     await act(() => result.current("/c/9/projects/47"));
 
     expect(landedOn()).toEqual({ to: "/", replace: true });
+
+    // Except its billing forwarder, which the server answers for itself.
+    await act(() => result.current("/c/9/billing?page=upgrade"));
+
+    expect(landedOn()).toEqual({ to: "/c/9/billing?page=upgrade", replace: true });
   });
 
   it("waits for the account to arrive before asking which communities it has", async () => {

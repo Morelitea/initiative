@@ -133,7 +133,7 @@ async def test_the_owner_billing_names_is_told(
     pieces = letter["pieces"]
     assert pieces.subject == "Acme's trial ends on 8 October 2026"
     assert pieces.link is not None and pieces.link.endswith(
-        f"/c/{guild_id}/settings/usage"
+        f"/c/{guild_id}/billing?page=upgrade"
     )
     assert "read-only until a plan is chosen" in pieces.body
 

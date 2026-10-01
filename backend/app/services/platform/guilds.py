@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
+from typing import TYPE_CHECKING
 
 from sqlalchemy import exists, func, or_, text
 from sqlalchemy.orm import aliased
@@ -49,6 +50,9 @@ from app.services.platform import billing_ping
 from app.services.platform import account_stream
 from app.services.platform import contact_grants as contact_grants_service
 from app.db.request_context import Platform, SystemGuild, Unattributed
+
+if TYPE_CHECKING:
+    from app.services.email import EmailPieces
 
 logger = logging.getLogger(__name__)
 
@@ -1520,6 +1524,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
                 recipients=recipients,
                 community=community,
                 contact=contact,
+                guild_id=guild_id,
                 delete_at=delete_at,
                 plan_managed=billing_service.billing_managed(),
                 locale=locale,
@@ -1568,7 +1573,6 @@ async def queue_trial_notice(
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
-    from app.services.platform import notice_outbox
 
     await set_rls_context(session, Unattributed())
     guild = (
@@ -1583,6 +1587,70 @@ async def queue_trial_notice(
     recipients = [owner_user_id] if owner_user_id in seats else seats
     if not recipients:
         return False
+    await _queue_plan_notice(
+        session,
+        guild,
+        recipients,
+        _TRIAL_NOTICE_TYPES[kind],
+        {"trial_ends_on": trial_ends_on.isoformat()},
+        lambda locale: email_service.community_trial_pieces(
+            kind=kind,
+            community=guild.name,
+            trial_ends_on=trial_ends_on,
+            guild_id=guild_id,
+            locale=locale,
+        ),
+    )
+    return True
+
+
+async def queue_welcome_notice(
+    session: AsyncSession, guild_id: int, *, owner_user_id: int
+) -> None:
+    """Welcome the person a community was just made for, and invite them to
+    set up its plan.
+
+    Called once the new community is committed, where billing sets plans, on
+    a system session of its own. The owner is told rather than whoever made
+    it: an operator making one for somebody else holds nothing in it. Told
+    the way a trial notice is — a line in their bell and a letter in their
+    own language — and committed to the notice outbox, whose worker sends it.
+    """
+    from app.db.session import set_rls_context
+    from app.services import email as email_service
+
+    await set_rls_context(session, Unattributed())
+    guild = (
+        await session.exec(select(Guild).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild is None:
+        return
+    await _queue_plan_notice(
+        session,
+        guild,
+        [owner_user_id],
+        NotificationType.guild_welcome,
+        # Straight to the portal, which is what the line invites them to.
+        {"target_path": "/billing?page=upgrade"},
+        lambda locale: email_service.community_welcome_pieces(
+            community=guild.name, guild_id=guild_id, locale=locale
+        ),
+    )
+
+
+async def _queue_plan_notice(
+    session: AsyncSession,
+    guild: Guild,
+    recipients: list[int],
+    notification_type: NotificationType,
+    data: dict[str, str],
+    letter_for: Callable[[str], EmailPieces],
+) -> None:
+    """Write one account notice about a community's plan to each recipient: a
+    bell line leading to its Plan & usage tab unless ``data`` names another
+    ``target_path``, and a letter in the recipient's language. Commits."""
+    from app.services.platform import notice_outbox
+
     locales = dict(
         (
             await session.exec(
@@ -1590,16 +1658,9 @@ async def queue_trial_notice(
             )
         ).all()
     )
-    notification_type = _TRIAL_NOTICE_TYPES[kind]
     rows = []
     for user_id in recipients:
-        letter = email_service.community_trial_pieces(
-            kind=kind,
-            community=guild.name,
-            trial_ends_on=trial_ends_on,
-            guild_id=guild_id,
-            locale=locales.get(user_id) or "en",
-        )
+        letter = letter_for(locales.get(user_id) or "en")
         rows.append(
             notice_outbox.row(
                 user_id,
@@ -1607,9 +1668,9 @@ async def queue_trial_notice(
                 notification_type,
                 {
                     "community": guild.name,
-                    "trial_ends_on": trial_ends_on.isoformat(),
-                    "guild_id": guild_id,
+                    "guild_id": guild.id,
                     "target_path": "/settings/usage",
+                    **data,
                 },
                 email_subject=letter.subject,
                 email_headline=letter.headline,
@@ -1620,7 +1681,6 @@ async def queue_trial_notice(
         )
     await notice_outbox.enqueue(session, rows)
     await session.commit()
-    return True
 
 
 async def soft_delete_guild(

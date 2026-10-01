@@ -380,19 +380,26 @@
     "textBodyDeleting": "{{community}} est en attente et sera supprimée le {{date}} si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
     "textBodyDeletingUnlessLifted": "{{community}} est en attente et sera supprimée le {{date}} si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
     "textContact": "Contactez {{contact}} pour régler la situation.",
-    "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation."
+    "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
+    "buttonLabel": "Rétablir le forfait"
   },
   "communityTrialEnding": {
     "subject": "L’essai de {{community}} se termine le {{date}}",
     "title": "L’essai de {{community}} se termine le {{date}}",
     "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait.",
-    "buttonLabel": "Ouvrir Forfait et utilisation"
+    "buttonLabel": "Ouvrir le portail de facturation"
   },
   "communityTrialEnded": {
     "subject": "L’essai de {{community}} est terminé",
     "title": "L’essai de {{community}} est terminé",
     "body": "L’essai de <strong>{{community}}</strong> est terminé et la communauté est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier. Rien n’a été supprimé.",
     "buttonLabel": "Choisir un forfait"
+  },
+  "communityWelcome": {
+    "subject": "{{community}} est prête",
+    "title": "{{community}} est prête",
+    "body": "<strong>{{community}}</strong> est configurée et prête pour ses membres. Quand vous le souhaitez, choisissez son forfait dans le portail de facturation.",
+    "buttonLabel": "Choisir le forfait"
   },
   "signInLocked": {
     "fallbackText": "Si c'était vous, il n'y a rien d'autre à faire. Sinon, quelqu'un connaît peut-être votre adresse e-mail. Votre mot de passe reste protégé, mais pensez à vous connecter avec une clé d'accès.",

@@ -689,6 +689,7 @@ async def _load_guild_context(
     guild_id: int,
     *,
     for_settings: bool = False,
+    for_payment: bool = False,
     factor_asked: bool = False,
 ) -> GuildContext:
     """Resolve and validate the guild context for one guild.
@@ -713,6 +714,11 @@ async def _load_guild_context(
     membership and grant. The rung guard on those routes has already refused
     anyone who does not administer it; what this establishes is the standing
     the database reads.
+
+    ``for_payment`` is the billing handoff, the one way a community held for
+    a late payment is paid out of the hold: it admits the seat's own
+    membership into an ``on_hold`` community as well as a live one. Every
+    other status, and every other member, is refused as before.
 
     ``factor_asked`` says this request's :func:`get_current_active_user`
     already put the deployment's second-factor question, so it is not put
@@ -784,8 +790,15 @@ async def _load_guild_context(
     # Membership access respects the guild's lifecycle status: the statuses
     # that serve members are named, and every other one is refused, on every
     # surface. A suspended community is in time out — its administrators are
-    # members like any other until the platform lifts it.
-    if guild.status not in LIVE_STATUS_VALUES:
+    # members like any other until the platform lifts it. The seat of a
+    # community on hold is let through to pay its way out, on the route that
+    # asks for that and no other.
+    held_for_payment = (
+        for_payment
+        and guild.status == GuildStatus.on_hold.value
+        and membership.role == GuildRole.superadmin
+    )
+    if guild.status not in LIVE_STATUS_VALUES and not held_for_payment:
         raise GuildAccessError()
     await _enforce_guild_api_access(session, guild)
     # A listed community is open to anyone signed in, so the deployment's age
@@ -1167,6 +1180,7 @@ async def establish_guild_access(
     on_behalf: bool = False,
     for_settings: bool = False,
     for_seat: bool = False,
+    for_payment: bool = False,
     factor_asked: bool = False,
 ) -> GuildContext:
     """Resolve guild access AND apply the session context — the single entry
@@ -1192,7 +1206,7 @@ async def establish_guild_access(
     routing answers that rule for them; membership, grants and the standing
     are resolved exactly as for the person themselves.
 
-    ``factor_asked`` is :func:`_load_guild_context`'s.
+    ``for_payment`` and ``factor_asked`` are :func:`_load_guild_context`'s.
     """
     satisfied = (
         auth_context.satisfied_providers()
@@ -1204,6 +1218,7 @@ async def establish_guild_access(
         current_user,
         guild_id,
         for_settings=for_settings,
+        for_payment=for_payment,
         factor_asked=factor_asked,
     )
     looked_up = save_rls_context(session)
@@ -1706,6 +1721,18 @@ async def get_guild_seat_context(
     ``guild_<id>_superadmin`` — the one role whose floor carries those tables.
     Every other route by the same person routes as an ordinary member.
     """
+    return await _establish_seat(session, current_user, guild_id)
+
+
+async def _establish_seat(
+    session: AsyncSession,
+    current_user: User,
+    guild_id: int,
+    *,
+    for_payment: bool = False,
+) -> GuildContext:
+    """:func:`get_guild_seat_context`'s work, with the one flag a dependency
+    cannot take as a parameter (FastAPI would read it from the query)."""
     try:
         context = await establish_guild_access(
             session,
@@ -1713,6 +1740,7 @@ async def get_guild_seat_context(
             guild_id,
             for_settings=True,
             for_seat=True,
+            for_payment=for_payment,
             factor_asked=True,
         )
     except GuildAccessError as exc:
@@ -1767,6 +1795,29 @@ async def get_guild_seat_write_session(
     return session
 
 
+async def get_guild_seat_payment_context(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildContext:
+    """The seat, for the billing handoff: :func:`get_guild_seat_write_context`
+    that also reaches a community on hold, so its seat can pay its way out.
+
+    Established ``for_payment``; the handoff is the only route that takes it.
+    """
+    return await get_guild_seat_write_context(
+        await _establish_seat(session, current_user, guild_id, for_payment=True)
+    )
+
+
+async def get_guild_seat_payment_session(
+    session: SessionDep,
+    _context: Annotated[GuildContext, Depends(get_guild_seat_payment_context)],
+) -> AsyncSession:
+    """The session :func:`get_guild_seat_payment_context` routed."""
+    return session
+
+
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
 SettingsContextDep = Annotated[GuildContext, Depends(get_guild_settings_context)]
@@ -1793,6 +1844,7 @@ SeatContextDep = Annotated[GuildContext, Depends(get_guild_seat_context)]
 SeatWriteContextDep = Annotated[GuildContext, Depends(get_guild_seat_write_context)]
 SeatSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_session)]
 SeatWriteSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_write_session)]
+SeatPaymentSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_payment_session)]
 
 
 async def _include_deleted_flag(

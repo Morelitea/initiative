@@ -306,6 +306,7 @@
     "guildOnHoldDeletingWithContact": "{{community}} is on hold and will be deleted on {{date}}. Contact {{contact}} to sort it out.",
     "guildTrialEnding": "{{community}}'s trial ends on {{date}}. Subscribe in the billing portal before then to keep editing.",
     "guildTrialEnded": "{{community}}'s trial has ended and it is now read-only. Choose a plan in the billing portal to keep editing.",
+    "guildWelcome": "{{community}} is ready. Set up its plan to get started.",
     "defaultNotification": "You have a new notification.",
     "push": {
       "enableTitle": "Enable Push Notifications",
@@ -387,6 +388,15 @@
   },
   "billingSetup": {
     "opening": "Opening billing so you can choose a plan for {{guild}}."
+  },
+  "billingForward": {
+    "opening": "Opening the billing portal…",
+    "notConfiguredTitle": "No billing portal",
+    "notConfiguredDescription": "This server has no billing portal, so there is no plan to set up here.",
+    "errorTitle": "Couldn't open billing",
+    "error": "The billing portal couldn't be opened. Try the link again in a moment.",
+    "nativeTitle": "Open this link in a browser",
+    "nativeDescription": "Plans are set up in the billing portal, which opens in a web browser rather than in the app. Open the link from your email there to continue."
   },
   "usagePanel": {
     "title": "Usage",
