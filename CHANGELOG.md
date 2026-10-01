@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A board's timeline follows the archive view.** Under **Archived**, the months beside the board count only archived posts, and the live board no longer counts archived ones. `GET /posts/timeline` takes `archived` (API).
 - **Access requests follow your push setting.** Turning push off for approvals or account notices now also silences pushes about access requests and their answers. The bell still shows them.
 - **Repeating tasks keep their repeat when imported from Todoist, TickTick and Vikunja.** TickTick's repeat is read in each task's own timezone, and Vikunja's interval, monthly and "from current date" repeats come across, the last as **After completion**. Todoist's documented English phrases ("every monday at 9am", "every! 2 weeks", "every last workday") become repeats, due on their next date, since Todoist's export leaves out when a repeat started, and a deadline beside one is when it stops. A repeat a task can't follow, such as an hourly one, imports as a one-off task.
 - **Deleting a sign-in provider a community requires says so on PostgreSQL 18.** It's refused as in use, as on earlier versions, instead of failing with a server error.

@@ -10638,6 +10638,10 @@ export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
   search?: string | null;
   unread?: boolean;
   /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
+  /**
    * IANA zone the month boundaries are cut in, e.g. Pacific/Auckland. A month is a boundary in somebody's day, so a reader gets their own. Defaults to UTC.
    */
   tz?: string | null;
