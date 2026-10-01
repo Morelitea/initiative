@@ -7,17 +7,23 @@ of the outbox — the push that goes with it is only a count.
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.notification_categories import Channel
+from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.notification import NotificationType
 from app.services.notifications import _run_hold_summary_pass
 from app.services.platform import notification_prefs, user_notifications
 from app.services.platform.notification_prefs import HoldKind
-from app.testing import create_guild, create_user, set_notification_prefs
+from app.testing import (
+    create_guild,
+    create_user,
+    push_switched_on,
+    set_notification_prefs,
+)
 
 NIGHT = {"quiet_hours": {"start": "22:00", "end": "07:00"}}
 MENTION = NotificationType.mention
@@ -315,6 +321,17 @@ def test_a_window_closing_inside_a_pause_is_not_reported_on_its_own():
 # --- what arrives when one lifts ---------------------------------------------
 
 
+async def _summaries(session: AsyncSession) -> list[NoticeOutboxItem]:
+    """The summaries handed to the notice worker to push."""
+    return list(
+        (
+            await session.exec(
+                select(NoticeOutboxItem).where(NoticeOutboxItem.kind == "push")
+            )
+        ).all()
+    )
+
+
 async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSession):
     user = await create_user(session, email="hold-summary@example.com", timezone="UTC")
     guild = await create_guild(session, creator=user)
@@ -331,19 +348,14 @@ async def test_the_summary_counts_what_happened_and_goes_once(session: AsyncSess
         notification.created_at = _at(23, day=8)
     await session.commit()
 
-    with patch(
-        "app.services.platform.push_notifications.send_push_to_user",
-        new_callable=AsyncMock,
-    ) as push:
-        push.return_value = 1
+    with push_switched_on():
         await _run_hold_summary_pass(session, now=_at(8))
-        assert push.await_count == 1
-        assert "2" in push.await_args.kwargs["body"]
+        [summary] = await _summaries(session)
+        assert "2" in (summary.push_body or "")
 
         # The same window is not summarised twice.
-        push.reset_mock()
         await _run_hold_summary_pass(session, now=_at(9))
-        assert push.await_count == 0
+        assert len(await _summaries(session)) == 1
 
 
 async def test_a_quiet_night_is_not_reported(session: AsyncSession):
@@ -351,12 +363,9 @@ async def test_a_quiet_night_is_not_reported(session: AsyncSession):
     await create_guild(session, creator=user)
     await set_notification_prefs(session, user, dict(NIGHT))
 
-    with patch(
-        "app.services.platform.push_notifications.send_push_to_user",
-        new_callable=AsyncMock,
-    ) as push:
+    with push_switched_on():
         await _run_hold_summary_pass(session, now=_at(8))
-        assert push.await_count == 0
+    assert await _summaries(session) == []
 
 
 async def test_a_lifted_pause_is_cleared_from_the_document(session: AsyncSession):
@@ -376,13 +385,9 @@ async def test_a_lifted_pause_is_cleared_from_the_document(session: AsyncSession
     notification.created_at = _at(12, day=8)
     await session.commit()
 
-    with patch(
-        "app.services.platform.push_notifications.send_push_to_user",
-        new_callable=AsyncMock,
-    ) as push:
-        push.return_value = 1
+    with push_switched_on():
         await _run_hold_summary_pass(session, now=_at(8))
-        assert push.await_count == 1
+    assert len(await _summaries(session)) == 1
 
     doc = await notification_prefs.load_prefs(session, user.id)
     assert "pause" not in doc

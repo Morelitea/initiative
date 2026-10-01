@@ -16,7 +16,7 @@ handle rather than by whatever that one guild renders.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
@@ -89,7 +89,7 @@ from app.services.platform import (
     user_notifications,
 )
 from app.core.user_input_validators import resolve_zone
-from app.db.request_context import Platform, SystemGuild, Unattributed
+from app.db.request_context import Platform, Unattributed
 
 logger = logging.getLogger(__name__)
 
@@ -469,10 +469,11 @@ async def deliver_notices(
     Each notice is a line of its own, or joins the recipient's unread line for
     its thread; a notice that joins one sends no email and no push, so a
     flurry is one interruption. A reaction rolls into the line for what was
-    reacted to, and one taken back comes out of it. A notice whose line is
-    already written is back only for its push, which is asked again. Returns the notices whose push
-    should go — the worker sends them together once this is committed. Never
-    commits.
+    reacted to, and one taken back comes out of it. A push of its own (a
+    digest, a hold summary) writes nothing, and a notice whose line is already
+    written is back only for its push; both are asked whether the push is
+    still wanted. Returns the notices whose push should go — the worker sends
+    them together once this is committed. Never commits.
     """
     push: set[int] = set()
     for notice in notices:
@@ -490,7 +491,7 @@ async def deliver_notices(
             guild_id=notice.guild_id,
             prefs=prefs,
         )
-        if notice.bell_written_at is not None:
+        if notice.kind == "push" or notice.bell_written_at is not None:
             if channels.push and notice.id is not None:
                 push.add(notice.id)
             continue
@@ -922,10 +923,8 @@ async def clear_digest_queue_across_guilds(
     )
 
 
-async def _send_assignment_push(
-    session: AsyncSession, user: User, assignments: list[dict]
-) -> tuple[bool, bool]:
-    """Push a task-assignment digest. Returns ``(delivered, retry_worth_it)``.
+def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.Push:
+    """A task-assignment digest as a push.
 
     A digest of one names its task and deep-links to it; a larger one spans
     guilds, so it points at My Tasks the way the overdue digest does.
@@ -955,20 +954,31 @@ async def _send_assignment_push(
             first.get("task_id"), first.get("project_id")
         )
         data["guild_id"] = str(first["guild_id"])
-    try:
-        sent = await push_notifications.send_push_to_user(
-            session=session,
-            user_id=user.id,
-            notification_type=NotificationType.task_assignment,
-            locale=locale,
-            title=title,
-            body=body,
-            data=data,
-        )
-    except Exception as exc:
-        logger.error("Failed to send assignment digest push: %s", exc, exc_info=True)
-        return False, True
-    return sent > 0, False
+    return push_notifications.Push(
+        cast(int, user.id), NotificationType.task_assignment, title, body, data
+    )
+
+
+async def _queue_push(
+    session: AsyncSession, user: User, push: push_notifications.Push
+) -> bool:
+    """Hand a push of its own to the notice worker, which sends it and tries
+    again if it fails. Returns whether one may go at all: none does from a
+    deployment that sends no push."""
+    item = await notice_outbox.notice(
+        session,
+        user,
+        push.notification_type,
+        {},
+        guild_id=None,
+        push=(push.title, push.body),
+        push_data=push.data,
+        kind="push",
+    )
+    if item["push_title"] is None:
+        return False
+    await notice_outbox.enqueue(session, [item])
+    return True
 
 
 def _digest_is_due(
@@ -1015,8 +1025,8 @@ class DigestSpec:
     #: than a message: under a digest cadence this becomes one section of a
     #: larger one.
     pieces: Callable[[User, list[dict]], email_service.EmailPieces]
-    #: Send the batch as a push. Returns ``(delivered, retry_worth_it)``.
-    send_push: Callable[[AsyncSession, User, list[dict]], Awaitable[tuple[bool, bool]]]
+    #: The batch as a push, for the notice worker to send.
+    push: Callable[[User, list[dict]], push_notifications.Push]
     #: ``User`` column recording when the last one went out, if any. A record,
     #: never a gate — the send window comes from the queue itself.
     stamp: str | None = None
@@ -1136,12 +1146,9 @@ async def _send_digests(
             max_window=spec.max_window,
         ):
             continue
-        taken: dict[int, list[int]] = {}
 
         # Defaults bind the loop variables now rather than by reference (B023).
-        async def _take(
-            routed: AsyncSession, gid: int, *, _uid=user_id, _taken=taken
-        ) -> list[dict]:
+        async def _take(routed: AsyncSession, gid: int, *, _uid=user_id) -> list[dict]:
             # A community set to say less is filtered here, where the guild is
             # known — a digest spans guilds, so this cannot be decided once for
             # the whole batch.
@@ -1158,7 +1165,6 @@ async def _send_digests(
                 ).scalars(),
                 key=lambda item: item.created_at,
             )
-            _taken[gid] = [item.id for item in items]
             return [spec.row(item, gid) for item in items]
 
         # Only the communities holding something for them, and only while they
@@ -1182,11 +1188,6 @@ async def _send_digests(
         ).scalar_one_or_none()
         if user is None:  # deleted since the scan — skip, don't abort the pass
             continue
-        delivered = False
-        # A channel that is merely unconfigured will never deliver these items,
-        # so holding the queue for it would re-send nothing every poll forever.
-        # Only a transient failure is worth another pass.
-        retry = False
         # Re-read the preferences off the row just reloaded, not the snapshot
         # taken before the cross-guild gather: a channel switched off while the
         # gather was running must not still be delivered to.
@@ -1194,51 +1195,27 @@ async def _send_digests(
             session, user, notification_type=sample_type(spec.category)
         )
         email_batch, push_batch = await _digest_batch(session, batch)
+        # Each channel is handed to its outbox, which tries a failed send again
+        # itself, so the items never go back to waiting.
         if channels.email and email_batch:
             # No community: a digest gathers from every guild the account is
             # in, so there is no one of them it happened in. Each item carries
             # its own community's answer instead.
-            delivered = await email_outbox.enqueue(
+            queued = await email_outbox.enqueue(
                 session,
                 user,
                 category=spec.category,
                 prefs=channels.prefs,
                 pieces=spec.pieces(user, email_batch),
             )
-            if not delivered:
+            if not queued:
                 logger.warning(
-                    "SMTP not configured; holding %s for %s", spec.name, user_id
+                    "SMTP not configured; %s for %s goes without email",
+                    spec.name,
+                    user_id,
                 )
         if channels.push and push_batch:
-            pushed, push_retry = await spec.send_push(session, user, push_batch)
-            delivered = delivered or pushed
-            retry = retry or push_retry
-        if retry and not delivered:
-            # Nothing went out and a later pass could still deliver them: the
-            # items go back to waiting, in each community they were taken from.
-            for gid, item_ids in taken.items():
-                async with cohorts.system_session(gid) as routed:
-                    await set_rls_context(routed, SystemGuild(gid))
-                    await routed.exec(
-                        sa_update(model)
-                        .where(model.id.in_(item_ids), model.processed_at == now)
-                        .values(processed_at=None)
-                    )
-                    await routed.commit()
-            continue
-        if retry:  # pragma: no cover — one channel got through, the other did not
-            # The two channels share one queue with a single processed marker,
-            # so the batch is consumed either way. Consuming loses one channel's
-            # copy; retaining would re-send the channel that already succeeded,
-            # and a duplicate digest is the louder failure. Logged so the loss
-            # is visible rather than silent.
-            logger.warning(
-                "%s: a channel failed after another delivered; "
-                "%d item(s) not retried for user %s",
-                spec.name,
-                len(batch),
-                user_id,
-            )
+            await _queue_push(session, user, spec.push(user, push_batch))
         if spec.stamp is not None:
             setattr(user, spec.stamp, now)
             session.add(user)
@@ -1301,7 +1278,7 @@ ASSIGNMENT_DIGEST = DigestSpec(
     category=NotificationCategory.assignments,
     row=_assignment_row,
     pieces=email_service.task_assignment_digest_pieces,
-    send_push=_send_assignment_push,
+    push=_assignment_push,
     stamp="last_task_assignment_digest_at",
 )
 
@@ -1680,10 +1657,8 @@ async def _take_back_reaction(
     )
 
 
-async def _send_reaction_push(
-    session: AsyncSession, user: User, reactions: list[dict]
-) -> tuple[bool, bool]:
-    """Push a reaction digest. Returns ``(delivered, retry_worth_it)``.
+def _reaction_push(user: User, reactions: list[dict]) -> push_notifications.Push:
+    """A reaction digest as a push.
 
     A digest of one names its emoji and deep-links to what was reacted to; a
     larger one spans guilds, so it points at My Tasks the way the other
@@ -1713,20 +1688,9 @@ async def _send_reaction_push(
     if len(reactions) == 1 and first.get("guild_id") is not None:
         data["target_path"] = first["target_path"]
         data["guild_id"] = str(first["guild_id"])
-    try:
-        sent = await push_notifications.send_push_to_user(
-            session=session,
-            user_id=user.id,
-            notification_type=NotificationType.comment_reaction,
-            locale=locale,
-            title=title,
-            body=body,
-            data=data,
-        )
-    except Exception as exc:
-        logger.error("Failed to send reaction digest push: %s", exc, exc_info=True)
-        return False, True
-    return sent > 0, False
+    return push_notifications.Push(
+        cast(int, user.id), NotificationType.comment_reaction, title, body, data
+    )
 
 
 def _reaction_row(item, guild_id: int) -> dict:
@@ -1746,7 +1710,7 @@ REACTION_DIGEST = DigestSpec(
     category=NotificationCategory.reactions,
     row=_reaction_row,
     pieces=email_service.reaction_digest_pieces,
-    send_push=_send_reaction_push,
+    push=_reaction_push,
 )
 
 
@@ -1889,10 +1853,8 @@ async def _overdue_tasks_for_user(
     return tasks
 
 
-async def _send_overdue_push(
-    session: AsyncSession, user: User, tasks: list[dict]
-) -> bool:
-    """Push the overdue digest to the user's devices. Returns whether it landed.
+def _overdue_push(user: User, tasks: list[dict]) -> push_notifications.Push:
+    """The overdue digest as a push.
 
     The digest spans every guild the user belongs to, so the tap lands on My
     Tasks — the cross-guild list — rather than on any one task. It carries no
@@ -1914,20 +1876,9 @@ async def _send_overdue_push(
         "count": str(len(tasks)),
         "target_path": MY_TASKS_TARGET_PATH,
     }
-    try:
-        sent = await push_notifications.send_push_to_user(
-            session=session,
-            user_id=user.id,
-            notification_type=NotificationType.overdue_tasks,
-            locale=locale,
-            title=title,
-            body=body,
-            data=data,
-        )
-    except Exception as exc:
-        logger.error("Failed to send overdue push: %s", exc, exc_info=True)
-        return False
-    return sent > 0
+    return push_notifications.Push(
+        cast(int, user.id), NotificationType.overdue_tasks, title, body, data
+    )
 
 
 def overdue_scan(*, now: datetime) -> Scan:
@@ -2048,9 +1999,9 @@ async def _send_overdue(
             user is None
         ):  # deleted between the snapshot and now — skip, don't abort the pass
             continue
-        # Today's digest is claimed by stamping it before anything is sent, so
-        # it goes out once however many processes sweep at the same moment.
-        previous = user.last_overdue_notification_at
+        # Today's digest is claimed by stamping it in the transaction that
+        # queues it, so it goes out once however many processes sweep at the
+        # same moment: another waits on the row, then finds the day taken.
         claimed = await session.exec(
             sa_update(User)
             .where(
@@ -2063,8 +2014,8 @@ async def _send_overdue(
             )
             .values(last_overdue_notification_at=now)
         )
-        await session.commit()
         if not claimed.rowcount:
+            await session.rollback()
             continue
         # A channel that is merely unconfigured (no SMTP, no FCM) hands the day
         # back below, so the next poll tries again instead of the user's one
@@ -2095,17 +2046,14 @@ async def _send_overdue(
                     "SMTP not configured; skipping overdue digest for %s", user_id
                 )
         if channels.push and push_tasks:
-            delivered = await _send_overdue_push(session, user, push_tasks) or delivered
-        if not delivered:
-            await session.exec(
-                sa_update(User)
-                .where(
-                    User.id == user_id,
-                    User.last_overdue_notification_at == now,
-                )
-                .values(last_overdue_notification_at=previous)
+            delivered = (
+                await _queue_push(session, user, _overdue_push(user, push_tasks))
+                or delivered
             )
-        await session.commit()
+        if delivered:
+            await session.commit()
+        else:
+            await session.rollback()
 
 
 # Holds: one summary when a hold lifts
@@ -2213,22 +2161,20 @@ async def _record_lift(
     session: AsyncSession,
     *,
     user_id: int,
+    prefs: dict[str, Any],
     lift: notification_prefs.Lift,
     summarised: bool,
 ) -> None:
-    """Write down that this hold has been dealt with.
+    """Write down that this hold has been dealt with, in ``prefs`` — the
+    document as the pass locked it, so nothing saved meanwhile is lost.
 
-    The document is re-read here rather than reused from the top of the pass:
-    sending is network I/O, the account may have changed a setting while it
-    ran, and saving replaces the whole document — so a copy loaded before the
-    send would carry their change back out.
-
-    A lapsed pause is cleared whether or not its push went, and only the push
-    is at stake: the content itself left through the outbox when the hold
-    lifted, so a failed push costs the count, never the news. A quiet-hours
-    window keeps a stamp instead, because the window comes round again.
+    A lapsed pause is cleared whether or not a push could go, and only the
+    push is at stake: the content itself left through the outbox when the hold
+    lifted, so a deployment without push costs the count, never the news. A
+    quiet-hours window keeps a stamp instead, because the window comes round
+    again.
     """
-    fresh = await notification_prefs.load_prefs(session, user_id)
+    fresh = dict(prefs)
     if lift.kind is notification_prefs.HoldKind.pause:
         fresh.pop("pause", None)
     elif summarised:
@@ -2310,7 +2256,9 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
         if not rows:
             # Nothing the push may carry is a covered summary, not one to
             # reconsider on every poll.
-            await _record_lift(session, user_id=user.id, lift=lift, summarised=True)
+            await _record_lift(
+                session, user_id=user.id, prefs=prefs, lift=lift, summarised=True
+            )
             continue
 
         locale = _recipient_locale(user)
@@ -2319,30 +2267,20 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
             if lift.kind is notification_prefs.HoldKind.pause
             else "quietHours.summary"
         )
-        summarised = False
-        try:
-            summarised = bool(
-                await push_notifications.send_push_to_user(
-                    session=session,
-                    user_id=user.id,
-                    notification_type=sample_type(rows[0][0]),
-                    locale=locale,
-                    title=_nt(f"{key}.title", locale),
-                    body=_nt(
-                        f"{key}.body",
-                        locale,
-                        count=sum(count for _, _, count in rows),
-                    ),
-                    data={
-                        "type": f"{lift.kind.value}_summary",
-                        "target_path": "/notifications",
-                    },
-                )
-            )
-        except Exception as exc:
-            logger.error("Failed to push hold summary: %s", exc, exc_info=True)
-
-        await _record_lift(session, user_id=user.id, lift=lift, summarised=summarised)
+        summarised = await _queue_push(
+            session,
+            user,
+            push_notifications.Push(
+                cast(int, user.id),
+                sample_type(rows[0][0]),
+                _nt(f"{key}.title", locale),
+                _nt(f"{key}.body", locale, count=sum(count for _, _, count in rows)),
+                {"type": f"{lift.kind.value}_summary", "target_path": "/notifications"},
+            ),
+        )
+        await _record_lift(
+            session, user_id=user.id, prefs=prefs, lift=lift, summarised=summarised
+        )
         await session.commit()
 
 
