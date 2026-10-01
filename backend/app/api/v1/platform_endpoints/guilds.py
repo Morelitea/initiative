@@ -664,7 +664,7 @@ async def create_guild(
 @router.get("/{guild_id}/invites", response_model=List[GuildInviteRead])
 async def list_guild_invites(
     guild_id: int,
-    _guild_context: SettingsAdminContextDep,
+    _guild_context: SettingsAdminWriteContextDep,
     session: SettingsRLSSessionDep,
 ) -> List[GuildInviteRead]:
     invites = await guilds_service.list_guild_invites(session, guild_id=guild_id)

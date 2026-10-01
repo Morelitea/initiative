@@ -158,7 +158,7 @@ def _live(table: Table):
 
 
 def visible_ids(
-    entity_type: SearchEntityType, user_id: int, *, need_write: bool = False
+    entity_type: SearchEntityType, user_id: int | None, *, need_write: bool = False
 ) -> Select:
     """Ids of this kind that ``user_id`` may open, or may edit.
 
@@ -417,7 +417,7 @@ class Resolved:
 
 
 async def resolve_many(
-    session, entity_type: SearchEntityType, ids: Sequence[int], *, user_id: int
+    session, entity_type: SearchEntityType, ids: Sequence[int], *, user_id: int | None
 ) -> dict[int, Resolved]:
     """The rows of one kind this reader may open, keyed by id.
 
@@ -500,7 +500,7 @@ async def resolve_many(
 
 
 async def resolve_one(
-    session, entity_type: SearchEntityType, entity_id: int, *, user_id: int
+    session, entity_type: SearchEntityType, entity_id: int, *, user_id: int | None
 ) -> Resolved | None:
     """:func:`resolve_many` for one id."""
     found = await resolve_many(session, entity_type, [entity_id], user_id=user_id)

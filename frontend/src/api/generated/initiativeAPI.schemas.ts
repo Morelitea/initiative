@@ -1725,12 +1725,13 @@ export interface ChecklistProgress {
  */
 export interface TaskListRead {
   title: string;
-  description: string | null;
   priority: TaskPriority;
   start_date: string | null;
   due_date: string | null;
   recurrence: string | null;
   recurrence_strategy: TaskListReadRecurrenceStrategy;
+  description_excerpt: string | null;
+  has_description: boolean;
   id: number;
   project_id: number;
   task_status_id: number;
@@ -8604,12 +8605,12 @@ export const TaskCreateRecurrenceStrategy = {
 
 export interface TaskCreate {
   title: string;
-  description?: string | null;
   priority?: TaskPriority;
   start_date?: string | null;
   due_date?: string | null;
   recurrence?: string | null;
   recurrence_strategy?: TaskCreateRecurrenceStrategy;
+  description?: string | null;
   project_id: number;
   tz?: string | null;
   assignee_ids?: number[];
@@ -8655,12 +8656,12 @@ export const TaskReadRecurrenceStrategy = {
 
 export interface TaskRead {
   title: string;
-  description: string | null;
   priority: TaskPriority;
   start_date: string | null;
   due_date: string | null;
   recurrence: string | null;
   recurrence_strategy: TaskReadRecurrenceStrategy;
+  description: string | null;
   id: number;
   project_id: number;
   task_status_id: number;

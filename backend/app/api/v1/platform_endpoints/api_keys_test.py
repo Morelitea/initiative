@@ -10,6 +10,7 @@ Tests the API key endpoints at /api/v1/users/me/api-keys including:
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -428,6 +429,41 @@ async def test_create_guild_bound_key_rejects_unknown_guild(
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("POST", "/api/v1/users/me/api-keys", {"name": "Wider"}),
+        ("DELETE", "/api/v1/users/me/api-keys/1", None),
+        ("POST", "/api/v1/users/me/emails", {"email": "elsewhere@example.com"}),
+        ("DELETE", "/api/v1/users/me/emails/1", None),
+        ("PUT", "/api/v1/users/me/emails/1/primary", None),
+    ],
+)
+async def test_a_key_does_not_manage_keys_or_addresses(
+    client: AsyncClient,
+    session: AsyncSession,
+    method: str,
+    path: str,
+    body: dict | None,
+):
+    """Keys and account addresses are managed in the person's own sign-in."""
+    user = await create_user(session, email="key-manages@example.com")
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    create = await client.post(
+        "/api/v1/users/me/api-keys",
+        headers=get_auth_headers(user),
+        json={"name": "Pinned", "guild_id": guild.id},
+    )
+    assert create.status_code == 201, create.text
+    key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
+
+    response = await client.request(method, path, headers=key_headers, json=body)
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"
 
 
 async def test_password_change_deactivates_api_keys(

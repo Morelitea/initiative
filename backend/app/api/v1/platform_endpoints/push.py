@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, status
+from typing import Annotated
 
-from app.api.deps import UserSessionDep, CurrentUser
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.api.deps import UserSessionDep, CurrentUser, require_first_party_session
 from app.core.auth_context import device_token_id, session_credential
 from app.schemas.platform.push import (
     PushTokenRegisterRequest,
@@ -18,6 +20,7 @@ async def register_push_token(
     session: UserSessionDep,
     current_user: CurrentUser,
     request: PushTokenRegisterRequest,
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> PushTokenResponse:
     """Register a push notification token for the current user.
 
@@ -31,6 +34,8 @@ async def register_push_token(
 
     So is the session that made it: a device is sent to while the sign-in that
     registered it stands, and the app registers again each time it starts.
+    Only a sign-in registers one: a device receives the account's notifications
+    from every community, which is more than any key or app is lent.
 
     A deployment that has switched push notifications off declines (403) and
     stores nothing: there is nothing for the token to be used for, and holding
