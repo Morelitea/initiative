@@ -864,7 +864,9 @@ class TaskListQuery:
     property_definitions: dict
 
 
-def _property_value_leaves(conditions: list) -> list:
+def _property_value_leaves(
+    conditions: list[FilterCondition | FilterGroup],
+) -> list[FilterCondition]:
     """Every ``property_values`` leaf, wherever it sits."""
     return [
         cond
@@ -873,7 +875,9 @@ def _property_value_leaves(conditions: list) -> list:
     ]
 
 
-def check_task_conditions(conditions: Optional[str]) -> list:
+def check_task_conditions(
+    conditions: Optional[str],
+) -> list[FilterCondition | FilterGroup]:
     """The task list's ``conditions``, parsed and checked without a database:
     the operators each field takes, and how many property filters one list
     compiles. Raises ``ValueError`` on anything the list refuses."""

@@ -19,8 +19,8 @@ time, under the caller's RLS session.
 
 from __future__ import annotations
 
-import json
 from collections import defaultdict
+from dataclasses import replace
 from datetime import datetime
 from typing import Any, ClassVar
 
@@ -31,6 +31,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.models.platform.user import User
+from app.schemas.query import FilterCondition, FilterOp
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.export.adapters._common import (
     BuildContext,
@@ -191,23 +192,28 @@ class ProjectAdapter(ToolExportAdapter):
             select(Task.id, Task.project_id).where(Task.id.in_(ids))
         ):
             by_project[project_id].append(task_id)
+        query = await task_queries.parse_task_list_query(
+            session, tasks.conditions, None, getattr(ctx.now.tzinfo, "key", None)
+        )
         kept: set[int] = set()
         for project_id, task_ids in by_project.items():
-            confined = [
-                {"field": "project_id", "op": "eq", "value": project_id},
-                *json.loads(tasks.conditions or "[]"),
-            ]
-            query = await task_queries.parse_task_list_query(
-                session,
-                json.dumps(confined),
-                None,
-                getattr(ctx.now.tzinfo, "key", None),
+            # Confined after parsing, so naming the project is not one more of
+            # the conditions a list may hold.
+            confined = replace(
+                query,
+                user_conditions=[
+                    FilterCondition(
+                        field="project_id", op=FilterOp.eq, value=project_id
+                    ),
+                    *query.user_conditions,
+                ],
+                project_id=project_id,
             )
             build = await task_queries.guild_task_query_builder(
                 session,
                 ctx.user,
                 require_guild_context(session),
-                q=query,
+                q=confined,
                 include_archived=tasks.include_archived,
             )
             if build is not None:
