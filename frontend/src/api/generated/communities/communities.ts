@@ -2695,7 +2695,8 @@ export function useGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotification
  * a channel leaves nothing here to decline.
  *
  * The same seat as the three beside it, and for the same reason: it says what
- * is done on this community's behalf rather than how it is run. The bell
+ * is done on this community's behalf rather than how it is run. Narrowing
+ * needs the ``restrictions`` entitlement; widening never does. The bell
  * inside the app is unaffected, and so is what an account is sent about
  * itself — a sign-in code and a password reset are not notifications.
  * @summary Set Guild Notification Policy
@@ -2995,12 +2996,11 @@ export function useGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGet<
  * end-to-end and keeps an admin from locking their guild (and themselves)
  * behind a sign-in they haven't completed.
  *
- * The two verbs are gated differently, and deliberately. Setting a
- * requirement needs the guild's entitlement, as before. **Clearing one is
- * always reachable**: enforcement reads the policy row alone, so a
- * requirement outlives the entitlement and the way to lift one outlives it
- * too. Lifting only ever admits more, so it carries none of the conditions
- * imposing it does.
+ * Tightening a requirement needs the guild's ``providers`` entitlement;
+ * loosening or clearing one never does. Enforcement reads the policy row
+ * alone, so a requirement outlives the entitlement, apart from its second
+ * factor, which applies only while the guild holds ``providers``. See
+ * ``auth_posture.change`` for the steps every rule's write takes.
  * @summary Set Guild Auth Policy
  */
 export const setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut = (
@@ -3105,9 +3105,8 @@ export const useSetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut = <
  *
  * The same seat as the sign-in requirement, and for the same reason: it says
  * what may be used to reach the community, which is not the job of running
- * one. Like everything else on that surface it needs the master entitlement,
- * which most guilds never hold — a community that configures no part of its
- * own sign-in is not asked about API keys either.
+ * one. Refusing keys needs the ``restrictions`` entitlement, which most guilds
+ * never hold; accepting them never does.
  *
  * Existing keys are left alone. What they may reach is decided when they are
  * used, so switching this back on restores them rather than leaving somebody
@@ -3332,7 +3331,7 @@ export const useSetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut = <
  * signs in again is part of what the community asks of a session, not part of
  * running it. One standard rather than a figure of the guild's own, so
  * somebody in two communities that ask for it has an answer and not a
- * comparison. It needs the master entitlement, like the rest of the surface.
+ * comparison. Turning it on needs the ``restrictions`` entitlement.
  *
  * It reaches members' sessions at their next sign-in. Phones are the
  * exception: a device token carries its deadline in its own expiry, so the
