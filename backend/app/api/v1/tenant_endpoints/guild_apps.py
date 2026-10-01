@@ -48,6 +48,7 @@ from app.api.deps import (
     SeatWriteContextDep,
     SeatWriteSessionDep,
     require_first_party_session,
+    require_grant_writes,
     require_seat,
     GuildContextDep,
     CurrentUser,
@@ -1089,6 +1090,7 @@ async def connect_guild_app(
     guild_wide = connection.get("scope") == "static"
     if guild_wide:
         require_seat(guild_context)
+        require_grant_writes(guild_context)
 
     registration = await handoff_service.require_live_registration(app)
 
@@ -1159,6 +1161,7 @@ async def disconnect_guild_app(
 
     if connection.get("scope") == "static":
         require_seat(guild_context)
+        require_grant_writes(guild_context)
         # Clearing rewrites both configuration maps, so it takes the row: an app
         # writing back at the same moment must not put back what was cleared.
         app = await _load(session, app_id, for_update=True)
