@@ -13,10 +13,11 @@ rows it loads and how one row serialises.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 
+from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -29,6 +30,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
+from app.services.export.filters import narrow, parse_filters
 from app.services.permissions import EXPORT_ACCESS
 from app.services.platform.csv_export import safe_filename_component
 from app.core.user_input_validators import resolve_zone
@@ -84,13 +86,15 @@ def envelope_key(tool: Tool, name: str, date: str) -> str:
 @dataclass(frozen=True)
 class BuildContext:
     """What one batch of render items is built against: the requested format,
-    the creator (locale and attribution), the guild, a single clock read, and
-    whatever ``ToolExportAdapter.prepare`` loaded for the whole batch."""
+    the creator (locale and attribution), the guild, a single clock read, the
+    tool's export filters, and whatever ``ToolExportAdapter.prepare`` loaded
+    for the whole batch."""
 
     format: str
     user: User
     guild_id: int
     now: datetime
+    filters: BaseModel | None = None
     prepared: Any = None
 
     @property
@@ -125,6 +129,9 @@ class ToolExportAdapter:
     #: data generated from the queries' shapes, because its results are the
     #: publisher's community, not something they made for the listing.
     example_is_generated: bool = False
+    #: Filters on what one entity holds rather than on which entities, by the
+    #: key they take in the tool's export filters (``app.services.export.filters``).
+    content_filters: ClassVar[dict[str, type[BaseModel]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -188,7 +195,9 @@ class ToolExportAdapter:
         when the items ``ctx.format`` writes name it."""
         return set()
 
-    async def prepare(self, session: AsyncSession, entities: list[Any], /) -> Any:
+    async def prepare(
+        self, session: AsyncSession, entities: list[Any], ctx: BuildContext, /
+    ) -> Any:
         """Anything the item builders need across the whole batch, loaded in
         one pass (they are synchronous and hold no session)."""
         return None
@@ -218,10 +227,17 @@ class ToolExportAdapter:
         params: dict,
         format: str,
     ) -> list[Any]:
-        """Every selected entity, fetched and authorized one by one."""
+        """Every selected entity the tool's filters leave, fetched and
+        authorized one by one."""
+        ids = await narrow(
+            session,
+            user,
+            self.tool,
+            parse_filters(self.tool, params.get("filters")),
+            self.selection(params),
+        )
         return [
-            await self.fetch(session, user, guild_id, entity_id)
-            for entity_id in self.selection(params)
+            await self.fetch(session, user, guild_id, entity_id) for entity_id in ids
         ]
 
     async def count(
@@ -253,8 +269,9 @@ class ToolExportAdapter:
             # One clock read: the filename date and the subtitle timestamp
             # must not straddle midnight into disagreeing dates.
             now=datetime.now(resolve_zone(params.get("tz"))),
-            prepared=await self.prepare(session, entities),
+            filters=parse_filters(self.tool, params.get("filters")),
         )
+        ctx = replace(ctx, prepared=await self.prepare(session, entities, ctx))
         batch = tuple(item for entity in entities for item in self.items(entity, ctx))
         if format == "json":
             # An envelope names people by handle, never by id — including the

@@ -8,7 +8,9 @@ calendar renders its own file: ``ics`` is a single multi-event VCALENDAR
 
 Selector: an explicit ``calendar_ids`` selection, or ``initiative_id`` (all
 exportable calendars in that initiative), or neither — every calendar visible
-to the creator across the guild. Enumeration applies per-calendar sharing (the
+to the creator across the guild. ``filters`` narrows it the way the calendar
+list does, and its ``events`` range narrows each calendar's events
+(``EventWindow``). Enumeration applies per-calendar sharing (the
 DAC visible-ids subquery), so an export only ever contains calendars shared
 with its creator.
 
@@ -19,8 +21,10 @@ both count and build time, under the caller's RLS session.
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, ClassVar
 
+from pydantic import AwareDatetime, BaseModel, ConfigDict
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -37,12 +41,33 @@ from app.services.export.adapters._common import (
     related_reach,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.filters import narrow, parse_filters
 from app.services.permissions import EXPORT_ACCESS
+
+
+class EventWindow(BaseModel):
+    """The events a calendar's export carries: those starting in the range,
+    a repeating one whole (``series_in_window``). Either end may be open."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    start_after: AwareDatetime | None = None
+    start_before: AwareDatetime | None = None
+
+
+@dataclass(frozen=True)
+class _Events:
+    """Each calendar's events in the export, by calendar id, and the documents
+    attached to them, by event id."""
+
+    by_calendar: dict[int, list[CalendarEvent]]
+    documents: dict[int, list]
 
 
 class CalendarAdapter(ToolExportAdapter):
     tool = Tool.calendar
     formats = ("ics", "json")
+    content_filters: ClassVar[dict[str, type[BaseModel]]] = {"events": EventWindow}
 
     async def count(
         self,
@@ -62,23 +87,44 @@ class CalendarAdapter(ToolExportAdapter):
             return await super().count(
                 session, user=user, guild_id=guild_id, params=params, format=format
             )
-        from app.services.tenant.calendars import list_calendar_ids_for_export
-
-        calendar_ids = await list_calendar_ids_for_export(
-            session,
-            user,
-            guild_id,
-            initiative_id=_optional_int(params, "initiative_id"),
-        )
+        filters = parse_filters(self.tool, params.get("filters"))
+        calendar_ids = await self._enumerate(session, user, guild_id, params, filters)
         if not calendar_ids:
             return 0
         return (
             await session.exec(
                 select(func.count())
                 .select_from(CalendarEvent)
-                .where(CalendarEvent.calendar_id.in_(calendar_ids))
+                .where(
+                    CalendarEvent.calendar_id.in_(calendar_ids),
+                    *_window(filters),
+                )
             )
         ).one()
+
+    async def _enumerate(
+        self,
+        session: AsyncSession,
+        user: User,
+        guild_id: int,
+        params: dict,
+        filters: BaseModel | None,
+    ) -> list[int]:
+        """Every calendar the creator may export in the initiative (or the
+        guild) that the calendar list's filters leave."""
+        from app.services.tenant.calendars import list_calendar_ids_for_export
+
+        initiative_id = _optional_int(params, "initiative_id")
+        return await narrow(
+            session,
+            user,
+            self.tool,
+            filters,
+            await list_calendar_ids_for_export(
+                session, user, guild_id, initiative_id=initiative_id
+            ),
+            initiative_id=initiative_id,
+        )
 
     async def load(
         self,
@@ -93,25 +139,17 @@ class CalendarAdapter(ToolExportAdapter):
         not export is refused; the enumeration leaves those out instead, the
         way it leaves out calendars they cannot read at all."""
         if _is_selection(params):
-            return [
-                await self.fetch(session, user, guild_id, calendar_id)
-                for calendar_id in self.selection(params)
-            ]
+            return await super().load(session, user, guild_id, params, format)
         from app.services.permissions import Action, allows
-        from app.services.tenant.calendars import (
-            get_calendar_for_export,
-            list_calendar_ids_for_export,
-        )
+        from app.services.tenant.calendars import get_calendar_for_export
 
+        filters = parse_filters(self.tool, params.get("filters"))
         calendars = [
             await get_calendar_for_export(
                 session, user, guild_id, calendar_id=calendar_id, access="read"
             )
-            for calendar_id in await list_calendar_ids_for_export(
-                session,
-                user,
-                guild_id,
-                initiative_id=_optional_int(params, "initiative_id"),
+            for calendar_id in await self._enumerate(
+                session, user, guild_id, params, filters
             )
         ]
         return [calendar for calendar in calendars if allows(calendar, Action.export)]
@@ -147,12 +185,29 @@ class CalendarAdapter(ToolExportAdapter):
         return len(calendar.events)
 
     async def prepare(
-        self, session: AsyncSession, calendars: list[Calendar], /
-    ) -> dict[int, list]:
+        self, session: AsyncSession, calendars: list[Calendar], ctx: BuildContext, /
+    ) -> _Events:
         # Every event across every calendar, once: the builders below are
         # synchronous and hold no session.
-        return await documents_for_events(
-            session, [event for calendar in calendars for event in calendar.events]
+        by_calendar = {calendar.id: list(calendar.events) for calendar in calendars}
+        window = _window(ctx.filters)
+        if window and by_calendar:
+            kept = set(
+                await session.exec(
+                    select(CalendarEvent.id).where(
+                        CalendarEvent.calendar_id.in_(list(by_calendar)), *window
+                    )
+                )
+            )
+            by_calendar = {
+                calendar_id: [event for event in events if event.id in kept]
+                for calendar_id, events in by_calendar.items()
+            }
+        return _Events(
+            by_calendar,
+            await documents_for_events(
+                session, [event for events in by_calendar.values() for event in events]
+            ),
         )
 
     async def prepared_reach(
@@ -164,11 +219,17 @@ class CalendarAdapter(ToolExportAdapter):
             return set()
         return await related_reach(
             session,
-            (related for items in ctx.prepared.values() for related in items),
+            (related for items in ctx.prepared.documents.values() for related in items),
         )
 
     def item(self, calendar: Calendar, ctx: BuildContext, /) -> RenderItem:
-        return build_calendar_item(calendar, ctx.format, ctx.date, ctx.prepared)
+        return build_calendar_item(
+            calendar,
+            ctx.prepared.by_calendar[calendar.id],
+            ctx.format,
+            ctx.date,
+            ctx.prepared.documents,
+        )
 
 
 def _is_selection(params: dict) -> bool:
@@ -179,19 +240,16 @@ def _is_selection(params: dict) -> bool:
 
 def build_calendar_item(
     calendar: Calendar,
+    events: list[CalendarEvent],
     format: str,
     date: str,
-    documents: dict[int, list] | None = None,
+    documents: dict[int, list],
 ) -> RenderItem:
     """One render item per calendar: an ``ics`` VCALENDAR or an importable
-    ``initiative-calendar`` JSON envelope, both carrying every event."""
+    ``initiative-calendar`` JSON envelope, both carrying the events given."""
     from app.services.tenant.ical_service import event_export_dict
 
-    by_event = documents or {}
-    dicts = [
-        event_export_dict(event, by_event.get(event.id, []))
-        for event in calendar.events
-    ]
+    dicts = [event_export_dict(event, documents.get(event.id, [])) for event in events]
     if format == "json":
         # The envelope is importable machine data — stays canonical, never
         # localized (translating field keys / enum values breaks import).
@@ -216,6 +274,16 @@ def _envelope(calendar: Calendar, event_dicts: list[dict]) -> dict[str, Any]:
         "color": calendar.color,
         "events": event_dicts,
     }
+
+
+def _window(filters: BaseModel | None) -> list:
+    """The WHERE legs of the export's ``events`` range; none without one."""
+    from app.api.v1.tenant_endpoints.calendar_events import series_in_window
+
+    window = getattr(filters, "events", None)
+    if window is None:
+        return []
+    return series_in_window(window.start_after, window.start_before)
 
 
 def _optional_int(params: dict, key: str) -> int | None:

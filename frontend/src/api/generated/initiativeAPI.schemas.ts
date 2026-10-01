@@ -10453,6 +10453,11 @@ export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
    */
   property_filters?: string | null;
   /**
+   * Same date range as the event list
+   */
+  start_after?: string | null;
+  start_before?: string | null;
+  /**
    * IANA timezone for the file name's date
    */
   tz?: string | null;
@@ -10465,6 +10470,10 @@ export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams = {
    */
   initiative_id?: number | null;
   include_uploads?: boolean;
+  /**
+   * JSON object of tool→filters narrowing what each tool exports: the tool's own list filters (as its list route takes them, such as ``{"queue": {"tag_ids": [3]}}``), and for calendars an ``events`` date range. ``archived`` omitted exports live and archived rows alike.
+   */
+  filters?: string | null;
 };
 
 export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope =
@@ -10490,6 +10499,10 @@ export type ExportInitiativeApiV1CGuildIdExportsInitiativeGetParams = {
    * Backup mode: bundle referenced upload blobs
    */
   include_uploads?: boolean;
+  /**
+   * JSON object of tool→filters narrowing what each tool exports: the tool's own list filters (as its list route takes them, such as ``{"queue": {"tag_ids": [3]}}``), and for calendars an ``events`` date range. ``archived`` omitted exports live and archived rows alike.
+   */
+  filters?: string | null;
   /**
    * IANA timezone for report timestamps
    */
@@ -10519,6 +10532,10 @@ export type ExportGuildApiV1CGuildIdExportsCommunityGetParams = {
    */
   include_uploads?: boolean;
   /**
+   * JSON object of tool→filters narrowing what each tool exports: the tool's own list filters (as its list route takes them, such as ``{"queue": {"tag_ids": [3]}}``), and for calendars an ``events`` date range. ``archived`` omitted exports live and archived rows alike.
+   */
+  filters?: string | null;
+  /**
    * IANA timezone for report timestamps
    */
   tz?: string | null;
@@ -10545,6 +10562,10 @@ export type ExportToolApiV1CGuildIdExportsToolGetParams = {
    * Calendars only: with no ids, every calendar the caller may export in this initiative
    */
   initiative_id?: number | null;
+  /**
+   * JSON object narrowing the export: the tool's own list filters, and for calendars an ``events`` date range (``{"events": {"start_after": …, "start_before": …}}``)
+   */
+  filters?: string | null;
   /**
    * IANA timezone for report timestamps
    */

@@ -1,0 +1,132 @@
+"""What narrows a tool's export: the tool's own list filters, and the filter
+its content declares.
+
+An export of a tool is that tool's list, rendered. So its filters are not
+declared here: they are read off the tool's list route (``TOOL_LISTS``), and a
+filter the list gains is one the export takes. A tool whose contents have a
+filter of their own (a calendar's events by date) names it on its adapter
+(``ToolExportAdapter.content_filters``).
+
+Filters are one person's instruction for one render. Nothing keeps them past
+the job that carries them.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Any, Optional
+
+from pydantic import BaseModel, ConfigDict, ValidationError, create_model
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.messages import ExportMessages
+from app.core.tools import Tool, tool_export_source
+from app.db.session import require_guild_context
+from app.models.platform.user import User
+from app.services.export.engine import ExportError
+
+#: List params that say where, in what order and in what shape a page is
+#: served. The export decides those for itself, so they are not filters.
+_NOT_FILTERS = frozenset(
+    {
+        "initiative_id",
+        "ids",
+        "scope",
+        "slim",
+        "page",
+        "page_size",
+        "sort_by",
+        "sort_dir",
+    }
+)
+
+
+@lru_cache(maxsize=None)
+def filter_model(tool: Tool) -> type[BaseModel]:
+    """The filters one tool's export takes: its list's params, and its
+    content's."""
+    from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
+
+    fields: dict[str, Any] = {
+        param.name: (param.annotation, param.default.default)
+        for param in TOOL_LISTS[tool].params
+        if param.name not in _NOT_FILTERS
+    }
+    fields |= {
+        name: (Optional[model], None)  # ty: ignore[invalid-type-form]
+        for name, model in _content(tool).items()
+    }
+    return create_model(
+        f"{tool.value}_export_filters",
+        __config__=ConfigDict(extra="forbid"),
+        **fields,
+    )
+
+
+def _content(tool: Tool) -> dict[str, type[BaseModel]]:
+    from app.services.export.adapters import ADAPTERS
+
+    return ADAPTERS[tool_export_source(tool)].content_filters
+
+
+def parse_filters(tool: Tool, raw: Any) -> BaseModel | None:
+    """One tool's filters from a job's params, or ``None`` for none."""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+    try:
+        return filter_model(tool).model_validate(raw)
+    except ValidationError:
+        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+
+
+async def narrow(
+    session: AsyncSession,
+    user: User,
+    tool: Tool,
+    filters: BaseModel | None,
+    ids: list[int],
+    *,
+    initiative_id: int | None = None,
+) -> list[int]:
+    """The ids, in their order, that the tool's list answers with these
+    filters.
+
+    The list shows live rows or archived ones, never both. An export with no
+    archive choice carries both, so it takes both of the list's answers.
+    """
+    from app.api.v1.tenant_endpoints.tool_lists import (
+        TOOL_LISTS,
+        ListRequest,
+        list_conditions,
+    )
+
+    listed = (
+        filters.model_dump(exclude=set(_content(tool)), exclude_defaults=True)
+        if filters
+        else {}
+    )
+    if not listed or not ids:
+        return ids
+    spec = TOOL_LISTS[tool]
+    values = {param.name: param.default.default for param in spec.params}
+    values |= listed | {"initiative_id": initiative_id}
+    archive = [False, True] if values.get("archived") is None else [values["archived"]]
+    kept: set[int] = set()
+    for archived in archive:
+        request = ListRequest(
+            session,
+            user,
+            require_guild_context(session),
+            values | {"archived": archived},
+        )
+        kept.update(
+            await session.exec(
+                select(spec.model.id).where(
+                    spec.model.id.in_(ids), *await list_conditions(spec, request)
+                )
+            )
+        )
+    return [entity_id for entity_id in ids if entity_id in kept]

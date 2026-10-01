@@ -211,6 +211,20 @@ def starts_in_window(
     return [or_(and_(*once), and_(*repeating))]
 
 
+def series_in_window(
+    start_after: Optional[datetime],
+    start_before: Optional[datetime],
+    tz: Optional[str] = None,
+) -> list[ColumnElement[bool]]:
+    """:func:`starts_in_window`, for an export: a repeating event travels
+    whole, so its changed occurrences come with it wherever they now fall."""
+    window = starts_in_window(start_after, start_before, tz)
+    if not window:
+        return []
+    series = select(CalendarEvent.id).where(*window).correlate(None)
+    return [or_(*window, CalendarEvent.series_id.in_(series))]
+
+
 def occurrences(
     events: Sequence[CalendarEventSummary],
     start_after: datetime,
@@ -619,6 +633,7 @@ async def query_guild_calendar_events(
     start_before: Optional[datetime] = None,
     tz: Optional[str] = None,
     property_filters: Optional[str] = None,
+    whole_series: bool = False,
     page: Optional[int] = None,
     page_size: int = 0,
 ) -> tuple[list[CalendarEvent], int]:
@@ -629,6 +644,8 @@ async def query_guild_calendar_events(
     conditions to both callers so access is identical. Returns
     ``(events, total_count)``; pass ``page=None`` (the aggregate's bounded
     window) to fetch every matching row, or ``page``/``page_size`` to paginate.
+
+    ``whole_series`` is an export's window (:func:`series_in_window`).
 
     ``guild_scope`` narrows to the guild's own calendars — the ones belonging to
     no initiative. It is the calendar app's whole surface, and stating it here
@@ -671,7 +688,8 @@ async def query_guild_calendar_events(
             CalendarEvent.calendar_id.not_in(tuple(set(exclude_calendar_ids)))
         )
 
-    conditions += starts_in_window(start_after, start_before, tz)
+    window = series_in_window if whole_series else starts_in_window
+    conditions += window(start_after, start_before, tz)
 
     # Property filters: parse, resolve definitions, compile to subquery
     # clauses shared with documents/tasks so event filtering picks up the

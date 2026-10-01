@@ -97,7 +97,7 @@ class QueueAdapter(ToolExportAdapter):
         return len(queue.items)
 
     async def prepare(
-        self, session: AsyncSession, queues: list[Queue], /
+        self, session: AsyncSession, queues: list[Queue], ctx: BuildContext, /
     ) -> "Attachments":
         # Every item across every queue, in one pass: the payload builders below
         # are synchronous and hold no session, and an export of a dozen queues

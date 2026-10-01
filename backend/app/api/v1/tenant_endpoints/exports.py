@@ -203,6 +203,10 @@ async def export_events(
     property_filters: Optional[str] = Query(
         default=None, description="Same JSON property filters as the event list"
     ),
+    start_after: Optional[datetime] = Query(
+        default=None, description="Same date range as the event list"
+    ),
+    start_before: Optional[datetime] = Query(default=None),
     tz: Optional[str] = Query(
         default=None,
         max_length=64,
@@ -210,9 +214,10 @@ async def export_events(
     ),
 ) -> Union[Response, JSONResponse]:
     """Export calendar events (the same visibility and filters as ``GET
-    /calendar-events/``) as one iCalendar file, every date included. Small
-    results return the file directly; large results return ``202`` with a
-    queued job to poll and download."""
+    /calendar-events/``) as one iCalendar file: every date, unless a range is
+    given. A repeating event starting in the range travels whole, with its
+    changed occurrences. Small results return the file directly; large results
+    return ``202`` with a queued job to poll and download."""
     result = await _start_export(
         session,
         current_user,
@@ -225,6 +230,8 @@ async def export_events(
             "calendar_ids": calendar_ids,
             "exclude_calendar_ids": exclude_calendar_ids,
             "property_filters": property_filters,
+            "start_after": start_after.isoformat() if start_after else None,
+            "start_before": start_before.isoformat() if start_before else None,
             "tz": tz,
         },
     )
@@ -250,6 +257,14 @@ def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
             detail=ExportMessages.EXPORT_INVALID_PARAMS,
         )
     return value
+
+
+_FILTERS_DESCRIPTION = (
+    "JSON object of tool→filters narrowing what each tool exports: the tool's "
+    "own list filters (as its list route takes them, such as "
+    '``{"queue": {"tag_ids": [3]}}``), and for calendars an ``events`` date '
+    "range. ``archived`` omitted exports live and archived rows alike."
+)
 
 
 async def _guild_export_available_at(session) -> Optional[datetime]:
@@ -315,6 +330,7 @@ async def estimate_aggregate_export(
         default=None, description="Required when scope=initiative"
     ),
     include_uploads: bool = Query(default=True),
+    filters: Optional[str] = Query(default=None, description=_FILTERS_DESCRIPTION),
 ) -> BackupEstimate:
     """Pre-flight numbers for the export wizard: per-tool entity counts and
     the uploads footprint (approximate — embedded document images resolve at
@@ -332,6 +348,7 @@ async def estimate_aggregate_export(
             scope=scope,
             initiative_id=initiative_id,
             include_uploads=include_uploads,
+            filters=_parse_json_param(filters),
         )
 
 
@@ -360,6 +377,7 @@ async def export_initiative(
     include_uploads: bool = Query(
         default=True, description="Backup mode: bundle referenced upload blobs"
     ),
+    filters: Optional[str] = Query(default=None, description=_FILTERS_DESCRIPTION),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
@@ -382,6 +400,7 @@ async def export_initiative(
             "include": _parse_json_param(include),
             "formats": _parse_json_param(formats),
             "include_uploads": include_uploads,
+            "filters": _parse_json_param(filters),
             "tz": tz,
         },
     )
@@ -422,6 +441,7 @@ async def export_guild(
     include_uploads: bool = Query(
         default=True, description="Backup mode: bundle referenced upload blobs"
     ),
+    filters: Optional[str] = Query(default=None, description=_FILTERS_DESCRIPTION),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
@@ -444,6 +464,7 @@ async def export_guild(
             "include": _parse_json_param(include),
             "formats": _parse_json_param(formats),
             "include_uploads": include_uploads,
+            "filters": _parse_json_param(filters),
             "tz": tz,
         },
     )
@@ -687,6 +708,12 @@ async def export_tool(
         description="Calendars only: with no ids, every calendar the caller may "
         "export in this initiative",
     ),
+    filters: Optional[str] = Query(
+        default=None,
+        description="JSON object narrowing the export: the tool's own list "
+        "filters, and for calendars an ``events`` date range "
+        '(``{"events": {"start_after": …, "start_before": …}}``)',
+    ),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
@@ -694,7 +721,11 @@ async def export_tool(
     """Export a selection of one tool's entities. Each takes the owner rung on
     it. Small selections return the file inline; large ones return ``202`` with
     a queued job to poll and download."""
-    params: dict[str, Any] = {f"{tool.value}_ids": ids, "tz": tz}
+    params: dict[str, Any] = {
+        f"{tool.value}_ids": ids,
+        "filters": _parse_json_param(filters),
+        "tz": tz,
+    }
     if initiative_id is not None:
         params["initiative_id"] = initiative_id
     result = await _start_export(

@@ -2227,9 +2227,19 @@ async def test_calendar_export_applies_calendar_sharing(
     assert "SUMMARY:Read only" not in _assert_export(left_out, "ics")
 
 
-async def test_calendar_export_initiative_filter(
+#: July to September 2026, as the wizard and the calendar page send a range.
+_SUMMER = {
+    "start_after": "2026-07-01T00:00:00+00:00",
+    "start_before": "2026-09-30T23:59:59+00:00",
+}
+
+
+async def test_calendar_export_narrows_by_initiative_and_date_range(
     client: AsyncClient, acting_user, session
 ):
+    """A calendar export narrows to one initiative, and to the events starting
+    in a date range: a repeating one whole, with an occurrence moved out of the
+    range. The calendar page's events export takes the same range."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     other = await create_initiative(
@@ -2246,6 +2256,47 @@ async def test_calendar_export_initiative_filter(
     envelope = json.loads(_assert_export(resp, "json"))
     assert envelope["name"] == "Main Cal"
     assert {e["title"] for e in envelope["events"]} == {"Main event"}
+
+    def at(month: int, day: int = 10) -> dict:
+        start = datetime(2026, month, day, 18, tzinfo=timezone.utc)
+        return {"start_at": start, "end_at": start + timedelta(hours=2)}
+
+    await create_calendar_event(session, side_cal, a.user, title="Spring", **at(3))
+    await create_calendar_event(session, side_cal, a.user, title="Summer", **at(7))
+    weekly = await create_calendar_event(
+        session,
+        side_cal,
+        a.user,
+        title="Weekly",
+        recurrence="RRULE:FREQ=WEEKLY",
+        **at(6, 1),
+    )
+    await create_calendar_event(
+        session,
+        side_cal,
+        a.user,
+        title="Weekly, moved",
+        series_id=weekly.id,
+        original_start=at(6, 8)["start_at"],
+        **at(12),
+    )
+    in_range = {"Summer", "Weekly", "Weekly, moved"}
+    resp = await _export(
+        client,
+        a,
+        "calendar",
+        format="json",
+        ids=[side_cal.id],
+        filters=json.dumps({"events": _SUMMER}),
+    )
+    envelope = json.loads(_assert_export(resp, "json"))
+    assert {e["title"] for e in envelope["events"]} == in_range
+    events = _assert_export(
+        await _export(client, a, "events", calendar_ids=[side_cal.id], **_SUMMER),
+        "ics",
+        absent=("SUMMARY:Spring",),
+    )
+    assert events.count("BEGIN:VEVENT") == len(in_range)
 
 
 # ---------------------------------------------------------------------------
@@ -2685,6 +2736,13 @@ _INVALID_SELECTORS: list[tuple[dict[str, Any], str]] = [
     ),
     ({"include": '{"wands": true}'}, "EXPORT_INVALID_PARAMS"),
     ({"include": '{"project": "yes"}'}, "EXPORT_INVALID_PARAMS"),
+    ({"filters": '{"wands": {}}'}, "EXPORT_INVALID_PARAMS"),
+    # Paging is the export's own business, not a filter.
+    ({"filters": '{"queue": {"page": 2}}'}, "EXPORT_INVALID_PARAMS"),
+    (
+        {"filters": '{"calendar": {"events": {"start_after": "soon"}}}'},
+        "EXPORT_INVALID_PARAMS",
+    ),
 ]
 
 
@@ -2760,6 +2818,72 @@ async def test_estimate_reports_counts_uploads_and_ceilings(
         include_uploads=False,
     )
     assert without_uploads.json()["uploads_bytes"] == 0
+
+
+async def test_backup_filters_narrow_each_tool_and_are_not_kept(
+    client: AsyncClient, acting_user, session, monkeypatch, role_session
+):
+    """Each tool's filters are its list's: a tag keeps the queues carrying it,
+    archived ones too unless the archive is asked about, and a calendar keeps
+    the events in its range. The estimate counts what the filters leave, and
+    the finished job keeps no filters."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await enable_all_tools(session, a.initiative)
+    tag = await create_tag(session, a.guild, name="raid")
+    tagged = await create_queue(session, a.initiative, a.user, name="Tagged")
+    shelved = await create_queue(
+        session,
+        a.initiative,
+        a.user,
+        name="Shelved",
+        archived_at=datetime.now(timezone.utc),
+    )
+    await create_queue(session, a.initiative, a.user, name="Plain")
+    for queue in (tagged, shelved):
+        await assign_tag(session, queue, tag)
+    calendar = await create_calendar(session, a.initiative, a.user, name="Raids")
+    for title, month in (("Spring", 3), ("Summer", 7)):
+        start = datetime(2026, month, 10, 18, tzinfo=timezone.utc)
+        await create_calendar_event(
+            session, calendar, a.user, title=title, start_at=start, end_at=start
+        )
+
+    def filters(**queue: Any) -> str:
+        return json.dumps(
+            {"queue": {"tag_ids": [tag.id], **queue}, "calendar": {"events": _SUMMER}}
+        )
+
+    async def queues(**queue: Any) -> int:
+        resp = await _export(
+            client,
+            a,
+            "estimate",
+            scope="initiative",
+            initiative_id=a.initiative.id,
+            filters=filters(**queue),
+        )
+        assert resp.status_code == 200, resp.text
+        return resp.json()["tools"]["queue"]["count"]
+
+    assert (await queues(), await queues(archived=False)) == (2, 1)
+
+    resp = await _export(
+        client, a, "initiative", initiative_id=a.initiative.id, filters=filters()
+    )
+    archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)
+    manifest = json.loads(archive.read("manifest.json"))
+
+    def envelopes(kind: str) -> list[dict]:
+        return [
+            json.loads(archive.read(e["path"]))
+            for e in manifest["entries"]
+            if e["type"] == kind
+        ]
+
+    assert {q["name"] for q in envelopes("initiative-queue")} == {"Tagged", "Shelved"}
+    [raids] = envelopes("initiative-calendar")
+    assert [e["title"] for e in raids["events"]] == ["Summer"]
+    assert "filters" not in (await _job(client, a, resp.json()["id"]))["params"]
 
 
 async def test_empty_initiative_backup_is_manifest_only_zip(

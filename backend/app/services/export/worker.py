@@ -104,6 +104,7 @@ async def _sweep(
             )
             job.status = ExportJobStatus.failed
             job.error = ExportMessages.EXPORT_RENDER_FAILED
+            _forget_filters(job)
             outcomes.append(_outcome(job, guild_id))
         else:
             logger.warning(
@@ -183,10 +184,18 @@ async def _render(
             if location.artifact_ref
             else None
         )
+    _forget_filters(job)
     job.updated_at = datetime.now(timezone.utc)
     session.add(job)
     await session.commit()
     return _outcome(job, guild_id)
+
+
+def _forget_filters(job: ExportJob) -> None:
+    """Filters are one person's instruction for one render. Once it has ended,
+    the row keeps none of them."""
+    if job.params and "filters" in job.params:
+        job.params = {k: v for k, v in job.params.items() if k != "filters"}
 
 
 def _outcome(job: ExportJob, guild_id: int) -> JobOutcome:
