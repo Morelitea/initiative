@@ -3,12 +3,13 @@ name: Monthly CI Report
 # A month of CI on the run's summary page: releases that needed a fix (the
 # change failure rate), time from a push to dev until dev is green, runs only a
 # re-run turned green, and how long each gate takes
-# (scripts/ci/monthly_report.py). On the 1st for the month before; Run workflow
+# (scripts/ci/monthly_report.py). On the 4th for the month before, once a
+# release from its last day has had its 72 hours to need a fix; Run workflow
 # reports any month.
 
 on:
   schedule:
-    - cron: "0 9 1 * *"
+    - cron: "0 9 4 * *"
   workflow_dispatch:
     inputs:
       month:

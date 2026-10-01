@@ -35,13 +35,18 @@ API = "https://api.github.com"
 #: window as the soak before ``stable`` (promote-stable.yml).
 FIX_WINDOW = timedelta(hours=72)
 
-#: The gates, by workflow file and the event that makes a run that gate's.
+#: The gates: the workflow, and the event and branch that make a run that
+#: gate's (``None`` for any branch).
 GATES = (
-    ("Pull request", "ci.yml", "pull_request"),
-    ("Integration (dev)", "ci.yml", "push"),
-    ("Release candidate", "release-candidate.yml", "push"),
-    ("Nightly", "nightly.yml", "schedule"),
+    ("Pull request", "ci.yml", "pull_request", None),
+    ("Integration (dev)", "ci.yml", "push", r"dev"),
+    ("Release candidate", "release-candidate.yml", "push", r"release/v.+"),
+    ("Nightly", "nightly.yml", "schedule", None),
 )
+
+#: How far past the month runs are read, to find the green run that ends a
+#: wait which started in it.
+LOOK_AHEAD = timedelta(days=7)
 
 VERSION_TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 
@@ -116,13 +121,16 @@ class Run:
     conclusion: str | None
 
 
-def merge_to_green(runs: list[Run]) -> list[timedelta]:
-    """For each push, how long until a run on that branch, at or after it,
-    finished green. A push whose run was cancelled or failed waits for the next
-    one that passed; one with none yet is left out."""
+def merge_to_green(runs: list[Run], start: datetime, end: datetime) -> list[timedelta]:
+    """For each push between ``start`` and ``end``, how long until a run on
+    that branch, at or after it, finished green; ``runs`` may go past ``end``
+    to find it. A push whose run was cancelled or failed waits for the next one
+    that passed; one with none yet is left out."""
     ordered = sorted(runs, key=lambda run: run.created)
     waits = []
     for index, run in enumerate(ordered):
+        if not start <= run.created < end:
+            continue
         green = next(
             (later for later in ordered[index:] if later.conclusion == "success"),
             None,
@@ -210,13 +218,13 @@ def report(repo: str, month: str) -> str:
     lines.append("")
 
     # Each gate's runs this month.
-    runs_by_file: dict[str, list[dict]] = {}
+    read: dict[str, list[dict]] = {}
     capped = []
-    for _, workflow, _ in GATES:
-        if workflow in runs_by_file:
+    for _, workflow, _, _ in GATES:
+        if workflow in read:
             continue
-        runs_by_file[workflow] = []
-        for window in weeks(start, end):
+        read[workflow] = []
+        for window in weeks(start, end + LOOK_AHEAD):
             try:
                 week = get(
                     f"/repos/{repo}/actions/workflows/{workflow}/runs",
@@ -228,7 +236,11 @@ def report(repo: str, month: str) -> str:
                 break
             if len(week) >= 1000:
                 capped.append(f"{workflow} {window}")
-            runs_by_file[workflow] += week
+            read[workflow] += week
+    runs_by_file = {
+        workflow: [r for r in runs if start <= parse_time(r["created_at"]) < end]
+        for workflow, runs in read.items()
+    }
     if capped:
         lines += [
             "> **Undercounted:** the runs API stops at 1,000 runs a query, "
@@ -242,10 +254,10 @@ def report(repo: str, month: str) -> str:
             parse_time(r["updated_at"]),
             r["conclusion"],
         )
-        for r in runs_by_file["ci.yml"]
+        for r in read["ci.yml"]
         if r["event"] == "push" and r["head_branch"] == "dev"
     ]
-    waits = [wait.total_seconds() for wait in merge_to_green(dev_pushes)]
+    waits = [wait.total_seconds() for wait in merge_to_green(dev_pushes, start, end)]
     lines += ["### From a push to dev until dev is green", ""]
     if waits:
         lines.append(
@@ -273,13 +285,14 @@ def report(repo: str, month: str) -> str:
 
     lines += ["### Time in each gate", "", "| Gate | Runs | Median | 90th percentile |"]
     lines.append("|---|---|---|---|")
-    for name, workflow, event in GATES:
+    for name, workflow, event, branch in GATES:
         took = [
             (
                 parse_time(r["updated_at"]) - parse_time(r["run_started_at"])
             ).total_seconds()
             for r in runs_by_file[workflow]
             if r["event"] == event
+            and (branch is None or re.fullmatch(branch, r["head_branch"] or ""))
             and r["conclusion"] in ("success", "failure")
             and r.get("run_started_at")
         ]
