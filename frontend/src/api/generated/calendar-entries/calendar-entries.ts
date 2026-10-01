@@ -233,8 +233,8 @@ export function useListCalendarEntriesApiV1CGuildIdCalendarEntriesGet<
 /**
  * Cross-guild events + assigned-task markers for the My Calendar page.
  *
- * Both legs run on the caller's own ``platform_<tier>`` session, exactly as
- * ``/me/calendar-events`` and ``/me/tasks`` do: the event leg enters each
+ * Both legs run on the caller's own ``platform_<tier>`` session, as
+ * ``/me/tasks`` does: the event leg enters each
  * member guild with the membership role held there (``gather_across_guilds``)
  * and the task leg is the ``/me/tasks`` query, fetch-all over the window.
  * @summary List My Calendar Entries
