@@ -9971,6 +9971,10 @@ export type ListQueuesApiV1CGuildIdQueuesGetParams = {
    */
   archived?: boolean | null;
   /**
+   * Only running queues, or only stopped ones.
+   */
+  is_active?: boolean | null;
+  /**
    * @minimum 1
    */
   page?: number;

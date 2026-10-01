@@ -109,10 +109,11 @@ async def test_create_queue_non_pm_forbidden(client: AsyncClient, acting_user):
     assert response.status_code == 403
 
 
-async def test_list_queues(client: AsyncClient, acting_user):
-    """Admin can list queues."""
+async def test_list_queues(client: AsyncClient, acting_user, session):
+    """Admin can list queues, narrowed to the running or the stopped ones."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _create_queue_via_api(client, a, "Listed Queue")
+    await create_queue(session, a.initiative, a.user, name="Running", is_active=True)
 
     response = await client.get(a.g("/queues/"), headers=a.headers)
 
@@ -120,7 +121,13 @@ async def test_list_queues(client: AsyncClient, acting_user):
     data = response.json()
     assert data["total_count"] >= 1
     names = [q["name"] for q in data["items"]]
-    assert "Listed Queue" in names
+    assert {"Listed Queue", "Running"} <= set(names)
+
+    for is_active, expected in ((True, ["Running"]), (False, ["Listed Queue"])):
+        narrowed = await client.get(
+            a.g("/queues/"), headers=a.headers, params={"is_active": is_active}
+        )
+        assert [q["name"] for q in narrowed.json()["items"]] == expected
 
 
 async def test_get_queue(client: AsyncClient, acting_user):
