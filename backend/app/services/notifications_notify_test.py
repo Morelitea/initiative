@@ -113,22 +113,40 @@ async def test_a_mention_of_somebody_outside_the_community_tells_nobody(
     assert await _mentions(stranger.id) == []
 
 
-async def test_a_community_admin_is_among_the_readers(session, acting_user):
+async def test_a_community_admin_is_among_the_readers(
+    session, acting_user, monkeypatch
+):
+    """…and another member is not. A notice with nobody left to tell looks
+    nothing up."""
     owner = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
     admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    member = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
     # Routed the way a request or a sweep is, which is what names the community.
     await set_rls_context(session, SystemGuild(owner.guild.id))
+    about = (Tool.project.value, owner.project.id)
 
-    subject = await notifications.resolve_subject(
-        session, (Tool.project.value, owner.project.id)
-    )
+    subject = await notifications.resolve_subject(session, about)
 
     assert subject is not None
     assert admin.user.id not in subject.shared_with
     assert admin.user.id in subject.readers
     assert owner.user.id in subject.shared_with
+    assert member.user.id not in subject.readers
+
+    async def refuse(*_args, **_kwargs):
+        raise AssertionError("resolved a notice nobody was to hear")
+
+    monkeypatch.setattr(notifications, "resolve_subject", refuse)
+    await notifications.notify(
+        session,
+        NotificationType.mention,
+        [owner.user.id, None],
+        about=about,
+        key="mention.comment",
+        actor=owner.user,
+    )
 
 
 async def test_repeated_document_mentions_fold_into_one_line(

@@ -1,4 +1,5 @@
 import {
+  type InfiniteData,
   type Query,
   type QueryClient,
   useInfiniteQuery,
@@ -25,9 +26,10 @@ import {
   readNotificationSubjectApiV1NotificationsReadSubjectPost,
   unreadNotificationPlacesApiV1NotificationsUnreadGet,
 } from "@/api/generated/notifications/notifications";
-import { invalidate, q } from "@/api/query-keys";
+import { describes, invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useApiMutation } from "@/hooks/useApiMutation";
+import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 
 // How many rows one request carries. The popover takes every page until the
@@ -134,6 +136,78 @@ export const useAllUnreadNotifications = (options?: {
     isLoading: query.isLoading,
     isComplete: !query.hasNextPage,
   };
+};
+
+/** The popover's query: every unread line, a page at a time. */
+const UNREAD_INBOX = { limit: NOTIFICATION_PAGE_SIZE, unread_only: true };
+const unreadInboxKey = () => [
+  ...getListNotificationsApiV1NotificationsGetQueryKey(UNREAD_INBOX),
+  "history",
+];
+
+/**
+ * Read the popover's first page again and keep what it already held beneath
+ * it, or null when the two do not add up to the server's own total.
+ *
+ * A line that arrives, or returns to the top, lands on the first page, so the
+ * rest of the inbox is what it was. Anything else — a line read or withdrawn
+ * further down — leaves a row held here that the server no longer counts, and
+ * the totals disagree.
+ */
+const readInboxHead = async (held: InfiniteData<NotificationListResponse>) => {
+  const head = await listNotificationsApiV1NotificationsGet(UNREAD_INBOX);
+  const fresh = new Set(head.notifications.map((row) => row.id));
+  const older = held.pages
+    .flatMap((page) => page.notifications)
+    .filter((row) => !fresh.has(row.id));
+  if (head.notifications.length + older.length !== head.unread_count) {
+    return null;
+  }
+  return older.length > 0
+    ? {
+        pages: [head, { notifications: older, unread_count: null, next_cursor: null }],
+        pageParams: [undefined, head.next_cursor],
+      }
+    : { pages: [{ ...head, next_cursor: null }], pageParams: [undefined] };
+};
+
+/** One read of the first page at a time, so an older answer never lands last. */
+let inboxRead: Promise<unknown> = Promise.resolve();
+
+/**
+ * What a notification frame makes stale.
+ *
+ * Every notification read is asked again, except that a line arriving
+ * (`created`) or returning to the top (`updated`) costs the popover one page
+ * rather than every page it holds. Any other change, or a popover that has not
+ * finished loading, reads it whole.
+ */
+export const refreshNotifications = (action?: string) => {
+  const key = unreadInboxKey();
+  const inbox = queryClient.getQueryCache().find({ queryKey: key, exact: true });
+  const held = inbox?.state.data as InfiniteData<NotificationListResponse> | undefined;
+  if (
+    (action !== "created" && action !== "updated") ||
+    !inbox ||
+    !held ||
+    inbox.state.fetchStatus !== "idle" ||
+    held.pages.at(-1)?.next_cursor
+  ) {
+    return invalidate(q.notifications());
+  }
+  const notifications = describes(q.notifications());
+  void queryClient.invalidateQueries({
+    predicate: (query) => query !== inbox && notifications(query.queryKey),
+  });
+  inboxRead = inboxRead
+    .then(() => readInboxHead(held))
+    .then((spliced) =>
+      spliced
+        ? queryClient.setQueryData(key, spliced)
+        : queryClient.invalidateQueries({ queryKey: key, exact: true })
+    )
+    .catch(() => queryClient.invalidateQueries({ queryKey: key, exact: true }));
+  return inboxRead;
 };
 
 /**

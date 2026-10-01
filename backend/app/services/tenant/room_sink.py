@@ -140,14 +140,17 @@ def schema_guild_id(schema: str) -> int | None:
     return int(tail) if tail.isdigit() else None
 
 
-def _change(row: EventOutbox) -> dict[str, Any]:
-    """One log row as the client reads it: what moved, what it sits in, and
-    the initiative it belongs to (``None`` for the guild's own)."""
+def _change(row: EventOutbox, changed: set[str]) -> dict[str, Any]:
+    """One log row as the client reads it: what moved, what it sits in, the
+    initiative it belongs to (``None`` for the guild's own), and which of its
+    columns an update touched — names, never values. The columns are what
+    tells a client whether a rename can have moved anything it counts."""
     return {
         "resource": {"type": row.resource_type, "id": row.resource_id},
         "parents": list(row.parents),
         "initiative_id": row.initiative_id,
         "action": row.action,
+        "changed": sorted(changed),
     }
 
 
@@ -155,15 +158,19 @@ def _frame(rows: list[EventOutbox]) -> dict[str, Any]:
     """One room's share of a batch.
 
     Repeats collapse: a row written three times in one transaction is one thing
-    to refetch, and the client would do the same work three times over.
+    to refetch, and the client would do the same work three times over. Their
+    changed columns are pooled, so the one change says everything the three
+    did.
     """
-    seen: dict[tuple[str, int, str], EventOutbox] = {}
+    seen: dict[tuple[str, int, str], tuple[EventOutbox, set[str]]] = {}
     for row in rows:
-        seen.setdefault((row.resource_type, row.resource_id, row.action), row)
-    changes = list(seen.values())
-    if len(changes) > MAX_CHANGES:
+        _first, changed = seen.setdefault(
+            (row.resource_type, row.resource_id, row.action), (row, set())
+        )
+        changed.update(row.changed)
+    if len(seen) > MAX_CHANGES:
         return dict(EVERYTHING)
-    return {"changes": [_change(row) for row in changes]}
+    return {"changes": [_change(row, changed) for row, changed in seen.values()]}
 
 
 async def _open_new_rooms(

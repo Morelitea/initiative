@@ -86,7 +86,8 @@ async def test_a_write_reaches_the_room_it_belongs_to(session, acting_user):
 
 
 async def test_the_frame_carries_identifiers_and_nothing_else(session, acting_user):
-    """Identifiers and an action, and nothing a reader would not fetch anyway."""
+    """Identifiers, an action and the columns it touched, and nothing a reader
+    would not fetch anyway."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
 
     async with _Watcher(a.guild.id, a.initiative.id) as watcher:
@@ -96,7 +97,13 @@ async def test_the_frame_carries_identifiers_and_nothing_else(session, acting_us
 
         assert watcher.changes, "the room heard nothing"
         for change in watcher.changes:
-            assert set(change) == {"resource", "parents", "initiative_id", "action"}
+            assert set(change) == {
+                "resource",
+                "parents",
+                "initiative_id",
+                "action",
+                "changed",
+            }
             assert change["initiative_id"] == a.initiative.id
             assert set(change["resource"]) == {"type", "id"}
             assert all(set(p) == {"type", "id"} for p in change["parents"])
@@ -340,6 +347,7 @@ def test_a_transaction_too_large_to_name_says_so_instead() -> None:
 
 
 def test_one_row_written_repeatedly_is_one_change() -> None:
+    """One change, naming every column any of the writes touched."""
     rows = [
         EventOutbox(
             id=i,
@@ -349,10 +357,10 @@ def test_one_row_written_repeatedly_is_one_change() -> None:
             resource_type="tasks",
             resource_id=4,
             action="updated",
-            changed=["title"],
+            changed=changed,
             parents=[{"type": "projects", "id": 7}],
         )
-        for i in range(1, 4)
+        for i, changed in enumerate((["title"], ["status_id"], ["title"]), start=1)
     ]
 
     frame = room_sink._frame(rows)
@@ -363,6 +371,7 @@ def test_one_row_written_repeatedly_is_one_change() -> None:
             "parents": [{"type": "projects", "id": 7}],
             "initiative_id": 1,
             "action": "updated",
+            "changed": ["status_id", "title"],
         }
     ]
 

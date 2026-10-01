@@ -755,7 +755,13 @@ async def _process_comment_notifications(
     only to people who can open it; a ``#task`` notice names the mentioned task
     too, so its assignees must also reach that one.
     """
-    thread: notifications.Ref = (cast(str, ctx.ref_type), ctx.entity_id)
+    # Every notice below is about the thread; it is looked up once for all of
+    # them. Nobody can open a thread that does not resolve, so nobody is told.
+    thread = await notifications.resolve_subject(
+        session, (cast(str, ctx.ref_type), ctx.entity_id)
+    )
+    if thread is None:
+        return
     name = notifications.actor_name(author)
     told: set[int] = {author.id} if author.id is not None else set()
 

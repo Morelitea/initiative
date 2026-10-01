@@ -58,8 +58,9 @@ export const ProjectActivitySidebar = ({
     getNextPageParam: (lastPage) => lastPage.next_page ?? undefined,
     initialPageParam: 1,
     enabled: isEnabled,
+    // No timer: the live channel names the project for anything that happens
+    // inside it, which is what refreshes this.
     staleTime: 30_000,
-    refetchInterval: isEnabled ? 30_000 : false,
   });
 
   const entries = useMemo<ProjectActivityEntry[]>(() => {

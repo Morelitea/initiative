@@ -166,10 +166,17 @@ const matches = (matcher: Matcher, queryKey: readonly unknown[]): boolean => {
  * three hundred. It is one walk either way.
  */
 export const invalidate = (...specs: readonly Spec[]) => {
+  const named = describes(...specs);
+  return queryClient.invalidateQueries({ predicate: (query) => named(query.queryKey) });
+};
+
+/**
+ * Whether a cached key is one the given specs name — for a caller that has to
+ * leave one of them out, and cannot say so with `invalidate`.
+ */
+export const describes = (...specs: readonly Spec[]) => {
   const matcher = merge(specs);
-  return queryClient.invalidateQueries({
-    predicate: (query) => matches(matcher, query.queryKey),
-  });
+  return (queryKey: readonly unknown[]) => matches(matcher, queryKey);
 };
 
 // ── Builders ─────────────────────────────────────────────────────────────────
@@ -227,10 +234,6 @@ const projectTaskStatuses = (projectId: number): Spec => ({
 
 const projectFilterPresets = (projectId: number): Spec => ({
   guildExact: [`/api/v1/projects/${projectId}/filter-presets/`],
-});
-
-const projectActivity = (projectId: number): Spec => ({
-  guildExact: [`/api/v1/projects/${projectId}/activity`],
 });
 
 // Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /c/).
@@ -522,18 +525,34 @@ const allProperties = (): Spec => ({ guildPrefix: ["/api/v1/property-definitions
 const toolCounts = (): Spec => ({ guildExact: ["/api/v1/tools/counts/by-initiative"] });
 
 /**
- * Every list of one tool — its guild-wide list, the cross-guild `/me` twin
- * every tool has, and the counts beside them. A calendar's also reaches the
- * events and entries views, which show its name and colour.
+ * Every list of one tool — its guild-wide list and the cross-guild `/me` twin
+ * every tool has. A calendar's also reaches the events and entries views,
+ * which show its name and colour. Not the counts: changing what a row says
+ * leaves every count where it was.
  */
-const toolList = (which: Tool): Spec => {
-  const lists = compose(resourceAndMe(toolRouteSegment(which)), toolCounts());
+const toolLists = (which: Tool): Spec => {
+  const lists = resourceAndMe(toolRouteSegment(which));
   return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
 };
+
+/** Every list of one tool and the counts beside them — what adding or
+ *  removing one makes stale. */
+const toolList = (which: Tool): Spec => compose(toolLists(which), toolCounts());
 
 /** One tool entity's own read. */
 const toolEntity = (which: Tool, id: number): Spec => ({
   guildExact: [`${toolApiPath(which)}/${id}`],
+});
+
+/**
+ * One tool entity's own read and every read under its address — a gallery's
+ * pictures, a wiki's pages, a project's activity and statuses. What a change
+ * inside it makes stale. The trailing slash keeps project 1 from reaching
+ * project 10.
+ */
+const toolSubtree = (which: Tool, id: number): Spec => ({
+  guildExact: [`${toolApiPath(which)}/${id}`],
+  guildPrefix: [`${toolApiPath(which)}/${id}/`],
 });
 
 /** One entity and every list it sits in — what a generic per-tool write makes stale. */
@@ -642,7 +661,6 @@ export const q = {
   post,
   postTimeline,
   project,
-  projectActivity,
   projectFilterPresets,
   projectTaskStatuses,
   pushSettings,
@@ -657,6 +675,8 @@ export const q = {
   task,
   tool,
   toolList,
+  toolLists,
+  toolSubtree,
   userStats,
   version,
   writableProjects,
