@@ -81,7 +81,7 @@ async def test_a_picture_arriving_tells_the_room_about_its_gallery(
             c["resource"] == {"type": "galleries", "id": gallery.id} for c in changes
         )
         assert all(
-            set(c) == {"resource", "parents", "initiative_id", "action"}
+            set(c) == {"resource", "parents", "initiative_id", "action", "changed"}
             for c in changes
         )
 
