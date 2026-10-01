@@ -1007,9 +1007,10 @@ def _departure_policies() -> str:
         )
         lines += [
             f"DROP POLICY IF EXISTS departure_read ON {t};",
+            f"DROP POLICY IF EXISTS departure_update ON {t};",
+            f"DROP POLICY IF EXISTS departure_delete ON {t};",
             f"CREATE POLICY departure_read ON {t} AS PERMISSIVE FOR SELECT"
             f"  USING ({departed});",
-            f"DROP POLICY IF EXISTS {write.split(' ON ')[0]} ON {t};",
             f"CREATE POLICY {write}",
         ]
     return "\n".join(lines)
