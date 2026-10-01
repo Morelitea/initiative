@@ -200,7 +200,7 @@ export function useSearchGuildApiV1CGuildIdSearchGet<
  * What a picker offers before anything has been typed.
  *
  * The most recently changed things the caller could name, taking the same
- * ``types``, ``initiative_id`` and ``template`` narrowing as the search — so
+ * ``types``, ``initiative_id`` and ``is_template`` narrowing as the search — so
  * what a picker suggests and what it finds are the same set of things.
  * @summary Recent Guild
  */

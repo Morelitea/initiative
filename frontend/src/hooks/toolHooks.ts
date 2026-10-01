@@ -171,7 +171,6 @@ export interface ToolListParams {
   archived?: boolean | null;
   initiative_id?: number | null;
   /** A templates view's switch, for the tools that have one (`toolViewParams`). */
-  template?: boolean | null;
   is_template?: boolean | null;
 }
 

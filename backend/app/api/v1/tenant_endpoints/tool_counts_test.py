@@ -22,7 +22,8 @@ TOOLS = pytest.mark.parametrize("tool", list(TOOL_LISTS), ids=lambda t: t.value)
 
 async def _one_of_each(session, acting_user, tool: Tool):
     """An initiative holding one row in each of the tool's views, the live
-    one tagged, beside a second live row with no tag."""
+    one tagged, beside a second live row with no tag. A tool with templates
+    also has an archived template, which belongs to the archive."""
     actor = await acting_user(guild_role=GuildRole.admin)
     home = await create_initiative(
         session, actor.guild, actor.user, **{t.view_permission: True for t in Tool}
@@ -33,6 +34,13 @@ async def _one_of_each(session, acting_user, tool: Tool):
     await factory(session, home, actor.user, archived_at=datetime.now(timezone.utc))
     if "templates" in TOOL_LISTS[tool].views:
         await factory(session, home, actor.user, is_template=True)
+        await factory(
+            session,
+            home,
+            actor.user,
+            is_template=True,
+            archived_at=datetime.now(timezone.utc),
+        )
     tag = await create_tag(session, actor.guild)
     await tags_service.set_entity_tags(
         session,
@@ -74,6 +82,12 @@ async def test_each_view_counts_what_its_list_holds(
         listed = await _listed(client, actor, tool, initiative_id=home.id, **params)
         assert counts["views"][name] == listed, name
     assert counts["views"]["active"] == 2
+    # The archive holds whatever was archived, templates included, and no
+    # other view shows an archived row.
+    if "templates" in TOOL_LISTS[tool].views:
+        assert (counts["views"]["templates"], counts["views"]["archived"]) == (1, 2)
+    else:
+        assert counts["views"]["archived"] == 1
     # A page with no tag tree does not pay for one.
     assert (counts["tag_counts"], counts["untagged_count"]) == (None, None)
 
@@ -95,7 +109,10 @@ async def test_the_tag_tree_counts_the_view_shown(
         client, actor, tool, initiative_id=home.id, view="archived", include_tags=True
     )
     assert archived["tag_counts"] == {}
-    assert archived["untagged_count"] == 1
+    # The archived row, and the archived template where the tool has them.
+    assert archived["untagged_count"] == (
+        2 if "templates" in TOOL_LISTS[tool].views else 1
+    )
 
 
 @TOOLS

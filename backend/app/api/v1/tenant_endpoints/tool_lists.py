@@ -245,6 +245,22 @@ def _archived(described: bool = True) -> ListParam:
     )
 
 
+def _is_template(tool: Tool) -> ListParam:
+    """The template filter of a tool that has templates."""
+    plural = tool.plural.replace("_", " ")
+    return ListParam(
+        "is_template",
+        Optional[bool],
+        Query(
+            default=None,
+            description=(
+                f"Only templates (true) or only {plural} that are not templates "
+                "(false). Omit for both."
+            ),
+        ),
+    )
+
+
 def page_param() -> ListParam:
     return ListParam("page", int, Query(default=1, ge=1))
 
@@ -271,6 +287,14 @@ def page_size_param(
 #: Live rows and the archive: the views every tool has.
 DEFAULT_VIEWS: Mapping[str, Mapping[str, Any]] = {
     "active": {},
+    "archived": {"archived": True},
+}
+
+#: The views of a tool with templates: its live rows without them, the
+#: templates on their own, and an archive holding both.
+TEMPLATE_VIEWS: Mapping[str, Mapping[str, Any]] = {
+    "active": {"is_template": False},
+    "templates": {"is_template": True},
     "archived": {"archived": True},
 }
 
@@ -403,14 +427,12 @@ def _order(*columns: Any) -> Callable[[ListRequest], list]:
 
 
 async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
-    # ``template`` is the projects list's own filter: a blueprint is not work
-    # in progress, so it is left out unless it is asked for by name.
     values = req.values
     conditions = projects_endpoints.visible_project_conditions(
         req.user_id,
         context=req.guild_context,
         archived=values.get("archived"),
-        template=values.get("template"),
+        is_template=values.get("is_template"),
         search=values.get("search"),
         tag_ids=values.get("tag_ids"),
         initiative_id=values.get("initiative_id"),
@@ -656,11 +678,10 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         conditions=_project_conditions,
         refine=_project_refine,
         clamp_page=True,
-        # A template is not left out by the default list; it is its own view.
-        views={**DEFAULT_VIEWS, "templates": {"template": True}},
+        views=TEMPLATE_VIEWS,
         params=(
-            _archived(described=False),
-            ListParam("template", Optional[bool], Query(default=None)),
+            _archived(),
+            _is_template(Tool.project),
             search_param(),
             _initiative_id(
                 "Only projects in this initiative. Omit for every initiative "
@@ -716,13 +737,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         default_order=_order(Document.updated_at.desc(), Document.id.desc()),
         serialize=_serialize_documents,
         conditions=_document_conditions,
-        # The default list shows templates beside documents; the page shows
-        # them apart, so the live view names the documents alone.
-        views={
-            "active": {"is_template": False},
-            "templates": {"is_template": True},
-            "archived": {"archived": True},
-        },
+        views=TEMPLATE_VIEWS,
         # The one tool that also sorts by when a row was written — a document
         # list is a filing cabinet, and "newest first" is how you read one.
         extra_sort_fields={"created_at": Document.created_at},
@@ -751,14 +766,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                 Optional[bool],
                 Query(default=None, description="Filter to documents with no tags"),
             ),
-            ListParam(
-                "is_template",
-                Optional[bool],
-                Query(
-                    default=None,
-                    description="Filter to template (or non-template) documents",
-                ),
-            ),
+            _is_template(Tool.document),
             ListParam(
                 "document_type",
                 Optional[DocumentType],

@@ -355,7 +355,7 @@ describe("ExportWizard", () => {
     await user.click(within(documents).getByRole("switch", { name: "Untagged only" }));
 
     const expected = {
-      project: { template: true },
+      project: { is_template: true },
       document: { is_template: false, untagged: true },
     };
     await waitFor(() =>

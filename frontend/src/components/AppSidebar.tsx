@@ -58,7 +58,7 @@ import { useToolCountsByInitiative } from "@/hooks/useToolCounts";
 import { guildPath } from "@/lib/guildUrl";
 import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { TOOLS, toolDetailRoute } from "@/lib/tools";
+import { TOOLS, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 export const AppSidebar = () => {
   const { user, logout, refreshUser } = useAuth();
@@ -144,7 +144,7 @@ export const AppSidebar = () => {
   // The slim projection carries everything a row reads (id, name, icon,
   // initiative, archived state, `can`) without the per-project summaries.
   const projectsQuery = useProjects(
-    { slim: true },
+    { slim: true, ...toolViewParams(Tool.project, "active") },
     {
       enabled: guildTreeEnabled,
       staleTime: 60_000,

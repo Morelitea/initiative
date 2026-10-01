@@ -46,7 +46,7 @@ describe("CreateDocumentDialog", () => {
     // Narrowed the same way typing would narrow it, so the list it opens on
     // can hold nothing its own search would refuse to find.
     await waitFor(() => expect(asked.length).toBeGreaterThan(0));
-    expect(asked[0].searchParams.get("template")).toBe("true");
+    expect(asked[0].searchParams.get("is_template")).toBe("true");
     expect(asked[0].searchParams.getAll("types")).toEqual(["document"]);
   });
 });

@@ -125,7 +125,7 @@ export const CreateDocumentDialog = ({
   // the only way it can say that this community has any.
   const templates = useGuildPickerSuggestions(templateSearch, {
     types: [SearchEntityType.document],
-    template: true,
+    is_template: true,
     enabled: open && !isTemplateDocument,
   });
 

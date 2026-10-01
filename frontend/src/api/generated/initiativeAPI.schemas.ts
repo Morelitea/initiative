@@ -9816,8 +9816,14 @@ export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
 };
 
 export type ListProjectsApiV1CGuildIdProjectsGetParams = {
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
   archived?: boolean | null;
-  template?: boolean | null;
+  /**
+   * Only templates (true) or only projects that are not templates (false). Omit for both.
+   */
+  is_template?: boolean | null;
   /**
    * Full-text match over the row — its name and its description. Reads the same index the search page does, so a list's filter box and a search agree about what matches.
    */
@@ -9873,7 +9879,7 @@ export type ListDocumentsApiV1CGuildIdDocumentsGetParams = {
    */
   untagged?: boolean | null;
   /**
-   * Filter to template (or non-template) documents
+   * Only templates (true) or only documents that are not templates (false). Omit for both.
    */
   is_template?: boolean | null;
   /**
@@ -10827,7 +10833,7 @@ export type SearchGuildApiV1CGuildIdSearchGetParams = {
   /**
    * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
    */
-  template?: boolean | null;
+  is_template?: boolean | null;
   /**
    * @minimum 1
    * @maximum 100
@@ -10851,7 +10857,7 @@ export type RecentGuildApiV1CGuildIdSearchRecentGetParams = {
   /**
    * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
    */
-  template?: boolean | null;
+  is_template?: boolean | null;
   /**
    * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */
@@ -10879,7 +10885,7 @@ export type SuggestGuildApiV1CGuildIdSearchSuggestGetParams = {
   /**
    * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
    */
-  template?: boolean | null;
+  is_template?: boolean | null;
   /**
    * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */

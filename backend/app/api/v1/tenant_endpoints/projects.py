@@ -428,7 +428,7 @@ def visible_project_conditions(
     *,
     context: ActorContext,
     archived: Optional[bool],
-    template: Optional[bool],
+    is_template: Optional[bool],
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     initiative_id: Optional[int] = None,
@@ -436,10 +436,10 @@ def visible_project_conditions(
     """WHERE clauses for the guild's DAC-visible projects.
 
     The guild, the projects switch, sharing, the search box and the tag filter
-    are the shared set (:func:`tool_listing.base_conditions`). What is the
-    projects list's own is the pair of boolean flags, where ``None`` means
-    "exclude": a blueprint is not work in progress and an archived project is
-    not on the board, so neither shows unless it is asked for by name.
+    are the shared set (:func:`tool_listing.base_conditions`). An archived
+    project shows only when asked for, as on every tool list; ``is_template``
+    narrows to templates or to the rest, and unset leaves both, as it does for
+    documents.
     """
     conditions = tool_listing.base_conditions(
         Tool.project,
@@ -451,7 +451,8 @@ def visible_project_conditions(
         search=search,
         tag_ids=tag_ids,
     )
-    conditions.append(Project.is_template.is_(bool(template)))
+    if is_template is not None:
+        conditions.append(Project.is_template.is_(is_template))
     conditions.append(archive_service.archive_filter_clause(Project, archived))
     return conditions
 
@@ -462,7 +463,7 @@ async def _visible_projects(session: SessionDep, current_user: User) -> List[Pro
         current_user.id,
         context=require_guild_context(session),
         archived=None,
-        template=None,
+        is_template=False,
     )
     base_statement = select(Project).where(*conditions).options(*project_load_options())
     result = await session.exec(base_statement)
