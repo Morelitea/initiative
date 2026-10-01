@@ -413,7 +413,6 @@ async def notify(
         "guild_id": str(guild_id),
         "target_path": payload["target_path"],
     }
-    now = datetime.now(timezone.utc)
     rows: list[dict[str, Any]] = []
     for user_id in wanted:
         recipient = accounts.get(user_id)
@@ -448,26 +447,24 @@ async def notify(
             )
         )
         rows.append(
-            {
-                "user_id": user_id,
-                "guild_id": guild_id,
-                "type": notification_type.value,
-                "data": payload,
-                "rollup_key": rollup_key,
-                "actor_id": actor_id(actor),
-                "actor_name": actor_name(actor) if actor is not None else None,
-                "push_title": title if pushing else None,
-                "push_body": body if pushing else None,
-                "push_data": push_data if pushing else None,
-                "email_subject": pieces.subject if pieces else None,
-                "email_headline": pieces.headline if pieces else None,
-                "email_body": pieces.body if pieces else None,
-                "email_link": pieces.link if pieces else None,
-                "email_link_label": pieces.link_label if pieces else None,
-                "email_names_line": email_names_line,
-                "created_at": now,
-                "deliver_after": now,
-            }
+            notice_outbox.row(
+                user_id,
+                guild_id,
+                notification_type,
+                payload,
+                rollup_key=rollup_key,
+                actor_id=actor_id(actor),
+                actor_name=actor_name(actor) if actor is not None else None,
+                push_title=title if pushing else None,
+                push_body=body if pushing else None,
+                push_data=push_data if pushing else None,
+                email_subject=pieces.subject if pieces else None,
+                email_headline=pieces.headline if pieces else None,
+                email_body=pieces.body if pieces else None,
+                email_link=pieces.link if pieces else None,
+                email_link_label=pieces.link_label if pieces else None,
+                email_names_line=email_names_line,
+            )
         )
     await notice_outbox.enqueue(session, rows)
 
@@ -483,13 +480,20 @@ async def deliver_notices(
 
     Each notice is a line of its own, or joins the recipient's unread line for
     its thread; a notice that joins one sends no email and no push, so a
-    flurry is one interruption. A notice whose line is already written is back
-    only for its push, which is asked again. Returns the notices whose push
+    flurry is one interruption. A reaction rolls into the line for what was
+    reacted to, and one taken back comes out of it. A notice whose line is
+    already written is back only for its push, which is asked again. Returns the notices whose push
     should go — the worker sends them together once this is committed. Never
     commits.
     """
     push: set[int] = set()
     for notice in notices:
+        if notice.kind == "reaction":
+            await _roll_up_reaction(session, recipient, notice, prefs)
+            continue
+        if notice.kind == "withdraw":
+            await _take_back_reaction(session, recipient, notice)
+            continue
         notification_type = NotificationType(notice.type)
         channels = await _channels(
             session,
@@ -808,9 +812,9 @@ async def notify_assigned(
 ) -> None:
     """Tell the people just assigned to ``task``, among those who can open it.
 
-    The bell line is written at once; email and push wait for the assignment
-    digest, which is queued when either channel is on for the community and
-    re-reads both when it sends. The caller commits.
+    The bell line is written by the notice worker once the caller commits;
+    email and push wait for the assignment digest, which is queued when either
+    channel is on for the community and re-reads both when it sends.
     """
     candidates = [
         user_id
@@ -829,23 +833,24 @@ async def notify_assigned(
     accounts = await accounts_service.load(wanted, excluding_ignorers_of=assigned_by.id)
     all_prefs = await notification_prefs.load_prefs_for_delivery_many(list(accounts))
     smart_link = _build_smart_link(target_path=subject.target_path, guild_id=guild_id)
+    line = {
+        "task_id": task.id,
+        "project_id": task.project_id,
+        "assigned_by_name": actor_name(assigned_by),
+        "guild_id": guild_id,
+        **_place_of(subject),
+        "target_path": subject.target_path,
+        "smart_link": smart_link,
+    }
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(user_id, guild_id, NotificationType.task_assignment, line)
+            for user_id in accounts
+        ],
+    )
     for user_id in accounts:
         prefs = all_prefs.get(user_id, {})
-        await user_notifications.create_notification(
-            session,
-            user_id=user_id,
-            notification_type=NotificationType.task_assignment,
-            data={
-                "task_id": task.id,
-                "project_id": task.project_id,
-                "assigned_by_name": actor_name(assigned_by),
-                "guild_id": guild_id,
-                **_place_of(subject),
-                "target_path": subject.target_path,
-                "smart_link": smart_link,
-            },
-            prefs=prefs,
-        )
         if wants_assignment_digest(prefs, guild_id=guild_id):
             session.add(
                 TaskAssignmentDigestItem(
@@ -1329,17 +1334,6 @@ MAX_ROLLED_UP_REACTIONS = 20
 # comment, and the whole line goes the moment the recipient reads it.
 
 
-def _reaction_rollup_match(reaction, guild_id: int) -> dict[str, object]:
-    """What makes two reactions the same bell line: same guild, same thing
-    reacted to. Emoji and reactor deliberately do not — they are what the one
-    line rolls up."""
-    return {
-        "guild_id": guild_id,
-        "target_type": reaction.target_type,
-        "target_id": reaction.target_id,
-    }
-
-
 def _rolled_up_reactions(data: Mapping[str, Any]) -> list[dict[str, Any]]:
     """The individual reactions a bell line is already carrying."""
     rolled = data.get("reactions")
@@ -1451,59 +1445,41 @@ async def enqueue_reaction_event(
     so every channel digests them — including the bell, which rolls them up per
     thing-reacted-to rather than listing one entry per tap. An unread line
     absorbs the next reaction to the same comment and returns to the top of the
-    inbox; once read, the next reaction starts a fresh line. Email and push
-    wait for the digest worker as before.
+    inbox; once read, the next reaction starts a fresh line. The line is the
+    notice worker's to write (:func:`_roll_up_reaction`), once the caller
+    commits; email and push wait for the digest worker.
     """
     if author.id == reactor.id:
         return
     target_path = subject.target_path
-    place = {
-        **_place_of(subject),
-        "target_path": target_path,
-        "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-    }
     reactor_name = handle_of(reactor)
-    entry = {
-        "id": reaction.id,
-        "emoji": reaction.emoji,
-        "reactor_id": reactor.id,
-        "reactor_name": reactor_name,
-    }
-    await _lock_rollup_line(
+    await notice_outbox.enqueue(
         session,
-        f"reaction-bell:{guild_id}:{reaction.target_type}:"
-        f"{reaction.target_id}:{author.id}",
-    )
-    existing = await user_notifications.find_unread_by_data(
-        session,
-        user_id=author.id,
-        notification_type=NotificationType.comment_reaction,
-        match=_reaction_rollup_match(reaction, guild_id),
+        [
+            notice_outbox.row(
+                cast(int, author.id),
+                guild_id,
+                NotificationType.comment_reaction,
+                {
+                    **_place_of(subject),
+                    "target_path": target_path,
+                    "smart_link": _build_smart_link(
+                        target_path=target_path, guild_id=guild_id
+                    ),
+                    "target_type": reaction.target_type,
+                    "target_id": reaction.target_id,
+                    "entry": {
+                        "id": reaction.id,
+                        "emoji": reaction.emoji,
+                        "reactor_id": reactor.id,
+                        "reactor_name": reactor_name,
+                    },
+                },
+                kind="reaction",
+            )
+        ],
     )
     prefs = await notification_prefs.load_prefs_for_delivery(author.id)
-    previous: Mapping[str, Any] = (existing.data if existing else None) or {}
-    roster = _rolled_up_reactor_ids(previous)
-    if reactor.id not in roster:
-        roster.append(cast(int, reactor.id))
-    line = _reaction_line(
-        _rolled_up_reactions(previous) + [entry],
-        count=_rolled_up_count(previous) + 1,
-        reactor_ids=roster,
-        target_type=reaction.target_type,
-        target_id=reaction.target_id,
-        guild_id=guild_id,
-        place=place,
-    )
-    if existing is None:
-        await user_notifications.create_notification(
-            session,
-            user_id=author.id,
-            notification_type=NotificationType.comment_reaction,
-            data=line,
-            prefs=prefs,
-        )
-    else:
-        await user_notifications.refresh_notification(session, existing, data=line)
     if wants_digest(prefs, NotificationCategory.reactions, guild_id=guild_id):
         session.add(
             ReactionDigestItem(
@@ -1551,6 +1527,86 @@ async def withdraw_reaction_event(
 ) -> None:
     """Take an un-reacted gesture back out of the unread bell line.
 
+    Written down for the notice worker (:func:`_take_back_reaction`), which
+    applies one recipient's rows in order: a reaction taken back before its
+    line was written is taken back after it, not lost.
+    """
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(
+                author_id,
+                guild_id,
+                NotificationType.comment_reaction,
+                {
+                    "reaction_id": reaction_id,
+                    "reactor_id": reactor_id,
+                    "emoji": emoji,
+                    "target_type": target_type,
+                    "target_id": target_id,
+                },
+                kind="withdraw",
+            )
+        ],
+    )
+
+
+async def _roll_up_reaction(
+    session: AsyncSession,
+    recipient: User,
+    notice: NoticeOutboxItem,
+    prefs: Mapping[str, Any],
+) -> None:
+    """Roll one reaction into the recipient's unread line for what was reacted
+    to, or start one."""
+    data = notice.data
+    guild_id = cast(int, notice.guild_id)
+    await _lock_rollup_line(
+        session,
+        f"reaction-bell:{guild_id}:{data['target_type']}:{data['target_id']}:"
+        f"{recipient.id}",
+    )
+    existing = await user_notifications.find_unread_by_data(
+        session,
+        user_id=recipient.id,
+        notification_type=NotificationType.comment_reaction,
+        match={
+            "guild_id": guild_id,
+            "target_type": data["target_type"],
+            "target_id": data["target_id"],
+        },
+    )
+    previous: Mapping[str, Any] = (existing.data if existing else None) or {}
+    entry = data["entry"]
+    roster = _rolled_up_reactor_ids(previous)
+    if entry["reactor_id"] not in roster:
+        roster.append(entry["reactor_id"])
+    line = _reaction_line(
+        _rolled_up_reactions(previous) + [entry],
+        count=_rolled_up_count(previous) + 1,
+        reactor_ids=roster,
+        target_type=data["target_type"],
+        target_id=data["target_id"],
+        guild_id=guild_id,
+        place=data,
+    )
+    if existing is None:
+        await user_notifications.create_notification(
+            session,
+            user_id=recipient.id,
+            notification_type=NotificationType.comment_reaction,
+            data=line,
+            prefs=prefs,
+        )
+    else:
+        await user_notifications.refresh_notification(session, existing, data=line)
+
+
+async def _take_back_reaction(
+    session: AsyncSession, recipient: User, notice: NoticeOutboxItem
+) -> None:
+    """Take one gesture back out of the recipient's unread line.
+
     Un-reacting should leave no trace where the recipient has not looked yet,
     the same rule the queued digest line follows. Only a line still holding
     this exact gesture is touched: one the recipient has already read is
@@ -1558,13 +1614,26 @@ async def withdraw_reaction_event(
     longer prove it was ever there, so both are left alone rather than
     decremented on a guess.
     """
+    data = notice.data
+    # A reaction whose own row is still backing off is taken back there: the
+    # line never held it, and must not when that row comes round again.
+    guild_id = cast(int, notice.guild_id)
+    if await notice_outbox.cancel_pending_reaction(
+        session,
+        user_id=cast(int, recipient.id),
+        guild_id=guild_id,
+        reaction_id=data["reaction_id"],
+    ):
+        return
+    target_type, target_id = data["target_type"], data["target_id"]
+    reactor_id = data["reactor_id"]
     await _lock_rollup_line(
         session,
-        f"reaction-bell:{guild_id}:{target_type}:{target_id}:{author_id}",
+        f"reaction-bell:{guild_id}:{target_type}:{target_id}:{recipient.id}",
     )
     existing = await user_notifications.find_unread_by_data(
         session,
-        user_id=author_id,
+        user_id=recipient.id,
         notification_type=NotificationType.comment_reaction,
         match={
             "guild_id": guild_id,
@@ -1580,7 +1649,10 @@ async def withdraw_reaction_event(
         entry
         for entry in entries
         if not _matches_withdrawn(
-            entry, reaction_id=reaction_id, reactor_id=reactor_id, emoji=emoji
+            entry,
+            reaction_id=data["reaction_id"],
+            reactor_id=reactor_id,
+            emoji=data["emoji"],
         )
     ]
     if len(remaining) == len(entries):

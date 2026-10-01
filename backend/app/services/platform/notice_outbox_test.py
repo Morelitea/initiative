@@ -247,3 +247,58 @@ async def test_a_bell_line_that_cannot_be_written_is_never_given_up(
     [row] = await _waiting(session)
     assert row.bell_written_at is not None and row.attempts == 1
     assert len(pushed) == 1
+
+
+async def test_a_reaction_taken_back_while_its_line_waits_leaves_nothing(
+    session: AsyncSession, monkeypatch
+):
+    """A reaction whose line failed to write waits out a backoff; taking it
+    back meanwhile must not leave the retry to write it anyway. Reaction ids
+    are each community's own, so another community's reaction with the same
+    id is left to arrive."""
+    recipient = await create_user(session)
+    here = await create_guild(session, creator=recipient)
+    elsewhere = await create_guild(session, creator=recipient)
+    await session.commit()
+    target = {"target_type": "comment", "target_id": 5}
+
+    async def _enqueue(guild_id: int, kind: str, data: dict) -> None:
+        await set_rls_context(session, SystemGuild(guild_id))
+        await notice_outbox.enqueue(
+            session,
+            [
+                notice_outbox.row(
+                    recipient.id,
+                    guild_id,
+                    NotificationType.comment_reaction,
+                    {**target, **data},
+                    kind=kind,
+                )
+            ],
+        )
+        await session.commit()
+
+    working = notifications._roll_up_reaction
+
+    async def _broken(*_args, **_kwargs):
+        raise RuntimeError("the bell is down")
+
+    monkeypatch.setattr(notifications, "_roll_up_reaction", _broken)
+    for guild_id in (here.id, elsewhere.id):
+        await _enqueue(
+            guild_id, "reaction", {"entry": {"id": 7, "emoji": "+1", "reactor_id": 3}}
+        )
+    now = datetime.now(timezone.utc)
+    await _deliver(session, now)
+    monkeypatch.setattr(notifications, "_roll_up_reaction", working)
+
+    await _enqueue(
+        here.id, "withdraw", {"reaction_id": 7, "reactor_id": 3, "emoji": "+1"}
+    )
+    await _deliver(session, datetime.now(timezone.utc))
+    await _deliver(session, now + timedelta(seconds=31))
+
+    assert await _waiting(session) == []
+    assert [line.guild_id for line in await _lines(session, recipient.id)] == [
+        elsewhere.id
+    ]

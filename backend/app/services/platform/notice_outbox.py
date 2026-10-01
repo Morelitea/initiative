@@ -60,6 +60,52 @@ BACKOFF_SECONDS = (30, 120, 600, 1800)
 BATCH_RECIPIENTS = 100
 
 
+#: What a row says when its writer says nothing: no rollup, no push, no email.
+_BLANK: dict[str, Any] = {
+    **dict.fromkeys(
+        (
+            "rollup_key",
+            "actor_id",
+            "actor_name",
+            "push_title",
+            "push_body",
+            "push_data",
+            "email_subject",
+            "email_headline",
+            "email_body",
+            "email_link",
+            "email_link_label",
+        )
+    ),
+    "email_names_line": True,
+}
+
+
+def row(
+    user_id: int,
+    guild_id: int | None,
+    notification_type: NotificationType,
+    data: Mapping[str, Any],
+    *,
+    kind: str = "notice",
+    **fields: Any,
+) -> dict[str, Any]:
+    """One row for :func:`enqueue`, every column named, so any batch of them
+    is one statement."""
+    now = datetime.now(timezone.utc)
+    return {
+        **_BLANK,
+        "user_id": user_id,
+        "guild_id": guild_id,
+        "type": notification_type.value,
+        "kind": kind,
+        "data": dict(data),
+        "created_at": now,
+        "deliver_after": now,
+        **fields,
+    }
+
+
 async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> None:
     """Write these notices down, in one statement, on the caller's session.
 
@@ -73,12 +119,38 @@ async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> N
     await session.exec(select(func.pg_notify(CHANNEL, "")))
 
 
+async def cancel_pending_reaction(
+    session: AsyncSession, *, user_id: int, guild_id: int, reaction_id: int
+) -> bool:
+    """Drop a reaction still waiting to be rolled into ``user_id``'s line —
+    one whose first attempt failed and is backing off. Returns whether there
+    was one, in which case the line never held it and there is nothing more
+    to take back."""
+    dropped = await session.exec(
+        delete(NoticeOutboxItem)
+        .where(
+            NoticeOutboxItem.user_id == user_id,  # type: ignore[arg-type]
+            # Reaction ids are a community's own, so the community is part of
+            # which reaction this is.
+            NoticeOutboxItem.guild_id == guild_id,  # type: ignore[arg-type]
+            NoticeOutboxItem.kind == "reaction",  # type: ignore[arg-type]
+            # Not one this pass holds: that one has been rolled in already.
+            NoticeOutboxItem.claimed_at.is_(None),  # type: ignore[union-attr]
+            NoticeOutboxItem.data["entry"]["id"].as_integer() == reaction_id,  # type: ignore[index]
+        )
+        .returning(NoticeOutboxItem.id)
+    )
+    return bool(dropped.all())
+
+
 async def _claim(session: AsyncSession, *, now: datetime) -> list[NoticeOutboxItem]:
     """Take every due row of the next batch of recipients.
 
     By recipient, so one person's notices are delivered by one pass in the
-    order they were written. The claim is its own statement: a pass racing
-    this one waits on the rows and then finds them taken.
+    order they were written — which is what keeps a reaction taken back behind
+    the reaction. A recipient another pass is still delivering to waits for
+    it. The claim is its own statement: a pass racing this one waits on the
+    rows and then finds them taken.
     """
     stale = now - timedelta(seconds=LEASE_SECONDS)
     due = (
@@ -86,10 +158,13 @@ async def _claim(session: AsyncSession, *, now: datetime) -> list[NoticeOutboxIt
         (NoticeOutboxItem.claimed_at.is_(None))  # type: ignore[union-attr]
         | (NoticeOutboxItem.claimed_at < stale),  # type: ignore[operator]
     )
+    held = select(NoticeOutboxItem.user_id).where(
+        NoticeOutboxItem.claimed_at >= stale  # type: ignore[operator]
+    )
     user_ids = (
         await session.exec(
             select(NoticeOutboxItem.user_id)
-            .where(*due)
+            .where(*due, NoticeOutboxItem.user_id.not_in(held))  # type: ignore[attr-defined]
             .distinct()
             .order_by(NoticeOutboxItem.user_id)
             .limit(BATCH_RECIPIENTS)
