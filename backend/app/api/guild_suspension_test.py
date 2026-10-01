@@ -674,7 +674,7 @@ async def test_guild_admin_patch_cannot_touch_enforcement_fields(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The guild-facing PATCH no longer carries cap/status fields — a payload
-    that smuggles them is ignored (unknown fields), never applied."""
+    that carries them is ignored (unknown fields), never applied."""
     a = await acting_user(guild_role=GuildRole.admin)
 
     resp = await client.patch(

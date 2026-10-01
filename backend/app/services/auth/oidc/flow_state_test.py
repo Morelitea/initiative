@@ -1,9 +1,9 @@
-"""Adversarial tests for the encrypted OIDC flow state.
+"""Rejection tests for the encrypted OIDC flow state.
 
-The state parameter round-trips through the browser, so the suite attacks it
-from that position: tampering, expiry, cross-context tokens, wrong keys, and
-malformed payloads must all be rejected; the secrets it carries must not be
-readable from the token itself.
+The state parameter round-trips through the browser, so the suite checks it
+from there: altered, expired, cross-context, wrong-key and malformed tokens
+must all be rejected; the secrets it carries must not be readable from the
+token itself.
 """
 
 from __future__ import annotations

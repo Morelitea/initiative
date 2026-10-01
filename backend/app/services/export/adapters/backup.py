@@ -183,7 +183,7 @@ async def _resolve_scope(
     )
     initiative = (await session.exec(statement)).one_or_none()
     if initiative is None:
-        # Unreachable initiative — indistinguishable from absent (no leak).
+        # Unreachable initiative — indistinguishable from absent.
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS, status_code=404)
     return [initiative]
 

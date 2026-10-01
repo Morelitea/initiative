@@ -1781,7 +1781,7 @@ async def test_oidc_next_rejects_non_relative_paths(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """Only a rooted relative path is carried: absolute URLs, protocol-relative
-    forms, and unrooted strings never set the cookie — and a tampered cookie is
+    forms, and unrooted strings never set the cookie — and such a cookie is
     dropped at the callback rather than echoed."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
@@ -1796,7 +1796,7 @@ async def test_oidc_next_rejects_non_relative_paths(
         assert response.status_code in (302, 307)
         assert "oidc_next" not in response.cookies, bad
 
-    # Cookie tampered between login and callback: the callback re-validates
+    # Cookie changed between login and callback: the callback re-validates
     # and redirects without any next parameter.
     client.cookies.set("oidc_next", "https://evil.example/x")
     response = await _run_oidc_flow(
@@ -1893,7 +1893,7 @@ async def test_row_provider_full_login_flow(
 async def test_oidc_callback_rejects_forged_state(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A forged state is refused, and so is a genuine one presented by a
+    """An unknown state is refused, and so is a genuine one presented by a
     browser other than the one the sign-in began in."""
     await _enable_platform_oidc(session)
     _wire_fake_idp(monkeypatch, FakeIdp())
@@ -1979,7 +1979,7 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     monkeypatch,
     verified_claim,
 ):
-    """SEC-9: an OIDC login must not link to / log into a pre-existing local
+    """An OIDC login must not link to / log into a pre-existing local
     account when the IdP does not assert ``email_verified is True`` for a
     matching email. A false claim (IdP allows unverified emails) and an absent
     claim (e.g. Azure AD) are both refused — fail closed."""
@@ -2004,7 +2004,7 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     assert "session_token" not in response.cookies
     assert await _federated_identities(session) == []
     # The account must not have been silently promoted to verified, and its
-    # profile must not have been overwritten by the attacker-supplied claims.
+    # profile must not have been overwritten by the IdP's claims.
     await session.refresh(existing)
     assert not await addresses.has_proven_address(session, user_id=existing.id)
     assert existing.full_name == "Victim"
@@ -2015,7 +2015,7 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     session: AsyncSession,
     monkeypatch,
 ):
-    """SEC-9 counterpart: a matching email with ``email_verified=true`` logs
+    """Counterpart: a matching email with ``email_verified=true`` logs
     into the existing account, promotes it to verified, and now writes the
     (provider, subject) link so later logins resolve by subject."""
     existing = await create_user(
@@ -2330,7 +2330,7 @@ async def test_password_reset_rejects_short_password(
     assert response.json()["detail"] == "PASSWORD_TOO_SHORT"
 
     # Reset token must still be redeemable — we failed before consuming it.
-    # Tokens are stored hashed (SEC-13), so look the row up by its hash.
+    # Tokens are stored hashed, so look the row up by its hash.
     from sqlmodel import select
 
     from app.services.platform.user_tokens import _hash_token

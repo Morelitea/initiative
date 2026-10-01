@@ -50,7 +50,7 @@ class PasswordResetRequest(SanitizedBaseModel):
 
 class PasswordResetSubmit(SanitizedBaseModel):
     token: str = Field(min_length=10)
-    # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
+    # ``max_length`` is a cheap bound so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
     # so all policy failures surface with a flat error code from
@@ -168,9 +168,9 @@ class UploadTokenResponse(SanitizedBaseModel):
     Native (Capacitor) <img>/<iframe> tags can't send the Authorization header
     or the HttpOnly session cookie, so they carry auth as a ``?token=`` query
     param. This token is accepted only by the /uploads + document-download
-    routes and expires quickly, so a leak via logs/history/Referer is harmless
-    compared with putting the 7-day session JWT in the URL. ``expires_in`` is
-    the lifetime in seconds so the SPA can refresh before it lapses.
+    routes and expires quickly; the 7-day session JWT never goes in a URL.
+    ``expires_in`` is the lifetime in seconds so the SPA can refresh before it
+    lapses.
     """
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)

@@ -485,8 +485,7 @@ async def send_test_email(
         ) from None
     except RuntimeError as exc:
         # Log the real cause (may include SMTP host/port/server banner) for the
-        # operator, but return only a generic machine-readable code so the
-        # response never leaks internal mail-server details (pentest SEC-16).
+        # operator, but return only a generic machine-readable code.
         logger.warning("Test email delivery failed: %s", str(exc))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

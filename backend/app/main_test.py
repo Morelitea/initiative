@@ -26,8 +26,8 @@ from app.testing import captcha_switched_on, create_app_service_registration
 
 async def test_validation_handler_strips_input_and_url() -> None:
     # FastAPI's default 422 echoes back `input` (and a pydantic docs `url`). On
-    # a failed password/secret validation that would leak the submitted value
-    # (pentest LOW-001). The handler must drop them while keeping loc/msg/type.
+    # a failed password/secret validation that would echo the submitted value.
+    # The handler must drop them while keeping loc/msg/type.
     exc = RequestValidationError(
         [
             {
@@ -199,7 +199,7 @@ async def test_register_validation_error_omits_input(client: AsyncClient) -> Non
         assert "input" not in err
 
 
-# --- HSTS (Strict-Transport-Security) (pentest SEC-16) ---
+# --- HSTS (Strict-Transport-Security) ---
 
 
 async def _hsts_for(app_url: str) -> str | None:
@@ -252,7 +252,7 @@ async def test_no_hsts_in_test_env_http(client: AsyncClient) -> None:
     assert "strict-transport-security" not in resp.headers
 
 
-# --- API docs gating (pentest SEC-16) ---
+# --- API docs gating ---
 
 
 async def test_docs_and_openapi_served_when_enabled(client: AsyncClient) -> None:

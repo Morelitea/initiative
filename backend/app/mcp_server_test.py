@@ -110,7 +110,7 @@ def _operation(name: str) -> str:
     operationIds are ``{function}_api_v1_{path}``; splitting on the route
     boundary yields the *exact* function name (e.g. ``create_task``) without
     collapsing multi-word resources — so a hypothetical ``create_task_template``
-    leak can't masquerade as the allowed ``create_task``. Returns the whole name
+    does not match the allowed ``create_task``. Returns the whole name
     unchanged if the boundary is absent (then it simply won't match the safe set).
     """
     return name.split("_api_v1_", 1)[0]
@@ -125,7 +125,7 @@ async def test_mcp_tools_are_curated():
     # Every tool is for an initiative, one of the tools an initiative holds, or
     # the comment surface they share. Everything else (admin, auth, settings,
     # users, uploads, grants, …) carries none of these words, so this also
-    # proves none of them leaked through.
+    # proves none of them are exposed.
     allowed = (
         "initiative",
         "comment",

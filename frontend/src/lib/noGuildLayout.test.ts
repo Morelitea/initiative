@@ -65,7 +65,7 @@ describe("chooseNoGuildLayout", () => {
 
     it("does not match a partial-prefix collision like /profileX", () => {
       // ``startsWith("/profile/")`` (with the trailing slash) plus the
-      // exact-match arm prevents this from leaking. Pin it so a future
+      // exact-match arm keeps this from matching. Pin it so a future
       // refactor can't drop the slash and silently widen the gate.
       expect(
         chooseNoGuildLayout({

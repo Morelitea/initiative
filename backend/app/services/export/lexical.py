@@ -15,8 +15,8 @@ callout holding its name; anything else is dropped silently. A new
 editor node can never break an export, it just exports as its text.
 
 Images: only same-guild uploads (``/uploads/{guild_id}/…``) are collected as
-assets and embedded — an external URL is never fetched (no SSRF surface, per
-the export design); it renders as a plain link instead.
+assets and embedded — an external URL is never fetched; it renders as a plain
+link instead.
 """
 
 from __future__ import annotations

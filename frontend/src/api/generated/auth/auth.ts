@@ -1172,7 +1172,7 @@ export const useLogoutApiV1AuthLogoutPost = <
  *
  * Native (Capacitor) clients call this to load ``/uploads/*`` media and
  * document downloads via ``?token=`` without putting the long-lived session
- * JWT in the URL (which would leak through logs, history, and Referer). The
+ * JWT in the URL. The
  * token is accepted only by the uploads/download routes and is useless as a
  * general API credential.
  * @summary Issue Upload Token

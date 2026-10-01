@@ -283,7 +283,7 @@ async def update_subscription(
 
     Who may is the UPDATE policy — initiative write access, or guild admin for
     a community-wide subscription. ``target_url`` (when provided) is
-    re-validated against the SSRF allowlist.
+    re-validated: it must resolve to a public address.
     """
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))

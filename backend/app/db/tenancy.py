@@ -31,8 +31,7 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 Every ``table=True`` model MUST land in ``SHARED_TABLES`` or (via level 2)
 ``GUILD_SCOPED_TABLES``. ``tenancy_test.py`` enforces this against
 ``SQLModel.metadata`` so a new table can't be added without a placement
-decision — an unclassified guild-scoped table would silently leak across
-tenants.
+decision.
 """
 
 from __future__ import annotations
@@ -265,7 +264,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # Own-row tables (also listed in OWN_ROW_TABLES below): guild-level
         # placement, but rows belong to ONE user and carry own_row_* policies.
         "export_jobs",  # a job may span initiatives ("export all my tasks"), so
-        # it can't use initiative_access; the row leaks selector text and gates
+        # it can't use initiative_access; the row holds selector text and gates
         # the artifact download, so it must not be guild-wide-readable either.
         "import_jobs",  # same shape as export_jobs: a backup import spans
         # initiatives, and the row's options/plan/report text plus the staged

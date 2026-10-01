@@ -16,7 +16,7 @@ table placement:
   rendered through the capabilities;
 * every RLS-enabled shared table is FORCEd (even table owners obey policies);
 * the retired ``is_superadmin`` GUC appears in no policy anywhere;
-* no app role may CREATE objects in ``public`` (search_path hijack guard);
+* no app role may CREATE objects in ``public`` (it is on every search_path);
 * login-role memberships in scoped roles are INHERIT FALSE (no standing
   access without an explicit ``SET ROLE``).
 """

@@ -470,7 +470,7 @@ async def test_password_change_deactivates_api_keys(
     client: AsyncClient, session: AsyncSession
 ):
     """Changing the password (a credential-reset) deactivates outstanding API
-    keys, so a leaked key can't survive a compromise response."""
+    keys too."""
     user = await create_user(session, email="rotate@example.com")
     headers = get_auth_headers(user)
 

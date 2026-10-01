@@ -79,7 +79,7 @@ async def test_slugify_unique_suffixes_on_collision(session: AsyncSession):
         await filter_presets_service.slugify_unique(session, project.id, "My Sprint")
         == "my-sprint"
     )
-    # A user preset must not steal a seeded preset's slug — links already point
+    # A user preset must not take a seeded preset's slug — links already point
     # at it.
     assert (
         await filter_presets_service.slugify_unique(session, project.id, "Mine")

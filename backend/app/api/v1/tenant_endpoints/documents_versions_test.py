@@ -515,7 +515,7 @@ async def test_delete_version_non_file_document_rejected(
 
 
 # ---------------------------------------------------------------------------
-# Bounded upload reads (SEC-7): over-limit bodies are rejected with 413 before
+# Bounded upload reads: over-limit bodies are rejected with 413 before
 # the whole payload is buffered into memory. The size cap is shrunk via
 # monkeypatch so the test payloads stay tiny.
 # ---------------------------------------------------------------------------

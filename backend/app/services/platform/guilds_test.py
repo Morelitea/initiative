@@ -616,7 +616,7 @@ async def test_an_invite_does_not_reach_an_unproven_claim(session: AsyncSession)
 
 
 async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSession):
-    """An email-bound invite must reject a user whose email differs (SEC-15)."""
+    """An email-bound invite must reject a user whose email differs."""
     guild = await create_guild(session)
     creator = await create_user(session, email="creator@example.com")
     wrong_user = await create_user(session, email="someone-else@example.com")

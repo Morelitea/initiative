@@ -4,11 +4,11 @@ Same source adapters, different renderer: a tabular format consumes the
 ``columns``/``rows`` of the same data payload the PDF template reads, so a
 source that declares the format gets it with no adapter changes.
 
-Both formats absorb the platform CSV exporter's injection safety rather than
-duplicating it (``csv_export.neutralize_cell``) — XLSX included, because
-openpyxl infers a *string* cell starting with ``=`` as a formula, so the
-spreadsheet-injection class isn't CSV-only. XLSX neutralizes string cells
-only, keeping numeric cells typed (see ``_xlsx_cell``).
+Both formats reuse the platform CSV exporter's formula neutralization rather
+than duplicating it (``csv_export.neutralize_cell``) — XLSX included, because
+openpyxl infers a *string* cell starting with ``=`` as a formula. XLSX
+neutralizes string cells only, keeping numeric cells typed (see
+``_xlsx_cell``).
 """
 
 from __future__ import annotations
@@ -51,8 +51,7 @@ def render_csv(item: RenderItem) -> bytes:
 
 def _md_cell(value: Any) -> str:
     """A cell must not break the GFM table structure: escape pipes and
-    collapse newlines. Markdown has no execution surface, so this is layout
-    integrity, not injection defense."""
+    collapse newlines, keeping the table layout intact."""
     text = "" if value is None else str(value)
     return text.replace("|", "\\|").replace("\r\n", " ").replace("\n", " ")
 
@@ -100,8 +99,8 @@ def _md_table(item: RenderItem) -> list[str]:
 def _md_details(row: dict, detail_keys: list[str]) -> str:
     """The parenthesized detail trail shared by the list layouts. ``None``
     must be skipped BEFORE stringifying — ``str(None)`` is truthy, and
-    ``_md_cell(None)`` returns ``""``, so a None value would otherwise smuggle
-    an empty segment (and its spurious ``·`` separator) into the join."""
+    ``_md_cell(None)`` returns ``""``, so a None value would otherwise add
+    an empty segment (and its spurious ``·`` separator) to the join."""
     values = (row.get(key) for key in detail_keys)
     return " · ".join(
         _md_cell(value) for value in values if value is not None and str(value).strip()
@@ -151,7 +150,7 @@ def _xlsx_cell(value: Any) -> Any:
     becomes text anyway), XLSX cells are typed: a number must stay a number
     (coercing ``-5`` to ``"'-5"`` would break sorting/arithmetic in the
     sheet), and openpyxl cannot infer a formula from an int/float/date, so
-    only strings can smuggle a formula trigger."""
+    only strings can carry a formula trigger."""
     if isinstance(value, str):
         return neutralize_cell(value)
     return value

@@ -824,11 +824,10 @@ async def test_the_template_strip_removes_only_what_a_render_put_there(engine):
 
 
 async def test_public_schema_has_no_tenant_tables(engine):
-    """Squash leak-check: on a fresh database the ``public`` schema must contain
+    """Squash check: on a fresh database the ``public`` schema must contain
     NO copy of any guild-scoped (tenant) table. Post-v0.53.5-baseline, tenant
-    content lives ONLY in ``guild_<id>`` (and ``guild_template``); a stray public
-    copy would be a silent cross-tenant leak surface, so this fails closed if one
-    reappears."""
+    content lives ONLY in ``guild_<id>`` (and ``guild_template``), so this fails
+    if a public copy reappears."""
     async with engine.connect() as conn:
         leaked = {
             row[0]

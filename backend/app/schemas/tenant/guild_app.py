@@ -563,9 +563,9 @@ def serialize_connection(
     """One connection block for the viewer looking at it.
 
     A guild-scoped connection reads its presence off the install row; a
-    per-member one reads it off the viewer's own row, which is why an unrelated
-    member's state can never leak through this payload — there is no branch that
-    could reach another row.
+    per-member one reads it off the viewer's own row, so the payload carries
+    only the viewer's own state — there is no branch that could reach another
+    row.
 
     A guild-scoped connection's values go to ``holds_seat`` alone: the seat is
     who sets them, and everybody else is told only whether they are there.

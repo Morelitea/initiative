@@ -158,7 +158,7 @@ async def _guild_upload_meta(
         return {}
     rows = (
         await conn.execute(
-            # schema = guild_schema_name(int) — injection-safe.
+            # schema = guild_schema_name(int), a digits-only identifier.
             text(
                 f'SELECT filename, content_type, content_hash FROM "{schema}".uploads'  # noqa: S608
             )

@@ -311,7 +311,7 @@ async def rotate_session(
         )
     ).first()
     if claimed is None:
-        # Lost the race to a concurrent rotation — same danger as a replay.
+        # Lost the race to a concurrent rotation — treated as reuse.
         await revoke_chain(session, session_id=row.id, now=issued)
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).

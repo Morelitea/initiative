@@ -186,7 +186,7 @@ def test_billing_portal_handoff_refuses_to_mint_without_private_key(monkeypatch)
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Scoped upload tokens (SEC-12)
+# Scoped upload tokens
 # ──────────────────────────────────────────────────────────────────────────
 
 

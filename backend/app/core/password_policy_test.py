@@ -55,9 +55,8 @@ class TestValidateNewPassword:
         assert calls == [candidate]
 
     async def test_skips_breach_check_when_too_short(self, monkeypatch):
-        """Cheap local checks fire first — a short password must never
-        cause a network call, which would otherwise leak information
-        and waste latency."""
+        """Cheap local checks fire first — a short password is refused
+        without a network call."""
         called = False
 
         async def _breached(_pw: str) -> bool:

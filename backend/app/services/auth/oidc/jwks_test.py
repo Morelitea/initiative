@@ -167,7 +167,7 @@ async def test_unknown_kid_raises():
         await resolver.resolve_signing_key(token, jwks_uri=JWKS_URI)
 
 
-# --- SSRF: https-only guard -------------------------------------------------
+# --- https-only ------------------------------------------------------------
 
 
 @pytest.mark.parametrize(

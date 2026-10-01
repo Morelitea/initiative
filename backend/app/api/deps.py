@@ -1924,7 +1924,7 @@ async def _resolve_upload_user(
 
       * Authorization header or HttpOnly cookie — not exposed in URLs, so what
         every other route accepts is accepted here.
-      * ``?token=`` query param — leaks via logs/history/Referer, so only a
+      * ``?token=`` query param — part of the URL, so only a
         short-lived uploads-scoped token or a device token is accepted. A
         session token or API key there is refused; native clients fetch a
         scoped token from ``POST /auth/upload-token`` instead.

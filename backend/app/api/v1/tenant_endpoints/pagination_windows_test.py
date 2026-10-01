@@ -1,4 +1,4 @@
-"""Regression tests for the ``page_size=0`` window protocol (SEC-14).
+"""Regression tests for the ``page_size=0`` window protocol.
 
 "Fetch all" list requests are served in ``FETCH_ALL_WINDOW``-sized pages:
 every response is bounded, ``page`` selects the window, and ``has_next``

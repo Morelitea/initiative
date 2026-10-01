@@ -1,7 +1,7 @@
 """RLS / role-security test for the auth_sessions store.
 
 Locks in the app_admin-only wall (migration 20260706_0132): the request path
-cannot touch sessions at all, so the refresh-token hash never leaks. Session
+cannot touch sessions at all, so the refresh-token hash is never read there. Session
 validation is a pre-auth lookup by hash (user unknown) and so runs on the system
 engine — there is deliberately no own-row request-path access.
 

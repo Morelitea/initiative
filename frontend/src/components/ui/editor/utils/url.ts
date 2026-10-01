@@ -1,15 +1,14 @@
 /**
  * Strict allowlist URL handling for editor links.
  *
- * Documents are cross-user stored content, so a link URL persisted by one user
- * is later rendered (and potentially opened) in another user's browser. To
- * prevent stored XSS via `javascript:`/`data:`/`vbscript:` URLs, every link URL
- * MUST be routed through `sanitizeUrl` at each choke point: on import/render,
- * before `window.open`, and before it is stored via TOGGLE_LINK_COMMAND.
+ * Only allowlisted protocols are kept (`javascript:`/`data:`/`vbscript:` URLs
+ * are neutralized), so every link URL MUST be routed through `sanitizeUrl` at
+ * each choke point: on import/render, before `window.open`, and before it is
+ * stored via TOGGLE_LINK_COMMAND.
  *
  * `validateUrl` is the gate Lexical uses to decide whether a typed/pasted string
  * may become a link at all; it is anchored and protocol-allowlisted so a
- * dangerous scheme can never be stored in the first place.
+ * scheme outside the allowlist is never stored in the first place.
  */
 
 // Protocols that are safe to navigate to. Anything else is neutralized.
@@ -87,12 +86,11 @@ export function sanitizeUrl(url: string): string {
   }
 
   // Browsers ignore embedded control/whitespace chars when resolving a scheme,
-  // so evaluate the scheme against a stripped copy to defeat obfuscation
-  // (e.g. "java\tscript:alert(1)").
+  // so evaluate the scheme against a stripped copy (e.g. "java\tscript:alert(1)").
   const stripped = stripControlChars(trimmed);
 
   // No explicit scheme: a bare relative reference (e.g. "example.com/foo").
-  // Safe to leave as-is — there is no protocol to exploit.
+  // Left as-is — there is no protocol to check.
   if (!SCHEME_RE.test(stripped)) {
     return trimmed;
   }

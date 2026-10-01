@@ -144,7 +144,7 @@ def _truncate_output(text: str, max_length: int) -> str:
 #
 # System prompts contain only instructions. User content wraps all
 # user-provided data in XML tags so the LLM can distinguish it from
-# instructions, mitigating prompt-injection risks.
+# instructions.
 # ---------------------------------------------------------------------------
 
 

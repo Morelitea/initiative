@@ -4,7 +4,7 @@ One login attempt's transient secrets — the PKCE ``code_verifier`` and the
 id_token ``nonce`` — must round-trip from ``begin`` (the redirect to the IdP)
 to ``complete`` (the callback). They travel in the ``state`` parameter as a
 **Fernet-encrypted** payload: confidential (nothing readable in redirect URLs
-or logs), tamper-proof, and TTL-bound via the token's authenticated timestamp.
+or logs), authenticated, and TTL-bound via the token's authenticated timestamp.
 Stateless — nothing is stored server-side, so it works across replicas; a
 ``SECRET_KEY`` rotation simply invalidates in-flight logins (they retry).
 
@@ -58,7 +58,7 @@ class OidcFlowState:
     mobile: bool = False
     device_name: str = ""
     # The provider slug this login attempt was begun with; verified at
-    # complete so the state can't be replayed against another provider.
+    # complete so the state is accepted only for that provider.
     # Empty only in states minted before the field existed.
     provider_slug: str = ""
     # The app's own S256 challenge for a native sign-in: the code this login
@@ -109,7 +109,7 @@ def decode_flow_state(
     state: str, *, max_age_seconds: int = DEFAULT_MAX_AGE_SECONDS
 ) -> OidcFlowState:
     """Decrypt and validate the callback's ``state``, or raise
-    :class:`FlowStateError` (expired, tampered, wrong key/salt, malformed)."""
+    :class:`FlowStateError` (expired, altered, wrong key/salt, malformed)."""
     if not state:
         raise FlowStateError("missing flow state")
     try:

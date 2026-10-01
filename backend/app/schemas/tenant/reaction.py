@@ -3,7 +3,7 @@
 The read shape is a *summary*, not a row list: what a client renders is one
 chip per distinct emoji, carrying how many people picked it, whether the
 current user is one of them, and a few names for the tooltip. Sending the raw
-rows would make every thread O(reactions) and leak nothing useful.
+rows would make every thread O(reactions) for nothing the client uses.
 """
 
 from __future__ import annotations

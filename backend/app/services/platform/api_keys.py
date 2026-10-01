@@ -170,8 +170,8 @@ async def deactivate_user_api_keys(session: AsyncSession, *, user_id: int) -> in
     """Deactivate every active API key for ``user_id`` and return the count.
 
     Invoked from the credential-reset path so a password change / reset also
-    locks out outstanding keys (a leaked key must not survive a compromise
-    response). Does not commit — the caller owns the transaction.
+    deactivates outstanding keys. Does not commit — the caller owns the
+    transaction.
     """
     statement = select(UserApiKey).where(
         UserApiKey.user_id == user_id, UserApiKey.is_active.is_(True)

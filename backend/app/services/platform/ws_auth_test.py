@@ -1,8 +1,8 @@
 """Tests for the shared WebSocket auth helper (``authenticate_ws_token``).
 
-Regression coverage for SEC-4: the realtime WebSocket authenticators must
-honour ``token_version`` so that logout / password reset / password change
-(which revoke purely by bumping the counter) also close realtime sockets.
+The realtime WebSocket authenticators must honour ``token_version`` so that
+logout / password reset / password change (which revoke purely by bumping the
+counter) also close realtime sockets.
 """
 
 from datetime import datetime, timedelta, timezone
