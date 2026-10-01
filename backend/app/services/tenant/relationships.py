@@ -7,10 +7,13 @@ people's tasks is a fact about their work; a task somebody wants in two epics is
 an ambiguity worth recording. Neither is this layer's business to prevent, and
 both are a picker's business to warn about (see :func:`walk`).
 
-Permission is not decided here. RLS gates both endpoints on every statement, and
-the *removal* rule — your own edge, or one on a resource you can write — belongs
-to the endpoint, which is where the resource and the caller's access to it are
-already in hand.
+Who may write an edge is the table's to decide: RLS gates both endpoints on
+every statement. A link a person makes also answers to the rules of the surface
+— both ends readable, in one initiative, neither archived, a directional link
+written by its source — and :func:`link` is where those live, so every writer of
+one goes through the same door. The *removal* rule — your own edge, or one on a
+resource you can write — belongs to the endpoint, which is where the resource
+and the caller's access to it are already in hand.
 """
 
 from __future__ import annotations
@@ -19,12 +22,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable, Literal, Sequence
 
+from fastapi import HTTPException, status
 from sqlalchemy import text, union_all
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import RelationshipMessages
 from app.core.relationships import (
+    DERIVED_TYPES,
     ENDPOINT_KINDS,
     SPECS,
     Related,
@@ -35,6 +41,7 @@ from app.core.relationships import (
     node_id,
 )
 from app.core.search import SearchEntityType
+from app.db import reference_targets
 from app.models.tenant.relationship import EntityRelationship
 
 #: How deep a walk may go, whatever it is asked for. A graph that permits cycles
@@ -127,6 +134,156 @@ async def create(
     session.add(row)
     await session.flush()
     return row
+
+
+class Refused(HTTPException):
+    """A link the surface does not make, with the reason a caller can act on."""
+
+
+async def link(
+    session: AsyncSession,
+    *,
+    source: Endpoint,
+    relationship_type: RelationshipType,
+    target: Endpoint,
+    user_id: int,
+    provenance: Provenance = Provenance.manual,
+    confidence: float | None = None,
+) -> EntityRelationship | None:
+    """Make one link on a person's behalf, or return None if it is already there.
+
+    Asks everything the relationships surface asks before :func:`create`
+    stores the row, and raises :class:`Refused` for what it will not make.
+    """
+    refuse_derived(relationship_type)
+    source_row = await resolve(session, source, user_id)
+    target_row = await resolve(session, target, user_id)
+    refuse_across_initiatives(source_row, target_row)
+    refuse_archived(source_row, target_row)
+    await _refuse_unwritable_source(session, source, relationship_type, user_id)
+    try:
+        return await create(
+            session,
+            source=source,
+            relationship_type=relationship_type,
+            target=target,
+            provenance=provenance,
+            confidence=confidence,
+            created_by=user_id,
+        )
+    except SelfLoop:
+        raise Refused(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=RelationshipMessages.SELF
+        ) from None
+
+
+async def resolve(
+    session: AsyncSession, end: Endpoint, user_id: int
+) -> reference_targets.Resolved:
+    """The row behind one end, or a 404.
+
+    Asked through ``visible_ids``, which joins the row to whatever governs it
+    and calls ``resource_access`` — the same function the tables' own
+    policies call. A thing the caller cannot open is absent rather than
+    forbidden, which is what every other read here does with one.
+    """
+    resolved = await reference_targets.resolve_one(
+        session, end.kind, end.id, user_id=user_id
+    )
+    if resolved is None:
+        raise Refused(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
+        )
+    return resolved
+
+
+def refuse_across_initiatives(
+    a: reference_targets.Resolved, b: reference_targets.Resolved
+) -> None:
+    """Both ends of a link a person makes belong to the same place.
+
+    Two things can have no initiative, and they are not the same thing:
+
+    * A **tag** belongs to none by its nature — it is the guild's own
+      vocabulary, which every initiative shares. It pairs with anything the
+      guild holds.
+    * An **event on a guild calendar** belongs to none because that is what a
+      guild calendar is: an event takes its initiative from its calendar, and a
+      guild calendar has none. So it is guild-level content, and initiative
+      content is not its to link. That is the rule the calendar endpoint spelled
+      out as ``GUILD_CALENDAR_NO_DOCUMENTS``, which was never about documents.
+
+    What tells them apart is whether the KIND belongs to initiatives at all:
+    ``calendar_events`` does and this row does not, where ``tags`` never does.
+    """
+    if a.initiative_id == b.initiative_id:
+        return
+    guild_vocabulary = any(
+        end.initiative_id is None and not end.scoped_kind for end in (a, b)
+    )
+    if guild_vocabulary:
+        return
+    raise Refused(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=RelationshipMessages.CROSS_INITIATIVE,
+    )
+
+
+def refuse_archived(*ends: reference_targets.Resolved) -> None:
+    """An archived thing is finished with, and its links are part of what it
+    says. Asked of both ends, and of a removal as much as an addition."""
+    for end in ends:
+        if end.archived:
+            raise Refused(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=RelationshipMessages.ENDPOINT_ARCHIVED,
+            )
+
+
+def refuse_derived(relationship_type: RelationshipType) -> None:
+    """Some links are nobody's to make by hand.
+
+    A ``references`` edge is read out of a body when it is saved, so asserting
+    one here would state something no sentence says — and the next save would
+    take it straight back out. Writing the sentence is how you make one.
+    """
+    if relationship_type in DERIVED_TYPES:
+        raise Refused(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=RelationshipMessages.DERIVED,
+        )
+
+
+async def _refuse_unwritable_source(
+    session: AsyncSession,
+    source: Endpoint,
+    relationship_type: RelationshipType,
+    user_id: int,
+) -> None:
+    """A directional link is the source's to make.
+
+    Direction is chosen so the source is the end an edge describes, which is
+    what makes "who may write this" derivable: changing what is said *about*
+    something asks to change that thing. A symmetric link describes neither end
+    and asks only that both be readable, which resolving them already proved.
+
+    The table says the same thing and would refuse the write on its own. Asking
+    here is so the refusal arrives with a name the caller can act on — "you can
+    only read that" — rather than as a bare privilege error.
+    """
+    if is_symmetric(relationship_type):
+        return
+    writable = await session.exec(
+        reference_targets.visible_ids(source.kind, user_id, need_write=True).where(
+            reference_targets.id_column(source.kind) == source.id
+        )
+    )
+    if writable.first() is None:
+        raise Refused(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=RelationshipMessages.SOURCE_NOT_WRITABLE,
+        )
 
 
 async def create_many(
