@@ -82,7 +82,9 @@ async def search_guild(
         default=None, description="Restrict to one initiative."
     ),
     include_archived: bool = Query(default=False, description=_ARCHIVED_DESCRIPTION),
-    template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
+    is_template: Optional[bool] = Query(
+        default=None, description=_TEMPLATE_DESCRIPTION
+    ),
     limit: int = Query(default=20, ge=1, le=search_service.MAX_LIMIT),
     offset: int = Query(default=0, ge=0),
 ) -> SearchResults:
@@ -98,7 +100,7 @@ async def search_guild(
             types=types,
             initiative_id=initiative_id,
             include_archived=include_archived,
-            template=template,
+            template=is_template,
         ),
         limit=limit,
         offset=offset,
@@ -116,14 +118,16 @@ async def recent_guild(
     initiative_id: Optional[int] = Query(
         default=None, description="Restrict to one initiative."
     ),
-    template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
+    is_template: Optional[bool] = Query(
+        default=None, description=_TEMPLATE_DESCRIPTION
+    ),
     subject: Optional[str] = Query(default=None, description=_SUBJECT_DESCRIPTION),
     limit: int = Query(default=search_service.SUGGEST_LIMIT, ge=1),
 ) -> List[SearchSuggestion]:
     """What a picker offers before anything has been typed.
 
     The most recently changed things the caller could name, taking the same
-    ``types``, ``initiative_id`` and ``template`` narrowing as the search — so
+    ``types``, ``initiative_id`` and ``is_template`` narrowing as the search — so
     what a picker suggests and what it finds are the same set of things.
     """
     return await search_service.recent(
@@ -132,7 +136,7 @@ async def recent_guild(
         filters=search_service.Filters(
             types=types,
             initiative_id=initiative_id,
-            template=template,
+            template=is_template,
             subject=parse_ref(subject) if subject else None,
         ),
         limit=limit,
@@ -150,7 +154,9 @@ async def suggest_guild(
     initiative_id: Optional[int] = Query(
         default=None, description="Restrict to one initiative."
     ),
-    template: Optional[bool] = Query(default=None, description=_TEMPLATE_DESCRIPTION),
+    is_template: Optional[bool] = Query(
+        default=None, description=_TEMPLATE_DESCRIPTION
+    ),
     subject: Optional[str] = Query(default=None, description=_SUBJECT_DESCRIPTION),
     limit: int = Query(default=search_service.SUGGEST_LIMIT, ge=1),
 ) -> List[SearchSuggestion]:
@@ -173,7 +179,7 @@ async def suggest_guild(
             filters=search_service.Filters(
                 types=types,
                 initiative_id=initiative_id,
-                template=template,
+                template=is_template,
                 subject=parse_ref(subject) if subject else None,
             ),
             limit=limit,

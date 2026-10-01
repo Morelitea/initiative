@@ -513,7 +513,7 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
     response = await client.get(
         other.g("/search/suggest"),
         headers=other.headers,
-        params={"q": "private", "types": ["document"], "template": True},
+        params={"q": "private", "types": ["document"], "is_template": True},
     )
     assert response.status_code == 200, response.text
     assert private_template.id not in {r["entity_id"] for r in response.json()}
