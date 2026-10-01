@@ -1411,6 +1411,9 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
         target_id=5,
         guild_id=guild.id,
     )
+    await session.commit()
+    await drain_notices()
+    await session.refresh(line)
 
     assert line.data["count"] == 24
     # Bob keeps his place: the gesture that proves he is still here rolled off

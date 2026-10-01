@@ -56,6 +56,13 @@ class NoticeOutboxItem(SQLModel, table=True):
             Integer, ForeignKey("guilds.id", ondelete="CASCADE"), nullable=True
         ),
     )
+    #: What the worker does with it: ``notice`` writes or joins a bell line,
+    #: ``reaction`` rolls a reaction into the line for what was reacted to, and
+    #: ``withdraw`` takes one back out. One recipient's rows apply in order.
+    kind: str = Field(
+        default="notice",
+        sa_column=Column(String(16), nullable=False, server_default="notice"),
+    )
     #: A ``NotificationType`` value.
     type: str = Field(sa_column=Column(String(64), nullable=False))
     #: The bell line's payload, as ``notify`` built it.

@@ -21,6 +21,7 @@ from app.testing import (
     create_resource_grant,
     create_task,
     guild_of,
+    drain_notices,
 )
 from app.testing.schema_harness import route_session_to_guild
 
@@ -611,6 +612,7 @@ class TestReactionNotifications:
         )
         assert reacted.status_code == 200, reacted.text
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -650,6 +652,7 @@ class TestReactionNotifications:
             json={"emoji": THUMBS},
         )
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -697,6 +700,7 @@ class TestReactionNotifications:
             )
             assert reacted.status_code == 200, reacted.text
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -750,13 +754,16 @@ class TestReactionNotifications:
             headers=b.headers,
             json={"emoji": THUMBS},
         )
+        await drain_notices()
         await user_notifications.mark_all_notifications_read(session, user_id=a.user.id)
+        await session.commit()
         await client.put(
             a.g(f"/reactions/comment/{comment_id}"),
             headers=b.headers,
             json={"emoji": PARTY},
         )
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -798,6 +805,7 @@ class TestReactionNotifications:
             )
 
         async def _bell():
+            await drain_notices()
             return (
                 await session.exec(
                     select(Notification).where(
@@ -827,6 +835,17 @@ class TestReactionNotifications:
             headers=b.headers,
             json={"emoji": THUMBS},
         )
+        session.expunge_all()
+        assert await _bell() == []
+
+        # Reacted and taken back before anything was delivered: the line is
+        # written and then taken back, in that order, and nothing is left.
+        for _ in range(2):
+            await client.put(
+                a.g(f"/reactions/comment/{comment_id}"),
+                headers=b.headers,
+                json={"emoji": THUMBS},
+            )
         session.expunge_all()
         assert await _bell() == []
 
@@ -861,6 +880,7 @@ class TestReactionNotifications:
         )
 
         async def _bell():
+            await drain_notices()
             return (
                 await session.exec(
                     select(Notification).where(

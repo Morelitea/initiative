@@ -29,6 +29,7 @@ from app.testing import (
     create_relationship,
     create_task,
     route_session_to_guild,
+    drain_notices,
 )
 from app.testing.app_clients import (
     assert_names_nobody,
@@ -75,6 +76,7 @@ async def _own_project(client: Any, installed: Any, headers: dict, name: str) ->
 
 
 async def _assignment_lines(session: Any, user_id: int) -> list[Notification]:
+    await drain_notices()
     return list(
         (
             await session.exec(
