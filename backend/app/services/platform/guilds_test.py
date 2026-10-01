@@ -21,6 +21,7 @@ from app.models.platform.guild import GuildInvite, GuildRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.services.platform import guilds as guild_service
 from app.testing.factories import (
+    create_access_grant,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -688,6 +689,8 @@ async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
     guild = await create_guild(session)
     creator = await create_user(session, email="creator@example.com")
     redeemer = await create_user(session, email="random@example.com")
+    # A billing grant reaches no part of the community, so it holds nothing back.
+    await create_access_grant(session, user=redeemer, guild=guild, purpose="billing")
 
     invite = await guild_service.create_guild_invite(
         session,
