@@ -27,14 +27,10 @@ import { Switch } from "@/components/ui/switch";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import {
-  useGuildAuthPolicy,
   useGuildAuthSettings,
   useGuildLoginProviders,
   useGuildProviderConnections,
-  useUpdateGuildApiAccess,
-  useUpdateGuildAuthPolicy,
-  useUpdateGuildSecondFactor,
-  useUpdateGuildSessionLimit,
+  useUpdateGuildAuthSettings,
 } from "@/hooks/useGuildAuthPolicy";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
@@ -86,8 +82,8 @@ const unmetMethod = (error: unknown): string | null => {
 
 /**
  * The state behind a switch that saves as it is flipped rather than waiting
- * for a button. The draft is what the switch shows until the refreshed guild
- * list carries the saved value; a failed save drops it and keeps a message.
+ * for a button. The draft is what the switch shows until the saved answer
+ * comes back; a failed save drops it and keeps a message.
  */
 const useFlipToSave = (saved: boolean, guildId: number) => {
   const [state, setState] = useState<{
@@ -126,21 +122,18 @@ export const SettingsGuildSecurityPage = () => {
   // still loading).
   const { activeGuild, refreshGuilds } = useGuilds();
   const hasGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
-  const authSettingsQuery = useGuildAuthSettings(guildId, {
-    enabled: guildId > 0 && hasGrantedSeat,
-  });
-  const authSettings = hasGrantedSeat ? authSettingsQuery.data : undefined;
-  const grantedOptions = authSettings?.auth_options ?? activeGuild?.auth_options ?? [];
-  const mayConfigureProviders = grantedOptions.includes("providers");
-  const mayConfigureRestrictions = grantedOptions.includes("restrictions");
   // The seat above admin holds a community's sign-in configuration, and this
   // page is all of it — so it is theirs to reach, not only theirs to write.
   // The tab is gated the same way; this is the direct-URL half.
   const isSuperadmin = Boolean(activeGuild?.can.seat);
-
-  const policyQuery = useGuildAuthPolicy(guildId, {
-    enabled: guildId > 0 && mayConfigureProviders,
-  });
+  // Every control on the page reads from this one answer.
+  const authSettings = useGuildAuthSettings(guildId, {
+    enabled: guildId > 0 && isSuperadmin,
+  }).data;
+  const grantedOptions = authSettings?.auth_options ?? [];
+  const mayConfigureProviders = grantedOptions.includes("providers");
+  const mayConfigureRestrictions = grantedOptions.includes("restrictions");
+  const savedPolicy = authSettings?.auth_policy;
   // A requirement names a provider this community connects to, so the picker
   // reads the same list the registry below it edits.
   const connectionsQuery = useGuildProviderConnections(guildId, {
@@ -168,7 +161,7 @@ export const SettingsGuildSecurityPage = () => {
   // Chosen here, saved by the button below — a refetch in between must not
   // undo the choice.
   const form = useServerForm(
-    policyQuery.data,
+    savedPolicy,
     (loaded) => ({
       policy: loaded?.policy ?? ("open" as "open" | "required"),
       providerId: loaded?.provider_id ?? null,
@@ -186,14 +179,13 @@ export const SettingsGuildSecurityPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [unmet, setUnmet] = useState<Unmet | null>(null);
 
-  const updatePolicy = useUpdateGuildAuthPolicy(guildId);
+  // One mutation per control, so each keeps its own pending state and its own
+  // callbacks when two are changed in quick succession.
+  const updatePolicy = useUpdateGuildAuthSettings(guildId);
 
-  // Each of these is one boolean, so both save as they are switched.
-  const updateApiAccess = useUpdateGuildApiAccess(guildId);
-  const apiAccess = useFlipToSave(
-    authSettings?.allow_api_keys ?? activeGuild?.allow_api_keys ?? true,
-    guildId
-  );
+  // Each of these is one boolean, so each saves as it is switched.
+  const updateApiAccess = useUpdateGuildAuthSettings(guildId);
+  const apiAccess = useFlipToSave(authSettings?.allow_api_keys ?? true, guildId);
 
   const changeApiAccess = (next: boolean) => {
     apiAccess.begin(next);
@@ -201,11 +193,9 @@ export const SettingsGuildSecurityPage = () => {
       { allow_api_keys: next },
       {
         onSuccess: async () => {
-          if (hasGrantedSeat) {
-            await authSettingsQuery.refetch();
-          } else {
-            await refreshGuilds();
-          }
+          // A member's guild list carries these too, for the pages that read
+          // them there.
+          if (!hasGrantedSeat) await refreshGuilds();
           apiAccess.settle();
           toast.success(t("guildAuth.apiAccess.saved"));
         },
@@ -216,18 +206,12 @@ export const SettingsGuildSecurityPage = () => {
     );
   };
 
-  const updateSessionLimit = useUpdateGuildSessionLimit(guildId);
-  const sessionLimit = useFlipToSave(
-    authSettings?.enforce_compliance_session ?? activeGuild?.enforce_compliance_session ?? false,
-    guildId
-  );
+  const updateSessionLimit = useUpdateGuildAuthSettings(guildId);
+  const sessionLimit = useFlipToSave(authSettings?.enforce_compliance_session ?? false, guildId);
 
   const { secondFactorAvailable } = useAppConfig();
-  const updateSecondFactor = useUpdateGuildSecondFactor(guildId);
-  const secondFactor = useFlipToSave(
-    authSettings?.require_second_factor ?? activeGuild?.require_second_factor ?? false,
-    guildId
-  );
+  const updateSecondFactor = useUpdateGuildAuthSettings(guildId);
+  const secondFactor = useFlipToSave(authSettings?.require_second_factor ?? false, guildId);
 
   const changeSecondFactor = (next: boolean) => {
     secondFactor.begin(next);
@@ -235,11 +219,9 @@ export const SettingsGuildSecurityPage = () => {
       { require_second_factor: next },
       {
         onSuccess: async () => {
-          if (hasGrantedSeat) {
-            await authSettingsQuery.refetch();
-          } else {
-            await refreshGuilds();
-          }
+          // A member's guild list carries these too, for the pages that read
+          // them there.
+          if (!hasGrantedSeat) await refreshGuilds();
           secondFactor.settle();
           toast.success(t("guildAuth.secondFactor.saved"));
         },
@@ -256,11 +238,9 @@ export const SettingsGuildSecurityPage = () => {
       { enforce_compliance_session: next },
       {
         onSuccess: async () => {
-          if (hasGrantedSeat) {
-            await authSettingsQuery.refetch();
-          } else {
-            await refreshGuilds();
-          }
+          // A member's guild list carries these too, for the pages that read
+          // them there.
+          if (!hasGrantedSeat) await refreshGuilds();
           sessionLimit.settle();
           toast.success(t("guildAuth.sessionLimit.saved"));
         },
@@ -273,25 +253,25 @@ export const SettingsGuildSecurityPage = () => {
 
   const selectedProvider = eligibleProviders.find((entry) => entry.id === providerId);
   const savedAnyProvider =
-    policyQuery.data != null &&
-    policyQuery.data.provider_id == null &&
-    (policyQuery.data.require_methods ?? []).includes("sso");
+    savedPolicy != null &&
+    savedPolicy.provider_id == null &&
+    (savedPolicy.require_methods ?? []).includes("sso");
   // Where the deployment already asks everybody for a second factor, this
   // community's own box has nothing to add, so it is not offered. A rule
   // already written stays on the row and comes back into force if the
   // deployment lowers its answer.
   // Where the deployment already asks everybody, this community's switch has
   // nothing to add, so it says so rather than offering the same answer twice.
-  const factorAskedByPlatform = policyQuery.data?.factor_required_by_platform === true;
+  const factorAskedByPlatform = savedPolicy?.factor_required_by_platform === true;
   const savedRequirePasskey =
-    policyQuery.data != null && (policyQuery.data.require_methods ?? []).includes("passkey");
+    savedPolicy != null && (savedPolicy.require_methods ?? []).includes("passkey");
   const isDirty =
-    policyQuery.data != null &&
-    (policy !== policyQuery.data.policy ||
+    savedPolicy != null &&
+    (policy !== savedPolicy.policy ||
       (policy === "required" &&
         (anyProvider !== savedAnyProvider ||
           requirePasskey !== savedRequirePasskey ||
-          (!anyProvider && providerId !== (policyQuery.data.provider_id ?? null)))));
+          (!anyProvider && providerId !== (savedPolicy.provider_id ?? null)))));
   // A rule has to ask for something. Any one of the four will do.
   const canSave = policy === "open" || anyProvider || requirePasskey || providerId != null;
 
@@ -300,16 +280,19 @@ export const SettingsGuildSecurityPage = () => {
     // counted as saved by it.
     const sent = form.values;
     updatePolicy.mutate(
-      policy === "open"
-        ? { policy: "open" }
-        : {
-            policy: "required",
-            ...(anyProvider ? {} : { provider_id: providerId as number }),
-            require_methods: [
-              ...(anyProvider ? (["sso"] as const) : []),
-              ...(requirePasskey ? (["passkey"] as const) : []),
-            ],
-          },
+      {
+        auth_policy:
+          policy === "open"
+            ? { policy: "open" }
+            : {
+                policy: "required",
+                ...(anyProvider ? {} : { provider_id: providerId as number }),
+                require_methods: [
+                  ...(anyProvider ? (["sso"] as const) : []),
+                  ...(requirePasskey ? (["passkey"] as const) : []),
+                ],
+              },
+      },
       {
         onSuccess: () => {
           setError(null);
@@ -421,12 +404,11 @@ export const SettingsGuildSecurityPage = () => {
     }
   };
 
-  // A grantee's options arrive with the settings query rather than the guild
-  // list, so the page waits for it rather than reading "granted nothing" off
+  // The page waits for its settings rather than reading "granted nothing" off
   // an answer that has not come back yet.
   if (
     !isSuperadmin ||
-    (hasGrantedSeat && authSettings == null) ||
+    authSettings == null ||
     (!mayConfigureProviders && !mayConfigureRestrictions)
   ) {
     return null;

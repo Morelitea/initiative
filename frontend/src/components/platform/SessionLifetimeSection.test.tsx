@@ -10,7 +10,7 @@ const lifetimeMutate = vi.fn();
 
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformAuthSettings: () => ({ data: settings, isLoading: false }),
-  useUpdateSessionLifetime: () => ({ mutate: lifetimeMutate, isPending: false }),
+  useUpdatePlatformAuthSettings: () => ({ mutate: lifetimeMutate, isPending: false }),
 }));
 
 import { SessionLifetimeSection } from "./SessionLifetimeSection";

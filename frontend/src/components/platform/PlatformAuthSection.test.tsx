@@ -4,21 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type {
-  LoginMethodsUpdate,
   PlatformAuthSettingsResponse,
+  PlatformAuthSettingsUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 
 const methodsMutate = vi.fn();
 
 /** The section's own error handler, as the hook received it. */
-let onMethodsError: ((error: unknown, variables: LoginMethodsUpdate) => void) | undefined;
+let onMethodsError: ((error: unknown, variables: PlatformAuthSettingsUpdate) => void) | undefined;
 
 let settings: PlatformAuthSettingsResponse;
 
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformAuthSettings: () => ({ data: settings, isLoading: false }),
-  useUpdateLoginMethods: (options?: {
-    onError?: (error: unknown, variables: LoginMethodsUpdate) => void;
+  useUpdatePlatformAuthSettings: (options?: {
+    onError?: (error: unknown, variables: PlatformAuthSettingsUpdate) => void;
   }) => {
     onMethodsError = options?.onError;
     return { mutate: methodsMutate, isPending: false };
@@ -54,7 +54,7 @@ const refusal = (detail: string, affected: number): AxiosError => {
   return error;
 };
 
-const refuse = (error: AxiosError, variables: LoginMethodsUpdate) =>
+const refuse = (error: AxiosError, variables: PlatformAuthSettingsUpdate) =>
   act(() => onMethodsError?.(error, variables));
 
 describe("PlatformAuthSection", () => {
@@ -87,7 +87,7 @@ describe("PlatformAuthSection", () => {
       renderWithProviders(<PlatformAuthSection />);
 
       fireEvent.click(screen.getByLabelText("Single sign-on"));
-      const change: LoginMethodsUpdate = { methods: ["password"] };
+      const change: PlatformAuthSettingsUpdate = { methods: ["password"] };
       expect(methodsMutate).toHaveBeenCalledWith(change);
 
       refuse(refusal("SETTINGS_LOGIN_METHODS_WOULD_STRAND", 3), change);
@@ -106,7 +106,7 @@ describe("PlatformAuthSection", () => {
     it("asks again with the fresh number when the one it sent has moved on", () => {
       renderWithProviders(<PlatformAuthSection />);
 
-      const change: LoginMethodsUpdate = { methods: ["password"] };
+      const change: PlatformAuthSettingsUpdate = { methods: ["password"] };
       refuse(refusal("SETTINGS_LOGIN_METHODS_STALE_ACK", 4), {
         ...change,
         acknowledge_stranded: 3,

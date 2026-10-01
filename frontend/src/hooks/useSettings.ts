@@ -36,11 +36,11 @@ import type {
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
-  LoginMethodsUpdate,
   NotificationSettingsResponse,
   NotificationSettingsUpdate,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
+  PlatformAuthSettingsUpdate,
   PlatformGuildRestore,
   PlatformGuildStorageListResponse,
   PlatformGuildStorageRead,
@@ -49,8 +49,6 @@ import type {
   PlatformProviderDefaultUpdate,
   PushSettingsResponse,
   PushSettingsUpdate,
-  SecondFactorRequirementUpdate,
-  SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
   StorageSettingsUpdate,
@@ -88,12 +86,10 @@ import {
   updateCommunitySettingsApiV1SettingsCommunityPut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
-  updateLoginMethodsApiV1SettingsAuthMethodsPut,
   updateNotificationSettingsApiV1SettingsNotificationsPut,
+  updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch,
   updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch,
   updatePushSettingsApiV1SettingsPushPut,
-  updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut,
-  updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut,
   updateStorageSettingsApiV1SettingsStoragePut,
   useReadCommunitySettingsApiV1SettingsCommunityGet,
 } from "@/api/generated/settings/settings";
@@ -376,64 +372,19 @@ export const usePlatformAuthSettings = (options?: QueryOpts<PlatformAuthSettings
   });
 
 /**
- * Set which ways in the deployment permits.
+ * Change any of the deployment's sign-in rules: which ways in it permits, who
+ * it asks for a second factor, and how long a session may last.
  *
  * Also invalidates the boot config: the login page reads the permitted methods
  * from there to decide whether to offer the password form.
  */
-export const useUpdateLoginMethods = (
-  options?: MutationOpts<PlatformAuthSettingsResponse, LoginMethodsUpdate>
+export const useUpdatePlatformAuthSettings = (
+  options?: MutationOpts<PlatformAuthSettingsResponse, PlatformAuthSettingsUpdate>
 ) =>
-  useApiMutation<PlatformAuthSettingsResponse, LoginMethodsUpdate>(
+  useApiMutation<PlatformAuthSettingsResponse, PlatformAuthSettingsUpdate>(
     {
-      mutationFn: (data) =>
-        updateLoginMethodsApiV1SettingsAuthMethodsPut(
-          data as Parameters<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>[0]
-        ),
+      mutationFn: (data) => updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch(data),
       invalidate: () => invalidate(q.platformAuthSettings(), q.authSettings(), q.appConfig()),
-    },
-    options
-  );
-
-/**
- * Set how long somebody may stay signed in before signing in again.
- *
- * Separate from how long a session may be left alone. A web session already
- * open keeps the terms it was opened under; a device token is brought under
- * the new figure now, so shortening the limit can sign a phone out.
- */
-export const useUpdateSessionLifetime = (
-  options?: MutationOpts<PlatformAuthSettingsResponse, SessionLifetimeUpdate>
-) =>
-  useApiMutation<PlatformAuthSettingsResponse, SessionLifetimeUpdate>(
-    {
-      mutationFn: (data) =>
-        updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut(
-          data as Parameters<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>[0]
-        ),
-      invalidate: () => invalidate(q.platformAuthSettings()),
-    },
-    options
-  );
-
-/**
- * Set who this deployment asks to hold a second factor.
- *
- * Nobody is signed out by the change. An account the level covers is asked at
- * its next request and answers it where it stands.
- */
-export const useUpdateSecondFactorRequirement = (
-  options?: MutationOpts<PlatformAuthSettingsResponse, SecondFactorRequirementUpdate>
-) =>
-  useApiMutation<PlatformAuthSettingsResponse, SecondFactorRequirementUpdate>(
-    {
-      mutationFn: (data) =>
-        updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut(
-          data as Parameters<
-            typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut
-          >[0]
-        ),
-      invalidate: () => invalidate(q.platformAuthSettings()),
     },
     options
   );
