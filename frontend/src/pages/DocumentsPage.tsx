@@ -21,17 +21,13 @@ import {
   parsePropertyFilters,
 } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
-import {
-  type DocumentStatus,
-  DocumentsStatusFilter,
-  isDocumentStatus,
-} from "@/components/documents/DocumentsStatusFilter";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   ToolListToolbar,
   type ToolViewOption,
 } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PaginationBar } from "@/components/PaginationBar";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
@@ -46,7 +42,6 @@ import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import {
   useCopyDocument,
   useDeleteDocuments,
-  useDocumentCounts,
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
@@ -56,13 +51,14 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
+import { useToolCounts } from "@/hooks/useToolCounts";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { everyCan } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
-import { toolDetailRoute } from "@/lib/tools";
+import { isToolView, type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
 
@@ -153,9 +149,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   // Documents and templates are two states of one list, the way the projects
   // list splits its own templates out. It lives in the URL so a templates view
   // is linkable and answers the back button.
-  const status: DocumentStatus = isDocumentStatus(searchParams.status)
-    ? searchParams.status
-    : "documents";
+  const status: ToolView = isToolView(searchParams.status) ? searchParams.status : "active";
   const isTemplateView = status === "templates";
   // An archived document is off the live list, so the archived state is the one
   // place it can be found — and the only place it can be taken back out. It
@@ -200,7 +194,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   );
 
   const setStatus = useCallback(
-    (next: DocumentStatus) => {
+    (next: ToolView) => {
       // Pushed, not replaced: switching between documents and templates is a
       // move the reader made, so Back has to take them out of it. (Paging
       // replaces, because a cursor is not somewhere you went.)
@@ -208,7 +202,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         to: ".",
         search: {
           ...searchParamsRef.current,
-          status: next === "documents" ? undefined : next,
+          status: next === "active" ? undefined : next,
           // The other state's cursor means nothing in this one.
           page: undefined,
         },
@@ -328,7 +322,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     ...(treeWantsUntagged ? { untagged: true } : {}),
     ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
+    ...toolViewParams(Tool.document, status),
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -337,29 +331,19 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const documentsQuery = useDocumentsList(documentsQueryParams);
 
-  // Counts query for tags view sidebar
-  const countsQueryParams = {
+  // One answer for the screen: the totals behind each view, so the toggle
+  // says how much sits in the other ones before they are opened, and the tag
+  // tree beside the view being shown. The totals are scoped to the initiative
+  // only — they answer "how many exist", not "how many survive the current
+  // filters".
+  const countsQuery = useToolCounts(Tool.document, {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
-  };
-
-  const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
-
-  // Totals behind each state, so the toggle says how much sits in the other one
-  // before it is opened. Scoped to the initiative only — like the projects
-  // list's status counts, these answer "how many exist", not "how many survive
-  // the current filters".
-  const statusCountsBase = lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {};
-  const documentsCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: false });
-  const templatesCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: true });
-  const archivedCountQuery = useDocumentCounts({ ...statusCountsBase, archived: true });
-  const statusCounts = {
-    documents: documentsCountQuery.data?.total_count,
-    templates: templatesCountQuery.data?.total_count,
-    archived: archivedCountQuery.data?.total_count,
-  };
+    view: status,
+    // Only the tags view shows the tree, so only it pays for the tag counts.
+    ...(viewMode === "tags" ? { include_tags: true } : {}),
+  });
 
   // Prefetch adjacent page on hover
   const prefetchPage = useCallback(
@@ -372,7 +356,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         ...(treeWantsUntagged ? { untagged: true } : {}),
         ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
         ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-        ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
+        ...toolViewParams(Tool.document, status),
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),
@@ -387,12 +371,11 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       treeWantsUntagged,
       encodedPropertyFilters,
       queryDocumentType,
-      isTemplateView,
+      status,
       pageSize,
       sortBy,
       sortDir,
       prefetchDocuments,
-      isArchivedView,
     ]
   );
 
@@ -605,7 +588,12 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
       <ToolListToolbar
         leading={
-          <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
+          <ToolViewFilter
+            tool={Tool.document}
+            value={status}
+            onChange={setStatus}
+            counts={countsQuery.data?.views}
+          />
         }
         filters={{
           open: filtersOpen,

@@ -139,6 +139,20 @@ class ToolCountsByInitiativeResponse(SanitizedBaseModel):
     counts: Dict[Tool, Dict[int, int]] = Field(default_factory=dict)
 
 
+class ToolCountsResponse(SanitizedBaseModel):
+    """One tool's page: how many rows sit in each of its views, and the tag
+    tree beside the view being shown."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: View name -> rows. ``active`` and ``archived`` for every tool, and
+    #: ``templates`` for a tool that keeps them.
+    views: Dict[str, int]
+    #: The tag tree beside the view asked for; ``None`` unless it was.
+    tag_counts: Optional[Dict[int, int]] = None
+    untagged_count: Optional[int] = None
+
+
 # Member schemas - updated to work with role_id
 class InitiativeMemberAdd(SanitizedBaseModel):
     """Add a member to an initiative."""

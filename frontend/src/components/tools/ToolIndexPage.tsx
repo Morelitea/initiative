@@ -33,13 +33,9 @@ import { DashboardCard } from "@/components/initiativeTools/dashboards/Dashboard
 import { GalleryCard } from "@/components/initiativeTools/galleries/GalleryCard";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import { CreateToolDialog } from "@/components/initiativeTools/shared/CreateToolDialog";
-import {
-  archivedParam,
-  ToolArchiveFilter,
-  type ToolArchiveState,
-} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { WikiCard } from "@/components/initiativeTools/wikis/WikiCard";
 import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketplaceButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -58,10 +54,11 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useToolCounts } from "@/hooks/useToolCounts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useWikisList } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolDetailRoute } from "@/lib/tools";
+import { type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 // ---------------------------------------------------------------------------
@@ -411,9 +408,11 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const [filtersOpen, setFiltersOpen] = useState(false);
   const search = useDebouncedValue(filters.search ?? "", 300).trim();
 
-  // Which of the tool's two states the list is showing. Archived rows are off
-  // the live list, so this is the only place they can be reached.
-  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
+  // Which of the tool's views the list is showing. Archived rows are off the
+  // live list, so this is the only place they can be reached.
+  const [view, setView] = useState<ToolView>("active");
+  // How much sits in each view, whatever the filters say.
+  const countsQuery = useToolCounts(tool, { initiative_id: fixedInitiativeId });
 
   const { page, pageSize, setPage, setPageSize } = useListPage();
 
@@ -423,7 +422,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
       search: search || undefined,
       tag_ids: filters.tag_ids?.length ? filters.tag_ids : undefined,
     },
-    archived: archivedParam(archiveState),
+    archived: toolViewParams(tool, view).archived,
     page,
     pageSize,
   });
@@ -483,11 +482,12 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
     <div className="space-y-6">
       <ToolListToolbar
         leading={
-          <ToolArchiveFilter
+          <ToolViewFilter
             tool={tool}
-            value={archiveState}
+            value={view}
+            counts={countsQuery.data?.views}
             onChange={(next) => {
-              setArchiveState(next);
+              setView(next);
               // The other state's cursor means nothing in this one: switching
               // from page 3 of the live list into a one-page archive would
               // land on an empty page with the archive sitting on page 1.

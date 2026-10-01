@@ -9,12 +9,8 @@ import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import { CreatePostDialog } from "@/components/initiativeTools/posts/CreatePostDialog";
 import { PostCard } from "@/components/initiativeTools/posts/PostCard";
 import { PostsFilterBar, type ReadFilter } from "@/components/initiativeTools/posts/PostsFilterBar";
-import {
-  archivedParam,
-  ToolArchiveFilter,
-  type ToolArchiveState,
-} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { TimelineRail } from "@/components/timeline/TimelineRail";
@@ -27,10 +23,11 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { PostReadTrackerProvider } from "@/hooks/usePostReadTracker";
 import { usePostsFeed, usePostsTimeline } from "@/hooks/usePosts";
+import { useToolCounts } from "@/hooks/useToolCounts";
 import { formatPeriod, formatPeriodYear } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { postPeriod } from "@/lib/posts";
-import { toolDetailRoute } from "@/lib/tools";
+import { type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 /**
  * A first guess at a card's height, corrected by measurement as each mounts.
@@ -95,12 +92,13 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   // Which of the board's two states it is showing. An archived notice is off
   // the feed, so this is the only place it can be reached.
-  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
+  const [view, setView] = useState<ToolView>("active");
+  const countsQuery = useToolCounts(Tool.post, { initiative_id: fixedInitiativeId });
   const search = useDebouncedValue(listFilters.search ?? "", 300).trim();
 
   const filters = {
     initiative_id: fixedInitiativeId,
-    archived: archivedParam(archiveState),
+    ...toolViewParams(Tool.post, view),
     ...(search ? { search } : {}),
     ...(tagIds.length > 0 ? { tag_ids: tagIds } : {}),
     ...(readFilter === "unread" ? { unread: true } : {}),
@@ -278,7 +276,12 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
       <div className="space-y-6">
         <ToolListToolbar
           leading={
-            <ToolArchiveFilter tool={Tool.post} value={archiveState} onChange={setArchiveState} />
+            <ToolViewFilter
+              tool={Tool.post}
+              value={view}
+              onChange={setView}
+              counts={countsQuery.data?.views}
+            />
           }
           // The panel below holds the fields; this is what opens it. Without
           // it the filters exist and nothing on the page reaches them.

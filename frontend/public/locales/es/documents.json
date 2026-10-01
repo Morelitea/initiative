@@ -598,12 +598,6 @@
       "replaced_other": "{{count}} celdas reemplazadas"
     }
   },
-  "status": {
-    "label": "Mostrar",
-    "documents": "Documentos",
-    "templates": "Plantillas",
-    "archived": "Archivados"
-  },
   "summary": {
     "aiNotEnabled": "Las funciones de IA no están habilitadas. Configura los ajustes de IA para generar resúmenes de documentos.",
     "generateDescription": "Genera un resumen del documento con inteligencia artificial.",

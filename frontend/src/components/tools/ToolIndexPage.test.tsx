@@ -126,15 +126,25 @@ describe("the tool index page", () => {
       row(tool, { id: 1, name: "Still in use" }),
       row(tool, { id: 2, name: "Put away", archived_at: "2026-02-01T00:00:00Z" }),
     ]);
+    server.use(
+      guildHttp.get(`/tools/${tool}/counts`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("initiative_id")).toBe(`${INITIATIVE_ID}`);
+        return HttpResponse.json({
+          views: { active: 1, archived: 1 },
+          tag_counts: {},
+          untagged_count: 0,
+        });
+      })
+    );
 
     renderIndex(tool);
 
     expect(await screen.findByText("Still in use")).toBeInTheDocument();
     expect(screen.queryByText("Put away")).not.toBeInTheDocument();
 
-    await userEvent.click(
-      screen.getByRole("radio", { name: shared("toolArchiveFilter.archived") })
-    );
+    const archived = screen.getByRole("radio", { name: shared("toolViewFilter.archived") });
+    await waitFor(() => expect(archived).toHaveTextContent("1"));
+    await userEvent.click(archived);
 
     expect(await screen.findByText("Put away")).toBeInTheDocument();
     await waitFor(() => expect(requests.at(-1)?.get("archived")).toBe("true"));

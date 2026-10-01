@@ -21,12 +21,14 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
   HTTPValidationError,
   TagSetRequest,
   TagSummary,
   Tool,
   ToolCommentSettings,
   ToolCountsByInitiativeResponse,
+  ToolCountsResponse,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -50,11 +52,12 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * Every tool's visible-row counts, grouped by initiative.
+ * Every tool's live rows, grouped by initiative.
  *
- * What the sidebar and the initiative directory badge — the same visibility
- * rules as each tool's default list (live rows, no project templates), one
- * statement for every tool rather than a request per tool.
+ * What the sidebar and the initiative directory badge: each tool's ``active``
+ * view, counted by the same conditions as its list, in one statement for
+ * every tool rather than a request per tool. Rows belonging to the guild
+ * rather than an initiative fall outside every group.
  * @summary Get Tool Counts By Initiative
  */
 export const getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet = (
@@ -245,6 +248,196 @@ export function useGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiative
       guildId,
       options
     );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * How many rows sit in each of one tool's views, and, when asked, the tag
+ * tree beside the one being shown.
+ *
+ * Every figure is a count of the tool's own list. ``views`` counts each view
+ * in the initiative (or the guild) whatever the page's filters, so a toggle
+ * says how much sits behind each view before it is opened. The tag counts
+ * are for ``view`` after ``search`` and the tool's own filters, so the tree
+ * and the list beside it agree; tags are not a filter here, because the tree
+ * shows every one. A page with no tree leaves ``include_tags`` off and its
+ * request runs the view counts alone.
+ * @summary Get Tool Counts
+ */
+export const getToolCountsApiV1CGuildIdToolsToolCountsGet = (
+  guildId: number,
+  tool: Tool,
+  params?: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ToolCountsResponse>(
+    { url: `/api/v1/c/${guildId}/tools/${tool}/counts`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey = (
+  guildId: number,
+  tool: Tool,
+  params?: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams
+) => {
+  return [`/api/v1/c/${guildId}/tools/${tool}/counts`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  tool: Tool,
+  params?: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey(guildId, tool, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>
+  > = ({ signal }) =>
+    getToolCountsApiV1CGuildIdToolsToolCountsGet(guildId, tool, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined && tool !== null && tool !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetToolCountsApiV1CGuildIdToolsToolCountsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>
+>;
+export type GetToolCountsApiV1CGuildIdToolsToolCountsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetToolCountsApiV1CGuildIdToolsToolCountsGet<
+  TData = Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  tool: Tool,
+  params: undefined | GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetToolCountsApiV1CGuildIdToolsToolCountsGet<
+  TData = Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  tool: Tool,
+  params?: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+          TError,
+          Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetToolCountsApiV1CGuildIdToolsToolCountsGet<
+  TData = Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  tool: Tool,
+  params?: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Tool Counts
+ */
+
+export function useGetToolCountsApiV1CGuildIdToolsToolCountsGet<
+  TData = Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  tool: Tool,
+  params?: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getToolCountsApiV1CGuildIdToolsToolCountsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryOptions(
+    guildId,
+    tool,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

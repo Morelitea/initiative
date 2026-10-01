@@ -414,11 +414,5 @@
     "noComments": "Aucun commentaire pour l'instant.",
     "commentedOn": "a commenté sur",
     "loadMore": "Charger plus"
-  },
-  "status": {
-    "label": "Afficher",
-    "active": "Actifs",
-    "templates": "Modèles",
-    "archived": "Archivés"
   }
 }

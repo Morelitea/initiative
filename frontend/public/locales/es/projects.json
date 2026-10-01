@@ -414,11 +414,5 @@
     "noComments": "Aún no hay comentarios.",
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
-  },
-  "status": {
-    "label": "Mostrar",
-    "active": "Activos",
-    "templates": "Plantillas",
-    "archived": "Archivados"
   }
 }

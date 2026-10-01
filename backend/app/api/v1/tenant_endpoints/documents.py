@@ -26,7 +26,6 @@ from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.project import Project
 from app.services.permissions import Action
-from app.services.tenant import archive as archive_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
@@ -63,7 +62,6 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.schemas.tenant.document import (
     DocumentCopyRequest,
-    DocumentCountsResponse,
     DocumentCreate,
     DocumentFileVersionRead,
     DocumentRead,
@@ -266,74 +264,6 @@ async def serialize_document_page(
         )
         for document in documents
     ]
-
-
-@router.get("/counts", response_model=DocumentCountsResponse)
-async def get_document_counts(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(default=None),
-    is_template: Optional[bool] = Query(
-        default=None, description="Filter to template (or non-template) documents"
-    ),
-    document_type: Optional[DocumentType] = Query(
-        default=None, description="Filter by document type"
-    ),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-) -> DocumentCountsResponse:
-    """Get per-tag document counts for visible documents.
-
-    Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
-    because counts should reflect all tags. The remaining filters mirror the
-    list endpoint so the sidebar counts match the list beside it.
-    """
-    if initiative_id is not None:
-        await get_initiative_or_404(session, initiative_id=initiative_id)
-
-    conditions = visible_document_conditions(
-        guild_context,
-        current_user.id,
-        initiative_id=initiative_id,
-        search=search,
-        is_template=is_template,
-        document_type=document_type,
-    )
-    conditions.append(archive_service.archive_filter_clause(Document, archived))
-
-    # Subquery: IDs of visible documents
-    visible_docs_subq = select(Document.id).where(*conditions).subquery()
-
-    # Total count
-    total_stmt = select(func.count()).select_from(visible_docs_subq)
-    total_count = (await session.exec(total_stmt)).one()
-
-    # Per-tag counts. Guild scoping needs no clause of its own — a tag of
-    # another guild lives in another schema, which this query cannot reach.
-    spec = tags_service.TOOL_TAG_LINKS[Tool.document]
-    tag_rows = (
-        await session.exec(
-            tags_service.tag_counts_for(spec, select(visible_docs_subq.c.id))
-        )
-    ).all()
-    tag_counts = {tag_id: count for tag_id, count in tag_rows}
-
-    # Untagged count
-    untagged_stmt = (
-        select(func.count())
-        .select_from(visible_docs_subq)
-        .where(tags_service.untagged_clause(spec, visible_docs_subq.c.id))
-    )
-    untagged_count = (await session.exec(untagged_stmt)).one()
-
-    return DocumentCountsResponse(
-        total_count=total_count,
-        untagged_count=untagged_count,
-        tag_counts=tag_counts,
-    )
 
 
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)

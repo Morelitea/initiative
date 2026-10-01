@@ -170,6 +170,9 @@ export interface ToolListParams {
   sort_dir?: string | null;
   archived?: boolean | null;
   initiative_id?: number | null;
+  /** A templates view's switch, for the tools that have one (`toolViewParams`). */
+  template?: boolean | null;
+  is_template?: boolean | null;
 }
 
 /**
@@ -502,11 +505,9 @@ const postEndpoints = {
   tool: Tool.post,
 };
 
-// Projects have no standard list hook (theirs is read straight, without
-// placeholder rows, because the status-count queries read only `total_count`)
-// and no standard update (theirs names the list alone) — both live in
-// `useProjects.ts`. The list QUERY is here like every other tool's, and that
-// hook wraps it.
+// Projects have no standard list hook or update (theirs names the list
+// alone) — both live in `useProjects.ts`. The list QUERY is here like every
+// other tool's, and that hook wraps it.
 const projectEndpoints = {
   listKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey,
   list: listProjectsApiV1CGuildIdProjectsGet,

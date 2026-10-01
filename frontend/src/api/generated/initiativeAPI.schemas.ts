@@ -3362,14 +3362,6 @@ export interface DocumentCopyRequest {
   name?: string | null;
 }
 
-export type DocumentCountsResponseTagCounts = { [key: string]: number };
-
-export interface DocumentCountsResponse {
-  total_count: number;
-  untagged_count: number;
-  tag_counts: DocumentCountsResponseTagCounts;
-}
-
 export type DocumentCreateContent = { [key: string]: unknown } | null;
 
 export type DocumentCreateDocumentType =
@@ -8718,6 +8710,20 @@ export interface ToolCountsByInitiativeResponse {
   counts: ToolCountsByInitiativeResponseCounts;
 }
 
+export type ToolCountsResponseViews = { [key: string]: number };
+
+export type ToolCountsResponseTagCounts = { [key: string]: number } | null;
+
+/**
+ * One tool's page: how many rows sit in each of its views, and the tag
+ * tree beside the view being shown.
+ */
+export interface ToolCountsResponse {
+  views: ToolCountsResponseViews;
+  tag_counts: ToolCountsResponseTagCounts;
+  untagged_count: number | null;
+}
+
 export interface TrashItem {
   entity_type: EntityType;
   entity_id: number;
@@ -9792,6 +9798,23 @@ export type MarkAllNotificationsReadApiV1NotificationsReadAllPostParams = {
   guild_id?: number | null;
 };
 
+export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * The view the tag counts are for: active, archived, or templates for a tool that has them
+   */
+  view?: string;
+  search?: string | null;
+  /**
+   * Documents only: narrow the tag counts by type
+   */
+  document_type?: DocumentType | null;
+  /**
+   * Also count the tag tree beside ``view``
+   */
+  include_tags?: boolean;
+};
+
 export type ListProjectsApiV1CGuildIdProjectsGetParams = {
   archived?: boolean | null;
   template?: boolean | null;
@@ -10309,23 +10332,6 @@ export type SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSe
    * @maximum 100
    */
   page_size?: number;
-};
-
-export type GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams = {
-  initiative_id?: number | null;
-  search?: string | null;
-  /**
-   * Filter to template (or non-template) documents
-   */
-  is_template?: boolean | null;
-  /**
-   * Filter by document type
-   */
-  document_type?: DocumentType | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
 };
 
 export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams = {

@@ -22,7 +22,7 @@ import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { ToolRow } from "@/lib/toolRows";
 import { buildToolRows, oneToolResponse } from "@/lib/toolRows";
-import { TOOLS } from "@/lib/tools";
+import { TOOLS, type ToolView, toolViewParams } from "@/lib/tools";
 
 /** How the guild home's one table is narrowed and ordered, in the terms every
  *  tool's list endpoint accepts. */
@@ -32,11 +32,11 @@ export interface GuildToolQuery {
   /** One of `name`, `initiative`, `updated_at`. */
   sortBy?: string;
   sortDir?: "asc" | "desc";
-  /** `true` shows what has been archived instead of what is live. Every tool
+  /** Which of the tool's views to show; the live one when omitted. Every tool
    *  can be archived, and a calendar has no list page of its own, so this table
    *  is where some of them are found — and the only place they can be taken
    *  back out. */
-  archived?: true;
+  view?: ToolView;
 }
 
 export function useGuildToolRows(
@@ -56,7 +56,7 @@ export function useGuildToolRows(
     page_size: pageSize,
     ...(view.search ? { search: view.search } : {}),
     ...(view.sortBy ? { sort_by: view.sortBy, sort_dir: view.sortDir ?? "asc" } : {}),
-    ...(view.archived ? { archived: true } : {}),
+    ...toolViewParams(tool, view.view ?? "active"),
   };
 
   // Only the selected tool fetches; the rest stay observed but idle. The

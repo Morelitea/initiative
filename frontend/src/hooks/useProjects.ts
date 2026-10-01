@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
@@ -56,11 +56,8 @@ export const useSetProjectGrants = projects.useSetGrants;
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /**
- * One page of the guild's projects.
- *
- * Read straight, without the placeholder rows every other tool's list keeps:
- * the status-count queries below read only `total_count`, and holding the
- * previous count on screen would show the wrong badge while a filter changes.
+ * One page of the guild's projects. The rows stay on screen while a changed
+ * page, search or order is in flight, like every other tool's list.
  */
 export const useProjects = (
   params?: ListProjectsApiV1CGuildIdProjectsGetParams,
@@ -69,6 +66,7 @@ export const useProjects = (
   const guildId = useActiveGuildId();
   return useQuery<ProjectListResponse>({
     ...projects.listQuery(guildId, params),
+    placeholderData: keepPreviousData,
     ...options,
   });
 };
@@ -77,25 +75,6 @@ export const useProjects = (
  *  create dialog's "start from a template" picker. The projects list reads its
  *  own templates through `useProjects`, since the status filter picks which of
  *  the three states the same query returns. */
-/** Row counts for the three list states, for the status filter's badges. The
- *  smallest possible page of the slim projection: only `total_count` is read,
- *  so a state advertises how much it holds without loading any of it. */
-export const useProjectStatusCounts = (initiativeId?: number | null) => {
-  const base = {
-    slim: true,
-    page_size: 1,
-    ...(initiativeId ? { initiative_id: initiativeId } : {}),
-  };
-  const active = useProjects(base);
-  const templates = useProjects({ ...base, template: true });
-  const archived = useProjects({ ...base, archived: true });
-  return {
-    active: active.data?.total_count,
-    templates: templates.data?.total_count,
-    archived: archived.data?.total_count,
-  };
-};
-
 export const useTemplateProjects = (initiativeId?: number | null) => {
   return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
 };

@@ -47,7 +47,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives, useJoinInitiative } from "@/hooks/useInitiatives";
-import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
+import { useToolCountsByInitiative } from "@/hooks/useToolCounts";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hexToRgba, InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";

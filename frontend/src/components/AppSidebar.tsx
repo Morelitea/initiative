@@ -54,7 +54,7 @@ import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
-import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
+import { useToolCountsByInitiative } from "@/hooks/useToolCounts";
 import { guildPath } from "@/lib/guildUrl";
 import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";

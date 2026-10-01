@@ -414,11 +414,5 @@
     "noComments": "Noch keine Kommentare.",
     "commentedOn": "kommentierte",
     "loadMore": "Mehr laden"
-  },
-  "status": {
-    "label": "Anzeigen",
-    "active": "Aktiv",
-    "templates": "Vorlagen",
-    "archived": "Archiviert"
   }
 }

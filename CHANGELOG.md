@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Every tool's list says how much sits in each view.** The Active, Templates and Archived toggle on every tool page shows its count, and the documents page calls its live view Active like every other tool. The sidebar's document count no longer includes templates, matching projects.
 - **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import. A repeat is saved only if it happens from its start, and one that ends after a number of times only if it gets there within a hundred years.
 - **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.
 - **An account can create up to five communities a day.** Change it with `GUILD_CREATION_DAILY_LIMIT` (`0` for no limit). Operators and owners aren't limited.
@@ -62,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /me/tasks/created` → `GET /me/tasks?created=true`.
   - The nine `GET /c/{guild_id}/exports/<tool>` routes → `GET /c/{guild_id}/exports/{tool}`, named by the tool's own value (`counter_group`), with the selection as `ids` in place of `<tool>_id` and `<tool>_ids`.
   - `GET /wikis/{wiki_id}/pages/{page_id}` → `GET /wiki-pages/{page_id}`.
+  - `GET /c/{guild_id}/documents/counts` → `GET /c/{guild_id}/tools/{tool}/counts`, which answers every tool: `views` counts its live and archived rows (and templates, for projects and documents) in the initiative, and `tag_counts` and `untagged_count` count the view named by `view` after `search` and the tool's own filters. Every figure is a count of the tool's own list, so it always matches what the list shows.
   - `PUT /settings/auth/methods`, `/second-factor-requirement` and `/session-lifetime` → `PATCH /settings/auth/platform`, where a field you leave out is left as it is. The second-factor level is now sent as `second_factor_requirement`.
   - `PUT /communities/{id}/auth-policy`, `/second-factor`, `/session-limit`, `/api-access` and `/notification-policy` → `PATCH /communities/{id}/auth-settings`, with the sign-in requirement as `auth_policy`. It returns the same shape as `GET /communities/{id}/auth-settings`, which now includes the sign-in requirement and your server's own notification answers; `GET /communities/{id}/notification-policy` and `GET /communities/{id}/auth-policy` are gone.
 

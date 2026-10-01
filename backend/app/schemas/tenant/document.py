@@ -124,14 +124,6 @@ class DocumentListResponse(PageMeta):
     sort_dir: Optional[str] = None
 
 
-class DocumentCountsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    total_count: int
-    untagged_count: int
-    tag_counts: Dict[int, int]
-
-
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
 

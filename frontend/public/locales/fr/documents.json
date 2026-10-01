@@ -598,12 +598,6 @@
       "replaced_other": "{{count}} cellules remplacées"
     }
   },
-  "status": {
-    "label": "Afficher",
-    "documents": "Documents",
-    "templates": "Modèles",
-    "archived": "Archivés"
-  },
   "summary": {
     "aiNotEnabled": "Les fonctionnalités IA ne sont pas activées. Configurez les paramètres IA pour générer des résumés de documents.",
     "generateDescription": "Générer un résumé alimenté par l'IA pour ce document.",

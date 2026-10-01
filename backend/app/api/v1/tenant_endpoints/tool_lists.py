@@ -34,13 +34,13 @@ keep in step. :mod:`app.api.v1.tenant_endpoints.tool_grants` reads it.
 # have to be real objects for FastAPI to read them.
 
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any, Awaitable, Callable, List, Literal, Optional
+from typing import Annotated, Any, Awaitable, Callable, List, Literal, Mapping, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_
+from sqlalchemy import and_, func, literal, select, union_all
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.actor_route import ActorRoute
@@ -104,7 +104,10 @@ from app.schemas.tenant.gallery import (
     GalleryRead,
     GallerySummary,
 )
-from app.schemas.tenant.initiative import ToolCountsByInitiativeResponse
+from app.schemas.tenant.initiative import (
+    ToolCountsByInitiativeResponse,
+    ToolCountsResponse,
+)
 from app.schemas.tenant.post import PostListResponse, PostRead
 from app.schemas.tenant.project import ProjectListResponse, ProjectRead
 from app.schemas.tenant.queue import (
@@ -265,6 +268,13 @@ def page_size_param(
 # ---------------------------------------------------------------------------
 
 
+#: Live rows and the archive: the views every tool has.
+DEFAULT_VIEWS: Mapping[str, Mapping[str, Any]] = {
+    "active": {},
+    "archived": {"archived": True},
+}
+
+
 @dataclass(frozen=True)
 class ToolListSpec:
     """Everything about one tool's API surface that the shared routes do not know.
@@ -309,8 +319,11 @@ class ToolListSpec:
     extra_sort_fields: Optional[dict[str, Any]] = None
     #: (req) -> statement transform applied before ORDER BY reads it.
     refine: Optional[Callable[["ListRequest"], Callable[[Any], Any]]] = None
-    #: Extra WHERE legs for the sidebar counts.
-    counts_conditions: tuple[Any, ...] = ()
+    #: The views the tool's page shows one at a time, each as the list
+    #: parameters that select it. Every count is a count of one of these lists.
+    views: Mapping[str, Mapping[str, Any]] = field(
+        default_factory=lambda: dict(DEFAULT_VIEWS)
+    )
     #: (req) -> extra fields on the list response.
     response_extras: Optional[Callable[["ListRequest"], dict]] = None
     list_doc: Optional[str] = None
@@ -643,7 +656,8 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         conditions=_project_conditions,
         refine=_project_refine,
         clamp_page=True,
-        counts_conditions=(Project.is_template.is_(False),),
+        # A template is not left out by the default list; it is its own view.
+        views={**DEFAULT_VIEWS, "templates": {"template": True}},
         params=(
             _archived(described=False),
             ListParam("template", Optional[bool], Query(default=None)),
@@ -702,6 +716,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         default_order=_order(Document.updated_at.desc(), Document.id.desc()),
         serialize=_serialize_documents,
         conditions=_document_conditions,
+        # The default list shows templates beside documents; the page shows
+        # them apart, so the live view names the documents alone.
+        views={
+            "active": {"is_template": False},
+            "templates": {"is_template": True},
+            "archived": {"archived": True},
+        },
         # The one tool that also sorts by when a row was written — a document
         # list is a filing cabinet, and "newest first" is how you read one.
         extra_sort_fields={"created_at": Document.created_at},
@@ -1154,6 +1175,19 @@ def _mount_list(spec: ToolListSpec) -> None:
     )
 
 
+async def _view_conditions(
+    spec: ToolListSpec,
+    session: AsyncSession,
+    current_user: User,
+    guild_context: ActorContext,
+    **values: Any,
+) -> list:
+    """The WHERE the tool's own list answers ``values`` with."""
+    return await list_conditions(
+        spec, ListRequest(session, current_user, guild_context, values)
+    )
+
+
 @router.get(
     "/tools/counts/by-initiative",
     response_model=ToolCountsByInitiativeResponse,
@@ -1164,22 +1198,117 @@ async def get_tool_counts_by_initiative(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> ToolCountsByInitiativeResponse:
-    """Every tool's visible-row counts, grouped by initiative.
+    """Every tool's live rows, grouped by initiative.
 
-    What the sidebar and the initiative directory badge — the same visibility
-    rules as each tool's default list (live rows, no project templates), one
-    statement for every tool rather than a request per tool.
+    What the sidebar and the initiative directory badge: each tool's ``active``
+    view, counted by the same conditions as its list, in one statement for
+    every tool rather than a request per tool. Rows belonging to the guild
+    rather than an initiative fall outside every group.
     """
-    counts = await tool_listing.count_tool_rows_by_initiative(
-        session,
-        [
-            (spec.tool, spec.model, spec.enabled_column, spec.counts_conditions)
-            for spec in TOOL_LISTS.values()
-        ],
-        user_id=current_user.id,
-        context=guild_context,
-    )
+    selects = [
+        select(literal(spec.tool.value), spec.model.initiative_id, func.count())
+        .where(
+            *await _view_conditions(
+                spec, session, current_user, guild_context, **spec.views["active"]
+            )
+        )
+        .group_by(spec.model.initiative_id)
+        for spec in TOOL_LISTS.values()
+    ]
+    counts: dict[Tool, dict[int, int]] = {tool: {} for tool in TOOL_LISTS}
+    for tool, initiative_id, count in (await session.exec(union_all(*selects))).all():
+        if initiative_id is not None:
+            counts[Tool(tool)][initiative_id] = count
     return ToolCountsByInitiativeResponse(counts=counts)
+
+
+@router.get("/tools/{tool}/counts", response_model=ToolCountsResponse, tags=["tools"])
+async def get_tool_counts(
+    tool: Tool,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
+    view: str = Query(
+        default="active",
+        description="The view the tag counts are for: active, archived, or "
+        "templates for a tool that has them",
+    ),
+    search: Optional[str] = Query(default=None),
+    document_type: Optional[DocumentType] = Query(
+        default=None, description="Documents only: narrow the tag counts by type"
+    ),
+    include_tags: bool = Query(
+        default=False, description="Also count the tag tree beside ``view``"
+    ),
+) -> ToolCountsResponse:
+    """How many rows sit in each of one tool's views, and, when asked, the tag
+    tree beside the one being shown.
+
+    Every figure is a count of the tool's own list. ``views`` counts each view
+    in the initiative (or the guild) whatever the page's filters, so a toggle
+    says how much sits behind each view before it is opened. The tag counts
+    are for ``view`` after ``search`` and the tool's own filters, so the tree
+    and the list beside it agree; tags are not a filter here, because the tree
+    shows every one. A page with no tree leaves ``include_tags`` off and its
+    request runs the view counts alone.
+    """
+    spec = TOOL_LISTS[tool]
+    if view not in spec.views:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=QueryMessages.UNKNOWN_VIEW,
+        )
+    scope = {"initiative_id": initiative_id}
+
+    view_counts = (
+        await session.exec(
+            union_all(
+                *[
+                    select(literal(name), func.count()).where(
+                        *await _view_conditions(
+                            spec,
+                            session,
+                            current_user,
+                            guild_context,
+                            **scope,
+                            **params,
+                        )
+                    )
+                    for name, params in spec.views.items()
+                ]
+            )
+        )
+    ).all()
+    if not include_tags:
+        return ToolCountsResponse(views=dict(view_counts))
+
+    shown = select(spec.model.id).where(
+        *await _view_conditions(
+            spec,
+            session,
+            current_user,
+            guild_context,
+            **scope,
+            search=search,
+            document_type=document_type,
+            **spec.views[view],
+        )
+    )
+    link = tags_service.TOOL_TAG_LINKS[tool]
+    tag_rows = (await session.exec(tags_service.tag_counts_for(link, shown))).all()
+    shown_subq = shown.subquery()
+    untagged_count = await session.scalar(
+        select(func.count())
+        .select_from(shown_subq)
+        .where(tags_service.untagged_clause(link, shown_subq.c.id))
+    )
+
+    return ToolCountsResponse(
+        views=dict(view_counts),
+        tag_counts=dict(tag_rows),
+        untagged_count=untagged_count,
+    )
 
 
 for _spec in TOOL_LISTS.values():

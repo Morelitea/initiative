@@ -111,6 +111,52 @@ export const TOOL_LISTING_KINDS: Partial<Record<Tool, ListingKind>> = {
 /** Which marketplace shelf a tool's list links to, or null when it has none. */
 export const toolListingKind = (tool: Tool): ListingKind | null => TOOL_LISTING_KINDS[tool] ?? null;
 
+/** The slices a tool's list can show, in the order a page offers them. */
+export const TOOL_VIEWS = ["active", "templates", "archived"] as const;
+
+export type ToolView = (typeof TOOL_VIEWS)[number];
+
+export const isToolView = (value: unknown): value is ToolView =>
+  typeof value === "string" && (TOOL_VIEWS as readonly string[]).includes(value);
+
+/** The list parameters that select a view. */
+export interface ToolViewParams {
+  archived?: true;
+  template?: true;
+  is_template?: boolean;
+}
+
+type ToolViewSpec = Partial<Record<ToolView, ToolViewParams>>;
+
+const DEFAULT_VIEWS: ToolViewSpec = { active: {}, archived: { archived: true } };
+
+/**
+ * Each tool's views, as the list parameters that select them. Mirrors backend
+ * `ToolListSpec.views`, which the counts endpoint counts by: every tool has
+ * the live list and the archive, and the two with blueprints keep them in a
+ * view of their own. Stated as the exceptions, so a new tool gets the two.
+ */
+const TOOL_VIEW_SPECS: Partial<Record<Tool, ToolViewSpec>> = {
+  [Tool.project]: { ...DEFAULT_VIEWS, templates: { template: true } },
+  // The default document list shows templates beside documents; the live
+  // view names the documents alone.
+  [Tool.document]: {
+    active: { is_template: false },
+    templates: { is_template: true },
+    archived: { archived: true },
+  },
+};
+
+/** The views a tool's list offers. */
+export const toolViews = (tool: Tool): ToolView[] =>
+  TOOL_VIEWS.filter((view) => view in (TOOL_VIEW_SPECS[tool] ?? DEFAULT_VIEWS));
+
+/** What a tool's list endpoint is asked for to show `view`. Most tools' live
+ *  view asks for nothing, which keeps its query key — and so its cache entry —
+ *  the one every other caller of the list already uses. */
+export const toolViewParams = (tool: Tool, view: ToolView): ToolViewParams =>
+  (TOOL_VIEW_SPECS[tool] ?? DEFAULT_VIEWS)[view] ?? {};
+
 /**
  * Sidebar display order within an initiative. Projects render last because the
  * initiative's project list expands directly beneath that row.
