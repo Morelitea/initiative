@@ -6,13 +6,20 @@ backwards. They are scoped by one helper for exactly that reason — a rail
 offering a month the feed then shows as empty is worse than no rail.
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.testing import assign_tag, create_post, create_tag
+from app.testing import (
+    assign_tag,
+    create_post,
+    create_property_definition,
+    create_property_value,
+    create_tag,
+)
 
 _JANUARY = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
 _FEBRUARY = datetime(2026, 2, 10, 12, 0, tzinfo=timezone.utc)
@@ -179,8 +186,8 @@ async def test_the_rail_narrows_with_the_filters(
     client: AsyncClient, acting_user, session
 ):
     """The rail is a picture of the feed as it stands: with the unread filter
-    on, a month that is fully read has nothing to offer, and with a tag only
-    the months holding a notice that carries it."""
+    on, a month that is fully read has nothing to offer, and with a tag or a
+    property only the months holding a notice that carries it."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     made = await _board(session, a)
     reader = await acting_user(
@@ -212,6 +219,20 @@ async def test_the_rail_narrows_with_the_filters(
         params={"initiative_id": a.initiative.id, "tag_ids": [tag.id]},
     )
     assert [b["period"] for b in tagged.json()["buckets"]] == ["2026-02"]
+
+    stage = await create_property_definition(session, a.initiative, name="Stage")
+    await create_property_value(session, made["jan"], stage, value_text="live")
+    with_property = await client.get(
+        a.g("/posts/timeline"),
+        headers=a.headers,
+        params={
+            "initiative_id": a.initiative.id,
+            "property_filters": json.dumps(
+                [{"property_id": stage.id, "op": "eq", "value": "live"}]
+            ),
+        },
+    )
+    assert [b["period"] for b in with_property.json()["buckets"]] == ["2026-01"]
 
 
 async def test_the_rail_follows_the_archive_view(

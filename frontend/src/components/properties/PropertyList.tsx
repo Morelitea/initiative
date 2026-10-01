@@ -8,6 +8,11 @@ import { cn } from "@/lib/utils";
 import { PropertyFields } from "./PropertyFields";
 import { normalizePropertyValue } from "./propertyHelpers";
 
+/**
+ * One row's properties. Its drafts and pending save belong to the row it was
+ * mounted for, so a host that shows another row gives it another list
+ * (`PropertyPanel` keys it by the row).
+ */
 export interface PropertyListProps {
   target: PropertyTarget;
   entityId: number;
@@ -131,23 +136,33 @@ export const PropertyList = ({
   const latestRemovedRef = useRef<Set<number>>(removedIds);
   latestRemovedRef.current = removedIds;
 
+  // The save waiting out the debounce, if any. Sent rather than dropped when
+  // the list goes (a dialog closed straight after typing): it holds this
+  // row's own drafts, so it is still the right write.
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+
   const scheduleSave = useCallback(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
-    saveTimeoutRef.current = setTimeout(() => {
-      saveTimeoutRef.current = null;
+    pendingSaveRef.current = () => {
+      pendingSaveRef.current = null;
       const payload = buildPayload(latestDraftsRef.current, properties, latestRemovedRef.current);
       mutate(
         { target, id: entityId, values: payload },
         { onSettled: () => pendingRef.current.clear() }
       );
+    };
+    saveTimeoutRef.current = setTimeout(() => {
+      saveTimeoutRef.current = null;
+      pendingSaveRef.current?.();
     }, SAVE_DEBOUNCE_MS);
   }, [target, entityId, properties, mutate]);
 
   useEffect(
     () => () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      pendingSaveRef.current?.();
     },
     []
   );

@@ -108,6 +108,28 @@ describe("useProjectListView filtering", () => {
   });
 });
 
+describe("useProjectListView property filters", () => {
+  it("asks the list for them, scoped to its initiative, and says the list is narrowed", async () => {
+    const conditions = JSON.stringify([{ property_id: 5, op: "eq", value: "live" }]);
+    const { result, rerender, requests } = await mount([]);
+    expect(result.current.filterBarProps.initiativeId).toBe(1);
+
+    const { onChange, value } = result.current.filterBarProps;
+    onChange({ ...value, property_filters: conditions });
+    rerender();
+
+    await waitFor(() => expect(requests.at(-1)?.get("property_filters")).toBe(conditions));
+    // A manual order spans the whole list, so a narrowed one cannot be dragged.
+    expect(result.current.narrowed).toBe(true);
+    expect(result.current.activeFilterCount).toBe(1);
+
+    result.current.filterBarProps.onClear();
+    rerender();
+    await waitFor(() => expect(requests.at(-1)?.has("property_filters")).toBe(false));
+    expect(result.current.narrowed).toBe(false);
+  });
+});
+
 describe("useProjectListView sorting", () => {
   const projects = [
     buildProject({ name: "Charlie", updated_at: "2026-03-01T00:00:00.000Z" }),

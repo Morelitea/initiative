@@ -8,8 +8,9 @@ import type {
   CounterUpdate,
   CounterViewMode,
 } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
+import { PropertyPanel } from "@/components/properties";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import {
@@ -52,7 +53,7 @@ export const CounterFormDialog = ({
   counter,
   defaultPosition,
 }: CounterFormDialogProps) => {
-  const { t } = useTranslation(["counterGroups", "common"]);
+  const { t } = useTranslation(["counterGroups", "common", "properties"]);
   const isEdit = !!counter;
 
   const [error, setError] = useState<string | null>(null);
@@ -244,6 +245,22 @@ export const CounterFormDialog = ({
           </div>
 
           {error && <p className="text-destructive text-sm">{error}</p>}
+
+          {/* Only for a counter that exists, and saved as they change, like
+              its links below. Definitions belong to an initiative, so a
+              guild-level group's counters have none to offer. */}
+          {counter && initiativeId != null && (
+            <div className="space-y-2 border-t pt-4">
+              <Label>{t("properties:title")}</Label>
+              <PropertyPanel
+                target={PropertyTarget.counter}
+                entityId={counter.id}
+                saved={counter.properties}
+                initiativeId={initiativeId}
+                canOpen={{ tool: Tool.counter_group, id: groupId }}
+              />
+            </div>
+          )}
 
           {/* Only for a counter that exists: there is nothing to link to a row
               that has not been added yet. A link is written the moment it is

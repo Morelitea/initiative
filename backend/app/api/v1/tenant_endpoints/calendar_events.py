@@ -638,26 +638,9 @@ async def guild_calendar_event_conditions(
     window = series_in_window if whole_series else starts_in_window
     conditions += window(start_after, start_before, tz)
 
-    # Property filters: parse, resolve definitions, compile to subquery
-    # clauses shared with documents/tasks so event filtering picks up the
-    # same typed comparison + is_empty presence semantics for free.
-    if property_filters:
-        try:
-            parsed = properties_service.parse_property_filters(property_filters)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
-            )
-        if parsed:
-            defs_map = await properties_service.load_definitions_by_ids(
-                session, [c.property_id for c in parsed]
-            )
-            conditions.extend(
-                properties_service.build_property_filter_clauses(
-                    "calendar_event", parsed, defs_map
-                )
-            )
+    conditions += await properties_service.property_filter_clauses(
+        session, "calendar_event", property_filters, names_people=True
+    )
 
     # An event is reached through its calendar, so the sharing gate applies to
     # the calendar the event names.

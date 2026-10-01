@@ -13,6 +13,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 
 import { PropertyList } from "./PropertyList";
+import { PropertyPanel } from "./PropertyPanel";
 
 describe("PropertyList", () => {
   beforeEach(() => {
@@ -304,6 +305,75 @@ describe("PropertyList", () => {
       <PropertyList target={PropertyTarget.document} entityId={1} properties={[]} />
     );
     expect(screen.getByText(/No properties/i)).toBeInTheDocument();
+  });
+
+  it("sends an edit made just before it closes", async () => {
+    const writes: { entityId: string; body: unknown }[] = [];
+    server.use(
+      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+        writes.push({ entityId: String(params.entityId), body: await request.json() });
+        return HttpResponse.json([]);
+      })
+    );
+    const property = buildPropertySummary({
+      property_id: 1,
+      name: "Status",
+      type: PropertyType.text,
+      value: null,
+    });
+    const { unmount } = renderWithProviders(
+      <PropertyList target={PropertyTarget.queue_item} entityId={4} properties={[property]} />
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Empty"), { target: { value: "Ready" } });
+    unmount();
+    await advanceDebounce();
+
+    expect(writes).toEqual([
+      { entityId: "4", body: { values: [{ property_id: 1, value: "Ready" }] } },
+    ]);
+  });
+
+  it("keeps a row's edit on that row when the panel moves to another", async () => {
+    const writes: { entityId: string; body: unknown }[] = [];
+    server.use(
+      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+        writes.push({ entityId: String(params.entityId), body: await request.json() });
+        return HttpResponse.json([]);
+      })
+    );
+    const onFirst = buildPropertySummary({
+      property_id: 1,
+      name: "Status",
+      type: PropertyType.text,
+      value: null,
+    });
+    const onSecond = { ...onFirst, value: "Done" };
+    const { rerender } = renderWithProviders(
+      <PropertyPanel
+        target={PropertyTarget.wiki_page}
+        entityId={1}
+        saved={[onFirst]}
+        initiativeId={3}
+      />
+    );
+
+    // Typed on the first page, then the second opened before the save.
+    fireEvent.change(screen.getByPlaceholderText("Empty"), { target: { value: "Draft" } });
+    rerender(
+      <PropertyPanel
+        target={PropertyTarget.wiki_page}
+        entityId={2}
+        saved={[onSecond]}
+        initiativeId={3}
+      />
+    );
+    await advanceDebounce();
+
+    expect(writes).toEqual([
+      { entityId: "1", body: { values: [{ property_id: 1, value: "Draft" }] } },
+    ]);
+    expect(screen.getByDisplayValue("Done")).toBeInTheDocument();
   });
 
   it("coalesces rapid edits into a single PUT after the debounce", async () => {

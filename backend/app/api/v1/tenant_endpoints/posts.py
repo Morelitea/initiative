@@ -248,7 +248,9 @@ def board_conditions(
     routes take them: the guild, the feature switch, sharing and the filters
     (:func:`tool_listing.base_conditions`), the archive state, then
     publication — a notice scheduled for later is on the board only for the
-    people who could edit it.
+    people who could edit it. Property filters are not among them: every list
+    applies those itself (``properties_service.property_filter_clauses``), and
+    the timeline applies the same.
 
     An installed app (``user_id`` ``None``) keeps no read markers, so ``unread``
     narrows nothing for it.
@@ -283,6 +285,10 @@ async def get_post_timeline(
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None),
+    property_filters: Optional[str] = Query(
+        default=None,
+        description="The feed's property-value filters, JSON-encoded as it takes them.",
+    ),
     unread: bool = Query(default=False),
     archived: Optional[bool] = Query(
         default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
@@ -315,6 +321,10 @@ async def get_post_timeline(
         tag_ids=tag_ids,
         unread=unread,
         archived=archived,
+    )
+    # The feed's property filters, as every list applies them.
+    scope += await properties_service.property_filter_clauses(
+        session, Tool.post.value, property_filters, names_people=True
     )
     return TimelineResponse(
         buckets=await timeline_service.month_buckets(

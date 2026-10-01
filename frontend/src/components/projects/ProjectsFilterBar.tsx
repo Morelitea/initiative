@@ -44,6 +44,7 @@ export const ProjectsFilterBar = ({
   allowCustomSort = true,
   onClear,
   activeCount,
+  initiativeId,
 }: ProjectsFilterBarProps) => {
   const { t } = useTranslation(["projects", "common"]);
 
@@ -55,7 +56,12 @@ export const ProjectsFilterBar = ({
       onClear={onClear}
       activeCount={activeCount}
     >
-      <ToolFilterFields tool={Tool.project} value={value} onChange={onChange}>
+      <ToolFilterFields
+        tool={Tool.project}
+        value={value}
+        onChange={onChange}
+        initiativeId={initiativeId}
+      >
         <div className="w-full space-y-2 sm:w-60">
           <Label htmlFor="project-sort" className="block font-medium text-muted-foreground text-xs">
             {t("filters.sortProjects")}

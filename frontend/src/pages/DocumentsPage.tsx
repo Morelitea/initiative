@@ -16,10 +16,7 @@ import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
-import {
-  DocumentsFilterBar,
-  parsePropertyFilters,
-} from "@/components/documents/DocumentsFilterBar";
+import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
@@ -30,6 +27,7 @@ import {
 import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PaginationBar } from "@/components/PaginationBar";
+import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
@@ -627,6 +625,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         onFiltersOpenChange={setFiltersOpen}
         onClear={clearFilters}
         activeCount={activeFilterCount}
+        initiativeId={fixedInitiativeId}
       />
 
       {!canViewDocs ? (

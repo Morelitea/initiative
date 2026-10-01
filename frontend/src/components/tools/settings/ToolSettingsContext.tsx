@@ -11,6 +11,7 @@ import { createContext, type ReactNode, useContext } from "react";
 
 import type {
   OwnerAppSummary,
+  PropertySummary,
   ResourceGrantSchema,
   TagSummary,
   Tool,
@@ -29,6 +30,7 @@ export interface ToolSettingsEntity {
   description?: string | null;
   initiative_id: number | null;
   tags: TagSummary[];
+  properties?: PropertySummary[];
   grants: ResourceGrantSchema[];
   comments_enabled: boolean;
   /** When this was archived, or null while it is live. */

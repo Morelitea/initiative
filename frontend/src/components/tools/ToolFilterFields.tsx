@@ -25,6 +25,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentFilterFields } from "@/components/documents/DocumentsFilterBar";
+import { PropertyFilterParam } from "@/components/properties/PropertyFilter";
 import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +71,9 @@ export type ToolListFilters<T extends Tool = Tool> = Omit<ToolListParams[T], Not
 export type ToolFilterFieldsProps<T extends Tool = Tool> = {
   value: ToolListFilters<T>;
   onChange: (next: ToolListFilters<T>) => void;
+  /** The initiative the list is in, whose definitions are the only properties
+   *  it can be filtered by. Omitted on a list across initiatives. */
+  initiativeId?: number;
   /** Controls only the page offers, in the same row as the shared fields. */
   children?: ReactNode;
 };
@@ -80,12 +84,14 @@ type SearchTagFieldsProps = ToolFilterFieldsProps & {
   placeholder: string;
 };
 
-/** A search box and a tag picker — what most tool lists narrow by. */
+/** A search box, a tag picker and property conditions — what most tool lists
+ *  narrow by. */
 const SearchTagFields = ({
   tool,
   placeholder,
   value,
   onChange,
+  initiativeId,
   children,
 }: SearchTagFieldsProps) => {
   // The tool's own namespace is named after it, so the loose translate
@@ -95,32 +101,42 @@ const SearchTagFields = ({
   const id = useId();
 
   return (
-    <div className="flex flex-wrap items-end gap-4">
-      <div className="w-full space-y-2 lg:flex-1">
-        <Label htmlFor={`${id}-search`} className="block font-medium text-muted-foreground text-xs">
-          {t("filters.searchLabel")}
-        </Label>
-        <Input
-          id={`${id}-search`}
-          placeholder={t(placeholder)}
-          value={value.search ?? ""}
-          onChange={(event) => onChange({ ...value, search: event.target.value })}
-          className="min-w-60"
-        />
+    <>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="w-full space-y-2 lg:flex-1">
+          <Label
+            htmlFor={`${id}-search`}
+            className="block font-medium text-muted-foreground text-xs"
+          >
+            {t("filters.searchLabel")}
+          </Label>
+          <Input
+            id={`${id}-search`}
+            placeholder={t(placeholder)}
+            value={value.search ?? ""}
+            onChange={(event) => onChange({ ...value, search: event.target.value })}
+            className="min-w-60"
+          />
+        </div>
+        <div className="w-full space-y-2 sm:w-64">
+          <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
+            {t("tags:picker.filterLabel")}
+          </Label>
+          <TagFilterPicker
+            id={`${id}-tags`}
+            tagIds={value.tag_ids ?? []}
+            onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
+            placeholder={t("tags:picker.anyTag")}
+          />
+        </div>
+        {children}
       </div>
-      <div className="w-full space-y-2 sm:w-64">
-        <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
-          {t("tags:picker.filterLabel")}
-        </Label>
-        <TagFilterPicker
-          id={`${id}-tags`}
-          tagIds={value.tag_ids ?? []}
-          onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
-          placeholder={t("tags:picker.anyTag")}
-        />
-      </div>
-      {children}
-    </div>
+      <PropertyFilterParam
+        value={value.property_filters}
+        onChange={(next) => onChange({ ...value, property_filters: next })}
+        initiativeId={initiativeId}
+      />
+    </>
   );
 };
 
@@ -135,6 +151,7 @@ const QUEUE_STATUSES = [
 const QueueFilterFields = ({
   value,
   onChange,
+  initiativeId,
   children,
 }: ToolFilterFieldsProps<typeof Tool.queue>) => {
   const { t } = useTranslation("queues");
@@ -147,6 +164,7 @@ const QueueFilterFields = ({
       placeholder="filters.searchQueues"
       value={value}
       onChange={onChange}
+      initiativeId={initiativeId}
     >
       <div className="w-full space-y-2 sm:w-48">
         <Label htmlFor={`${id}-status`} className="block font-medium text-muted-foreground text-xs">

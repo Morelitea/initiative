@@ -380,7 +380,12 @@ function ToolFilterSection({
           </div>
         ) : null}
         <div className="flex flex-col gap-3">
-          <ToolFilterFields tool={tool} value={value} onChange={onChange} />
+          <ToolFilterFields
+            tool={tool}
+            value={value}
+            onChange={onChange}
+            initiativeId={initiativeId}
+          />
         </div>
         {ContentField ? (
           <ContentField value={content} onChange={onContentChange} initiativeId={initiativeId} />

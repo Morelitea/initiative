@@ -2,10 +2,16 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type QueueItemRead, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  PropertyTarget,
+  type QueueItemRead,
+  SearchEntityType,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { EntityLinkField } from "@/components/entities/EntityLinkField";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { MemberSelect } from "@/components/members/MemberSearchSelect";
+import { PropertyPanel } from "@/components/properties";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -44,7 +50,7 @@ export const EditQueueItemDialog = ({
   readOnly = false,
   onSuccess,
 }: EditQueueItemDialogProps) => {
-  const { t } = useTranslation(["queues", "common", "relations"]);
+  const { t } = useTranslation(["queues", "common", "relations", "properties"]);
 
   const {
     label,
@@ -230,6 +236,20 @@ export const EditQueueItemDialog = ({
                 selectedTags={selectedTags}
                 onChange={setSelectedTags}
                 placeholder={t("tags")}
+                disabled={readOnly}
+              />
+            </div>
+
+            {/* Saved as they change, like the links below — the dialog's Save
+                is about the item itself. */}
+            <div className="space-y-2">
+              <Label>{t("properties:title")}</Label>
+              <PropertyPanel
+                target={PropertyTarget.queue_item}
+                entityId={item.id}
+                saved={item.properties}
+                initiativeId={initiativeId}
+                canOpen={{ tool: Tool.queue, id: queueId }}
                 disabled={readOnly}
               />
             </div>
