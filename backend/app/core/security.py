@@ -408,8 +408,9 @@ def verify_upload_token(
 
 
 HANDLE_OFFER_AUDIENCE = "initiative:handle-offer"
-#: How long a number shown beside a name stays the one an account gets.
-HANDLE_OFFER_LIFETIME = timedelta(minutes=30)
+#: How long a number shown beside a name stays the one an account gets: long
+#: enough to outlast a sign-up left open, since it is used only while free.
+HANDLE_OFFER_LIFETIME = timedelta(days=1)
 
 
 def create_handle_offer(name: str, discriminator: int) -> str:
