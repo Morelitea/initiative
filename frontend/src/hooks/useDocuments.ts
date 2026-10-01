@@ -7,8 +7,6 @@ import {
   deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
   deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete,
   generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost,
-  getDocumentCountsApiV1CGuildIdDocumentsCountsGet,
-  getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey,
   getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryKey,
   getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
   listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet,
@@ -20,14 +18,12 @@ import {
 import type {
   BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost,
   BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost,
-  DocumentCountsResponse,
   DocumentCreate,
   DocumentFileVersionRead,
   DocumentListResponse,
   DocumentRead,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
-  GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -68,18 +64,6 @@ export const useDocumentsList = (
   return useQuery<DocumentListResponse>({
     ...documents.listQuery(guildId, params),
     placeholderData: keepPreviousData,
-    ...options,
-  });
-};
-
-export const useDocumentCounts = (
-  params: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options?: QueryOpts<DocumentCountsResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<DocumentCountsResponse>({
-    queryKey: getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey(guildId, params),
-    queryFn: () => getDocumentCountsApiV1CGuildIdDocumentsCountsGet(guildId, params),
     ...options,
   });
 };

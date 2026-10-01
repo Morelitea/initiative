@@ -23,11 +23,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import {
-  useProjectStatusCounts,
-  useRemoveProjectTemplate,
-  useUnarchiveProject,
-} from "@/hooks/useProjects";
+import { useRemoveProjectTemplate, useUnarchiveProject } from "@/hooks/useProjects";
+import { useToolCounts } from "@/hooks/useToolCounts";
 
 /** Scoped to an initiative: the initiative page's Projects tab. */
 type ProjectsViewProps = { fixedInitiativeId: number; canCreate?: boolean };
@@ -77,7 +74,17 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   };
   // Totals for all three states, so the filter can say how much sits behind
   // each one before it is opened.
-  const statusCounts = useProjectStatusCounts(lockedInitiativeId);
+  // How much sits behind each state, so the filter says so before it is
+  // opened: scoped to the initiative, whatever the other filters say.
+  const countsQuery = useToolCounts(
+    Tool.project,
+    lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}
+  );
+  const statusCounts = {
+    active: countsQuery.data?.views.active,
+    templates: countsQuery.data?.views.templates,
+    archived: countsQuery.data?.views.archived,
+  };
 
   // This is a guild-scoped page and the initiatives list is cheap + cached, so
   // fetch it unconditionally. Create access is derived from the same payload

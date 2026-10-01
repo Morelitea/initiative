@@ -71,6 +71,9 @@ READ_TAGS = (
     "galleries",
     "wikis",
     "dashboards",
+    # How many of each a page holds, and its tag tree: counted from the lists
+    # above, for every tool at once.
+    "tools",
 )
 
 # Curated writes: author and edit, across every tool.

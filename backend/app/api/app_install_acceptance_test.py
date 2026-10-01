@@ -466,7 +466,7 @@ async def test_an_unmarked_route_refuses_an_installation_token(
         session, acting_user, role_session, granted=["documents:read"]
     )
     response = await client.get(
-        guild_url(installed.guild.id, "/documents/counts"),
+        guild_url(installed.guild.id, "/tools/document/counts"),
         headers=install_headers(installed, ["documents:read"]),
     )
     assert response.status_code == 401, response.text

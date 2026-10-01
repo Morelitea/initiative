@@ -1,17 +1,25 @@
 /**
- * How much of each tool lives in each initiative, for every tool at once.
+ * How much of each tool there is. Every figure is a count of the tool's own
+ * list, so a badge always agrees with the list it sits on.
  *
- * One request answers every tool (tool → initiative id → count), and the
- * result is spread over the registry's `TOOLS`, keyed by `Tool`. Callers then
- * render whatever the registry declares rather than naming tools by hand — a
- * new tool shows up in every consumer as soon as the server counts it.
+ * - `useToolCountsByInitiative` answers every tool at once (tool → initiative
+ *   id → count), spread over the registry's `TOOLS` so callers render
+ *   whatever the registry declares rather than naming tools by hand.
+ * - `useToolCounts` answers one tool's page: each of its views, and the tag
+ *   tree beside the view being shown.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
-import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  GetToolCountsApiV1CGuildIdToolsToolCountsGetParams,
+  Tool,
+  ToolCountsResponse,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
+  getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey,
   getGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGetQueryKey,
+  getToolCountsApiV1CGuildIdToolsToolCountsGet,
   getToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiativeGet,
 } from "@/api/generated/tools/tools";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -57,3 +65,18 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
   }
   return byTool;
 }
+
+/** One tool's page: how many rows sit in each view, and the tag tree beside
+ *  the view named by `params.view`. The previous answer stays on screen while
+ *  the next view's arrives, so the badges do not blank out. */
+export const useToolCounts = (
+  tool: Tool,
+  params: GetToolCountsApiV1CGuildIdToolsToolCountsGetParams
+) => {
+  const guildId = useActiveGuildId();
+  return useQuery<ToolCountsResponse>({
+    queryKey: getGetToolCountsApiV1CGuildIdToolsToolCountsGetQueryKey(guildId, tool, params),
+    queryFn: () => getToolCountsApiV1CGuildIdToolsToolCountsGet(guildId, tool, params),
+    placeholderData: keepPreviousData,
+  });
+};

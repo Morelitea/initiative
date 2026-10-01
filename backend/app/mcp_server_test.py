@@ -143,6 +143,8 @@ async def test_mcp_tools_are_curated():
         "widget",
         # And the way in when a caller knows a name rather than an id.
         "search",
+        # How many of each, for every tool at once.
+        "tool_counts",
         *(tool.value for tool in Tool),
         *(tool.plural for tool in Tool),
     )

@@ -522,12 +522,15 @@ const toolCounts = (): Spec => ({ guildExact: ["/api/v1/tools/counts/by-initiati
 
 /**
  * Every list of one tool — its guild-wide list and the cross-guild `/me` twin
- * every tool has. A calendar's also reaches the events and entries views,
- * which show its name and colour. Not the counts: changing what a row says
- * leaves every count where it was.
+ * every tool has — and its page's counts, whose tag tree moves when a row's
+ * tags do. A calendar's also reaches the events and entries views, which show
+ * its name and colour. Not the sidebar's counts: changing what a row says
+ * leaves those where they were.
  */
 const toolLists = (which: Tool): Spec => {
-  const lists = resourceAndMe(toolRouteSegment(which));
+  const lists = compose(resourceAndMe(toolRouteSegment(which)), {
+    guildPrefix: [`/api/v1/tools/${which}/counts`],
+  });
   return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
 };
 

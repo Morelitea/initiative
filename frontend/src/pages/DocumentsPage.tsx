@@ -46,7 +46,6 @@ import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import {
   useCopyDocument,
   useDeleteDocuments,
-  useDocumentCounts,
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
@@ -56,6 +55,7 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
+import { useToolCounts } from "@/hooks/useToolCounts";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -337,28 +337,21 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const documentsQuery = useDocumentsList(documentsQueryParams);
 
-  // Counts query for tags view sidebar
-  const countsQueryParams = {
+  // One answer for the screen: the totals behind each view, so the toggle
+  // says how much sits in the other ones before they are opened, and the tag
+  // tree beside the view being shown. The totals are scoped to the initiative
+  // only — they answer "how many exist", not "how many survive the current
+  // filters".
+  const countsQuery = useToolCounts(Tool.document, {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
-  };
-
-  const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
-
-  // Totals behind each state, so the toggle says how much sits in the other one
-  // before it is opened. Scoped to the initiative only — like the projects
-  // list's status counts, these answer "how many exist", not "how many survive
-  // the current filters".
-  const statusCountsBase = lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {};
-  const documentsCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: false });
-  const templatesCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: true });
-  const archivedCountQuery = useDocumentCounts({ ...statusCountsBase, archived: true });
+    view: isArchivedView ? "archived" : isTemplateView ? "templates" : "active",
+  });
   const statusCounts = {
-    documents: documentsCountQuery.data?.total_count,
-    templates: templatesCountQuery.data?.total_count,
-    archived: archivedCountQuery.data?.total_count,
+    documents: countsQuery.data?.views.active,
+    templates: countsQuery.data?.views.templates,
+    archived: countsQuery.data?.views.archived,
   };
 
   // Prefetch adjacent page on hover

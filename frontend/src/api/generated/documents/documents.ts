@@ -26,14 +26,12 @@ import type {
   BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost,
   BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost,
   DocumentCopyRequest,
-  DocumentCountsResponse,
   DocumentCreate,
   DocumentFileVersionRead,
   DocumentListResponse,
   DocumentRead,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
-  GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   HTTPValidationError,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
   PropertyValuesSetRequest,
@@ -339,184 +337,6 @@ export const useCreateDocumentApiV1CGuildIdDocumentsPost = <
     queryClient
   );
 };
-/**
- * Get per-tag document counts for visible documents.
- *
- * Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
- * because counts should reflect all tags. The remaining filters mirror the
- * list endpoint so the sidebar counts match the list beside it.
- * @summary Get Document Counts
- */
-export const getDocumentCountsApiV1CGuildIdDocumentsCountsGet = (
-  guildId: number,
-  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentCountsResponse>(
-    { url: `/api/v1/c/${guildId}/documents/counts`, method: "GET", params, signal },
-    options
-  );
-};
-
-export const getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey = (
-  guildId: number,
-  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams
-) => {
-  return [`/api/v1/c/${guildId}/documents/counts`, ...(params ? [params] : [])] as const;
-};
-
-export const getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey(guildId, params);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
-  > = ({ signal }) =>
-    getDocumentCountsApiV1CGuildIdDocumentsCountsGet(guildId, params, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type GetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
->;
-export type GetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params: undefined | GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-          TError,
-          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-          TError,
-          Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Document Counts
- */
-
-export function useGetDocumentCountsApiV1CGuildIdDocumentsCountsGet<
-  TData = Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  params?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getDocumentCountsApiV1CGuildIdDocumentsCountsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryOptions(
-    guildId,
-    params,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
 /**
  * Upload a file document (PDF, DOCX, etc.).
  * @summary Upload Document File

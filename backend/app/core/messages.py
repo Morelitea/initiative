@@ -808,6 +808,8 @@ class ImportEngineMessages:
 class QueryMessages:
     INVALID_CONDITIONS = "QUERY_INVALID_CONDITIONS"
     INVALID_SORT_FIELDS = "QUERY_INVALID_SORT_FIELDS"
+    #: A view the tool does not have, such as templates of a tool with none.
+    UNKNOWN_VIEW = "QUERY_UNKNOWN_VIEW"
 
     # The SQL query surface. Each names what a reader has to change about
     # their query, and travels with the offending word as detail so a client
