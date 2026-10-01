@@ -392,9 +392,13 @@ jobs:
           if [[ "$MODE" == "full" ]]; then
             # Every test, recording which code each ran. dev's recording is
             # the one published for pull requests to select from.
+            status=0
             uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 --testmon-noselect \
-              | tee "$RUNNER_TEMP/pytest.log"
-            exit
+              | tee "$RUNNER_TEMP/pytest.log" || status=$?
+            # 0 every test passed, 1 some failed: either way each one ran, so
+            # the recording is complete.
+            if (( status <= 1 )); then echo "recorded=true" >> "$GITHUB_OUTPUT"; fi
+            exit $status
           fi
           # The core runs on every pull request; then the tests the change
           # reaches, by the code each ran on dev. Both run even if one fails.
@@ -409,9 +413,9 @@ jobs:
 
       - name: Publish the test selection data
         # A run with failures records too: a test that failed is selected
-        # again until it passes.
+        # again until it passes. A run that stopped part way does not.
         if: >-
-          ${{ !cancelled() && steps.tests.outcome != 'skipped'
+          ${{ !cancelled() && steps.tests.outputs.recorded == 'true'
           && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
