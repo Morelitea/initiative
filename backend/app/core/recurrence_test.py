@@ -43,6 +43,7 @@ def test_normalize_writes_canonical_lines(text, kind, stored):
         ("FREQ=DAILY;UNTIL=20261201T000000", "event"),
         ("FREQ=DAILY;INTERVAL=0", "event"),
         ("FREQ=DAILY;COUNT=10001", "event"),
+        ("FREQ=YEARLY;COUNT=101", "event"),
         ("FREQ=BOGUS", "event"),
         ("DTSTART:20261001T000000Z\nRRULE:FREQ=DAILY", "event"),
         ("", "event"),
@@ -93,12 +94,12 @@ def test_a_stored_rule_starts_when_it_was_picked_to(picked, zone, at):
     wanted = [
         value.replace(tzinfo=fixed).astimezone(UTC)
         for value in islice(
-            rrulestr(f"RRULE:{picked}", dtstart=first.replace(tzinfo=None)), 60
+            rrulestr(f"RRULE:{picked}", dtstart=first.replace(tzinfo=None)), 24
         )
     ]
     rule, shift = recurrence.stored(picked, first, str(zone), kind="event")
     assert rule == recurrence.normalize(picked, kind="event")
-    assert recurrence.first(rule, first, shift, 60) == wanted
+    assert recurrence.first(rule, first, shift, 24) == wanted
 
 
 def test_occurrences_come_from_the_stored_rule():
@@ -217,3 +218,42 @@ def test_a_series_splits_skips_and_takes_extra_starts():
         nine,
         nine + timedelta(hours=2, minutes=30),
     ) == nine + timedelta(hours=8, minutes=30)
+
+
+def test_a_walk_starts_near_its_window_and_ends_past_it():
+    """An hourly series from the year 1 lists a day of 2026 from its own
+    steps; a rule with no starts has none in any window; an open lookup finds
+    a start within fifty years, and a counted series ends within them."""
+    day = datetime(2026, 9, 30, tzinfo=UTC)
+    assert recurrence.between(
+        "RRULE:FREQ=HOURLY;INTERVAL=5",
+        datetime(1, 1, 1, 2, 30, tzinfo=UTC),
+        0,
+        day,
+        day + timedelta(hours=12),
+    ) == [datetime(2026, 9, 30, h, 30, tzinfo=UTC) for h in (0, 5, 10)]
+    # Every fifth month on the 31st, where a month has one, at 09:15.
+    start = datetime(1950, 1, 31, 9, 15)
+    assert recurrence.between(
+        "RRULE:FREQ=MONTHLY;INTERVAL=5",
+        start.replace(tzinfo=UTC),
+        0,
+        day,
+        day + timedelta(days=400),
+    ) == [
+        value.replace(tzinfo=UTC)
+        for value in rrulestr("RRULE:FREQ=MONTHLY;INTERVAL=5", dtstart=start).between(
+            day.replace(tzinfo=None), day.replace(tzinfo=None) + timedelta(days=400)
+        )
+    ]
+    never = "RRULE:FREQ=HOURLY;BYMONTH=2;BYMONTHDAY=30"
+    late = datetime(9000, 1, 1, tzinfo=UTC)
+    assert recurrence.between(never, day, 0, late, late + timedelta(days=400)) == []
+    assert recurrence.first(never, day, 0, 5) == []
+    assert recurrence.next_start(never, day) is None
+    assert recurrence.upcoming(never, day, 0, day) == day
+    leap = "RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29"
+    assert recurrence.first(leap, day, 0, 20)[-1] == datetime(2076, 2, 29, tzinfo=UTC)
+    assert recurrence.last_start(f"{leap};COUNT=20", day) == datetime(
+        2076, 2, 29, tzinfo=UTC
+    )
