@@ -338,7 +338,7 @@ export function EnvelopeImportDialog({
         open={open}
         onOpenChange={(next) => (next ? onOpenChange(true) : void handleDiscard())}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>{t("imports:envelope.title")}</DialogTitle>
             <DialogDescription>{t("imports:wizard.people.prompt")}</DialogDescription>

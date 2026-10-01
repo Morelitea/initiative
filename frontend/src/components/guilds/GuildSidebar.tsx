@@ -157,7 +157,7 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
   return (
     <Dialog open={open} onOpenChange={(next) => !submitting && setOpen(next)}>
       {trigger}
-      <DialogContent className="max-h-screen overflow-y-auto bg-card">
+      <DialogContent className="bg-card">
         <DialogHeader>
           <DialogTitle>{t("createGuildTitle")}</DialogTitle>
           <DialogDescription>{t("createGuildDescription")}</DialogDescription>

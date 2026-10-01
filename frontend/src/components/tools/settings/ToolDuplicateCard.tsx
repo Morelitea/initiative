@@ -114,7 +114,7 @@ export const ToolDuplicateCard = () => {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-screen overflow-y-auto bg-card">
+        <DialogContent className="bg-card">
           <DialogHeader>
             <DialogTitle>
               {t("toolSettings.duplicate.dialogTitle", { name: entity.name })}

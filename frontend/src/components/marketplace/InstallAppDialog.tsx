@@ -111,7 +111,7 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("apps:install.title", { name: listing.name })}</DialogTitle>
           <DialogDescription>{t("apps:install.description")}</DialogDescription>

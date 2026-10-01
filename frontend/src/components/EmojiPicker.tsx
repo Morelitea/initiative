@@ -63,7 +63,7 @@ export const EmojiPicker = ({
           gives way first — search and footer stay where they are.
         */}
         <PopoverContent
-          className="flex max-h-[var(--radix-popover-content-available-height)] w-fit flex-col overflow-hidden p-0"
+          className="flex w-fit flex-col overflow-hidden p-0"
           align="start"
           collisionPadding={8}
         >
