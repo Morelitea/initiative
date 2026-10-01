@@ -342,7 +342,8 @@ and `test_<checkout>_<worker>_*` (see `backend/conftest.py`). Concurrent runs fr
 different worktrees therefore don't share a database or drop each other's roles.
 Those databases persist so warm runs skip the migration; reclaim them with
 `cd backend && python scripts/drop_test_dbs.py` (add `--yes` to actually drop,
-`--all` for every checkout's).
+`--orphaned` for those of checkouts that no longer exist — safe while others
+test — or `--all` for every checkout's).
 
 Parallelism is per-invocation. `-n auto` pays for itself on a big run — measured
 6m29s → 1m52s on `app/services` (1363 tests, 16 cores) — and costs more than it
