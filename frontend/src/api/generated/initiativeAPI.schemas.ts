@@ -3609,6 +3609,7 @@ export interface EmailOtpRegister {
   timezone?: string | null;
   invite_code?: string | null;
   community?: NewCommunity | null;
+  username_offer?: string | null;
   birthdate?: string | null;
 }
 
@@ -6678,6 +6679,7 @@ export interface PasskeySignUpFinish {
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
+  username_offer?: string | null;
   birthdate?: string | null;
   credential: PasskeySignUpFinishCredential;
   /**
@@ -6716,6 +6718,7 @@ export interface PasskeySignUpStart {
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
+  username_offer?: string | null;
   birthdate?: string | null;
 }
 
@@ -8926,6 +8929,7 @@ export interface UserCreate {
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
+  username_offer?: string | null;
   birthdate?: string | null;
 }
 
@@ -9168,6 +9172,8 @@ export interface UserViewPreferencesMap {
 export interface UsernameAvailabilityResponse {
   available: boolean;
   reason?: string | null;
+  discriminator?: number | null;
+  offer?: string | null;
 }
 
 /**
@@ -9180,6 +9186,7 @@ export interface UsernameAvailabilityResponse {
 export interface UsernameClaim {
   /** @maxLength 64 */
   username: string;
+  offer?: string | null;
 }
 
 /**

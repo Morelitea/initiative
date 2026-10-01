@@ -54,5 +54,8 @@ class EmailOtpRegister(SanitizedBaseModel):
     timezone: Optional[str] = None
     invite_code: Optional[str] = None
     community: Optional[NewCommunity] = None
+    # The signed number the name check showed beside the handle, kept if
+    # still free.
+    username_offer: Optional[str] = Field(default=None, max_length=1024)
     # Answers the directory's age question at sign-up; the date is not kept.
     birthdate: Optional[date] = None
