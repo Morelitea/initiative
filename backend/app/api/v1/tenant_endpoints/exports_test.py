@@ -2195,6 +2195,17 @@ async def test_calendar_export_applies_calendar_sharing(
             ids=[calendar.id],
         )
         assert denied.status_code == 403, calendar.name
+    # A filter narrows a selection after it is authorized, never instead of it.
+    filtered = await _export(
+        client,
+        a,
+        "calendar",
+        headers=b.headers,
+        format="ics",
+        ids=[own_cal.id, secret_cal.id],
+        filters=json.dumps({"archived": False}),
+    )
+    assert filtered.status_code == 403
 
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     admin_resp = await _export(

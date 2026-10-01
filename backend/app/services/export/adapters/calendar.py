@@ -97,7 +97,7 @@ class CalendarAdapter(ToolExportAdapter):
                 .select_from(CalendarEvent)
                 .where(
                     CalendarEvent.calendar_id.in_(calendar_ids),
-                    *_window(filters),
+                    *_window(filters, params.get("tz")),
                 )
             )
         ).one()
@@ -190,7 +190,9 @@ class CalendarAdapter(ToolExportAdapter):
         # Every event across every calendar, once: the builders below are
         # synchronous and hold no session.
         by_calendar = {calendar.id: list(calendar.events) for calendar in calendars}
-        window = _window(ctx.filters)
+        # The clock was read in the viewer's zone, which is the one their
+        # range's days were picked in.
+        window = _window(ctx.filters, getattr(ctx.now.tzinfo, "key", None))
         if window and by_calendar:
             kept = set(
                 await session.exec(
@@ -276,14 +278,15 @@ def _envelope(calendar: Calendar, event_dicts: list[dict]) -> dict[str, Any]:
     }
 
 
-def _window(filters: BaseModel | None) -> list:
-    """The WHERE legs of the export's ``events`` range; none without one."""
+def _window(filters: BaseModel | None, tz: str | None) -> list:
+    """The WHERE legs of the export's ``events`` range, its all-day days read
+    in ``tz``; none without a range."""
     from app.api.v1.tenant_endpoints.calendar_events import series_in_window
 
     window = getattr(filters, "events", None)
     if window is None:
         return []
-    return series_in_window(window.start_after, window.start_before)
+    return series_in_window(window.start_after, window.start_before, tz)
 
 
 def _optional_int(params: dict, key: str) -> int | None:

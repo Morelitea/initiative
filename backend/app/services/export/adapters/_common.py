@@ -227,18 +227,23 @@ class ToolExportAdapter:
         params: dict,
         format: str,
     ) -> list[Any]:
-        """Every selected entity the tool's filters leave, fetched and
-        authorized one by one."""
-        ids = await narrow(
-            session,
-            user,
-            self.tool,
-            parse_filters(self.tool, params.get("filters")),
-            self.selection(params),
-        )
-        return [
+        """Every selected entity, fetched and authorized one by one, then
+        narrowed to those the tool's filters leave. A selection is refused
+        whole if any of it is, filtered out or not."""
+        ids = self.selection(params)
+        entities = [
             await self.fetch(session, user, guild_id, entity_id) for entity_id in ids
         ]
+        kept = set(
+            await narrow(
+                session,
+                user,
+                self.tool,
+                parse_filters(self.tool, params.get("filters")),
+                ids,
+            )
+        )
+        return [entity for entity_id, entity in zip(ids, entities) if entity_id in kept]
 
     async def count(
         self,

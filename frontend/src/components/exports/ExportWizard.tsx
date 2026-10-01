@@ -330,6 +330,9 @@ function AggregateExportWizard({
     { query: { enabled: open && step === "backup" } }
   );
   const estimate = estimateQuery.data;
+  // The numbers below describe the filters as they were when asked; until
+  // they describe the current ones, the backup step waits for them.
+  const estimateCurrent = estimateFilters === filtersParam && !estimateQuery.isFetching;
 
   const toolDisabled = (tool: Tool) => estimate?.tools?.[tool]?.disabled === true;
 
@@ -550,7 +553,13 @@ function AggregateExportWizard({
           )}
           <Button
             className="w-full"
-            disabled={!anyIncluded || overRowLimit || overUploadLimit || blockedForNoDestination}
+            disabled={
+              !estimateCurrent ||
+              !anyIncluded ||
+              overRowLimit ||
+              overUploadLimit ||
+              blockedForNoDestination
+            }
             onClick={() => go("confirm")}
           >
             {t("wizard.next")}

@@ -102,6 +102,7 @@ async def _query(
         property_filters=params.get("property_filters"),
         start_after=_instant(params.get("start_after")),
         start_before=_instant(params.get("start_before")),
+        tz=params.get("tz"),
         whole_series=True,
         page=page,
         page_size=1,
