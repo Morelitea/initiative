@@ -50,10 +50,5 @@ export const usePendingProperties = (saved: PropertySummary[]) => {
     [savedIds]
   );
 
-  // An addition the server refused comes off again, so it can be added anew.
-  const discard = useCallback((ids: number[]) => {
-    setPending((prev) => prev.filter((def) => !ids.includes(def.id)));
-  }, []);
-
-  return { properties, propertyIds, unsavedIds, add, discard };
+  return { properties, propertyIds, unsavedIds, add };
 };

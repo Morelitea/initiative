@@ -24,8 +24,6 @@ export interface PropertyListProps {
    * writer of this row's values.
    */
   unsaved?: number[];
-  /** Told which of `unsaved` a refused save was attaching. */
-  onUnsavedRefused?: (ids: number[]) => void;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -73,7 +71,6 @@ export const PropertyList = ({
   initiativeId,
   canOpen,
   unsaved,
-  onUnsavedRefused,
 }: PropertyListProps) => {
   const { t } = useTranslation("properties");
 
@@ -134,11 +131,6 @@ export const PropertyList = ({
   const latestRemovedRef = useRef<Set<number>>(removedIds);
   latestRemovedRef.current = removedIds;
 
-  const latestUnsavedRef = useRef(unsaved);
-  latestUnsavedRef.current = unsaved;
-  // Additions a save has been asked to attach.
-  const requestedRef = useRef<Set<number>>(new Set());
-
   const scheduleSave = useCallback(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -146,22 +138,12 @@ export const PropertyList = ({
     saveTimeoutRef.current = setTimeout(() => {
       saveTimeoutRef.current = null;
       const payload = buildPayload(latestDraftsRef.current, properties, latestRemovedRef.current);
-      const attaching = (latestUnsavedRef.current ?? []).filter((id) =>
-        payload.some((value) => value.property_id === id)
-      );
       mutate(
         { target, id: entityId, values: payload },
-        {
-          onError: () => {
-            if (attaching.length === 0) return;
-            for (const id of attaching) requestedRef.current.delete(id);
-            onUnsavedRefused?.(attaching);
-          },
-          onSettled: () => pendingRef.current.clear(),
-        }
+        { onSettled: () => pendingRef.current.clear() }
       );
     }, SAVE_DEBOUNCE_MS);
-  }, [target, entityId, properties, mutate, onUnsavedRefused]);
+  }, [target, entityId, properties, mutate]);
 
   useEffect(
     () => () => {
@@ -172,6 +154,7 @@ export const PropertyList = ({
 
   // An added property is attached by saving the whole list, carrying any
   // value just entered for another one.
+  const requestedRef = useRef<Set<number>>(new Set());
   useEffect(() => {
     const added = (unsaved ?? []).filter((id) => !requestedRef.current.has(id));
     if (added.length === 0) return;

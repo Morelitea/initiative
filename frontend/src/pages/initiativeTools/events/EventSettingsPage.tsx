@@ -508,7 +508,6 @@ export function EventSettingsPage() {
               entityId={eventId}
               properties={attachedProperties.properties}
               unsaved={attachedProperties.unsavedIds}
-              onUnsavedRefused={attachedProperties.discard}
               initiativeId={event.initiative_id}
               canOpen={{ tool: Tool.calendar, id: event.calendar_id }}
             />
