@@ -1,11 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="13.6 1.1 36.8 36.8">
   <style>
-    .body { animation: tilt 2.5s ease-in-out infinite; transform-origin: 32px 40px; }
+    .body { animation: tilt 2.5s ease-in-out infinite; transform-origin: 32px 14px; }
     .lid { animation: blink 4s ease-in-out infinite; transform: scaleY(0); }
     .lid-l { transform-origin: 29.63px 21.15px; }
     .lid-r { transform-origin: 36.56px 19.69px; }
     .dot { animation: dots 1.5s ease-in-out infinite; }
-    @keyframes tilt { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-4deg); } }
+    @keyframes tilt { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-3deg); } }
     @keyframes blink { 0%, 92%, 100% { transform: scaleY(0); } 95% { transform: scaleY(1); } }
     @keyframes dots { 0%, 100% { opacity: 0.25; } 30%, 70% { opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { [class] { animation: none; } }
@@ -25,8 +25,8 @@
       <ellipse cx="36.56" cy="21.44" rx="1.15" ry="1.75" fill="#1E1916"/>
       <path d="M35.53 21.62 Q 36.56 23.02 37.59 21.62" fill="none" stroke="#F4EBDD" stroke-width="0.55" stroke-linecap="round"/>
     </g>
-    <circle class="dot" style="animation-delay: 0s" cx="48" cy="30" r="1.0" fill="#F4EBDD" stroke="#1E1916" stroke-width="0.5"/>
-    <circle class="dot" style="animation-delay: 0.2s" cx="51.5" cy="26" r="1.4" fill="#F4EBDD" stroke="#1E1916" stroke-width="0.5"/>
-    <circle class="dot" style="animation-delay: 0.4s" cx="55.5" cy="20.5" r="1.9" fill="#F4EBDD" stroke="#1E1916" stroke-width="0.5"/>
+    <circle class="dot" style="animation-delay: 0s" cx="42.6" cy="28.4" r="0.7" fill="#F4EBDD" stroke="#1E1916" stroke-width="0.35"/>
+    <circle class="dot" style="animation-delay: 0.2s" cx="44.6" cy="25.4" r="0.95" fill="#F4EBDD" stroke="#1E1916" stroke-width="0.35"/>
+    <circle class="dot" style="animation-delay: 0.4s" cx="46.8" cy="21.8" r="1.25" fill="#F4EBDD" stroke="#1E1916" stroke-width="0.35"/>
   </g>
 </svg>

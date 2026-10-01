@@ -1,9 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="13.6 1.1 36.8 36.8">
   <style>
-    .body { animation: tilt 2.5s ease-in-out infinite; transform-origin: 32px 40px; }
+    .body { animation: tilt 2.5s ease-in-out infinite; transform-origin: 32px 14px; }
     .lid { animation: blink 4s ease-in-out infinite; transform: scaleY(0); }
     .lid-r { transform-origin: 36.56px 19.69px; }
-    @keyframes tilt { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-4deg); } }
+    @keyframes tilt { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-3deg); } }
     @keyframes blink { 0%, 92%, 100% { transform: scaleY(0); } 95% { transform: scaleY(1); } }
     @media (prefers-reduced-motion: reduce) { [class] { animation: none; } }
   </style>

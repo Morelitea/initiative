@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="13.6 1.1 36.8 36.8">
   <style>
-    .body { animation: rock 1.2s ease-in-out infinite; transform-origin: 32px 40px; }
+    .body { animation: bounce 2s ease-in-out infinite; }
     .lid { animation: blink 4s ease-in-out infinite; transform: scaleY(0); }
     .lid-l { transform-origin: 29.63px 21.15px; }
     .lid-r { transform-origin: 36.56px 19.69px; }
     .ear { animation: wave 0.6s ease-in-out infinite; transform-origin: 38.1px 18.48px; }
-    @keyframes rock { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+    @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.8px); } }
     @keyframes blink { 0%, 92%, 100% { transform: scaleY(0); } 95% { transform: scaleY(1); } }
-    @keyframes wave { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(10deg); } }
+    @keyframes wave { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(5deg); } }
     @media (prefers-reduced-motion: reduce) { [class] { animation: none; } }
   </style>
   <g class="body">
