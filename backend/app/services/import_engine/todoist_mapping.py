@@ -29,8 +29,12 @@ from __future__ import annotations
 
 import csv
 import io
+import re
+from datetime import date, datetime, time, timezone
 from typing import Any, Optional
 
+from app.core import recurrence
+from app.core.user_input_validators import resolve_zone
 from app.models.tenant.task import TaskPriority
 from app.services.import_engine.mapping import (
     DEFAULT_TAG_COLOR,
@@ -39,6 +43,7 @@ from app.services.import_engine.mapping import (
     SourceOption,
     build_envelope,
     iso_from_date,
+    repeat_fields,
     statuses_from_names,
 )
 
@@ -93,6 +98,173 @@ def _int(value: str, default: int) -> int:
         return default
 
 
+# A repeating Todoist task's DATE is the phrase it was typed as ("every
+# monday at 9am", "every! 2 weeks"), and the export drops when the repeat
+# started. What follows reads the phrases Todoist documents in English; any
+# other phrase, or language, leaves the task without its repeat.
+
+_WEEKDAYS = {
+    **dict.fromkeys(("monday", "mon"), "MO"),
+    **dict.fromkeys(("tuesday", "tue", "tues"), "TU"),
+    **dict.fromkeys(("wednesday", "wed"), "WE"),
+    **dict.fromkeys(("thursday", "thu", "thur", "thurs"), "TH"),
+    **dict.fromkeys(("friday", "fri"), "FR"),
+    **dict.fromkeys(("saturday", "sat"), "SA"),
+    **dict.fromkeys(("sunday", "sun"), "SU"),
+}
+_WORKDAYS = "MO,TU,WE,TH,FR"
+_MONTHS = {
+    name: number
+    for number, names in enumerate(
+        (
+            ("january", "jan"),
+            ("february", "feb"),
+            ("march", "mar"),
+            ("april", "apr"),
+            ("may",),
+            ("june", "jun"),
+            ("july", "jul"),
+            ("august", "aug"),
+            ("september", "sep", "sept"),
+            ("october", "oct"),
+            ("november", "nov"),
+            ("december", "dec"),
+        ),
+        start=1,
+    )
+    for name in names
+}
+_ORDINALS = {
+    **dict.fromkeys(("first", "1st"), 1),
+    **dict.fromkeys(("second", "2nd"), 2),
+    **dict.fromkeys(("third", "3rd"), 3),
+    **dict.fromkeys(("fourth", "4th"), 4),
+    **dict.fromkeys(("fifth", "5th"), 5),
+    "last": -1,
+}
+_UNITS = {"day": "DAILY", "week": "WEEKLY", "month": "MONTHLY", "year": "YEARLY"}
+_SHORTHAND = {
+    "daily": "every day",
+    "everyday": "every day",
+    "weekly": "every week",
+    "monthly": "every month",
+    "yearly": "every year",
+}
+#: ``every!``, ``ev!`` and ``after`` count from when the task is done.
+_PREFIX = re.compile(r"(every!|ev!|every|ev|after)\s+(.+)")
+_AT = re.compile(r"\s+at\s+(.+)$")
+_CLOCK = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)?")
+_DAY_OF_MONTH = re.compile(r"(\d{1,2})(?:st|nd|rd|th)?")
+
+
+def _clock(text: str) -> time | None:
+    if text in ("noon", "midnight"):
+        return time(12 if text == "noon" else 0)
+    match = _CLOCK.fullmatch(text)
+    if match is None:
+        return None
+    hour, minute, half = int(match[1]), int(match[2] or 0), match[3]
+    if half:
+        if not 1 <= hour <= 12:
+            return None
+        hour = hour % 12 + (12 if half == "pm" else 0)
+    return time(hour, minute) if hour < 24 and minute < 60 else None
+
+
+def _month_day(text: str) -> int | None:
+    if text == "last day":
+        return -1
+    match = _DAY_OF_MONTH.fullmatch(text)
+    return int(match[1]) if match and 1 <= int(match[1]) <= 31 else None
+
+
+def _rule(body: str) -> str | None:
+    """What follows "every" as an RRULE."""
+    if body in ("weekday", "workday"):
+        return f"FREQ=WEEKLY;BYDAY={_WORKDAYS}"
+    if body in _UNITS:
+        return f"FREQ={_UNITS[body]}"
+    if match := re.fullmatch(r"(\d+|other)\s+(day|week|month|year)s?", body):
+        interval = 2 if match[1] == "other" else int(match[1])
+        return f"FREQ={_UNITS[match[2]]};INTERVAL={interval}"
+    words = body.split()
+    if len(words) == 2 and words[0] == "other" and words[1] in _WEEKDAYS:
+        return f"FREQ=WEEKLY;INTERVAL=2;BYDAY={_WEEKDAYS[words[1]]}"
+    if len(words) == 2 and words[0] in _ORDINALS:
+        nth = _ORDINALS[words[0]]
+        if words[1] in _WEEKDAYS:
+            return f"FREQ=MONTHLY;BYDAY={nth}{_WEEKDAYS[words[1]]}"
+        if words[1] == "workday" and nth in (1, -1):
+            return f"FREQ=MONTHLY;BYDAY={_WORKDAYS};BYSETPOS={nth}"
+    if len(words) == 2 and (words[0] in _MONTHS or words[1] in _MONTHS):
+        month, day = words if words[0] in _MONTHS else words[::-1]
+        if (number := _month_day(day)) is not None and number > 0:
+            return f"FREQ=YEARLY;BYMONTH={_MONTHS[month]};BYMONTHDAY={number}"
+    items = [item.strip() for item in re.split(r",|\s+and\s+", body) if item.strip()]
+    if items and all(item in _WEEKDAYS for item in items):
+        days = dict.fromkeys(_WEEKDAYS[item] for item in items)
+        return f"FREQ=WEEKLY;BYDAY={','.join(days)}"
+    month_days = [_month_day(item) for item in items]
+    if items and None not in month_days:
+        days = dict.fromkeys(str(day) for day in month_days)
+        return f"FREQ=MONTHLY;BYMONTHDAY={','.join(days)}"
+    return None
+
+
+def _repeat(phrase: str) -> tuple[str, bool, time | None] | None:
+    """A Todoist repeat phrase as an RRULE, whether it counts from completion,
+    and the time of day it names."""
+    text = " ".join(phrase.lower().split())
+    at = None
+    if match := _AT.search(text):
+        at = _clock(match[1])
+        if at is None:
+            return None
+        text = text[: match.start()]
+    text = _SHORTHAND.get(text, text)
+    match = _PREFIX.fullmatch(text)
+    if match is None:
+        return None
+    prefix, body = match.groups()
+    if prefix == "after" and not re.fullmatch(r"\d+\s+(day|week|month|year)s?", body):
+        return None
+    rule = _rule(body)
+    rolling = prefix in ("every!", "ev!", "after")
+    return (f"RRULE:{rule}", rolling, at) if rule else None
+
+
+def _repeating(
+    phrase: str, zone: str | None, now: datetime, deadline: str | None
+) -> dict[str, Any]:
+    """A repeating task's due date and repeat fields. The export drops when
+    the repeat started, so it is due on its first date from ``now``: today's
+    date, or a time of day still to come. A time of day is in the task's zone;
+    without one the task is a day, which the app reads at midnight UTC, as it
+    does a plain Todoist date. A deadline beside a repeat is when it stops."""
+    found = _repeat(phrase)
+    if found is None:
+        return {}
+    rule, rolling, at = found
+    tz = zone if at else None
+    if deadline:
+        # The end of the deadline's day where the repeat's times are read.
+        end = datetime.combine(
+            date.fromisoformat(deadline[:10]), time(23, 59, 59), resolve_zone(tz)
+        )
+        rule += f";UNTIL={end.astimezone(timezone.utc):%Y%m%dT%H%M%SZ}"
+    anchor = datetime.combine(
+        now.astimezone(resolve_zone(tz)).date(), at or time(), resolve_zone(tz)
+    )
+    fields = repeat_fields(rule, anchor.isoformat(), tz, rolling=rolling)
+    if not fields:
+        return {}
+    starts = recurrence.first(
+        fields["recurrence"], anchor, fields["recurrence_shift"], 2
+    )
+    due = next((start for start in starts if at is None or start >= now), None)
+    return {"due_date": due.isoformat(), **fields} if due else {}
+
+
 def _person(raw: str) -> str:
     """Todoist writes a person as ``name (12345)``; the name is the part that
     means anything anywhere else."""
@@ -124,13 +296,16 @@ def build_project_envelope(
     *,
     selection: str,
     app_version: str,
+    now: datetime | None = None,
 ) -> MappedProject:
     """The whole export as the envelope an ordinary import applies.
 
     ``selection`` is the name to give the project. Todoist writes the
     project's own name nowhere in the file, so unlike the other sources there
-    is nothing to pick between — what the wizard collects is a name.
+    is nothing to pick between — what the wizard collects is a name. ``now``
+    is when a repeating task's next date is counted from.
     """
+    now = now or datetime.now(timezone.utc)
     rows = _rows(content)
     section_names: list[str] = []
     current_section: Optional[str] = None
@@ -205,6 +380,14 @@ def build_project_envelope(
             task["due_date"] = due
         if start:
             task["start_date"] = start
+        # A repeating DATE is a phrase rather than a date. It says when the
+        # task is due and how it repeats, until any deadline beside it.
+        if _cell(row, "DATE_LANG") in ("", "en"):
+            task.update(
+                _repeating(
+                    _cell(row, "DATE"), _cell(row, "TIMEZONE") or None, now, deadline
+                )
+            )
         assignee = _person(_cell(row, "RESPONSIBLE"))
         if assignee:
             task["assignee_handles"] = [assignee]

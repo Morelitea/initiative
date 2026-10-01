@@ -27,6 +27,7 @@ from app.testing.factories import (
 )
 from app.services.import_engine import limits as import_limits
 from app.db.request_context import SystemGuild
+from app.testing import drain_notices
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +433,7 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     ).one()
     assert imported.created_by == a.user.id  # applied AS the creator
 
+    await drain_notices()
     notifications = list(
         await session.exec(
             select(Notification).where(Notification.user_id == a.user.id)
@@ -4661,6 +4663,7 @@ async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_tok
     job = (await client.get(a.g(f"/imports/jobs/{job_id}"), headers=a.headers)).json()
     assert job["status"] == ImportJobStatus.failed.value
     assert job["error"] == "IMPORT_SOURCE_UNREACHABLE"
+    await drain_notices()
     failed = [
         n
         for n in (

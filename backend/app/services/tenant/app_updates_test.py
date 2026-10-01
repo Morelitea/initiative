@@ -36,6 +36,7 @@ from app.testing import (
     create_user,
     marketplace_uid,
     route_session_to_guild,
+    drain_notices,
 )
 
 
@@ -535,6 +536,7 @@ class TestVersionsThatAskForMore:
 
         await notify_pending_updates(session, guild.id, asked)
         await session.commit()
+        await drain_notices()
         notices = (
             await session.exec(
                 select(Notification).where(
