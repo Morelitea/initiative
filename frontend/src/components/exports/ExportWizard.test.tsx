@@ -10,6 +10,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { dateRangeParams } from "@/components/ui/date-range-field";
+import { EMPTY_TASK_FILTERS, taskSpecConditions } from "@/lib/filters/taskFilters";
 
 import { ExportWizard } from "./ExportWizard";
 
@@ -304,6 +305,67 @@ describe("ExportWizard", () => {
     expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
   });
 
+  it("narrows each project's tasks by the task list's filters", async () => {
+    const estimates: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/estimate", ({ request }) => {
+        estimates.push(new URL(request.url).searchParams);
+        return HttpResponse.json(ESTIMATE);
+      })
+    );
+    let sent: URL | null = null;
+    stubJobLifecycle((url) => {
+      sent = url;
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "initiative", initiativeId: 5 }} open onOpenChange={() => {}} />
+    );
+    await user.click(screen.getByRole("button", { name: /importable backup/i }));
+    await screen.findByText("3 items");
+
+    // Done tasks due this week, archived ones left out.
+    const projects = screen.getByRole("group", { name: "Projects" });
+    await user.click(within(projects).getByRole("button", { name: "Filter Projects" }));
+    await user.click(within(projects).getByRole("combobox", { name: "Filter by status" }));
+    await user.click(await screen.findByRole("option", { name: "Done" }));
+    await user.keyboard("{Escape}");
+    await user.click(within(projects).getByRole("combobox", { name: "Due filter" }));
+    await user.click(await screen.findByRole("option", { name: "Due next 7 days" }));
+    await user.click(within(projects).getByRole("switch", { name: "Show archived" }));
+
+    const expected = {
+      project: {
+        tasks: {
+          conditions: JSON.stringify(
+            taskSpecConditions({
+              ...EMPTY_TASK_FILTERS,
+              status_categories: ["done"],
+              due: "7_days",
+            })
+          ),
+          include_archived: false,
+        },
+      },
+    };
+    await waitFor(() =>
+      expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
+    );
+    expect(within(projects).getByRole("button", { name: "Filter Projects" })).toHaveTextContent(
+      "1"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      screen.getByText("Projects: Tasks (1 status, Due next 7 days, without archived)")
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
+  });
+
   it("exports named calendars in the chosen format, narrowed to a date range", async () => {
     let sent: URLSearchParams | null = null;
     server.use(
@@ -343,6 +405,55 @@ describe("ExportWizard", () => {
     const now = new Date();
     expect(JSON.parse(sent!.get("filters")!)).toEqual({
       events: dateRangeParams({ from: startOfMonth(now), until: startOfDay(endOfMonth(now)) }),
+    });
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+  });
+
+  it("exports named projects in the chosen format, narrowed to the filtered tasks", async () => {
+    let sent: URLSearchParams | null = null;
+    server.use(
+      guildHttp.get("/exports/project", ({ request }) => {
+        sent = new URL(request.url).searchParams;
+        return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
+      })
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ExportWizard
+        scope={{
+          kind: "entities",
+          tool: Tool.project,
+          ids: [3],
+          formats: TOOL_EXPORT_FORMATS[Tool.project] ?? [],
+          filenameStem: "projects",
+        }}
+        open
+        onOpenChange={() => {}}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "CSV" }));
+    expect(screen.getByText("Choose which tasks to export")).toBeInTheDocument();
+    // A report leaves archived tasks out, as its task list does, until asked.
+    expect(screen.getByRole("switch", { name: "Show archived" })).not.toBeChecked();
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(await screen.findByRole("option", { name: "To do" }));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Tasks (1 status)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(sent!.getAll("ids")).toEqual(["3"]);
+    expect(sent!.get("format")).toBe("csv");
+    expect(JSON.parse(sent!.get("filters")!)).toEqual({
+      tasks: {
+        conditions: JSON.stringify(
+          taskSpecConditions({ ...EMPTY_TASK_FILTERS, status_categories: ["todo"] })
+        ),
+        include_archived: false,
+      },
     });
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
   });
