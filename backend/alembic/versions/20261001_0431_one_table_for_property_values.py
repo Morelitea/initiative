@@ -8,10 +8,8 @@ then drops those three.
 The new table records no ``created_by`` / ``updated_by``: a value belongs to the
 initiative, not to whoever set it, so those columns are not carried over.
 
-The copy reads tables that have FORCE ROW LEVEL SECURITY, which binds even the
-owner the migration runs as, and the policies key on request GUCs a migration
-has no value for. So each source has FORCE lifted for the copy (it is dropped
-right after), and the row counts are asserted to match.
+Each source is read in full for the copy, and the row counts are asserted to
+match.
 
 Order is create -> backfill -> drop. RLS, its policies and the grants are NOT
 written here: provisioning renders those from the registries, and the boot
@@ -132,10 +130,7 @@ def _copy_sources() -> None:
         ).scalar():
             continue
 
-        # FORCE binds the owner this migration runs as, and the policies key on
-        # request GUCs it has no value for, so the copy would read zero rows and
-        # report success. Lifted for the copy; the table is dropped immediately
-        # after, so there is nothing to restore it on.
+        # Read in full for the copy; the table is dropped right after.
         op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
         expected = bind.execute(sa.text(f"SELECT count(*) FROM {table}")).scalar()  # noqa: S608
 
@@ -176,7 +171,7 @@ def _apply_downgrade() -> None:
     go with it. The rebuilt tables have the shape their rows need, not every
     index they once carried.
     """
-    # Read under FORCE, the copy would see nothing; the table is dropped below.
+    # Read in full for the copy; the table is dropped below.
     op.execute("ALTER TABLE property_values NO FORCE ROW LEVEL SECURITY")
     for table, key, target in _SOURCES:
         parent = {
