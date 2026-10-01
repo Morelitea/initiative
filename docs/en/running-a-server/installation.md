@@ -119,6 +119,24 @@ docker compose pull && docker compose up -d
 
 Three days is the least a release waits, not a timer: `stable` moves when we promote the next release that qualifies, so it can sit on one version for a while. A release with a security fix can reach it sooner. And `stable` only works because people run `latest`: a bug report with the **Version** filled in is exactly what holds a release back from it.
 
+### Checking an image is ours
+
+You never have to. But every image is signed by the workflow that built it, and carries a list of everything inside it (an SBOM) and a record of how it was built. If your setup checks images before running them, this is the check, using [cosign](https://docs.sigstore.dev/cosign/system_config/installation/):
+
+```bash
+cosign verify morelitea/initiative:stable \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/Morelitea/initiative/\.github/workflows/docker-image\.yml@refs/(heads/(main|release/v.+)|tags/v.+)$'
+```
+
+It passes only for an image our release workflow built from a release branch or tag. Images from `dev` are signed as well, from `refs/heads/dev`, which this deliberately doesn't accept.
+
+To read the SBOM:
+
+```bash
+docker buildx imagetools inspect morelitea/initiative:stable --format '{{ json .SBOM }}'
+```
+
 ## First-time setup checklist
 
 Once it's running:

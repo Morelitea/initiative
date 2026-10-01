@@ -57,6 +57,8 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
+    permissions:
+      contents: read
     # Holds OTA_SIGNING_KEY, the key the app's updates are signed with.
     environment: ${{ inputs.signing-environment }}
     steps:
@@ -145,6 +147,10 @@ jobs:
           # line-per-entry `secrets` input splits apart.
           secret-envs: ${{ inputs.signing-environment != '' && 'ota_signing_key=OTA_SIGNING_KEY' || '' }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          # What the image holds and how it was built, attached to it: the
+          # merge below and every retag after it carry them along.
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
 
       - name: Export digest
@@ -166,6 +172,10 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
+      # The signature's certificate names this workflow and the ref it ran on.
+      id-token: write
     outputs:
       digest: ${{ steps.inspect.outputs.digest }}
     steps:
@@ -208,3 +218,17 @@ jobs:
           docker buildx imagetools inspect "$IMAGE_NAME:$VERSION"
           digest=$(docker buildx imagetools inspect "$IMAGE_NAME:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Install cosign
+        if: steps.inspect.outputs.digest != ''
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign the image
+        # Keyless: the certificate is issued to this workflow on the ref it ran
+        # on, and the signature is entered in the public transparency log, so
+        # there is no key to keep. Signing the digest signs every tag that
+        # names it, now and after a retag.
+        if: steps.inspect.outputs.digest != ''
+        env:
+          DIGEST: ${{ steps.inspect.outputs.digest }}
+        run: cosign sign --yes "$IMAGE_NAME@$DIGEST"
