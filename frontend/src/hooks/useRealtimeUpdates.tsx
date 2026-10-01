@@ -5,10 +5,11 @@ import { apiClient, getAuthToken } from "@/api/client";
 import type { DashboardDataResponse } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
+import { type CommentThreadParams, syncCommentsInThread } from "@/hooks/useComments";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { queryClient } from "@/lib/queryClient";
-import { TOOLS, toolPlural } from "@/lib/tools";
+import { singularOf, TOOLS, toolPlural } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
@@ -87,17 +88,6 @@ const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
   apps: () => [q.apps()],
 };
 
-/**
- * What a change to a child makes stale ON the parent it hangs off.
- *
- * The one thing naming the parent does not cover: these queries are keyed by
- * the parent rather than by the child, so nothing about the child's own id
- * reaches them.
- */
-const PARENT_SPECS: Record<string, (parent: ResourceRef) => Spec[]> = {
-  comments: (parent) => [q.commentsOnResource(parent.type, parent.id)],
-};
-
 const isRef = (value: unknown): value is ResourceRef => {
   const ref = value as ResourceRef | undefined;
   return typeof ref?.type === "string" && Number.isFinite(ref?.id);
@@ -108,23 +98,30 @@ const refKey = (ref: ResourceRef) => `${ref.type}:${ref.id}`;
 /**
  * Refresh everything a batch of changes made stale, in one pass over the cache.
  *
- * Two passes over the same batch collect the description: the resources named
- * (the change itself, and every resource it sits inside), then the parent-keyed
- * queries only a child can point at. Nothing is matched until both are in hand,
- * so three hundred comments on one task cost the same single walk as one — and
- * the repeats among them collapse when the specs merge.
+ * The batch is read once for the resources it names (the change itself, and
+ * every resource it sits inside) and nothing is matched until all of them are
+ * in hand, so three hundred changes on one task cost the same single walk as
+ * one — and the repeats among them collapse when the specs merge.
+ *
+ * A comment thread is the exception: it is keyed by the thing it hangs off,
+ * and it is brought up to date rather than read again — the comments the batch
+ * named are read back one by one and put into the pages already open.
  */
-export const applyChanges = (changes: readonly RealtimeChange[], guildId?: number) => {
+export const applyChanges = (changes: readonly RealtimeChange[], guildId: number) => {
   const refs = new Map<string, ResourceRef>();
-  const effects = new Map<string, [string, ResourceRef]>();
+  const threads = new Map<string, { parent: ResourceRef; commentIds: Set<number> }>();
 
   for (const change of changes) {
     const resource = change.resource;
     const parents = (change.parents ?? []).filter(isRef);
     if (isRef(resource)) {
       refs.set(refKey(resource), resource);
-      if (parents[0]) {
-        effects.set(`${resource.type}|${refKey(parents[0])}`, [resource.type, parents[0]]);
+      // The innermost parent is what the comment's thread hangs off.
+      const parent = parents[0];
+      if (resource.type === "comments" && parent) {
+        const thread = threads.get(refKey(parent)) ?? { parent, commentIds: new Set() };
+        thread.commentIds.add(resource.id);
+        threads.set(refKey(parent), thread);
       }
     }
     for (const parent of parents) {
@@ -136,25 +133,27 @@ export const applyChanges = (changes: readonly RealtimeChange[], guildId?: numbe
   for (const ref of refs.values()) {
     specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id) ?? []));
   }
-  for (const [childType, parent] of effects.values()) {
-    specs.push(...(PARENT_SPECS[childType]?.(parent) ?? []));
-  }
   if (specs.length > 0) void invalidate(...specs);
+
+  for (const { parent, commentIds } of threads.values()) {
+    // A thread is keyed by its parent's singular `{parent}_id`, the same
+    // derivation the backend makes from the parent's table.
+    const params: CommentThreadParams = { [`${singularOf(parent.type)}_id`]: parent.id };
+    void syncCommentsInThread(guildId, params, [...commentIds]);
+  }
 
   // A dashboard's answer is keyed by the dashboard, not by anything a change
   // names, so it is matched by what its widgets read: stale when a change is
   // to one of those tables, in its initiative. Initiative ids are per guild,
   // so only this guild's canvases are asked.
-  if (guildId !== undefined) {
-    const [scope, kind] = dashboardDataKey(guildId, 0);
-    void queryClient.invalidateQueries({
-      predicate: (query) =>
-        query.queryKey[0] === scope &&
-        query.queryKey[1] === kind &&
-        query.queryKey[2] === guildId &&
-        canvasIsStale(query.state.data as DashboardDataResponse | undefined, changes),
-    });
-  }
+  const [scope, kind] = dashboardDataKey(guildId, 0);
+  void queryClient.invalidateQueries({
+    predicate: (query) =>
+      query.queryKey[0] === scope &&
+      query.queryKey[1] === kind &&
+      query.queryKey[2] === guildId &&
+      canvasIsStale(query.state.data as DashboardDataResponse | undefined, changes),
+  });
 };
 
 export const useRealtimeUpdates = () => {

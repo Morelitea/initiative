@@ -1,13 +1,10 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListCommentsApiV1CGuildIdCommentsGetQueryKey,
-  listCommentsApiV1CGuildIdCommentsGet,
-} from "@/api/generated/comments/comments";
-import {
   getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
   readDocumentApiV1CGuildIdDocumentsDocumentIdGet,
 } from "@/api/generated/documents/documents";
+import { commentThreadQueryOptions } from "@/hooks/useComments";
 
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/documents/$documentId/"
@@ -26,11 +23,8 @@ export const Route = createFileRoute(
         queryFn: () => readDocumentApiV1CGuildIdDocumentsDocumentIdGet(guildId, documentId),
         staleTime: 30_000,
       }),
-      queryClient.ensureQueryData({
-        queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId, {
-          document_id: documentId,
-        }),
-        queryFn: () => listCommentsApiV1CGuildIdCommentsGet(guildId, { document_id: documentId }),
+      queryClient.ensureInfiniteQueryData({
+        ...commentThreadQueryOptions(guildId, { document_id: documentId }),
         staleTime: 30_000,
       }),
     ]).catch(() => {});

@@ -14,6 +14,7 @@
   "insertEntityMention": "Enlazar cualquier cosa de esta iniciativa",
   "insertUserMention": "Mencionar a un miembro",
   "loadError": "No se pudieron cargar los comentarios en este momento.",
+  "loadOlder": "Cargar comentarios anteriores",
   "loading": "Cargando comentarios...",
   "markdownHint": "Se admite Markdown: **negrita**, *cursiva*, `código`, listas y enlaces.",
   "mentionAnything": "enlazar cualquier cosa de esta iniciativa",

@@ -2257,6 +2257,15 @@ export interface CommentRead {
 }
 
 /**
+ * One page of a thread: ``limit`` conversations, newest first, each with
+ * every reply under it.
+ */
+export interface CommentListResponse {
+  comments: CommentRead[];
+  next_cursor: string | null;
+}
+
+/**
  * Schema for updating a comment. Only content can be changed.
  */
 export interface CommentUpdate {
@@ -10311,6 +10320,12 @@ export type ListCommentsApiV1CGuildIdCommentsGetParams = {
   gallery_id?: number | null;
   wiki_id?: number | null;
   wiki_page_id?: number | null;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  cursor?: string | null;
 };
 
 export type RecentCommentsApiV1CGuildIdCommentsRecentGetParams = {
