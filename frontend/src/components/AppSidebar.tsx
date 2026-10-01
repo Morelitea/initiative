@@ -9,7 +9,6 @@ import {
   Settings,
   Star,
   Tag,
-  UserRound,
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -23,7 +22,6 @@ import { AppsSection } from "@/components/sidebar/AppsSection";
 import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
-import { PeopleSection } from "@/components/sidebar/PeopleSection";
 import { SidebarSearchButton } from "@/components/sidebar/SidebarSearchButton";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
 import { TagBrowser } from "@/components/sidebar/TagBrowser";
@@ -352,10 +350,6 @@ export const AppSidebar = () => {
                       <Tag className="mr-2 h-3.5 w-3.5" />
                       {t("tags")}
                     </TabsTrigger>
-                    <TabsTrigger value="people" className="text-xs">
-                      <UserRound className="mr-2 h-3.5 w-3.5" />
-                      {t("people")}
-                    </TabsTrigger>
                   </TabsBar>
                   {/* </div> */}
 
@@ -588,14 +582,6 @@ export const AppSidebar = () => {
                             />
                           </SidebarGroupContent>
                         </SidebarGroup>
-                      </SidebarContent>
-                    </ScrollArea>
-                  </TabsContent>
-
-                  <TabsContent value="people" className="mt-0 flex-1 overflow-hidden">
-                    <ScrollArea className="[&_[data-radix-scroll-area-viewport]>div]:block! h-full">
-                      <SidebarContent className="overflow-x-hidden overflow-y-visible">
-                        <PeopleSection />
                       </SidebarContent>
                     </ScrollArea>
                   </TabsContent>
