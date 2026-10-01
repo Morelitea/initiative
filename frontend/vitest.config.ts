@@ -34,5 +34,11 @@ export default defineConfig({
     // queued for seconds on slower dev machines and time out spuriously while
     // passing in isolation. CI finishes comfortably under either ceiling.
     testTimeout: 15_000,
+    // Whatever a test swaps in is put back when it ends: a spy, a global, an
+    // environment variable. A test that needs one across tests sets it in a
+    // beforeEach.
+    restoreMocks: true,
+    unstubGlobals: true,
+    unstubEnvs: true,
   },
 });

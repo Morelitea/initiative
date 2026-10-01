@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AppErrorBoundary } from "@/components/errors/AppErrorBoundary";
 import { router as appRouter } from "@/router";
@@ -46,10 +46,6 @@ function renderAt(path: string, failure: () => unknown) {
 }
 
 describe("app error pages", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("shows the error page inside the shell when a page fails to render", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     renderAt("/broken", () => new Error("boom"));
@@ -107,6 +103,5 @@ describe("AppErrorBoundary", () => {
 
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
-    vi.restoreAllMocks();
   });
 });

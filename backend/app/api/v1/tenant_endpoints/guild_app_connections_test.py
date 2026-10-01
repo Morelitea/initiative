@@ -305,6 +305,34 @@ class TestConfig:
         # The whole payload, not just the field somebody remembered to hide.
         assert SECRET not in response.text
 
+    async def test_a_guild_value_is_read_back_by_the_seat_alone(
+        self, client: AsyncClient, acting_user, session: AsyncSession
+    ):
+        """The seat reads back what it set, to edit it; an administrator below
+        the seat and a member are told only that it is there."""
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, seat)
+        response = await client.put(
+            seat.g(f"/apps/{app.id}/config"),
+            headers=seat.headers,
+            json={"values": {"admin": VALID_ADMIN_VALUES}},
+        )
+        assert response.status_code == 200, response.text
+        admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+        member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+
+        for viewer, values in (
+            (seat, {"shop_domain": "example.test"}),
+            (admin, {}),
+            (member, {}),
+        ):
+            body = (
+                await client.get(viewer.g(f"/apps/{app.id}"), headers=viewer.headers)
+            ).json()
+            block = next(c for c in body["connections"] if c["id"] == "admin")
+            assert block["values"] == values
+            assert block["has_value"] == {"shop_domain": True, "admin_token": True}
+
     async def test_the_secret_is_not_in_the_list_payload_either(
         self, client: AsyncClient, acting_user, session: AsyncSession
     ):

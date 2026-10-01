@@ -44,6 +44,7 @@
   "INVITE_NOT_FOUND": "Invite code not found",
   "INVITE_EXPIRED_OR_USED": "Invite has expired or has already been used",
   "INVITE_EMAIL_MISMATCH": "This invite was issued for a different email address",
+  "INVITE_DURING_ACCESS_GRANT": "You have temporary access to this community. Accept the invite after that access ends.",
   "INVITE_INVALID": "Invite is no longer valid",
   "INVITE_EXPIRED": "Invite has expired",
   "INVITE_USED": "Invite has already been used",
