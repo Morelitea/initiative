@@ -350,13 +350,12 @@ async def _copy_task_relationships(
     any other end (a document, a task outside the template) is kept as-is.
 
     Each copy is a link made on the creator's behalf, so it goes through
-    ``relationships.link`` like any other, and one it refuses is left behind:
+    ``relationships.link_many`` like any other, and one it refuses is left behind:
     a far end the creator cannot open, one in another initiative than the new
     project, an archived one, or a source they cannot edit.
     """
     if not task_mapping or not content_references.records_edges(session):
         return
-    user_id = require_guild_context(session).user_id
     source_nodes = [node_id(SearchEntityType.task, task_id) for task_id in task_mapping]
     live = EntityRelationship.removed_at.is_(None)  # type: ignore[union-attr]
     outbound = await session.exec(
@@ -382,22 +381,22 @@ async def _copy_task_relationships(
             entity_id = task_mapping.get(entity_id, entity_id)
         return relationships.Endpoint(entity_kind, entity_id)
 
-    for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0)):
-        relationship_type = RelationshipType(row.relationship_type)
-        if relationship_type in _UNCOPIED_RELATIONSHIP_TYPES:
-            continue
-        try:
-            await relationships.link(
-                session,
+    await relationships.link_many(
+        session,
+        [
+            relationships.Link(
                 source=remapped(row.source_type, row.source_id),
-                relationship_type=relationship_type,
+                relationship_type=RelationshipType(row.relationship_type),
                 target=remapped(row.target_type, row.target_id),
-                user_id=user_id,
                 provenance=Provenance(row.provenance),
                 confidence=row.confidence,
             )
-        except relationships.Refused:
-            continue
+            for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0))
+            if RelationshipType(row.relationship_type)
+            not in _UNCOPIED_RELATIONSHIP_TYPES
+        ],
+        user_id=require_actor_context(session).user_id,
+    )
 
 
 def project_load_options(*, slim: bool = False) -> list:

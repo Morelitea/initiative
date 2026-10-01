@@ -140,41 +140,136 @@ class Refused(HTTPException):
     """A link the surface does not make, with the reason a caller can act on."""
 
 
+@dataclass(frozen=True)
+class Link:
+    """One link to make on somebody's behalf."""
+
+    source: Endpoint
+    relationship_type: RelationshipType
+    target: Endpoint
+    provenance: Provenance = Provenance.manual
+    confidence: float | None = None
+
+
 async def link(
-    session: AsyncSession,
-    *,
-    source: Endpoint,
-    relationship_type: RelationshipType,
-    target: Endpoint,
-    user_id: int,
-    provenance: Provenance = Provenance.manual,
-    confidence: float | None = None,
+    session: AsyncSession, made: Link, *, user_id: int | None
 ) -> EntityRelationship | None:
     """Make one link on a person's behalf, or return None if it is already there.
 
     Asks everything the relationships surface asks before :func:`create`
     stores the row, and raises :class:`Refused` for what it will not make.
     """
-    refuse_derived(relationship_type)
-    source_row = await resolve(session, source, user_id)
-    target_row = await resolve(session, target, user_id)
-    refuse_across_initiatives(source_row, target_row)
-    refuse_archived(source_row, target_row)
-    await _refuse_unwritable_source(session, source, relationship_type, user_id)
+    refuse_derived(made.relationship_type)
+    ends = await _resolve_ends(session, [made], user_id)
+    writable = await _writable_sources(session, [made], user_id)
+    _refuse_link(made, ends, writable)
     try:
-        return await create(
-            session,
-            source=source,
-            relationship_type=relationship_type,
-            target=target,
-            provenance=provenance,
-            confidence=confidence,
-            created_by=user_id,
-        )
+        return await _create_link(session, made, user_id)
     except SelfLoop:
         raise Refused(
             status_code=status.HTTP_400_BAD_REQUEST, detail=RelationshipMessages.SELF
         ) from None
+
+
+async def link_many(
+    session: AsyncSession, links: Sequence[Link], *, user_id: int | None
+) -> None:
+    """:func:`link` for a batch, leaving behind each link it would refuse.
+
+    The ends are resolved, and the sources' write access asked, once per kind
+    for the whole batch rather than once per link.
+    """
+    ends = await _resolve_ends(session, links, user_id)
+    writable = await _writable_sources(session, links, user_id)
+    for made in links:
+        try:
+            refuse_derived(made.relationship_type)
+            _refuse_link(made, ends, writable)
+            await _create_link(session, made, user_id)
+        except (Refused, SelfLoop):
+            continue
+
+
+async def _create_link(
+    session: AsyncSession, made: Link, user_id: int | None
+) -> EntityRelationship | None:
+    return await create(
+        session,
+        source=made.source,
+        relationship_type=made.relationship_type,
+        target=made.target,
+        provenance=made.provenance,
+        confidence=made.confidence,
+        created_by=user_id,
+    )
+
+
+def _refuse_link(
+    made: Link,
+    ends: dict[int, reference_targets.Resolved],
+    writable: set[int],
+) -> None:
+    """The surface's rules for one link, over ends already resolved.
+
+    A directional link is the source's to make. Direction is chosen so the
+    source is the end an edge describes, which is what makes "who may write
+    this" derivable: changing what is said *about* something asks to change
+    that thing. A symmetric link describes neither end and asks only that both
+    be readable, which resolving them already proved. The table says the same
+    thing and would refuse the write on its own; asking here is so the refusal
+    arrives with a name the caller can act on.
+    """
+    source_row = ends.get(made.source.node)
+    target_row = ends.get(made.target.node)
+    if source_row is None or target_row is None:
+        raise Refused(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
+        )
+    refuse_across_initiatives(source_row, target_row)
+    refuse_archived(source_row, target_row)
+    if not is_symmetric(made.relationship_type) and made.source.node not in writable:
+        raise Refused(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=RelationshipMessages.SOURCE_NOT_WRITABLE,
+        )
+
+
+async def _resolve_ends(
+    session: AsyncSession, links: Sequence[Link], user_id: int | None
+) -> dict[int, reference_targets.Resolved]:
+    """Every end the reader may open, by node id: one query per kind."""
+    wanted: dict[SearchEntityType, list[int]] = {}
+    for made in links:
+        for end in (made.source, made.target):
+            wanted.setdefault(end.kind, []).append(end.id)
+    found: dict[int, reference_targets.Resolved] = {}
+    for kind, ids in wanted.items():
+        for entity_id, row in (
+            await reference_targets.resolve_many(session, kind, ids, user_id=user_id)
+        ).items():
+            found[node_id(kind, entity_id)] = row
+    return found
+
+
+async def _writable_sources(
+    session: AsyncSession, links: Sequence[Link], user_id: int | None
+) -> set[int]:
+    """The directional links' sources the reader may edit, by node id: one
+    query per kind."""
+    wanted: dict[SearchEntityType, set[int]] = {}
+    for made in links:
+        if not is_symmetric(made.relationship_type):
+            wanted.setdefault(made.source.kind, set()).add(made.source.id)
+    writable: set[int] = set()
+    for kind, ids in wanted.items():
+        rows = await session.exec(
+            reference_targets.visible_ids(kind, user_id, need_write=True).where(
+                reference_targets.id_column(kind).in_(ids)
+            )
+        )
+        writable.update(node_id(kind, row[0]) for row in rows.all())
+    return writable
 
 
 async def resolve(
@@ -252,37 +347,6 @@ def refuse_derived(relationship_type: RelationshipType) -> None:
         raise Refused(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=RelationshipMessages.DERIVED,
-        )
-
-
-async def _refuse_unwritable_source(
-    session: AsyncSession,
-    source: Endpoint,
-    relationship_type: RelationshipType,
-    user_id: int,
-) -> None:
-    """A directional link is the source's to make.
-
-    Direction is chosen so the source is the end an edge describes, which is
-    what makes "who may write this" derivable: changing what is said *about*
-    something asks to change that thing. A symmetric link describes neither end
-    and asks only that both be readable, which resolving them already proved.
-
-    The table says the same thing and would refuse the write on its own. Asking
-    here is so the refusal arrives with a name the caller can act on — "you can
-    only read that" — rather than as a bare privilege error.
-    """
-    if is_symmetric(relationship_type):
-        return
-    writable = await session.exec(
-        reference_targets.visible_ids(source.kind, user_id, need_write=True).where(
-            reference_targets.id_column(source.kind) == source.id
-        )
-    )
-    if writable.first() is None:
-        raise Refused(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=RelationshipMessages.SOURCE_NOT_WRITABLE,
         )
 
 

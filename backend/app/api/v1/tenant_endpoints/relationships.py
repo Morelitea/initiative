@@ -214,9 +214,11 @@ async def create_relationship(
     """Record one edge. 409 if it is already there."""
     row = await relationships_service.link(
         session,
-        source=Endpoint(body.source.type, body.source.id),
-        relationship_type=body.relationship_type,
-        target=Endpoint(body.target.type, body.target.id),
+        relationships_service.Link(
+            source=Endpoint(body.source.type, body.source.id),
+            relationship_type=body.relationship_type,
+            target=Endpoint(body.target.type, body.target.id),
+        ),
         user_id=current_user.id,
     )
     if row is None:
