@@ -64,7 +64,7 @@ afterEach(() => vi.clearAllMocks());
 
 const fillIn = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(await screen.findByLabelText(/email/i), "keys@example.com");
-  await user.type(screen.getByLabelText(/full name/i), "Keys Only");
+  await user.type(screen.getByLabelText("Username"), "keys");
 };
 
 it("offers both doors where the deployment leaves both open", async () => {
@@ -104,7 +104,7 @@ it("shows the recovery codes a key registration comes back with", async () => {
 
   await waitFor(() =>
     expect(mocks.signUpWithPasskey).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "keys@example.com", full_name: "Keys Only" })
+      expect.objectContaining({ email: "keys@example.com", username: "keys" })
     )
   );
   // Signed in by the ceremony that made it, and the codes on screen: they are

@@ -23,31 +23,29 @@ test.beforeEach(async ({ page }) => laterForUpdates(page));
 const password = () => `${randomBytes(12).toString("base64url")}-9a`;
 
 const owner = {
-  name: "Olive Owner",
   username: "olive",
   email: "olive@example.com",
   password: password(),
 };
 const member = {
-  name: "Maya Member",
   username: "maya",
   email: "maya@example.com",
   password: password(),
 };
-const community = `${owner.name}'s Guild`;
+const community = "Olive's Guild";
 
 /** Where the first journey left things, for the second to look for. */
 const made = { communityPath: "", initiativePath: "", projectId: "" };
 
 const next = (page: Page) => page.getByRole("button", { name: "Continue" }).click();
 
-/** The start flow from "About you" on: a name, then the account. */
+/** The start flow from "About you" on: a handle, then the account. */
 async function register(page: Page, person: typeof owner, between?: () => Promise<void>) {
-  await page.getByLabel("Display name (optional)").fill(person.name);
+  await page.getByLabel("Username").fill(person.username);
+  // Continue opens once the handle has been checked.
   await next(page);
   await between?.();
   await page.getByLabel("Email").fill(person.email);
-  await page.getByLabel("Username").fill(person.username);
   await page.getByLabel("Password", { exact: true }).fill(person.password);
   await page.getByLabel("Confirm password").fill(person.password);
   await page.getByRole("button", { name: "Sign up" }).click();
@@ -120,7 +118,7 @@ test("the first owner builds a community and finds it again", async ({ page }) =
   await task.getByRole("button", { name: "Create task" }).click();
   await expect(page.getByRole("main").getByText("Order the flour")).toBeVisible();
 
-  await page.getByRole("button", { name: new RegExp(`Online ${owner.name}`) }).click();
+  await page.getByRole("button", { name: new RegExp(`Online ${owner.username}`) }).click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/(login|welcome)/);
 

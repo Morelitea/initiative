@@ -102,6 +102,8 @@ interface RegisterPayload {
   community?: NewCommunity;
   /** ISO date, answering the age question at sign-up. */
   birthdate?: string;
+  /** The signed number the name check showed beside the handle. */
+  username_offer?: string;
 }
 
 interface AuthContextValue {
@@ -643,20 +645,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await adoptSteppedUpSession(response.data);
   };
 
-  const register = async ({
-    email,
-    password,
-    username,
-    full_name,
-    inviteCode,
-    timezone,
-    captcha_token,
-    community,
-    birthdate,
-  }: RegisterPayload) => {
+  const register = async ({ inviteCode, ...body }: RegisterPayload) => {
     const response = await apiClient.post<UserRead>(
       "/auth/register",
-      { email, password, username, full_name, timezone, captcha_token, community, birthdate },
+      body,
       inviteCode
         ? {
             params: { invite_code: inviteCode },
