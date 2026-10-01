@@ -197,3 +197,6 @@ class UsernameAvailabilityResponse(SanitizedBaseModel):
 
     available: bool
     reason: Optional[str] = None
+    #: The number this name would get, and the signed offer that keeps it.
+    discriminator: Optional[int] = None
+    offer: Optional[str] = None

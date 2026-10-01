@@ -107,6 +107,9 @@ class UserCreate(SanitizedBaseModel):
     # The community this account is made with, when it is made to start one
     # rather than to join one.
     community: Optional[NewCommunity] = None
+    # The signed number the name check showed beside the handle, kept if
+    # still free.
+    username_offer: Optional[str] = Field(default=None, max_length=1024)
     # Answers the directory's age question at sign-up; the date is not kept.
     birthdate: Optional[date] = None
 
@@ -765,6 +768,8 @@ class UsernameClaim(SanitizedBaseModel):
     """
 
     username: str = Field(max_length=64)
+    #: The signed number the name check showed, kept if still free.
+    offer: Optional[str] = Field(default=None, max_length=1024)
 
 
 class AgeConfirmation(SanitizedBaseModel):

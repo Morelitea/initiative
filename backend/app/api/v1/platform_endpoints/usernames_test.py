@@ -72,20 +72,43 @@ class TestRegistration:
 
 
 class TestAvailability:
-    async def test_a_fresh_name_is_available(self, client: AsyncClient):
-        response = await client.get(
-            "/api/v1/auth/username-available", params={"username": "unclaimedname"}
-        )
+    async def test_the_number_shown_is_the_one_the_account_gets(
+        self, client: AsyncClient
+    ):
+        """The check shows a number and signs it; registering with that offer
+        keeps it, and the offer names that name only."""
+        from app.core.security import read_handle_offer
 
-        assert response.status_code == 200
-        assert response.json() == {"available": True, "reason": None}
+        response = await client.get(
+            "/api/v1/auth/username-available", params={"username": "UnclaimedName"}
+        )
+        shown = response.json()
+        assert shown["available"] is True
+        assert 0 <= shown["discriminator"] <= 9999
+        assert read_handle_offer(shown["offer"], "someoneelse") is None
+
+        registered = await client.post(
+            "/api/v1/auth/register",
+            json={
+                **REGISTRATION,
+                "username": "unclaimedname",
+                "username_offer": shown["offer"],
+            },
+        )
+        assert registered.status_code == 201
+        assert registered.json()["discriminator"] == shown["discriminator"]
 
     async def test_a_reserved_name_says_why(self, client: AsyncClient):
         response = await client.get(
             "/api/v1/auth/username-available", params={"username": "admin"}
         )
 
-        assert response.json() == {"available": False, "reason": "USERNAME_RESERVED"}
+        assert response.json() == {
+            "available": False,
+            "reason": "USERNAME_RESERVED",
+            "discriminator": None,
+            "offer": None,
+        }
 
     async def test_a_name_someone_holds_is_still_available(
         self, client: AsyncClient, session: AsyncSession

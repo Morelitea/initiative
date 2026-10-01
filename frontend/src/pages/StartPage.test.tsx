@@ -45,10 +45,13 @@ const stubDeployment = () =>
         public_registration_enabled: deployment.registrationOpen,
       })
     ),
-    http.get("/api/v1/auth/username-available", () => HttpResponse.json({ available: true })),
-    http.get("/api/v1/auth/username-suggestions", () =>
-      HttpResponse.json({ suggestions: ["chesterfan", "lidlifter"] })
+    http.get("/api/v1/auth/username-available", () =>
+      HttpResponse.json({ available: true, discriminator: 42, offer: "signed-42" })
     ),
+    http.get("/api/v1/auth/username-suggestions", ({ request }) => {
+      suggestionSeeds.push(new URL(request.url).searchParams.get("seed"));
+      return HttpResponse.json({ suggestions: ["chesterfan", "lidlifter"] });
+    }),
     http.get(catalogUrl(PORTAL), () =>
       HttpResponse.json({
         catalog_version: 1,
@@ -75,6 +78,8 @@ const stubDeployment = () =>
   );
 
 const register = vi.fn();
+/** The seeds the suggestions were asked for, in order. */
+const suggestionSeeds: (string | null)[] = [];
 
 const renderStart = (options: { inviteCode?: string; native?: boolean } = {}) =>
   renderPage(StartPage, {
@@ -117,6 +122,7 @@ beforeEach(async () => {
   Object.assign(deployment, { registrationOpen: true, directory: true, billing: false });
   stubDeployment();
   await clearStart();
+  suggestionSeeds.length = 0;
   // Made, but its address is unconfirmed: the flow stops at "check your email".
   register.mockReset().mockResolvedValue(buildUser({ status: "active", email_verified: false }));
 });
@@ -192,7 +198,11 @@ describe("what the account is made with", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await userEvent.click(await screen.findByRole("button", { name: "chesterfan" }));
     expect(screen.getByLabelText("Username")).toHaveValue("chesterfan");
+    // The number it will get, shown and locked beside the name.
+    expect(await screen.findByText("#0042")).toBeInTheDocument();
     await continueEnabled();
+    // A pick is not typing, so it does not seed the next round of suggestions.
+    expect(suggestionSeeds).not.toContain("chesterfan");
     await press("Continue");
     await heading("Your space");
     await press("Continue");
@@ -202,6 +212,7 @@ describe("what the account is made with", () => {
     expect(sent).toMatchObject({
       email: "new@example.com",
       username: "chesterfan",
+      username_offer: "signed-42",
       community: { name: "chesterfan's space" },
     });
     expect(sent).not.toHaveProperty("full_name");

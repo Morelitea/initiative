@@ -108,6 +108,9 @@ class PasskeySignUpStart(SanitizedBaseModel):
     timezone: Optional[str] = Field(default=None, max_length=64)
     captcha_token: Optional[str] = Field(default=None, max_length=4096)
     community: Optional[NewCommunity] = None
+    # The signed number the name check showed beside the handle, kept if
+    # still free.
+    username_offer: Optional[str] = Field(default=None, max_length=1024)
     # Answers the directory's age question at sign-up; the date is not kept.
     birthdate: Optional[date] = None
 

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { LegalNotice } from "@/components/auth/LegalNotice";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { RecoveryCodesPanel } from "@/components/settings/RecoveryCodesPanel";
-import { UsernameField } from "@/components/UsernameField";
+import { type HandleCheck, UsernameField } from "@/components/UsernameField";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,7 +26,6 @@ import {
   signUpWithPasskey,
 } from "@/lib/passkeys";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
-import { slugifyUsername } from "@/lib/usernames";
 
 /**
  * The first account on a fresh deployment, which becomes its owner. Everyone
@@ -37,11 +36,8 @@ export const RegisterPage = () => {
   const router = useRouter();
   const { register, login, applyPasskeySignIn } = useAuth();
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
-  // What we offer as a handle: the first word of the name they typed,
-  // reduced to the characters a handle may contain.
-  const suggestedUsername = slugifyUsername(fullName);
+  const [handle, setHandle] = useState<HandleCheck>({ usable: true, offer: null });
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +55,7 @@ export const RegisterPage = () => {
   const details = () => ({
     email: email.toLowerCase().trim(),
     username: username.trim().toLowerCase(),
-    full_name: fullName,
+    username_offer: handle.offer ?? undefined,
     // Resolve the browser's IANA timezone (e.g. "America/Los_Angeles") so the
     // new account starts on the user's wall clock instead of the backend's
     // "UTC" default.
@@ -115,14 +111,7 @@ export const RegisterPage = () => {
       // chain + ``|| undefined`` guard handles the unusual case where
       // the resolved name comes back falsy, in which case we just
       // omit the field and let the backend default apply.
-      const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
-      const createdUser = await register({
-        email: email.toLowerCase().trim(),
-        password,
-        username: username.trim().toLowerCase(),
-        full_name: fullName,
-        timezone: browserTimezone,
-      });
+      const createdUser = await register({ ...details(), password });
       const isActive = createdUser.status === "active";
       if (isActive && createdUser.email_verified) {
         await login({ email: email.toLowerCase().trim(), password });
@@ -162,20 +151,11 @@ export const RegisterPage = () => {
             />
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="space-y-2">
-                <Label htmlFor="full-name">{t("register.fullNameLabel")}</Label>
-                <Input
-                  id="full-name"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  maxLength={255}
-                />
-              </div>
               <UsernameField
                 id="register-username"
                 value={username}
                 onChange={setUsername}
-                suggestion={suggestedUsername}
+                onChecked={setHandle}
                 disabled={submitting}
               />
               <div className="space-y-2">
