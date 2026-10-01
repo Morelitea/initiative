@@ -66,7 +66,13 @@
     "unassigned": "Non attribuées",
     "archived": "Archivées",
     "statusCategory": "Catégorie de statut",
-    "savePresetDescription": "Tout le monde dans ce projet verra ce préréglage."
+    "savePresetDescription": "Tout le monde dans ce projet verra ce préréglage.",
+    "seededPresets": {
+      "all": "Toutes",
+      "incomplete": "Non terminées",
+      "unassigned": "Non attribuées",
+      "mine": "Les miennes"
+    }
   },
   "templates": {
     "loading": "Chargement des modèles…",

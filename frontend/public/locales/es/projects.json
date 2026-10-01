@@ -66,7 +66,13 @@
     "unassigned": "Sin asignar",
     "archived": "Archivadas",
     "statusCategory": "Categoría de estado",
-    "savePresetDescription": "Todos los miembros de este proyecto verán este preajuste."
+    "savePresetDescription": "Todos los miembros de este proyecto verán este preajuste.",
+    "seededPresets": {
+      "all": "Todas",
+      "incomplete": "Pendientes",
+      "unassigned": "Sin asignar",
+      "mine": "Mías"
+    }
   },
   "templates": {
     "loading": "Cargando plantillas…",
