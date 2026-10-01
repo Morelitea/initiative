@@ -23,6 +23,7 @@ from app.models.platform.access_grant import AccessGrant
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
+from app.models.platform.user import UserStatus
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import email as email_service
@@ -729,9 +730,16 @@ async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
 ):
     """The roster is read a page at a time and can be narrowed to the managers,
     while the initiative list carries each one's headcount and the caller's own
-    role instead of everyone's."""
+    role instead of everyone's. A suspended member is in neither."""
     owner, initiative = await _initiative_with_owner(session, acting_user)
     insider = await _caller(acting_user, "member", owner, initiative)
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=initiative,
+        initiative_role="member",
+        status=UserStatus.suspended,
+    )
 
     first = await _roster(client, insider, initiative.id, page_size=1)
     managers = await _roster(client, insider, initiative.id, is_manager="true")
