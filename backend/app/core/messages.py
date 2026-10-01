@@ -1285,6 +1285,12 @@ class AppServiceMessages:
     STATED_BY_LISTING = "APP_SERVICE_STATED_BY_LISTING"
     #: The key set address is not https on the base URL's own origin.
     INVALID_JWKS_URI = "APP_SERVICE_INVALID_JWKS_URI"
+    #: Connect reads the key set from the base URL, and there is none yet.
+    CONNECT_NEEDS_BASE_URL = "APP_SERVICE_CONNECT_NEEDS_BASE_URL"
+    #: The app's base URL did not answer with a key set document.
+    KEYS_UNREADABLE = "APP_SERVICE_KEYS_UNREADABLE"
+    #: The key set the app serves is not the one the operator confirmed.
+    KEYS_CHANGED = "APP_SERVICE_KEYS_CHANGED"
     #: No publisher has that id.
     PUBLISHER_NOT_FOUND = "APP_PUBLISHER_NOT_FOUND"
     #: Another publisher already has that prefix.

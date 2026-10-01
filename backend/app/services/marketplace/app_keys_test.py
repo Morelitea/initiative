@@ -137,3 +137,27 @@ def test_the_address_rule():
     assert app_keys.jwks_uri_allowed(f"{BASE}/keys", f"{BASE}/prefix")
     assert not app_keys.jwks_uri_allowed(JWKS_URI, "http://127.0.0.1:9443")
     assert not app_keys.jwks_uri_allowed("not a url", BASE)
+    # https only, even on an http base URL's own origin.
+    assert not app_keys.jwks_uri_allowed(
+        "http://github:8080/.well-known/jwks.json", "http://github:8080"
+    )
+
+
+def test_a_thumbprint_is_rfc_7638():
+    """The worked example in RFC 7638 §3.1: only the required members count,
+    in order, whatever else the key carries."""
+    key = {
+        "kty": "RSA",
+        "n": (
+            "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFx"
+            "uhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_R"
+            "N5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvR"
+            "L5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_x"
+            "BniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw"
+        ),
+        "e": "AQAB",
+        "alg": "RS256",
+        "kid": "2011-04-29",
+    }
+
+    assert app_keys.jwk_thumbprint(key) == "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"

@@ -20,6 +20,8 @@ __all__ = [
     "AppPublisherCreate",
     "AppPublisherRead",
     "AppPublisherUpdate",
+    "AppServiceConnect",
+    "AppServicePublishedKey",
     "AppServiceRegistrationCreate",
     "AppServiceRegistrationRead",
     "AppServiceRegistrationUpdate",
@@ -89,6 +91,8 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     #: returns a person with a code, and where its install page returns them.
     connection_callback_url: str
     connection_setup_url: str
+    #: The address to give the vendor for this app's webhooks.
+    webhook_url: str
     #: Enabled, its publisher enabled, an address, a key set to verify
     #: against, and every required vendor value set.
     live: bool
@@ -152,6 +156,25 @@ class AppServiceRegistrationUpdate(_DeploymentFacts):
     enabled: Optional[bool] = None
     #: Set or clear vendor values, by key.
     vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
+
+
+class AppServicePublishedKey(SanitizedBaseModel):
+    """One key the app serves under its base URL: what Connect shows, and what
+    the operator confirms."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    kid: str
+    #: The key's RFC 7638 SHA-256 thumbprint, base64url without padding: the
+    #: fingerprint the app logs at start.
+    fingerprint: str = Field(max_length=64)
+
+
+class AppServiceConnect(SanitizedBaseModel):
+    """Pin the key set the app serves, as the operator confirmed it."""
+
+    #: The keys the operator was shown and confirmed.
+    keys: List[AppServicePublishedKey] = Field(min_length=1, max_length=20)
 
 
 class AppPublisherRead(SanitizedBaseModel):

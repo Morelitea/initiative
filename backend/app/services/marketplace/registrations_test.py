@@ -7,6 +7,7 @@ the operator.
 
 import json
 
+import httpx
 import pytest
 from fastapi import HTTPException
 from sqlmodel import select
@@ -23,6 +24,7 @@ from app.services.marketplace.catalog import (
     CatalogSourceConflict,
     upsert_listing,
 )
+from app.services.marketplace.app_keys import jwk_thumbprint
 from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.marketplace import registrations as service
 from app.services.marketplace.registration_lookup import load_registrations
@@ -305,6 +307,152 @@ async def test_keys_are_provisioned_and_cleared(session):
 
     cleared = await service.update_registration(session, row.id, jwks={})
     assert cleared.jwks is None
+
+
+# --- connect -----------------------------------------------------------------
+
+
+def _serving(*documents: dict):
+    """A transport answering each fetch with the next document, the last one
+    from then on."""
+    fetched: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        fetched.append(str(request.url))
+        return httpx.Response(
+            200, json=documents[min(len(fetched), len(documents)) - 1]
+        )
+
+    return fetched, httpx.MockTransport(handler)
+
+
+async def test_connect_shows_the_fingerprints_of_the_set_the_app_serves(session):
+    key = _rsa_jwk("acme.widgets-1")
+    fetched, transport = _serving({"keys": [key]})
+    row = await _create(session)
+
+    keys = await service.published_keys(session, row.id, transport=transport)
+
+    assert keys == [
+        service.PublishedKey(kid="acme.widgets-1", fingerprint=jwk_thumbprint(key))
+    ]
+    assert fetched == [f"{BASE_URL}/.well-known/jwks.json"]
+    # Nothing is stored until it is confirmed.
+    await session.refresh(row)
+    assert row.jwks is None
+
+
+async def test_connect_pins_the_confirmed_set_in_place_of_a_key_set_address(
+    session,
+):
+    base_url = "https://127.0.0.1:9443"
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    _fetched, transport = _serving(key_set)
+    row = await _create(
+        session, base_url=base_url, jwks_uri=f"{base_url}/.well-known/jwks.json"
+    )
+    (shown,) = await service.published_keys(session, row.id, transport=transport)
+
+    connected = await service.connect_registration(
+        session, row.id, keys=[shown], transport=transport
+    )
+
+    assert connected.jwks == key_set
+    # Verified against the pinned set alone, with nothing fetched for a kid
+    # it does not hold.
+    assert connected.jwks_uri is None
+
+
+def _renamed(key_set: dict, kid: str) -> dict:
+    return {"keys": [{**key_set["keys"][0], "kid": kid}]}
+
+
+@pytest.mark.parametrize(
+    "now_served",
+    [
+        # Another key under the same kid.
+        lambda shown: {"keys": [_rsa_jwk("acme.widgets-1")]},
+        # The same key under another kid.
+        lambda shown: _renamed(shown, "acme.widgets-2"),
+    ],
+)
+async def test_connect_refuses_a_set_that_changed_since_it_was_shown(
+    session, now_served
+):
+    shown = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    _fetched, transport = _serving(shown, now_served(shown))
+    row = await _create(session, jwks={"keys": [_rsa_jwk("acme.widgets-0")]})
+    confirmed = await service.published_keys(session, row.id, transport=transport)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.connect_registration(
+            session, row.id, keys=confirmed, transport=transport
+        )
+
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.detail == AppServiceMessages.KEYS_CHANGED
+    await session.refresh(row)
+    assert row.jwks["keys"][0]["kid"] == "acme.widgets-0"
+
+
+async def test_connect_refuses_when_the_base_url_moved_during_the_read(
+    session, monkeypatch
+):
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    row = await _create(session)
+    registration_id = row.id
+    (shown,) = await service.published_keys(
+        session, registration_id, transport=_serving(key_set)[1]
+    )
+
+    async def read_while_the_operator_repoints_it(url, *, transport=None):
+        await service.update_registration(
+            session, registration_id, base_url="http://127.0.0.2:9100"
+        )
+        return key_set
+
+    monkeypatch.setattr(service, "read_key_set", read_while_the_operator_repoints_it)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.connect_registration(session, registration_id, keys=[shown])
+
+    assert excinfo.value.detail == AppServiceMessages.KEYS_CHANGED
+    stored = await service.get_registration(session, registration_id)
+    assert (stored.base_url, stored.jwks) == ("http://127.0.0.2:9100", None)
+
+
+@pytest.mark.parametrize(
+    ("answer", "status", "code"),
+    [
+        (httpx.Response(404), 502, AppServiceMessages.KEYS_UNREADABLE),
+        (
+            httpx.Response(200, content=b"<html>"),
+            502,
+            AppServiceMessages.KEYS_UNREADABLE,
+        ),
+        (httpx.Response(200, json={"keys": []}), 400, AppServiceMessages.INVALID_JWKS),
+    ],
+)
+async def test_connect_refuses_what_is_not_a_key_set(session, answer, status, code):
+    row = await _create(session)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.published_keys(
+            session, row.id, transport=httpx.MockTransport(lambda request: answer)
+        )
+
+    assert (excinfo.value.status_code, excinfo.value.detail) == (status, code)
+
+
+async def test_connect_needs_a_base_url(session):
+    row = await create_app_service_registration(
+        session, public_id="acme.waiting", base_url=None
+    )
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.published_keys(session, row.id)
+
+    assert excinfo.value.detail == AppServiceMessages.CONNECT_NEEDS_BASE_URL
 
 
 # --- addresses ---------------------------------------------------------------

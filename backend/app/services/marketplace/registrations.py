@@ -19,7 +19,11 @@ Every app splits the same way, whatever published its listing
   app whose listing has not arrived waits for it: the listing apply that
   creates the row applies the entry.
 
-Nothing is fetched from the app to fill any of it in. Its publisher is the row
+Nothing is fetched from the app to fill any of it in, except its key set when
+the operator asks: **Connect** (:func:`published_keys`, then
+:func:`connect_registration`) reads the set the app serves under its base URL,
+shows each key's fingerprint, and pins the set the operator confirms in place
+of any ``jwks_uri``. A changed set is picked up only by connecting again. Its publisher is the row
 for its ``public_id`` prefix (:mod:`app.services.marketplace.publishers`). The
 one secret it may hold is its vendor values
 (:mod:`app.services.marketplace.vendor_values`).
@@ -41,6 +45,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
 from urllib.parse import urlparse
 
+import httpx
 from fastapi import HTTPException, status as http_status
 from jwt import PyJWK
 from jwt.exceptions import InvalidKeyError, PyJWKError
@@ -69,7 +74,11 @@ from app.services import audit as audit_service
 from app.services.marketplace.app_keys import (
     PRIVATE_JWK_MEMBERS,
     PUBLIC_JWK_TYPES,
+    KeySetUnreadableError,
+    jwk_thumbprint,
     jwks_uri_allowed,
+    key_set_url,
+    read_key_set,
 )
 from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.publishers import ensure_publisher
@@ -90,6 +99,7 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "base_url",
     "embed_origin",
     "allowed_origins",
+    "jwks",
     "jwks_uri",
     "scope_ceiling",
     "mandatory",
@@ -104,12 +114,14 @@ __all__ = [
     "DeploymentFacts",
     "ListingRegistration",
     "ListingRegistrationError",
+    "PublishedKey",
     "ReconcileResult",
     "RegistrationView",
     "apply_deployment_facts",
     "apply_listing_registration",
     "check_signing_configured",
     "configured_facts",
+    "connect_registration",
     "create_registration",
     "delete_registration",
     "get_registration",
@@ -123,6 +135,7 @@ __all__ = [
     "normalize_origins",
     "normalize_public_id",
     "origin_of",
+    "published_keys",
     "read_listing_registration",
     "reconcile_from_config",
     "registration_views",
@@ -678,6 +691,108 @@ async def delete_registration(
     )
     await session.commit()
     invalidate_registrations()
+
+
+# --- connect: the key set the app serves --------------------------------------
+
+
+@dataclass(frozen=True, order=True)
+class PublishedKey:
+    """One key the app serves: its ``kid`` and RFC 7638 thumbprint."""
+
+    kid: str
+    fingerprint: str
+
+
+async def _served_key_set(
+    base_url: Optional[str], transport: Optional[httpx.AsyncBaseTransport]
+) -> tuple[dict, list[PublishedKey]]:
+    """The key set the app serves under ``base_url``, held to what a pasted
+    set must be, with each key's fingerprint."""
+    if not base_url:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail=AppServiceMessages.CONNECT_NEEDS_BASE_URL,
+        )
+    url = key_set_url(base_url)
+    try:
+        document = await read_key_set(url, transport=transport)
+    except KeySetUnreadableError as exc:
+        logger.info("app services: %s could not be read (%s)", url, exc)
+        raise HTTPException(
+            status_code=http_status.HTTP_502_BAD_GATEWAY,
+            detail=AppServiceMessages.KEYS_UNREADABLE,
+        ) from exc
+    key_set = normalize_jwks(document)
+    if key_set is None:
+        raise _bad_request(AppServiceMessages.INVALID_JWKS, "the app serves no keys")
+    keys = [
+        PublishedKey(kid=entry["kid"], fingerprint=jwk_thumbprint(entry))
+        for entry in key_set["keys"]
+    ]
+    return key_set, keys
+
+
+def _keys_changed() -> HTTPException:
+    return HTTPException(
+        status_code=http_status.HTTP_409_CONFLICT,
+        detail=AppServiceMessages.KEYS_CHANGED,
+    )
+
+
+async def published_keys(
+    session: AsyncSession,
+    registration_id: int,
+    *,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+) -> list[PublishedKey]:
+    """The keys the app serves, for the operator to compare with the
+    fingerprints its container logged. Writes nothing."""
+    row = await get_registration(session, registration_id)
+    _, keys = await _served_key_set(row.base_url, transport)
+    return keys
+
+
+async def connect_registration(
+    session: AsyncSession,
+    registration_id: int,
+    *,
+    keys: Sequence[PublishedKey],
+    actor_user_id: int | None = None,
+    transport: Optional[httpx.AsyncBaseTransport] = None,
+) -> AppServiceRegistration:
+    """Pin the key set the app serves as the registration's ``jwks``, and
+    clear its ``jwks_uri`` so the pinned set is the only one it is verified
+    against.
+
+    The set is read again rather than taken from the request, and stored only
+    when its keys, ``kid`` and fingerprint together, are the ones the operator
+    confirmed, and the base URL it was read from is still the registration's
+    (409 otherwise). The row is locked for that check and the write, after the
+    read, so no lock is held while the app is asked.
+    """
+    base_url = (await get_registration(session, registration_id)).base_url
+    key_set, served = await _served_key_set(base_url, transport)
+    if sorted(served) != sorted(keys):
+        raise _keys_changed()
+    locked = (
+        await session.exec(
+            select(AppServiceRegistration)
+            .where(AppServiceRegistration.id == registration_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).first()
+    if locked is None or locked.base_url != base_url:
+        await session.rollback()
+        raise _keys_changed()
+    return await update_registration(
+        session,
+        registration_id,
+        jwks=key_set,
+        jwks_uri="",
+        actor_user_id=actor_user_id,
+    )
 
 
 # --- app facts, from a listing ------------------------------------------------

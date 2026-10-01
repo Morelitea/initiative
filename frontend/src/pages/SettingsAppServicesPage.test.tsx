@@ -32,6 +32,7 @@ const buildRegistration = (
   vendor_ready: true,
   connection_callback_url: "https://initiative.example.com/api/v1/app-connections/callback",
   connection_setup_url: "https://initiative.example.com/api/v1/app-connections/setup",
+  webhook_url: "https://initiative.example.com/api/v1/app-hooks/core.github",
   live: true,
   created_at: "2026-08-01T00:00:00.000Z",
   updated_at: "2026-08-12T09:00:00.000Z",
@@ -44,6 +45,8 @@ let registrations: AppServiceRegistrationRead[] = [];
 const createMutate = vi.fn();
 const updateMutate = vi.fn();
 const deleteMutate = vi.fn();
+const readKeysMutate = vi.fn();
+const connectMutate = vi.fn();
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -54,6 +57,8 @@ vi.mock("@/hooks/useAppServices", () => ({
   useCreateAppService: () => ({ mutate: createMutate, isPending: false }),
   useUpdateAppService: () => ({ mutate: updateMutate, isPending: false }),
   useDeleteAppService: () => ({ mutate: deleteMutate, isPending: false }),
+  useAppServiceKeys: () => ({ mutate: readKeysMutate, isPending: false }),
+  useConnectAppService: () => ({ mutate: connectMutate, isPending: false }),
 }));
 
 import { SettingsAppServicesPage } from "./SettingsAppServicesPage";
@@ -69,6 +74,8 @@ describe("SettingsAppServicesPage", () => {
     createMutate.mockReset();
     updateMutate.mockReset();
     deleteMutate.mockReset();
+    readKeysMutate.mockReset();
+    connectMutate.mockReset();
   });
 
   describe("capability gate", () => {
@@ -214,6 +221,8 @@ describe("SettingsAppServicesPage", () => {
 
       expect(screen.queryByText(/shared secret/i)).toBeNull();
       expect(document.querySelector('input[type="password"]')).toBeNull();
+      // Connect reads from a saved base URL, so a new one has nothing to read.
+      expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
     });
 
     it("sends the browser address when the app is published somewhere else", async () => {
@@ -284,6 +293,9 @@ describe("SettingsAppServicesPage", () => {
       expect(screen.getByLabelText("Setup address")).toHaveValue(
         "https://initiative.example.com/api/v1/app-connections/setup"
       );
+      expect(screen.getByLabelText("Webhook address")).toHaveValue(
+        "https://initiative.example.com/api/v1/app-hooks/core.github"
+      );
 
       await user.clear(clientId);
       await user.type(clientId, "gh-app-2");
@@ -297,6 +309,139 @@ describe("SettingsAppServicesPage", () => {
       renderAsOperator();
 
       expect(screen.getByText(/Not live until its vendor client is set/)).toBeInTheDocument();
+    });
+
+    it("connects: shows the fingerprints the app serves and pins them once confirmed", async () => {
+      const user = userEvent.setup();
+      registrations = [
+        buildRegistration({ jwks: null, jwks_uri: "https://gh.example.com/jwks.json" }),
+      ];
+      const pinned = { keys: [{ kty: "OKP", crv: "Ed25519", kid: "gh-1", x: "def" }] };
+      readKeysMutate.mockImplementation((_id, { onSuccess }) =>
+        onSuccess([{ kid: "gh-1", fingerprint: "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs" }])
+      );
+      connectMutate.mockImplementation((_vars, { onSuccess }) =>
+        onSuccess(buildRegistration({ jwks: pinned }))
+      );
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await user.click(await screen.findByRole("button", { name: "Connect" }));
+
+      expect(readKeysMutate).toHaveBeenCalledWith(1, expect.anything());
+      const shown = screen.getByRole("region", { name: "Keys the app serves" });
+      expect(within(shown).getByText("Key id: gh-1")).toBeInTheDocument();
+      expect(
+        within(shown).getByText("NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs")
+      ).toBeInTheDocument();
+      // Reading stores nothing.
+      expect(connectMutate).not.toHaveBeenCalled();
+
+      await user.click(within(shown).getByRole("button", { name: "Pin these keys" }));
+
+      expect(connectMutate).toHaveBeenCalledWith(
+        {
+          registrationId: 1,
+          keys: [{ kid: "gh-1", fingerprint: "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs" }],
+        },
+        expect.anything()
+      );
+      expect(screen.queryByRole("region", { name: "Keys the app serves" })).toBeNull();
+      // The pinned set is what the box now holds, in place of the address.
+      expect(screen.getByLabelText("Key set address")).toHaveValue("");
+      expect(
+        JSON.parse(
+          String(screen.getByLabelText<HTMLTextAreaElement>("Pasted key set (JWKS)").value)
+        )
+      ).toEqual(pinned);
+    });
+
+    it("waits to connect until a new base URL is saved", async () => {
+      const user = userEvent.setup();
+      registrations = [buildRegistration()];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      const baseUrl = await screen.findByLabelText("Base URL");
+      await user.clear(baseUrl);
+      await user.type(baseUrl, "http://initiative-github-2:8080");
+
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+      expect(screen.getByText("Save the new base URL, then connect.")).toBeInTheDocument();
+
+      await user.clear(baseUrl);
+      await user.type(baseUrl, "http://initiative-github:8080/");
+
+      expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+      expect(screen.queryByText("Save the new base URL, then connect.")).toBeNull();
+    });
+
+    describe("a base URL moved after its keys were pinned", () => {
+      const pinned = { keys: [{ kty: "OKP", crv: "Ed25519", kid: "gh-1", x: "def" }] };
+
+      const pinThenMove = async () => {
+        const user = userEvent.setup();
+        registrations = [buildRegistration({ jwks: null })];
+        readKeysMutate.mockImplementation((_id, { onSuccess }) =>
+          onSuccess([{ kid: "gh-1", fingerprint: "abc" }])
+        );
+        connectMutate.mockImplementation((_vars, { onSuccess }) =>
+          onSuccess(buildRegistration({ jwks: pinned }))
+        );
+        renderAsOperator();
+
+        await user.click(screen.getByRole("button", { name: "Edit" }));
+        await user.click(await screen.findByRole("button", { name: "Connect" }));
+        await user.click(screen.getByRole("button", { name: "Pin these keys" }));
+        const baseUrl = screen.getByLabelText("Base URL");
+        await user.clear(baseUrl);
+        await user.type(baseUrl, "http://initiative-github-2:8080");
+        return user;
+      };
+
+      it("clears the pinned set, so the new address is connected on its own", async () => {
+        const user = await pinThenMove();
+
+        await user.click(screen.getByRole("button", { name: "Save" }));
+
+        const data = updateMutate.mock.calls[0][0].data;
+        expect(data.base_url).toBe("http://initiative-github-2:8080");
+        expect(data.jwks).toEqual({});
+      });
+
+      it("sends a set the operator pasted in its place", async () => {
+        const user = await pinThenMove();
+        const pasted = { keys: [{ kty: "OKP", crv: "Ed25519", kid: "gh-2", x: "ghi" }] };
+
+        const box = screen.getByLabelText("Pasted key set (JWKS)");
+        await user.clear(box);
+        await user.click(box);
+        await user.paste(JSON.stringify(pasted));
+        await user.click(screen.getByRole("button", { name: "Save" }));
+
+        expect(updateMutate.mock.calls[0][0].data.jwks).toEqual(pasted);
+      });
+    });
+
+    it("says why a connect was refused and asks for a fresh look", async () => {
+      const user = userEvent.setup();
+      registrations = [buildRegistration()];
+      readKeysMutate.mockImplementation((_id, { onSuccess }) =>
+        onSuccess([{ kid: "gh-1", fingerprint: "abc" }])
+      );
+      connectMutate.mockImplementation((_vars, { onError }) =>
+        onError({ isAxiosError: true, response: { data: { detail: "APP_SERVICE_KEYS_CHANGED" } } })
+      );
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await user.click(await screen.findByRole("button", { name: "Connect" }));
+      await user.click(screen.getByRole("button", { name: "Pin these keys" }));
+
+      expect(
+        await screen.findByText(/The app's keys changed after you checked them/)
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Keys the app serves" })).toBeNull();
     });
 
     it("clears the pasted key set when the box is emptied", async () => {

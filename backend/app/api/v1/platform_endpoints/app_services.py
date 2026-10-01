@@ -28,6 +28,8 @@ from app.schemas.platform.app_service import (
     AppPublisherCreate,
     AppPublisherRead,
     AppPublisherUpdate,
+    AppServiceConnect,
+    AppServicePublishedKey,
     AppServiceRegistrationCreate,
     AppServiceRegistrationRead,
     AppServiceRegistrationUpdate,
@@ -78,6 +80,7 @@ def _to_read(
         vendor_ready=bool(row.vendor_ready),
         connection_callback_url=flows_service.callback_url(),
         connection_setup_url=flows_service.setup_url(),
+        webhook_url=flows_service.webhook_url(row.public_id),
         live=view.live,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -166,6 +169,42 @@ async def update_app_service(
         mandatory=payload.mandatory,
         enabled=payload.enabled,
         vendor_values=payload.vendor_values,
+        actor_user_id=owner.id,
+    )
+    return await _read_one(session, row.id)
+
+
+@router.get("/{registration_id}/connect", response_model=List[AppServicePublishedKey])
+async def read_app_service_keys(
+    registration_id: int,
+    session: SystemSessionDep,
+    _owner: AppsManageDep,
+) -> List[AppServicePublishedKey]:
+    """The keys the app serves at ``{base_url}/.well-known/jwks.json``, each
+    with its fingerprint, for the operator to confirm. Stores nothing."""
+    keys = await registrations_service.published_keys(session, registration_id)
+    return [
+        AppServicePublishedKey(kid=key.kid, fingerprint=key.fingerprint) for key in keys
+    ]
+
+
+@router.post("/{registration_id}/connect", response_model=AppServiceRegistrationRead)
+async def connect_app_service(
+    registration_id: int,
+    payload: AppServiceConnect,
+    session: SystemSessionDep,
+    owner: AppsManageDep,
+) -> AppServiceRegistrationRead:
+    """Store the key set the app serves as the registration's pasted set, in
+    place of any key set address, when its keys are the ones confirmed and
+    its base URL has not moved (409 otherwise)."""
+    row = await registrations_service.connect_registration(
+        session,
+        registration_id,
+        keys=[
+            registrations_service.PublishedKey(kid=key.kid, fingerprint=key.fingerprint)
+            for key in payload.keys
+        ],
         actor_user_id=owner.id,
     )
     return await _read_one(session, row.id)

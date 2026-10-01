@@ -837,6 +837,27 @@ export interface AppPublisherUpdate {
   enabled?: boolean | null;
 }
 
+/**
+ * One key the app serves under its base URL: what Connect shows, and what
+ * the operator confirms.
+ */
+export interface AppServicePublishedKey {
+  kid: string;
+  /** @maxLength 64 */
+  fingerprint: string;
+}
+
+/**
+ * Pin the key set the app serves, as the operator confirmed it.
+ */
+export interface AppServiceConnect {
+  /**
+   * @minItems 1
+   * @maxItems 20
+   */
+  keys: AppServicePublishedKey[];
+}
+
 export type AppServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
 
 export type AppServiceRegistrationCreateVendorValues = { [key: string]: string | null } | null;
@@ -910,6 +931,7 @@ export interface AppServiceRegistrationRead {
   vendor_ready: boolean;
   connection_callback_url: string;
   connection_setup_url: string;
+  webhook_url: string;
   live: boolean;
   created_at: string;
   updated_at: string;
