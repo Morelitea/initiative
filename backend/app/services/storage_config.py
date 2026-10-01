@@ -47,7 +47,6 @@ class ResolvedStorageConfig:
     access_key_id: str | None
     secret_access_key: str | None  # decrypted plaintext (or None for ambient chain)
     use_path_style: bool
-    kms_key_id: str | None
     local_fallback: bool
 
 
@@ -62,7 +61,6 @@ def _from_env() -> ResolvedStorageConfig:
         access_key_id=app_config.S3_ACCESS_KEY_ID,
         secret_access_key=app_config.S3_SECRET_ACCESS_KEY,
         use_path_style=bool(app_config.S3_USE_PATH_STYLE),
-        kms_key_id=app_config.S3_KMS_KEY_ID,
         local_fallback=bool(app_config.S3_LOCAL_FALLBACK),
     )
 
@@ -96,7 +94,6 @@ async def refresh_storage_config(session: AsyncSession) -> ResolvedStorageConfig
         access_key_id=row.s3_access_key_id,
         secret_access_key=secret,
         use_path_style=bool(row.s3_use_path_style),
-        kms_key_id=row.s3_kms_key_id,
         local_fallback=bool(row.s3_local_fallback),
     )
     _loaded_at = time.monotonic()

@@ -151,7 +151,6 @@ def _build_default_app_settings() -> AppSetting:
         s3_endpoint_url=_normalize_optional_string(app_config.S3_ENDPOINT_URL),
         s3_access_key_id=_normalize_optional_string(app_config.S3_ACCESS_KEY_ID),
         s3_use_path_style=bool(app_config.S3_USE_PATH_STYLE),
-        s3_kms_key_id=_normalize_optional_string(app_config.S3_KMS_KEY_ID),
         s3_local_fallback=bool(app_config.S3_LOCAL_FALLBACK),
         captcha_provider=_normalize_optional_string(app_config.CAPTCHA_PROVIDER),
         captcha_site_key=_normalize_optional_string(app_config.CAPTCHA_SITE_KEY),
@@ -465,7 +464,6 @@ STORAGE_FIELDS: tuple[str, ...] = (
     "s3_endpoint_url",
     "s3_access_key_id",
     "s3_use_path_style",
-    "s3_kms_key_id",
     "s3_local_fallback",
 )
 CAPTCHA_SECRET_FIELD = "captcha_secret_key_encrypted"
@@ -804,7 +802,6 @@ async def update_storage_settings(
     s3_secret_access_key: str | None,
     secret_provided: bool,
     s3_use_path_style: bool,
-    s3_kms_key_id: str | None,
     s3_local_fallback: bool,
     actor_user_id: int | None = None,
 ) -> tuple[AppSetting, AppSettingSecret]:
@@ -833,7 +830,6 @@ async def update_storage_settings(
     settings_row.s3_endpoint_url = _normalize_optional_string(s3_endpoint_url)
     settings_row.s3_access_key_id = _normalize_optional_string(s3_access_key_id)
     settings_row.s3_use_path_style = bool(s3_use_path_style)
-    settings_row.s3_kms_key_id = _normalize_optional_string(s3_kms_key_id)
     settings_row.s3_local_fallback = bool(s3_local_fallback)
     session.add(settings_row)
     await record_settings_area(

@@ -15,7 +15,7 @@ The `STORAGE_BACKEND` environment variable selects where uploads live:
 | `local` *(default)* | The filesystem, under `UPLOADS_DIR`. |
 | `s3` | Any S3-compatible object store you point it at. |
 
-Nothing object-store-related runs unless you opt in with `STORAGE_BACKEND=s3`. Initiative never runs or bundles an object store of its own — you bring your own (for example, a [Garage](https://garagehq.deuxfleurs.fr/) node, MinIO, or a cloud provider's S3).
+Nothing object-store-related runs unless you opt in with `STORAGE_BACKEND=s3`. Initiative never runs or bundles an object store of its own — you bring your own (for example, a [Garage](https://garagehq.deuxfleurs.fr/) node, MinIO, or a cloud provider's S3-compatible storage).
 
 ## How files are organized
 
@@ -40,8 +40,7 @@ S3_ENDPOINT_URL=http://garage:3900    # your store's S3 API endpoint
 S3_REGION=garage                      # must match the store's configured region
 S3_ACCESS_KEY_ID=GK...
 S3_SECRET_ACCESS_KEY=...
-S3_USE_PATH_STYLE=true                # true for Garage and most non-AWS stores
-S3_KMS_KEY_ID=                        # optional SSE-KMS key id/ARN; blank otherwise
+S3_USE_PATH_STYLE=true                # true for Garage and most self-hosted stores
 ```
 
 Notes:
@@ -50,6 +49,7 @@ Notes:
 - **`S3_REGION`** must match the region your store enforces in its request signature.
 - **Credentials** — set the access key id/secret, or leave them unset to use the ambient credential chain where your store supports it.
 - The **bucket must already exist**; Initiative reads and writes objects but doesn't create the bucket.
+- **Encryption at rest** belongs to the bucket. Turn on your store's default encryption there and every file Initiative writes picks it up.
 
 ## Migrating an existing deployment from local to S3
 

@@ -509,7 +509,6 @@ def _storage_settings_payload(
         s3_access_key_id=settings_obj.s3_access_key_id,
         has_secret_access_key=bool(secrets.s3_secret_access_key_encrypted),
         s3_use_path_style=settings_obj.s3_use_path_style,
-        s3_kms_key_id=settings_obj.s3_kms_key_id,
         s3_local_fallback=settings_obj.s3_local_fallback,
     )
 
@@ -549,7 +548,6 @@ async def update_storage_settings(
         s3_secret_access_key=payload.s3_secret_access_key,
         secret_provided=secret_provided,
         s3_use_path_style=payload.s3_use_path_style,
-        s3_kms_key_id=payload.s3_kms_key_id,
         s3_local_fallback=payload.s3_local_fallback,
         actor_user_id=owner.id,
     )
@@ -576,7 +574,6 @@ async def test_storage_connection(
         access_key_id=(payload.s3_access_key_id or "").strip() or None,
         secret_access_key=secret,
         use_path_style=bool(payload.s3_use_path_style),
-        kms_key_id=(payload.s3_kms_key_id or "").strip() or None,
         local_fallback=bool(payload.s3_local_fallback),
     )
     ok, message = await storage_config.test_connection(candidate)

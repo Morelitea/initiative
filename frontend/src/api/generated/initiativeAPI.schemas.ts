@@ -8480,7 +8480,6 @@ export interface StorageSettingsResponse {
   s3_access_key_id: string | null;
   has_secret_access_key: boolean;
   s3_use_path_style: boolean;
-  s3_kms_key_id: string | null;
   s3_local_fallback: boolean;
 }
 
@@ -8492,7 +8491,6 @@ export interface StorageSettingsUpdate {
   s3_access_key_id?: string | null;
   s3_secret_access_key?: string | null;
   s3_use_path_style?: boolean;
-  s3_kms_key_id?: string | null;
   s3_local_fallback?: boolean;
 }
 

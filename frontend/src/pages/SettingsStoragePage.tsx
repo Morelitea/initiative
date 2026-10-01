@@ -37,7 +37,6 @@ const DEFAULT_STATE = {
   s3_endpoint_url: "",
   s3_access_key_id: "",
   s3_use_path_style: false,
-  s3_kms_key_id: "",
   s3_local_fallback: false,
 };
 
@@ -57,7 +56,6 @@ export const SettingsStoragePage = () => {
       s3_endpoint_url: data?.s3_endpoint_url ?? DEFAULT_STATE.s3_endpoint_url,
       s3_access_key_id: data?.s3_access_key_id ?? DEFAULT_STATE.s3_access_key_id,
       s3_use_path_style: data?.s3_use_path_style ?? DEFAULT_STATE.s3_use_path_style,
-      s3_kms_key_id: data?.s3_kms_key_id ?? DEFAULT_STATE.s3_kms_key_id,
       s3_local_fallback: data?.s3_local_fallback ?? DEFAULT_STATE.s3_local_fallback,
     }),
     "storage"
@@ -81,7 +79,6 @@ export const SettingsStoragePage = () => {
       s3_endpoint_url: form.values.s3_endpoint_url || null,
       s3_access_key_id: form.values.s3_access_key_id || null,
       s3_use_path_style: form.values.s3_use_path_style,
-      s3_kms_key_id: form.values.s3_kms_key_id || null,
       s3_local_fallback: form.values.s3_local_fallback,
     };
     // Only send the secret when the owner typed one, so an empty field keeps the
@@ -234,16 +231,6 @@ export const SettingsStoragePage = () => {
                   />
                   <p className="text-muted-foreground text-xs">{t("storage.secretKeyHelp")}</p>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="s3-kms">{t("storage.kmsLabel")}</Label>
-                <Input
-                  id="s3-kms"
-                  value={form.values.s3_kms_key_id}
-                  onChange={(event) => form.set({ s3_kms_key_id: event.target.value })}
-                  placeholder={t("storage.kmsPlaceholder")}
-                />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">

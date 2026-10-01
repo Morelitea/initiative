@@ -380,9 +380,6 @@ class AppSetting(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    s3_kms_key_id: Optional[str] = Field(
-        default=None, sa_column=Column(String(500), nullable=True)
-    )
     s3_local_fallback: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),

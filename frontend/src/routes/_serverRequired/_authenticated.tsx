@@ -49,8 +49,6 @@ import {
 } from "@/hooks/useRecents";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
-import { toast } from "@/lib/chesterToast";
-import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAreas } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
@@ -460,38 +458,6 @@ function NoGuildState({
   onBusy: (busy: boolean) => void;
 }) {
   const { t } = useTranslation("guilds");
-  const { canSell, openPortal, reserveTab } = useBillingPortal();
-  const { communityDirectoryEnabled } = useAppConfig();
-  const [guildName, setGuildName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [creating, setCreating] = useState(false);
-
-  const handleCreate = async () => {
-    const trimmed = guildName.trim();
-    if (!trimmed) return;
-    setCreating(true);
-    // Reserved inside the click gesture (null when nothing may be sold here)
-    // so the hop below isn't treated as an unsolicited popup.
-    const billingTab = reserveTab();
-    try {
-      const guild = await createGuild({ name: trimmed });
-      if (canSell) {
-        toast.info(t("billingSetup.opening", { guild: guild.name }));
-        await openPortal(guild.id, "upgrade", billingTab);
-      }
-    } catch (err) {
-      billingTab?.close();
-      // The server's own line for this sends them to choose a plan, which the
-      // phone app may not do; there it only says why.
-      toast.error(
-        !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
-          ? t("freeCommunityHeldInApp")
-          : getErrorMessage(err, "guilds:unableToCreateGuild")
-      );
-      setCreating(false);
-    }
-  };
-
   return (
     <StartFlow
       signedIn

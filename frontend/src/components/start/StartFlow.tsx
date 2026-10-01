@@ -48,7 +48,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 import {
   browserOffersPasskeys,
@@ -153,12 +153,13 @@ const StartSteps = ({
     emailOtpLoginEnabled,
     communityAgeGateEnabled,
   } = useAppConfig();
-  const { isNativePlatform, getServerOrigin } = useServer();
-  const { billing, openPortal, reserveTab } = useBillingPortal();
-  // A plan is picked in both; only the web goes on to the portal. The native
-  // app's pick travels with the new community, and the owner is emailed.
-  const plansShown = Boolean(billing);
-  const portalOpens = !isNativePlatform;
+  const { getServerOrigin } = useServer();
+  const { billing, canSell, openPortal, reserveTab } = useBillingPortal();
+  // A plan is picked only where it can be bought. The phone app may not sell
+  // (the app stores refuse one that sends anyone to pay outside them), so its
+  // flow has no plan step: the community starts on the free plan, and the
+  // welcome letter is the way to the rest.
+  const plansShown = canSell;
   const catalog = useBillingCatalog(plansShown ? billing?.url : null);
   const seed = useSeedStarter();
   const landOn = useLandOnStarter();
@@ -212,7 +213,7 @@ const StartSteps = ({
   const planTab = useRef<Window | null>(null);
   const reservePlanTab = () => {
     planTab.current?.close();
-    planTab.current = wantsPlan && portalOpens ? reserveTab() : null;
+    planTab.current = wantsPlan ? reserveTab() : null;
   };
   const dropPlanTab = () => {
     planTab.current?.close();
@@ -333,7 +334,13 @@ const StartSteps = ({
     } catch (err) {
       dropPlanTab();
       onBusy?.(false);
-      setError(getErrorMessage(err, "guilds:unableToCreateGuild"));
+      // The server's own line for this sends them to choose a plan, which the
+      // phone app may not do; there it only says why.
+      setError(
+        !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
+          ? t("guilds:freeCommunityHeldInApp")
+          : getErrorMessage(err, "guilds:unableToCreateGuild")
+      );
     } finally {
       setBusy(false);
     }
@@ -384,7 +391,7 @@ const StartSteps = ({
         toast.info(t("guilds:billingSetup.opening", { guild: guild.name }));
         void openPortal(guild.id, "upgrade", planTab.current);
         planTab.current = null;
-      } else if (wantsPlan && portalOpens) {
+      } else if (wantsPlan) {
         setPlanByButton(true);
       }
       setMade({ id: guild.id, name: guild.name });
@@ -948,11 +955,7 @@ const StartSteps = ({
       body = (
         <>
           {held?.underAge ? <p className="text-sm">{t("start.underAge")}</p> : null}
-          {wantsPlan ? (
-            <p className="text-sm">
-              {t(portalOpens ? "start.checkEmail.planLater" : "start.planFollows")}
-            </p>
-          ) : null}
+          {wantsPlan ? <p className="text-sm">{t("start.checkEmail.planLater")}</p> : null}
           <Button asChild className="w-full">
             <Link to="/login">{t("start.checkEmail.signIn")}</Link>
           </Button>
@@ -974,7 +977,6 @@ const StartSteps = ({
       description = t("start.people.description", { community: made?.name ?? finalName });
       body = made ? (
         <>
-          {wantsPlan && !portalOpens ? <p className="text-sm">{t("start.planFollows")}</p> : null}
           <InviteYourPeople
             guildId={made.id}
             origin={getServerOrigin() ?? window.location.origin}

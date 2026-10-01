@@ -1,9 +1,9 @@
-import { Capacitor } from "@capacitor/core";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost } from "@/api/generated/communities/communities";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useServer } from "@/hooks/useServer";
 
 /** Portal page to land on: the plan/card setup screen, or the existing
  *  subscription's management screen. */
@@ -39,7 +39,8 @@ export const useBillingPortal = () => {
   const { billing, isLoading } = useAppConfig();
   const { i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
-  const canSell = billing != null && !Capacitor.isNativePlatform();
+  const { isNativePlatform } = useServer();
+  const canSell = billing != null && !isNativePlatform;
 
   const pageUrl = useCallback(
     (guildId: number, page: BillingPortalPage): string | null =>
