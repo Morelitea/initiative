@@ -220,5 +220,12 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
 
 /** One decoration in somebody's library. Shipped (no pack) by default. */
 export function buildOwnedDecoration(overrides: Partial<OwnedDecoration> = {}): OwnedDecoration {
-  return { id: "core.aurora", kind: "banner", name: null, source: null, ...overrides };
+  return {
+    id: "core.aurora",
+    kind: "banner",
+    name: null,
+    source: null,
+    image_url: null,
+    ...overrides,
+  };
 }

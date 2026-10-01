@@ -41,7 +41,7 @@ const selectProject = async (name: string) => {
 
 describe("ProjectListPanel bulk sharing", () => {
   it("offers sharing on an ordinary selection", async () => {
-    panel([buildProject({ name: "Barovia Arc", can: ownerCan() })]);
+    panel([buildProject({ name: "Barovia Arc", can: { ...ownerCan(), configure: false } })]);
 
     await selectProject("Barovia Arc");
 
@@ -54,7 +54,7 @@ describe("ProjectListPanel bulk sharing", () => {
         name: "Planescape Detour",
         // What an archived project arrives as: nothing on it may be changed
         // but taking it back out.
-        can: readerCan({ unarchive: true }),
+        can: { ...readerCan({ unarchive: true }), configure: false },
         archived_at: "2026-06-01T00:00:00.000Z",
       }),
     ]);

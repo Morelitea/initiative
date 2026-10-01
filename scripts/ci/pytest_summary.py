@@ -92,9 +92,17 @@ def render(run: Run, title: str = "Backend tests") -> str:
             ]
     if run.failures:
         out += ["", "#### Failures", ""]
-        out += [f"- `{test}`: {_reason(reason)}" for test, reason in run.failures.items()]
+        out += [
+            f"- `{test}`: {_reason(reason)}" for test, reason in run.failures.items()
+        ]
     if run.slowest:
-        out += ["", "#### Slowest tests", "", "| Time | Phase | Test |", "|---|---|---|"]
+        out += [
+            "",
+            "#### Slowest tests",
+            "",
+            "| Time | Phase | Test |",
+            "|---|---|---|",
+        ]
         for seconds, phase, test in sorted(run.slowest, reverse=True)[:SLOWEST_SHOWN]:
             out.append(f"| {seconds:.1f}s | {phase} | `{test}` |")
     return "\n".join(out) + "\n"

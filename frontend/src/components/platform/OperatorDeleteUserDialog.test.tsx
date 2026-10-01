@@ -14,6 +14,8 @@ const targetUser: OperatorUserRead = {
   ...buildUser({ id: 42, status: "active" }),
   email: "sole-admin@example.com",
   purge_at: null,
+  sign_in_locked_until: null,
+  second_factor_enrolled: false,
 };
 
 const eligibilityWithGuildBlocker = {
