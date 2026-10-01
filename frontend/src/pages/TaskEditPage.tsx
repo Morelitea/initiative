@@ -18,7 +18,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
-import { PropertyTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
   readTaskApiV1CGuildIdTasksTaskIdGet,
@@ -67,7 +67,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
-import { useSetProperties } from "@/hooks/useProperties";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
 import {
@@ -255,8 +254,7 @@ export const TaskEditPage = () => {
     Number.isFinite(projectId) && projectQuery.isLoading && !projectQuery.data;
 
   const updateTask = useUpdateTask();
-  const setTaskProperties = useSetProperties();
-  const isSaving = updateTask.isPending || setTaskProperties.isPending;
+  const isSaving = updateTask.isPending;
 
   const duplicateTask = useDuplicateTask({
     onSuccess: (newTask) => {
@@ -380,10 +378,14 @@ export const TaskEditPage = () => {
       tag_ids: tags.map((tag) => tag.id),
     };
     const properties = taskFormPropertyValues(form.values);
-    const propertiesChanged =
+    // Sent only when they changed, with the task's own fields, so the edit
+    // lands whole or not at all.
+    if (
       !task ||
-      JSON.stringify(properties) !==
-        JSON.stringify(taskFormPropertyValues(formValueFromTask(task)));
+      JSON.stringify(properties) !== JSON.stringify(taskFormPropertyValues(formValueFromTask(task)))
+    ) {
+      payload.properties = properties;
+    }
     if (task && repeating && seriesFields(form.values) !== seriesFields(formValueFromTask(task))) {
       const scope = await scopePrompt.ask("edit", { tool: "tasks", count: task.series_size });
       if (scope === null) {
@@ -391,19 +393,12 @@ export const TaskEditPage = () => {
       }
       payload.scope = scope;
     }
-    const settle = (saved: TaskRead) => {
-      form.settle(formValueFromTask(saved));
-      toast.success(t("edit.taskUpdated"));
-    };
     updateTask.mutate(
       { taskId: parsedTaskId, data: payload as never },
       {
         onSuccess: (updatedTask) => {
-          if (!propertiesChanged) return settle(updatedTask);
-          setTaskProperties.mutate(
-            { target: PropertyTarget.task, id: parsedTaskId, values: properties },
-            { onSuccess: (saved) => settle({ ...updatedTask, properties: saved }) }
-          );
+          form.settle(formValueFromTask(updatedTask));
+          toast.success(t("edit.taskUpdated"));
         },
       }
     );

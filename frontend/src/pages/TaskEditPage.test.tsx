@@ -129,7 +129,7 @@ describe("TaskEditPage", () => {
     }
   });
 
-  it("saves the task, then its property values through the property route", async () => {
+  it("saves the task and its changed property values in one request", async () => {
     const { task } = renderTaskPage({
       properties: [
         buildPropertySummary({
@@ -140,19 +140,14 @@ describe("TaskEditPage", () => {
         }),
       ],
     });
-    const sent: Array<{ route: string; body: Record<string, unknown> }> = [];
+    const sent: Record<string, unknown>[] = [];
+    const put = vi.fn(() => HttpResponse.json([]));
     server.use(
       guildHttp.patch("/tasks/:taskId", async ({ request }) => {
-        sent.push({ route: "task", body: (await request.json()) as Record<string, unknown> });
+        sent.push((await request.json()) as Record<string, unknown>);
         return HttpResponse.json(task);
       }),
-      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
-        sent.push({
-          route: `${params.target}/${params.entityId}`,
-          body: (await request.json()) as Record<string, unknown>,
-        });
-        return HttpResponse.json([]);
-      })
+      guildHttp.put("/properties/:target/:entityId", put)
     );
 
     const hours = await screen.findByPlaceholderText("0");
@@ -160,13 +155,9 @@ describe("TaskEditPage", () => {
     await userEvent.type(hours, "8");
     await userEvent.click(screen.getByRole("button", { name: /save task/i }));
 
-    await waitFor(() => expect(sent).toHaveLength(2));
-    expect(sent[0].route).toBe("task");
-    expect(sent[0].body).not.toHaveProperty("property_values");
-    expect(sent[1]).toEqual({
-      route: `task/${TASK_ID}`,
-      body: { values: [{ property_id: 4, value: 8 }] },
-    });
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].properties).toEqual([{ property_id: 4, value: 8 }]);
+    expect(put).not.toHaveBeenCalled();
   });
 
   it("reports duplicate progress on the trigger once the menu closes", async () => {

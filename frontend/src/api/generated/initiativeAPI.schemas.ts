@@ -1884,6 +1884,7 @@ export const CalendarEventUpdateScope = {
 } as const;
 
 export interface CalendarEventUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   description?: string | null;
   location?: string | null;
@@ -4069,6 +4070,7 @@ export interface GalleryImageListResponse {
 }
 
 export interface GalleryImageUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   caption?: string | null;
   tag_ids?: number[] | null;
@@ -7684,6 +7686,7 @@ export interface QueueItemRead {
 }
 
 export interface QueueItemUpdate {
+  properties?: PropertyValueInput[] | null;
   label?: string | null;
   position?: number | null;
   user_id?: number | null;
@@ -8748,6 +8751,7 @@ export const TaskUpdateScope = {
 } as const;
 
 export interface TaskUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   description?: string | null;
   task_status_id?: number | null;
@@ -9499,6 +9503,7 @@ export type WikiPageUpdateContent = { [key: string]: unknown } | null;
  * page is the same request shape as editing its body.
  */
 export interface WikiPageUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   is_draft?: boolean | null;
   content?: WikiPageUpdateContent;

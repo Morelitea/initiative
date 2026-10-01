@@ -1522,8 +1522,8 @@ export function useReadGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdG
 }
 
 /**
- * Retitle, caption or retag a picture. Requires write access on the
- * gallery.
+ * Retitle, caption, retag or set the properties of a picture. Requires
+ * write access on the gallery.
  * @summary Update Gallery Image
  */
 export const updateGalleryImageApiV1CGuildIdGalleriesGalleryIdImagesImageIdPatch = (
