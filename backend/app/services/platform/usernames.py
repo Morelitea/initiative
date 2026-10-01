@@ -115,7 +115,7 @@ async def suggest(
     if base is not None:
         candidates.append(base)
         candidates += [
-            f"{base}-{noun}"[: usernames.MAX_LENGTH].rstrip("-")
+            f"{base[: usernames.MAX_LENGTH - len(noun) - 1].rstrip('-')}-{noun}"
             for noun in usernames.random_nouns(3)
         ]
     candidates += [usernames.random_name() for _ in range(count * 3)]

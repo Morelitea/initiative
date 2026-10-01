@@ -1,4 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSuggestUsernamesApiV1AuthUsernameSuggestionsGet } from "@/api/generated/auth/auth";
@@ -82,7 +83,8 @@ export const YouStep = ({
   onContinue: () => void;
 }) => {
   const { t } = useTranslation(["auth", "settings"]);
-  const handleMissing = !signedIn && !username.trim();
+  const [handleUsable, setHandleUsable] = useState(true);
+  const handleMissing = !signedIn && (!username.trim() || !handleUsable);
   return (
     <>
       {signedIn ? null : (
@@ -92,6 +94,7 @@ export const YouStep = ({
               id="start-username"
               value={username}
               onChange={onUsernameChange}
+              onUsableChange={setHandleUsable}
               disabled={busy}
             />
             <HandleSuggestions value={username} onPick={onUsernameChange} disabled={busy} />

@@ -71,7 +71,8 @@ const current = (saved: StartAnswers | null): StartAnswers | null => {
   return {
     ...freshAnswers(saved.path),
     ...saved,
-    categories: asGuildCategories(saved.categories),
+    // A copy saved with a single interest named it `category`.
+    categories: asGuildCategories(saved.categories ?? (saved as { category?: unknown }).category),
     username: typeof saved.username === "string" ? saved.username : "",
   };
 };

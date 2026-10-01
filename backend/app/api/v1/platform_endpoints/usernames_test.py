@@ -120,6 +120,18 @@ class TestAvailability:
         )
         assert fresh.json()["suggestions"][0] == "quiet-otter"
 
+        # A long name that is held still yields alternatives built on it.
+        long_name = "a-rather-long-handle-for-a-test"
+        await create_user(session, username=long_name, discriminator=1)
+        long = await client.get(
+            "/api/v1/auth/username-suggestions", params={"seed": long_name}
+        )
+        built_on_it = [
+            s for s in long.json()["suggestions"] if s.startswith("a-rather")
+        ]
+        assert built_on_it
+        assert all(len(s) <= 32 and s != long_name for s in built_on_it)
+
 
 class TestClaimingAHandle:
     async def test_an_assigned_handle_can_be_picked_once(

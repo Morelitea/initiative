@@ -94,6 +94,10 @@ const enterBirthdate = async (date: string) => {
   await userEvent.keyboard("{Escape}");
 };
 
+/** Continue opens once the handle has been checked. */
+const continueEnabled = () =>
+  waitFor(() => expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled());
+
 /** The handle is the one thing the You step needs typed. */
 const chooseHandle = async () => {
   await heading("About you");
@@ -148,6 +152,7 @@ describe("which paths are offered", () => {
     await userEvent.click(screen.getByRole("radio", { name: /for a group/i }));
     await press("Continue");
     await chooseHandle();
+    await continueEnabled();
     await press("Continue");
     await heading("Your community");
     await press("Continue");
@@ -187,6 +192,7 @@ describe("what the account is made with", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await userEvent.click(await screen.findByRole("button", { name: "chesterfan" }));
     expect(screen.getByLabelText("Username")).toHaveValue("chesterfan");
+    await continueEnabled();
     await press("Continue");
     await heading("Your space");
     await press("Continue");
@@ -199,6 +205,22 @@ describe("what the account is made with", () => {
       community: { name: "chesterfan's space" },
     });
     expect(sent).not.toHaveProperty("full_name");
+  });
+
+  it("holds a handle the server refuses on the step where it can be changed", async () => {
+    server.use(
+      http.get("/api/v1/auth/username-available", () =>
+        HttpResponse.json({ available: false, reason: "USERNAME_RESERVED" })
+      )
+    );
+    renderStart();
+
+    await heading("What brings you here?");
+    await press("Continue");
+    await heading("About you");
+    await userEvent.type(screen.getByLabelText("Username"), "admin");
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled());
   });
 
   it("sends the birthdate and no community for joining, and keeps every interest", async () => {
@@ -216,6 +238,7 @@ describe("what the account is made with", () => {
     expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await enterBirthdate("1990-05-04");
+    await continueEnabled();
     await press("Continue");
     await createAccount();
 
