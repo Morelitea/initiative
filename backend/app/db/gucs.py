@@ -223,10 +223,6 @@ INSTALL_WRITE = Guc("app.install_write", Kind.NAMES, standing=True)
 CONTENT_HOLD = Guc("app.content_hold", Kind.BOOL, standing=True)
 
 # --- Per-transaction flags ----------------------------------------------------
-#: Who the next notification write is for, named by
-#: ``user_notifications.name_recipient``.
-NOTIFY_TARGET_USER_ID = Guc("app.notify_target_user_id", Kind.INT)
-
 #: Transaction-local flag marking a transaction as a purge.
 #:
 #: Purge is the one lifecycle step that writes frozen content rather than only
@@ -297,7 +293,7 @@ STANDING: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.standing)
 
 #: Raised for one transaction by the code that needs them
 #: (``app.db.session.raise_flag``), never by a routing.
-FLAGS: tuple[Guc, ...] = (NOTIFY_TARGET_USER_ID, PURGING, RESTRUCTURING)
+FLAGS: tuple[Guc, ...] = (PURGING, RESTRUCTURING)
 
 
 #: The community this session reads, as text: a member routes with

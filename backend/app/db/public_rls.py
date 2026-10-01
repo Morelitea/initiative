@@ -2170,19 +2170,10 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # Notification email waiting to go out. The worker owns this table: it
             # reads what is due, claims it, settles it and sweeps it, and the settings
             # endpoint rewrites the due times when somebody changes when they read.
-            # The request path only ever appends (see app_user below and the
-            # base-role REVOKE in the migration).
+            # Every row is written there too — by the notice worker, the digests and
+            # the account letters — so no request floor holds anything
+            # (20261001_0428).
             app_admin=DML,
-            # Written by a routed request for its recipient, never before routing and
-            # never read back on the request path at all.
-            app_user=None,
-            # 0320: a routed request appends the notification email for its recipient;
-            # reading, claiming and settling are the worker's, on the system engine.
-            app_guild_base=frozenset({INSERT}),
-            platform_base=frozenset({INSERT}),
-            # What an install's write sends appends its email for the worker, as a
-            # member's does (0320; migration 20260924_0386).
-            app_install_base=frozenset({INSERT}),
         ),
     ),
     "notice_outbox": SharedTable(
@@ -2265,38 +2256,6 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("platform_base",),
                     using=own_row("user_id"),
                 ),
-                # The write path, which runs inside the community the event happened
-                # in and writes for somebody else — a member's request, or an
-                # installed app's. Held to the one account it names in
-                # ``app.notify_target_user_id`` and to the routed community, so a
-                # rollup can find and extend the line it is about to write and
-                # nothing else.
-                Policy(
-                    "notifications_write_named_recipient",
-                    SELECT,
-                    ("app_guild_base", "app_install_base"),
-                    using=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
-                ),
-                Policy(
-                    "notifications_insert_named_recipient",
-                    INSERT,
-                    ("app_guild_base", "app_install_base"),
-                    check=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
-                ),
-                Policy(
-                    "notifications_update_named_recipient",
-                    UPDATE,
-                    ("app_guild_base", "app_install_base"),
-                    using=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
-                ),
-                # A line whose every rolled-up event has been taken back is removed
-                # outright, from the request that took the last one back.
-                Policy(
-                    "notifications_delete_named_recipient",
-                    DELETE,
-                    ("app_guild_base",),
-                    using=f"user_id = {gucs.NOTIFY_TARGET_USER_ID} AND {guild_scoped()}",
-                ),
             ),
         ),
         grants=Grants(
@@ -2304,19 +2263,12 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # engine already creates and reaps these rows, and a rollup rewrites one
             # it wrote itself rather than reaching a row it could not otherwise touch.
             app_admin=DML,
-            # 0245 records the decision: a notification is written by the actor for
-            # its recipient on the routed session, in the same transaction as the
-            # content that caused it, and the table carries no policy for the request
-            # path. Reading and dismissing run under a platform tier.
-            app_guild_base=DML,
-            # The reader's own bell: listed, marked read and dismissed. 0357 took
-            # INSERT back; a notification is written on a routed request or the system
-            # engine.
+            # The reader's own bell: listed, marked read and dismissed. Every line
+            # is written on the system engine — by the notice worker, or inline
+            # for a direct message and the suspension notice — so no request
+            # floor writes one (0357 for this floor, 20261001_0428 for the routed
+            # and install floors).
             platform_base=frozenset({SELECT, UPDATE, DELETE}),
-            # A bell line an install's write sends, for its named recipient in the
-            # routed community (the named-recipient policies; migration
-            # 20260924_0386).
-            app_install_base=frozenset({SELECT, INSERT, UPDATE}),
         ),
     ),
 }
