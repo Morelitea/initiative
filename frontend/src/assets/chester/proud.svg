@@ -1,48 +1,43 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="geometricPrecision">
   <style>
     .body { animation: bounce 2s ease-in-out infinite; transform-origin: 16px 16px; }
+    .curl { animation: curl 2.4s ease-in-out infinite; transform-origin: 16.4px 28.4px; }
     .sparkles { animation: sparkle 1.2s ease-in-out infinite; }
     @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
     @keyframes sparkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes curl { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
     @media (prefers-reduced-motion: reduce) { [class] { animation: none; } }
   </style>
+  <g transform="matrix(0.94 0 0 0.94 0.96 0.8)">
   <g class="body">
-    <rect x="3" y="16" width="26" height="12" fill="#8B5E3C"/>
-    <rect x="2" y="16" width="1" height="12" fill="#2A1A0A"/>
-    <rect x="29" y="16" width="1" height="12" fill="#2A1A0A"/>
-    <rect x="3" y="28" width="26" height="1" fill="#2A1A0A"/>
-    <rect x="3" y="16" width="2" height="12" fill="#A97B50"/>
-    <rect x="27" y="16" width="2" height="12" fill="#5C3A1E"/>
-    <rect x="5" y="19" width="22" height="1" fill="#5C3A1E" opacity="0.4"/>
-    <rect x="5" y="24" width="22" height="1" fill="#5C3A1E" opacity="0.4"/>
-    <rect x="2" y="21" width="28" height="3" fill="#C9A84C"/>
-    <rect x="2" y="21" width="28" height="1" fill="#E8D48B"/>
-    <rect x="2" y="23" width="28" height="1" fill="#9E7B2F"/>
-    <rect x="13" y="19" width="6" height="6" rx="1" fill="#C9A84C" stroke="#2A1A0A" stroke-width="0.5"/>
-    <rect x="13" y="19" width="6" height="2" fill="#E8D48B"/>
-    <rect x="15" y="22" width="2" height="2" rx="1" fill="#9E7B2F"/>
-    <rect x="3" y="28" width="3" height="2" fill="#9E7B2F"/>
-    <rect x="26" y="28" width="3" height="2" fill="#9E7B2F"/>
-    <g>
-      <rect x="3" y="7" width="26" height="9" rx="2" fill="#8B5E3C"/>
-      <rect x="2" y="7" width="1" height="9" fill="#2A1A0A"/>
-      <rect x="29" y="7" width="1" height="9" fill="#2A1A0A"/>
-      <rect x="3" y="6" width="26" height="1" fill="#2A1A0A"/>
-      <rect x="3" y="7" width="26" height="2" fill="#A97B50"/>
-      <rect x="3" y="14" width="26" height="2" fill="#5C3A1E"/>
-      <rect x="2" y="10" width="28" height="3" fill="#C9A84C"/>
-      <rect x="2" y="10" width="28" height="1" fill="#E8D48B"/>
-      <rect x="2" y="12" width="28" height="1" fill="#9E7B2F"/>
-      <circle cx="5" cy="11" r="1" fill="#E8D48B"/>
-      <circle cx="27" cy="11" r="1" fill="#E8D48B"/>
-    </g>
-    <g>
-      <path d="M8 12.5 Q11 8 14 12.5" fill="none" stroke="#2A1A0A" stroke-width="1.5" stroke-linecap="round"/>
-      <path d="M18 12.5 Q21 8 24 12.5" fill="none" stroke="#2A1A0A" stroke-width="1.5" stroke-linecap="round"/>
+    <path class="curl" d="M16.4 28.4 C 19 28.8, 21.6 28.4, 22.4 29.4 C 22.9 30.1, 22 30.7, 21.4 30.1" fill="none" stroke="#F4EBDD" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M13.8 12.6 C 10 15.4, 7.6 19.6, 8.2 23.6 C 8.8 27.4, 13 29.2, 17.6 28.4 C 22 27.8, 24.4 24.4, 23.8 20.8 C 23.4 18.2, 21.8 16, 20.4 14.6 Z" fill="#F4EBDD" stroke="#F4EBDD" stroke-width="2.0" stroke-linejoin="round"/>
+    <path class="ear-l" d="M14.4 9.2 C 10.6 7.8, 6.4 4.8, 4.8 1.2 C 8.8 1.8, 13 4.4, 15.8 8 Z" fill="#F4EBDD" stroke="#F4EBDD" stroke-width="2.0" stroke-linejoin="round"/>
+    <path class="ear-r" d="M18.4 8.4 C 19.8 5, 23.2 2.4, 27 1.2 C 26.2 4.8, 23.2 8, 19.8 9.6 Z" fill="#F4EBDD" stroke="#F4EBDD" stroke-width="2.0" stroke-linejoin="round"/>
+    <path d="M16.8 8.6 C 12.8 6.8, 11.6 3.2, 13 1.6 C 14.2 0.4, 16.2 0.8, 16.8 2.6 C 17.4 0.8, 19.4 0.4, 20.6 1.6 C 22 3.2, 20.8 6.8, 16.8 8.6 Z" fill="#F4EBDD" stroke="#F4EBDD" stroke-width="2.0" stroke-linejoin="round"/>
+    <path transform="matrix(1.15 0 0 1.15 -2.6 -1.95)" d="M14.4 8.6 C 13 10, 12.8 13, 13.9 15.1 C 15 16.9, 18.7 17.2, 20.3 15.5 C 21.6 14, 21.2 10.4, 19.8 8.6 C 18.4 7.4, 15.8 7.4, 14.4 8.6 Z" fill="#F4EBDD" stroke="#F4EBDD" stroke-width="2.0" stroke-linejoin="round"/>
+    <path class="curl" d="M16.4 28.4 C 19 28.8, 21.6 28.4, 22.4 29.4 C 22.9 30.1, 22 30.7, 21.4 30.1" fill="none" stroke="#F4EBDD" stroke-width="2.4" stroke-linecap="round"/><path class="curl" d="M16.4 28.4 C 19 28.8, 21.6 28.4, 22.4 29.4 C 22.9 30.1, 22 30.7, 21.4 30.1" fill="none" stroke="#1E1916" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M13.8 12.6 C 10 15.4, 7.6 19.6, 8.2 23.6 C 8.8 27.4, 13 29.2, 17.6 28.4 C 22 27.8, 24.4 24.4, 23.8 20.8 C 23.4 18.2, 21.8 16, 20.4 14.6 Z" fill="#1E1916" stroke="#F4EBDD" stroke-width="0.6" stroke-linejoin="round"/>
+    <path class="ear-l" d="M14.4 9.2 C 10.6 7.8, 6.4 4.8, 4.8 1.2 C 8.8 1.8, 13 4.4, 15.8 8 Z" fill="#1E1916" stroke="#F4EBDD" stroke-width="0.6" stroke-linejoin="round"/>
+    <path class="ear-r" d="M18.4 8.4 C 19.8 5, 23.2 2.4, 27 1.2 C 26.2 4.8, 23.2 8, 19.8 9.6 Z" fill="#1E1916" stroke="#F4EBDD" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M16.8 8.6 C 12.8 6.8, 11.6 3.2, 13 1.6 C 14.2 0.4, 16.2 0.8, 16.8 2.6 C 17.4 0.8, 19.4 0.4, 20.6 1.6 C 22 3.2, 20.8 6.8, 16.8 8.6 Z" fill="#1E1916" stroke="#F4EBDD" stroke-width="0.6" stroke-linejoin="round"/>
+    <path transform="matrix(1.15 0 0 1.15 -2.6 -1.95)" d="M14.4 8.6 C 13 10, 12.8 13, 13.9 15.1 C 15 16.9, 18.7 17.2, 20.3 15.5 C 21.6 14, 21.2 10.4, 19.8 8.6 C 18.4 7.4, 15.8 7.4, 14.4 8.6 Z" fill="#1E1916" stroke="#F4EBDD" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M10.8 20.4 C 10.4 23.6, 12 26.2, 16.6 26.8" fill="none" stroke="#F4EBDD" stroke-width="0.6" stroke-linecap="round"/>
+    <path d="M6.6 2.2 C 8.8 3.8, 10.8 5.6, 12.6 7 M25.6 2 C 23.8 3.4, 22.2 5.2, 21 6.6" fill="none" stroke="#F4EBDD" stroke-width="0.45" stroke-linecap="round"/>
+    <path d="M14.6 2.2 C 13.8 3.8, 14.8 5.2, 16 6 M19 2.2 C 19.8 3.8, 18.8 5.2, 17.6 6" fill="none" stroke="#F4EBDD" stroke-width="0.4" stroke-linecap="round"/>
+    <g transform="matrix(1.15 0 0 1.15 -2.6 -1.95)">
+    <path d="M17.4 8.4 L 17.8 12.4" fill="none" stroke="#F4EBDD" stroke-width="0.5" stroke-linecap="round"/>
+    <path d="M15.5 14.2 C 15.2 15.8, 16.4 16.7, 17.7 16.5 C 19 16.7, 20.5 15.8, 20.3 14.2 C 20.1 12.9, 18.8 12.7, 17.9 13.5 C 17 12.7, 15.7 12.9, 15.5 14.2 Z" fill="#F4EBDD"/>
+    <path d="M15.5 14.2 L 13.3 13.6 M15.5 14.9 L 13.5 15.5" fill="none" stroke="#F4EBDD" stroke-width="0.3" stroke-linecap="round"/>
+    <path d="M17.3 13.5 Q 17.9 13.2 18.5 13.5 L 17.9 14.2 Z" fill="#1E1916"/>
+    <path d="M14.1 11.700000000000001 Q 15.2 10.4 16.3 11.700000000000001" fill="none" stroke="#F4EBDD" stroke-width="0.6" stroke-linecap="round"/>
+    <path d="M18.2 11.5 Q 19.3 10.2 20.400000000000002 11.5" fill="none" stroke="#F4EBDD" stroke-width="0.6" stroke-linecap="round"/>
+    <path d="M17.9 14.2 L 17.9 14.8 M16.8 14.9 Q 17.35 15.6 17.9 14.8 Q 18.45 15.6 19 14.9" fill="none" stroke="#1E1916" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>
     </g>
     <g class="sparkles">
-      <polygon points="27,5 27.8,7 30,7 28.2,8.2 28.8,10.5 27,9 25.2,10.5 25.8,8.2 24,7 26.2,7" fill="#FFE066"/>
-      <polygon points="5,4 5.5,5.2 7,5.2 5.8,6 6.2,7.5 5,6.5 3.8,7.5 4.2,6 3,5.2 4.5,5.2" fill="#FFE066" opacity="0.7"/>
+      <polygon points="27,7 27.8,9 30,9 28.2,10.2 28.8,12.5 27,11 25.2,12.5 25.8,10.2 24,9 26.2,9" fill="#FFE066" stroke="#1E1916" stroke-width="0.35" stroke-linejoin="round"/>
+      <polygon points="5,9 5.5,10.2 7,10.2 5.8,11 6.2,12.5 5,11.5 3.8,12.5 4.2,11 3,10.2 4.5,10.2" fill="#FFE066" stroke="#1E1916" stroke-width="0.35" stroke-linejoin="round" opacity="0.85"/>
     </g>
+  </g>
   </g>
 </svg>
