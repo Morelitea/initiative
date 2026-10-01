@@ -24,6 +24,8 @@ import type {
   AppPublisherCreate,
   AppPublisherRead,
   AppPublisherUpdate,
+  AppServiceConnect,
+  AppServicePublishedKeyRead,
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
@@ -466,6 +468,283 @@ export const useDeleteAppServiceApiV1AppServicesRegistrationIdDelete = <
 > => {
   return useMutation(
     getDeleteAppServiceApiV1AppServicesRegistrationIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * The keys the app serves at ``{base_url}/.well-known/jwks.json``, each
+ * with its fingerprint, for the operator to confirm. Stores nothing.
+ * @summary Read App Service Keys
+ */
+export const readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet = (
+  registrationId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServicePublishedKeyRead[]>(
+    { url: `/api/v1/app-services/${registrationId}/connect`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGetQueryKey = (
+  registrationId: number
+) => {
+  return [`/api/v1/app-services/${registrationId}/connect`] as const;
+};
+
+export const getReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGetQueryKey(registrationId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>
+  > = ({ signal }) =>
+    readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet(
+      registrationId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: registrationId !== null && registrationId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>
+>;
+export type ReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGet<
+  TData = Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGet<
+  TData = Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+          TError,
+          Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGet<
+  TData = Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read App Service Keys
+ */
+
+export function useReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGet<
+  TData = Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  registrationId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGetQueryOptions(
+    registrationId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Store the key set the app serves as the registration's pasted set, when
+ * its fingerprints are the ones confirmed (409 when they are not).
+ * @summary Connect App Service
+ */
+export const connectAppServiceApiV1AppServicesRegistrationIdConnectPost = (
+  registrationId: number,
+  appServiceConnect: BodyType<AppServiceConnect>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServiceRegistrationRead>(
+    {
+      url: `/api/v1/app-services/${registrationId}/connect`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: appServiceConnect,
+      signal,
+    },
+    options
+  );
+};
+
+export const getConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationKey = () =>
+  ["connectAppServiceApiV1AppServicesRegistrationIdConnectPost"] as const;
+
+export const getConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectAppServiceApiV1AppServicesRegistrationIdConnectPost>>,
+    TError,
+    ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof connectAppServiceApiV1AppServicesRegistrationIdConnectPost>>,
+  TError,
+  ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof connectAppServiceApiV1AppServicesRegistrationIdConnectPost>>,
+    ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationVariables
+  > = (props) => {
+    const { registrationId, data } = props ?? {};
+
+    return connectAppServiceApiV1AppServicesRegistrationIdConnectPost(
+      registrationId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectAppServiceApiV1AppServicesRegistrationIdConnectPost>>
+>;
+export type ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationBody =
+  BodyType<AppServiceConnect>;
+export type ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationVariables = {
+  registrationId: number;
+  data: BodyType<AppServiceConnect>;
+};
+
+/**
+ * @summary Connect App Service
+ */
+export const useConnectAppServiceApiV1AppServicesRegistrationIdConnectPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof connectAppServiceApiV1AppServicesRegistrationIdConnectPost>>,
+      TError,
+      ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof connectAppServiceApiV1AppServicesRegistrationIdConnectPost>>,
+  TError,
+  ConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getConnectAppServiceApiV1AppServicesRegistrationIdConnectPostMutationOptions(options),
     queryClient
   );
 };

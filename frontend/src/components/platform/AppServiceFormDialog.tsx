@@ -1,7 +1,10 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AppServiceRegistrationRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  AppServicePublishedKeyRead,
+  AppServiceRegistrationRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAppServiceKeys, useConnectAppService } from "@/hooks/useAppServices";
 import { parseAllowedOrigins } from "@/lib/appServices";
+import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 /** What the operator stated, before it is shaped into a create or a patch. */
@@ -70,7 +76,9 @@ export interface AppServiceFormDialogProps {
  * from its listing, and is not edited here.
  *
  * Its keys are public keys, either pasted as a key set or fetched from the
- * address the app publishes them at. The one secret a registration holds is
+ * address the app publishes them at. Connect reads the set the app serves at
+ * its saved base URL, shows each key's fingerprint, and pins the set once the
+ * operator confirms it. The one secret a registration holds is
  * what the operator supplies for the app's vendor client, as the app's listing
  * asks for it: a secret value is written here and never shown again.
  */
@@ -86,6 +94,11 @@ export const AppServiceFormDialog = ({
   // Only whether the paste is JSON at all. Whether it is a key set we could
   // verify against is the server's answer, and it gives a message code.
   const [jwksError, setJwksError] = useState<string | null>(null);
+  // The keys Connect read, waiting for the operator to confirm them.
+  const [servedKeys, setServedKeys] = useState<AppServicePublishedKeyRead[] | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const readKeys = useAppServiceKeys();
+  const connect = useConnectAppService();
 
   // Re-seed whenever the dialog opens, so a reopened form never shows the
   // previous row's values.
@@ -106,7 +119,42 @@ export const AppServiceFormDialog = ({
       setForm(EMPTY_FORM);
     }
     setJwksError(null);
+    setServedKeys(null);
+    setConnectError(null);
   }, [open, editing]);
+
+  const handleReadKeys = () => {
+    if (!editing) return;
+    setServedKeys(null);
+    setConnectError(null);
+    readKeys.mutate(editing.id, {
+      onSuccess: setServedKeys,
+      onError: (error) =>
+        setConnectError(getErrorMessage(error, "settings:appServices.connectError")),
+    });
+  };
+
+  const handleConnect = () => {
+    if (!editing || !servedKeys) return;
+    connect.mutate(
+      { registrationId: editing.id, fingerprints: servedKeys.map((key) => key.fingerprint) },
+      {
+        onSuccess: (registration) => {
+          setForm((prev) => ({
+            ...prev,
+            jwks: registration.jwks ? JSON.stringify(registration.jwks, null, 2) : "",
+          }));
+          setServedKeys(null);
+          toast.success(t("appServices.connected"));
+        },
+        onError: (error) => {
+          // A set that changed has to be read and checked again.
+          setServedKeys(null);
+          setConnectError(getErrorMessage(error, "settings:appServices.connectError"));
+        },
+      }
+    );
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -227,6 +275,68 @@ export const AppServiceFormDialog = ({
             <div className="clear-both space-y-3">
               <p className="text-muted-foreground text-xs">{t("appServices.keysHelp")}</p>
 
+              {editing?.base_url && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-muted-foreground text-xs">{t("appServices.connectHelp")}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleReadKeys}
+                      disabled={readKeys.isPending || connect.isPending}
+                    >
+                      {readKeys.isPending
+                        ? t("appServices.connectReading")
+                        : t("appServices.connect")}
+                    </Button>
+                  </div>
+                  {servedKeys && (
+                    <section
+                      className="space-y-2 rounded-md border p-3"
+                      aria-label={t("appServices.connectKeysTitle")}
+                    >
+                      <p className="font-medium text-sm">{t("appServices.connectKeysTitle")}</p>
+                      <p className="text-muted-foreground text-xs">
+                        {t("appServices.connectKeysHelp")}
+                      </p>
+                      <ul className="space-y-1">
+                        {servedKeys.map((key) => (
+                          <li key={`${key.kid}:${key.fingerprint}`} className="text-xs">
+                            <span className="text-muted-foreground">
+                              {t("appServices.connectKid", { kid: key.kid })}
+                            </span>
+                            <code className="block break-all font-mono">{key.fingerprint}</code>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setServedKeys(null)}
+                          disabled={connect.isPending}
+                        >
+                          {t("appServices.connectDismiss")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleConnect}
+                          disabled={connect.isPending}
+                        >
+                          {connect.isPending
+                            ? t("appServices.connectPinning")
+                            : t("appServices.connectConfirm")}
+                        </Button>
+                      </div>
+                    </section>
+                  )}
+                  {connectError && <p className="text-destructive text-xs">{connectError}</p>}
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="app-service-jwks">{t("appServices.jwksLabel")}</Label>
                 <Textarea
@@ -340,6 +450,16 @@ export const AppServiceFormDialog = ({
                   <Input
                     id="app-service-setup-url"
                     value={editing.connection_setup_url}
+                    readOnly
+                    className="font-mono text-xs"
+                    onFocus={(event) => event.target.select()}
+                  />
+                  <Label htmlFor="app-service-webhook-url">
+                    {t("appServices.webhookUrlLabel")}
+                  </Label>
+                  <Input
+                    id="app-service-webhook-url"
+                    value={editing.webhook_url}
                     readOnly
                     className="font-mono text-xs"
                     onFocus={(event) => event.target.select()}
