@@ -424,7 +424,8 @@ async def test_a_renamed_property_is_one_definition_for_every_row(
     client, acting_user, session
 ):
     """A property whose name the target already uses for another type is
-    renamed once, and every imported row naming it shares that one."""
+    renamed once, every imported row naming it shares that one, and importing
+    again lands on it rather than renaming it again."""
     from sqlmodel import select
 
     from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
@@ -468,6 +469,17 @@ async def test_a_renamed_property_is_one_definition_for_every_row(
         )
     ).all()
     assert names == ["Status_text", "Status_text"]
+
+    again = await _import_envelope(client, a, envelope, target.id)
+    assert again.status_code == 201, again.text
+    definitions = (
+        await session.exec(
+            select(PropertyDefinition.name).where(
+                PropertyDefinition.initiative_id == target.id
+            )
+        )
+    ).all()
+    assert sorted(definitions) == ["Status", "Status_text"]
 
 
 async def test_envelope_import_project_replaces_legacy_route(
@@ -1913,7 +1925,7 @@ async def test_envelope_link_out_of_the_file_is_counted(client, acting_user, ses
                 "tags": [],
                 "assignee_handles": [],
                 "checklist": [],
-                "property_values": [],
+                "properties": [],
                 "links": [
                     {"type": "related_to", "target_external_ref": "jira:OTHER-9"}
                 ],
@@ -2210,7 +2222,7 @@ def _project_envelope_with_comment(author_handle: str, author_name: str) -> dict
                 "tags": [],
                 "assignee_handles": [],
                 "checklist": [],
-                "property_values": [],
+                "properties": [],
                 "comments": [
                     {
                         "author_handle": author_handle,
@@ -2448,6 +2460,9 @@ async def test_a_user_property_is_placed_by_the_people_step(
     envelope["property_definitions"] = [
         {"name": "Reporter", "type": "user_reference", "position": 0}
     ]
+    # Under the key project exports used before every envelope said
+    # ``properties``, which older files still carry.
+    del envelope["tasks"][0]["properties"]
     envelope["tasks"][0]["property_values"] = [
         {
             "property_name": "Reporter",

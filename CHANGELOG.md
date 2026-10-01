@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **List pages search and filter the whole list.** Searching queues, counter groups, dashboards and projects, and filtering projects by tag, now finds matches beyond the page that has loaded, and an export narrows the same way. Counter groups, dashboards, wikis and galleries page like the other tools, rather than stopping at the first 50 or 100. Queues filter by whether they are running (`is_active` on the queue list, API), and the posts board filters by tag.
 - **Templates filter the same way on projects and documents.** Archived project templates now show in the archive, where no view showed them before. The projects list and search take `is_template` in place of `template`: omit it for templates and everything else, `true` for templates only, `false` for none. The projects list now includes templates when it is omitted, as the documents list does (API).
 - **Properties have one route (API).** `PUT /documents/{id}/properties` and `PUT /calendar-events/{id}/properties` are gone, and so is `property_values` on task create and update: use `PUT /properties/{target}/{entity_id}`, or `properties` on the create or update. An event reads its values as `properties`, not `property_values`. The task list's `property_values` condition is unchanged.
+- **Project exports name their property values `properties`,** as every other export does, in place of `property_values`. Project files exported before still import.
 
 ### Removed
 
@@ -107,6 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Confirming your password in settings is limited per account.** Wrong passwords entered to remove a password, set up an authenticator app, regenerate recovery codes, or change or delete something now count toward the same account lock as sign-in, a correct one starts the count over as signing in does, and these requests are no longer limited per network address, so people sharing an office connection don't use up each other's attempts.
 - **Live documents stop flashing “Syncing…” while you write.** Typing alone in a document, wiki page, spreadsheet or whiteboard no longer drops its connection every minute or so, and a document or spreadsheet whose connection does drop reconnects behind the page instead of covering it.
 - **Edits saved after a failed offline handover are kept.** A tab's offline edits that the server refused no longer leave behind a stale copy that the next handover could save over newer work.
+- **Filtering by a custom property is quick on large lists.** A filter on a list where thousands of items carry the property took several seconds, and "is empty" was as slow on a short list as on a long one. Both now take a fraction of a second.
+- **Importing the same file twice reuses a renamed property.** A property renamed on import because the target already used its name (`Status_text`, say) is matched the next time rather than made again as `Status_text_2`. The import summary counts each property it matched once, rather than once per value.
 
 ## [0.73.2] - 2026-09-29
 

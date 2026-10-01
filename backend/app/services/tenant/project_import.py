@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -34,10 +33,6 @@ from app.models.tenant.comment import Comment
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 
-from app.models.tenant.property import (
-    PropertyType,
-    PropertyValue,
-)
 from app.models.tenant.task import (
     Task,
     TaskAssignee,
@@ -50,14 +45,13 @@ from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
     ProjectExportComment,
     ProjectExportEnvelope,
-    ProjectExportPropertyValue,
     ProjectExportTag,
     ProjectExportTask,
     ProjectImportResult,
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.import_engine.context import ImportContext
-from app.services.import_engine.importers._base import grant_ownership
+from app.services.import_engine.importers._base import PropertyRestore, grant_ownership
 from app.services.import_engine.links import links_to_pages
 from app.services.import_engine.references import (
     has_source_references,
@@ -72,15 +66,12 @@ from app.services.import_engine.people import (
 from app.services.tenant import task_completion
 from app.services.tenant.task_statuses import defaults_for_category
 from app.services.import_engine.common import (
-    decode_property_value,
     ensure_tag,
     load_initiative_member_handles,
     handle_key,
-    resolve_property_definitions,
     unique_name,
 )
 from app.core.tools import Tool
-from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 
@@ -203,38 +194,20 @@ async def import_project(
             )
         )
 
-    # 4. Property definitions → (name, type) → id map (shared conventions:
-    # match by name+type with option compatibility, rename on collision).
-    # A property unticked on the review is not declared at all; its values
-    # then resolve to nothing and are skipped below, with the rest.
-    excluded = context.excluded_properties if context is not None else frozenset()
-    resolved_props = await resolve_property_definitions(
+    # 4. Property definitions, then the project's own values. A property
+    # unticked on the review is left out, with its values.
+    props = PropertyRestore(
         session,
         initiative_id=target_initiative.id,
-        definitions=[
-            definition
-            for definition in envelope.property_definitions
-            if definition.name not in excluded
-        ],
+        context=context,
+        member_handles=initiative_member_handles,
     )
-    prop_key_to_id = resolved_props.key_to_id
-    property_create_count = resolved_props.created
-    property_match_count = resolved_props.matched
-    property_rename_count = len(resolved_props.renamed)
+    await props.declare(envelope.property_definitions)
+    await props.attach(project, envelope.project.properties)
 
-    # 5. The project's own values, then its tasks
+    # 5. Its tasks
     unmatched_handles: set[str] = set()
     named_handles: dict[int, str] = {}
-    _write_property_values(
-        session,
-        project,
-        envelope.project.property_values,
-        prop_key_to_id=prop_key_to_id,
-        initiative_member_handles=initiative_member_handles,
-        unmatched_handle_sink=unmatched_handles,
-        named_handle_sink=named_handles,
-        context=context,
-    )
     assignee_match_count = 0
     comment_count = 0
     series_ids: dict[int, int] = {}
@@ -249,7 +222,7 @@ async def import_project(
             status_id_to_category=status_id_to_category,
             default_status_id=default_status_id,
             tag_name_to_id=tag_name_to_id,
-            prop_key_to_id=prop_key_to_id,
+            props=props,
             initiative_member_handles=initiative_member_handles,
             unmatched_handle_sink=unmatched_handles,
             named_handle_sink=named_handles,
@@ -260,6 +233,10 @@ async def import_project(
         comment_count += comments_made
 
     await session.flush()
+    # One pass lets in everyone the project now names, assignees and person
+    # values alike.
+    named_handles.update(props.named)
+    unmatched_handles |= props.unmatched
     gone = await bring_in_named(
         session,
         Governing.of(Tool.project, project),
@@ -273,9 +250,9 @@ async def import_project(
         task_count=len(envelope.tasks),
         tag_create_count=tag_create_count,
         tag_match_count=tag_match_count,
-        property_create_count=property_create_count,
-        property_match_count=property_match_count,
-        property_rename_count=property_rename_count,
+        property_create_count=props.created,
+        property_match_count=props.matched,
+        property_rename_count=len(props.renamed),
         assignee_match_count=assignee_match_count,
         assignee_unmatched_handles=sorted(unmatched_handles),
         comment_count=comment_count,
@@ -298,7 +275,7 @@ async def _import_task(
     status_id_to_category: dict[int, TaskStatusCategory],
     default_status_id: int | None,
     tag_name_to_id: dict[str, int],
-    prop_key_to_id: dict[tuple[str, PropertyType], int],
+    props: PropertyRestore,
     initiative_member_handles: dict[str, int],
     unmatched_handle_sink: set[str],
     named_handle_sink: dict[int, str],
@@ -458,16 +435,7 @@ async def _import_task(
             )
         )
 
-    _write_property_values(
-        session,
-        task,
-        envelope_task.property_values,
-        prop_key_to_id=prop_key_to_id,
-        initiative_member_handles=initiative_member_handles,
-        unmatched_handle_sink=unmatched_handle_sink,
-        named_handle_sink=named_handle_sink,
-        context=context,
-    )
+    await props.attach(task, envelope_task.properties)
 
     if context is not None and links_to_pages(task.description):
         context.links.note_body(SearchEntityType.task, task.id)
@@ -537,49 +505,6 @@ async def _import_task(
         comment_count += 1
 
     return len(seen_user_ids), comment_count
-
-
-def _write_property_values(
-    session: AsyncSession,
-    row: Any,
-    values: list[ProjectExportPropertyValue],
-    *,
-    prop_key_to_id: dict[tuple[str, PropertyType], int],
-    initiative_member_handles: dict[str, int],
-    unmatched_handle_sink: set[str],
-    named_handle_sink: dict[int, str],
-    context: ImportContext | None,
-) -> None:
-    """Write ``values`` onto ``row`` — the project or one of its tasks —
-    against the definitions the envelope declared. A value whose definition
-    was not declared (unticked on the review) is skipped, and a person value
-    that places nobody is dropped and its handle collected."""
-    target = properties_service.link_for(row).target
-    for pv in values:
-        prop_id = prop_key_to_id.get((pv.property_name, pv.property_type))
-        if prop_id is None:
-            continue
-        column_kwargs = decode_property_value(
-            pv,
-            initiative_member_handles,
-            people=context.people if context is not None else None,
-        )
-        if column_kwargs is None:
-            if pv.value_handle:
-                unmatched_handle_sink.add(pv.value_handle)
-            continue
-        if column_kwargs.get("value_user_id") is not None and pv.value_handle:
-            named_handle_sink.setdefault(
-                column_kwargs["value_user_id"], pv.value_handle
-            )
-        session.add(
-            PropertyValue(
-                entity_type=target,
-                entity_id=row.id,
-                property_id=prop_id,
-                **column_kwargs,
-            )
-        )
 
 
 def _timestamps(envelope_task: ProjectExportTask) -> dict[str, datetime]:

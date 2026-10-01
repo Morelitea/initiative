@@ -172,65 +172,6 @@ async def load_initiative_properties(
     return {pd.name: pd for pd in (await session.exec(stmt)).all()}
 
 
-class ResolvedProperties:
-    """Outcome of resolving a batch of property definitions."""
-
-    __slots__ = ("key_to_id", "created", "matched", "renamed")
-
-    def __init__(self) -> None:
-        self.key_to_id: dict[tuple[str, PropertyType], int] = {}
-        self.created = 0
-        self.matched = 0
-        self.renamed: list[str] = []
-
-
-async def resolve_property_definitions(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    definitions: list[Any],
-) -> ResolvedProperties:
-    """Match-or-create property definitions by name+type. On a name collision
-    with a different type or an incompatible option set, create a renamed
-    ``<name>_<type>`` definition instead of mutating the target's existing
-    one (its stored values would silently break otherwise)."""
-    existing = await load_initiative_properties(session, initiative_id=initiative_id)
-    resolved = ResolvedProperties()
-    for pd in definitions:
-        match_existing = existing.get(pd.name)
-        if (
-            match_existing is not None
-            and match_existing.type == pd.type
-            and options_compatible(pd.type, match_existing.options, pd.options)
-        ):
-            resolved.key_to_id[(pd.name, pd.type)] = match_existing.id  # ty: ignore[invalid-assignment] — persisted row, id is set
-            resolved.matched += 1
-            continue
-        target_name = pd.name
-        if match_existing is not None:
-            target_name = await unique_property_name(
-                session,
-                initiative_id=initiative_id,
-                desired_name=f"{pd.name}_{pd.type.value}",
-            )
-            resolved.renamed.append(target_name)
-        new_def = PropertyDefinition(
-            initiative_id=initiative_id,
-            name=target_name,
-            type=pd.type,
-            position=pd.position,
-            color=pd.color,
-            options=pd.options,
-        )
-        session.add(new_def)
-        await session.flush()
-        resolved.key_to_id[(pd.name, pd.type)] = new_def.id  # ty: ignore[invalid-assignment] — persisted row, id is set
-        # Track for subsequent collision-renames within this import.
-        existing[target_name] = new_def
-        resolved.created += 1
-    return resolved
-
-
 class _EnvelopePropertyValue(Protocol):
     property_type: PropertyType
     value_text: str | None
