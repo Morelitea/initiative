@@ -762,7 +762,6 @@ class StorageSettingsResponse(SanitizedBaseModel):
     s3_access_key_id: Optional[str] = None
     has_secret_access_key: bool = False
     s3_use_path_style: bool = False
-    s3_kms_key_id: Optional[str] = None
     s3_local_fallback: bool = False
 
 
@@ -774,7 +773,6 @@ class StorageSettingsUpdate(SanitizedBaseModel):
     s3_access_key_id: Optional[str] = None
     s3_secret_access_key: Optional[RawTextStr] = None
     s3_use_path_style: bool = False
-    s3_kms_key_id: Optional[str] = None
     s3_local_fallback: bool = False
 
 

@@ -180,9 +180,7 @@ async def test_backfill_finally_releases_lock_after_aborted_transaction(
     monkeypatch.setattr(
         backfill_mod.storage_config,
         "current_storage_config",
-        lambda: types.SimpleNamespace(
-            backend="s3", bucket="test-bucket", kms_key_id=None
-        ),
+        lambda: types.SimpleNamespace(backend="s3", bucket="test-bucket"),
     )
     monkeypatch.setattr(backfill_mod, "build_s3_client", lambda cfg: object())
 

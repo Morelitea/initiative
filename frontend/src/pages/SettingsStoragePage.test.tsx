@@ -16,7 +16,6 @@ let storageData: Record<string, unknown> = {
   s3_access_key_id: "AKIA",
   has_secret_access_key: true,
   s3_use_path_style: true,
-  s3_kms_key_id: null,
   s3_local_fallback: false,
 };
 
