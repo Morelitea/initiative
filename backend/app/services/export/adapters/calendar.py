@@ -43,6 +43,7 @@ from app.services.export.adapters._common import (
 from app.core.user_input_validators import resolve_zone
 from app.services.export.contract import RenderItem
 from app.services.export.filters import narrow, parse_filters
+from app.services.export.property_values import exported_properties
 
 
 class EventWindow(BaseModel):
@@ -267,6 +268,7 @@ def _envelope(calendar: Calendar, event_dicts: list[dict]) -> dict[str, Any]:
         "name": calendar.name,
         "description": calendar.description,
         "color": calendar.color,
+        "properties": exported_properties(calendar),
         "events": event_dicts,
     }
 

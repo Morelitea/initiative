@@ -57,6 +57,7 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.adapters.document import DocumentAdapter
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.permissions import EXPORT_ACCESS
 
 #: What one wiki contributes to a batch: its row, its pages, and the documents
@@ -116,12 +117,14 @@ class WikiAdapter(ToolExportAdapter):
         """The wiki and its pages, with no filed documents. An initiative or
         community backup writes those as entries of their own and places them
         in the wiki from there. The pages come in reading order."""
+        from app.services.tenant import properties as properties_service
         from app.services.tenant import tags as tags_service
         from app.services.tenant.wikis import load_pages
 
         wiki = await super().fetch(session, user, guild_id, wiki_id, access=access)
         pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
         await tags_service.annotate_tags(session, pages)
+        await properties_service.annotate_properties(session, pages)
         return wiki, pages, []
 
     async def initiative_ids(
@@ -360,6 +363,7 @@ def filed_document_records(
                 "original_filename": document.original_filename,
                 "content_type": document.file_content_type,
                 "tags": sorted(tag.name for tag in document.tags or []),
+                "properties": exported_properties(document),
             }
             uploads.append(
                 RenderItem(
@@ -390,6 +394,7 @@ def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
         "description": wiki.description,
         "home_page": home.slug if home is not None else None,
         "tags": sorted(tag.name for tag in getattr(wiki, "tags", None) or []),
+        "properties": exported_properties(wiki),
         "pages": [_page_envelope(page, by_id) for page in pages],
     }
 
@@ -408,6 +413,7 @@ def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]
         "is_draft": page.is_draft,
         "content": page.content or {},
         "tags": sorted(tag.name for tag in getattr(page, "tags", None) or []),
+        "properties": exported_properties(page),
         # When it was written, and when it was last edited. A restore that
         # dated every page to the day it was restored lost the one thing a
         # wiki's reading order is usually checked against.

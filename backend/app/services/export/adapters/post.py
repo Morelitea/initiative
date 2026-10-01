@@ -41,6 +41,7 @@ from app.services.export.adapters._common import (
     envelope_key,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.permissions import EXPORT_ACCESS
 
 
@@ -57,10 +58,12 @@ class PostAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> Post:
+        from app.services.tenant import properties as properties_service
         from app.services.tenant import tags as tags_service
 
         post = await super().fetch(session, user, guild_id, post_id, access=access)
         await tags_service.annotate_tags(session, [post])
+        await properties_service.annotate_properties(session, [post])
         return post
 
     async def initiative_ids(
@@ -92,6 +95,7 @@ def _envelope(post: Post) -> dict[str, Any]:
         "name": post.name,
         "body": post.body or {},
         "tags": sorted(tag.name for tag in post.tags or []),
+        "properties": exported_properties(post),
         "poll": _poll_envelope(post),
     }
 

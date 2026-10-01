@@ -848,6 +848,7 @@ async def create_project(
     # One claim for the project and its tasks, so a file they share is copied
     # into another initiative once.
     await attachments_service.claim_uploads(session, project, *copied)
+    await properties_service.write_on_create(session, project, project_in.properties)
     await session.commit()
 
     project = await _get_project_or_404(

@@ -375,6 +375,7 @@ async def create_post(
     )
     session.add(post)
     await session.flush()
+    await properties_service.write_on_create(session, post, post_in.properties)
 
     await resource_access.grant_initial_sharing(
         session,

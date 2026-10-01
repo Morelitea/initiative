@@ -11,7 +11,11 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.document import smart_link_url
-from app.schemas.tenant.property import PropertySummary, annotated_properties
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
@@ -24,7 +28,7 @@ class WikiBase(SanitizedBaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
 
 
-class WikiCreate(WikiBase):
+class WikiCreate(WikiBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     tag_ids: Optional[List[int]] = None
@@ -93,7 +97,7 @@ class WikiListResponse(PageMeta):
     items: List[WikiSummary]
 
 
-class WikiPageCreate(SanitizedBaseModel):
+class WikiPageCreate(PropertiesOnCreate):
     #: Optional, and usually absent: a page is made before it is about
     #: anything, so it starts with no name rather than one somebody has to
     #: delete before typing their own. Every surface that draws a page falls

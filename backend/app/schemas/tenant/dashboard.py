@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
@@ -35,7 +36,7 @@ class DashboardBase(SanitizedBaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
 
 
-class DashboardCreate(DashboardBase):
+class DashboardCreate(DashboardBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     tag_ids: Optional[List[int]] = None

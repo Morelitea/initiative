@@ -14,7 +14,7 @@ from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
-from app.schemas.tenant.property import PropertySummary
+from app.schemas.tenant.property import PropertiesOnCreate, PropertySummary
 
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
@@ -110,7 +110,7 @@ class TaskBase(SanitizedBaseModel):
     recurrence_strategy: Literal["fixed", "rolling"] = "fixed"
 
 
-class TaskCreate(TaskBase):
+class TaskCreate(TaskBase, PropertiesOnCreate):
     title: TitleStr
     description: Optional[RichTextStr] = None
     project_id: int

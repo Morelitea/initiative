@@ -14,7 +14,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_re
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.ownership import OwnerAppSummary
 from app.schemas.tenant.document import ProjectDocumentSummary
-from app.schemas.tenant.property import PropertySummary
+from app.schemas.tenant.property import PropertiesOnCreate, PropertySummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.user import UserPublic
@@ -40,7 +40,7 @@ class ProjectBase(SanitizedBaseModel):
     end_date: Optional[date] = None
 
 
-class ProjectCreate(ProjectBase):
+class ProjectCreate(ProjectBase, PropertiesOnCreate):
     name: TitleStr
     initiative_id: Optional[int] = None
     is_template: bool = False

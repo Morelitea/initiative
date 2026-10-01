@@ -41,6 +41,7 @@ from app.services.export.adapters._common import (
     related_reach,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.export.i18n import et, export_locale
 from app.core.user_display import display_name
 
@@ -176,6 +177,7 @@ def _envelope(
         "description": queue.description,
         "is_active": queue.is_active,
         "current_round": queue.current_round,
+        "properties": exported_properties(queue),
         "items": [
             {
                 "label": item.label,
@@ -189,6 +191,7 @@ def _envelope(
                 # so an import can't rebind them — names and titles it is.
                 "member": _member(item),
                 "tags": _tags(item),
+                "properties": exported_properties(item),
                 "documents": sorted(
                     related.entity.name
                     for related in attachments.documents.get(item.id, [])

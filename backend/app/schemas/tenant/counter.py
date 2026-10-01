@@ -12,7 +12,11 @@ from app.core.messages import CounterMessages
 from app.models.tenant.counter import COUNTER_DIGITS, COUNTER_PLACES, CounterViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
-from app.schemas.tenant.property import PropertySummary, annotated_properties
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tool import ToolSummaryBase
 
@@ -69,7 +73,7 @@ class CounterBase(SanitizedBaseModel):
         return self
 
 
-class CounterCreate(CounterBase):
+class CounterCreate(CounterBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
 
 
@@ -155,7 +159,7 @@ class CounterGroupBase(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class CounterGroupCreate(CounterGroupBase):
+class CounterGroupCreate(CounterGroupBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.

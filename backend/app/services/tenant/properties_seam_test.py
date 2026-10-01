@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import PROPERTY_TARGETS
+from app.schemas.tenant.property import PropertiesOnCreate
 from app.db.frozen import render_resource_frozen_fn
 from app.db.initiative_rls import entity_tables, render_entity_initiative_fn
 from app.services.tenant.properties import PROPERTY_LINKS
@@ -22,7 +23,9 @@ pytestmark = pytest.mark.always
 
 def test_every_target_is_known_to_the_gates_and_its_read():
     """``entity_access`` and ``entity_initiative`` answer for it, a value on it
-    freezes with it, and its read schema carries ``properties``."""
+    freezes with it, its read schema carries ``properties``, and so does its
+    create — every JSON create; a picture is created by uploading its file,
+    and takes its values once it exists."""
     tables = entity_tables()
     initiative_of = render_entity_initiative_fn()
     frozen = render_resource_frozen_fn()
@@ -35,6 +38,9 @@ def test_every_target_is_known_to_the_gates_and_its_read():
         )
         read = getattr(schemas, f"{spec.model.__name__}Read")
         assert "properties" in read.model_fields, read.__name__
+        create = getattr(schemas, f"{spec.model.__name__}Create", None)
+        if create is not None:
+            assert issubclass(create, PropertiesOnCreate), create.__name__
 
 
 async def test_the_template_takes_a_value_on_every_target(session: AsyncSession):

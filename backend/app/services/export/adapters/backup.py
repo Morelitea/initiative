@@ -1360,14 +1360,11 @@ class _ScopeBuilder:
 
 
 def _document_metadata(document) -> dict:
-    from app.schemas.tenant.property import annotated_properties
-    from app.services.export.property_values import property_export_dict
+    from app.services.export.property_values import exported_properties
 
     return {
         "tags": sorted(tag.name for tag in document.tags or []),
-        "properties": [
-            property_export_dict(summary) for summary in annotated_properties(document)
-        ],
+        "properties": exported_properties(document),
     }
 
 

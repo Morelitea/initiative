@@ -447,6 +447,31 @@ async def set_values(
         await spec.changed(session, row)
 
 
+async def write_on_create(
+    session: AsyncSession,
+    row: Any,
+    values: Sequence[PropertyValueInput],
+) -> None:
+    """The values a create sent with its row, written in the same transaction,
+    so the row and its values land together or not at all.
+
+    Held to the row's own initiative, read the way the policies read it
+    (``entity_initiative``), so a row that belongs to none carries none.
+    """
+    if not values:
+        return
+    await session.flush()
+    initiative_id = (
+        await session.exec(select(func.entity_initiative(link_for(row).target, row.id)))
+    ).one()
+    await write_values(
+        session,
+        row,
+        await property_values_by_row_id(session, values),
+        initiative_id=initiative_id,
+    )
+
+
 async def copy_values(
     session: AsyncSession,
     source: Any,

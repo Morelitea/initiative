@@ -157,6 +157,13 @@ class PropertyValuesSetRequest(SanitizedBaseModel):
     values: List[PropertyValueInput] = Field(default_factory=list)
 
 
+class PropertiesOnCreate(SanitizedBaseModel):
+    """What every tool and sub-tool's create takes beside its own fields: the
+    custom property values to write with the row, in the same transaction."""
+
+    properties: List[PropertyValueInput] = Field(default_factory=list)
+
+
 class PropertySummary(SanitizedBaseModel):
     """Lightweight property value for embedding in entity reads.
 

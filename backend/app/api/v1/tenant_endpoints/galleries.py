@@ -412,6 +412,7 @@ async def create_gallery(
             tag_ids=gallery_in.tag_ids,
         )
     await attachments_service.claim_uploads(session, gallery)
+    await properties_service.write_on_create(session, gallery, gallery_in.properties)
     await session.commit()
     hydrated = await _refetch_gallery(
         session, gallery.id, user_id=guild_context.user_id

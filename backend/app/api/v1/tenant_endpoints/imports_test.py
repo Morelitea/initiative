@@ -286,6 +286,140 @@ async def test_envelope_import_roundtrips_calendar(client, acting_user, session)
     assert all(att.user_id == a.user.id for att in attendees)
 
 
+async def _tool_with_a_row(session, a, tool):
+    """A ``tool`` row in ``a``'s initiative and, where the tool holds rows that
+    carry properties of their own, one of those."""
+    from app.testing.factories import (
+        create_calendar,
+        create_counter,
+        create_dashboard,
+        create_gallery,
+        create_gallery_image,
+        create_post,
+        create_project,
+        create_queue_item,
+        create_wiki,
+        create_wiki_page,
+    )
+
+    if tool == "project":
+        row = await create_project(session, a.initiative, a.user)
+        return row, await create_task(session, row)
+    if tool == "queue":
+        row = await create_queue(session, a.initiative, a.user)
+        return row, await create_queue_item(session, row)
+    if tool == "counter_group":
+        row = await create_counter_group(session, a.initiative, a.user)
+        return row, await create_counter(session, row)
+    if tool == "calendar":
+        row = await create_calendar(session, a.initiative, a.user)
+        return row, await create_calendar_event(session, row, a.user)
+    if tool == "gallery":
+        row = await create_gallery(session, a.initiative, a.user)
+        return row, await create_gallery_image(session, row, a.user)
+    if tool == "wiki":
+        row = await create_wiki(session, a.initiative, a.user)
+        return row, await create_wiki_page(session, row, a.user)
+    if tool == "dashboard":
+        return await create_dashboard(session, a.initiative, a.user), None
+    return await create_post(session, a.initiative, a.user), None
+
+
+@pytest.mark.parametrize(
+    "tool",
+    [
+        "project",
+        "queue",
+        "counter_group",
+        "calendar",
+        "gallery",
+        "wiki",
+        "dashboard",
+        "post",
+    ],
+)
+async def test_a_tools_properties_survive_export_and_import(
+    client, acting_user, session, monkeypatch, tmp_path, tool
+):
+    """A value on the tool row and one on a row inside it come back on the
+    rows the import makes: matched by name into the target initiative, and a
+    person value placed on the member its handle names."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.core.config import settings
+    from app.models.tenant.property import (
+        PropertyDefinition,
+        PropertyType,
+        PropertyValue,
+    )
+    from app.services.tenant.properties import PROPERTY_LINKS, link_for
+    from app.testing.factories import create_property_definition, create_property_value
+
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await _all_tools_enabled(session, a.initiative)
+    target = await _second_initiative(session, a)
+    await _all_tools_enabled(session, target)
+    stage = await create_property_definition(session, a.initiative, name="Stage")
+    owner = await create_property_definition(
+        session, a.initiative, name="Owner", type=PropertyType.user_reference
+    )
+    row, inner = await _tool_with_a_row(session, a, tool)
+    await create_property_value(session, row, stage, value_text="Draft")
+    if inner is not None:
+        await create_property_value(session, inner, owner, value_user_id=a.user.id)
+
+    exported = await client.get(
+        a.g(f"/exports/{tool}"),
+        headers=a.headers,
+        params={"ids": [row.id], "format": "json"},
+    )
+    assert exported.status_code == 200, exported.text
+    if exported.headers["content-type"] == "application/zip":
+        resp = await _import_archive(client, a, exported.content, target.id)
+    else:
+        resp = await _import_envelope(client, a, exported.json(), target.id)
+    assert resp.status_code == 201, resp.text
+
+    async def values(target_name, entity_id):
+        return (
+            await session.exec(
+                select(
+                    PropertyDefinition.name,
+                    PropertyDefinition.initiative_id,
+                    PropertyValue.value_text,
+                    PropertyValue.value_user_id,
+                )
+                .join(PropertyDefinition)
+                .where(
+                    PropertyValue.entity_type == target_name,
+                    PropertyValue.entity_id == entity_id,
+                )
+            )
+        ).all()
+
+    spec = PROPERTY_LINKS[tool]
+    restored = (
+        await session.exec(
+            select(spec.model).where(spec.model.initiative_id == target.id)
+        )
+    ).one()
+    assert await values(tool, restored.id) == [("Stage", target.id, "Draft", None)]
+    if inner is not None:
+        inner_spec = link_for(inner)
+        restored_inner = (
+            await session.exec(
+                select(inner_spec.model).where(
+                    getattr(inner_spec.model, inner_spec.via) == restored.id
+                )
+            )
+        ).one()
+        assert await values(inner_spec.target, restored_inner.id) == [
+            ("Owner", target.id, None, a.user.id)
+        ]
+
+
 async def test_envelope_import_project_replaces_legacy_route(
     client, acting_user, session
 ):

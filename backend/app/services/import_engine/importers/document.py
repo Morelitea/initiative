@@ -17,7 +17,6 @@ from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.property import PropertyValue
 from app.schemas.tenant.import_envelopes import DocumentEnvelope
 from app.services.import_engine.common import (
     ensure_tag,
@@ -31,15 +30,14 @@ from app.services.import_engine.contract import (
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.mentions import place_mentions
 from app.services.import_engine.references import note_or_settle
-from app.services.import_engine.people import PeopleMap, bring_in_named
+from app.services.import_engine.people import PeopleMap
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
-    resolve_property_values,
 )
 from app.services.tenant import tags as tags_service
-from app.services.tenant.named_people import Governing
 
 _IMPORTABLE_TYPES = {
     DocumentType.native.value,
@@ -141,41 +139,23 @@ class DocumentImporter(NamesPeopleInPassing):
                 )
             )
 
-        attached = await resolve_property_values(
+        props = PropertyRestore(
             session,
             initiative_id=target_initiative.id,
-            values=env.properties,
+            context=context,
             member_handles=member_handles,
-            people=context.people if context is not None else None,
         )
-        for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
-            session.add(
-                PropertyValue(
-                    entity_type="document",
-                    entity_id=document.id,
-                    property_id=prop_id,
-                    **column_kwargs,
-                )
-            )
-
-        await session.flush()
-        gone = await bring_in_named(
-            session,
-            Governing.of(Tool.document, document),
-            initiative_id=target_initiative.id,
-        )
+        await props.attach(document, env.properties)
         return EnvelopeImportResult(
             entity_id=document.id,
             entity_title=document.name,
             created={
                 "documents": 1,
                 "tags": tags_created,
-                "properties": attached.created,
+                "properties": props.created,
             },
-            matched={"tags": tags_matched, "properties": attached.matched},
-            unmatched_handles=sorted(
-                attached.unmatched | {attached.named[user_id] for user_id in gone}
-            ),
+            matched={"tags": tags_matched, "properties": props.matched},
+            unmatched_handles=await props.settle(document),
             warnings=warnings,
         )
 

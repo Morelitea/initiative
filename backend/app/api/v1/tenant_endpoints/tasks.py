@@ -330,6 +330,7 @@ async def create_task(
             "assignee_ids",
             "task_status_id",
             "tag_ids",
+            "properties",
             "checklist",
             "tz",
         }
@@ -392,6 +393,7 @@ async def create_task(
     await attachments_service.claim_uploads(session, task)
 
     _touch_project(project, datetime.now(timezone.utc))
+    await properties_service.write_on_create(session, task, task_in.properties)
     await session.commit()
     return await _response(session, task.id, TaskMessages.MISSING_AFTER_CREATE)
 

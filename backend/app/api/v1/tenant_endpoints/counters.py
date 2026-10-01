@@ -50,6 +50,7 @@ from app.schemas.tenant.counter import (
     _validate_counter_constraints,
 )
 from app.schemas.tenant.tool import serialize_tool
+from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import counters as counters_service
 from app.api import resource_access
@@ -164,6 +165,7 @@ async def create_counter_group(
         grants=group_in.grants,
     )
     await attachments_service.claim_uploads(session, group)
+    await properties_service.write_on_create(session, group, group_in.properties)
     await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
@@ -325,6 +327,7 @@ async def add_counter(
         position=counter_in.position,
     )
     session.add(counter)
+    await properties_service.write_on_create(session, counter, counter_in.properties)
     await session.commit()
 
     hydrated = await counters_service.get_counter(

@@ -37,7 +37,7 @@ from app.core.relationships import RelationshipType, decode_node_id, node_id
 from app.core.search import SearchEntityType
 from app.core.user_display import display_name, handle_of
 from app.schemas.tenant.property import annotated_properties
-from app.services.export.property_values import property_export_dict
+from app.services.export.property_values import exported_properties
 from app.core.version import get_version
 from app.models.tenant.comment import Comment
 from app.models.tenant.relationship import EntityRelationship
@@ -141,16 +141,19 @@ async def build_project_export(
         for s in statuses_sorted
     ]
 
-    # Tasks (and gather property-definition references along the way)
+    # Tasks (and gather property-definition references along the way, from
+    # the project's own values first)
     tasks: list[ProjectExportTask] = []
-    referenced_property_ids: set[int] = set()
+    referenced_property_ids = {
+        summary.property_id for summary in annotated_properties(project)
+    }
     tasks_sorted = sorted(project.tasks or [], key=lambda t: (t.position, t.id or 0))
     for task in tasks_sorted:
-        summaries = annotated_properties(task)
-        referenced_property_ids.update(summary.property_id for summary in summaries)
+        referenced_property_ids.update(
+            summary.property_id for summary in annotated_properties(task)
+        )
         property_values = [
-            ProjectExportPropertyValue(**property_export_dict(summary))
-            for summary in summaries
+            ProjectExportPropertyValue(**value) for value in exported_properties(task)
         ]
 
         checklist = [
@@ -241,6 +244,10 @@ async def build_project_export(
             archived_at=project.archived_at,
             start_date=project.start_date,
             end_date=project.end_date,
+            property_values=[
+                ProjectExportPropertyValue(**value)
+                for value in exported_properties(project)
+            ],
         ),
         tags=project_tags,
         task_statuses=statuses,

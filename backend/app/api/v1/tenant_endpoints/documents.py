@@ -334,6 +334,7 @@ async def create_document(
     )
     await attachments_service.claim_uploads(session, document)
 
+    await properties_service.write_on_create(session, document, document_in.properties)
     await session.commit()
     return await read_after_write(session, document.id, current_user, guild_context)
 

@@ -11,7 +11,11 @@ from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
-from app.schemas.tenant.property import PropertySummary, annotated_properties
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.schemas.platform.user import UserPublic
@@ -55,7 +59,7 @@ class QueueItemBase(SanitizedBaseModel):
     is_visible: bool = True
 
 
-class QueueItemCreate(QueueItemBase):
+class QueueItemCreate(QueueItemBase, PropertiesOnCreate):
     label: TitleStr = Field(..., min_length=1, max_length=255)
     user_id: Optional[PersonId] = None
     tag_ids: Optional[List[int]] = None
@@ -120,7 +124,7 @@ class QueueBase(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class QueueCreate(QueueBase):
+class QueueCreate(QueueBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.

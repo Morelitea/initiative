@@ -39,6 +39,7 @@ from app.services.export.adapters._common import (
     envelope_key,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.permissions import EXPORT_ACCESS
 
 
@@ -114,4 +115,5 @@ def _envelope(dashboard: Dashboard) -> dict[str, Any]:
         "definition": dict(dashboard.definition or {}),
         "config": dict(dashboard.config or {}),
         "tags": sorted(tag.name for tag in getattr(dashboard, "tags", None) or []),
+        "properties": exported_properties(dashboard),
     }

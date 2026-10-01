@@ -30,6 +30,7 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import PropertyType, PropertyValue
+from app.models.tenant.task import Task
 from app.services.tenant.properties import PROPERTY_LINKS
 from app.testing import (
     Actor,
@@ -577,6 +578,60 @@ async def test_every_tool_and_its_sub_tools_read_back_what_they_carry(
     page_read = await client.get(a.g(f"/wiki-pages/{page.id}"), headers=a.headers)
     assert page_read.status_code == 200, page_read.text
     assert _values(page_read.json()["properties"]) == {defn.id: "wiki_page"}
+
+
+async def test_a_create_writes_its_values_with_the_row(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A create carries its values in its own transaction: a queue and an item
+    in it come back holding them, and a task naming a person who cannot open
+    its project is refused whole — no task is left without its values."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await enable_all_tools(session, a.initiative)
+    note = await create_property_definition(session, a.initiative, name="Note")
+    owner = await create_property_definition(
+        session, a.initiative, name="Owner", type=PropertyType.user_reference
+    )
+
+    queue = await client.post(
+        a.g("/queues/"),
+        headers=a.headers,
+        json={
+            "initiative_id": a.initiative.id,
+            "name": "Rota",
+            "properties": [{"property_id": note.id, "value": "queue"}],
+        },
+    )
+    assert queue.status_code == 201, queue.text
+    assert _values(queue.json()["properties"]) == {note.id: "queue"}
+    item = await client.post(
+        a.g(f"/queues/{queue.json()['id']}/items"),
+        headers=a.headers,
+        json={
+            "label": "First",
+            "properties": [{"property_id": note.id, "value": "item"}],
+        },
+    )
+    assert item.status_code == 201, item.text
+    assert _values(item.json()["properties"]) == {note.id: "item"}
+
+    outsider = await create_user(session)
+    await create_guild_membership(
+        session, user=outsider, guild=a.guild, role=GuildRole.member
+    )
+    refused = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "project_id": a.project.id,
+            "title": "Named",
+            "properties": [{"property_id": owner.id, "value": outsider.id}],
+        },
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["detail"] == "PERSON_CANNOT_READ"
+    left = (await session.exec(select(Task).where(Task.title == "Named"))).all()
+    assert left == []
 
 
 # ---------------------------------------------------------------------------

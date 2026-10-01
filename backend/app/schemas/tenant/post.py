@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import PersonId
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 from app.schemas.platform.user import ProfileDecorations
 from app.schemas.tenant.comment import CommentAuthor
@@ -41,7 +42,7 @@ class PostBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
 
 
-class PostCreate(PostBase):
+class PostCreate(PostBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # A Lexical editor state, the same shape a native document stores — which

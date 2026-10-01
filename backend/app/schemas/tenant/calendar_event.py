@@ -12,7 +12,11 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
-from app.schemas.tenant.property import PropertySummary, annotated_properties
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.archive import ContentCan
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import from_row
@@ -92,7 +96,7 @@ class CalendarEventBase(SanitizedBaseModel):
         return self
 
 
-class CalendarEventCreate(CalendarEventBase):
+class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
     title: TitleStr = Field(..., min_length=1, max_length=255)
     calendar_id: int
     recurrence: Optional[EventRule] = None

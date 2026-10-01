@@ -1,7 +1,7 @@
 """Shared importer plumbing: version gating, envelope parsing, the owner
 grant every importer writes for what it creates, and by-name property-value
-attachment for envelopes that carry values without their definitions
-(documents, calendar events)."""
+restoring for envelopes that carry values without their definitions (every
+tool's but the project's)."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from app.core.messages import ImportEngineMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.property import PropertyDefinition, PropertyType
+from app.models.tenant.property import PropertyDefinition, PropertyType, PropertyValue
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.import_envelopes import (
     CURRENT_SCHEMA_VERSION,
@@ -24,14 +24,18 @@ from app.schemas.tenant.import_envelopes import (
 )
 from app.services.import_engine.common import (
     decode_property_value,
+    load_initiative_member_handles,
     load_initiative_properties,
     unique_property_name,
 )
 from app.services.import_engine.contract import ImportEngineError
+from app.services.import_engine.people import bring_in_named
+from app.services.tenant.named_people import Governing
+from app.services.tenant.properties import link_for
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.schemas.tenant.backup_export import ManifestPerson
-    from app.services.import_engine.people import PeopleMap
+    from app.services.import_engine.context import ImportContext
 
 
 class QuotesNobody:
@@ -149,12 +153,35 @@ def _options_for_value(pv: EnvelopePropertyValue) -> list[dict] | None:
     return None
 
 
-class AttachedProperties:
-    __slots__ = ("column_kwargs_by_id", "created", "matched", "named", "unmatched")
+class PropertyRestore:
+    """Writes the flat by-name property values an envelope carries onto the
+    rows one import creates, and counts what that took across all of them.
 
-    def __init__(self) -> None:
-        # property_definition_id -> typed value column kwargs
-        self.column_kwargs_by_id: dict[int, dict[str, Any]] = {}
+    A value binds to the target initiative's definition of the same name and
+    type; a missing one is recreated minimally (select options synthesized
+    from the value so it stays valid), and a name already taken by another
+    type gets a renamed definition rather than changing the target's. A
+    property unticked on the review is left out with its values. A person
+    value is placed through the people step's answer; one that lands on
+    nobody is dropped and its handle collected, as the project importer does.
+    """
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        initiative_id: int,
+        context: "ImportContext | None",
+        member_handles: dict[str, int] | None = None,
+    ) -> None:
+        self._session = session
+        self._initiative_id = initiative_id
+        self._people = context.people if context is not None else None
+        self._excluded = (
+            context.excluded_properties if context is not None else frozenset()
+        )
+        #: Read on the first value that needs it, when not handed in.
+        self._member_handles = member_handles
         self.created = 0
         self.matched = 0
         #: Person values placed, by account, with the handle that named them.
@@ -162,56 +189,76 @@ class AttachedProperties:
         #: Person values whose handle landed on nobody.
         self.unmatched: set[str] = set()
 
+    async def attach(self, row: Any, values: list[EnvelopePropertyValue]) -> None:
+        """Write ``values`` onto ``row``, a persisted property target."""
+        values = [pv for pv in values if pv.property_name not in self._excluded]
+        if not values:
+            return
+        if self._member_handles is None:
+            self._member_handles = await load_initiative_member_handles(
+                self._session, initiative_id=self._initiative_id
+            )
+        existing = await load_initiative_properties(
+            self._session, initiative_id=self._initiative_id
+        )
+        # One value per definition: the last one named wins.
+        column_kwargs_by_id: dict[int, dict[str, Any]] = {}
+        for pv in values:
+            definition = existing.get(pv.property_name)
+            if definition is not None and definition.type != pv.property_type:
+                name = await unique_property_name(
+                    self._session,
+                    initiative_id=self._initiative_id,
+                    desired_name=f"{pv.property_name}_{pv.property_type.value}",
+                )
+                definition = None
+            else:
+                name = pv.property_name
+            if definition is None:
+                definition = PropertyDefinition(
+                    initiative_id=self._initiative_id,
+                    name=name,
+                    type=pv.property_type,
+                    position=len(existing),
+                    options=_options_for_value(pv),
+                )
+                self._session.add(definition)
+                await self._session.flush()
+                existing[name] = definition
+                self.created += 1
+            else:
+                self.matched += 1
+            column_kwargs = decode_property_value(
+                pv, self._member_handles, people=self._people
+            )
+            if column_kwargs is None:
+                if pv.value_handle:
+                    self.unmatched.add(pv.value_handle)
+                continue
+            if column_kwargs.get("value_user_id") is not None and pv.value_handle:
+                self.named.setdefault(column_kwargs["value_user_id"], pv.value_handle)
+            column_kwargs_by_id[definition.id] = column_kwargs  # ty: ignore[invalid-assignment] — persisted row, id is set
+        target = link_for(row).target
+        self._session.add_all(
+            PropertyValue(
+                entity_type=target,
+                entity_id=row.id,
+                property_id=property_id,
+                **column_kwargs,
+            )
+            for property_id, column_kwargs in column_kwargs_by_id.items()
+        )
 
-async def resolve_property_values(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    values: list[EnvelopePropertyValue],
-    member_handles: dict[str, int],
-    people: "PeopleMap | None" = None,
-) -> AttachedProperties:
-    """Resolve flat by-name property values against the target initiative's
-    definitions: match by (name, type); a missing definition is recreated
-    minimally (select options synthesized from the value so it stays valid).
-    Unresolvable values (user refs nobody was mapped to) are dropped and their
-    handles collected, mirroring the project importer's policy."""
-    existing = await load_initiative_properties(session, initiative_id=initiative_id)
-    attached = AttachedProperties()
-    for pv in values:
-        definition = existing.get(pv.property_name)
-        if definition is not None and definition.type != pv.property_type:
-            # Name collision with a different type: create a renamed def
-            # (never mutate the target's), same rule as the project importer.
-            renamed = await unique_property_name(
-                session,
-                initiative_id=initiative_id,
-                desired_name=f"{pv.property_name}_{pv.property_type.value}",
+    async def settle(self, tool_row: Any) -> list[str]:
+        """Flush what was written, bring everyone the values name into
+        ``tool_row`` — the tool row whose sharing governs them — and return
+        every handle that placed nobody or could not be let in."""
+        await self._session.flush()
+        gone: set[int] = set()
+        if self.named:
+            gone = await bring_in_named(
+                self._session,
+                Governing.of(link_for(tool_row).tool, tool_row),
+                initiative_id=self._initiative_id,
             )
-            definition = None
-            name = renamed
-        else:
-            name = pv.property_name
-        if definition is None:
-            definition = PropertyDefinition(
-                initiative_id=initiative_id,
-                name=name,
-                type=pv.property_type,
-                position=len(existing),
-                options=_options_for_value(pv),
-            )
-            session.add(definition)
-            await session.flush()
-            existing[name] = definition
-            attached.created += 1
-        else:
-            attached.matched += 1
-        column_kwargs = decode_property_value(pv, member_handles, people=people)
-        if column_kwargs is None:
-            if pv.value_handle:
-                attached.unmatched.add(pv.value_handle)
-            continue
-        if column_kwargs.get("value_user_id") is not None and pv.value_handle:
-            attached.named.setdefault(column_kwargs["value_user_id"], pv.value_handle)
-        attached.column_kwargs_by_id[definition.id] = column_kwargs  # ty: ignore[invalid-assignment] — persisted row, id is set
-    return attached
+        return sorted(self.unmatched | {self.named[user_id] for user_id in gone})

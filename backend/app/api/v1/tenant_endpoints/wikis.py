@@ -201,6 +201,7 @@ async def create_wiki(
             tag_ids=wiki_in.tag_ids,
         )
     await attachments_service.claim_uploads(session, wiki)
+    await properties_service.write_on_create(session, wiki, wiki_in.properties)
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
     return serialize_tool(
@@ -513,6 +514,7 @@ async def create_wiki_page(
         author_id=current_user.id,
     )
     await attachments_service.claim_uploads(session, page)
+    await properties_service.write_on_create(session, page, page_in.properties)
     await session.commit()
     await session.refresh(page)
     return serialize_wiki_page(page, context=guild_context)

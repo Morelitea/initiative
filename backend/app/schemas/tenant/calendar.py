@@ -5,6 +5,7 @@ from typing import List, Optional
 from pydantic import Field
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
 from app.models.tenant.calendar import DEFAULT_CALENDAR_COLOR
@@ -20,7 +21,7 @@ class CalendarBase(SanitizedBaseModel):
     color: str = Field(default=DEFAULT_CALENDAR_COLOR, max_length=32)
 
 
-class CalendarCreate(CalendarBase):
+class CalendarCreate(CalendarBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     #: Which initiative the calendar belongs to, or ``None`` for a guild
     #: calendar — one that belongs to the guild itself, the way the calendar

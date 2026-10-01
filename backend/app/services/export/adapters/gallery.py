@@ -34,6 +34,7 @@ from app.services.export.adapters._common import (
     envelope_key,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.permissions import EXPORT_ACCESS
 
 #: What one gallery contributes to a batch: its row and its pictures.
@@ -65,6 +66,7 @@ class GalleryAdapter(ToolExportAdapter):
         in, so a restore reads the same way round."""
         from sqlmodel import select
 
+        from app.services.tenant import properties as properties_service
         from app.services.tenant import tags as tags_service
         from app.services.tenant.galleries import image_loader_options, image_order
 
@@ -80,6 +82,7 @@ class GalleryAdapter(ToolExportAdapter):
             )
         )
         await tags_service.annotate_tags(session, images)
+        await properties_service.annotate_properties(session, images)
         return gallery, images
 
     async def initiative_ids(
@@ -168,6 +171,7 @@ def _envelope(gallery: Gallery, images: list[GalleryImage]) -> dict[str, Any]:
         # into, and the key is what both sides call the same picture.
         "cover": storage_key_of(cover.file_url) if cover is not None else None,
         "tags": sorted(tag.name for tag in getattr(gallery, "tags", None) or []),
+        "properties": exported_properties(gallery),
         "images": [_image_envelope(image) for image in images],
     }
 
@@ -183,6 +187,7 @@ def _image_envelope(image: GalleryImage) -> dict[str, Any]:
         "width": image.width,
         "height": image.height,
         "tags": sorted(tag.name for tag in getattr(image, "tags", None) or []),
+        "properties": exported_properties(image),
         # What a reference to this picture points at across one import.
         "external_ref": f"gallery_image:{image.id}",
     }

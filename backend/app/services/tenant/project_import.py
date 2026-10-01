@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -49,6 +50,7 @@ from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
     ProjectExportComment,
     ProjectExportEnvelope,
+    ProjectExportPropertyValue,
     ProjectExportTag,
     ProjectExportTask,
     ProjectImportResult,
@@ -78,6 +80,7 @@ from app.services.import_engine.common import (
     unique_name,
 )
 from app.core.tools import Tool
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 
@@ -219,11 +222,21 @@ async def import_project(
     property_match_count = resolved_props.matched
     property_rename_count = len(resolved_props.renamed)
 
-    # 5. Tasks
-    assignee_match_count = 0
-    comment_count = 0
+    # 5. The project's own values, then its tasks
     unmatched_handles: set[str] = set()
     named_handles: dict[int, str] = {}
+    _write_property_values(
+        session,
+        project,
+        envelope.project.property_values,
+        prop_key_to_id=prop_key_to_id,
+        initiative_member_handles=initiative_member_handles,
+        unmatched_handle_sink=unmatched_handles,
+        named_handle_sink=named_handles,
+        context=context,
+    )
+    assignee_match_count = 0
+    comment_count = 0
     series_ids: dict[int, int] = {}
     for t in envelope.tasks:
         matched, comments_made = await _import_task(
@@ -445,33 +458,16 @@ async def _import_task(
             )
         )
 
-    # Property values
-    for pv in envelope_task.property_values:
-        prop_id = prop_key_to_id.get((pv.property_name, pv.property_type))
-        if prop_id is None:
-            # Defensive: skip values whose property couldn't be resolved
-            continue
-        column_kwargs = decode_property_value(
-            pv,
-            initiative_member_handles,
-            people=context.people if context is not None else None,
-        )
-        if column_kwargs is None:
-            if pv.value_handle:
-                unmatched_handle_sink.add(pv.value_handle)
-            continue
-        if column_kwargs.get("value_user_id") is not None and pv.value_handle:
-            named_handle_sink.setdefault(
-                column_kwargs["value_user_id"], pv.value_handle
-            )
-        session.add(
-            PropertyValue(
-                entity_type="task",
-                entity_id=task.id,
-                property_id=prop_id,
-                **column_kwargs,
-            )
-        )
+    _write_property_values(
+        session,
+        task,
+        envelope_task.property_values,
+        prop_key_to_id=prop_key_to_id,
+        initiative_member_handles=initiative_member_handles,
+        unmatched_handle_sink=unmatched_handle_sink,
+        named_handle_sink=named_handle_sink,
+        context=context,
+    )
 
     if context is not None and links_to_pages(task.description):
         context.links.note_body(SearchEntityType.task, task.id)
@@ -541,6 +537,49 @@ async def _import_task(
         comment_count += 1
 
     return len(seen_user_ids), comment_count
+
+
+def _write_property_values(
+    session: AsyncSession,
+    row: Any,
+    values: list[ProjectExportPropertyValue],
+    *,
+    prop_key_to_id: dict[tuple[str, PropertyType], int],
+    initiative_member_handles: dict[str, int],
+    unmatched_handle_sink: set[str],
+    named_handle_sink: dict[int, str],
+    context: ImportContext | None,
+) -> None:
+    """Write ``values`` onto ``row`` — the project or one of its tasks —
+    against the definitions the envelope declared. A value whose definition
+    was not declared (unticked on the review) is skipped, and a person value
+    that places nobody is dropped and its handle collected."""
+    target = properties_service.link_for(row).target
+    for pv in values:
+        prop_id = prop_key_to_id.get((pv.property_name, pv.property_type))
+        if prop_id is None:
+            continue
+        column_kwargs = decode_property_value(
+            pv,
+            initiative_member_handles,
+            people=context.people if context is not None else None,
+        )
+        if column_kwargs is None:
+            if pv.value_handle:
+                unmatched_handle_sink.add(pv.value_handle)
+            continue
+        if column_kwargs.get("value_user_id") is not None and pv.value_handle:
+            named_handle_sink.setdefault(
+                column_kwargs["value_user_id"], pv.value_handle
+            )
+        session.add(
+            PropertyValue(
+                entity_type=target,
+                entity_id=row.id,
+                property_id=prop_id,
+                **column_kwargs,
+            )
+        )
 
 
 def _timestamps(envelope_task: ProjectExportTask) -> dict[str, datetime]:

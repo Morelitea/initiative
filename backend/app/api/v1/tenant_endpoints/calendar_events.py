@@ -833,6 +833,7 @@ async def create_calendar_event(
     await _notify_invited(session, event, invite_ids, current_user, guild_context)
 
     await attachments_service.claim_uploads(session, event)
+    await properties_service.write_on_create(session, event, event_in.properties)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(

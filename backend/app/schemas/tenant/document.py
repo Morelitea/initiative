@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field
 
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.tenant.property import PropertiesOnCreate
 from app.schemas.query import PageMeta
 
 from app.models.tenant.document import DocumentType
@@ -47,7 +48,7 @@ class DocumentBase(SanitizedBaseModel):
     is_template: bool = False
 
 
-class DocumentCreate(DocumentBase):
+class DocumentCreate(DocumentBase, PropertiesOnCreate):
     content: Optional[LexicalState] = Field(default_factory=dict)
     #: A file document is made by uploading the file (``POST /documents/upload``).
     document_type: Literal[
