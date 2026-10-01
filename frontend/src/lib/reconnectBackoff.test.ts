@@ -1,12 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { reconnectDelay } from "./reconnectBackoff";
 
 describe("reconnectDelay", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("spreads an attempt over the whole window", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     expect(reconnectDelay(3, 1000, 30_000)).toBe(0);

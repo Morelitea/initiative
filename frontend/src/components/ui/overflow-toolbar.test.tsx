@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   OverflowMenuItem,
@@ -86,10 +86,6 @@ const rowChildren = (container: HTMLElement) =>
   Array.from(container.querySelector(".overflow-hidden")?.children ?? []) as HTMLElement[];
 
 describe("OverflowToolbar", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("keeps every item in the row when there is no layout to measure", () => {
     const { container } = renderToolbar(buildItems(6));
 
@@ -160,11 +156,6 @@ describe("OverflowToolbar", () => {
 });
 
 describe("a control that changes size in place", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
-  });
-
   it("sheds it once it outgrows the row, without the row itself resizing", async () => {
     // The first item names what the caret is in, so its width follows its
     // label: narrow at first, wide once the label changes.
@@ -192,10 +183,6 @@ describe("a control that changes size in place", () => {
 });
 
 describe("focus around the overflow menu", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("hands focus back to whatever was being worked on", async () => {
     stubLayout(10);
     render(
@@ -227,10 +214,6 @@ describe("focus around the overflow menu", () => {
 });
 
 describe("the overflow menu's branches", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("drills into a branch and back, rather than flying out beside the menu", async () => {
     // Narrower than one item: both shed, so both are in the menu.
     stubLayout(10);

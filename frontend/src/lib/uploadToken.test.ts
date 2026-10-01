@@ -20,7 +20,6 @@ describe("uploadToken", () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     clearUploadToken();
   });
 

@@ -32,8 +32,6 @@ describe("useCollaboration", () => {
     calls.length = 0;
     provider.connected = true;
     provider.unsentEdits.mockReturnValue(null);
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
   });
 
   it("hands the room the last rendering before the socket closes", () => {

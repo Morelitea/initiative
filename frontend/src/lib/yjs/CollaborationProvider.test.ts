@@ -162,7 +162,6 @@ describe("CollaborationProvider sync handshake", () => {
 describe("CollaborationProvider across an outage", () => {
   afterEach(() => {
     vi.useRealTimers();
-    vi.restoreAllMocks();
   });
 
   it("hands over work done while the connection was gone", () => {
