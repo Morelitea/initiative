@@ -1162,6 +1162,7 @@ async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     assert item["can"]["edit"] is True
     assert (item["documents"], item["grants"], item["tags"]) == ([], [], [])
     assert item["initiative"] is None
+    assert sent
     assert not [statement for statement in sent if "FROM tasks" in statement], sent
 
     removed = await client.delete(url, headers=user.headers)
