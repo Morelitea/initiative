@@ -5,12 +5,14 @@
 import { createMemoryHistory, createRouter } from "@tanstack/react-router";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AxiosError, AxiosHeaders } from "axios";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { buildRouterContext, renderPage } from "@/__tests__/helpers/render";
+import { StartFlow } from "@/components/start/StartFlow";
 import { catalogUrl } from "@/hooks/useBillingCatalog";
 import { clearStart } from "@/lib/startFlow";
 import { routeTree } from "@/routeTree.gen";
@@ -129,7 +131,7 @@ describe("which paths are offered", () => {
     expect(screen.getByRole("radio", { name: /just for me/i })).toBeChecked();
   });
 
-  it("lets the native app pick a plan, sent with the community rather than the portal", async () => {
+  it("asks the native app for no plan, which it may not sell", async () => {
     deployment.billing = true;
     const open = vi.spyOn(window, "open");
     renderStart({ native: true });
@@ -141,16 +143,47 @@ describe("which paths are offered", () => {
     await press("Continue");
     await heading("Your community");
     await press("Continue");
-    await heading("Choose a plan");
-    await press(/Brass/);
-    await press("Continue");
     await createAccount();
 
     expect(register).toHaveBeenCalledWith(
-      expect.objectContaining({ community: { name: "My community", plan: "paid" } })
+      expect.objectContaining({ community: { name: "My community" } })
     );
+    expect(screen.queryByText(/Brass|\$7|Choose a plan/)).toBeNull();
     expect(open).not.toHaveBeenCalled();
-    expect(screen.getByText("We'll let you know how to set up your plan.")).toBeInTheDocument();
+  });
+});
+
+describe("signed in, making another community in the native app", () => {
+  it("says only why a second free community is refused", async () => {
+    deployment.billing = true;
+    const refused = new AxiosError("refused");
+    refused.response = {
+      status: 402,
+      statusText: "",
+      data: { detail: "FREE_COMMUNITY_ALREADY_HELD" },
+      headers: new AxiosHeaders(),
+      config: { headers: new AxiosHeaders() },
+    };
+    const createGuild = vi.fn().mockRejectedValue(refused);
+    renderPage(() => <StartFlow signedIn />, {
+      initialRoute: "/",
+      auth: { user: buildUser({ age_confirmed_at: "2026-01-01T00:00:00Z" }) },
+      guilds: { guilds: [], createGuild },
+      server: { isNativePlatform: true },
+    });
+
+    await heading("What brings you here?");
+    await userEvent.click(screen.getByRole("radio", { name: /for a group/i }));
+    await press("Continue");
+    await heading("Your community");
+    await press("Continue");
+
+    expect(
+      await screen.findByText(
+        "You already have a free community. Another one can't be set up in the app."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/pick one and we'll set it up/)).toBeNull();
   });
 });
 
