@@ -434,6 +434,9 @@ export function WhiteboardDocumentEditor({
         className
       )}
     >
+      {/* Covered through a reconnect too, unlike a text or a sheet: the scene
+          is one value in the room, so an edit made while apart would replace
+          a collaborator's rather than merge with it. */}
       {collaborative && !isSynced && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
           <div className="flex items-center gap-2 text-muted-foreground">

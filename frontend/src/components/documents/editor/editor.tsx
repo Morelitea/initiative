@@ -35,7 +35,10 @@ export interface EditorProps {
   collaborative?: boolean;
   providerFactory?: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   trackChanges?: boolean;
-  isSynced?: boolean;
+  /** Whether this body has synced with its room at least once. The syncing
+   *  cover waits for that and no longer: a reconnect after it leaves the
+   *  document in place. */
+  hasSynced?: boolean;
   initiativeId?: number | null;
   /** What is being written, as a reference (`document:12`) — see
    *  `Plugins.subject`. Absent while it does not exist yet, which is a thing
@@ -68,7 +71,7 @@ export function Editor({
   collaborative = false,
   providerFactory,
   trackChanges,
-  isSynced = true,
+  hasSynced = true,
   initiativeId = null,
   subject,
   supportsEntityMentions = false,
@@ -90,7 +93,7 @@ export function Editor({
       ? JSON.stringify(editorSerializedState)
       : undefined;
 
-  const showSyncingOverlay = useCollaborativeMode && !isSynced;
+  const showSyncingOverlay = useCollaborativeMode && !hasSynced;
 
   // Capture initial editor configuration at first mount. LexicalExtensionComposer
   // recreates (and disposes) the editor whenever the `extension` prop reference

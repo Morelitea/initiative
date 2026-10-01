@@ -88,6 +88,10 @@ interface SpreadsheetDocumentEditorProps {
    *  Until then the workbook must not be seeded from ``initialContent``
    *  (see ``useSpreadsheetSheets``). Ignored when ``yDoc`` is null. */
   isSynced?: boolean;
+  /** Whether this body has synced with its room at least once. The syncing
+   *  cover waits for that and no longer: a reconnect after it leaves the
+   *  document in place. */
+  hasSynced?: boolean;
   /** Read a file into sheets. Supplied by the host, which knows the document
    *  and guild this editor is showing; absent when import is unavailable. */
   onImportFile?: (file: File) => Promise<SpreadsheetSheetContent[]>;
@@ -120,6 +124,7 @@ export const SpreadsheetDocumentEditor = ({
   className,
   yDoc = null,
   isSynced = true,
+  hasSynced = isSynced,
   onImportFile,
   awareness = null,
   currentUser = null,
@@ -1018,7 +1023,7 @@ export const SpreadsheetDocumentEditor = ({
         className
       )}
     >
-      {yDoc !== null && !isSynced && (
+      {yDoc !== null && !hasSynced && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />

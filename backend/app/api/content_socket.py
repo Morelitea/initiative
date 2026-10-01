@@ -61,7 +61,9 @@ AUTH_TIMEOUT_SECONDS = 10.0
 
 #: How long a socket may go without the server saying anything before it says
 #: that. The client reads silence past a couple of these as the socket being
-#: gone, which is how a half-open connection is noticed.
+#: gone, which is how a half-open connection is noticed. Measured from what the
+#: server last sent, not what it last received: a client typing alone in a
+#: document sends constantly and is sent nothing back.
 HEARTBEAT_SECONDS = 30.0
 
 #: The beat. It carries no change, and a client does nothing with it.
@@ -170,7 +172,7 @@ async def admit(
 async def hold_open(
     sub: Subscriber, on_bytes: Optional[Callable[[bytes], None]] = None
 ) -> None:
-    """Keep a socket open until it closes, beating when it is quiet.
+    """Keep a socket open until it closes, beating when the server is quiet.
 
     Every socket beats the same way — a JSON ``HEARTBEAT_FRAME`` — so one
     client-side check notices a connection that has stopped carrying. Binary
@@ -180,12 +182,18 @@ async def hold_open(
     """
     try:
         while True:
+            quiet_for = monotonic() - sub.last_sent_at
+            if quiet_for >= HEARTBEAT_SECONDS:
+                sub.send_json(HEARTBEAT_FRAME)
+                # Set here too: a socket already dropped from the register
+                # queues nothing, and must still wait out the next beat.
+                sub.last_sent_at = monotonic()
+                continue
             try:
                 frame = await asyncio.wait_for(
-                    sub.websocket.receive(), HEARTBEAT_SECONDS
+                    sub.websocket.receive(), HEARTBEAT_SECONDS - quiet_for
                 )
             except asyncio.TimeoutError:
-                sub.send_json(HEARTBEAT_FRAME)
                 continue
             if frame.get("type") == "websocket.disconnect":
                 break

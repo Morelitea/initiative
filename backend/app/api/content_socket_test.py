@@ -282,3 +282,59 @@ async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
     assert received == [b"\x02edit"]
     assert content_socket.HEARTBEAT_FRAME in websocket.sent
     assert register.room_size(resource_room(1, "document", 3)) == 0
+
+
+async def test_a_socket_that_keeps_talking_is_still_beaten_to(monkeypatch) -> None:
+    """Someone typing alone in a document sends constantly and is sent nothing
+    back — edits are relayed to everyone else. The beat is measured from what
+    the server last said, so their client still hears one and keeps the socket."""
+    from types import SimpleNamespace
+
+    from app.services.content_sockets import (
+        ContentSockets,
+        Credential,
+        Subscriber,
+        Wire,
+    )
+    from app.testing.sockets import FakeWebSocket
+
+    register = ContentSockets()
+    monkeypatch.setattr(content_socket, "sockets", register)
+    monkeypatch.setattr(content_socket, "HEARTBEAT_SECONDS", 0.05)
+
+    # An edit every 10ms for 300ms: never quiet for a whole beat.
+    edits = 30
+
+    class Typist(FakeWebSocket):
+        async def receive(self) -> dict:
+            nonlocal edits
+            await settle()
+            if edits == 0:
+                return {"type": "websocket.disconnect", "code": 1000}
+            edits -= 1
+            await asyncio.sleep(0.01)
+            return {"type": "websocket.receive", "bytes": b"\x02edit"}
+
+    websocket = Typist()
+
+    async def keep(_session, _user):
+        return frozenset({resource_room(1, "document", 3)})
+
+    sub = Subscriber(
+        websocket=websocket,  # type: ignore[arg-type]
+        user=SimpleNamespace(id=1),  # type: ignore[arg-type]
+        guild_id=1,
+        wire=Wire.bytes,
+        authorize=keep,
+        credential=Credential(),
+        rooms=frozenset({resource_room(1, "document", 3)}),
+    )
+    register.join(sub)
+    try:
+        await content_socket.hold_open(sub, on_bytes=lambda _data: None)
+        await settle()
+    finally:
+        if register._loop_task is not None:
+            register._loop_task.cancel()
+
+    assert websocket.sent.count(content_socket.HEARTBEAT_FRAME) >= 2

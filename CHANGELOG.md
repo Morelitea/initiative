@@ -59,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Wiki page edits are no longer lost to a later live session.** A page saved while nobody was editing it live keeps that save, and a save from a tab outside a live session is refused with a prompt to reconnect instead of being reported as saved.
 - **Exported and imported events keep their days in your timezone.** All-day events no longer land a day early, a repeat's weekdays and last day stay put, and an imported all-day event covers exactly its days.
 - **Confirming your password in settings is limited per account.** Wrong passwords entered to remove a password, set up an authenticator app, regenerate recovery codes, or change or delete something now count toward the same account lock as sign-in, a correct one starts the count over as signing in does, and these requests are no longer limited per network address, so people sharing an office connection don't use up each other's attempts.
+- **Live documents stop flashing “Syncing…” while you write.** Typing alone in a document, wiki page, spreadsheet or whiteboard no longer drops its connection every minute or so, and a document or spreadsheet whose connection does drop reconnects behind the page instead of covering it.
+- **Edits saved after a failed offline handover are kept.** A tab's offline edits that the server refused no longer leave behind a stale copy that the next handover could save over newer work.
 
 ## [0.73.2] - 2026-09-29
 
