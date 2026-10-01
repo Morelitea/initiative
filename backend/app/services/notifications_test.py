@@ -6,6 +6,8 @@ test harness commits real data and truncates between tests).
 """
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from urllib.parse import urlencode
 
 import re
@@ -22,6 +24,7 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
+from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.task import (
     Task,
@@ -33,7 +36,7 @@ from app.models.tenant.task import (
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.platform.user import User
 from app.services.platform import email_outbox
-from app.services.platform import push_notifications
+from app.services.platform import push_config
 from app.services.notifications import (
     ASSIGNMENT_ITEM_RETENTION,
     ASSIGNMENT_MAX_WINDOW,
@@ -493,30 +496,26 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
     assert {"Alpha overdue", "Beta overdue"} <= captured["titles"]
 
 
-def _capture_push(monkeypatch) -> list[dict]:
-    """Record every ``send_push_to_user`` call instead of hitting FCM."""
-    sent: list[dict] = []
+def _push_on(monkeypatch) -> None:
+    """Resolve push as configured, so a sweep's push is queued at all."""
+    monkeypatch.setattr(
+        push_config,
+        "ensure_push_config_fresh",
+        AsyncMock(return_value=SimpleNamespace(enabled=True)),
+    )
 
-    async def _fake_push(
-        *, session, user_id, notification_type, title, body, data=None, **rest
-    ):
-        # ``rest`` carries what the seam resolves for itself — the community
-        # whose answer applies, the recipient's language. Accepted and recorded
-        # so a caller that stops passing one is visible here.
-        sent.append(
-            {
-                "user_id": user_id,
-                "type": notification_type,
-                "title": title,
-                "body": body,
-                "data": data or {},
-                **rest,
-            }
-        )
-        return 1
 
-    monkeypatch.setattr(push_notifications, "send_push_to_user", _fake_push)
-    return sent
+async def _queued_pushes(session: AsyncSession) -> list[NoticeOutboxItem]:
+    """The pushes the sweeps handed the notice worker, oldest first."""
+    return list(
+        (
+            await session.exec(
+                select(NoticeOutboxItem)
+                .where(NoticeOutboxItem.kind == "push")
+                .order_by(NoticeOutboxItem.id)
+            )
+        ).all()
+    )
 
 
 async def test_overdue_digest_pushes_alongside_email(
@@ -540,21 +539,23 @@ async def test_overdue_digest_pushes_alongside_email(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert emails == [user.id]
-    assert len(pushes) == 1
-    push = pushes[0]
-    assert push["user_id"] == user.id
-    assert push["type"] == NotificationType.overdue_tasks
-    assert "Alpha overdue" in push["body"]
+    [push] = await _queued_pushes(session)
+    assert push.user_id == user.id
+    assert push.type == NotificationType.overdue_tasks.value
+    assert "Alpha overdue" in (push.push_body or "")
     # The digest spans guilds, so the tap lands on the cross-guild My Tasks
     # list — no guild_id, which is what tells the app not to switch guilds.
-    assert push["data"]["target_path"] == "/"
-    assert "guild_id" not in push["data"]
+    assert push.push_data == {
+        "type": NotificationType.overdue_tasks.value,
+        "count": "1",
+        "target_path": "/",
+    }
 
 
 async def test_overdue_digest_pushes_when_email_opted_out(
@@ -583,18 +584,18 @@ async def test_overdue_digest_pushes_when_email_opted_out(
         raise AssertionError("email must not be sent to an opted-out user")
 
     monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     now = datetime.now(timezone.utc)
     await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=now))
-    assert len(pushes) == 1
+    assert len(await _queued_pushes(session)) == 1
 
     # Second pass the same day is a no-op (the stamp landed on the push alone).
     session.expunge_all()
     await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=now + timedelta(minutes=5)))
-    assert len(pushes) == 1
+    assert len(await _queued_pushes(session)) == 1
 
     refreshed = (
         await session.exec(select(User).where(User.id == user.id))
@@ -627,12 +628,12 @@ async def test_overdue_digest_skips_push_when_opted_out(
         return False
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
-    assert pushes == []
+    assert await _queued_pushes(session) == []
 
 
 async def test_overdue_digest_skips_template_projects(
@@ -657,14 +658,14 @@ async def test_overdue_digest_skips_template_projects(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert {"Real overdue"} <= captured["titles"]
-    assert len(pushes) == 1
-    assert "Template overdue" not in pushes[0]["body"]
+    [push] = await _queued_pushes(session)
+    assert "Template overdue" not in (push.push_body or "")
 
 
 async def test_overdue_digest_skips_archived_projects_and_tasks(
@@ -695,15 +696,15 @@ async def test_overdue_digest_skips_archived_projects_and_tasks(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert {"Live overdue"} <= captured["titles"]
-    assert len(pushes) == 1
-    assert "ArchivedProject overdue" not in pushes[0]["body"]
-    assert "ArchivedTask overdue" not in pushes[0]["body"]
+    [push] = await _queued_pushes(session)
+    assert "ArchivedProject overdue" not in (push.push_body or "")
+    assert "ArchivedTask overdue" not in (push.push_body or "")
 
 
 async def _assignment_item_in_new_guild(
@@ -813,7 +814,6 @@ async def test_assignment_digest_waits_for_the_flurry_to_end(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    _capture_push(monkeypatch)
 
     # Item just landed — still accumulating, nothing goes out.
     await set_rls_context(session, Unattributed())
@@ -859,7 +859,6 @@ async def test_assignment_digest_caps_a_steady_trickle(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    _capture_push(monkeypatch)
 
     # An item that landed a moment ago would normally hold the digest, but the
     # window opened long enough ago that it ships regardless.
@@ -888,7 +887,7 @@ async def test_assignment_digest_sends_both_channels_together(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(
@@ -898,11 +897,13 @@ async def test_assignment_digest_sends_both_channels_together(
     )
 
     assert emails == [2]
-    assert len(pushes) == 1
+    [push] = await _queued_pushes(session)
     # A multi-task digest spans guilds, so it lands on My Tasks.
-    assert pushes[0]["data"]["count"] == "2"
-    assert pushes[0]["data"]["target_path"] == "/"
-    assert "guild_id" not in pushes[0]["data"]
+    assert push.push_data == {
+        "type": NotificationType.task_assignment.value,
+        "count": "2",
+        "target_path": "/",
+    }
 
 
 async def test_assignment_digest_of_one_deep_links_to_the_task(
@@ -917,7 +918,7 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
         return False
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(
@@ -926,9 +927,10 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
         )
     )
 
-    assert len(pushes) == 1
-    assert pushes[0]["data"]["guild_id"] == str(guild.id)
-    assert pushes[0]["data"]["target_path"].startswith("/go/task/")
+    [push] = await _queued_pushes(session)
+    assert push.push_data is not None
+    assert push.push_data["guild_id"] == str(guild.id)
+    assert push.push_data["target_path"].startswith("/go/task/")
 
 
 async def test_assignment_digest_pushes_when_email_opted_out(
@@ -949,7 +951,7 @@ async def test_assignment_digest_pushes_when_email_opted_out(
         raise AssertionError("email must not be sent to an opted-out user")
 
     monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(
@@ -958,7 +960,7 @@ async def test_assignment_digest_pushes_when_email_opted_out(
         )
     )
 
-    assert len(pushes) == 1
+    assert len(await _queued_pushes(session)) == 1
 
 
 async def test_assignment_digest_honours_a_preference_changed_mid_pass(
@@ -974,7 +976,7 @@ async def test_assignment_digest_honours_a_preference_changed_mid_pass(
         raise AssertionError("email must not be sent after opting out")
 
     monkeypatch.setattr(email_outbox, "enqueue", _fail_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     # Turn the email off after the items were queued — as a request handled
     # while the worker is mid-gather would.
@@ -993,7 +995,8 @@ async def test_assignment_digest_honours_a_preference_changed_mid_pass(
         )
     )
 
-    assert len(pushes) == 1  # push is still on, and still delivers
+    # Push is still on, and still goes.
+    assert len(await _queued_pushes(session)) == 1
 
 
 async def test_assignment_gc_drops_items_past_retention(session: AsyncSession):
@@ -1125,7 +1128,6 @@ async def test_reaction_digest_gathers_across_guilds_and_marks_processed(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    _capture_push(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(
@@ -1164,7 +1166,6 @@ async def test_reaction_digest_waits_for_the_flurry_to_end(
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    _capture_push(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(digest_scan(REACTION_DIGEST, now=datetime.now(timezone.utc)))
@@ -1212,7 +1213,7 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
         return True
 
     monkeypatch.setattr(email_outbox, "enqueue", _capture_email)
-    pushes = _capture_push(monkeypatch)
+    _push_on(monkeypatch)
 
     await set_rls_context(session, Unattributed())
     await _sweep(
@@ -1221,7 +1222,7 @@ async def test_reaction_digest_respects_the_opt_out(session: AsyncSession, monke
         )
     )
     assert sent == []
-    assert pushes == []
+    assert await _queued_pushes(session) == []
 
 
 class TestReactionBellRollup:

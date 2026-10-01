@@ -136,6 +136,36 @@ async def test_a_redacting_community_writes_down_no_more_than_it_will_say(
     assert "Q3 budget" not in f"{row.push_body} {row.email_body} {row.email_subject}"
 
 
+async def test_a_push_of_its_own_writes_no_line(session: AsyncSession, fcm):
+    """A digest or a hold summary is a push and nothing else: the bell already
+    holds what it counts."""
+    pushed, _answer = fcm
+    recipient = await create_user(session)
+    await create_push_token(session, recipient)
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(
+                recipient.id,
+                None,
+                NotificationType.overdue_tasks,
+                {},
+                kind="push",
+                push_title="2 tasks overdue",
+                push_body="Q3 budget and 1 more",
+                push_data={"target_path": "/"},
+            )
+        ],
+    )
+    await session.commit()
+
+    await _deliver(session, datetime.now(timezone.utc))
+
+    assert pushed == ["2 tasks overdue"]
+    assert await _lines(session, recipient.id) == []
+    assert await _waiting(session) == []
+
+
 async def test_a_push_nobody_answered_is_tried_again_without_a_second_line(
     session: AsyncSession, fcm
 ):
