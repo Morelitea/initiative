@@ -251,7 +251,6 @@ async def _section_ids(
         section.tool,
         _filters(params, section),
         await section.adapter.initiative_ids(session, user, guild_id, initiative_id),
-        initiative_id=initiative_id,
     )
 
 
@@ -301,25 +300,13 @@ async def _count_scope(
     — the blobs documents reference plus the ones nothing points at. Counting
     only the referenced ones here would let an over-cap export through to the
     worker and fail it there instead of answering now."""
-    from sqlalchemy import func
-    from sqlmodel import select
-
-    from app.models.tenant.task import Task
 
     ids = await _enumerate(session, user, guild_id, params, initiatives)
     total = sum(
         len(v) for per_initiative in ids.values() for v in per_initiative.values()
     )
 
-    project_ids = [pid for per in ids["project"].values() for pid in per]
-    if project_ids:
-        total += (
-            await session.exec(
-                select(func.count())
-                .select_from(Task)
-                .where(Task.project_id.in_(project_ids))
-            )
-        ).one()
+    total += await _task_rows(session, user, params, ids["project"])
 
     if _include_uploads(params) and (
         scope_kind == "guild" or _included(params, "document")
@@ -334,6 +321,35 @@ async def _count_scope(
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         total += upload_bytes // _MIB
     return total
+
+
+async def _task_rows(
+    session: AsyncSession,
+    user: User,
+    params: dict,
+    project_ids: dict[int, list[int]],
+) -> int:
+    """How many tasks the projects' exports carry: every one, or those the
+    project task filter leaves."""
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from app.models.tenant.task import Task
+    from app.services.export.adapters.project import count_matching_tasks
+
+    ids = [project_id for per in project_ids.values() for project_id in per]
+    if not ids:
+        return 0
+    tasks = getattr(_filters(params, _SECTIONS_BY_KEY["project"]), "tasks", None)
+    if tasks is None:
+        return (
+            await session.exec(
+                select(func.count()).select_from(Task).where(Task.project_id.in_(ids))
+            )
+        ).one()
+    return await count_matching_tasks(
+        session, user, ids, tasks, resolve_zone(params.get("tz")).key
+    )
 
 
 async def _known_upload_bytes(
@@ -1505,7 +1521,6 @@ async def estimate_backup(
     from sqlmodel import select
 
     from app.models.tenant.document import Document, DocumentType
-    from app.models.tenant.task import Task
     from app.schemas.tenant.backup_export import BackupEstimate, BackupToolEstimate
     from app.services.tenant.attachments import get_guild_storage_usage
 
@@ -1528,15 +1543,7 @@ async def estimate_backup(
         tools[tool] = BackupToolEstimate(count=count, disabled=disabled)
         estimated_rows += count
 
-    project_ids = [pid for per in ids["project"].values() for pid in per]
-    if project_ids:
-        estimated_rows += (
-            await session.exec(
-                select(func.count())
-                .select_from(Task)
-                .where(Task.project_id.in_(project_ids))
-            )
-        ).one()
+    estimated_rows += await _task_rows(session, user, params, ids["project"])
 
     uploads_count = 0
     uploads_bytes = 0

@@ -76,7 +76,11 @@
       "toggle": "Filtern",
       "toggleFor": "Filtern: {{tool}}",
       "eventDates": "Zeitraum der Termine",
-      "tasks": "Aufgaben in jedem Projekt"
+      "tasks": "Aufgaben in jedem Projekt",
+      "templates": "Vorlagen",
+      "withoutTemplates": "Ohne Vorlagen",
+      "templatesOnly": "Nur Vorlagen",
+      "untaggedOnly": "Nur ohne Tags"
     },
     "filterSummary": {
       "search": "„{{search}}“",

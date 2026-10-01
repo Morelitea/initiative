@@ -76,7 +76,11 @@
       "toggle": "Filtrar",
       "toggleFor": "Filtrar {{tool}}",
       "eventDates": "Fechas de los eventos",
-      "tasks": "Tareas de cada proyecto"
+      "tasks": "Tareas de cada proyecto",
+      "templates": "Plantillas",
+      "withoutTemplates": "Sin plantillas",
+      "templatesOnly": "Solo plantillas",
+      "untaggedOnly": "Solo sin etiquetas"
     },
     "filterSummary": {
       "search": "«{{search}}»",

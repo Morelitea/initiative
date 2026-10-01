@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, ChevronDown, Filter, Loader2, XCircle } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
@@ -28,6 +28,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -79,6 +80,24 @@ const ARCHIVED_FOR: Record<ToolArchiveChoice, boolean | undefined> = {
 
 const archiveChoice = (archived: boolean | null | undefined): ToolArchiveChoice =>
   archived == null ? "all" : archived ? "archived" : "active";
+
+/** Filters only an export offers, by the list param each tool spells them
+ *  with. A list page reaches the same rows through its own status filter and
+ *  tag tree, so these stay out of the shared filter fields. */
+const EXPORT_ONLY_FILTERS: {
+  [T in Tool]?: { template: keyof ToolListFilters<T>; untagged?: keyof ToolListFilters<T> };
+} = {
+  [Tool.project]: { template: "template" },
+  [Tool.document]: { template: "is_template", untagged: "untagged" },
+};
+
+/** The templates choice, each with the value it sends: omitted exports
+ *  templates and the rest alike. */
+const TEMPLATE_CHOICES = [
+  { value: "all", template: undefined, label: "common:toolArchiveFilter.all" },
+  { value: "without", template: false, label: "wizard.filter.withoutTemplates" },
+  { value: "only", template: true, label: "wizard.filter.templatesOnly" },
+] as const;
 
 /** Drops what narrows nothing — blank text, empty lists and objects, unset
  *  values — so only real filters are sent. */
@@ -291,10 +310,14 @@ function ToolFilterSection({
   backup: boolean;
   initiativeId?: number;
 }) {
-  const { t } = useTranslation(["exports", "nav"]);
+  const { t } = useTranslation(["exports", "nav", "common", "projects", "documents"]);
+  const id = useId();
   const [open, setOpen] = useState(false);
-  const count = Object.keys(toolExportFilters(tool, value, content, backup)).length;
+  const filters = toolExportFilters(tool, value, content, backup);
+  const count = Object.keys(filters).length;
   const ContentField = CONTENT_FILTERS[tool]?.Field;
+  const exportOnly = EXPORT_ONLY_FILTERS[tool];
+  const untagged = exportOnly?.untagged;
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -320,6 +343,49 @@ function ToolFilterSection({
           value={archiveChoice(value.archived)}
           onChange={(choice) => onChange({ ...value, archived: ARCHIVED_FOR[choice] })}
         />
+        {exportOnly ? (
+          <div className="space-y-2">
+            <Label id={`${id}-templates`} className="text-xs">
+              {t("wizard.filter.templates")}
+            </Label>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              aria-labelledby={`${id}-templates`}
+              value={
+                TEMPLATE_CHOICES.find((c) => c.template === filters[exportOnly.template])?.value
+              }
+              onValueChange={(next) =>
+                next &&
+                onChange({
+                  ...value,
+                  [exportOnly.template]: TEMPLATE_CHOICES.find((c) => c.value === next)?.template,
+                })
+              }
+              className="h-9 justify-start"
+            >
+              {TEMPLATE_CHOICES.map((choice) => (
+                <ToggleGroupItem key={choice.value} value={choice.value} className="h-9 px-3">
+                  {t(choice.label)}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+        ) : null}
+        {untagged ? (
+          <div className="flex items-center gap-2">
+            <Switch
+              id={`${id}-untagged`}
+              checked={filters[untagged] === true}
+              onCheckedChange={(checked) =>
+                onChange({ ...value, [untagged]: checked || undefined })
+              }
+            />
+            <Label htmlFor={`${id}-untagged`} className="text-xs">
+              {t("wizard.filter.untaggedOnly")}
+            </Label>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-3">
           <ToolFilterFields tool={tool} value={value} onChange={onChange} />
         </div>
@@ -335,8 +401,14 @@ function ToolFilterSection({
 function useDescribeFilters() {
   const { t } = useTranslation(["exports", "projects"]);
   const formatRange = useFormatDateRange();
-  return (filters: Record<string, unknown>, content: ContentFilters, backup: boolean): string => {
+  return (
+    tool: Tool,
+    filters: Record<string, unknown>,
+    content: ContentFilters,
+    backup: boolean
+  ): string => {
     const parts: string[] = [];
+    const exportOnly = EXPORT_ONLY_FILTERS[tool];
     if ("events" in filters) parts.push(formatRange(content.events));
     if ("tasks" in filters) {
       const { status_ids, status_categories, assignees, tag_ids, properties, due } = content.tasks;
@@ -363,7 +435,21 @@ function useDescribeFilters() {
     }
     if (filters.archived === true) parts.push(t("wizard.filterSummary.archivedOnly"));
     if (filters.archived === false) parts.push(t("wizard.filterSummary.activeOnly"));
-    const described = new Set(["events", "tasks", "search", "tag_ids", "archived"]);
+    const templates = exportOnly && filters[exportOnly.template];
+    if (typeof templates === "boolean") {
+      parts.push(t(templates ? "wizard.filter.templatesOnly" : "wizard.filter.withoutTemplates"));
+    }
+    if (exportOnly?.untagged && filters[exportOnly.untagged] === true) {
+      parts.push(t("wizard.filter.untaggedOnly"));
+    }
+    const described = new Set<string>([
+      "events",
+      "tasks",
+      "search",
+      "tag_ids",
+      "archived",
+      ...Object.values(exportOnly ?? {}),
+    ]);
     const more = Object.keys(filters).filter((key) => !described.has(key)).length;
     if (more > 0) parts.push(t("wizard.filterSummary.more", { count: more }));
     return parts.join(" · ");
@@ -776,7 +862,7 @@ function AggregateExportWizard({
                 <p key={tool} className="text-muted-foreground text-xs">
                   {t("wizard.confirm.toolFilters", {
                     tool: toolLabel(tool),
-                    filters: describeFilters(filters, content, mode === "backup"),
+                    filters: describeFilters(tool, filters, content, mode === "backup"),
                   })}
                 </p>
               ))}
@@ -954,7 +1040,7 @@ function EntitiesExportWizard({
             </p>
             {Object.keys(filters).length > 0 ? (
               <p className="text-muted-foreground text-xs">
-                {describeFilters(filters, content, backup)}
+                {describeFilters(tool, filters, content, backup)}
               </p>
             ) : null}
           </div>

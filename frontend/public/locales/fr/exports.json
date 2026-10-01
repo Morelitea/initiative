@@ -76,7 +76,11 @@
       "toggle": "Filtrer",
       "toggleFor": "Filtrer : {{tool}}",
       "eventDates": "Dates des événements",
-      "tasks": "Tâches de chaque projet"
+      "tasks": "Tâches de chaque projet",
+      "templates": "Modèles",
+      "withoutTemplates": "Sans les modèles",
+      "templatesOnly": "Modèles uniquement",
+      "untaggedOnly": "Uniquement sans étiquette"
     },
     "filterSummary": {
       "search": "« {{search}} »",

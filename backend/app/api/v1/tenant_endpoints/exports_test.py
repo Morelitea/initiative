@@ -2248,11 +2248,12 @@ _SUMMER = {
 
 
 async def test_calendar_export_narrows_by_initiative_and_date_range(
-    client: AsyncClient, acting_user, session
+    client: AsyncClient, acting_user, session, monkeypatch
 ):
     """A calendar export narrows to one initiative, and to the events starting
     in a date range: a repeating one whole, with an occurrence moved out of the
-    range. The calendar page's events export takes the same range."""
+    range, counted as what it carries. The calendar page's events export takes
+    the same range."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await _events_enabled(session, a.initiative)
     other = await create_initiative(
@@ -2294,6 +2295,8 @@ async def test_calendar_export_narrows_by_initiative_and_date_range(
         **at(12),
     )
     in_range = {"Summer", "Weekly", "Weekly, moved"}
+    # Counted as the range leaves it, it is small enough to hand back inline.
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", len(in_range))
     resp = await _export(
         client,
         a,
@@ -2865,10 +2868,10 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """Each tool's filters are its list's: a tag keeps the queues carrying it,
-    archived ones too unless the archive is asked about, a calendar keeps the
-    events in its range, and a project the tasks its task list would show. The
-    estimate counts what the filters leave, and the finished job keeps no
-    filters."""
+    archived ones too unless the archive is asked about, templates too unless
+    templates are asked about, a calendar keeps the events in its range, and a
+    project the tasks its task list would show. The estimate counts what the
+    filters leave, and the finished job keeps no filters."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await enable_all_tools(session, a.initiative)
     tag = await create_tag(session, a.guild, name="raid")
@@ -2890,6 +2893,10 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
             session, calendar, a.user, title=title, start_at=start, end_at=start
         )
 
+    blueprint = await create_project(
+        session, a.initiative, a.user, name="Blueprint", is_template=True
+    )
+    await create_task(session, blueprint, title="Template step")
     open_task = await create_task(session, a.project, title="Open")
     shipped = await create_task(
         session, a.project, title="Shipped", status_category=TaskStatusCategory.done
@@ -2917,7 +2924,7 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
             {
                 "queue": {"tag_ids": [tag.id], **queue},
                 "calendar": {"events": _SUMMER},
-                "project": open_tasks,
+                "project": {"archived": False, **open_tasks},
             }
         )
 
@@ -2951,25 +2958,30 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     assert {q["name"] for q in envelopes("initiative-queue")} == {"Tagged", "Shelved"}
     [raids] = envelopes("initiative-calendar")
     assert [e["title"] for e in raids["events"]] == ["Summer"]
-    [project] = envelopes("initiative-project")
-    assert [t["title"] for t in project["tasks"]] == ["Open"]
+    projects = {p["project"]["name"]: p for p in envelopes("initiative-project")}
+    assert set(projects) == {a.project.name, "Blueprint"}
+    assert [t["title"] for t in projects[a.project.name]["tasks"]] == ["Open"]
     assert "filters" not in (await _job(client, a, resp.json()["id"]))["params"]
 
     # A project's own export takes the same task filter, read by the rule for
     # that project: a guild admin with no grant on it gets the same tasks. A
     # link to a task the filter left out has nothing to land on, so it goes.
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    # Counted as the filters leave it — the template set aside, one open task —
+    # it is handed back inline.
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 1)
     own = await _export(
         client,
         a,
         "project",
         headers=admin.headers,
-        ids=[a.project.id],
+        ids=[a.project.id, blueprint.id],
         format="json",
-        filters=json.dumps(open_tasks),
+        filters=json.dumps({"template": False, **open_tasks}),
     )
     [kept] = json.loads(_assert_export(own, "json"))["tasks"]
     assert (kept["title"], kept["links"]) == ("Open", [])
+    monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 200)
     # A report shows what its filter asks for, archived tasks included.
     _assert_export(
         await _export(

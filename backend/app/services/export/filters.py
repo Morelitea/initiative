@@ -13,7 +13,9 @@ the job that carries them.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from functools import lru_cache
+from itertools import product
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, ValidationError, create_model
@@ -40,6 +42,11 @@ _NOT_FILTERS = frozenset(
         "sort_dir",
     }
 )
+
+
+#: List params whose unset value shows one side of them (live rows, ordinary
+#: projects) rather than both.
+_BOTH_WHEN_UNSET = ("archived", "template")
 
 
 @lru_cache(maxsize=None)
@@ -88,14 +95,19 @@ async def narrow(
     tool: Tool,
     filters: BaseModel | None,
     ids: list[int],
-    *,
-    initiative_id: int | None = None,
 ) -> list[int]:
     """The ids, in their order, that the tool's list answers with these
     filters.
 
-    The list shows live rows or archived ones, never both. An export with no
-    archive choice carries both, so it takes both of the list's answers.
+    Each is asked about inside its own initiative, as that initiative's list
+    asks: the export has already decided which rows it may carry, so the rule
+    a list spanning initiatives adds about what is shared with the reader is
+    not this question.
+
+    A list shows one side of some choices when it is not asked about them:
+    live rows rather than archived ones, ordinary projects rather than
+    templates. An export with no choice carries both, so it takes each of the
+    list's answers (``_BOTH_WHEN_UNSET``).
     """
     from app.api.v1.tenant_endpoints.tool_lists import (
         TOOL_LISTS,
@@ -112,21 +124,29 @@ async def narrow(
         return ids
     spec = TOOL_LISTS[tool]
     values = {param.name: param.default.default for param in spec.params}
-    values |= listed | {"initiative_id": initiative_id}
-    archive = [False, True] if values.get("archived") is None else [values["archived"]]
+    values |= listed
+    unset = [
+        name for name in _BOTH_WHEN_UNSET if name in values and values[name] is None
+    ]
+    by_initiative: dict[int | None, list[int]] = defaultdict(list)
+    for entity_id, initiative_id in await session.exec(
+        select(spec.model.id, spec.model.initiative_id).where(spec.model.id.in_(ids))
+    ):
+        by_initiative[initiative_id].append(entity_id)
     kept: set[int] = set()
-    for archived in archive:
-        request = ListRequest(
-            session,
-            user,
-            require_guild_context(session),
-            values | {"archived": archived},
-        )
-        kept.update(
-            await session.exec(
-                select(spec.model.id).where(
-                    spec.model.id.in_(ids), *await list_conditions(spec, request)
+    for initiative_id, group in by_initiative.items():
+        for sides in product((False, True), repeat=len(unset)):
+            request = ListRequest(
+                session,
+                user,
+                require_guild_context(session),
+                values | {"initiative_id": initiative_id} | dict(zip(unset, sides)),
+            )
+            kept.update(
+                await session.exec(
+                    select(spec.model.id).where(
+                        spec.model.id.in_(group), *await list_conditions(spec, request)
+                    )
                 )
             )
-        )
     return [entity_id for entity_id in ids if entity_id in kept]

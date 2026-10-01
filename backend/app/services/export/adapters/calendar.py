@@ -79,17 +79,20 @@ class CalendarAdapter(ToolExportAdapter):
         params: dict,
         format: str,
     ) -> int:
-        # The enumerated path counts events with ONE query (the enumeration is
-        # already DAC-filtered, so nothing needs a per-calendar fetch). An
-        # explicit id selection keeps the per-calendar fetch+authorize — the
-        # engine's contract is that count() rejects an unauthorized selection
-        # BEFORE a job row exists, and the selection cap bounds it.
-        if _is_selection(params):
-            return await super().count(
-                session, user=user, guild_id=guild_id, params=params, format=format
-            )
+        # Events are counted with ONE query either way, in the range the export
+        # carries. The enumeration is already DAC-filtered, so nothing needs a
+        # per-calendar fetch; an explicit id selection keeps its per-calendar
+        # fetch+authorize, because the engine's contract is that count()
+        # rejects an unauthorized selection BEFORE a job row exists.
         filters = parse_filters(self.tool, params.get("filters"))
-        calendar_ids = await self._enumerate(session, user, guild_id, params, filters)
+        calendar_ids = (
+            [
+                calendar.id
+                for calendar in await self.load(session, user, guild_id, params, format)
+            ]
+            if _is_selection(params)
+            else await self._enumerate(session, user, guild_id, params, filters)
+        )
         if not calendar_ids:
             return 0
         return (
@@ -116,16 +119,17 @@ class CalendarAdapter(ToolExportAdapter):
         guild) that the calendar list's filters leave."""
         from app.services.tenant.calendars import list_calendar_ids_for_export
 
-        initiative_id = _optional_int(params, "initiative_id")
         return await narrow(
             session,
             user,
             self.tool,
             filters,
             await list_calendar_ids_for_export(
-                session, user, guild_id, initiative_id=initiative_id
+                session,
+                user,
+                guild_id,
+                initiative_id=_optional_int(params, "initiative_id"),
             ),
-            initiative_id=initiative_id,
         )
 
     async def load(
