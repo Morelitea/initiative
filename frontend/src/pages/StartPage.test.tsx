@@ -129,7 +129,7 @@ describe("which paths are offered", () => {
     expect(screen.getByRole("radio", { name: /just for me/i })).toBeChecked();
   });
 
-  it("lets the native app pick a plan, sent with the community rather than the portal", async () => {
+  it("asks the native app for no plan, which it may not sell", async () => {
     deployment.billing = true;
     const open = vi.spyOn(window, "open");
     renderStart({ native: true });
@@ -141,16 +141,13 @@ describe("which paths are offered", () => {
     await press("Continue");
     await heading("Your community");
     await press("Continue");
-    await heading("Choose a plan");
-    await press(/Brass/);
-    await press("Continue");
     await createAccount();
 
     expect(register).toHaveBeenCalledWith(
-      expect.objectContaining({ community: { name: "My community", plan: "paid" } })
+      expect.objectContaining({ community: { name: "My community" } })
     );
+    expect(screen.queryByText(/Brass|\$7|Choose a plan/)).toBeNull();
     expect(open).not.toHaveBeenCalled();
-    expect(screen.getByText("We'll let you know how to set up your plan.")).toBeInTheDocument();
   });
 });
 

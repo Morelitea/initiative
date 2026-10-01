@@ -1,4 +1,3 @@
-import { Capacitor } from "@capacitor/core";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -211,44 +210,40 @@ describe("GuildBillingPanel", () => {
     openSpy.mockRestore();
   });
 
-  it("shows the plan in the phone app without anything to buy", async () => {
-    const native = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    try {
-      const trialEnd = dayFromToday(3);
-      state.summary = { ...EMPTY, tier_name: "Gold", trial_ends_on: trialEnd };
-      const { unmount } = renderWithProviders(<GuildBillingPanel />);
-      expect(screen.getByText("Gold")).toBeInTheDocument();
-      expect(screen.getByText("Trial · 3 days left")).toBeInTheDocument();
-      expect(
-        screen.getByText(`Trial ends ${longDate(trialEnd)}. After that the community is read-only.`)
-      ).toBeInTheDocument();
-      expect(screen.getByText("Plan changes aren't available in the app.")).toBeInTheDocument();
-      expect(screen.queryByRole("button")).toBeNull();
-      expect(screen.queryByText(/billing portal|Subscribe/)).toBeNull();
-      unmount();
+  it("shows the plan in the phone app without anything to buy", () => {
+    const phone = { server: { isNativePlatform: true } };
+    const trialEnd = dayFromToday(3);
+    state.summary = { ...EMPTY, tier_name: "Gold", trial_ends_on: trialEnd };
+    const { unmount } = renderWithProviders(<GuildBillingPanel />, phone);
+    expect(screen.getByText("Gold")).toBeInTheDocument();
+    expect(screen.getByText("Trial · 3 days left")).toBeInTheDocument();
+    expect(
+      screen.getByText(`Trial ends ${longDate(trialEnd)}. After that the community is read-only.`)
+    ).toBeInTheDocument();
+    expect(screen.getByText("Plan changes aren't available in the app.")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByText(/billing portal|Subscribe/)).toBeNull();
+    unmount();
 
-      // A renewal names no amount, and a failed payment asks for no card.
-      const renews = dayFromToday(20);
-      state.summary = {
-        ...EMPTY,
-        renews_on: renews,
-        next_charge: { total: 1250, currency: "USD" },
-      };
-      const renewal = renderWithProviders(<GuildBillingPanel />);
-      expect(screen.getByText(`Renews ${longDate(renews)}`)).toBeInTheDocument();
-      expect(screen.queryByText(/\$12\.50/)).toBeNull();
-      renewal.unmount();
+    // A renewal names no amount, and a failed payment asks for no card.
+    const renews = dayFromToday(20);
+    state.summary = {
+      ...EMPTY,
+      renews_on: renews,
+      next_charge: { total: 1250, currency: "USD" },
+    };
+    const renewal = renderWithProviders(<GuildBillingPanel />, phone);
+    expect(screen.getByText(`Renews ${longDate(renews)}`)).toBeInTheDocument();
+    expect(screen.queryByText(/\$12\.50/)).toBeNull();
+    renewal.unmount();
 
-      state.summary = { ...EMPTY, payment_failed: true };
-      renderWithProviders(<GuildBillingPanel />);
-      expect(
-        screen.getByText("The community becomes read-only 14 days after the payment failed.")
-      ).toBeInTheDocument();
-      expect(screen.queryByRole("button")).toBeNull();
-      expect(mintMock).not.toHaveBeenCalled();
-    } finally {
-      native.mockRestore();
-    }
+    state.summary = { ...EMPTY, payment_failed: true };
+    renderWithProviders(<GuildBillingPanel />, phone);
+    expect(
+      screen.getByText("The community becomes read-only 14 days after the payment failed.")
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(mintMock).not.toHaveBeenCalled();
   });
 
   it("says billing is unavailable, and still offers the portal", () => {

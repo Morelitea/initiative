@@ -8,7 +8,6 @@
  * registry, so a new tool shows up here without anybody remembering to add it.
  */
 
-import { Capacitor } from "@capacitor/core";
 import { Link, useRouter } from "@tanstack/react-router";
 import type { ParseKeys } from "i18next";
 import type { LucideIcon } from "lucide-react";
@@ -40,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingCatalog } from "@/hooks/useBillingCatalog";
+import { useServer } from "@/hooks/useServer";
 import { useTheme } from "@/hooks/useTheme";
 import { reopenConsent } from "@/lib/consent";
 import { CHANGELOG_URL, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
@@ -154,7 +154,8 @@ export const LandingCinematic = () => {
   // once there is a price book to scroll to.
   // The phone app may not sell (the app stores forbid pointing anyone to a
   // purchase outside them), so there it never asks for the plans at all.
-  const showsPlans = billing != null && !Capacitor.isNativePlatform();
+  const { isNativePlatform } = useServer();
+  const showsPlans = billing != null && !isNativePlatform;
   const catalog = useBillingCatalog(showsPlans ? billing?.url : undefined);
   const router = useRouter();
   const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
