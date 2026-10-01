@@ -16,7 +16,8 @@
  *                 community directory. Render the chromeless
  *                 ``NoGuildSettingsShell`` so the user can still reach
  *                 Danger Zone / platform configuration — or join a guild
- *                 without waiting for an invite.
+ *                 without waiting for an invite, or reach the billing
+ *                 portal for a community that is on hold.
  * - ``"empty"`` — no guilds and no exempt path; show
  *                 ``NoGuildState`` (the create / join / logout
  *                 landing page).
@@ -43,6 +44,17 @@ const isUserSettingsPath = (path: string): boolean =>
 const isCommunityPath = (path: string): boolean =>
   path === "/communities" || path.startsWith("/communities/");
 
+const DIGITS = "0123456789";
+
+// The billing forwarder, `/c/<id>/billing`. A community on hold is not in the
+// guild list, so the person whose only community it is has no guilds, and
+// still needs the way to its plan.
+const isBillingForwardPath = (path: string): boolean => {
+  const [, c, id, page, ...rest] = path.split("/");
+  const isId = Boolean(id) && [...id].every((ch) => DIGITS.includes(ch));
+  return c === "c" && isId && page === "billing" && rest.length === 0;
+};
+
 // Both platform areas: the Operator dashboard (/settings/operator) and Platform
 // settings (/settings/platform). A guild-less platform user must still reach
 // either via the chromeless shell.
@@ -60,6 +72,7 @@ export function chooseNoGuildLayout({
   if (hasGuilds) return "main";
   if (isUserSettingsPath(pathname)) return "shell";
   if (isCommunityPath(pathname)) return "shell";
+  if (isBillingForwardPath(pathname)) return "shell";
   if (isPlatformSettingsPath(pathname) && canAccessPlatformAreas) return "shell";
   return "empty";
 }

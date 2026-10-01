@@ -13,18 +13,41 @@ export type BillingPortalPage = "manage" | "upgrade";
  *
  * `billing` is null when the deployment has no portal configured (the
  * self-hosted default) — callers must skip every tier/upgrade/manage
- * affordance then, and `reserveTab`/`openPortal` become no-ops.
+ * affordance then, and `reserveTab`/`openPortal` become no-ops. It is also
+ * null while the config is still loading, which `isLoading` tells apart.
  *
- * The tab is opened before the handoff token is minted so the browser keeps
- * attributing it to the click that started it. `reserveTab` exposes that step
- * on its own for callers with their own await between the click and the hop
- * (guild creation), which would otherwise land the `window.open` outside the
- * user gesture.
+ * `portalUrl` is the address itself: the portal page for one guild, with a
+ * freshly minted handoff in its fragment. It throws when the server refuses
+ * the handoff, and is null with no portal configured.
+ *
+ * `openPortal` opens that address in a new tab, falling back to the bare
+ * portal page when the handoff fails. The tab is opened before the handoff
+ * token is minted so the browser keeps attributing it to the click that
+ * started it. `reserveTab` exposes that step on its own for callers with their
+ * own await between the click and the hop (guild creation), which would
+ * otherwise land the `window.open` outside the user gesture.
  */
 export const useBillingPortal = () => {
-  const { billing } = useAppConfig();
+  const { billing, isLoading } = useAppConfig();
   const { i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
+
+  const pageUrl = useCallback(
+    (guildId: number, page: BillingPortalPage): string | null =>
+      billing ? `${billing.url}/${page}?guild=${guildId}&lang=${encodeURIComponent(lang)}` : null,
+    [billing, lang]
+  );
+
+  const portalUrl = useCallback(
+    async (guildId: number, page: BillingPortalPage): Promise<string | null> => {
+      const base = pageUrl(guildId, page);
+      if (!base) return null;
+      const { handoff_token } =
+        await createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost(guildId);
+      return `${base}#handoff=${encodeURIComponent(handoff_token)}`;
+    },
+    [pageUrl]
+  );
 
   const reserveTab = useCallback((): Window | null => {
     if (!billing) return null;
@@ -35,22 +58,20 @@ export const useBillingPortal = () => {
 
   const openPortal = useCallback(
     async (guildId: number, page: BillingPortalPage, reserved?: Window | null) => {
-      if (!billing) return;
-      const base = `${billing.url}/${page}?guild=${guildId}&lang=${encodeURIComponent(lang)}`;
+      const base = pageUrl(guildId, page);
+      if (!base) return;
       const tab = reserved ?? reserveTab();
+      let url = base;
       try {
-        const { handoff_token } =
-          await createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost(guildId);
-        const url = `${base}#handoff=${encodeURIComponent(handoff_token)}`;
-        if (tab) tab.location.href = url;
-        else window.open(url, "_blank", "noopener,noreferrer");
+        url = (await portalUrl(guildId, page)) ?? base;
       } catch {
-        if (tab) tab.location.href = base;
-        else window.open(base, "_blank", "noopener,noreferrer");
+        // Without a handoff, the bare portal page.
       }
+      if (tab) tab.location.href = url;
+      else window.open(url, "_blank", "noopener,noreferrer");
     },
-    [billing, lang, reserveTab]
+    [pageUrl, portalUrl, reserveTab]
   );
 
-  return { billing, openPortal, reserveTab };
+  return { billing, isLoading, openPortal, portalUrl, reserveTab };
 };

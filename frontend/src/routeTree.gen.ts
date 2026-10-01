@@ -52,6 +52,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdMarketplaceRouteImport } fr
 import { Route as ServerRequiredAuthenticatedCGuildIdMembersRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/members'
 import { Route as ServerRequiredAuthenticatedCGuildIdSearchRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/search'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings'
+import { Route as ServerRequiredAuthenticatedCGuildIdBillingRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId_.billing'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/index'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/access'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/announcements'
@@ -414,6 +415,12 @@ const ServerRequiredAuthenticatedCGuildIdSettingsRoute =
     id: '/settings',
     path: '/settings',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdBillingRoute =
+  ServerRequiredAuthenticatedCGuildIdBillingRouteImport.update({
+    id: '/c/$guildId_/billing',
+    path: '/c/$guildId/billing',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsOperatorIndexRoute =
   ServerRequiredAuthenticatedSettingsOperatorIndexRouteImport.update({
@@ -1356,6 +1363,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/members': typeof ServerRequiredAuthenticatedCGuildIdMembersRoute
   '/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
   '/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteWithChildren
+  '/c/$guildId/billing': typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
@@ -1507,6 +1515,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/marketplace': typeof ServerRequiredAuthenticatedCGuildIdMarketplaceRoute
   '/c/$guildId/members': typeof ServerRequiredAuthenticatedCGuildIdMembersRoute
   '/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
+  '/c/$guildId/billing': typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
@@ -1654,6 +1663,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/members': typeof ServerRequiredAuthenticatedCGuildIdMembersRoute
   '/_serverRequired/_authenticated/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
   '/_serverRequired/_authenticated/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteWithChildren
+  '/_serverRequired/_authenticated/c/$guildId_/billing': typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
   '/_serverRequired/_authenticated/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/_serverRequired/_authenticated/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/_serverRequired/_authenticated/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
@@ -1812,6 +1822,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/members'
     | '/c/$guildId/search'
     | '/c/$guildId/settings'
+    | '/c/$guildId/billing'
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
@@ -1963,6 +1974,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/marketplace'
     | '/c/$guildId/members'
     | '/c/$guildId/search'
+    | '/c/$guildId/billing'
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
@@ -2109,6 +2121,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/members'
     | '/_serverRequired/_authenticated/c/$guildId/search'
     | '/_serverRequired/_authenticated/c/$guildId/settings'
+    | '/_serverRequired/_authenticated/c/$guildId_/billing'
     | '/_serverRequired/_authenticated/settings/operator/access'
     | '/_serverRequired/_authenticated/settings/operator/announcements'
     | '/_serverRequired/_authenticated/settings/operator/communities'
@@ -2533,6 +2546,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/c/$guildId/settings'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId_/billing': {
+      id: '/_serverRequired/_authenticated/c/$guildId_/billing'
+      path: '/c/$guildId/billing'
+      fullPath: '/c/$guildId/billing'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdBillingRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/settings/operator/': {
       id: '/_serverRequired/_authenticated/settings/operator/'
@@ -3929,6 +3949,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedSettingsOperatorRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRouteWithChildren
   ServerRequiredAuthenticatedSettingsPlatformRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
   ServerRequiredAuthenticatedUHandleRoute: typeof ServerRequiredAuthenticatedUHandleRoute
+  ServerRequiredAuthenticatedCGuildIdBillingRoute: typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
 }
 
 const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRouteChildren =
@@ -3963,6 +3984,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren,
     ServerRequiredAuthenticatedUHandleRoute:
       ServerRequiredAuthenticatedUHandleRoute,
+    ServerRequiredAuthenticatedCGuildIdBillingRoute:
+      ServerRequiredAuthenticatedCGuildIdBillingRoute,
   }
 
 const ServerRequiredAuthenticatedRouteWithChildren =

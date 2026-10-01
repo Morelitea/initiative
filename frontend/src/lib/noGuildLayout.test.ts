@@ -99,6 +99,17 @@ describe("chooseNoGuildLayout", () => {
     });
   });
 
+  describe("the billing forwarder (no guilds)", () => {
+    it("renders the shell on a community's billing link, and nowhere else under it", () => {
+      const at = (pathname: string) =>
+        chooseNoGuildLayout({ hasGuilds: false, pathname, canAccessPlatformAreas: false });
+      expect(at("/c/7/billing")).toBe("shell");
+      expect(at("/c/7/billing/x")).toBe("empty");
+      expect(at("/c/x/billing")).toBe("empty");
+      expect(at("/c/7/settings")).toBe("empty");
+    });
+  });
+
   describe("platform routes (no guilds)", () => {
     it("renders the shell when the user can reach the platform areas", () => {
       expect(

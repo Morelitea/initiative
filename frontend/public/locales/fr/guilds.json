@@ -306,6 +306,7 @@
     "guildOnHoldDeletingWithContact": "{{community}} est en attente et sera supprimée le {{date}}. Contactez {{contact}} pour régler la situation.",
     "guildTrialEnding": "L’essai de {{community}} se termine le {{date}}. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier.",
     "guildTrialEnded": "L’essai de {{community}} est terminé et elle est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier.",
+    "guildWelcome": "{{community}} est prête. Configurez son forfait pour commencer.",
     "defaultNotification": "Vous avez une nouvelle notification.",
     "push": {
       "enableTitle": "Activer les notifications push",
@@ -387,6 +388,15 @@
   },
   "billingSetup": {
     "opening": "Ouverture de la facturation pour choisir un forfait pour {{guild}}."
+  },
+  "billingForward": {
+    "opening": "Ouverture du portail de facturation…",
+    "notConfiguredTitle": "Aucun portail de facturation",
+    "notConfiguredDescription": "Ce serveur n’a pas de portail de facturation, il n’y a donc aucun forfait à configurer ici.",
+    "errorTitle": "Impossible d’ouvrir la facturation",
+    "error": "Le portail de facturation n’a pas pu être ouvert. Réessayez le lien dans un instant.",
+    "nativeTitle": "Ouvrez ce lien dans un navigateur",
+    "nativeDescription": "Les forfaits se configurent dans le portail de facturation, qui s’ouvre dans un navigateur web et non dans l’application. Ouvrez-y le lien de votre e-mail pour continuer."
   },
   "usagePanel": {
     "title": "Utilisation",

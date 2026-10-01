@@ -306,6 +306,7 @@
     "guildOnHoldDeletingWithContact": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an {{contact}}, um das zu klären.",
     "guildTrialEnding": "Die Testphase von {{community}} endet am {{date}}. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können.",
     "guildTrialEnded": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können.",
+    "guildWelcome": "{{community}} ist bereit. Richte den Tarif ein, um loszulegen.",
     "defaultNotification": "Du hast eine neue Benachrichtigung.",
     "push": {
       "enableTitle": "Push-Benachrichtigungen aktivieren",
@@ -387,6 +388,15 @@
   },
   "billingSetup": {
     "opening": "Abrechnung wird geöffnet, damit du einen Tarif für {{guild}} wählen kannst."
+  },
+  "billingForward": {
+    "opening": "Abrechnungsportal wird geöffnet…",
+    "notConfiguredTitle": "Kein Abrechnungsportal",
+    "notConfiguredDescription": "Dieser Server hat kein Abrechnungsportal, daher gibt es hier keinen Tarif einzurichten.",
+    "errorTitle": "Abrechnung konnte nicht geöffnet werden",
+    "error": "Das Abrechnungsportal konnte nicht geöffnet werden. Versuche es gleich noch einmal über den Link.",
+    "nativeTitle": "Öffne diesen Link im Browser",
+    "nativeDescription": "Tarife werden im Abrechnungsportal eingerichtet, das sich im Webbrowser öffnet und nicht in der App. Öffne den Link aus deiner E-Mail dort, um fortzufahren."
   },
   "usagePanel": {
     "title": "Nutzung",

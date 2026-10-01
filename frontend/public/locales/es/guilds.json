@@ -306,6 +306,7 @@
     "guildOnHoldDeletingWithContact": "{{community}} está en pausa y se eliminará el {{date}}. Ponte en contacto con {{contact}} para resolverlo.",
     "guildTrialEnding": "La prueba de {{community}} termina el {{date}}. Suscríbete en el portal de facturación antes de esa fecha para seguir editando.",
     "guildTrialEnded": "La prueba de {{community}} ha terminado y ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando.",
+    "guildWelcome": "{{community}} está lista. Configura su plan para empezar.",
     "defaultNotification": "Tienes una nueva notificación.",
     "push": {
       "enableTitle": "Activar notificaciones push",
@@ -387,6 +388,15 @@
   },
   "billingSetup": {
     "opening": "Abriendo la facturación para que elijas un plan para {{guild}}."
+  },
+  "billingForward": {
+    "opening": "Abriendo el portal de facturación…",
+    "notConfiguredTitle": "No hay portal de facturación",
+    "notConfiguredDescription": "Este servidor no tiene portal de facturación, así que aquí no hay ningún plan que configurar.",
+    "errorTitle": "No se pudo abrir la facturación",
+    "error": "No se pudo abrir el portal de facturación. Vuelve a probar el enlace en un momento.",
+    "nativeTitle": "Abre este enlace en un navegador",
+    "nativeDescription": "Los planes se configuran en el portal de facturación, que se abre en un navegador web y no en la app. Abre allí el enlace de tu correo para continuar."
   },
   "usagePanel": {
     "title": "Uso",

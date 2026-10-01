@@ -1995,7 +1995,8 @@ export const useClearGuildBannerApiV1CommunitiesGuildIdBannerDelete = <
  * Mint a billing-portal handoff. The guild's superadmin only.
  *
  * What a community pays for is the top seat's, like its sign-in: an ordinary
- * admin runs the place without holding its card.
+ * admin runs the place without holding its card. The seat reaches it while
+ * the community is on hold too, since paying is how a hold is lifted.
  * @summary Create Guild Billing Handoff
  */
 export const createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost = (
