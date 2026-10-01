@@ -907,21 +907,29 @@ async def get_guild_storage_usage(guild_id: int) -> int:
 _QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
 
 
-async def storage_left(session, *, guild_id: int) -> int | None:
-    """What the guild's ``max_storage_bytes`` still allows, or ``None`` when it
-    has no limit. A reading for planning, not a reservation: the write that
-    follows still goes through :func:`enforce_storage_quota`."""
+async def _storage_limit(guild_id: int) -> int | None:
+    """The guild's ``max_storage_bytes``, ``None`` for no limit. A setting of
+    the community rather than of whoever is writing, so it is read on
+    :func:`guild_wide`, as the usage it is compared with is."""
     from sqlmodel import select
 
     from app.models.platform.guild_administration import GuildAdministration
 
-    limit = (
-        await session.exec(
-            select(GuildAdministration.max_storage_bytes).where(
-                GuildAdministration.guild_id == guild_id
+    async with guild_wide(guild_id) as session:
+        return (
+            await session.exec(
+                select(GuildAdministration.max_storage_bytes).where(
+                    GuildAdministration.guild_id == guild_id
+                )
             )
-        )
-    ).one_or_none()
+        ).one_or_none()
+
+
+async def storage_left(guild_id: int) -> int | None:
+    """What the guild's ``max_storage_bytes`` still allows, or ``None`` when it
+    has no limit. A reading for planning, not a reservation: the write that
+    follows still goes through :func:`enforce_storage_quota`."""
+    limit = await _storage_limit(guild_id)
     if limit is None:
         return None
     return max(0, limit - await get_guild_storage_usage(guild_id))
@@ -931,9 +939,9 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     """Reject an upload that would exceed the guild's ``max_storage_bytes``.
 
     NULL / absent limit means unlimited (the default), so this is a no-op until a
-    quota is set on the guild. The limit lives on the shared
-    ``guild_administration`` row (read-only to every request-path role); the
-    usage is :func:`get_guild_storage_usage`, every upload the guild stores.
+    quota is set on the guild. The limit is :func:`_storage_limit` and the
+    usage :func:`get_guild_storage_usage`, every upload the guild stores, both
+    read for the community whoever is writing.
 
     Must be called within the SAME transaction that then inserts the ``uploads``
     row and commits. When a limit is set, it takes a transaction-scoped advisory
@@ -944,17 +952,8 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     uploads to other guilds are unaffected.
     """
     from sqlalchemy import text
-    from sqlmodel import select
 
-    from app.models.platform.guild_administration import GuildAdministration
-
-    limit = (
-        await session.exec(
-            select(GuildAdministration.max_storage_bytes).where(
-                GuildAdministration.guild_id == guild_id
-            )
-        )
-    ).one_or_none()
+    limit = await _storage_limit(guild_id)
     if limit is None:
         return
     # Serialize concurrent uploads for this guild for the remainder of the
