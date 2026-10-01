@@ -229,17 +229,24 @@ async def test_one_occurrence_changes_alone(
         _initiative,
         calendar,
     ) = await _setup_organizer_and_attendee(session, acting_user)
-    created = await client.post(
+    standup = {
+        "calendar_id": calendar.id,
+        "title": "Standup",
+        "start_at": "2026-10-05T09:00:00Z",
+        "end_at": "2026-10-05T09:30:00Z",
+        "recurrence": "FREQ=WEEKLY;BYDAY=MO",
+        "attendee_ids": [attendee.user.id],
+    }
+    # Every seventh day from a Monday is never a Tuesday.
+    never = await client.post(
         organizer.g("/calendar-events/"),
         headers=organizer.headers,
-        json={
-            "calendar_id": calendar.id,
-            "title": "Standup",
-            "start_at": "2026-10-05T09:00:00Z",
-            "end_at": "2026-10-05T09:30:00Z",
-            "recurrence": "FREQ=WEEKLY;BYDAY=MO",
-            "attendee_ids": [attendee.user.id],
-        },
+        json={**standup, "recurrence": "FREQ=DAILY;INTERVAL=7;BYDAY=TU"},
+    )
+    assert never.status_code == 422
+    assert never.json()["detail"] == "RECURRENCE_INVALID"
+    created = await client.post(
+        organizer.g("/calendar-events/"), headers=organizer.headers, json=standup
     )
     assert created.status_code == 201, created.text
     series = created.json()["id"]

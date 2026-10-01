@@ -7,7 +7,13 @@ process.env.TZ = "Europe/Berlin";
 
 import { describe, expect, it } from "vitest";
 
-import { fromStored, type RecurrenceRule, summarizeStored, toRRule } from "@/lib/recurrence";
+import {
+  fromStored,
+  maxOccurrences,
+  type RecurrenceRule,
+  summarizeStored,
+  toRRule,
+} from "@/lib/recurrence";
 
 const rule = (overrides: Partial<RecurrenceRule>): RecurrenceRule => ({
   frequency: "weekly",
@@ -54,6 +60,10 @@ describe("toRRule", () => {
         allDay: true,
       })
     ).toBe("RRULE:FREQ=DAILY;UNTIL=20261214");
+    // A counted repeat ends within a hundred years of its first.
+    expect(maxOccurrences(rule({ frequency: "yearly" }))).toBe(101);
+    expect(maxOccurrences(rule({ frequency: "yearly", interval: 366 }))).toBe(1);
+    expect(maxOccurrences(rule({ frequency: "daily" }))).toBe(10000);
   });
 });
 

@@ -33,7 +33,13 @@ from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
 from app.api.v1.api import api_router
-from app.core.messages import AttachmentMessages, CommonMessages, GuildMessages
+from app.core import recurrence
+from app.core.messages import (
+    AttachmentMessages,
+    CalendarEventMessages,
+    CommonMessages,
+    GuildMessages,
+)
 from app.core.rate_limit import limiter
 from app.core.security import (
     billing_support_handoff_enabled,
@@ -339,6 +345,18 @@ async def validation_exception_handler(
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": safe_errors},
+    )
+
+
+@app.exception_handler(recurrence.OutOfReach)
+async def repeat_out_of_reach_handler(
+    request: Request, exc: recurrence.OutOfReach
+) -> JSONResponse:
+    """A repeat that, from the start it is saved with, never happens or
+    doesn't reach its count within a hundred years."""
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": CalendarEventMessages.RECURRENCE_INVALID},
     )
 
 

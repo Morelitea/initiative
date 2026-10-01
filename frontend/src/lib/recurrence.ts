@@ -491,6 +491,19 @@ export const browserTimezone = () => Intl.DateTimeFormat().resolvedOptions().tim
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+/** The longest one step of each frequency takes, in days, as the server counts it. */
+const STEP_DAYS: Record<RecurrenceFrequency, number> = {
+  daily: 1,
+  weekly: 7,
+  monthly: 31,
+  yearly: 366,
+};
+
+/** The most times a repeat can happen: ten thousand, ending within a hundred
+ * years of its first. */
+export const maxOccurrences = (rule: RecurrenceRule) =>
+  Math.min(10000, Math.floor((100 * 366) / (STEP_DAYS[rule.frequency] * rule.interval)) + 1);
+
 /**
  * The RRULE for a rule as picked. Send it with `tz: browserTimezone()`, the
  * zone its days are in. An all-day event ends on a date.
