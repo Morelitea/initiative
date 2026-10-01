@@ -1,9 +1,8 @@
 /**
  * Asking someone their age, and what the surface promises about the answer.
  *
- * The load-bearing part is the promise: the date goes to the server to be
- * compared and is not kept — so the dialog has to say so, and must not hold on
- * to it either.
+ * The date goes to the server to be compared and is not kept, so the dialog
+ * must not hold on to it either.
  *
  * This is the only place the question is put. Nothing here blocks the app: the
  * dialog sits in front of one button, and closing it leaves the account with
@@ -71,13 +70,10 @@ describe("AgeConfirmationDialog", () => {
     expect(offered[0]).toBe(String(thisYear - 120));
   });
 
-  it("says what happens to the date, beside the field asking for it", async () => {
+  it("says the date is not shared, beside the field asking for it", async () => {
     renderDialog();
 
-    expect(
-      await screen.findByText(/records that you answered, never the date/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/not sold, shared, or kept/i)).toBeInTheDocument();
+    expect(await screen.findByText("We don't share this with anyone.")).toBeInTheDocument();
   });
 
   it("says the question is only asked by the communities anyone can find", async () => {
@@ -122,12 +118,14 @@ describe("AgeConfirmationDialog", () => {
     expect(screen.queryByRole("button", { name: "Confirm and join" })).not.toBeInTheDocument();
   });
 
-  it("tells a blocked account the date was not kept and who can reset it", async () => {
+  it("tells a blocked account who can reset the question", async () => {
     renderDialog(
       buildUser({ age_confirmed_at: null, age_below_minimum_at: "2026-01-01T00:00:00Z" })
     );
 
-    expect(await screen.findByText(/did not keep the date you gave/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/ask whoever runs this server to reset the question/i)
+    ).toBeInTheDocument();
   });
 
   it("tells a blocked account the communities it was invited to are unaffected", async () => {

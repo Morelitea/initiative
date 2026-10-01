@@ -1,0 +1,93 @@
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { createGuildInviteApiV1CommunitiesGuildIdInvitesPost } from "@/api/generated/communities/communities";
+import { PATH_SCENES, PATH_TINTS, PixelScene } from "@/components/start/PixelScene";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/lib/chesterToast";
+import { cn } from "@/lib/utils";
+
+/** A burst of confetti for a finished community, for anybody who has not
+ *  asked their system for less motion. */
+const celebrate = () => {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return;
+  void import("@/components/effects/runConfetti")
+    .then(({ runConfetti }) => runConfetti("default"))
+    .catch(() => undefined);
+};
+
+/** The new community's first invite link, to copy and send. */
+export const PeopleStep = ({
+  guildId,
+  origin,
+  planButton,
+  onDone,
+  doneLabel,
+}: {
+  guildId: number;
+  origin: string;
+  /** Shown when a plan was picked but its tab could not be opened. */
+  planButton?: () => void;
+  onDone: () => void;
+  doneLabel: string;
+}) => {
+  const { t } = useTranslation(["auth", "common", "guilds"]);
+  const [link, setLink] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const asked = useRef(false);
+
+  useEffect(() => {
+    if (asked.current) return;
+    asked.current = true;
+    celebrate();
+    // One link for the whole group, so it takes any number of people.
+    createGuildInviteApiV1CommunitiesGuildIdInvitesPost(guildId, { max_uses: null })
+      .then((invite) => setLink(`${origin}/invite/${encodeURIComponent(invite.code)}`))
+      .catch(() => setFailed(true));
+  }, [guildId, origin]);
+
+  const copy = async () => {
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
+    toast.success(t("guilds:inviteLinkCopied"));
+  };
+
+  return (
+    <>
+      {failed ? (
+        <p className="text-muted-foreground text-sm">{t("start.people.linkError")}</p>
+      ) : (
+        <div className="flex items-center gap-3 rounded-xl border-2 border-dashed p-3">
+          <span
+            className={cn(
+              // Left out on the narrowest phones, where the link needs the room.
+              "hidden size-14 shrink-0 place-items-center rounded-lg min-[400px]:grid",
+              PATH_TINTS.invite
+            )}
+          >
+            <PixelScene scene={PATH_SCENES.invite} className="w-10" />
+          </span>
+          <div className="min-w-0 flex-1 space-y-2">
+            <Label htmlFor="start-invite-link">{t("start.people.linkLabel")}</Label>
+            <div className="flex gap-2">
+              <Input id="start-invite-link" value={link ?? ""} readOnly className="min-w-0" />
+              <Button type="button" variant="outline" onClick={() => void copy()} disabled={!link}>
+                {t("common:copy")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {planButton ? (
+        <Button type="button" variant="outline" className="w-full" onClick={planButton}>
+          {t("start.people.choosePlan")}
+        </Button>
+      ) : null}
+      <Button type="button" className="w-full" onClick={onDone}>
+        {doneLabel}
+      </Button>
+    </>
+  );
+};

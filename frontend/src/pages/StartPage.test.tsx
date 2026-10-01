@@ -14,7 +14,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { buildRouterContext, renderPage } from "@/__tests__/helpers/render";
 import { StartFlow } from "@/components/start/StartFlow";
 import { catalogUrl } from "@/hooks/useBillingCatalog";
-import { clearStart } from "@/lib/startFlow";
+import { clearStart, readPendingStart } from "@/lib/startFlow";
 import { routeTree } from "@/routeTree.gen";
 
 import { StartPage } from "./StartPage";
@@ -46,6 +46,9 @@ const stubDeployment = () =>
       })
     ),
     http.get("/api/v1/auth/username-available", () => HttpResponse.json({ available: true })),
+    http.get("/api/v1/auth/username-suggestions", () =>
+      HttpResponse.json({ suggestions: ["chesterfan", "lidlifter"] })
+    ),
     http.get(catalogUrl(PORTAL), () =>
       HttpResponse.json({
         catalog_version: 1,
@@ -91,10 +94,15 @@ const enterBirthdate = async (date: string) => {
   await userEvent.keyboard("{Escape}");
 };
 
+/** The handle is the one thing the You step needs typed. */
+const chooseHandle = async () => {
+  await heading("About you");
+  await userEvent.type(screen.getByLabelText("Username"), "newbie");
+};
+
 const createAccount = async () => {
   await heading("Create your account");
   await userEvent.type(screen.getByLabelText("Email"), "new@example.com");
-  await userEvent.type(screen.getByLabelText(/username/i), "newbie");
   await userEvent.type(screen.getByLabelText(/^password/i), "a-long-enough-password");
   await userEvent.type(screen.getByLabelText(/confirm password/i), "a-long-enough-password");
   await press("Sign up");
@@ -139,18 +147,97 @@ describe("which paths are offered", () => {
     await heading("What brings you here?");
     await userEvent.click(screen.getByRole("radio", { name: /for a group/i }));
     await press("Continue");
-    await heading("About you");
+    await chooseHandle();
     await press("Continue");
     await heading("Your community");
     await press("Continue");
     await createAccount();
 
     expect(register).toHaveBeenCalledWith(
-      expect.objectContaining({ community: { name: "My community" } })
+      expect.objectContaining({ community: { name: "newbie's community" } })
     );
     expect(screen.queryByText(/Brass|\$7|Choose a plan/)).toBeNull();
     expect(open).not.toHaveBeenCalled();
   });
+});
+
+it("links the privacy policy beside the birthdate where the deployment publishes one", async () => {
+  deployment.billing = true;
+  renderStart();
+
+  await heading("What brings you here?");
+  await press("Continue");
+  await heading("About you");
+
+  expect(screen.getByText("We don't share this with anyone.")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute(
+    "href",
+    "/legal/privacy"
+  );
+});
+
+describe("what the account is made with", () => {
+  it("takes a suggested handle and sends the space named after it, with no name", async () => {
+    renderStart();
+
+    await heading("What brings you here?");
+    await press("Continue");
+    await heading("About you");
+    // Nothing typed yet, so there is no account to make.
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await userEvent.click(await screen.findByRole("button", { name: "chesterfan" }));
+    expect(screen.getByLabelText("Username")).toHaveValue("chesterfan");
+    await press("Continue");
+    await heading("Your space");
+    await press("Continue");
+    await createAccount();
+
+    const sent = register.mock.calls[0][0];
+    expect(sent).toMatchObject({
+      email: "new@example.com",
+      username: "chesterfan",
+      community: { name: "chesterfan's space" },
+    });
+    expect(sent).not.toHaveProperty("full_name");
+  });
+
+  it("sends the birthdate and no community for joining, and keeps every interest", async () => {
+    renderStart();
+
+    await heading("What brings you here?");
+    await userEvent.click(screen.getByRole("radio", { name: /join a community/i }));
+    await press("Continue");
+    await heading("What are you into?");
+    await press("Tabletop RPG");
+    await press("Gaming");
+    await press("Continue");
+    await chooseHandle();
+    // Joining a listed community needs the answer, so there is no skipping it.
+    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    await enterBirthdate("1990-05-04");
+    await press("Continue");
+    await createAccount();
+
+    const sent = register.mock.calls[0][0];
+    expect(sent).toMatchObject({ birthdate: "1990-05-04" });
+    expect(sent.community).toBeUndefined();
+    expect(sent.inviteCode).toBeUndefined();
+    // Waiting for the first sign-in, which opens the directory on every pick.
+    expect(readPendingStart("new@example.com")?.categories).toEqual(["gaming", "ttrpg"]);
+  });
+});
+
+it("sends /register to /start with its invite", async () => {
+  const router = createRouter({
+    routeTree,
+    context: buildRouterContext(),
+    history: createMemoryHistory({ initialEntries: ["/register?invite_code=abc123"] }),
+  });
+  await router.load();
+
+  await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
+  expect(router.state.location.search).toEqual({ invite_code: "abc123" });
 });
 
 describe("signed in, making another community in the native app", () => {
@@ -185,56 +272,4 @@ describe("signed in, making another community in the native app", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/pick one and we'll set it up/)).toBeNull();
   });
-});
-
-describe("what the account is made with", () => {
-  it("reaches the account on Continue alone and sends the default community", async () => {
-    renderStart();
-
-    await heading("What brings you here?");
-    await press("Continue");
-    await heading("About you");
-    await press("Continue");
-    await heading("Your space");
-    await press("Continue");
-    await createAccount();
-
-    expect(register).toHaveBeenCalledWith(
-      expect.objectContaining({ email: "new@example.com", community: { name: "My space" } })
-    );
-  });
-
-  it("sends the birthdate and no community for joining", async () => {
-    renderStart();
-
-    await heading("What brings you here?");
-    await userEvent.click(screen.getByRole("radio", { name: /join a community/i }));
-    await press("Continue");
-    await heading("What are you into?");
-    await press("Skip");
-    await heading("About you");
-    // Joining a listed community needs the answer, so there is no skipping it.
-    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    await enterBirthdate("1990-05-04");
-    await press("Continue");
-    await createAccount();
-
-    const sent = register.mock.calls[0][0];
-    expect(sent).toMatchObject({ birthdate: "1990-05-04" });
-    expect(sent.community).toBeUndefined();
-    expect(sent.inviteCode).toBeUndefined();
-  });
-});
-
-it("sends /register to /start with its invite", async () => {
-  const router = createRouter({
-    routeTree,
-    context: buildRouterContext(),
-    history: createMemoryHistory({ initialEntries: ["/register?invite_code=abc123"] }),
-  });
-  await router.load();
-
-  await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
-  expect(router.state.location.search).toEqual({ invite_code: "abc123" });
 });

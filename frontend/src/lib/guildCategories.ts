@@ -28,3 +28,13 @@ export const guildCategoryLabel = (category: GuildCategory, t: GuildCategoryT): 
 /** Narrow an unvalidated value (a URL search param) to a category, or nothing. */
 export const asGuildCategory = (value: unknown): GuildCategory | undefined =>
   GUILD_CATEGORIES.includes(value as GuildCategory) ? (value as GuildCategory) : undefined;
+
+/** Narrow an unvalidated value (one category, or a list of them) to the
+ *  categories it names, each once and in the order given. */
+export const asGuildCategories = (value: unknown): GuildCategory[] => {
+  const given = Array.isArray(value) ? value : [value];
+  return given.filter(
+    (item, index): item is GuildCategory =>
+      asGuildCategory(item) !== undefined && given.indexOf(item) === index
+  );
+};

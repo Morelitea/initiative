@@ -36,12 +36,15 @@ export const useLandOnStarter = () => {
   );
 };
 
-/** The directory, on the shelf they picked. */
+/** The directory, on the shelves they picked. */
 export const useOpenDirectory = () => {
   const navigate = useNavigate();
   return useCallback(
-    (category: GuildCategory | null) =>
-      navigate({ to: "/communities", search: category ? { category } : {} }),
+    (categories: GuildCategory[]) =>
+      navigate({
+        to: "/communities",
+        search: categories.length ? { category: categories } : {},
+      }),
     [navigate]
   );
 };
@@ -84,7 +87,7 @@ export const useFinishPendingStart = (): void => {
       void (async () => {
         await clearStart();
         if (answers.path === "join" && !user.age_below_minimum_at) {
-          await openDirectory(answers.category);
+          await openDirectory(answers.categories);
         }
       })();
       return;

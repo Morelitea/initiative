@@ -1,15 +1,15 @@
 import { useTranslation } from "react-i18next";
 
+import { DocumentLink } from "@/components/auth/LegalNotice";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 /**
- * The question, and what happens to the answer.
- *
- * The note under the field is not decoration: somebody being asked their
- * birthday deserves to be told, in the same breath, that it is being used to
- * work out one thing and then dropped. It sits with the field rather than in
- * each caller so no surface can ask without saying so.
+ * The question, with a note under it that the answer is not shared and, where
+ * the deployment publishes one, a link to its privacy policy. The note sits
+ * with the field rather than in each caller so every surface that asks says
+ * the same thing.
  *
  * The date is picked with the same control as every other date in the app —
  * type it or reach it through the year dropdown — rather than the browser's
@@ -27,7 +27,9 @@ export const BirthdateField = ({
   onChange: (next: string) => void;
   disabled?: boolean;
 }) => {
-  const { t } = useTranslation(["auth"]);
+  const { t } = useTranslation(["auth", "legal"]);
+  // A deployment with legal documents of its own has a privacy policy to link.
+  const { billing } = useAppConfig();
   // The window the server will accept: born by today, and no more than a
   // lifetime ago. Matched here so nothing the calendar offers is a date the
   // server then refuses — including the day at each edge, which is why the
@@ -55,7 +57,15 @@ export const BirthdateField = ({
           hidden: { before: earliest, after: today },
         }}
       />
-      <p className="text-muted-foreground text-xs">{t("auth:confirmAge.privacyNote")}</p>
+      <p className="text-muted-foreground text-xs">
+        {t("auth:confirmAge.privacyNote")}
+        {billing ? (
+          <>
+            {" "}
+            <DocumentLink slug="privacy">{t("legal:privacyTitle")}</DocumentLink>
+          </>
+        ) : null}
+      </p>
     </div>
   );
 };

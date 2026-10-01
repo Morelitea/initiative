@@ -229,13 +229,14 @@ describe("CommunitiesPage", () => {
   // The filters are the sidebar's, and the address is what carries them here,
   // so what this page owes is that it asks for what the address says.
   it.each([
-    ["category", { category: "ttrpg" }],
-    ["search", { q: "dice" }],
-  ])("narrows the request to the %s in the address", async (_label, search) => {
+    ["category", { category: "ttrpg" }, { category: ["ttrpg"] }],
+    ["categories", { category: ["ttrpg", "gaming"] }, { category: ["ttrpg", "gaming"] }],
+    ["search", { q: "dice" }, { q: "dice" }],
+  ])("narrows the request to the %s in the address", async (_label, search, asked) => {
     renderDirectory(search);
 
     await screen.findByText("Riverside Players");
-    expect(directoryFor).toHaveBeenCalledWith(expect.objectContaining(search), expect.anything());
+    expect(directoryFor).toHaveBeenCalledWith(expect.objectContaining(asked), expect.anything());
   });
 
   // Below `lg` the sidebar that normally holds the search is off-canvas, so the
