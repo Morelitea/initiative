@@ -546,20 +546,42 @@ class AppPlatformSigningNotConfiguredError(RuntimeError):
     """
 
 
+#: The key the deployment generated for the app platform, as
+#: ``(private_pem, kid)``, loaded at startup. Used only while
+#: ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset.
+_stored_app_platform_key: tuple[str, str] | None = None
+
+
+def use_stored_app_platform_signing_key(private_pem: str, kid: str) -> None:
+    """Sign app-platform tokens with the deployment's stored key."""
+    global _stored_app_platform_key
+    _stored_app_platform_key = (private_pem, kid)
+
+
 def app_platform_signing_enabled() -> bool:
     """True when this deployment can sign for the app platform."""
-    return bool(settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM)
+    return bool(
+        settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM or _stored_app_platform_key
+    )
 
 
 def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
-    """Return (private_key_pem, "RS256", kid) for app-platform tokens."""
+    """Return (private_key_pem, "RS256", kid) for app-platform tokens.
+
+    ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` when it is set, with
+    ``APP_PLATFORM_SIGNING_KEY_ID``; otherwise the key the deployment generated
+    and stored, with its RFC 7638 thumbprint as the kid.
+    """
     private_pem = settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM
-    if not private_pem:
-        raise AppPlatformSigningNotConfiguredError(
-            "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM is required to run the app "
-            "platform; it has no fallback to another service's key"
-        )
-    return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
+    if private_pem:
+        return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
+    if _stored_app_platform_key is not None:
+        stored_pem, kid = _stored_app_platform_key
+        return stored_pem, "RS256", kid
+    raise AppPlatformSigningNotConfiguredError(
+        "no app platform signing key is loaded; it has no fallback to another "
+        "service's key"
+    )
 
 
 # Pinned on both sides of the boundary — not deployment knobs.
