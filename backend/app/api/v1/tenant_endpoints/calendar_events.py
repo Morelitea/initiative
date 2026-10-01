@@ -13,7 +13,7 @@ from collections.abc import Mapping, Sequence
 from typing import Annotated, Any, List, Optional, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import ColumnElement, and_, func, or_
+from sqlalchemy import ColumnElement, and_, false, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,7 +33,6 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    UserSessionDep,
     app_scope,
     get_current_active_user,
     GuildContext,
@@ -56,7 +55,6 @@ from app.schemas.tenant.calendar_event import (
     CalendarEventCreate,
     CalendarEventUpdate,
     CalendarEventRead,
-    CalendarEventListResponse,
     CalendarEventRSVPUpdate,
     OccurrenceRequest,
     serialize_calendar_event,
@@ -72,11 +70,6 @@ from app.schemas.tenant.ical import (
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.api import resource_access
 from app.core.tools import Tool
-from app.db.query import (
-    apply_pagination,
-    build_paginated_response,
-    paginate_sequence,
-)
 from app.db.session import require_guild_context
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import permissions as permissions_service
@@ -92,10 +85,6 @@ from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 router = APIRouter(route_class=ActorRoute)
-# Cross-guild "my calendar" aggregate (My Calendar page). Mounted under
-# /api/v1/me; runs on the caller's own platform session and enters each member
-# guild with the membership role they hold there, via gather_across_guilds.
-me_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 #: The routes an installed app may call. An event answers to its calendar, so
@@ -429,8 +418,8 @@ async def query_my_calendar_events(
     tz: Optional[str] = None,
     expand: bool = False,
 ) -> list[CalendarEventSummary]:
-    """Shared cross-guild calendar-event query for ``list_my_calendar_events``
-    and the ``/me/calendar-entries`` aggregate, which asks to ``expand`` each
+    """Shared cross-guild calendar-event query for the ``/me/calendar-entries``
+    aggregate, which asks to ``expand`` each
     repeating event into its occurrences in the window (``occurrences``),
     inside the guild whose rows say which have one of their own.
 
@@ -485,36 +474,6 @@ async def query_my_calendar_events(
     # Merge-sort across guilds (per-schema SQL can't order across schemas).
     events.sort(key=lambda e: (e.start_at, e.guild_id, e.id))
     return events
-
-
-@me_router.get("/calendar-events", response_model=CalendarEventListResponse)
-async def list_my_calendar_events(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_ids: Optional[List[int]] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=200, ge=1, le=200),
-) -> CalendarEventListResponse:
-    """List calendar events across all guilds the user belongs to.
-
-    Delegates the cross-guild fetch to ``query_my_calendar_events`` and then
-    paginates the merged set in Python (per-schema SQL can't limit across
-    schemas).
-    """
-    events = await query_my_calendar_events(
-        session,
-        current_user,
-        guild_ids=guild_ids,
-        start_after=start_after,
-        start_before=start_before,
-    )
-    total_count = len(events)
-    items = paginate_sequence(events, page, page_size)
-    return CalendarEventListResponse(
-        **build_paginated_response(items, total_count, page, page_size)
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -620,8 +579,8 @@ def _calendar_event_loader_options():
     )
 
 
-async def query_guild_calendar_events(
-    session: RLSSessionDep,
+async def guild_calendar_event_conditions(
+    session: AsyncSession,
     current_user: User,
     guild_context: GuildContext,
     *,
@@ -634,16 +593,11 @@ async def query_guild_calendar_events(
     tz: Optional[str] = None,
     property_filters: Optional[str] = None,
     whole_series: bool = False,
-    page: Optional[int] = None,
-    page_size: int = 0,
-) -> tuple[list[CalendarEvent], int]:
-    """Shared guild calendar-event query for ``list_calendar_events`` and the
-    ``calendar-entries`` aggregate.
-
-    Applies the same guild scope, feature-gate, window, property-filter, and DAC
-    conditions to both callers so access is identical. Returns
-    ``(events, total_count)``; pass ``page=None`` (the aggregate's bounded
-    window) to fetch every matching row, or ``page``/``page_size`` to paginate.
+) -> list:
+    """The WHERE every guild calendar-event read shares: the ``calendar-entries``
+    aggregate fetches by it and the calendar export fetches and counts by it,
+    so access is identical. The guild scope, feature gate, window, property
+    filters and the sharing gate.
 
     ``whole_series`` is an export's window (:func:`series_in_window`).
 
@@ -664,7 +618,7 @@ async def query_guild_calendar_events(
     elif initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
         if initiative and not initiative.calendars_enabled:
-            return [], 0
+            return [false()]
         conditions.append(
             CalendarEvent.calendar_id.in_(
                 select(Calendar.id).where(Calendar.initiative_id == initiative_id)
@@ -724,58 +678,25 @@ async def query_guild_calendar_events(
         )
     )
 
-    stmt = (
+    return conditions
+
+
+async def query_guild_calendar_events(
+    session: AsyncSession,
+    current_user: User,
+    guild_context: GuildContext,
+    **filters: Any,
+) -> list[CalendarEvent]:
+    """Every event :func:`guild_calendar_event_conditions` admits, by start."""
+    conditions = await guild_calendar_event_conditions(
+        session, current_user, guild_context, **filters
+    )
+    return await _exec_events(
+        session,
         select(CalendarEvent)
         .where(*conditions)
         .options(*_calendar_event_loader_options())
-        .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
-    )
-    if page is None:
-        events = await _exec_events(session, stmt)
-        return events, len(events)
-
-    count_subq = select(CalendarEvent.id).where(*conditions).subquery()
-    count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
-    stmt = apply_pagination(stmt, page, page_size)
-    return await _exec_events(session, stmt), total_count
-
-
-@router.get("/", response_model=CalendarEventListResponse)
-async def list_calendar_events(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    calendar_ids: Optional[List[int]] = Query(default=None),
-    start_after: Optional[datetime] = Query(default=None),
-    start_before: Optional[datetime] = Query(default=None),
-    property_filters: Optional[str] = Query(default=None),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
-) -> CalendarEventListResponse:
-    """List calendar events. RLS + calendar DAC handle access."""
-    events, total_count = await query_guild_calendar_events(
-        session,
-        current_user,
-        guild_context,
-        initiative_id=initiative_id,
-        calendar_ids=calendar_ids,
-        start_after=start_after,
-        start_before=start_before,
-        property_filters=property_filters,
-        page=page,
-        page_size=page_size,
-    )
-
-    items = [
-        serialize_calendar_event_summary(
-            e, user_id=current_user.id, context=guild_context
-        )
-        for e in events
-    ]
-    return CalendarEventListResponse(
-        **build_paginated_response(items, total_count, page, page_size)
+        .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc()),
     )
 
 

@@ -6,10 +6,9 @@ import {
   deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
   duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost,
   getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
-  type incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
   resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost,
-  resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
-  setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost,
+  resetCounterApiV1CGuildIdCountersCounterIdResetPost,
+  setCounterCountApiV1CGuildIdCountersCounterIdSetPost,
   sortCountersApiV1CGuildIdCounterGroupsGroupIdSortPost,
   updateCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdPatch,
 } from "@/api/generated/counters/counters";
@@ -226,12 +225,7 @@ export const useSetCount = (
   return useMutation<CounterRead, Error, SetCountInput, OptimisticContext>({
     ...rest,
     mutationFn: async ({ counterId, data }) =>
-      setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
-        guildId,
-        groupId,
-        counterId,
-        data
-      ),
+      setCounterCountApiV1CGuildIdCountersCounterIdSetPost(guildId, counterId, data),
     onMutate: async ({ counterId, data }) => {
       const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(guildId, groupId);
       await queryClient.cancelQueries({ queryKey: key });
@@ -253,7 +247,7 @@ export const useSetCount = (
 };
 
 const makeValueOpHook = (
-  endpoint: typeof incrementCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdIncrementPost,
+  endpoint: (guildId: number, counterId: number) => Promise<CounterRead>,
   computeOptimistic: (counter: CounterRead) => string
 ) => {
   return (groupId: number, options?: MutationOpts<CounterRead, number>) => {
@@ -265,7 +259,7 @@ const makeValueOpHook = (
     // eslint-disable-next-line react-hooks/rules-of-hooks
     return useMutation<CounterRead, Error, number, OptimisticContext>({
       ...rest,
-      mutationFn: async (counterId: number) => endpoint(guildId, groupId, counterId),
+      mutationFn: async (counterId: number) => endpoint(guildId, counterId),
       onMutate: async (counterId) => {
         const key = getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey(
           guildId,
@@ -294,7 +288,7 @@ const makeValueOpHook = (
 };
 
 export const useResetCounter = makeValueOpHook(
-  resetCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
+  resetCounterApiV1CGuildIdCountersCounterIdResetPost,
   optimisticReset
 );
 
@@ -445,14 +439,9 @@ export const useSteppedCount = (groupId: number) => {
       const target = pending.current.get(counterId);
       if (target === undefined) return;
       try {
-        await setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
-          guildId,
-          groupId,
-          counterId,
-          {
-            count: target,
-          }
-        );
+        await setCounterCountApiV1CGuildIdCountersCounterIdSetPost(guildId, counterId, {
+          count: target,
+        });
         // Stop tracking only if no newer clicks landed mid-flight and nothing
         // is scheduled — otherwise the next flush owns the (newer) target.
         if (pending.current.get(counterId) === target && !timers.current.has(counterId)) {
@@ -557,12 +546,9 @@ export const useSteppedCount = (groupId: number) => {
         clearTimeout(timer);
         const target = pendingMap.get(counterId);
         if (target !== undefined) {
-          void setCounterCountApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdSetPost(
-            guildId,
-            groupId,
-            counterId,
-            { count: target }
-          );
+          void setCounterCountApiV1CGuildIdCountersCounterIdSetPost(guildId, counterId, {
+            count: target,
+          });
         }
       }
       timerMap.clear();

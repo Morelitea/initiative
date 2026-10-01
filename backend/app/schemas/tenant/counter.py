@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Any, List, Literal, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -84,6 +84,15 @@ class CounterUpdate(SanitizedBaseModel):
 
 class CounterSetCountRequest(SanitizedBaseModel):
     count: Decimal
+
+
+class CounterStepRequest(SanitizedBaseModel):
+    """Move a counter up or down. ``amount`` left out moves it by the counter's
+    own ``step``; given, it must be more than nothing, since which way the
+    counter goes is ``direction``'s to say."""
+
+    direction: Literal["up", "down"]
+    amount: Optional[Decimal] = Field(default=None, gt=0)
 
 
 class CounterSortField(str, Enum):

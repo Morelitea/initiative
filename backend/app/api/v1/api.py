@@ -372,7 +372,6 @@ me_router.include_router(moderation.me_router, tags=["moderation"])
 # MY_TOOL_LISTS, plus the tab counts. One tag, because they are one page rather
 # than nine domains reaching across guilds for their own reasons.
 me_router.include_router(me_tools.me_router, tags=["my-tools"])
-me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])
