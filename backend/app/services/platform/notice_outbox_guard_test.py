@@ -65,15 +65,28 @@ def _callers(name: str) -> set[str]:
     return found
 
 
-@pytest.mark.parametrize(
+_CONFINED = pytest.mark.parametrize(
     ("name", "allowed"),
     [
         ("create_notification", _BELL_WRITERS),
         ("send_push_to_user", _PUSH_SENDERS),
     ],
 )
+
+
+@_CONFINED
 def test_only_the_worker_delivers_a_notice(name: str, allowed: set[str]):
     assert _callers(name) <= allowed, (
         f"{name} is called outside the notice worker. Write a notice instead "
         "(notifications.notify, or notice_outbox.enqueue)."
+    )
+
+
+@_CONFINED
+def test_every_exception_still_makes_its_call(name: str, allowed: set[str]):
+    """An exception whose function is gone, or no longer makes the call,
+    would quietly admit a new one of the same name."""
+    assert allowed <= _callers(name), (
+        f"no longer call {name}; take them out of this test's exceptions: "
+        f"{sorted(allowed - _callers(name))}"
     )
