@@ -391,6 +391,8 @@ const StartSteps = ({
   const inviteParam = answers.path === "invite" ? inviteCodeFrom(answers.inviteCode) : undefined;
   const inviteBlocked = answers.path === "invite" && !invite.status?.is_valid;
 
+  // The signed number the name check showed, so the account gets it.
+  const [handleOffer, setHandleOffer] = useState<string | null>(null);
   const signUpDetails = (captchaToken = "") => {
     const final = withDefaults(answers);
     return {
@@ -400,6 +402,7 @@ const StartSteps = ({
       captcha_token: captcha ? captchaToken : undefined,
       community: newCommunity(final, pickedPlan),
       birthdate: age.birthdate || undefined,
+      username_offer: handleOffer ?? undefined,
     };
   };
 
@@ -456,12 +459,12 @@ const StartSteps = ({
   // The emailed-code card takes the whole frame while it is open, as it does
   // on the sign-in page.
   if (emailDoor) {
-    const { username, timezone, community, birthdate } = signUpDetails();
+    const { username, timezone, community, birthdate, username_offer } = signUpDetails();
     return (
       <SignInFrame fillPhone>
         <EmailOtpCard
           inviteCode={inviteParam}
-          registration={{ username, timezone, community, birthdate }}
+          registration={{ username, timezone, community, birthdate, username_offer }}
           onCancel={() => setEmailDoor(false)}
           onSignedIn={(registered) => {
             setEmailDoor(false);
@@ -565,6 +568,7 @@ const StartSteps = ({
           signedIn={signedIn}
           username={answers.username}
           onUsernameChange={(username) => update({ username })}
+          onHandleOffer={setHandleOffer}
           timezone={answers.timezone}
           onTimezoneChange={(timezone) => update({ timezone })}
           age={age}

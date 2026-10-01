@@ -301,7 +301,7 @@ export function ContextMenuPlugin(): JSX.Element {
 
   return (
     <NodeContextMenuPlugin
-      className="z-50! overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-none [&:has(*)]:z-10!"
+      className="EditorContextMenu overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md outline-none"
       itemClassName="relative w-full flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50"
       separatorClassName="bg-border -mx-1 h-px"
       items={items}

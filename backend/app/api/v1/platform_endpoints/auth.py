@@ -56,8 +56,10 @@ from app.core import usernames
 from app.core.usernames import UsernameError
 from app.core.security import (
     REFRESH_COOKIE_NAME,
+    create_handle_offer,
     create_upload_token,
     get_password_hash,
+    read_handle_offer,
 )
 from app.core.user_input_validators import (
     is_safe_next_path,
@@ -232,6 +234,7 @@ class RegistrationDetails:
     captcha_token: str | None = None
     community: NewCommunity | None = None
     birthdate: date | None = None
+    username_offer: str | None = None
 
 
 @dataclass(frozen=True)
@@ -277,6 +280,7 @@ async def register_user(
             captcha_token=user_in.captcha_token,
             community=user_in.community,
             birthdate=user_in.birthdate,
+            username_offer=user_in.username_offer,
         ),
         invite_code=invite_code,
         hashed_password=get_password_hash(user_in.password),
@@ -469,12 +473,15 @@ async def _register_account(
         _refuse_impossible_birthdate(details.birthdate)
         if details.birthdate is not None:
             users_service.record_age_answer(user, details.birthdate)
-        # The handle: the name part as typed, the number drawn here. Registering
-        # is where an account picks one, so it counts as chosen and its owner
-        # never meets the pick screen.
+        # The handle: the name part as typed, and the number the name check
+        # showed while it is still free. Registering is where an account picks
+        # one, so it counts as chosen and its owner never meets the pick screen.
         try:
             await username_service.insert_with_handle(
-                session, user=user, name=details.username
+                session,
+                user=user,
+                name=details.username,
+                prefer=read_handle_offer(details.username_offer, details.username),
             )
         except UsernameError as exc:
             raise HTTPException(
@@ -754,6 +761,7 @@ async def finish_passkey_sign_up(
             captcha_token=payload.captcha_token,
             community=payload.community,
             birthdate=payload.birthdate,
+            username_offer=payload.username_offer,
         ),
         invite_code=invite_code,
         hashed_password=None,
@@ -1056,11 +1064,17 @@ async def check_username_available(
     except UsernameError as exc:
         return UsernameAvailabilityResponse(available=False, reason=exc.code)
 
-    if not await username_service.has_free_slot(session, name=username):
-        return UsernameAvailabilityResponse(
-            available=False, reason="USERNAME_UNAVAILABLE"
-        )
-    return UsernameAvailabilityResponse(available=True)
+    try:
+        name, number = await username_service.allocate(session, name=username)
+    except UsernameError as exc:
+        return UsernameAvailabilityResponse(available=False, reason=exc.code)
+    # The number shown beside the name, signed so the account it becomes gets
+    # that number while it is still free.
+    return UsernameAvailabilityResponse(
+        available=True,
+        discriminator=number,
+        offer=create_handle_offer(name, number),
+    )
 
 
 async def _revoke_signed_out_login(

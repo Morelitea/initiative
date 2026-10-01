@@ -50,6 +50,7 @@ from app.core.capabilities import Capability
 from app.core.usernames import UsernameError
 from app.core.rate_limit import limiter
 from app.core.security import (
+    read_handle_offer,
     get_password_hash,
     has_usable_password,
 )
@@ -1047,7 +1048,10 @@ async def claim_my_username(
 
     try:
         await username_service.claim_for_user(
-            session, user=current_user, name=payload.username
+            session,
+            user=current_user,
+            name=payload.username,
+            prefer=read_handle_offer(payload.offer, payload.username),
         )
     except UsernameError as exc:
         raise HTTPException(

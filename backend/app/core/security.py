@@ -407,6 +407,46 @@ def verify_upload_token(
     )
 
 
+HANDLE_OFFER_AUDIENCE = "initiative:handle-offer"
+#: How long a number shown beside a name stays the one an account gets: long
+#: enough to outlast a sign-up left open, since it is used only while free.
+HANDLE_OFFER_LIFETIME = timedelta(days=1)
+
+
+def create_handle_offer(name: str, discriminator: int) -> str:
+    """Sign the number shown beside ``name`` while somebody picks a handle."""
+    now = datetime.now(timezone.utc)
+    payload = {
+        "aud": HANDLE_OFFER_AUDIENCE,
+        "name": name.lower(),
+        "num": discriminator,
+        "iat": int(now.timestamp()),
+        "exp": now + HANDLE_OFFER_LIFETIME,
+    }
+    return jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
+
+
+def read_handle_offer(token: str | None, name: str) -> int | None:
+    """The number a handle offer signed for ``name``; ``None`` for anything
+    else: no offer, another name, expired, or not one this server signed."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_signing_key,
+            algorithms=[JWT_ALGORITHM],
+            audience=HANDLE_OFFER_AUDIENCE,
+            options={"require": ["exp", "aud"]},
+        )
+    except jwt.PyJWTError:
+        return None
+    number = payload.get("num")
+    if payload.get("name") != name.lower() or not isinstance(number, int):
+        return None
+    return number
+
+
 class HandoffSigningNotConfiguredError(RuntimeError):
     """Raised when a handoff token is requested but no RS256 signing key is
     configured. The token is verified by a separate service, so there is no
