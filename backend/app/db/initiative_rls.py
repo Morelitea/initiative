@@ -1378,11 +1378,11 @@ class NamedPerson:
 
 NAMED_PEOPLE: tuple[NamedPerson, ...] = (
     NamedPerson("task_assignees", "user_id"),
-    NamedPerson("task_property_values", "value_user_id"),
+    NamedPerson("task_property_values", "value_user_id", clear=True),
     NamedPerson("calendar_event_attendees", "user_id"),
     NamedPerson("calendar_event_answers", "user_id"),
-    NamedPerson("calendar_event_property_values", "value_user_id"),
-    NamedPerson("document_property_values", "value_user_id"),
+    NamedPerson("calendar_event_property_values", "value_user_id", clear=True),
+    NamedPerson("document_property_values", "value_user_id", clear=True),
     NamedPerson("queue_items", "user_id", clear=True),
 )
 

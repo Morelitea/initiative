@@ -756,6 +756,7 @@ async def _named_on(session, initiative, owner, person, **calendar) -> dict:
         "calendar": calendar_,
         "task": task.id,
         "event": event.id,
+        "document": document.id,
         "item": item.id,
     }
 
@@ -807,6 +808,16 @@ async def test_leaving_an_initiative_takes_you_off_its_content(
     await s.commit()
 
     assert await _still_named(session, member_id, named) == []
+    # A person field and a queue item stay, with the person cleared.
+    value = (
+        await session.exec(
+            select(DocumentPropertyValue).where(
+                DocumentPropertyValue.document_id == named["document"]
+            )
+        )
+    ).one()
+    assert value.value_user_id is None
+    assert (await session.get(QueueItem, named["item"])).user_id is None
 
 
 async def test_leaving_the_community_takes_you_off_its_own_content(
