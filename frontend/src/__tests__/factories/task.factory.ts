@@ -55,6 +55,8 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     recurrence: null,
     recurrence_strategy: "fixed",
     recurrence_occurrence_count: 0,
+    recurrence_shift: 0,
+    recurrence_until: null,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     position: counter,

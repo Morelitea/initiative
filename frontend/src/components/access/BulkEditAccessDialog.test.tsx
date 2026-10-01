@@ -252,7 +252,7 @@ describe("BulkEditAccessDialog grant rebuild", () => {
         open
         onOpenChange={vi.fn()}
         onSuccess={vi.fn()}
-        items={[{ id: 1, initiative_id: INITIATIVE_ID, grants: [] }]}
+        items={[{ id: 1, initiative_id: INITIATIVE_ID, grants: [], can: ownerCan() }]}
         resourceType={Tool.queue}
         invalidate={vi.fn()}
       />,

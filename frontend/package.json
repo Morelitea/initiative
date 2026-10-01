@@ -14,7 +14,7 @@
     "cap:android": "pnpm build:capacitor && npx cap sync android && npx cap run android",
     "cap:ios": "pnpm build:capacitor && npx cap sync ios && npx cap run ios",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "check": "biome check ./src",
     "check:fix": "biome check ./src --write",
     "lint": "biome lint ./src",
