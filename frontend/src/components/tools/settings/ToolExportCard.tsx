@@ -16,7 +16,7 @@ import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { exportFilenameStem } from "@/lib/exportDownload";
-import { toolEnvelopeType, toolExportEndpoint, toolIdParam, toolKebabSingular } from "@/lib/tools";
+import { toolEnvelopeType, toolExportEndpoint, toolKebabSingular } from "@/lib/tools";
 
 export const ToolExportCard = () => {
   const { t } = useTranslation(["common", "exports"]);
@@ -44,7 +44,7 @@ export const ToolExportCard = () => {
       <CardContent>
         <ExportButton
           endpoint={toolExportEndpoint(tool)}
-          params={{ [toolIdParam(tool)]: entity.id }}
+          params={{ ids: [entity.id] }}
           formats={formats}
           filenameStem={stem}
           extraActions={exportOptions?.extraActions}

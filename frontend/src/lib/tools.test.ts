@@ -432,14 +432,6 @@ describe("tool exports", () => {
       }
     }
   });
-
-  it("derives the engine endpoint and selector params from the enum", async () => {
-    const { toolExportEndpoint, toolExportIdsParam, toolIdParam } = await import("@/lib/tools");
-    expect(toolExportEndpoint(Tool.counter_group)).toBe("/exports/counter-group");
-    expect(toolExportEndpoint(Tool.document)).toBe("/exports/document");
-    expect(toolIdParam(Tool.queue)).toBe("queue_id");
-    expect(toolExportIdsParam(Tool.counter_group)).toBe("counter_group_ids");
-  });
 });
 
 describe("tool imports", () => {

@@ -28,7 +28,6 @@ import type {
   HTTPValidationError,
   ListCalendarsApiV1CGuildIdCalendarsGetParams,
   ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
 
@@ -734,107 +733,6 @@ export const useDeleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete = <
 > => {
   return useMutation(
     getDeleteCalendarApiV1CGuildIdCalendarsCalendarIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Calendar View
- */
-export const recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost = (
-  guildId: number,
-  calendarId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/calendars/${calendarId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationKey = () =>
-  ["recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost"] as const;
-
-export const getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
-    TError,
-    RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
-  TError,
-  RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
-    RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, calendarId } = props ?? {};
-
-    return recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost(
-      guildId,
-      calendarId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>
->;
-
-export type RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables = {
-  guildId: number;
-  calendarId: number;
-};
-
-/**
- * @summary Record Calendar View
- */
-export const useRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
-      TError,
-      RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost>>,
-  TError,
-  RecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPostMutationOptions(options),
     queryClient
   );
 };

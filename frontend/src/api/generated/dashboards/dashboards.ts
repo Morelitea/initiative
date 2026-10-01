@@ -32,7 +32,6 @@ import type {
   PublishRequest,
   QueryResponse,
   ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
   WidgetCatalog,
 } from "../initiativeAPI.schemas";
@@ -1783,108 +1782,6 @@ export const useSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPut =
 > => {
   return useMutation(
     getSetPublishedViewApiV1CGuildIdDashboardsDashboardIdPublishedPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Dashboard View
- */
-export const recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost = (
-  guildId: number,
-  dashboardId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationKey = () =>
-  ["recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost"] as const;
-
-export const getRecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost>>,
-    TError,
-    RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost>>,
-  TError,
-  RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost>>,
-    RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, dashboardId } = props ?? {};
-
-    return recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost(
-      guildId,
-      dashboardId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost>>
-  >;
-
-export type RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationVariables = {
-  guildId: number;
-  dashboardId: number;
-};
-
-/**
- * @summary Record Dashboard View
- */
-export const useRecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost>>,
-      TError,
-      RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost>>,
-  TError,
-  RecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPostMutationOptions(options),
     queryClient
   );
 };

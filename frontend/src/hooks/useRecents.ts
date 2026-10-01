@@ -1,18 +1,11 @@
 import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost } from "@/api/generated/calendars/calendars";
-import { recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
-import { recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost } from "@/api/generated/dashboards/dashboards";
-import { recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
-import { recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost } from "@/api/generated/galleries/galleries";
-import type { RecentItemRead, RecentViewWrite } from "@/api/generated/initiativeAPI.schemas";
-import { recordPostViewApiV1CGuildIdPostsPostIdViewPost } from "@/api/generated/posts/posts";
-import { recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
-import { recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost } from "@/api/generated/queues/queues";
+import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   clearRecentApiV1CGuildIdRecentsEntityTypeEntityIdDelete,
   getListRecentsApiV1RecentsGetQueryKey,
   listRecentsApiV1RecentsGet,
+  recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost,
 } from "@/api/generated/recents/recents";
 import { invalidate, q } from "@/api/query-keys";
 
@@ -36,25 +29,8 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   });
 };
 
-import { recordWikiViewApiV1CGuildIdWikisWikiIdViewPost } from "@/api/generated/wikis/wikis";
-
-const recorders: Record<
-  RecentEntityType,
-  (guildId: number, id: number) => Promise<RecentViewWrite>
-> = {
-  project: recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost,
-  document: recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost,
-  queue: recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost,
-  counter_group: recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost,
-  calendar: recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost,
-  dashboard: recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost,
-  post: recordPostViewApiV1CGuildIdPostsPostIdViewPost,
-  gallery: recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost,
-  wiki: recordWikiViewApiV1CGuildIdWikisWikiIdViewPost,
-};
-
 /**
- * Mutation that POSTs ``/<entity>/{id}/view`` to record a recent open. Pages
+ * Mutation that POSTs ``/recents/{type}/{id}`` to record a recent open. Pages
  * call this in a ``useEffect`` once the entity has loaded and access checks
  * have passed.
  *
@@ -66,7 +42,8 @@ const recorders: Record<
 export const useRecordRecentView = (entityType: RecentEntityType, guildId: number) => {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (entityId: number) => recorders[entityType](guildId, entityId),
+    mutationFn: (entityId: number) =>
+      recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost(guildId, entityType, entityId),
     onSuccess: (written) => {
       // The bar is read across every community the reader is in, so it is
       // read again only for a tab it does not have yet — whose name and icon

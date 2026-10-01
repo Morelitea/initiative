@@ -14,12 +14,12 @@ import {
   createWikiPageApiV1CGuildIdWikisWikiIdPagesPost,
   deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete,
   getListWikiPagesApiV1CGuildIdWikisWikiIdPagesGetQueryKey,
-  getReadWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdGetQueryKey,
+  getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
   getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey,
   listWikiPagesApiV1CGuildIdWikisWikiIdPagesGet,
   moveWikiDocumentApiV1CGuildIdWikisWikiIdDocumentsDocumentIdMovePost,
   moveWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdMovePost,
-  readWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdGet,
+  readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
   readWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGet,
   removeDocumentFromWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdDelete,
   updateWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdPatch,
@@ -61,22 +61,13 @@ export const useWikiPages = (wikiId: number | null, options?: QueryOpts<WikiPage
   });
 };
 
-export const useWikiPage = (
-  wikiId: number | null,
-  pageId: number | null,
-  options?: QueryOpts<WikiPageRead>
-) => {
+export const useWikiPage = (pageId: number | null, options?: QueryOpts<WikiPageRead>) => {
   const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  const ready =
-    wikiId !== null && pageId !== null && Number.isFinite(wikiId) && Number.isFinite(pageId);
+  const ready = pageId !== null && Number.isFinite(pageId);
   return useQuery<WikiPageRead>({
-    queryKey: getReadWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdGetQueryKey(
-      guildId,
-      wikiId!,
-      pageId!
-    ),
-    queryFn: () => readWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdGet(guildId, wikiId!, pageId!),
+    queryKey: getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, pageId!),
+    queryFn: () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, pageId!),
     enabled: ready && userEnabled,
     ...rest,
   });

@@ -58,9 +58,9 @@ import {
 } from "@/api/generated/tasks/tasks";
 import {
   getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-  getReadWikiPageByIdApiV1CGuildIdWikiPagesPageIdGetQueryKey,
+  getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
   readWikiApiV1CGuildIdWikisWikiIdGet,
-  readWikiPageByIdApiV1CGuildIdWikiPagesPageIdGet,
+  readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
 } from "@/api/generated/wikis/wikis";
 import {
   eventRoute,
@@ -166,8 +166,8 @@ const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
   },
   wiki_page: async (read, guildId, id) => {
     const page = await read(
-      getReadWikiPageByIdApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, id),
-      () => readWikiPageByIdApiV1CGuildIdWikiPagesPageIdGet(guildId, id)
+      getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, id),
+      () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, id)
     );
     const initiativeId = await toolInitiative(read, guildId, Tool.wiki, page.wiki_id);
     return wikiPageRoute(initiativeId, page.wiki_id, id);

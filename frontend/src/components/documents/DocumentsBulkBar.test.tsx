@@ -37,11 +37,11 @@ describe("DocumentsBulkBar export", () => {
     localStorage.clear();
   });
 
-  it("sends the selected ids as document_ids and downloads the zip", async () => {
+  it("sends the selected ids and downloads the zip", async () => {
     let sent: string[] = [];
     server.use(
       guildHttp.get("/exports/document", ({ request }) => {
-        sent = new URL(request.url).searchParams.getAll("document_ids");
+        sent = new URL(request.url).searchParams.getAll("ids");
         return new HttpResponse("PK-zip-bytes", {
           status: 200,
           headers: {

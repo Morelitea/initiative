@@ -17,6 +17,7 @@ import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useReadOnOpen } from "@/hooks/useNotifications";
+import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCreateWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -39,10 +40,12 @@ export const WikiPageView = () => {
   const { t } = useTranslation(["wikis", "common"]);
   const gp = useGuildPath();
   const {
+    guildId,
     wikiId: wikiIdParam,
     pageId: pageIdParam,
     initiativeId: initiativeIdParam,
   } = useParams({ strict: false }) as {
+    guildId?: string;
     wikiId?: string;
     pageId?: string;
     initiativeId?: string;
@@ -86,7 +89,7 @@ export const WikiPageView = () => {
   });
 
   const wikiQuery = useWiki(validIds ? wikiId : null);
-  const pageQuery = useWikiPage(validIds ? wikiId : null, validIds ? pageId : null);
+  const pageQuery = useWikiPage(validIds ? pageId : null);
   // `mutate` is referentially stable, so effects can depend on it without
   // re-running every render the way the mutation object would make them.
   const { mutate: savePage } = useUpdateWikiPage(wikiId, pageId);
@@ -110,6 +113,14 @@ export const WikiPageView = () => {
   const sentTitle = useRef<string | null>(null);
   const loadedPageId = pageQuery.data?.id;
   useReadOnOpen("wiki_page", loadedPageId);
+  // Track recently viewed wikis for the layout header tabs bar. A wiki is read
+  // through its pages, so each page that opens opens the wiki.
+  const { mutate: recordView } = useRecordRecentView("wiki", Number(guildId));
+  const loadedWikiId = pageQuery.data?.wiki_id;
+  useEffect(() => {
+    if (!loadedPageId || !loadedWikiId) return;
+    recordView(loadedWikiId);
+  }, [loadedPageId, loadedWikiId, recordView]);
   const loadedTitle = pageQuery.data?.title;
   useEffect(() => {
     sentTitle.current = null;

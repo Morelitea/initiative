@@ -29,7 +29,6 @@ import type {
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
   HTTPValidationError,
-  ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
   ListMyTasksApiV1MeTasksGetParams,
   ListTasksApiV1CGuildIdTasksGetParams,
   ReadTaskApiV1CGuildIdTasksTaskIdGetParams,
@@ -1476,7 +1475,8 @@ export const useGenerateTaskDescriptionApiV1CGuildIdTasksTaskIdAiDescriptionPost
   );
 };
 /**
- * Tasks assigned to the current user across every guild they belong to.
+ * Tasks assigned to the current user across every guild they belong to,
+ * or with ``created`` the tasks they created.
  *
  * An optional ``guild_ids`` conditions entry narrows to a subset of guilds.
  * @summary List My Tasks
@@ -1603,161 +1603,6 @@ export function useListMyTasksApiV1MeTasksGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListMyTasksApiV1MeTasksGetQueryOptions(params, options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Tasks created by the current user across every guild they belong to.
- * @summary List My Created Tasks
- */
-export const listMyCreatedTasksApiV1MeTasksCreatedGet = (
-  params?: ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<TaskListResponse>(
-    { url: `/api/v1/me/tasks/created`, method: "GET", params, signal },
-    options
-  );
-};
-
-export const getListMyCreatedTasksApiV1MeTasksCreatedGetQueryKey = (
-  params?: ListMyCreatedTasksApiV1MeTasksCreatedGetParams
-) => {
-  return [`/api/v1/me/tasks/created`, ...(params ? [params] : [])] as const;
-};
-
-export const getListMyCreatedTasksApiV1MeTasksCreatedGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getListMyCreatedTasksApiV1MeTasksCreatedGetQueryKey(params);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>
-  > = ({ signal }) => listMyCreatedTasksApiV1MeTasksCreatedGet(params, requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListMyCreatedTasksApiV1MeTasksCreatedGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>
->;
-export type ListMyCreatedTasksApiV1MeTasksCreatedGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListMyCreatedTasksApiV1MeTasksCreatedGet<
-  TData = Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params: undefined | ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyCreatedTasksApiV1MeTasksCreatedGet<
-  TData = Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-          TError,
-          Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListMyCreatedTasksApiV1MeTasksCreatedGet<
-  TData = Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List My Created Tasks
- */
-
-export function useListMyCreatedTasksApiV1MeTasksCreatedGet<
-  TData = Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListMyCreatedTasksApiV1MeTasksCreatedGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listMyCreatedTasksApiV1MeTasksCreatedGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListMyCreatedTasksApiV1MeTasksCreatedGetQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

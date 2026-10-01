@@ -77,13 +77,13 @@ describe("a document's export card", () => {
   });
 
   it("offers spreadsheet formats and sends the engine request", async () => {
-    let sent: { format: string | null; document_id: string | null } | null = null;
+    let sent: { format: string | null; ids: string | null } | null = null;
     server.use(
       guildHttp.get("/exports/document", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
-          document_id: url.searchParams.get("document_id"),
+          ids: url.searchParams.get("ids"),
         };
         return new HttpResponse("a,b", {
           status: 200,
@@ -99,7 +99,7 @@ describe("a document's export card", () => {
     await userEvent.click(await screen.findByRole("menuitem", { name: /csv/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
-    expect(sent).toEqual({ format: "csv", document_id: "9" });
+    expect(sent).toEqual({ format: "csv", ids: "9" });
     expect(String(vi.mocked(downloadBlob).mock.calls[0][1])).toMatch(/^budget-.*\.csv$/);
   });
 

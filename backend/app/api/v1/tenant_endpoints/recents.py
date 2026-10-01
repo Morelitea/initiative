@@ -9,8 +9,8 @@ that guild's routed context, and merges by ``last_viewed_at``. Opening a tab
 navigates into the entity's guild (which sets the server-held context) before
 any content is fetched.
 
-Closing a tab is the one cross-guild write: a guild-ADDRESSED delete
-(``?guild_id=``, validated like any context) of the caller's own row.
+Opening and closing a tab are guild-addressed (``/c/{guild_id}/recents/…``):
+per-schema ids are only unique within a guild.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from typing import Annotated, Any, Callable, Dict, List
 from fastapi import APIRouter, Depends, status
 from sqlmodel import select
 
+from app.api import resource_access
 from app.db.session import require_guild_context
 from app.api.deps import (
     RLSSessionDep,
@@ -34,16 +35,16 @@ from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
-from app.schemas.tenant.recent_view import RecentItemRead
+from app.schemas.tenant.recent_view import RecentItemRead, RecentViewWrite
 from app.services.tenant import recent_views as recent_views_service
 from app.services.cross_guild import gather_across_guilds
 from app.services.tenant.recent_views import RecentEntityType
 
 
 router = APIRouter()
-# Guild-scoped sub-router: closing a tab (the delete) is the one guild-scoped
-# recents operation and mounts under /c/{guild_id}/recents. The cross-guild
-# tabs-bar list stays on the top-level router above — fully separate endpoints.
+# Guild-scoped sub-router: opening and closing a tab mount under
+# /c/{guild_id}/recents. The cross-guild tabs-bar list stays on the top-level
+# router above — fully separate endpoints.
 guild_router = APIRouter()
 
 
@@ -187,6 +188,38 @@ async def list_recents(
     items = await gather_across_guilds(session, current_user.id, member_guilds, _fetch)
     items.sort(key=lambda item: item.last_viewed_at, reverse=True)
     return items[:limit]
+
+
+@guild_router.post("/{entity_type}/{entity_id}", response_model=RecentViewWrite)
+async def record_recent(
+    entity_type: RecentEntityType,
+    entity_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> RecentViewWrite:
+    """Open a tab: record that the caller opened this entity.
+
+    Takes read access, the same the entity's own page takes, and refuses in
+    the tool's own words. A PAM grantee's browsing is transient by design and
+    is not stored.
+    """
+    row = await resource_access.load_authorized(
+        session, Tool(entity_type.value), entity_id, current_user, guild_context
+    )
+    record = await recent_views_service.record_view(
+        session,
+        user_id=current_user.id,
+        entity_type=entity_type,
+        entity_id=row.id,
+        persist=not guild_context.is_pam,
+        limit=current_user.recent_tabs_limit,
+    )
+    return RecentViewWrite(
+        entity_type=entity_type,
+        entity_id=row.id,
+        last_viewed_at=record.last_viewed_at,
+    )
 
 
 @guild_router.delete(
