@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -30,9 +31,15 @@ from app.core.app_access_token import seal_install_token
 from app.core.config import settings
 from app.core.security import SESSION_COOKIE_NAME
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
-from app.core.messages import AppChannelMessages
+from app.core.messages import AccessGrantMessages, AppChannelMessages
 from app.db import cohorts
 from app.db.session import set_rls_context
+from app.models.platform.access_grant import (
+    AccessGrant,
+    AccessGrantPurpose,
+    AccessLevel,
+    SettingsLevel,
+)
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.app_install import AppInstall
 from app.models.tenant.app_hook_delivery import AppHookDelivery
@@ -43,6 +50,7 @@ from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import app_connection_flows, app_revocation, app_schedules
 from app.testing import (
+    create_access_grant,
     create_app_service_registration,
     create_guild_app,
     create_marketplace_listing,
@@ -637,6 +645,66 @@ class TestInstallationStyleFlow:
         assert vendor.token_requests == []
         stored = await _reload(session, a.guild.id, app.id)
         assert "workspace" not in (stored.config or {})
+
+    async def _lent_seat(self, session, acting_user, a, *, content: str):
+        """A support account the community's seat is lent to, beside a
+        ``content`` grant."""
+        support = await acting_user("support")
+        await create_access_grant(
+            session, user=support.user, guild=a.guild, access_level=content
+        )
+        await create_access_grant(
+            session,
+            user=support.user,
+            guild=a.guild,
+            purpose=AccessGrantPurpose.settings.value,
+            access_level=SettingsLevel.superadmin.value,
+        )
+        return replace(support, guild=a.guild)
+
+    async def test_a_lent_seat_beside_a_read_grant_cannot_start_it(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, a)
+        support = await self._lent_seat(session, acting_user, a, content="read")
+
+        response = await client.post(
+            support.g(f"/apps/{app.id}/connections/workspace/connect"),
+            headers=support.headers,
+        )
+
+        assert response.status_code == 403, response.text
+        assert response.json()["detail"] == AccessGrantMessages.WRITE_GRANT_REQUIRED
+
+    async def test_a_lent_seat_whose_write_grant_lapses_mid_flow_is_refused(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        """The flow is finished only while its starter may still change what
+        the seat holds."""
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, a)
+        support = await self._lent_seat(session, acting_user, a, content="read_write")
+        start = await _start(client, support, app, "workspace")
+
+        await session.exec(
+            update(AccessGrant)
+            .where(
+                AccessGrant.user_id == support.user.id,
+                AccessGrant.purpose == AccessGrantPurpose.content.value,
+            )
+            .values(access_level=AccessLevel.read.value)
+        )
+        await session.commit()
+
+        setup = await client.get(
+            "/api/v1/app-connections/setup",
+            headers=_cookie(support),
+            params={"state": start["state"], "installation_id": "42"},
+        )
+
+        assert _landing(setup.headers["location"])["outcome"] == "refused"
+        assert vendor.token_requests == []
 
     async def test_an_install_awaiting_approval_says_so(
         self, client: AsyncClient, acting_user, session, vendor, registration
