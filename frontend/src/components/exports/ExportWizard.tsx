@@ -102,18 +102,19 @@ interface ContentFilters {
   tasks: TaskFilterSpec;
 }
 
-/** Every task, archived ones too, is what a project exports with no task
- *  filter, so the archived switch starts on. */
-const EMPTY_CONTENT: ContentFilters = {
+/** Nothing narrowed. A backup carries every task, archived ones too, and a
+ *  report the ones its task list shows, so the archived switch starts where
+ *  the chosen output does. */
+const emptyContent = (backup: boolean): ContentFilters => ({
   events: {},
-  tasks: { ...EMPTY_TASK_FILTERS, include_archived: true },
-};
+  tasks: { ...EMPTY_TASK_FILTERS, include_archived: backup },
+});
 
 /** A project's `tasks`: the conditions the task list sends and its archived
- *  switch, or nothing while they keep every task. */
-const taskExportParams = (spec: TaskFilterSpec): Record<string, unknown> => {
+ *  switch, or nothing while they are where the output starts. */
+const taskExportParams = (spec: TaskFilterSpec, backup: boolean): Record<string, unknown> => {
   const conditions = taskSpecConditions(spec);
-  if (conditions.length === 0 && spec.include_archived) return {};
+  if (conditions.length === 0 && spec.include_archived === backup) return {};
   return {
     ...(conditions.length > 0 ? { conditions: JSON.stringify(conditions) } : {}),
     include_archived: spec.include_archived,
@@ -165,8 +166,8 @@ function TaskFiltersField({ value, onChange, initiativeId }: ContentFieldProps) 
 }
 
 interface ContentFilter {
-  /** What it adds to the tool's `filters` entry. */
-  params: (content: ContentFilters) => Record<string, unknown>;
+  /** What it adds to the tool's `filters` entry, for a backup or a report. */
+  params: (content: ContentFilters, backup: boolean) => Record<string, unknown>;
   /** Its step's prompt and note, when exporting named entities. */
   prompt: string;
   note: string;
@@ -182,7 +183,7 @@ const CONTENT_FILTERS: Partial<Record<Tool, ContentFilter>> = {
     Field: EventDatesField,
   },
   [Tool.project]: {
-    params: ({ tasks }) => ({ tasks: taskExportParams(tasks) }),
+    params: ({ tasks }, backup) => ({ tasks: taskExportParams(tasks, backup) }),
     prompt: "wizard.content.tasksPrompt",
     note: "wizard.content.allTasksNote",
     Field: TaskFiltersField,
@@ -193,9 +194,10 @@ const CONTENT_FILTERS: Partial<Record<Tool, ContentFilter>> = {
 const toolExportFilters = (
   tool: Tool,
   listFilters: ToolListFilters | undefined,
-  content: ContentFilters
+  content: ContentFilters,
+  backup: boolean
 ): Record<string, unknown> =>
-  compact({ ...listFilters, ...CONTENT_FILTERS[tool]?.params(content) });
+  compact({ ...listFilters, ...CONTENT_FILTERS[tool]?.params(content, backup) });
 
 /** The wizard's step trail and its export job, reset to a fresh flow when the
  *  dialog closes (state only — a job already started keeps polling in the hook
@@ -271,6 +273,7 @@ function ToolFilterSection({
   onChange,
   content,
   onContentChange,
+  backup,
   initiativeId,
 }: {
   tool: Tool;
@@ -278,11 +281,12 @@ function ToolFilterSection({
   onChange: (next: ToolListFilters) => void;
   content: ContentFilters;
   onContentChange: (next: ContentFilters) => void;
+  backup: boolean;
   initiativeId?: number;
 }) {
   const { t } = useTranslation(["exports", "nav"]);
   const [open, setOpen] = useState(false);
-  const count = Object.keys(toolExportFilters(tool, value, content)).length;
+  const count = Object.keys(toolExportFilters(tool, value, content, backup)).length;
   const ContentField = CONTENT_FILTERS[tool]?.Field;
 
   return (
@@ -324,7 +328,7 @@ function ToolFilterSection({
 function useDescribeFilters() {
   const { t } = useTranslation(["exports", "projects"]);
   const formatRange = useFormatDateRange();
-  return (filters: Record<string, unknown>, content: ContentFilters): string => {
+  return (filters: Record<string, unknown>, content: ContentFilters, backup: boolean): string => {
     const parts: string[] = [];
     if ("events" in filters) parts.push(formatRange(content.events));
     if ("tasks" in filters) {
@@ -336,7 +340,9 @@ function useDescribeFilters() {
         due && t(`projects:${DUE_LABEL_KEYS[due]}`),
         tag_ids.length > 0 && t("wizard.filterSummary.tags", { count: tag_ids.length }),
         properties.length > 0 && t("wizard.filterSummary.more", { count: properties.length }),
-        !content.tasks.include_archived && t("wizard.filterSummary.withoutArchived"),
+        // Said only where it differs from what the output carries anyway.
+        content.tasks.include_archived !== backup &&
+          t(backup ? "wizard.filterSummary.withoutArchived" : "wizard.filterSummary.withArchived"),
       ];
       parts.push(
         t("wizard.filterSummary.tasks", { filters: taskParts.filter(Boolean).join(", ") })
@@ -377,7 +383,7 @@ function AggregateExportWizard({
   const [formats, setFormats] = useState<Record<string, string>>({});
   const [documentFormats, setDocumentFormats] = useState(DEFAULT_DOCUMENT_FORMATS);
   const [listFilters, setListFilters] = useState<Partial<Record<Tool, ToolListFilters>>>({});
-  const [content, setContent] = useState(EMPTY_CONTENT);
+  const [content, setContent] = useState(() => emptyContent(true));
 
   const { step, go, commit, back, canGoBack, exportJob } = useExportWizardFlow<
     "mode" | "backup" | "report" | "confirm"
@@ -388,7 +394,7 @@ function AggregateExportWizard({
     setFormats({});
     setDocumentFormats(DEFAULT_DOCUMENT_FORMATS);
     setListFilters({});
-    setContent(EMPTY_CONTENT);
+    setContent(emptyContent(true));
   });
 
   const visibleTools = AGGREGATE_EXPORT_TOOLS;
@@ -399,7 +405,9 @@ function AggregateExportWizard({
   // Each included tool's filters, and only the tools that have some; no
   // `filters` param at all when none do.
   const activeFilters = visibleTools.flatMap((tool) => {
-    const filters = included(tool) ? toolExportFilters(tool, listFilters[tool], content) : {};
+    const filters = included(tool)
+      ? toolExportFilters(tool, listFilters[tool], content, mode === "backup")
+      : {};
     return Object.keys(filters).length > 0 ? [[tool, filters] as const] : [];
   });
   const filtersParam =
@@ -455,6 +463,7 @@ function AggregateExportWizard({
       onChange={(next) => setListFilters((prev) => ({ ...prev, [tool]: next }))}
       content={content}
       onContentChange={setContent}
+      backup={mode === "backup"}
       initiativeId={scope.kind === "initiative" ? scope.initiativeId : undefined}
     />
   );
@@ -534,6 +543,7 @@ function AggregateExportWizard({
               className="w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent"
               onClick={() => {
                 setMode(option);
+                setContent(emptyContent(option === "backup"));
                 go(option);
               }}
             >
@@ -757,7 +767,7 @@ function AggregateExportWizard({
                 <p key={tool} className="text-muted-foreground text-xs">
                   {t("wizard.confirm.toolFilters", {
                     tool: toolLabel(tool),
-                    filters: describeFilters(filters, content),
+                    filters: describeFilters(filters, content, mode === "backup"),
                   })}
                 </p>
               ))}
@@ -808,18 +818,19 @@ function EntitiesExportWizard({
   // so the wizard starts past it.
   const only = formats.length === 1 && extraActions.length === 0 ? formats[0] : null;
   const [option, setOption] = useState<ExportFormatOption | null>(only);
-  const [content, setContent] = useState(EMPTY_CONTENT);
+  const backup = option?.format === "json";
+  const [content, setContent] = useState(() => emptyContent(only?.format === "json"));
 
   const { step, go, commit, back, canGoBack, exportJob } = useExportWizardFlow<
     "format" | "content" | "confirm"
   >(open, only ? (contentFilter ? "content" : "confirm") : "format", () => {
     setOption(only);
-    setContent(EMPTY_CONTENT);
+    setContent(emptyContent(only?.format === "json"));
   });
 
   // Only the content filter travels for named entities: the ids already say
   // which things.
-  const filters = toolExportFilters(tool, undefined, content);
+  const filters = toolExportFilters(tool, undefined, content, backup);
 
   // The menu's grouping, kept: the JSON envelope is the importable backup;
   // every other format, and the client-side extras, is a report.
@@ -850,6 +861,7 @@ function EntitiesExportWizard({
       className="w-full justify-start"
       onClick={() => {
         setOption(format);
+        setContent(emptyContent(format.format === "json"));
         go(contentFilter ? "content" : "confirm");
       }}
     >
@@ -930,7 +942,9 @@ function EntitiesExportWizard({
               {t("wizard.confirm.selected", { count: ids.length })}
             </p>
             {Object.keys(filters).length > 0 ? (
-              <p className="text-muted-foreground text-xs">{describeFilters(filters, content)}</p>
+              <p className="text-muted-foreground text-xs">
+                {describeFilters(filters, content, backup)}
+              </p>
             ) : null}
           </div>
           <Button className="w-full" disabled={exportJob.busy} onClick={startExport}>

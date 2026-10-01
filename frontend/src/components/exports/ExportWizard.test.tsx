@@ -435,8 +435,8 @@ describe("ExportWizard", () => {
 
     await user.click(screen.getByRole("button", { name: "CSV" }));
     expect(screen.getByText("Choose which tasks to export")).toBeInTheDocument();
-    // Archived tasks stay in, as they do with no filter at all.
-    expect(screen.getByRole("switch", { name: "Show archived" })).toBeChecked();
+    // A report leaves archived tasks out, as its task list does, until asked.
+    expect(screen.getByRole("switch", { name: "Show archived" })).not.toBeChecked();
     await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await user.click(await screen.findByRole("option", { name: "To do" }));
     await user.keyboard("{Escape}");
@@ -452,7 +452,7 @@ describe("ExportWizard", () => {
         conditions: JSON.stringify(
           taskSpecConditions({ ...EMPTY_TASK_FILTERS, status_categories: ["todo"] })
         ),
-        include_archived: true,
+        include_archived: false,
       },
     });
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));

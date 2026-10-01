@@ -89,6 +89,7 @@
       "activeOnly": "Active only",
       "archivedOnly": "Archived only",
       "withoutArchived": "without archived",
+      "withArchived": "with archived",
       "more_one": "{{count}} more filter",
       "more_other": "{{count}} more filters",
       "tasks": "Tasks ({{filters}})"
