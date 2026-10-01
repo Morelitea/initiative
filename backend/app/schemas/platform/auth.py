@@ -180,6 +180,12 @@ class UploadTokenResponse(SanitizedBaseModel):
     expires_in: int
 
 
+class UsernameSuggestionsResponse(SanitizedBaseModel):
+    """Name parts nobody holds yet, best first."""
+
+    suggestions: list[str]
+
+
 class UsernameAvailabilityResponse(SanitizedBaseModel):
     """Whether a name part can still be handed out.
 

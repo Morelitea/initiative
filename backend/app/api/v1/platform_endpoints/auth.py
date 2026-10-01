@@ -115,6 +115,7 @@ from app.schemas.platform.auth import (
     PasswordResetSubmit,
     UploadTokenResponse,
     UsernameAvailabilityResponse,
+    UsernameSuggestionsResponse,
     VerificationConfirmRequest,
     VerificationSendResponse,
 )
@@ -1016,6 +1017,23 @@ async def refresh_access_token(
     return Token(
         access_token=access_token,
         refresh_token=issued.refresh_token if presented_in_body else None,
+    )
+
+
+@router.get("/username-suggestions", response_model=UsernameSuggestionsResponse)
+@limiter.limit("30/minute")
+async def suggest_usernames(
+    request: Request,
+    session: SystemSessionDep,
+    seed: str | None = Query(default=None, max_length=64),
+) -> UsernameSuggestionsResponse:
+    """Name parts nobody holds yet, offered while somebody picks one.
+
+    Unauthenticated for the reason the availability check is. ``seed`` is what
+    they have typed so far; the suggestions start from it where it is usable.
+    """
+    return UsernameSuggestionsResponse(
+        suggestions=await username_service.suggest(session, seed=seed)
     )
 
 

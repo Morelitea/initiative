@@ -100,6 +100,26 @@ class TestAvailability:
 
         assert response.json()["available"] is True
 
+    async def test_suggestions_are_names_nobody_holds(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """Suggestions start from what was typed, and skip a name in use."""
+        await create_user(session, username="popular", discriminator=1)
+
+        response = await client.get(
+            "/api/v1/auth/username-suggestions", params={"seed": "Popular"}
+        )
+
+        suggestions = response.json()["suggestions"]
+        assert len(suggestions) == 4
+        assert "popular" not in suggestions
+        assert suggestions[0].startswith("popular-")
+
+        fresh = await client.get(
+            "/api/v1/auth/username-suggestions", params={"seed": "Quiet Otter"}
+        )
+        assert fresh.json()["suggestions"][0] == "quiet-otter"
+
 
 class TestClaimingAHandle:
     async def test_an_assigned_handle_can_be_picked_once(
