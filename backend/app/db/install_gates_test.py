@@ -21,6 +21,7 @@ from sqlmodel import select
 
 from app.core.tools import Tool
 from app.db.app_rls import APP_REFUSED_TABLES, APP_TABLE_ACCESS
+from app.db.authorization import IN_POLICY
 from app.db.guild_ddl import APP_POLICY_TABLES, render_guild_rls_ddl
 from app.db.install_standing_test import (
     _install,
@@ -46,7 +47,7 @@ from app.testing import (
     route_session_to_guild,
 )
 
-_INSTALL_LEG = "app.current_install_id"
+_INSTALL_LEG = IN_POLICY.install_id
 
 
 # ---------------------------------------------------------------------------

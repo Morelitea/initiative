@@ -21,7 +21,10 @@ The other readings:
     "nothing" in every variable it does not set.
 ``once``
     The typed read as a sub-select naming no row, which the planner evaluates
-    once for the statement rather than once per row. For a policy.
+    once for the statement rather than once per row. For a policy. The
+    sub-select calls ``setting_<bind>()``, a function rendered into each guild
+    schema, so a policy stores a call rather than the read itself; only a
+    variable declared ``read_once`` has one.
 
 A boolean reads true only when the variable says ``true``, and NULL when it is
 unset. A leg that asks for "not true" says ``IS NOT TRUE`` so an unset
@@ -40,6 +43,7 @@ __all__ = [
     "FLAGS",
     "Guc",
     "Kind",
+    "READ_ONCE",
     "REQUEST_GUCS",
     "ROUTED_COMMUNITY",
     "ROUTED_GUILD_ID",
@@ -68,6 +72,9 @@ class Guc:
     kind: Kind
     #: Written by a standing statement rather than by the routing alone.
     standing: bool = False
+    #: A policy reads it with :attr:`once`, so each guild schema renders its
+    #: ``setting_<bind>()``.
+    read_once: bool = False
 
     @property
     def raw(self) -> str:
@@ -95,9 +102,16 @@ class Guc:
 
     @property
     def once(self) -> str:
+        if not self.read_once:
+            raise ValueError(f"{self.name} is not declared read_once")
         # Cast to the kind's type: ``x = ANY ((SELECT a))`` would otherwise
         # read as a comparison against a sub-query's rows, not an array.
-        return f"((SELECT {self.sql})::{self.kind.value})"
+        return f"((SELECT {self.once_function}())::{self.kind.value})"
+
+    @property
+    def once_function(self) -> str:
+        """The guild-schema function :attr:`once` calls."""
+        return f"setting_{self.bind}"
 
     def __str__(self) -> str:
         return self.sql
@@ -160,9 +174,9 @@ def _parts(text: str | None) -> Collection[str]:
 
 
 # --- Who the request is -------------------------------------------------------
-USER_ID = Guc("app.current_user_id", Kind.INT)
+USER_ID = Guc("app.current_user_id", Kind.INT, read_once=True)
 #: The community a membership routes into.
-GUILD_ID = Guc("app.current_guild_id", Kind.INT)
+GUILD_ID = Guc("app.current_guild_id", Kind.INT, read_once=True)
 #: The community a content grant reaches.
 PAM_GUILD_ID = Guc("app.pam_guild_id", Kind.INT)
 #: The community a settings grant reaches.
@@ -186,7 +200,7 @@ SESSION_AMR = Guc("app.session_amr", Kind.NAMES)
 SCOPE_INITIATIVE_ID = Guc("app.scope_initiative_id", Kind.INT)
 VIA_DASHBOARD_ID = Guc("app.via_dashboard_id", Kind.INT)
 #: The statement is reader-written, on the query surface.
-QUERY = Guc("app.query", Kind.BOOL)
+QUERY = Guc("app.query", Kind.BOOL, read_once=True)
 
 # --- An installed app ---------------------------------------------------------
 INSTALL_ID = Guc("app.current_install_id", Kind.INT)
@@ -198,9 +212,9 @@ TOKEN_PURPOSE = Guc("app.token_purpose", Kind.TEXT)
 #: The community the standing was computed for.
 STANDING_GUILD_ID = Guc("app.standing_guild_id", Kind.INT, standing=True)
 GUILD_ADMIN = Guc("app.guild_admin", Kind.BOOL, standing=True)
-GUILD_SEAT = Guc("app.guild_seat", Kind.BOOL, standing=True)
+GUILD_SEAT = Guc("app.guild_seat", Kind.BOOL, standing=True, read_once=True)
 #: The rung a membership or a live settings grant administers at, or ``''``.
-SETTINGS_RUNG = Guc("app.settings_rung", Kind.TEXT, standing=True)
+SETTINGS_RUNG = Guc("app.settings_rung", Kind.TEXT, standing=True, read_once=True)
 #: A live content grant covers the request, at read / read_write.
 PAM_READ = Guc("app.pam_read", Kind.BOOL, standing=True)
 PAM_WRITE = Guc("app.pam_write", Kind.BOOL, standing=True)
@@ -290,6 +304,10 @@ REQUEST_GUCS: tuple[Guc, ...] = (
 )
 
 STANDING: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.standing)
+
+#: The variables a policy reads once per statement, each through its
+#: ``setting_<bind>()``.
+READ_ONCE: tuple[Guc, ...] = tuple(g for g in REQUEST_GUCS if g.read_once)
 
 #: Raised for one transaction by the code that needs them
 #: (``app.db.session.raise_flag``), never by a routing.

@@ -86,6 +86,7 @@ __all__ = [
     "Legs",
     "STANDING",
     "STANDING_FIELDS",
+    "READ_FUNCTIONS",
     "GUILD_FUNCTION_SIGNATURES",
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
@@ -496,8 +497,36 @@ $function$
 """
 
 
-_STANDING_EXPRS = {name: expr for name, _type, expr in STANDING_FIELDS}
 _STANDING_TYPES = {name: sqltype for name, sqltype, _expr in STANDING_FIELDS}
+
+
+def _read_function(name: str, sqltype: str, expr: str) -> str:
+    """One value a policy reads once per statement, as a function. A policy
+    stores the call instead of the expression; ``plpgsql`` like the gates, so
+    its plan is kept and the planner has nothing to inline."""
+    return f"""\
+CREATE OR REPLACE FUNCTION {name}()
+ RETURNS {sqltype}
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN ({expr})::{sqltype};
+END
+$function$
+
+"""
+
+
+#: ``standing_<field>()`` for each standing field, and ``setting_<bind>()`` for
+#: each variable a policy reads with ``Guc.once``.
+READ_FUNCTIONS: tuple[tuple[str, str], ...] = tuple(
+    (f"standing_{name}", _read_function(f"standing_{name}", sqltype, expr))
+    for name, sqltype, expr in STANDING_FIELDS
+) + tuple(
+    (g.once_function, _read_function(g.once_function, g.kind.value, g.sql))
+    for g in gucs.READ_ONCE
+)
 
 
 @dataclass(frozen=True)
@@ -509,7 +538,8 @@ class Legs:
     standing: str
     #: Inside a policy, a field is its own once-per-statement sub-select
     #: rather than a field of the whole standing, which would compute every
-    #: other field alongside it.
+    #: other field alongside it. The sub-select calls the field's
+    #: ``standing_<field>()``, so the policy stores a call, not the expression.
     per_field: bool = False
 
     def field(self, name: str) -> str:
@@ -518,7 +548,7 @@ class Legs:
         if self.per_field:
             # Cast to the field's type: ``x = ANY ((SELECT a))`` would otherwise
             # read as a comparison against a sub-query's rows, not an array.
-            return f"((SELECT {_STANDING_EXPRS[name]})::{_STANDING_TYPES[name]})"
+            return f"((SELECT standing_{name}())::{_STANDING_TYPES[name]})"
         return f"({self.standing}).{name}"
 
     @property
@@ -1230,11 +1260,12 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("guild_superadmin", GUILD_SUPERADMIN),
 )
 
-#: The five that read only guild tables. Rendered into every guild schema by
+#: The ones that read only guild tables. Rendered into every guild schema by
 #: ``guild_ddl.render_guild_rls_ddl`` ahead of the policies that call them,
 #: in this order: the SQL bodies are checked at creation, and each names only
 #: tables and the ``public`` functions above.
 GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
+    *READ_FUNCTIONS,
     ("current_standing", CURRENT_STANDING),
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),
@@ -1253,6 +1284,7 @@ GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
 #: above plus the three ``frozen`` and ``initiative_rls`` render there. What
 #: ``DROP FUNCTION`` and ``pg_get_functiondef`` need to name one.
 GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
+    **{name: "()" for name, _sql in READ_FUNCTIONS},
     "current_standing": "()",
     "initiative_access": "(integer, integer, boolean, public.standing)",
     "initiative_full_access": "(integer, boolean, public.standing)",
