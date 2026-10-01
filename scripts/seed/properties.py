@@ -165,12 +165,16 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
             ),
             ("document", "NPC Roster: Curse of Strahd", {"Public Knowledge": False}),
             (
-                "event",
+                "calendar_event",
                 "Session 12: Into the Amber Temple",
                 {"Difficulty": "deadly", "Themes": ["horror", "investigation"]},
             ),
-            ("event", "Session 11: Vallaki Festival", {"Difficulty": "moderate"}),
-            ("event", "Weekly Strahd Session", {"Owner": "Dungeon Master"}),
+            (
+                "calendar_event",
+                "Session 11: Vallaki Festival",
+                {"Difficulty": "moderate"},
+            ),
+            ("calendar_event", "Weekly Strahd Session", {"Owner": "Dungeon Master"}),
         ],
         "lmop": [
             (
@@ -271,11 +275,8 @@ VALUES: dict[str, dict[str, list[tuple]]] = {
     },
 }
 
-_SETTERS = {
-    "task": (properties_service.set_task_property_values, "tasks"),
-    "document": (properties_service.set_document_property_values, "docs"),
-    "event": (properties_service.set_event_property_values, "events"),
-}
+#: Where each target's seeded rows are held on the community, by title.
+_ROWS = {"task": "tasks", "document": "docs", "calendar_event": "events"}
 
 
 async def seed(c: Community) -> None:
@@ -303,7 +304,6 @@ async def seed(c: Community) -> None:
         # Through the service the value editor uses, so a seeded value is
         # held to the same type, option and membership rules a typed one is.
         for kind, title, values in VALUES[c.key].get(key, ()):
-            setter, entities = _SETTERS[kind]
             inputs = [
                 PropertyValueInput(
                     property_id=by_name[name].id,
@@ -313,6 +313,11 @@ async def seed(c: Community) -> None:
                 )
                 for name, value in values.items()
             ]
-            await setter(c.session, getattr(c, entities)[title], inputs, initiative.id)
+            await properties_service.write_values(
+                c.session,
+                getattr(c, _ROWS[kind])[title],
+                inputs,
+                initiative_id=initiative.id,
+            )
             c.ids["property_values"].extend(values)
     await c.session.flush()

@@ -85,6 +85,7 @@ from app.services.tenant import content_references
 from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import post_publication
 from app.services.tenant import posts as posts_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 from app.services.tenant import tool_listing
@@ -192,7 +193,8 @@ async def annotate_post_rows(
     own_read_state: bool = True,
 ) -> None:
     """Everything a post row carries beyond its columns, one grouped query each
-    for the page: its comment count, reactions, read state and poll tallies.
+    for the page: its tags, properties, comment count, reactions, read state and
+    poll tallies.
 
     ``own_read_state`` stamps whether this reader has read each one; a write's
     answer leaves it out.
@@ -201,6 +203,8 @@ async def annotate_post_rows(
     and reacts to nothing, so a post it reads carries only the comment count;
     the rest stay at their empty defaults.
     """
+    await tags_service.annotate_tags(session, rows)
+    await properties_service.annotate_properties(session, rows)
     await comments_service.annotate_comment_counts(session, rows, column="post_id")
     if user_id is None:
         return

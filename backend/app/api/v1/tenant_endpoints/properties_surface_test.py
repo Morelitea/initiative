@@ -26,6 +26,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import PropertyType, PropertyValue
@@ -45,6 +46,7 @@ from app.testing import (
     create_queue_item,
     create_resource_grant,
     create_task,
+    create_tool_entity,
     create_user,
     create_wiki,
     create_wiki_page,
@@ -535,35 +537,41 @@ async def test_list_filters_by_a_selected_option(
 # ---------------------------------------------------------------------------
 
 
-async def test_a_tool_and_its_sub_tools_read_back_what_they_carry(
+async def test_every_tool_and_its_sub_tools_read_back_what_they_carry(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A queue, its items and a wiki's pages are written like any other
-    target, and each read returns its own values."""
+    """Every tool, a queue's items and a wiki's pages are written like any
+    other target, and each one's own read returns its values."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await enable_all_tools(session, a.initiative)
-    queue = await create_queue(session, a.initiative, a.user)
-    item = await create_queue_item(session, queue)
-    page = await create_wiki_page(
-        session, await create_wiki(session, a.initiative, a.user), a.user
-    )
     defn = await create_property_definition(session, a.initiative, name="Note")
-    for target, row_id in (
-        ("queue", queue.id),
-        ("queue_item", item.id),
-        ("wiki_page", page.id),
-    ):
+
+    async def write(target: str, row_id: int) -> None:
         written = await client.put(
             a.g(f"/properties/{target}/{row_id}"),
             headers=a.headers,
             json={"values": [{"property_id": defn.id, "value": target}]},
         )
-        assert written.status_code == 200, written.text
+        assert written.status_code == 200, (target, written.text)
         assert _values(written.json()) == {defn.id: target}
 
+    for tool in Tool:
+        row = await create_tool_entity(session, tool, a.initiative, a.user)
+        await write(tool.value, row.id)
+        read = await client.get(
+            a.g(f"/{tool.route_segment}/{row.id}"), headers=a.headers
+        )
+        assert read.status_code == 200, (tool, read.text)
+        assert _values(read.json()["properties"]) == {defn.id: tool.value}, tool
+
+    queue = await create_queue(session, a.initiative, a.user)
+    item = await create_queue_item(session, queue)
+    page = await create_wiki_page(
+        session, await create_wiki(session, a.initiative, a.user), a.user
+    )
+    await write("queue_item", item.id)
+    await write("wiki_page", page.id)
     queue_read = await client.get(a.g(f"/queues/{queue.id}"), headers=a.headers)
-    assert queue_read.status_code == 200, queue_read.text
-    assert _values(queue_read.json()["properties"]) == {defn.id: "queue"}
     [item_read] = queue_read.json()["items"]
     assert _values(item_read["properties"]) == {defn.id: "queue_item"}
     page_read = await client.get(a.g(f"/wiki-pages/{page.id}"), headers=a.headers)

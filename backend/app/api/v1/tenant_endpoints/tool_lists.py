@@ -686,11 +686,8 @@ def _post_order(req: ListRequest) -> list:
 async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     # One grouped query each for the page, so a board of twenty asks a handful
     # of times rather than forty.
-    session = req.session
-    await tags_service.annotate_tags(session, rows)
-    await properties_service.annotate_properties(session, rows)
     # An installed app's page carries no reactions, read state or ballots.
-    await posts_endpoints.annotate_post_rows(session, rows, user_id=req.user_id)
+    await posts_endpoints.annotate_post_rows(req.session, rows, user_id=req.user_id)
     return [
         serialize_tool(PostRead, post, context=req.guild_context, user_id=req.user_id)
         for post in rows
