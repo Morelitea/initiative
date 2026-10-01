@@ -372,7 +372,7 @@ export const InitiativeSettingsMembersTab = ({
             pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
             rowCount={totalCount}
             // The page the server answered with: a page emptied by a removal
-            // comes back as the last one that still has rows.
+            // comes back as page 1.
             pageIndex={(rosterQuery.data?.page ?? page) - 1}
             onPaginationChange={(next: PaginationState) => {
               if (next.pageSize !== pageSize) {

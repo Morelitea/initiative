@@ -213,15 +213,20 @@ export const useInitiativeManagers = (initiativeId: number) => {
       "every page",
     ],
     queryFn: async () => {
-      const managers: InitiativeMemberRead[] = [];
-      for (let page = 1; ; page += 1) {
+      const managers = new Map<number, InitiativeMemberRead>();
+      let page = 1;
+      for (;;) {
         const response = await getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet(
           guildId,
           initiativeId,
           { ...params, page }
         );
-        managers.push(...response.items);
-        if (!response.has_next) return managers;
+        // A page past the end is answered with page 1: the roster changed
+        // between reads, so the read starts again from the page served.
+        if (response.page !== page) managers.clear();
+        for (const manager of response.items) managers.set(manager.user.id, manager);
+        if (!response.has_next) return [...managers.values()];
+        page = response.page + 1;
       }
     },
   });

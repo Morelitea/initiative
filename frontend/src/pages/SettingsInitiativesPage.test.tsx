@@ -123,6 +123,35 @@ describe("SettingsInitiativesPage project managers", () => {
     expect(screen.getByText("3 members")).toBeInTheDocument();
   });
 
+  it("reads every manager, starting again when the roster changes between pages", async () => {
+    stubTable([]);
+    const ada = buildInitiativeMember({
+      user: buildUserPublic({ id: ADMIN_ID, full_name: "Ada Lovelace" }),
+    });
+    const bo = buildInitiativeMember({
+      user: buildUserPublic({ id: MEMBER_ID, full_name: "Bo Diddley" }),
+    });
+    const asked: number[] = [];
+    server.use(
+      guildHttp.get("/initiatives/:id/members", ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        asked.push(page);
+        // The first ask for page 2 lands after a change: past the end, so the
+        // server answers with page 1 again.
+        const served = page === 2 && asked.filter((p) => p === 2).length > 1 ? 2 : 1;
+        return HttpResponse.json(
+          buildPage(served === 1 ? [ada] : [bo], { page: served, has_next: served === 1 })
+        );
+      })
+    );
+    render();
+
+    expect(await screen.findByRole("combobox", { name: "Project managers" })).toHaveTextContent(
+      "2 managers"
+    );
+    expect(asked).toEqual([1, 2, 2]);
+  });
+
   // The same call promotes someone already in it: the server moves an existing
   // member onto the role it names rather than adding them twice.
   it("adds a guild admin who is in no initiative as its project manager", async () => {
