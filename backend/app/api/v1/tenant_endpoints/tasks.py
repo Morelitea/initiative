@@ -324,11 +324,11 @@ async def list_tasks(
         )
 
     count_stmt = select(func.count()).select_from(build(select(Task.id)).subquery())
-    statement = task_queries.list_statement(build, q, *task_queries.LIST_ROW_OPTIONS)
-    tasks, total_count, actual_page = await paginated_query(
+    statement = task_queries.list_row_statement(build, q)
+    rows, total_count, actual_page = await paginated_query(
         session, statement, count_stmt, page, page_size
     )
-    items = await task_queries.list_reads(session, tasks, routed_guild_id(session))
+    items = await task_queries.list_reads(session, rows, routed_guild_id(session))
     return TaskListResponse(
         **build_paginated_response(
             items=items,
