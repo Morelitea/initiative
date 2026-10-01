@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A board's timeline follows the archive view.** Under **Archived**, the months beside the board count only archived posts, and the live board no longer counts archived ones. `GET /posts/timeline` takes `archived` (API).
 - **Deleting a sign-in provider a community requires says so on PostgreSQL 18.** It's refused as in use, as on earlier versions, instead of failing with a server error.
 - **Wikis show in the recent tabs bar.** Opening a wiki now puts it beside the other tools you've opened.
 - **Invite links are for whoever can change the member list.** Someone with temporary read-only access to a community's settings no longer sees its invite links, and an account with temporary access to a community can't accept an invite into it until that access ends.
