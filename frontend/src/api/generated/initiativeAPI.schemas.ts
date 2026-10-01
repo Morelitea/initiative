@@ -1470,6 +1470,18 @@ export interface BreakGlassRequirements {
   passkey_enrolled: boolean;
 }
 
+/**
+ * A single (property_id, value) pair submitted by the client.
+ *
+ * The value is polymorphic because the Pydantic layer can't know the
+ * definition's type. Typed validation runs server-side in
+ * ``app.services.properties._validate_value_for_type``.
+ */
+export interface PropertyValueInput {
+  property_id: number;
+  value?: unknown;
+}
+
 export type ResourceAccessLevel = (typeof ResourceAccessLevel)[keyof typeof ResourceAccessLevel];
 
 export const ResourceAccessLevel = {
@@ -1511,6 +1523,7 @@ export interface ResourceGrantSchema {
 }
 
 export interface CalendarCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -1795,6 +1808,7 @@ export interface CalendarEventAttendeeRead {
 }
 
 export interface CalendarEventCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -2571,6 +2585,7 @@ export const CounterViewMode = {
 } as const;
 
 export interface CounterCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -2587,6 +2602,7 @@ export interface CounterCreate {
 }
 
 export interface CounterGroupCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -2773,6 +2789,7 @@ export type DashboardCreateDefinition = { [key: string]: unknown };
 export type DashboardCreateConfig = { [key: string]: unknown };
 
 export interface DashboardCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -3391,6 +3408,7 @@ export const DocumentCreateDocumentType = {
 } as const;
 
 export interface DocumentCreate {
+  properties?: PropertyValueInput[];
   name: string;
   initiative_id: number;
   featured_image_url?: string | null;
@@ -3992,6 +4010,7 @@ export interface GalleryCover {
 }
 
 export interface GalleryCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -6991,6 +7010,7 @@ export interface PollWrite {
 export type PostCreateBody = { [key: string]: unknown };
 
 export interface PostCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -7174,6 +7194,7 @@ export interface ProjectCan {
 }
 
 export interface ProjectCreate {
+  properties?: PropertyValueInput[];
   name: string;
   description?: string | null;
   icon?: string | null;
@@ -7349,18 +7370,6 @@ export const PropertyTarget = {
   gallery_image: "gallery_image",
   wiki_page: "wiki_page",
 } as const;
-
-/**
- * A single (property_id, value) pair submitted by the client.
- *
- * The value is polymorphic because the Pydantic layer can't know the
- * definition's type. Typed validation runs server-side in
- * ``app.services.properties._validate_value_for_type``.
- */
-export interface PropertyValueInput {
-  property_id: number;
-  value?: unknown;
-}
 
 /**
  * Replace-all payload for ``PUT /properties/{target}/{entity_id}``.
@@ -7611,6 +7620,7 @@ export interface QueryVocabulary {
 }
 
 export interface QueueCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -7622,6 +7632,7 @@ export interface QueueCreate {
 }
 
 export interface QueueItemCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -8585,6 +8596,7 @@ export const TaskCreateRecurrenceStrategy = {
 } as const;
 
 export interface TaskCreate {
+  properties?: PropertyValueInput[];
   title: string;
   priority?: TaskPriority;
   start_date?: string | null;
@@ -9248,6 +9260,7 @@ export interface WidgetCatalog {
 }
 
 export interface WikiCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -9332,6 +9345,7 @@ export interface WikiListResponse {
 export type WikiPageCreateContent = { [key: string]: unknown } | null;
 
 export interface WikiPageCreate {
+  properties?: PropertyValueInput[];
   title?: string | null;
   parent_page_id?: number | null;
   is_draft?: boolean;
