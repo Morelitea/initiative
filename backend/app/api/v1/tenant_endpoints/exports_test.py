@@ -2977,7 +2977,7 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
         headers=admin.headers,
         ids=[a.project.id, blueprint.id],
         format="json",
-        filters=json.dumps({"template": False, **open_tasks}),
+        filters=json.dumps({"is_template": False, **open_tasks}),
     )
     [kept] = json.loads(_assert_export(own, "json"))["tasks"]
     assert (kept["title"], kept["links"]) == ("Open", [])
