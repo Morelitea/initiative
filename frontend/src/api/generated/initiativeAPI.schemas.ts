@@ -9824,6 +9824,14 @@ export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertio
     "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
 } as const;
 
+export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel =
+  (typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel)[keyof typeof IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel];
+
+export const IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel = {
+  moderator: "moderator",
+  guild_admin: "guild_admin",
+} as const;
+
 export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody = {
   grant_type: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyGrantType;
   client_assertion_type?: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyClientAssertionType;
@@ -9832,6 +9840,7 @@ export type IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBody = {
   installation?: string;
   scope?: string;
   resource?: string;
+  level?: IssueAppAccessTokenApiV1AppPlatformOauthTokenPostBodyLevel;
   assertion?: string;
 };
 
