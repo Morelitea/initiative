@@ -1,7 +1,13 @@
+import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ListProjectsApiV1CGuildIdProjectsGetParams,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useProjects } from "@/hooks/useProjects";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
 export type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
@@ -15,8 +21,9 @@ const SORT_MODES: ProjectSortMode[] = [
 ];
 
 type UseProjectListViewOptions = {
-  /** The raw list for this tab — active, template, or archived projects. */
-  projects: ProjectRead[];
+  /** Which list this tab reads — its initiative, and active, template, or
+   *  archived projects. The search and tags are added here. */
+  params: ListProjectsApiV1CGuildIdProjectsGetParams;
   /** View-preference namespace, e.g. `project:list` or `project:archive`. */
   storagePrefix: string;
   /**
@@ -31,12 +38,13 @@ type UseProjectListViewOptions = {
 };
 
 /**
- * Search / tag / favorite filtering, sorting, and the persisted view state
- * behind a project listing. Every projects tab runs the same pipeline through
- * this hook so their filters behave identically and only their data differs.
+ * The list behind a project listing: read with its search and tags, then
+ * narrowed to favourites and sorted here, with the persisted view state. Every
+ * projects tab runs the same pipeline through this hook so their filters
+ * behave identically and only their data differs.
  */
 export const useProjectListView = ({
-  projects,
+  params,
   storagePrefix,
   allowCustomSort = false,
   separatePinned = false,
@@ -92,6 +100,18 @@ export const useProjectListView = ({
     [setPersistedTagFilters]
   );
 
+  const search = useDebouncedValue(searchQuery, 300).trim();
+  const query = useProjects(
+    {
+      ...params,
+      ...(search ? { search } : {}),
+      ...(tagFilters.length > 0 ? { tag_ids: tagFilters } : {}),
+    },
+    // The cards stay on screen while a changed search is in flight.
+    { placeholderData: keepPreviousData }
+  );
+  const projects = useMemo(() => query.data?.items ?? [], [query.data]);
+
   // The search and the tags are both saved preferences, so the filter fields'
   // answer writes back only what changed (the fields hand back this render's
   // values for everything they didn't touch).
@@ -116,9 +136,9 @@ export const useProjectListView = ({
     setFavoritesOnly(false);
   }, [setSearchQuery, setTagFilters]);
 
+  // Favourites are the reader's own, so they narrow here rather than on the
+  // server.
   const filteredProjects = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const tagFilterSet = new Set(tagFilters);
     return projects.filter((project) => {
       const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
       if (
@@ -128,13 +148,9 @@ export const useProjectListView = ({
       ) {
         return false;
       }
-      const matchesSearch = !query ? true : project.name.toLowerCase().includes(query);
-      const matchesFavorites = !favoritesOnly ? true : Boolean(project.is_favorited);
-      const matchesTags =
-        tagFilterSet.size === 0 || (project.tags?.some((tag) => tagFilterSet.has(tag.id)) ?? false);
-      return matchesSearch && matchesFavorites && matchesTags;
+      return !favoritesOnly || Boolean(project.is_favorited);
     });
-  }, [projects, searchQuery, favoritesOnly, tagFilters, viewableInitiativeIds]);
+  }, [projects, favoritesOnly, viewableInitiativeIds]);
 
   const pinnedProjects = useMemo(() => {
     if (!separatePinned) return [];
@@ -209,6 +225,11 @@ export const useProjectListView = ({
   }, [unpinnedProjects, sortMode, customOrder]);
 
   return {
+    isLoading: query.isLoading,
+    isError: query.isError,
+    /** The server has narrowed the list, so it holds only some of the
+     *  projects a manual order covers. */
+    narrowed: Boolean(search) || tagFilters.length > 0,
     filteredProjects,
     pinnedProjects,
     sortedProjects,

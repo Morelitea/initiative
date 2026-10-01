@@ -28,6 +28,13 @@ import { DocumentFilterFields } from "@/components/documents/DocumentsFilterBar"
 import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toolCamelPlural } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -62,14 +69,12 @@ type SearchTagFieldsProps = ToolFilterFieldsProps & {
   tool: Tool;
   /** Placeholder key in the tool's own namespace. */
   placeholder: string;
-  tags: boolean;
 };
 
 /** A search box and a tag picker — what most tool lists narrow by. */
 const SearchTagFields = ({
   tool,
   placeholder,
-  tags,
   value,
   onChange,
   children,
@@ -94,41 +99,90 @@ const SearchTagFields = ({
           className="min-w-60"
         />
       </div>
-      {tags ? (
-        <div className="w-full space-y-2 sm:w-64">
-          <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
-            {t("tags:picker.filterLabel")}
-          </Label>
-          <TagFilterPicker
-            id={`${id}-tags`}
-            tagIds={value.tag_ids ?? []}
-            onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
-            placeholder={t("tags:picker.anyTag")}
-          />
-        </div>
-      ) : null}
+      <div className="w-full space-y-2 sm:w-64">
+        <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
+          {t("tags:picker.filterLabel")}
+        </Label>
+        <TagFilterPicker
+          id={`${id}-tags`}
+          tagIds={value.tag_ids ?? []}
+          onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
+          placeholder={t("tags:picker.anyTag")}
+        />
+      </div>
       {children}
     </div>
   );
 };
 
-const searchAndTags =
-  (tool: Tool, placeholder: string, tags = true) =>
-  (props: ToolFilterFieldsProps) => (
-    <SearchTagFields tool={tool} placeholder={placeholder} tags={tags} {...props} />
+/** A queue list's status choices, each with the `is_active` it sends. */
+const QUEUE_STATUSES = [
+  { value: "all", isActive: undefined, label: "filters.allStatuses" },
+  { value: "active", isActive: true, label: "filters.activeOnly" },
+  { value: "inactive", isActive: false, label: "filters.inactiveOnly" },
+] as const;
+
+/** A queue list is also narrowed to running or stopped queues. */
+const QueueFilterFields = ({
+  value,
+  onChange,
+  children,
+}: ToolFilterFieldsProps<typeof Tool.queue>) => {
+  const { t } = useTranslation("queues");
+  const id = useId();
+  const status = QUEUE_STATUSES.find((s) => s.isActive === (value.is_active ?? undefined));
+
+  return (
+    <SearchTagFields
+      tool={Tool.queue}
+      placeholder="filters.searchQueues"
+      value={value}
+      onChange={onChange}
+    >
+      <div className="w-full space-y-2 sm:w-48">
+        <Label htmlFor={`${id}-status`} className="block font-medium text-muted-foreground text-xs">
+          {t("filters.status")}
+        </Label>
+        <Select
+          value={status?.value}
+          onValueChange={(next) =>
+            onChange({
+              ...value,
+              is_active: QUEUE_STATUSES.find((s) => s.value === next)?.isActive,
+            })
+          }
+        >
+          <SelectTrigger id={`${id}-status`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {QUEUE_STATUSES.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {t(s.label)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {children}
+    </SearchTagFields>
   );
+};
+
+const searchAndTags = (tool: Tool, placeholder: string) => (props: ToolFilterFieldsProps) => (
+  <SearchTagFields tool={tool} placeholder={placeholder} {...props} />
+);
 
 /** Every tool's filter fields. A mapped type over the tool enum, so a new tool
  *  has to say how its list is narrowed. */
 const TOOL_FILTER_FIELDS: { [T in Tool]: ComponentType<ToolFilterFieldsProps<T>> } = {
   [Tool.project]: searchAndTags(Tool.project, "filters.searchProjects"),
   [Tool.document]: DocumentFilterFields,
-  [Tool.queue]: searchAndTags(Tool.queue, "filters.searchQueues"),
+  [Tool.queue]: QueueFilterFields,
   [Tool.counter_group]: searchAndTags(Tool.counter_group, "filters.searchGroups"),
   [Tool.calendar]: searchAndTags(Tool.calendar, "filters.searchCalendars"),
   [Tool.dashboard]: searchAndTags(Tool.dashboard, "filters.searchDashboards"),
-  // The board's list takes tags, but its filter bar doesn't offer them yet.
-  [Tool.post]: searchAndTags(Tool.post, "filters.searchPosts", false),
+  [Tool.post]: searchAndTags(Tool.post, "filters.searchPosts"),
   [Tool.gallery]: searchAndTags(Tool.gallery, "filters.searchGalleries"),
   [Tool.wiki]: searchAndTags(Tool.wiki, "filters.searchWikis"),
 };

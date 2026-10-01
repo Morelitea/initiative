@@ -18,7 +18,11 @@ import { LayoutGrid, List, Pin as PinIcon } from "lucide-react";
 import { type HTMLAttributes, type MouseEvent, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type ListProjectsApiV1CGuildIdProjectsGetParams,
+  type ProjectRead,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessBar } from "@/components/access/BulkAccessBar";
 import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
@@ -41,10 +45,9 @@ import { useReorderProjects } from "@/hooks/useProjects";
 import { everyCan } from "@/lib/permissions";
 
 type ProjectListPanelProps = {
-  /** The projects this tab lists — active, templates, or archived. */
-  projects: ProjectRead[];
-  isLoading: boolean;
-  isError: boolean;
+  /** Which list this tab reads — its initiative, and active, templates, or
+   *  archived. */
+  params: ListProjectsApiV1CGuildIdProjectsGetParams;
   loadingLabel: string;
   errorLabel: string;
   /** Rendered when the tab has no projects at all. */
@@ -81,9 +84,7 @@ type ProjectListPanelProps = {
  * get the same cards, filters, sorting, and bulk actions the active list has.
  */
 export const ProjectListPanel = ({
-  projects,
-  isLoading,
-  isError,
+  params,
   loadingLabel,
   errorLabel,
   emptyState,
@@ -100,7 +101,7 @@ export const ProjectListPanel = ({
 }: ProjectListPanelProps) => {
   const { t } = useTranslation(["projects", "access", "common"]);
   const view = useProjectListView({
-    projects,
+    params,
     storagePrefix,
     allowCustomSort: sortable,
     separatePinned: sortable,
@@ -160,7 +161,9 @@ export const ProjectListPanel = ({
   );
 
   const listClassName = viewMode === "list" ? "space-y-3" : "grid gap-4 md:grid-cols-2";
-  const draggable = sortable && view.sortMode === "custom" && !selection.active;
+  // A manual order covers the whole list, so a searched or tagged one, which
+  // holds only part of it, is not dragged.
+  const draggable = sortable && view.sortMode === "custom" && !selection.active && !view.narrowed;
 
   const projectItems = selection.active ? (
     <div className={listClassName}>
@@ -242,7 +245,7 @@ export const ProjectListPanel = ({
 
       <ProjectsFilterBar {...view.filterBarProps} />
 
-      {isLoading ? (
+      {view.isLoading ? (
         <SkeletonRegion label={loadingLabel}>
           {viewMode === "list" ? (
             <ListSkeleton rows={4} avatar={false} rowClassName="rounded-lg border bg-card p-4" />
@@ -250,12 +253,14 @@ export const ProjectListPanel = ({
             <CardGridSkeleton count={4} className="grid gap-4 md:grid-cols-2" />
           )}
         </SkeletonRegion>
-      ) : isError ? (
+      ) : view.isError ? (
         <p className="text-destructive text-sm">{errorLabel}</p>
-      ) : projects.length === 0 ? (
-        emptyState
       ) : filteredProjects.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{noMatchesLabel}</p>
+        view.activeFilterCount > 0 ? (
+          <p className="text-muted-foreground text-sm">{noMatchesLabel}</p>
+        ) : (
+          emptyState
+        )
       ) : (
         <>
           {selection.active ? (

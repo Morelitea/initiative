@@ -264,7 +264,10 @@ describe("ExportWizard", () => {
     server.use(
       guildHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
-        return HttpResponse.json(ESTIMATE);
+        return HttpResponse.json({
+          ...ESTIMATE,
+          tools: { ...ESTIMATE.tools, queue: { count: 6, disabled: false } },
+        });
       })
     );
     let sent: URL | null = null;
@@ -291,7 +294,17 @@ describe("ExportWizard", () => {
     await user.click(within(projects).getByRole("button", { name: "Filter Projects" }));
     await user.click(within(projects).getByRole("radio", { name: "Active" }));
 
-    const expected = { calendar: { search: "standup" }, project: { archived: false } };
+    // Stopped queues, by the queue list's own status filter.
+    const queues = screen.getByRole("group", { name: "Queues" });
+    await user.click(within(queues).getByRole("button", { name: "Filter Queues" }));
+    await user.click(within(queues).getByRole("combobox", { name: "Status" }));
+    await user.click(await screen.findByRole("option", { name: "Inactive" }));
+
+    const expected = {
+      calendar: { search: "standup" },
+      project: { archived: false },
+      queue: { is_active: false },
+    };
     await waitFor(() =>
       expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
     );
@@ -299,6 +312,7 @@ describe("ExportWizard", () => {
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Calendar: “standup”")).toBeInTheDocument();
     expect(screen.getByText("Projects: Active only")).toBeInTheDocument();
+    expect(screen.getByText("Queues: 1 more filter")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /start export/i }));
     await waitFor(() => expect(sent).not.toBeNull());
@@ -310,7 +324,10 @@ describe("ExportWizard", () => {
     server.use(
       guildHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
-        return HttpResponse.json(ESTIMATE);
+        return HttpResponse.json({
+          ...ESTIMATE,
+          tools: { ...ESTIMATE.tools, queue: { count: 6, disabled: false } },
+        });
       })
     );
     let sent: URL | null = null;

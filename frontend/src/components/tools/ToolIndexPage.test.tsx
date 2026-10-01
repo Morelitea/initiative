@@ -5,8 +5,8 @@
  * its own copy of these tests. The cases come from the page's own `TOOL_INDEX`:
  * add a tool with an entry and it is covered here the moment it exists.
  *
- * What is tool-specific stays where it belongs — the queue's status select and
- * the wiki's tag picker are tested with their tools, not here.
+ * What only one tool's list takes — a queue's status — is asked of that tool
+ * alone, at the bottom.
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -18,7 +18,7 @@ import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   type ToolIndexEntry,
   ToolIndexPage,
@@ -75,9 +75,9 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
 });
 
 /**
- * Serve the tool's list endpoint, honouring the two things the page can ask
- * for: which archive state, and a search. A tool that searches in the browser
- * simply never sends the second, and narrows the same payload itself.
+ * Serve the tool's list endpoint, honouring the two things every tool's page
+ * can ask for: which archive state, and a search. Every request is kept, so a
+ * test can read what the page sent.
  */
 const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
   const requests: URLSearchParams[] = [];
@@ -150,21 +150,28 @@ describe("the tool index page", () => {
     expect(button).toHaveAttribute("aria-expanded", "true");
   });
 
-  it.each(CASES)("$tool says so when the search matches nothing", async ({ tool, entry }) => {
-    stubList(tool, [row(tool, { id: 1, name: "Findable" })]);
+  it.each(CASES)(
+    "$tool searches on the server, and says so when nothing matches",
+    async ({ tool, entry }) => {
+      const requests = stubList(tool, [row(tool, { id: 1, name: "Findable" })]);
 
-    renderIndex(tool);
-    expect(await screen.findByText("Findable")).toBeInTheDocument();
+      renderIndex(tool);
+      expect(await screen.findByText("Findable")).toBeInTheDocument();
 
-    await userEvent.type(
-      screen.getByLabelText(i18n.t("filters.searchLabel", { ns: entry.text.ns })),
-      "nothing here"
-    );
+      await userEvent.type(
+        screen.getByLabelText(i18n.t("filters.searchLabel", { ns: entry.text.ns })),
+        "nothing here"
+      );
 
-    // Not the empty shelf: the tool has rows, they are just not these.
-    expect(await screen.findByText(copy(entry, "noMatches"))).toBeInTheDocument();
-    expect(screen.queryByText(copy(entry, "emptyTitle"))).not.toBeInTheDocument();
-  });
+      // Not the empty shelf: the tool has rows, they are just not these.
+      expect(await screen.findByText(copy(entry, "noMatches"))).toBeInTheDocument();
+      expect(screen.queryByText(copy(entry, "emptyTitle"))).not.toBeInTheDocument();
+      // Sent once, after the typing stopped, rather than once a keystroke.
+      expect(requests.map((params) => params.get("search")).filter(Boolean)).toEqual([
+        "nothing here",
+      ]);
+    }
+  );
 
   it.each(CASES)("$tool is created from the shared dialog", async ({ tool, entry }) => {
     stubList(tool, []);
@@ -218,5 +225,30 @@ describe("the tool index page", () => {
     const dot = await screen.findByRole("img", { name: translate("guilds:unreadHere") });
     expect(screen.getAllByRole("img", { name: translate("guilds:unreadHere") })).toHaveLength(1);
     expect(dot.parentElement).toHaveTextContent("Talked about");
+  });
+});
+
+describe("the queue index page", () => {
+  it("sends the status filter as is_active", async () => {
+    const requests = stubList(Tool.queue, [row(Tool.queue, { id: 1, name: "Running" })]);
+    const pick = async (label: string) => {
+      await userEvent.click(
+        screen.getByRole("combobox", { name: translate("filters.status", { ns: "queues" }) })
+      );
+      await userEvent.click(
+        await screen.findByRole("option", { name: translate(label, { ns: "queues" }) })
+      );
+    };
+
+    renderIndex(Tool.queue);
+    await screen.findByText("Running");
+    await userEvent.click(screen.getByRole("button", { name: shared("toolbar.filters") }));
+
+    await pick("filters.inactiveOnly");
+    await waitFor(() => expect(requests.at(-1)?.get("is_active")).toBe("false"));
+    await pick("filters.activeOnly");
+    await waitFor(() => expect(requests.at(-1)?.get("is_active")).toBe("true"));
+    await pick("filters.allStatuses");
+    await waitFor(() => expect(requests.at(-1)?.has("is_active")).toBe(false));
   });
 });
