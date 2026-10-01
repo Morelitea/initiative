@@ -1144,23 +1144,6 @@ async def get_guild_auth_settings(
     return await _auth_settings_response(seat_session, system_session, guild_id)
 
 
-@router.get("/{guild_id}/auth-policy", response_model=GuildAuthPolicyRead)
-async def get_guild_auth_policy(
-    guild_id: int,
-    _guild_context: SettingsAdminContextDep,
-    system_session: SystemSessionDep,
-) -> GuildAuthPolicyRead:
-    """The guild's sign-in requirement. Guild admin only (the settings UI);
-    a blocked session learns the required provider from the step-up 401's
-    header, not from here.
-
-    Readable whatever the guild's entitlement, because a requirement stays
-    enforced through changes to it (the gate in ``deps.py`` and
-    ``public.guild_auth_satisfied()`` read the policy row and nothing else).
-    An admin who cannot see what is set cannot clear it."""
-    return await _auth_policy_response(system_session, guild_id)
-
-
 async def _auth_policy_response(
     system_session: AsyncSession, guild_id: int
 ) -> GuildAuthPolicyRead:

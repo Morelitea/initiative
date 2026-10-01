@@ -104,10 +104,10 @@ async def test_a_settings_grant_reaches_settings_and_no_content(
     headers = get_auth_headers(support)
 
     # The community's own configuration: reachable.
-    policy = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+    rules = await client.get(
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=headers
     )
-    assert policy.status_code == 200, policy.text
+    assert rules.status_code == 200, rules.text
 
     # Its content: not. A settings grant carries no content level at all, so
     # the guild's initiatives are not this grantee's to read.
@@ -581,10 +581,11 @@ async def test_the_lent_seat_lifts_the_communitys_sign_in_requirement(
     # Read back through the surface rather than the setup session, which is
     # holding its own view of the row this just removed.
     after = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=get_auth_headers(support)
+        f"/api/v1/communities/{guild.id}/auth-settings",
+        headers=get_auth_headers(support),
     )
     assert after.status_code == 200, after.text
-    assert after.json()["policy"] == "open"
+    assert after.json()["auth_policy"]["policy"] == "open"
 
 
 async def test_a_lent_seat_reads_the_sign_in_rule_and_does_not_change_it(
@@ -603,10 +604,10 @@ async def test_a_lent_seat_reads_the_sign_in_rule_and_does_not_change_it(
     headers = get_auth_headers(support)
 
     read = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=headers
     )
     assert read.status_code == 200, read.text
-    assert read.json()["policy"] != "open"
+    assert read.json()["auth_policy"]["policy"] != "open"
 
     refused = await client.patch(
         f"/api/v1/communities/{guild.id}/auth-settings",

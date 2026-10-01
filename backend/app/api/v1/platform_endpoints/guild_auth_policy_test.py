@@ -67,13 +67,8 @@ def _sat_headers(user: User, provider_ids: list[int]) -> dict[str, str]:
     )
 
 
-def _policy(guild_id: int) -> str:
-    """One community's sign-in requirement, as its admins read it."""
-    return f"/api/v1/communities/{guild_id}/auth-policy"
-
-
 def _settings(guild_id: int) -> str:
-    """The surface the seat holds, where the requirement is written."""
+    """The surface the seat holds: one community's sign-in rules."""
     return f"/api/v1/communities/{guild_id}/auth-settings"
 
 
@@ -106,8 +101,8 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
         "factor_required_by_platform": False,
     }
 
-    got = await client.get(_policy(guild_id), headers=headers)
-    assert got.json()["policy"] == "required"
+    got = await client.get(_settings(guild_id), headers=headers)
+    assert got.json()["auth_policy"]["policy"] == "required"
 
     cleared = await client.patch(
         _settings(guild_id), headers=headers, json={"auth_policy": {"policy": "open"}}
@@ -227,10 +222,10 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
     headers = _sat_headers(seat.user, [provider.id])
     guild_id, provider_id = guild.id, provider.id
 
-    got = await client.get(_policy(guild_id), headers=headers)
+    got = await client.get(_settings(guild_id), headers=headers)
     assert got.status_code == 200
-    assert got.json()["policy"] == "required"
-    assert got.json()["provider_slug"] == "corp"
+    assert got.json()["auth_policy"]["policy"] == "required"
+    assert got.json()["auth_policy"]["provider_slug"] == "corp"
 
     put = await client.patch(
         _settings(guild_id),
@@ -429,21 +424,21 @@ async def _a_seat_and_a_requirement(session: AsyncSession, acting_user) -> Actor
     return keyholder
 
 
-async def test_an_ordinary_admin_reads_the_seats_surfaces_but_writes_neither(
+async def test_an_ordinary_admin_reads_the_connections_and_writes_neither(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The split in one test, across both surfaces the seat holds: an admin who
-    cannot see what is set cannot ask for it to be changed, so reading the
-    requirement and the connections is theirs. Deciding who may enter, and
-    which providers the community signs in through, is not."""
+    """The split in one test, across both surfaces the seat holds: reading the
+    connections is an admin's, so they can see which providers the community
+    signs in through. Deciding who may enter, and through which providers, is
+    not, and neither is reading the sign-in rules."""
     keyholder = await _a_seat_and_a_requirement(session, acting_user)
     admin = await acting_user(guild_role=GuildRole.admin, guild=keyholder.guild)
     guild_id = keyholder.guild.id
     connections = f"/api/v1/communities/{guild_id}/auth/connections"
 
-    read = await client.get(_policy(guild_id), headers=admin.headers)
-    assert read.status_code == 200
-    assert read.json()["policy"] == "required"
+    read = await client.get(_settings(guild_id), headers=admin.headers)
+    assert read.status_code == 403
+    assert read.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
 
     listed = await client.get(connections, headers=admin.headers)
     assert listed.status_code == 200
@@ -1261,7 +1256,7 @@ async def test_a_community_is_told_when_the_deployment_asks_everybody(
     # so they hold one — which is the state the page is read in.
     session.add(UserTotp(user_id=seat.user.id, confirmed_at=datetime.now(timezone.utc)))
     await session.commit()
-    url = _policy(seat.guild.id)
+    url = _settings(seat.guild.id)
 
     row = await app_settings_service.get_app_settings(session)
     for level, told in (
@@ -1275,7 +1270,7 @@ async def test_a_community_is_told_when_the_deployment_asks_everybody(
         read = await client.get(url, headers=seat.headers)
 
         assert read.status_code == 200, read.text
-        assert read.json()["factor_required_by_platform"] is told
+        assert read.json()["auth_policy"]["factor_required_by_platform"] is told
 
 
 # --- a second factor, asked for on its own -----------------------------------
@@ -1335,3 +1330,28 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     assert await asked()
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     assert not await asked()
+
+
+async def test_a_refused_rule_leaves_the_communitys_others_as_they_were(
+    client, session: AsyncSession, acting_user
+):
+    """One change across the seat's rules: switching keys off beside a factor
+    the seat has not presented is refused as a whole, and a mixed change the
+    seat meets is written as a whole."""
+    seat = await acting_user(guild_role=GuildRole.superadmin)
+    await guild_administration(session, seat.guild, auth_options=["restrictions"])
+    body = {"allow_api_keys": False, "require_second_factor": True}
+
+    refused = await client.patch(
+        _settings(seat.guild.id), json=body, headers=seat.headers
+    )
+    assert refused.status_code == 400, refused.text
+    read = await client.get(_settings(seat.guild.id), headers=seat.headers)
+    assert read.json()["allow_api_keys"] is True
+    assert read.json()["require_second_factor"] is False
+
+    met = _bearer(get_auth_token(seat.user, amr=[SECOND_FACTOR_AMR]))
+    written = await client.patch(_settings(seat.guild.id), json=body, headers=met)
+    assert written.status_code == 200, written.text
+    assert written.json()["allow_api_keys"] is False
+    assert written.json()["require_second_factor"] is True

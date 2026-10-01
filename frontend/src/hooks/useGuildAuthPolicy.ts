@@ -78,20 +78,19 @@ export const useGuildAuthSettings = (
 };
 
 /**
- * Change any of the seat page's rules. The response is the same read the page
- * renders from, so it goes straight into that query's cache.
+ * Change any of the seat page's rules, then read them all back. Two switches
+ * saved together can answer out of order, so the page rereads what the server
+ * holds rather than taking either answer as the latest.
  */
 export const useUpdateGuildAuthSettings = (guildId: number) => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: GuildAuthSettingsUpdate) =>
       updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch(guildId, data),
-    onSuccess: (data) => {
-      queryClient.setQueryData(
-        getGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGetQueryKey(guildId),
-        data
-      );
-    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: getGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGetQueryKey(guildId),
+      }),
   });
 };
 

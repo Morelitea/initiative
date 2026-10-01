@@ -754,3 +754,39 @@ async def test_the_change_is_recorded(
 
     assert len(rows) == 1
     assert rows[0]["detail"] == {"from": "nobody", "to": "everyone"}
+
+
+async def test_several_rules_change_together(
+    client: AsyncClient, session: AsyncSession
+):
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
+
+    written = await client.patch(
+        URL,
+        headers=headers,
+        json={"second_factor_requirement": "everyone", "session_max_hours": 12},
+    )
+
+    assert written.status_code == 200, written.text
+    assert written.json()["second_factor_requirement"] == "everyone"
+    assert written.json()["session_max_hours"] == 12
+
+
+async def test_a_refused_rule_leaves_the_others_as_they_were(
+    client: AsyncClient, session: AsyncSession
+):
+    """One change: the limit beside a requirement its writer does not meet is
+    not written either."""
+    owner, headers = await _owner(session)
+
+    refused = await client.patch(
+        URL,
+        headers=headers,
+        json={"session_max_hours": 12, "second_factor_requirement": "everyone"},
+    )
+    assert refused.status_code == 400, refused.text
+
+    read = (await client.get(URL, headers=headers)).json()
+    assert read["session_max_hours"] is None
+    assert read["second_factor_requirement"] == "nobody"
