@@ -356,7 +356,7 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
               variant="outline"
               size="sm"
               disabled={!data.has_prev}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => setPage(data.page - 1)}
             >
               {t("common:previous")}
             </Button>
@@ -367,7 +367,7 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
               variant="outline"
               size="sm"
               disabled={!data.has_next}
-              onClick={() => setPage((p) => p + 1)}
+              onClick={() => setPage(data.page + 1)}
             >
               {t("common:next")}
             </Button>

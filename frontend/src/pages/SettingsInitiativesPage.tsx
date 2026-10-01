@@ -36,7 +36,7 @@ import {
   useAddInitiativeMember,
   useDeleteInitiative,
   useGuildInitiatives,
-  useInitiativeRoster,
+  useInitiativeManagers,
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
@@ -50,10 +50,6 @@ import { cn } from "@/lib/utils";
 
 const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
 const NONE: never[] = [];
-
-/** The most managers one row's picker reads: the largest page the roster
- *  endpoint serves. */
-const MANAGERS_PAGE_SIZE = 100;
 
 /**
  * Per-row project-manager picker — how a guild admin staffs an initiative, and
@@ -71,10 +67,7 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 250);
   const rolesQuery = useInitiativeRoles(initiative.id);
-  const rosterQuery = useInitiativeRoster(initiative.id, {
-    is_manager: true,
-    page_size: MANAGERS_PAGE_SIZE,
-  });
+  const managersQuery = useInitiativeManagers(initiative.id);
 
   // Candidates are the guild's members matching what was typed, asked of the
   // server once the picker is open.
@@ -101,11 +94,11 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
   // unticked. What unticking does depends on whether they are a guild admin,
   // which the guild answers by id.
   const managers = useMemo<MemberLike[]>(
-    () => (rosterQuery.data?.items ?? []).map((m) => m.user),
-    [rosterQuery.data]
+    () => (managersQuery.data ?? []).map((m) => m.user),
+    [managersQuery.data]
   );
   const managerIds = useMemo(() => new Set(managers.map((m) => m.id)), [managers]);
-  const managerCount = rosterQuery.data?.total_count ?? 0;
+  const managerCount = managers.length;
   const managerIdList = useMemo(() => [...managerIds], [managerIds]);
   const knownManagers = useSeenMembers(
     GUILD_SCOPE,
@@ -155,13 +148,13 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) 
     }
   };
 
-  if (rolesQuery.isLoading || rosterQuery.isLoading) {
+  if (rolesQuery.isLoading || managersQuery.isLoading) {
     return <Skeleton className="h-9 w-36" />;
   }
 
   // An unusable picker must say so rather than sit on a spinner that never
   // resolves.
-  if (rolesQuery.isError || rosterQuery.isError || !managerRole) {
+  if (rolesQuery.isError || managersQuery.isError || !managerRole) {
     return (
       <TooltipProvider delayDuration={200}>
         <Tooltip>

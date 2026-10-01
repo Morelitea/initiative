@@ -9,6 +9,7 @@ import type {
   InitiativeJoinRequestCreate,
   InitiativeJoinRequestRead,
   InitiativeMemberListResponse,
+  InitiativeMemberRead,
   InitiativeRead,
   JoinRequestStatus,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -191,6 +192,38 @@ export const useInitiativeRoster = (
     // Keep the page on screen while the next one (or the next search) loads.
     placeholderData: keepPreviousData,
     ...rest,
+  });
+};
+
+/**
+ * Every manager of an initiative, read a page at a time until the roster has
+ * no more. Managers are few, and a picker that ticks and unticks them needs
+ * all of them to know which is which.
+ */
+export const useInitiativeManagers = (initiativeId: number) => {
+  const guildId = useActiveGuildId();
+  const params = { is_manager: true, page_size: 100 };
+  return useQuery<InitiativeMemberRead[]>({
+    queryKey: [
+      ...getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey(
+        guildId,
+        initiativeId,
+        params
+      ),
+      "every page",
+    ],
+    queryFn: async () => {
+      const managers: InitiativeMemberRead[] = [];
+      for (let page = 1; ; page += 1) {
+        const response = await getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet(
+          guildId,
+          initiativeId,
+          { ...params, page }
+        );
+        managers.push(...response.items);
+        if (!response.has_next) return managers;
+      }
+    },
   });
 };
 
