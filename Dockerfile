@@ -1,9 +1,11 @@
-FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS frontend-build
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS frontend-deps
 WORKDIR /frontend
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN apk add --no-cache zip
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
+
+FROM frontend-deps AS frontend-build
 COPY frontend .
 COPY VERSION /VERSION
 COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
@@ -47,6 +49,13 @@ WORKDIR /app
 # test/lint tooling out of the runtime image.
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 RUN uv sync --frozen --no-dev
+
+# The stages that depend on the lockfiles alone, which is all the CI build cache
+# keeps (docker-image.yml): every other layer differs from one build to the
+# next. Nothing ships from here, and an image build never builds it.
+FROM scratch AS dependencies
+COPY --from=frontend-deps /frontend/package.json /frontend/
+COPY --from=backend-deps /app/pyproject.toml /backend/
 
 FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS backend-runtime
 ARG VERSION=0.1.0

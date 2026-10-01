@@ -16,6 +16,9 @@ runs:
         version: "0.11.21"
         enable-cache: true
         cache-dependency-glob: backend/uv.lock
+        # Saved from pushes only: a pull request's cache is readable by that
+        # pull request alone, and saving one per pull request evicts dev's.
+        save-cache: ${{ github.event_name == 'push' }}
 
     - name: Install backend dependencies
       shell: bash

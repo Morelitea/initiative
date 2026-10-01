@@ -109,6 +109,23 @@ jobs:
             exit 1
           fi
 
+      - name: Cache the dependency stages
+        # Every other layer differs from one build to the next: the runtime
+        # stage refreshes its packages each time (APT_REFRESH), and a dev build
+        # stamps its commit into the frontend. So the cache is written from
+        # the stages built from the lockfiles alone, and the build below reads
+        # it without writing; layers nothing reads back would push out the
+        # ones something does.
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          target: dependencies
+          outputs: type=cacheonly
+          cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }},mode=max
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -129,7 +146,6 @@ jobs:
           secret-envs: ${{ inputs.signing-environment != '' && 'ota_signing_key=OTA_SIGNING_KEY' || '' }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }}
-          cache-to: type=gha,scope=docker-build-${{ env.PLATFORM_PAIR }},mode=max
 
       - name: Export digest
         env:
