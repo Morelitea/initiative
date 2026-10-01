@@ -1323,6 +1323,19 @@ async def get_tool_counts(
             detail=QueryMessages.UNKNOWN_VIEW,
         )
     scope = {"initiative_id": initiative_id}
+    # Checked whether or not the tag counts are asked for. The tree shows
+    # every tag, so tags are what it counts, not what it narrows by; and what
+    # the views select by (the archive, templates) is the view's to say.
+    set_aside = {
+        "tag_ids",
+        "untagged",
+        *(key for v in spec.views.values() for key in v),
+    }
+    narrowing = {
+        name: value
+        for name, value in _list_filters(tool, filters).items()
+        if name not in set_aside
+    }
 
     view_counts = (
         await session.exec(
@@ -1353,13 +1366,7 @@ async def get_tool_counts(
             current_user,
             guild_context,
             **scope,
-            # The tree shows every tag, so tags are what it counts, not what
-            # it narrows by.
-            **{
-                name: value
-                for name, value in _list_filters(tool, filters).items()
-                if name not in ("tag_ids", "untagged")
-            },
+            **narrowing,
             **spec.views[view],
         )
     )

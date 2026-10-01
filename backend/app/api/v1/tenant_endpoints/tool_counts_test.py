@@ -125,12 +125,24 @@ async def test_the_tag_tree_counts_the_view_shown(
         filters=json.dumps({"search": "no row is called this"}),
     )
     assert (nothing["tag_counts"], nothing["untagged_count"]) == ({}, 0)
-    refused = await client.get(
-        actor.g(f"/tools/{tool.value}/counts"),
-        headers=actor.headers,
-        params={"include_tags": True, "filters": json.dumps({"page": 2})},
+    # The view decides its own archive leg, whatever the filters say.
+    overlapping = await _counts(
+        client,
+        actor,
+        tool,
+        initiative_id=home.id,
+        include_tags=True,
+        filters=json.dumps({"archived": True}),
     )
-    assert refused.status_code == 400
+    assert overlapping["tag_counts"] == live["tag_counts"]
+    # A malformed filter is refused whether or not the tree is asked for.
+    for include_tags in (True, False):
+        refused = await client.get(
+            actor.g(f"/tools/{tool.value}/counts"),
+            headers=actor.headers,
+            params={"include_tags": include_tags, "filters": json.dumps({"page": 2})},
+        )
+        assert refused.status_code == 400, include_tags
 
 
 @TOOLS
