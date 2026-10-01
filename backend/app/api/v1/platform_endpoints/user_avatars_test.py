@@ -17,6 +17,7 @@ from app.models.platform.user_avatar import UserAvatar
 from app.services.platform import user_avatars as service
 from app.services.platform.user_avatars_test import jpeg, png
 from app.testing.factories import create_user, get_auth_headers
+from app.testing import drain_notices
 
 
 async def _assume(session, tier: str, user_id: int) -> None:
@@ -155,6 +156,7 @@ async def test_a_moderator_takes_a_picture_down_and_the_owner_is_told(
     assert (
         await session.exec(select(UserAvatar).where(UserAvatar.user_id == owner.id))
     ).first() is None
+    await drain_notices()
     notifications = (
         await session.exec(select(Notification).where(Notification.user_id == owner.id))
     ).all()
@@ -377,7 +379,7 @@ async def test_a_takedown_and_its_notice_are_one_write(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """The person being told is part of the takedown, not a step after it."""
-    from app.services.platform import user_notifications
+    from app.services.platform import notice_outbox
 
     owner = await create_user(session)
     moderator = await create_user(session, role=UserRole.moderator)
@@ -386,7 +388,7 @@ async def test_a_takedown_and_its_notice_are_one_write(
     async def boom(*args, **kwargs):
         raise RuntimeError("notification store is down")
 
-    monkeypatch.setattr(user_notifications, "create_notification", boom)
+    monkeypatch.setattr(notice_outbox, "enqueue", boom)
 
     with pytest.raises(RuntimeError):
         await client.delete(

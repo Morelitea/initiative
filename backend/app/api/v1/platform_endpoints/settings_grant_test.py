@@ -405,7 +405,7 @@ async def test_a_combined_conflict_sends_no_external_notification(
     assert existing.status_code == 201, existing.text
 
     send = AsyncMock()
-    monkeypatch.setattr(access_grants_service, "_push_and_email", send)
+    monkeypatch.setattr(access_grants_service, "_tell", send)
     response = await client.post(
         "/api/v1/access-grants/",
         headers=headers,

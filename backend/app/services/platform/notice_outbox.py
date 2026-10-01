@@ -23,19 +23,23 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Sequence, cast
 
 from sqlalchemy import delete, func, insert, text, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.notification_categories import category_of
 from app.db.request_context import Unattributed
 from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
+from app.services import email as email_service
 from app.services.platform import (
+    email_outbox,
     notification_policy,
     notification_prefs,
+    push_config,
     push_notifications,
 )
 
@@ -104,6 +108,54 @@ def row(
         "deliver_after": now,
         **fields,
     }
+
+
+async def notice(
+    session: AsyncSession,
+    recipient: User,
+    notification_type: NotificationType,
+    data: Mapping[str, Any],
+    *,
+    guild_id: int | None,
+    push: tuple[str, str] | None = None,
+    push_data: Mapping[str, Any] | None = None,
+    email: email_service.EmailPieces | None = None,
+    **fields: Any,
+) -> dict[str, Any]:
+    """One recipient's row, holding no more than the notice may say.
+
+    The deployment's and the community's switches are applied here: a channel
+    either has switched off is left empty, and where either redacts, the push
+    and the email say the kind of thing that happened rather than what it was
+    about. Whether the recipient wants each channel is the worker's question.
+    """
+    policy = await notification_policy.for_send(session, guild_id)
+    locale = getattr(recipient, "locale", None) or "en"
+    if push is not None and not (
+        policy.push and (await push_config.ensure_push_config_fresh()).enabled
+    ):
+        push = None
+    if push is not None and policy.redact:
+        push = notification_policy.redacted_push(notification_type, locale)
+    if email is not None and not policy.email:
+        email = None
+    if email is not None and policy.redact:
+        email = email_outbox.redacted(email, category_of(notification_type), locale)
+    return row(
+        cast(int, recipient.id),
+        guild_id,
+        notification_type,
+        data,
+        push_title=push[0] if push else None,
+        push_body=push[1] if push else None,
+        push_data=dict(push_data or {}) if push else None,
+        email_subject=email.subject if email else None,
+        email_headline=email.headline if email else None,
+        email_body=email.body if email else None,
+        email_link=email.link if email else None,
+        email_link_label=email.link_label if email else None,
+        **fields,
+    )
 
 
 async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> None:

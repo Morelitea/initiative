@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Optional, Sequence
+from typing import Optional, Sequence, cast
 
 from sqlalchemy import or_, text
 from sqlmodel import select
@@ -49,8 +49,7 @@ from app.services import email as email_service
 from app.services.auth import addresses
 from app.services.platform import auth_posture
 from app.services.platform import guilds as guilds_service
-from app.services.platform import push_notifications
-from app.services.platform import user_notifications
+from app.services.platform import notice_outbox
 from app.core.user_display import display_name
 from app.core.clock import utcnow
 
@@ -145,24 +144,26 @@ async def _approvers(session: AsyncSession) -> list[User]:
     return list(result.all())
 
 
-async def _push_and_email(
+async def _tell(
     session: AsyncSession,
     *,
     recipient: User,
     notification_type: NotificationType,
+    lines: Sequence[dict],
     push_key: str,
     email_event: str,
     guild_name: Optional[str],
     levels: Optional[Sequence[str]] = None,
     requester: Optional[str] = None,
 ) -> None:
-    """Best-effort push + email fan-out for a PAM event.
+    """Write down a PAM event for ``recipient``: a bell line for each of
+    ``lines``, with one push and one email riding the first.
 
-    Always attempted (these are operational/security notices with no per-user
-    opt-out); silently no-ops when FCM / SMTP aren't configured, and never lets
-    a delivery failure break the request. ``push_key`` selects the
-    ``accessGrant.<key>`` entry in the ``notifications`` namespace, localized to
-    the recipient.
+    Delivered by the notice worker under the account's own settings, as any
+    other notice is. The email stands whether or not the line has been read:
+    it is a record of somebody acting on the account's access. ``push_key``
+    selects the ``accessGrant.<key>`` entry in the ``notifications`` namespace,
+    localized to the recipient.
 
     ``levels`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
     placeholders that only some body templates contain — ``requester`` is used by
@@ -185,46 +186,44 @@ async def _push_and_email(
         )
     if requester is not None:
         body_vars["requester"] = requester
-    try:
-        await push_notifications.send_push_to_user(
-            session=session,
-            user_id=recipient.id,
-            notification_type=notification_type,
-            title=translate(
-                f"accessGrant.{push_key}.title", locale, namespace="notifications"
+    first, *rest = lines
+    rows = [
+        await notice_outbox.notice(
+            session,
+            recipient,
+            notification_type,
+            first,
+            guild_id=None,
+            push=(
+                translate(
+                    f"accessGrant.{push_key}.title", locale, namespace="notifications"
+                ),
+                translate(
+                    f"accessGrant.{push_key}.body",
+                    locale,
+                    namespace="notifications",
+                    **body_vars,
+                ),
             ),
-            body=translate(
-                f"accessGrant.{push_key}.body",
-                locale,
-                namespace="notifications",
-                **body_vars,
-            ),
-            data={
+            push_data={
                 "type": notification_type.value,
                 "target_path": "/settings/operator/access",
             },
-            locale=locale,
-        )
-    except Exception as exc:  # best effort
-        logger.error("PAM push notification failed: %s", exc, exc_info=True)
-    try:
-        from app.core.notification_categories import category_of
-        from app.services.platform import email_outbox
-
-        await email_outbox.enqueue(
-            session,
-            recipient,
-            category=category_of(notification_type),
-            pieces=email_service.access_grant_pieces(
+            email=email_service.access_grant_pieces(
                 recipient,
                 event=email_event,
                 guild_name=guild_name or "a guild",
                 levels=levels,
                 requester=requester,
             ),
+            email_names_line=False,
         )
-    except Exception as exc:  # best effort
-        logger.error("PAM email notification failed: %s", exc, exc_info=True)
+    ]
+    rows += [
+        notice_outbox.row(cast(int, recipient.id), None, notification_type, line)
+        for line in rest
+    ]
+    await notice_outbox.enqueue(session, rows)
 
 
 async def request_grants(
@@ -291,24 +290,21 @@ async def request_grants(
 
     requester_name = display_name(requester)
     for approver in await _approvers(session):
-        for grant in created:
-            await user_notifications.create_notification(
-                session,
-                user_id=approver.id,
-                notification_type=NotificationType.access_grant_requested,
-                data={
+        await _tell(
+            session,
+            recipient=approver,
+            notification_type=NotificationType.access_grant_requested,
+            lines=[
+                {
                     "grant_id": str(grant.id),
                     "guild_id": str(grant.guild_id),
                     "guild_name": guild.name,
                     "requester_id": str(requester.id),
                     "requester_name": requester_name,
                     "access_level": grant.access_level,
-                },
-            )
-        await _push_and_email(
-            session,
-            recipient=approver,
-            notification_type=NotificationType.access_grant_requested,
+                }
+                for grant in created
+            ],
             push_key="requested",
             email_event="requested",
             guild_name=guild.name,
@@ -447,16 +443,11 @@ async def break_glass(
     # Record the event for the actor (audit/visibility); the row itself is the
     # authoritative audit trail.
     data = await _event_notification_data(session, grant)
-    await user_notifications.create_notification(
-        session,
-        user_id=actor.id,
-        notification_type=NotificationType.access_grant_approved,
-        data=data,
-    )
-    await _push_and_email(
+    await _tell(
         session,
         recipient=actor,
         notification_type=NotificationType.access_grant_approved,
+        lines=[data],
         push_key="approved",
         email_event="approved",
         guild_name=data["guild_name"],
@@ -549,17 +540,12 @@ async def approve(
     await session.flush()
 
     data = await _event_notification_data(session, grant)
-    await user_notifications.create_notification(
-        session,
-        user_id=grant.user_id,
-        notification_type=NotificationType.access_grant_approved,
-        data=data,
-    )
     if grantee is not None:
-        await _push_and_email(
+        await _tell(
             session,
             recipient=grantee,
             notification_type=NotificationType.access_grant_approved,
+            lines=[data],
             push_key="approved",
             email_event="approved",
             guild_name=data["guild_name"],
@@ -583,17 +569,12 @@ async def deny(
 
     grantee = await session.get(User, grant.user_id)
     data = await _event_notification_data(session, grant)
-    await user_notifications.create_notification(
-        session,
-        user_id=grant.user_id,
-        notification_type=NotificationType.access_grant_denied,
-        data=data,
-    )
     if grantee is not None:
-        await _push_and_email(
+        await _tell(
             session,
             recipient=grantee,
             notification_type=NotificationType.access_grant_denied,
+            lines=[data],
             push_key="denied",
             email_event="denied",
             guild_name=data["guild_name"],
@@ -618,17 +599,12 @@ async def revoke(
 
     grantee = await session.get(User, grant.user_id)
     data = await _event_notification_data(session, grant)
-    await user_notifications.create_notification(
-        session,
-        user_id=grant.user_id,
-        notification_type=NotificationType.access_grant_revoked,
-        data=data,
-    )
     if grantee is not None:
-        await _push_and_email(
+        await _tell(
             session,
             recipient=grantee,
             notification_type=NotificationType.access_grant_revoked,
+            lines=[data],
             push_key="revoked",
             email_event="revoked",
             guild_name=data["guild_name"],
