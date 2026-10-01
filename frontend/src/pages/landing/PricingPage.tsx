@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { DarkBand } from "./DarkBand";
 import { LandingShell } from "./LandingShell";
 import { useFrontDoor } from "./useFrontDoor";
+import { usePageMeta } from "./usePageMeta";
 
 /** Never more than four abreast, however many the portal sells. */
 const MAX_COLUMNS = 4;
@@ -220,6 +221,7 @@ const Fact = ({ icon: Icon, title, body }: { icon: LucideIcon; title: string; bo
 export const PricingPage = () => {
   const { t } = useTranslation("landing");
   const { billing, isLoading, sellsPlans, catalog, registrationOpen } = useFrontDoor();
+  usePageMeta(t("meta.pricingTitle"), catalog.data?.subhead ?? t("meta.pricingDescription"));
 
   // Nothing to sell here (no portal, or the phone app): the front page instead.
   if (!isLoading && !sellsPlans) {

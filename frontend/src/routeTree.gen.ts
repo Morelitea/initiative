@@ -36,6 +36,8 @@ import { Route as ServerRequiredAuthenticatedUserStatsRouteImport } from './rout
 import { Route as ServerRequiredInviteCodeRouteImport } from './routes/_serverRequired/invite.$code'
 import { Route as ServerRequiredLegalSlugRouteImport } from './routes/_serverRequired/legal.$slug'
 import { Route as ServerRequiredOidcCallbackRouteImport } from './routes/_serverRequired/oidc.callback'
+import { Route as ServerRequiredWhatsNewIndexRouteImport } from './routes/_serverRequired/whats-new.index'
+import { Route as ServerRequiredWhatsNewVersionRouteImport } from './routes/_serverRequired/whats-new.$version'
 import { Route as ServerRequiredAuthenticatedCGuildIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
 import { Route as ServerRequiredAuthenticatedProfileAccountRouteImport } from './routes/_serverRequired/_authenticated/profile/account'
@@ -318,6 +320,18 @@ const ServerRequiredOidcCallbackRoute =
   ServerRequiredOidcCallbackRouteImport.update({
     id: '/oidc/callback',
     path: '/oidc/callback',
+    getParentRoute: () => ServerRequiredRoute,
+  } as any)
+const ServerRequiredWhatsNewIndexRoute =
+  ServerRequiredWhatsNewIndexRouteImport.update({
+    id: '/whats-new/',
+    path: '/whats-new/',
+    getParentRoute: () => ServerRequiredRoute,
+  } as any)
+const ServerRequiredWhatsNewVersionRoute =
+  ServerRequiredWhatsNewVersionRouteImport.update({
+    id: '/whats-new/$version',
+    path: '/whats-new/$version',
     getParentRoute: () => ServerRequiredRoute,
   } as any)
 const ServerRequiredAuthenticatedCGuildIdRoute =
@@ -1366,6 +1380,8 @@ export interface FileRoutesByFullPath {
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
+  '/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
+  '/whats-new/': typeof ServerRequiredWhatsNewIndexRoute
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
@@ -1525,6 +1541,8 @@ export interface FileRoutesByTo {
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
+  '/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
+  '/whats-new': typeof ServerRequiredWhatsNewIndexRoute
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
@@ -1671,7 +1689,9 @@ export interface FileRoutesById {
   '/_serverRequired/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/_serverRequired/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/_serverRequired/oidc/callback': typeof ServerRequiredOidcCallbackRoute
+  '/_serverRequired/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
   '/_serverRequired/_authenticated/': typeof ServerRequiredAuthenticatedIndexRoute
+  '/_serverRequired/whats-new/': typeof ServerRequiredWhatsNewIndexRoute
   '/_serverRequired/_authenticated/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
   '/_serverRequired/_authenticated/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/_serverRequired/_authenticated/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
@@ -1834,6 +1854,8 @@ export interface FileRouteTypes {
     | '/invite/$code'
     | '/legal/$slug'
     | '/oidc/callback'
+    | '/whats-new/$version'
+    | '/whats-new/'
     | '/c/$guildId'
     | '/profile/account'
     | '/profile/ai'
@@ -1993,6 +2015,8 @@ export interface FileRouteTypes {
     | '/invite/$code'
     | '/legal/$slug'
     | '/oidc/callback'
+    | '/whats-new/$version'
+    | '/whats-new'
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
@@ -2138,7 +2162,9 @@ export interface FileRouteTypes {
     | '/_serverRequired/invite/$code'
     | '/_serverRequired/legal/$slug'
     | '/_serverRequired/oidc/callback'
+    | '/_serverRequired/whats-new/$version'
     | '/_serverRequired/_authenticated/'
+    | '/_serverRequired/whats-new/'
     | '/_serverRequired/_authenticated/c/$guildId'
     | '/_serverRequired/_authenticated/profile/account'
     | '/_serverRequired/_authenticated/profile/ai'
@@ -2469,6 +2495,20 @@ declare module '@tanstack/react-router' {
       path: '/oidc/callback'
       fullPath: '/oidc/callback'
       preLoaderRoute: typeof ServerRequiredOidcCallbackRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/whats-new/': {
+      id: '/_serverRequired/whats-new/'
+      path: '/whats-new'
+      fullPath: '/whats-new/'
+      preLoaderRoute: typeof ServerRequiredWhatsNewIndexRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/whats-new/$version': {
+      id: '/_serverRequired/whats-new/$version'
+      path: '/whats-new/$version'
+      fullPath: '/whats-new/$version'
+      preLoaderRoute: typeof ServerRequiredWhatsNewVersionRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/_authenticated/c/$guildId': {
@@ -4064,6 +4104,8 @@ interface ServerRequiredRouteChildren {
   ServerRequiredInviteCodeRoute: typeof ServerRequiredInviteCodeRoute
   ServerRequiredLegalSlugRoute: typeof ServerRequiredLegalSlugRoute
   ServerRequiredOidcCallbackRoute: typeof ServerRequiredOidcCallbackRoute
+  ServerRequiredWhatsNewVersionRoute: typeof ServerRequiredWhatsNewVersionRoute
+  ServerRequiredWhatsNewIndexRoute: typeof ServerRequiredWhatsNewIndexRoute
   ServerRequiredCommunityGuildIdLoginRoute: typeof ServerRequiredCommunityGuildIdLoginRoute
 }
 
@@ -4082,6 +4124,8 @@ const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
   ServerRequiredInviteCodeRoute: ServerRequiredInviteCodeRoute,
   ServerRequiredLegalSlugRoute: ServerRequiredLegalSlugRoute,
   ServerRequiredOidcCallbackRoute: ServerRequiredOidcCallbackRoute,
+  ServerRequiredWhatsNewVersionRoute: ServerRequiredWhatsNewVersionRoute,
+  ServerRequiredWhatsNewIndexRoute: ServerRequiredWhatsNewIndexRoute,
   ServerRequiredCommunityGuildIdLoginRoute:
     ServerRequiredCommunityGuildIdLoginRoute,
 }
