@@ -88,11 +88,16 @@ _EVEN_STEPS = frozenset({"WEEKLY", "DAILY", "HOURLY"})
 #: How far a walk looks past where it begins for a series' next start, at
 #: the least (``_reach``).
 _REACH = timedelta(days=50 * 365)
-#: How long a counted series' steps may take.
+#: How long a counted series may run from its start.
 _MAX_COUNTED = 100 * _STEP["YEARLY"]
 #: The last second dateutil's calendar holds, and how long the calendar is.
 _LAST = datetime(MAXYEAR, 12, 31, 23, 59, 59)
 _CALENDAR = _LAST - datetime(1, 1, 1)
+
+
+class OutOfReach(ValueError):
+    """A repeat that, from its start, never happens, or doesn't reach its
+    count within a hundred years."""
 
 
 @dataclass(frozen=True)
@@ -197,11 +202,23 @@ def shift_for(text: str, start: datetime, zone: tzinfo) -> int:
 def stored(
     text: str, start: datetime | None, tz: str | None, *, kind: RecurrenceKind
 ) -> tuple[str, int]:
-    """A written rule and its shift: picked in ``tz``, or in UTC without one."""
+    """A written rule and its shift: picked in ``tz``, or in UTC without one.
+    From its start, the rule has to happen, and a counted one to reach its
+    count within a hundred years."""
     rule = normalize(text, kind=kind)
-    if not tz or start is None:
+    if start is None:
         return rule, 0
-    return rule, shift_for(rule, start, resolve_zone(tz))
+    shift = shift_for(rule, start, resolve_zone(tz)) if tz else 0
+    repeat = parse(rule).rule
+    wanted = repeat.get("COUNT", [1])[0]
+    starts = _walk(Recurrence(repeat), start, shift, start)
+    if sum(1 for _ in islice(starts, wanted)) < wanted:
+        raise OutOfReach(
+            "A counted repeat ends within a hundred years of its start."
+            if "COUNT" in repeat
+            else "This repeat never happens."
+        )
+    return rule, shift
 
 
 def _steps(rule: dict[str, list], n: int) -> timedelta:
@@ -255,8 +272,8 @@ def _walk(
 ) -> Iterator[datetime]:
     """The series' starts from ``since`` through ``through``, in order. The
     rule's own starts go as far as ``_reach`` from ``since``, or for a counted
-    series as far as its count reaches from its start; extra starts are dates
-    of their own, with no reach.
+    series a hundred years from its start, which ``stored`` holds its count
+    to; extra starts are dates of their own, with no reach.
 
     dateutil runs the rule from the start moved by ``shift``, where the picked
     days are, and every start is moved back. A series without a count runs
@@ -278,8 +295,7 @@ def _walk(
     lower = here(since, at)
     upper = _LAST if through is None else here(through, at)
     if counted := parts.get("COUNT"):
-        reach = max(_reach(parts), _steps(parts, counted[0]))
-        limit = min(upper, _past(origin, reach))
+        limit = min(upper, _past(origin, _MAX_COUNTED))
     else:
         limit = min(upper, _past(lower, _reach(parts)))
     first = origin

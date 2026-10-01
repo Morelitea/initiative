@@ -264,6 +264,16 @@ def test_a_walk_starts_near_its_window_and_ends_past_it():
         2126, 9, 30, tzinfo=UTC
     )
     assert recurrence.normalize("FREQ=YEARLY;INTERVAL=366;COUNT=1", kind="event")
+    # Saved from its start, a repeat has to happen, and a counted one to reach
+    # its count within a hundred years: a hundred leap days take four hundred.
+    new_year = datetime(2026, 1, 1, tzinfo=UTC)
+    leap_days = "FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29;COUNT="
+    with pytest.raises(recurrence.OutOfReach):
+        recurrence.stored(f"{leap_days}101", new_year, None, kind="event")
+    with pytest.raises(recurrence.OutOfReach):
+        recurrence.stored(never, day, None, kind="event")
+    rule, _ = recurrence.stored(f"{leap_days}20", new_year, None, kind="event")
+    assert recurrence.last_start(rule, new_year) == datetime(2108, 2, 29, tzinfo=UTC)
     extra = "RRULE:FREQ=DAILY;COUNT=3\nRDATE:20800101T000000Z"
     in_2080 = datetime(2080, 1, 1, tzinfo=UTC)
     assert recurrence.last_start(extra, day) == in_2080
