@@ -70,7 +70,7 @@ dev = [
 package = false
 
 [tool.ty.rules]
-# Full default rule set is enforced (CI runs a bare `uv run ty check app`).
+# Full default rule set is enforced (CI runs `scripts/ci/check ty`).
 # Only the rules below are off, because SQLModel models don't use Mapped[]
 # column annotations: class-level attribute access types as the plain Python
 # value (int, datetime, ...), so every ORM expression — Model.field == x,

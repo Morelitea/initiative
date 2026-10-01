@@ -2,6 +2,7 @@
 
 import sys
 import unittest
+from unittest import mock
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -122,6 +123,7 @@ class ReportTest(unittest.TestCase):
         if "release-candidate.yml" in path:
             raise monthly_report.urllib.error.HTTPError(path, 404, "", {}, None)
         if "ci.yml" in path:
+            assert params is not None
             first, last = (date.fromisoformat(d) for d in params["created"].split(".."))
             return [
                 r
@@ -131,12 +133,8 @@ class ReportTest(unittest.TestCase):
         return []
 
     def test_it_reads_each_gate_and_looks_past_the_month(self):
-        real = monthly_report.get
-        monthly_report.get = self.answer
-        try:
+        with mock.patch.object(monthly_report, "get", self.answer):
             text = monthly_report.report("o/r", "2026-09")
-        finally:
-            monthly_report.get = real
 
         self.assertIn("2 shipped, 1 needed a fix (50%", text)
         self.assertIn("- v1.0.0: v1.0.1 5 h later", text)

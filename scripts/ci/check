@@ -8,9 +8,9 @@
 #   scripts/ci/check <name>...    # named checks, or the groups backend / frontend
 #
 # Checks:
-#   ruff        backend lint
-#   format      backend formatting
-#   ty          backend type check
+#   ruff        Python lint
+#   format      Python formatting
+#   ty          Python type check
 #   migrations  no released migration edited; one Alembic head
 #   biome       frontend lint
 #   tsc         frontend type check
@@ -39,9 +39,13 @@ error() {
 backend() { (cd backend && uv run --no-sync "$@"); }
 frontend() { (cd frontend && pnpm "$@"); }
 
-check_ruff() { backend ruff check app; }
-check_format() { backend ruff format --check app; }
-check_ty() { backend ty check app; }
+# Every Python file in the repo, run from backend/: the app, its scripts and
+# migrations, and the repo-level scripts. The repo-level scripts import their
+# siblings, so ty searches their directories too.
+PYTHON=(app scripts alembic conftest.py ../scripts)
+check_ruff() { backend ruff check "${PYTHON[@]}"; }
+check_format() { backend ruff format --check "${PYTHON[@]}"; }
+check_ty() { backend ty check "${PYTHON[@]}" --extra-search-path ../scripts --extra-search-path ../scripts/ci; }
 check_biome() { frontend lint; }
 check_tsc() { frontend typecheck; }
 
@@ -120,7 +124,7 @@ checks_for_changes() {
     echo "all"
     return
   fi
-  if grep -q '^backend/' <<<"$changed"; then
+  if grep -qE '^backend/|^scripts/.*\.py$' <<<"$changed"; then
     echo "ruff format ty"
   fi
   if grep -q '^backend/alembic/' <<<"$changed"; then
