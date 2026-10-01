@@ -33,8 +33,6 @@ type UseProjectListViewOptions = {
   allowCustomSort?: boolean;
   /** Pull pinned projects into their own section above the list. */
   separatePinned?: boolean;
-  /** Initiatives whose projects the viewer may see; others are dropped. */
-  viewableInitiativeIds?: Set<number> | null;
 };
 
 /**
@@ -48,7 +46,6 @@ export const useProjectListView = ({
   storagePrefix,
   allowCustomSort = false,
   separatePinned = false,
-  viewableInitiativeIds,
 }: UseProjectListViewOptions) => {
   const defaultSortMode: ProjectSortMode = allowCustomSort ? "custom" : "updated";
 
@@ -137,20 +134,11 @@ export const useProjectListView = ({
   }, [setSearchQuery, setTagFilters]);
 
   // Favourites are the reader's own, so they narrow here rather than on the
-  // server.
-  const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
-      const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
-      if (
-        viewableInitiativeIds &&
-        projectInitiativeId !== null &&
-        !viewableInitiativeIds.has(projectInitiativeId)
-      ) {
-        return false;
-      }
-      return !favoritesOnly || Boolean(project.is_favorited);
-    });
-  }, [projects, favoritesOnly, viewableInitiativeIds]);
+  // server, which has already left out what the reader cannot see.
+  const filteredProjects = useMemo(
+    () => (favoritesOnly ? projects.filter((project) => project.is_favorited) : projects),
+    [projects, favoritesOnly]
+  );
 
   const pinnedProjects = useMemo(() => {
     if (!separatePinned) return [];

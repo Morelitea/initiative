@@ -63,6 +63,6 @@ describe("ProjectListPanel bulk sharing", () => {
 
     const editAccess = screen.getByRole("button", { name: /edit access/i });
     expect(editAccess).toBeDisabled();
-    expect(editAccess).toHaveAttribute("title", "Sharing can't be changed on an archived project.");
+    expect(editAccess).toHaveAttribute("title", "Sharing can't be changed on archived items.");
   });
 });

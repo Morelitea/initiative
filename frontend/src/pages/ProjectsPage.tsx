@@ -15,7 +15,6 @@ import { ProjectCardActionButton } from "@/components/projects/ProjectCardAction
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
@@ -28,7 +27,6 @@ type ProjectsViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 
 export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps) => {
   const { t } = useTranslation(["projects", "common", "access"]);
-  const { user } = useAuth();
   // Single source of truth for "what can I do in each initiative" — honors
   // guild-admin / PAM / membership so this page never re-derives access from
   // raw membership flags (which would wrongly exclude guild admins).
@@ -125,21 +123,9 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
     return initiatives.sort((a, b) => a.name.localeCompare(b.name));
   }, [initiativesQuery.data]);
 
-  // Filter initiatives where user can view projects (for the dropdown)
-  const viewableInitiatives = useMemo(
-    () => availableInitiatives.filter((initiative) => initiative.can.view.includes(Tool.project)),
-    [availableInitiatives]
-  );
-
   const lockedInitiativeName = lockedInitiativeId
     ? (availableInitiatives.find((init) => init.id === lockedInitiativeId)?.name ?? null)
     : null;
-
-  // Get IDs of initiatives where user can view projects
-  const viewableInitiativeIds = useMemo(() => {
-    if (!user) return null;
-    return new Set(viewableInitiatives.map((i) => i.id));
-  }, [viewableInitiatives, user]);
 
   const accessRestricted = (
     <Card className="border-destructive/50 bg-destructive/5">
@@ -246,7 +232,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             // Inside an initiative every card would carry the same name.
             showInitiativeLabel={!lockedInitiativeId}
             sortable={status === "active"}
-            viewableInitiativeIds={viewableInitiativeIds}
             renderItemActions={renderItemActions}
             toolbarActions={
               canCreateProjects && lockedInitiativeId ? (

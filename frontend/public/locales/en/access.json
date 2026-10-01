@@ -97,6 +97,7 @@
     "selected_other": "{{count}} selected",
     "editAccess": "Edit access",
     "needManage": "You can only edit access on items you own or can edit.",
+    "archived": "Sharing can't be changed on archived items.",
     "resource_project_one": "project",
     "resource_project_other": "projects",
     "resource_document_one": "document",

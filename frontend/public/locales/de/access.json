@@ -97,6 +97,7 @@
     "selected_other": "{{count}} ausgewählt",
     "editAccess": "Zugriff bearbeiten",
     "needManage": "Du kannst den Zugriff nur bei Elementen bearbeiten, die dir gehören oder die du bearbeiten kannst.",
+    "archived": "Die Freigabe archivierter Elemente kann nicht geändert werden.",
     "resource_project_one": "Projekt",
     "resource_project_other": "Projekte",
     "resource_document_one": "Dokument",

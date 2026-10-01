@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { LayoutGrid, List, Pin as PinIcon } from "lucide-react";
-import { type HTMLAttributes, type MouseEvent, type ReactNode, useState } from "react";
+import type { HTMLAttributes, MouseEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -24,10 +24,8 @@ import {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { BulkAccessBar } from "@/components/access/BulkAccessBar";
-import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { BulkAccessSection } from "@/components/access/BulkAccessSection";
 import { SelectableGridItem } from "@/components/access/SelectableGridItem";
-import { BulkExportButton } from "@/components/exports/BulkExportButton";
 import {
   ToolListToolbar,
   type ToolViewOption,
@@ -42,7 +40,6 @@ import {
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useProjectListView } from "@/hooks/useProjectListView";
 import { useReorderProjects } from "@/hooks/useProjects";
-import { everyCan } from "@/lib/permissions";
 
 type ProjectListPanelProps = {
   /** Which list this tab reads — its initiative, and active, templates, or
@@ -58,7 +55,6 @@ type ProjectListPanelProps = {
   storagePrefix: string;
   /** Drag-and-drop ordering plus a pinned section — the active list only. */
   sortable?: boolean;
-  viewableInitiativeIds?: Set<number> | null;
   /** Buttons shown left of the grid/list toggle, from `sm` up only — create
    *  and friends. The bottom-nav add pill covers them on mobile. */
   toolbarActions?: ReactNode;
@@ -91,7 +87,6 @@ export const ProjectListPanel = ({
   noMatchesLabel,
   storagePrefix,
   sortable = false,
-  viewableInitiativeIds,
   toolbarActions,
   toolbarMenuItems,
   toolbarMenuDialogs,
@@ -105,7 +100,6 @@ export const ProjectListPanel = ({
     storagePrefix,
     allowCustomSort: sortable,
     separatePinned: sortable,
-    viewableInitiativeIds,
   });
   const { filteredProjects, pinnedProjects, sortedProjects, viewMode } = view;
 
@@ -117,11 +111,6 @@ export const ProjectListPanel = ({
   // Ranges run along the order the cards render in — in selection mode
   // that's `sortedProjects` (the pinned section is hidden while selecting).
   const selection = useGridSelection<ProjectRead>(sortedProjects);
-  // An archived project refuses sharing changes server-side, so the bulk
-  // action is disabled up front rather than failing when the dialog submits.
-  // Export is unaffected — it only reads.
-  const archivedSelected = selection.selectedItems.some((project) => project.archived_at !== null);
-  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
   const reorderProjects = useReorderProjects();
 
   const sensors = useSensors(
@@ -263,21 +252,14 @@ export const ProjectListPanel = ({
         )
       ) : (
         <>
-          {selection.active ? (
-            <BulkAccessBar
-              count={selection.selectedItems.length}
-              canManage={everyCan(selection.selectedItems, "share")}
-              manageHint={archivedSelected ? t("archived.sharingUnavailable") : undefined}
-              onEditAccess={() => setBulkAccessOpen(true)}
-              onExit={selection.exit}
-            >
-              <BulkExportButton tool={Tool.project} items={selection.selectedItems} />
-            </BulkAccessBar>
-          ) : (
-            // Entering selection now lives in the toolbar's overflow menu, so
-            // the list itself goes straight to the pinned section.
-            pinnedSection
-          )}
+          <BulkAccessSection
+            selection={selection}
+            tool={Tool.project}
+            invalidate={() => invalidate(q.allProjects())}
+          />
+          {/* Entering selection lives in the toolbar's overflow menu, so the
+              list itself goes straight to the pinned section. */}
+          {selection.active ? null : pinnedSection}
           {sortedProjects.length > 0 ? (
             projectItems
           ) : pinnedProjects.length > 0 ? (
@@ -285,15 +267,6 @@ export const ProjectListPanel = ({
           ) : null}
         </>
       )}
-
-      <BulkEditAccessDialog
-        open={bulkAccessOpen}
-        onOpenChange={setBulkAccessOpen}
-        items={selection.selectedItems}
-        resourceType={Tool.project}
-        invalidate={() => invalidate(q.allProjects())}
-        onSuccess={selection.exit}
-      />
     </div>
   );
 };
