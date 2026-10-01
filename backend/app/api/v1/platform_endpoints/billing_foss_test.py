@@ -162,6 +162,9 @@ _TIER_NAME_ALLOWED = {
     "schemas/platform/billing.py",  # the billing payloads
     "services/platform/billing.py",  # the boundary write
     "api/v1/platform_endpoints/billing.py",  # the boundary endpoints
+    # The plan summary billing answers for the seat's Billing tab: read per
+    # request, returned for display, kept nowhere.
+    "services/platform/billing_ping.py",
     "schemas/platform/guild.py",  # GuildRead display field
     "api/v1/platform_endpoints/guilds.py",  # _serialize_guild passes it through
     # The operator's guild list shows the label next to the caps it does NOT

@@ -55,6 +55,9 @@ _IN_APP_ONLY = {
     # A community put on hold: an inbox notice beside its email, about paying
     # for it, which is no reason to interrupt someone on a device.
     NotificationType.guild_on_hold,
+    # A trial ending or ended: the same errand as a hold, told the same way.
+    NotificationType.guild_trial_ending,
+    NotificationType.guild_trial_ended,
     # An app asking a member to consent: answered on the app's settings, where
     # it waits until they get to it.
     NotificationType.app_consent_requested,

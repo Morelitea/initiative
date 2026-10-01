@@ -1,9 +1,10 @@
 """The SPA storage-usage read backing the guild usage panel.
 
-Invariants: it returns the guild-scoped SUM(uploads.size_bytes); it is
-guild-ADMIN only (the guild-wide total backs the admin settings surface and,
-like ``status``, is not disclosed to regular members); and a non-member
-can't reach another guild's usage at all (RLS).
+Invariants: it returns the guild-scoped SUM(uploads.size_bytes); it is read
+on the settings surface by its admin rung — an administrator, or a settings
+grant at either rung, which is how support holding the seat sees the Usage tab
+(the guild-wide total, like ``status``, is not disclosed to regular members);
+and a non-member can't reach another guild's usage at all.
 """
 
 from __future__ import annotations
@@ -11,8 +12,17 @@ from __future__ import annotations
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+import pytest
+
+from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
 from app.models.platform.guild import GuildRole
-from app.testing import create_upload
+from app.models.platform.user import UserRole
+from app.testing import (
+    create_access_grant,
+    create_upload,
+    create_user,
+    get_auth_headers,
+)
 
 
 async def test_storage_usage_sums_guild_bytes(
@@ -65,3 +75,46 @@ async def test_storage_usage_requires_membership(
         f"/api/v1/c/{owner.guild.id}/storage/usage", headers=outsider.headers
     )
     assert response.status_code in (403, 404)
+
+
+@pytest.mark.parametrize("rung", [SettingsLevel.superadmin, SettingsLevel.admin])
+@pytest.mark.parametrize("with_content_grant", [True, False])
+async def test_a_settings_grantee_reads_the_usage_the_tab_shows_them(
+    client: AsyncClient, session: AsyncSession, acting_user, rung, with_content_grant
+):
+    """Support lent the seat opens the Usage tab, so the figure on it is theirs
+    to read — with or without a content grant beside the settings one."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    await create_upload(session, admin.guild, admin.user, size_bytes=1234)
+    support = await create_user(session, role=UserRole.support)
+    if with_content_grant:
+        await create_access_grant(session, user=support, guild=admin.guild)
+    await create_access_grant(
+        session,
+        user=support,
+        guild=admin.guild,
+        access_level=rung.value,
+        purpose=AccessGrantPurpose.settings.value,
+    )
+
+    response = await client.get(
+        f"/api/v1/c/{admin.guild.id}/storage/usage", headers=get_auth_headers(support)
+    )
+    assert response.status_code == 200, response.text
+    assert response.json() == {"guild_id": admin.guild.id, "usage_bytes": 1234}
+
+
+async def test_a_content_grant_alone_does_not_read_usage(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Reaching the community's content is not reaching its settings."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    support = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=support, guild=admin.guild, access_level="read_write"
+    )
+
+    response = await client.get(
+        f"/api/v1/c/{admin.guild.id}/storage/usage", headers=get_auth_headers(support)
+    )
+    assert response.status_code == 403, response.text

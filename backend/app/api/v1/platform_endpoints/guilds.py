@@ -85,6 +85,7 @@ from app.schemas.platform.guild import (
     GuildInviteCreate,
     GuildInviteRead,
     GuildPaymentIssueRead,
+    GuildBillingSummaryRead,
     GuildInviteStatus,
     GuildOrderUpdate,
     GuildUpdate,
@@ -1073,6 +1074,34 @@ async def read_guild_payment_issue(
     return GuildPaymentIssueRead(
         payment_failed=await billing_ping.guild_payment_failed(guild_id)
     )
+
+
+@router.get(
+    "/{guild_id}/billing/summary",
+    response_model=GuildBillingSummaryRead,
+)
+@limiter.limit("30/minute", key_func=get_user_or_ip_key)
+async def read_guild_billing_summary(
+    request: Request,
+    guild_id: int,
+    _seat_session: SeatWriteSessionDep,
+) -> GuildBillingSummaryRead:
+    """The guild's plan, asked of billing for this response and kept nowhere.
+
+    Display only: initiative never writes to billing, and nothing here changes
+    a plan — every change, cancelation included, is made in the billing
+    portal. The seat that may open the portal, as the handoff mint asks: the
+    summary is what that seat would act on there.
+    """
+    if not settings.BILLING_URL:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.PORTAL_NOT_CONFIGURED,
+        )
+    summary = await billing_ping.guild_plan_summary(guild_id)
+    if summary is None:
+        return GuildBillingSummaryRead()
+    return GuildBillingSummaryRead(available=True, **summary.model_dump())
 
 
 def _auth_policy_read(

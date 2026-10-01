@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
 
@@ -1429,6 +1429,44 @@ async def _deletion_notice(
     )
 
 
+async def _seat_letters(
+    session: AsyncSession, user_ids: Sequence[int]
+) -> dict[str, list[str]]:
+    """Every proved address of these accounts, by the language each reads.
+
+    Sorted and de-duplicated per language: somebody holding two addresses gets
+    one letter at each, and two seat holders are not two letters to one box.
+    """
+    from app.services.auth import addresses
+
+    if not user_ids:
+        return {}
+    locales = (
+        await session.exec(
+            select(User.id, User.locale).where(User.id.in_(list(user_ids)))  # type: ignore[union-attr]
+        )
+    ).all()
+    letters: dict[str, set[str]] = {}
+    for user_id, locale in locales:
+        found = await addresses.proven_addresses(session, user_id=user_id)
+        if found:
+            letters.setdefault(locale or "en", set()).update(found)
+    return {locale: sorted(found) for locale, found in letters.items()}
+
+
+async def _superadmin_ids(session: AsyncSession, guild_id: int) -> list[int]:
+    return list(
+        (
+            await session.exec(
+                select(GuildMembership.user_id).where(
+                    GuildMembership.guild_id == guild_id,
+                    GuildMembership.role == GuildRole.superadmin,
+                )
+            )
+        ).all()
+    )
+
+
 async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     """Tell the community's seat holders, once, that it is on hold and whom to
     contact.
@@ -1437,8 +1475,9 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     told are its superadmins: the hold is about paying for it, which is the
     seat's errand. Each gets one line in their bell — an account notice, not
     one filed under the community, which none of them can open now — and one
-    letter at every proved address, which names the day the community is
-    deleted if the hold is still in place. Neither is allowed to fail the hold.
+    letter at every proved address, in the language they read, which names the
+    day the community is deleted if the hold is still in place. Neither is
+    allowed to fail the hold.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
@@ -1459,44 +1498,129 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
         if days is not None and guild.status_changed_at is not None
         else None
     )
-    seat_holders = (
-        await session.exec(
-            select(GuildMembership.user_id).where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.superadmin,
-            )
-        )
-    ).all()
+    seat_holders = await _superadmin_ids(session, guild_id)
+    data: dict = {"community": guild.name, "contact": contact, "target_path": "/"}
+    if delete_at is not None:
+        # A calendar day; the bell writes it in the reader's language.
+        data["delete_on"] = delete_at.date().isoformat()
     await notice_outbox.enqueue(
         session,
         [
-            notice_outbox.row(
-                user_id,
-                None,
-                NotificationType.guild_on_hold,
-                {"community": guild.name, "contact": contact, "target_path": "/"},
-            )
+            notice_outbox.row(user_id, None, NotificationType.guild_on_hold, data)
             for user_id in seat_holders
         ],
     )
-    recipients: list[str] = []
-    for user_id in seat_holders:
-        recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
+    letters = await _seat_letters(session, seat_holders)
+    community = guild.name
     await session.commit()
+    for locale, recipients in letters.items():
+        try:
+            await email_service.send_community_on_hold_email(
+                session,
+                recipients=recipients,
+                community=community,
+                contact=contact,
+                delete_at=delete_at,
+                plan_managed=billing_service.billing_managed(),
+                locale=locale,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.info("no mail configured; community hold not announced by letter")
+            return
+        except Exception:  # pragma: no cover - delivery is best-effort here
+            logger.exception("could not send the community hold notice")
+
+
+#: The bell line each billing trial notice writes.
+_TRIAL_NOTICE_TYPES = {
+    "trial_ending": NotificationType.guild_trial_ending,
+    "trial_ended": NotificationType.guild_trial_ended,
+}
+
+
+async def queue_trial_notice(
+    session: AsyncSession,
+    guild_id: int,
+    *,
+    kind: str,
+    trial_ends_on: date,
+    owner_user_id: int | None,
+) -> bool:
+    """Write down a notice that a community's trial is ending or has ended.
+
+    On the system engine, before billing's event id is claimed: this commits
+    the bell lines and the letters to the notice outbox, whose worker delivers
+    and retries them, and only then does the caller record the event. A crash
+    between the two repeats the reminder on billing's retry rather than losing
+    it. True when anybody is to be told.
+
+    The owner is the person billing holds the community under, while they
+    still hold its seat; otherwise — billing named nobody, or somebody who has
+    left or been moved off the seat — its current superadmins. A community that
+    is deleted or suspended is told nothing: its members cannot act on a plan
+    through either.
+
+    Each recipient gets a line in their bell and a letter in their own
+    language, both leading to the community's Plan & usage tab. An account
+    notice, like a hold's: filed under no community, so no community's
+    switches apply to it, and the letter is the recipient's to switch off like
+    the rest of their account mail.
+    """
+    from app.db.session import set_rls_context
+    from app.services import email as email_service
+    from app.services.platform import notice_outbox
+
+    await set_rls_context(session, Unattributed())
+    guild = (
+        await session.exec(select(Guild).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild is None or guild.status in (
+        GuildStatus.deleted.value,
+        GuildStatus.suspended.value,
+    ):
+        return False
+    seats = await _superadmin_ids(session, guild_id)
+    recipients = [owner_user_id] if owner_user_id in seats else seats
     if not recipients:
-        return
-    try:
-        await email_service.send_community_on_hold_email(
-            session,
-            recipients=sorted(set(recipients)),
+        return False
+    locales = dict(
+        (
+            await session.exec(
+                select(User.id, User.locale).where(User.id.in_(recipients))  # type: ignore[union-attr]
+            )
+        ).all()
+    )
+    notification_type = _TRIAL_NOTICE_TYPES[kind]
+    rows = []
+    for user_id in recipients:
+        letter = email_service.community_trial_pieces(
+            kind=kind,
             community=guild.name,
-            contact=contact,
-            delete_at=delete_at,
+            trial_ends_on=trial_ends_on,
+            guild_id=guild_id,
+            locale=locales.get(user_id) or "en",
         )
-    except email_service.EmailNotConfiguredError:
-        logger.info("no mail configured; community hold not announced by letter")
-    except Exception:  # pragma: no cover - delivery is best-effort here
-        logger.exception("could not send the community hold notice")
+        rows.append(
+            notice_outbox.row(
+                user_id,
+                None,
+                notification_type,
+                {
+                    "community": guild.name,
+                    "trial_ends_on": trial_ends_on.isoformat(),
+                    "guild_id": guild_id,
+                    "target_path": "/settings/usage",
+                },
+                email_subject=letter.subject,
+                email_headline=letter.headline,
+                email_body=letter.body,
+                email_link=letter.link,
+                email_link_label=letter.link_label,
+            )
+        )
+    await notice_outbox.enqueue(session, rows)
+    await session.commit()
+    return True
 
 
 async def soft_delete_guild(

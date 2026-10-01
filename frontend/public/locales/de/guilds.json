@@ -302,6 +302,10 @@
     "appConsentRequested": "{{app}} möchte in deinem Namen handeln: „{{label}}“",
     "appUpdatePending": "{{app}} Version {{version}} fragt nach mehr Zugriff",
     "guildOnHoldWithContact": "{{community}} ist pausiert. Wende dich an {{contact}}, um das zu klären.",
+    "guildOnHoldDeleting": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "guildOnHoldDeletingWithContact": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an {{contact}}, um das zu klären.",
+    "guildTrialEnding": "Die Testphase von {{community}} endet am {{date}}. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können.",
+    "guildTrialEnded": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können.",
     "defaultNotification": "Du hast eine neue Benachrichtigung.",
     "push": {
       "enableTitle": "Push-Benachrichtigungen aktivieren",
@@ -390,12 +394,34 @@
     "members": "Mitglieder",
     "usedOfMax": "{{used}} von {{max}}",
     "usedOfUnlimited": "{{used}} verwendet · Unbegrenzt",
+    "storageUnavailable": "Gerade nicht verfügbar",
     "membersOfMax": "{{used}} von {{max}}",
     "membersOfUnlimited": "{{used}} · Unbegrenzt",
     "currentPlan": "Aktueller Tarif:",
     "selfHosted": "Selbst gehostet",
     "upgrade": "Upgrade",
     "manageBilling": "Abrechnung verwalten"
+  },
+  "billingPanel": {
+    "title": "Tarif",
+    "unavailable": "Abrechnungsdetails sind gerade nicht verfügbar.",
+    "updatePaymentMethod": "Zahlungsmethode aktualisieren",
+    "changeInPortal": "Tarif oder Zahlungsmethode ändern oder kündigen kannst du im Abrechnungsportal.",
+    "cancelAnytime": "Jederzeit im Abrechnungsportal kündbar. Dein Tarif läuft bis zum Ende des bezahlten Zeitraums weiter. Danach ist deine Community 30 Tage lang schreibgeschützt, damit du sie exportieren kannst, wird dann pausiert und 30 Tage später gelöscht.",
+    "status": {
+      "paymentFailed": "Zahlung fehlgeschlagen",
+      "paymentFailedDetail": "Aktualisiere deine Zahlungsmethode, um weiter bearbeiten zu können – die Community wird 14 Tage nach der fehlgeschlagenen Zahlung schreibgeschützt.",
+      "ends": "Endet am {{date}}",
+      "endsDetail": "Dein Tarif endet am {{date}}. Danach ist die Community 30 Tage lang schreibgeschützt und wird dann pausiert.",
+      "pauses": "Pausiert ab {{date}}",
+      "resumes": "Läuft wieder ab {{date}}",
+      "trial_one": "Testphase · noch {{count}} Tag",
+      "trial_other": "Testphase · noch {{count}} Tage",
+      "trialLastDay": "Testphase · letzter Tag",
+      "trialDetail": "Die Testphase endet am {{date}}. Schließe vorher ein Abo ab, um weiter bearbeiten zu können.",
+      "renews": "Verlängert am {{date}}",
+      "renewsWithAmount": "Verlängert am {{date}} · {{amount}}"
+    }
   },
   "transferOwnership": {
     "title": "Besitz übertragen",

@@ -27,6 +27,7 @@ import type {
   CommunityGuildPage,
   GuildAuthSettingsRead,
   GuildAuthSettingsUpdate,
+  GuildBillingSummaryRead,
   GuildCreate,
   GuildDeletionRequest,
   GuildEntitlementsRead,
@@ -2282,6 +2283,201 @@ export function useReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIss
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
     getReadGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGetQueryOptions(
+      guildId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The guild's plan, asked of billing for this response and kept nowhere.
+ *
+ * Display only: initiative never writes to billing, and nothing here changes
+ * a plan — every change, cancelation included, is made in the billing
+ * portal. The seat that may open the portal, as the handoff mint asks: the
+ * summary is what that seat would act on there.
+ * @summary Read Guild Billing Summary
+ */
+export const readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet = (
+  guildId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildBillingSummaryRead>(
+    { url: `/api/v1/communities/${guildId}/billing/summary`, method: "GET", signal },
+    options
+  );
+};
+
+export const getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryKey = (
+  guildId: number
+) => {
+  return [`/api/v1/communities/${guildId}/billing/summary`] as const;
+};
+
+export const getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>
+  > = ({ signal }) =>
+    readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet(
+      guildId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>
+  >;
+export type ReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Guild Billing Summary
+ */
+
+export function useReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet<
+  TData = Awaited<
+    ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getReadGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGetQueryOptions(
       guildId,
       options
     );

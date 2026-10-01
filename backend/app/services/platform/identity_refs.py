@@ -258,6 +258,24 @@ async def resolve_billing_guild(*, ref: str) -> int | None:
     return row.entity_id
 
 
+async def resolve_billing_user(*, ref: str) -> int | None:
+    """Which user one billing reference names, or None.
+
+    The user half of :func:`resolve_billing_guild`, for a notice billing
+    addresses to a person by the reference a portal handoff gave it. A
+    reference minted for a guild, or for another purpose, names nobody here.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as session:
+        row = await resolve_ref(session, ref=ref)
+    if row is None:
+        return None
+    if row.entity_type != IdentityEntity.user or row.purpose != IdentityPurpose.billing:
+        return None
+    return row.entity_id
+
+
 async def resolve_ref(
     session: AsyncSession, *, ref: str, now: datetime | None = None
 ) -> IdentityRef | None:

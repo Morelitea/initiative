@@ -739,6 +739,53 @@ async def test_a_deployment_can_leave_holds_in_place(
     assert row.status == GuildStatus.on_hold.value
 
 
+async def test_the_hold_is_told_in_each_seats_language(
+    session: AsyncSession, monkeypatch
+):
+    from app.models.platform.notification import Notification, NotificationType
+    from app.testing import drain_notices
+
+    seat = await create_user(session, email="hold-en@example.com")
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=GuildRole.superadmin
+    )
+    german = await create_user(session, email="hold-de@example.com", locale="de")
+    await create_guild_membership(
+        session, user=german, guild=guild, role=GuildRole.superadmin
+    )
+    guild_id, seat_id = guild.id, seat.id
+    held_at = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    await _hold_since(session, guild_id, held_at)
+    sent: list[dict] = []
+
+    async def _capture(_session, **kwargs) -> None:
+        sent.append(kwargs)
+
+    monkeypatch.setattr(email_service, "send_community_on_hold_email", _capture)
+
+    await guilds_service.announce_on_hold(session, guild_id)
+
+    assert sorted((letter["locale"], letter["recipients"]) for letter in sent) == [
+        ("de", ["hold-de@example.com"]),
+        ("en", ["hold-en@example.com"]),
+    ]
+    delete_at = held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)
+    assert {letter["delete_at"] for letter in sent} == {delete_at}
+    # The bell carries the day too, and writes it in the reader's language.
+    await drain_notices()
+    session.expire_all()
+    (line,) = (
+        await session.exec(
+            select(Notification).where(
+                Notification.user_id == seat_id,
+                Notification.type == NotificationType.guild_on_hold,
+            )
+        )
+    ).all()
+    assert line.data["delete_on"] == delete_at.date().isoformat()
+
+
 async def test_the_hold_notice_names_the_day_it_is_deleted(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):

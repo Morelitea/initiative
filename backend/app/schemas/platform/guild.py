@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Literal, Optional
 
 from pydantic import field_validator, ConfigDict, EmailStr, Field
@@ -205,6 +205,34 @@ class GuildRead(GuildBase):
 
 
 class GuildPaymentIssueRead(SanitizedBaseModel):
+    payment_failed: bool = False
+
+
+class GuildBillingChargeRead(SanitizedBaseModel):
+    # Minor units of ``currency`` (cents for USD).
+    total: int
+    currency: str
+
+
+class GuildBillingChangeRead(SanitizedBaseModel):
+    action: Literal["cancel", "pause", "resume"]
+    on: date
+
+
+class GuildBillingSummaryRead(SanitizedBaseModel):
+    """The guild's plan as billing told it, fetched for this response alone.
+
+    ``available`` is False when billing could not be asked or did not answer
+    sensibly, and every other field is then empty — not a free plan, an
+    unknown one.
+    """
+
+    available: bool = False
+    tier_name: Optional[str] = None
+    trial_ends_on: Optional[date] = None
+    renews_on: Optional[date] = None
+    next_charge: Optional[GuildBillingChargeRead] = None
+    scheduled_change: Optional[GuildBillingChangeRead] = None
     payment_failed: bool = False
 
 

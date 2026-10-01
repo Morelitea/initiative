@@ -1,9 +1,15 @@
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild, buildUser, guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAuthOption, GuildRole } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  GuildAuthOption,
+  GuildBillingSummaryRead,
+  GuildRole,
+} from "@/api/generated/initiativeAPI.schemas";
+import type { useAppConfig as useAppConfigType } from "@/hooks/useAppConfig";
+import type { useGuildBillingSummary as useGuildBillingSummaryType } from "@/hooks/useGuildBillingSummary";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
 // What this member is in this community, and what the operator has granted it.
@@ -15,6 +21,20 @@ let authOptions: GuildAuthOption[] = ["restrictions", "providers"];
 // The server's answer to whether the settings may be changed; left unset, the
 // factory answers the way the server does for a member.
 let canWriteSettings: boolean | undefined;
+// The deployment's billing portal; null on a self-hosted install.
+let billing: { url: string } | null = null;
+
+// What the billing service said of the plan; undefined is "not asked".
+let summary: GuildBillingSummaryRead | undefined;
+
+vi.mock(import("@/hooks/useAppConfig"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  useAppConfig: () => ({ billing }) as unknown as ReturnType<typeof useAppConfigType>,
+}));
+vi.mock(import("@/hooks/useGuildBillingSummary"), () => ({
+  useGuildBillingSummary: () =>
+    ({ data: summary }) as unknown as ReturnType<typeof useGuildBillingSummaryType>,
+}));
 
 // Partial: the render helper reaches for ``GuildContext`` from this module.
 vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
@@ -62,6 +82,61 @@ describe("GuildSettingsLayout", () => {
     reachesContent = true;
     authOptions = ["restrictions", "providers"];
     canWriteSettings = undefined;
+    billing = null;
+    summary = undefined;
+  });
+
+  it("puts Usage first for the seat, and keeps it from an ordinary admin", async () => {
+    // What the community uses against its caps, and on a hosted install the
+    // plan they come with, is the seat's — like its sign-in.
+    render();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs[0]).toHaveAccessibleName("Usage");
+
+    cleanup();
+    guildRole = "admin";
+    render();
+    expect(await screen.findByRole("tab", { name: /community/i })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /usage/i })).not.toBeInTheDocument();
+  });
+
+  it("names it for the plan where there is a billing portal", async () => {
+    billing = { url: "https://billing.example.com" };
+    render();
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs[0]).toHaveAccessibleName("Plan & usage");
+  });
+
+  it("marks the tab while a trial runs", async () => {
+    billing = { url: "https://billing.example.com" };
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    summary = {
+      available: true,
+      trial_ends_on: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`,
+      payment_failed: false,
+    };
+    render();
+    expect(await screen.findByRole("tab", { name: /plan & usage/i })).toHaveTextContent(
+      "Trial · 3 days"
+    );
+  });
+
+  it("marks the tab when a payment failed", async () => {
+    billing = { url: "https://billing.example.com" };
+    summary = { available: true, payment_failed: true };
+    render();
+    const tab = await screen.findByRole("tab", { name: /plan & usage/i });
+    expect(within(tab).getByRole("img", { name: "Payment failed" })).toBeInTheDocument();
+  });
+
+  it("leaves the tab plain when billing could not say", async () => {
+    billing = { url: "https://billing.example.com" };
+    summary = { available: false, payment_failed: false };
+    render();
+    const tab = await screen.findByRole("tab", { name: /plan & usage/i });
+    expect(tab).toHaveAccessibleName("Plan & usage");
   });
 
   it("offers the Security tab to the seat that owns it", async () => {

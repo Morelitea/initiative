@@ -28,7 +28,11 @@ from app.models.platform.billing import (
 )
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 from app.models.platform.guild_administration import GuildAdministration
-from app.schemas.platform.billing import BillingGuildTierApply, BillingGuildTierRead
+from app.schemas.platform.billing import (
+    BillingCommunityNotice,
+    BillingGuildTierApply,
+    BillingGuildTierRead,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +264,71 @@ async def _member_count(session: AsyncSession, guild_id: int) -> int:
     ).one()
 
 
+async def _claim_event(
+    session: AsyncSession,
+    *,
+    event_id: str,
+    guild_id: int,
+    op: BillingOp,
+    source: BillingSource,
+    actor: str | None = None,
+) -> bool:
+    """Claim one event id in ``billing_event_log``; False if already claimed.
+
+    Plain INSERT in a savepoint rather than ON CONFLICT DO NOTHING: the
+    billing role holds no SELECT on this table (append-only), and under RLS
+    an ON CONFLICT insert would demand one. The unique-violation IS the
+    replay signal; the savepoint confines the abort so the jti burn and the
+    transaction survive.
+    """
+    claim = insert(BillingEventLog.__table__).values(
+        event_id=event_id,
+        guild_id=guild_id,
+        op=op.value,
+        source=source.value,
+        actor=actor,
+        applied_at=datetime.now(timezone.utc),
+    )
+    try:
+        async with session.begin_nested():
+            await session.exec(claim)
+    except IntegrityError:
+        return False
+    return True
+
+
+async def event_claimed(session: AsyncSession, event_id: str) -> bool:
+    """Whether ``event_id`` is already in ``billing_event_log``.
+
+    On the system engine: the billing role writes the log and may not read it,
+    so the community notice asks here before it writes anything down.
+    """
+    return (
+        await session.exec(
+            select(BillingEventLog.event_id).where(BillingEventLog.event_id == event_id)
+        )
+    ).first() is not None
+
+
+async def claim_community_notice(
+    session: AsyncSession, payload: BillingCommunityNotice, *, guild_id: int
+) -> bool:
+    """Record one community notice in the event log; False if a concurrent
+    delivery recorded it first.
+
+    Claimed after the notice is written down, not before (see
+    ``api.v1.platform_endpoints.billing.community_notice``): the billing role
+    writes the log row and nothing else, and the notice is the system engine's.
+    """
+    return await _claim_event(
+        session,
+        event_id=payload.event_id,
+        guild_id=guild_id,
+        op=BillingOp.community_notice,
+        source=payload.source,
+    )
+
+
 async def apply_guild_tier(
     session: AsyncSession, payload: BillingGuildTierApply, *, guild_id: int
 ) -> BillingGuildTierRead:
@@ -312,25 +381,14 @@ async def apply_guild_tier(
             BillingMessages.OPERATOR_CANNOT_LOWER_CEILING
         )
 
-    # Plain INSERT in a savepoint rather than ON CONFLICT DO NOTHING: the
-    # billing role holds no SELECT on this table (append-only), and under RLS
-    # an ON CONFLICT insert would demand one. The unique-violation IS the
-    # replay signal; the savepoint confines the abort so the jti burn and the
-    # transaction survive.
-    claim = insert(BillingEventLog.__table__).values(
+    applied = await _claim_event(
+        session,
         event_id=payload.event_id,
         guild_id=guild_id,
-        op=BillingOp.guild_tier.value,
-        source=payload.source.value,
+        op=BillingOp.guild_tier,
+        source=payload.source,
         actor=payload.actor,
-        applied_at=datetime.now(timezone.utc),
     )
-    try:
-        async with session.begin_nested():
-            await session.exec(claim)
-        applied = True
-    except IntegrityError:
-        applied = False
 
     if applied:
         now = datetime.now(timezone.utc)
