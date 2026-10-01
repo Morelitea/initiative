@@ -68,11 +68,12 @@ export const useSeedStarter = () => {
  */
 export const useFinishPendingStart = (): void => {
   const { user } = useAuth();
-  const { guilds, loading } = useGuilds();
+  const { guilds, loading, refreshGuilds } = useGuilds();
   const seed = useSeedStarter();
   const landOn = useLandOnStarter();
   const openDirectory = useOpenDirectory();
   const done = useRef(false);
+  const refetched = useRef(false);
 
   useEffect(() => {
     if (done.current || !user?.email || loading) return;
@@ -88,13 +89,20 @@ export const useFinishPendingStart = (): void => {
       })();
       return;
     }
-    // Kept until the new community is in the list, which may arrive later.
+    // Kept until the new community is in the list; a list read before it
+    // existed is read once more.
     const guild = findStartedCommunity(guilds, answers);
-    if (!guild) return;
+    if (!guild) {
+      if (!refetched.current) {
+        refetched.current = true;
+        void refreshGuilds().catch(() => undefined);
+      }
+      return;
+    }
     done.current = true;
     void (async () => {
       await clearStart();
       await landOn(guild.id, await seed(guild.id, answers));
     })();
-  }, [user, loading, guilds, seed, landOn, openDirectory]);
+  }, [user, loading, guilds, refreshGuilds, seed, landOn, openDirectory]);
 };

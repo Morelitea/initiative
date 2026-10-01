@@ -150,7 +150,7 @@ describe("which paths are offered", () => {
       expect.objectContaining({ community: { name: "My community", plan: "paid" } })
     );
     expect(open).not.toHaveBeenCalled();
-    expect(screen.getByText("We'll email you about setting up your plan.")).toBeInTheDocument();
+    expect(screen.getByText("We'll let you know how to set up your plan.")).toBeInTheDocument();
   });
 });
 

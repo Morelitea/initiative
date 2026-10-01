@@ -950,7 +950,7 @@ const StartSteps = ({
           {held?.underAge ? <p className="text-sm">{t("start.underAge")}</p> : null}
           {wantsPlan ? (
             <p className="text-sm">
-              {t(portalOpens ? "start.checkEmail.planLater" : "start.planEmailed")}
+              {t(portalOpens ? "start.checkEmail.planLater" : "start.planFollows")}
             </p>
           ) : null}
           <Button asChild className="w-full">
@@ -974,7 +974,7 @@ const StartSteps = ({
       description = t("start.people.description", { community: made?.name ?? finalName });
       body = made ? (
         <>
-          {wantsPlan && !portalOpens ? <p className="text-sm">{t("start.planEmailed")}</p> : null}
+          {wantsPlan && !portalOpens ? <p className="text-sm">{t("start.planFollows")}</p> : null}
           <InviteYourPeople
             guildId={made.id}
             origin={getServerOrigin() ?? window.location.origin}
