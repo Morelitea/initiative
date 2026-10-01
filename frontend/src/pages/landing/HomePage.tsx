@@ -14,7 +14,7 @@
 
 import { Link, useRouter } from "@tanstack/react-router";
 import type { ParseKeys } from "i18next";
-import { BookOpen, Download, Gift, Server, Trash2, Undo2 } from "lucide-react";
+import { BookOpen, Download, Gift, Pause, Play, Server, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +32,7 @@ import { FloatingShape } from "./effects";
 import { HangOut } from "./HangOut";
 import { LandingShell } from "./LandingShell";
 import { useFrontDoor } from "./useFrontDoor";
+import { usePageMeta } from "./usePageMeta";
 
 /** Profile banner art, standing in until the example communities have their
  *  own pictures. */
@@ -106,11 +107,11 @@ const CommunityCard = ({ community, big }: { community: ExampleCommunity; big: b
       <div className={`relative flex items-center overflow-hidden px-4 ${big ? "h-32" : "h-24"}`}>
         <img src={community.art} alt="" className="absolute inset-0 h-full w-full object-cover" />
         <span className="absolute inset-0 bg-gradient-to-t from-black/55 to-black/10" />
-        <h3
+        <p
           className={`relative w-full font-extrabold text-white text-xl drop-shadow ${community.centered ? "text-center" : ""}`}
         >
           {t(`communities.${community.key}.name`)}
-        </h3>
+        </p>
       </div>
       <div className="relative px-4 pt-3 pb-4">
         <span
@@ -150,6 +151,70 @@ const CommunityCard = ({ community, big }: { community: ExampleCommunity; big: b
         </p>
       </div>
     </article>
+  );
+};
+
+/** The communities scrolling past. It can be paused, as anything that moves
+ *  on its own must be; with reduced motion asked for it holds still and
+ *  wraps instead. */
+const Marquee = () => {
+  const { t } = useTranslation("landing");
+  const [paused, setPaused] = useState(false);
+  return (
+    <div className="relative mx-auto max-w-6xl px-4 pb-14 md:px-8 md:pb-18">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-slate-300 text-sm">{t("communities.alsoGoodFor")}</h2>
+        <button
+          type="button"
+          onClick={() => setPaused((value) => !value)}
+          aria-pressed={paused}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/20 px-3 font-semibold text-slate-200 text-xs hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 motion-reduce:hidden"
+        >
+          {paused ? (
+            <Play className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <Pause className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          {paused ? t("communities.play") : t("communities.pause")}
+        </button>
+      </div>
+      <div
+        className="-mx-4 overflow-hidden motion-reduce:mx-0 md:mx-0 motion-reduce:[mask-image:none]"
+        style={{
+          maskImage: "linear-gradient(90deg, transparent, black 8%, black 92%, transparent)",
+          WebkitMaskImage: "linear-gradient(90deg, transparent, black 8%, black 92%, transparent)",
+        }}
+      >
+        <div
+          className={`landing-ribbon__track flex w-max animate-[ribbonScroll_45s_linear_infinite] motion-reduce:w-auto hover:[animation-play-state:paused] ${paused ? "[animation-play-state:paused]" : ""}`}
+        >
+          {[0, 1].map((copy) => (
+            <ul
+              key={copy}
+              className={`flex shrink-0 gap-2.5 pr-2.5 motion-reduce:flex-wrap motion-reduce:pr-0 md:gap-3.5 md:pr-3.5 ${copy === 1 ? "motion-reduce:hidden" : ""}`}
+              aria-hidden={copy === 1 ? "true" : undefined}
+            >
+              {MARQUEE.map(([key, art]) => (
+                <li
+                  key={key}
+                  className="relative flex h-21 w-48 shrink-0 items-end overflow-hidden rounded-xl p-3 md:h-23 md:w-60"
+                >
+                  <img
+                    src={banner(art)}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/65 to-transparent" />
+                  <span className="relative font-extrabold text-white leading-tight md:text-lg">
+                    {t(`communities.marquee.${key}`)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -270,46 +335,7 @@ const Hero = () => {
           ))}
         </div>
       </div>
-      <div className="relative mx-auto max-w-6xl px-4 pb-14 md:px-8 md:pb-18">
-        <h2 className="mb-3 font-semibold text-slate-300 text-sm">
-          {t("communities.alsoGoodFor")}
-        </h2>
-        <div
-          className="-mx-4 overflow-hidden md:mx-0"
-          style={{
-            maskImage: "linear-gradient(90deg, transparent, black 8%, black 92%, transparent)",
-            WebkitMaskImage:
-              "linear-gradient(90deg, transparent, black 8%, black 92%, transparent)",
-          }}
-        >
-          <div className="landing-ribbon__track flex w-max animate-[ribbonScroll_45s_linear_infinite] hover:[animation-play-state:paused]">
-            {[0, 1].map((copy) => (
-              <ul
-                key={copy}
-                className="flex shrink-0 gap-2.5 pr-2.5 md:gap-3.5 md:pr-3.5"
-                aria-hidden={copy === 1 ? "true" : undefined}
-              >
-                {MARQUEE.map(([key, art]) => (
-                  <li
-                    key={key}
-                    className="relative flex h-21 w-48 shrink-0 items-end overflow-hidden rounded-xl p-3 md:h-23 md:w-60"
-                  >
-                    <img
-                      src={banner(art)}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover"
-                    />
-                    <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/65 to-transparent" />
-                    <span className="relative font-extrabold text-white leading-tight md:text-lg">
-                      {t(`communities.marquee.${key}`)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ))}
-          </div>
-        </div>
-      </div>
+      <Marquee />
     </DarkBand>
   );
 };
@@ -452,6 +478,7 @@ export const HomePage = () => {
   const { t } = useTranslation("landing");
   const { token, loading } = useAuth();
   const router = useRouter();
+  usePageMeta(t("meta.homeTitle"), t("meta.homeDescription"));
 
   // Somebody already signed in has no business on the front door.
   useEffect(() => {

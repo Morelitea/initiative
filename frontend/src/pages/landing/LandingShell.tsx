@@ -16,16 +16,16 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { ModeToggle } from "@/components/ModeToggle";
 import { Button } from "@/components/ui/button";
 import { reopenConsent } from "@/lib/consent";
-import { CHANGELOG_URL, DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
+import { DOCS_URL, docsUrl, REPO_URL } from "@/lib/links";
 import { cn } from "@/lib/utils";
 
 import { LANDING_KEYFRAMES } from "./effects";
 import { useFrontDoor } from "./useFrontDoor";
 
-type Place = "download" | "pricing";
+type Place = "download" | "pricing" | "whats-new";
 
 const navLink =
-  "inline-flex min-h-11 items-center rounded-lg px-3.5 font-medium text-foreground/80 hover:bg-muted hover:text-foreground";
+  "inline-flex min-h-11 items-center rounded-lg px-3.5 font-medium text-foreground/80 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 const Header = ({ current }: { current?: Place }) => {
   const { t } = useTranslation("landing");
@@ -87,6 +87,7 @@ const Header = ({ current }: { current?: Place }) => {
             className="h-11 w-11 md:hidden"
             aria-label={t("nav.menu")}
             aria-expanded={open}
+            aria-controls="landing-menu"
             onClick={() => setOpen((value) => !value)}
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -94,7 +95,11 @@ const Header = ({ current }: { current?: Place }) => {
         </div>
       </div>
       {open ? (
-        <nav className="border-t px-4 pt-2 pb-4 md:hidden" aria-label={t("nav.mainAria")}>
+        <nav
+          id="landing-menu"
+          className="border-t px-4 pt-2 pb-4 md:hidden"
+          aria-label={t("nav.mainAria")}
+        >
           {places.map((place) => (
             <Link
               key={place.key}
@@ -134,7 +139,14 @@ const Header = ({ current }: { current?: Place }) => {
 };
 
 const footerLink =
-  "inline-flex min-h-9 items-center text-muted-foreground text-sm hover:text-foreground";
+  "inline-flex min-h-9 items-center rounded text-muted-foreground text-sm hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+
+/** GitHub's mark, which lucide no longer draws. */
+const GitHubMark = () => (
+  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+    <path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.77.11 3.06.74.8 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z" />
+  </svg>
+);
 
 const External = ({ href, children }: { href: string; children: ReactNode }) => (
   <a href={href} target="_blank" rel="noopener noreferrer" className={footerLink}>
@@ -173,7 +185,9 @@ const Footer = () => {
                 </li>
               ) : null}
               <li>
-                <External href={CHANGELOG_URL}>{t("footer.changelog")}</External>
+                <Link to="/whats-new" className={footerLink}>
+                  {t("footer.changelog")}
+                </Link>
               </li>
             </ul>
           </div>
@@ -195,37 +209,56 @@ const Footer = () => {
             </ul>
           </div>
           <div>
-            <h2 className="mb-2 font-bold text-sm">{t("footer.project")}</h2>
+            <h2 className="mb-2 font-bold text-sm">{t("footer.socials")}</h2>
             <ul>
               <li>
-                <External href={REPO_URL}>{t("footer.source")}</External>
+                <a
+                  href={REPO_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${footerLink} gap-2`}
+                >
+                  <GitHubMark />
+                  GitHub
+                </a>
               </li>
-              {/* Taking an answer back has to be as easy as giving one, and a
-                  front-door reader has no settings page to go to. Only where
-                  the deployment asks the question at all. */}
-              {cookieConsentEnabled ? (
-                <li>
-                  <button type="button" onClick={reopenConsent} className={footerLink}>
-                    {t("footer.cookies")}
-                  </button>
-                </li>
-              ) : null}
             </ul>
           </div>
         </div>
-        <p className="mt-10 text-muted-foreground text-sm">
-          {t("footer.copyright", { year: new Date().getFullYear() })}
-        </p>
+        <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground text-sm">
+          <p>{t("footer.copyright", { year: new Date().getFullYear() })}</p>
+          {/* Taking an answer back has to be as easy as giving one, and a
+              front-door reader has no settings page to go to. Only where the
+              deployment asks the question at all. */}
+          {cookieConsentEnabled ? (
+            <button type="button" onClick={reopenConsent} className={footerLink}>
+              {t("footer.cookies")}
+            </button>
+          ) : null}
+        </div>
       </div>
     </footer>
+  );
+};
+
+const SkipLink = () => {
+  const { t } = useTranslation("landing");
+  return (
+    <a
+      href="#landing-main"
+      className="sr-only z-[60] rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+    >
+      {t("nav.skip")}
+    </a>
   );
 };
 
 export const LandingShell = ({ current, children }: { current?: Place; children: ReactNode }) => (
   <div className="min-h-screen overflow-x-clip bg-background text-foreground">
     <style>{LANDING_KEYFRAMES}</style>
+    <SkipLink />
     <Header current={current} />
-    <main>{children}</main>
+    <main id="landing-main">{children}</main>
     <Footer />
   </div>
 );

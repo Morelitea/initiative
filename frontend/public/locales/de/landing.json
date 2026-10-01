@@ -7,7 +7,8 @@
     "signIn": "Anmelden",
     "signUp": "Registrieren",
     "menu": "Menü",
-    "mainAria": "Hauptmenü"
+    "mainAria": "Hauptmenü",
+    "skip": "Zum Inhalt springen"
   },
   "hero": {
     "titleLine1": "Raus aus dem Gruppenchat.",
@@ -53,7 +54,9 @@
       "mushrooms": "Morchelsucher",
       "startup": "Studio Brightline",
       "family": "Familie Parker"
-    }
+    },
+    "pause": "Anhalten",
+    "play": "Abspielen"
   },
   "tools": {
     "title": "Ein Werkzeug lernen, alle kennen",
@@ -224,7 +227,8 @@
       "m2": "welche Sache",
       "m3": "du weißt welche Sache"
     },
-    "imports": "Ziehst du von woanders um?"
+    "imports": "Ziehst du von woanders um?",
+    "cardsAria": "Was jedes Werkzeug gemeinsam hat"
   },
   "safe": {
     "title": "Du kannst hier nichts kaputt machen",
@@ -326,7 +330,6 @@
     "tagline": "Open Source, und das bleibt so.",
     "getIt": "Holen",
     "docs": "Doku",
-    "project": "Das Projekt",
     "download": "Download",
     "pricing": "Preise",
     "changelog": "Was ist neu",
@@ -334,8 +337,31 @@
     "faq": "FAQ",
     "server": "Einen Server betreiben",
     "security": "Sicherheit & Datenschutz",
-    "source": "Quellcode",
     "cookies": "Cookies",
-    "copyright": "© {{year}} Initiative"
+    "copyright": "© {{year}} Initiative",
+    "socials": "Social Media"
+  },
+  "whatsNew": {
+    "title": "Was ist neu",
+    "description": "Alles, was sich an Initiative geändert hat, das Neueste zuerst.",
+    "metaTitle": "Was ist neu · Initiative",
+    "postTitle": "Initiative {{version}}",
+    "postMetaTitle": "Initiative {{version}} · Was ist neu",
+    "readMore": "Ganzen Beitrag lesen",
+    "readMoreAria": "Ganzen Beitrag zu Initiative {{version}} lesen",
+    "older": "Ältere Beiträge zeigen",
+    "back": "Alle Beiträge",
+    "loading": "Lädt…",
+    "empty": "Hier gibt es noch nichts.",
+    "notFound": "Diese Version wurde nicht gefunden. Vielleicht ist sie noch nicht erschienen.",
+    "error": "Die Neuigkeiten konnten nicht geladen werden. Warte kurz und versuch es noch mal."
+  },
+  "meta": {
+    "homeTitle": "Initiative: raus aus dem Gruppenchat, rein an einen Ort",
+    "homeDescription": "Projekte, Aufgaben, Dokumente, Termine und Gespräche deiner Gruppe an einem Ort, im Web, auf Android, iPhone und deinem Computer.",
+    "downloadTitle": "Initiative herunterladen",
+    "downloadDescription": "Hol dir Initiative auf Android, iPhone, iPad oder deinen Computer, oder nutze es einfach weiter im Browser.",
+    "pricingTitle": "Preise · Initiative",
+    "pricingDescription": "Die Tarife von Initiative und was jeder enthält."
   }
 }

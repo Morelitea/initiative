@@ -7,7 +7,8 @@
     "signIn": "Iniciar sesión",
     "signUp": "Registrarse",
     "menu": "Menú",
-    "mainAria": "Principal"
+    "mainAria": "Principal",
+    "skip": "Saltar al contenido"
   },
   "hero": {
     "titleLine1": "Fuera del chat de grupo.",
@@ -53,7 +54,9 @@
       "mushrooms": "Cazadores de colmenillas",
       "startup": "Estudio Brightline",
       "family": "Familia Parker"
-    }
+    },
+    "pause": "Pausar",
+    "play": "Reproducir"
   },
   "tools": {
     "title": "Aprende una herramienta, conoce las demás",
@@ -224,7 +227,8 @@
       "m2": "¿qué asunto?",
       "m3": "sabes perfectamente qué asunto"
     },
-    "imports": "¿Te mudas desde otro sitio?"
+    "imports": "¿Te mudas desde otro sitio?",
+    "cardsAria": "Lo que comparten todas las herramientas"
   },
   "safe": {
     "title": "Aquí no puedes romper nada",
@@ -326,7 +330,6 @@
     "tagline": "Código abierto, y así seguirá.",
     "getIt": "Consíguelo",
     "docs": "Documentación",
-    "project": "El proyecto",
     "download": "Descargar",
     "pricing": "Precios",
     "changelog": "Novedades",
@@ -334,8 +337,31 @@
     "faq": "Preguntas frecuentes",
     "server": "Gestionar un servidor",
     "security": "Seguridad y privacidad",
-    "source": "Código fuente",
     "cookies": "Cookies",
-    "copyright": "© {{year}} Initiative"
+    "copyright": "© {{year}} Initiative",
+    "socials": "Redes sociales"
+  },
+  "whatsNew": {
+    "title": "Novedades",
+    "description": "Todo lo que ha cambiado en Initiative, lo más reciente primero.",
+    "metaTitle": "Novedades · Initiative",
+    "postTitle": "Initiative {{version}}",
+    "postMetaTitle": "Initiative {{version}} · Novedades",
+    "readMore": "Leer la entrada completa",
+    "readMoreAria": "Leer la entrada completa sobre Initiative {{version}}",
+    "older": "Ver entradas anteriores",
+    "back": "Todas las entradas",
+    "loading": "Cargando…",
+    "empty": "Todavía no hay nada.",
+    "notFound": "No encontramos esa versión. Puede que aún no haya salido.",
+    "error": "No se han podido cargar las novedades. Espera un momento y vuelve a intentarlo."
+  },
+  "meta": {
+    "homeTitle": "Initiative: fuera del chat de grupo, todo en un solo sitio",
+    "homeDescription": "Los proyectos, tareas, documentos, eventos y conversaciones de tu grupo en un solo sitio, en la web, Android, iPhone y tu ordenador.",
+    "downloadTitle": "Descarga Initiative",
+    "downloadDescription": "Instala Initiative en Android, iPhone, iPad o tu ordenador, o sigue usándolo en el navegador.",
+    "pricingTitle": "Precios · Initiative",
+    "pricingDescription": "Los planes de Initiative y lo que incluye cada uno."
   }
 }
