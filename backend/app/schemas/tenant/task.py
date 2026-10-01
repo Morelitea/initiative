@@ -103,7 +103,6 @@ MAX_CHECKLIST_ITEMS: Final = 100
 
 class TaskBase(SanitizedBaseModel):
     title: str
-    description: Optional[RichTextStr] = None
     priority: TaskPriority = TaskPriority.medium
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
@@ -113,6 +112,7 @@ class TaskBase(SanitizedBaseModel):
 
 class TaskCreate(TaskBase):
     title: TitleStr
+    description: Optional[RichTextStr] = None
     project_id: int
     recurrence: Optional[TaskRule] = None
     #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
@@ -171,6 +171,7 @@ class TaskRead(TaskBase):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
+    description: Optional[RichTextStr] = None
     id: int
     project_id: int
     task_status_id: int
@@ -212,6 +213,10 @@ class TaskListRead(TaskBase):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
+    #: The description's opening words as plain text, ending on a word
+    #: boundary with an ellipsis when cut. The whole text is on ``TaskRead``.
+    description_excerpt: Optional[str] = None
+    has_description: bool = False
     id: int
     project_id: int
     task_status_id: int
