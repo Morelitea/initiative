@@ -46,6 +46,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.core.security import (
+    APP_CONTEXT_TOKEN_TYPE,
     APP_PLATFORM_ISSUER,
     app_platform_audience,
     resolve_app_platform_signing_material,
@@ -156,7 +157,9 @@ def mint_context_token(
         payload["initiative_id"] = initiative_id
 
     key, algorithm, kid = resolve_app_platform_signing_material()
-    headers: dict[str, Any] | None = {"kid": kid} if kid else None
+    headers: dict[str, Any] = {"typ": APP_CONTEXT_TOKEN_TYPE}
+    if kid:
+        headers["kid"] = kid
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
     return token, int(lifetime.total_seconds())
 
