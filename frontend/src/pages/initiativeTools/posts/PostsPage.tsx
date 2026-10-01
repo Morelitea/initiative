@@ -98,11 +98,6 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
   const search = useDebouncedValue(listFilters.search ?? "", 300).trim();
 
-  // Where the board has been jumped to, if anywhere. Setting it re-anchors the
-  // feed: a new query key, so the reader lands at the top of that month rather
-  // than paging through everything since.
-  const [anchor, setAnchor] = useState<{ period: string; at: string } | null>(null);
-
   const filters = {
     initiative_id: fixedInitiativeId,
     archived: archivedParam(archiveState),
@@ -110,6 +105,14 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
     ...(tagIds.length > 0 ? { tag_ids: tagIds } : {}),
     ...(readFilter === "unread" ? { unread: true } : {}),
   };
+  const filtersKey = JSON.stringify(filters);
+
+  // Where the board has been jumped to, if anywhere. Setting it re-anchors the
+  // feed: a new query key, so the reader lands at the top of that month rather
+  // than paging through everything since. A jump is into one set of results,
+  // so it lapses when the filters change and the board starts at its latest.
+  const [jump, setJump] = useState<{ period: string; at: string; filters: string } | null>(null);
+  const anchor = jump?.filters === filtersKey ? jump : null;
 
   const postsQuery = usePostsFeed({ ...filters, ...(anchor ? { until: anchor.at } : {}) });
 
@@ -159,7 +162,6 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const clearFilters = useCallback(() => {
     setListFilters({});
     setReadFilter("all");
-    setAnchor(null);
   }, []);
 
   // The page itself scrolls, not a box inside it, so the virtualizer measures
@@ -261,9 +263,9 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
         virtualizer.scrollToIndex(loaded, { align: "start" });
         return;
       }
-      setAnchor({ period: stop.period, at: stop.anchor });
+      setJump({ period: stop.period, at: stop.anchor, filters: filtersKey });
     },
-    [posts, virtualizer, anchor]
+    [posts, virtualizer, anchor, filtersKey]
   );
 
   const renderCard = useCallback(
@@ -335,7 +337,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
                   variant="link"
                   size="sm"
                   className="h-auto p-0 text-sm"
-                  onClick={() => setAnchor(null)}
+                  onClick={() => setJump(null)}
                 >
                   {t("common:timeline.backToLatest")}
                 </Button>

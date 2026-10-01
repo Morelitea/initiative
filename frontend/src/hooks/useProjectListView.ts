@@ -227,9 +227,9 @@ export const useProjectListView = ({
   return {
     isLoading: query.isLoading,
     isError: query.isError,
-    /** The server has narrowed the list, so it holds only some of the
-     *  projects a manual order covers. */
-    narrowed: Boolean(search) || tagFilters.length > 0,
+    /** The list shows only some of the projects a manual order covers:
+     *  narrowed by the server's search or tags, or to favourites. */
+    narrowed: Boolean(search) || tagFilters.length > 0 || favoritesOnly,
     filteredProjects,
     pinnedProjects,
     sortedProjects,

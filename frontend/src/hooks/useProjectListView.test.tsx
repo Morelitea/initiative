@@ -93,7 +93,7 @@ describe("useProjectListView filtering", () => {
     expect(result.current.narrowed).toBe(false);
   });
 
-  it("narrows to favorites itself", async () => {
+  it("narrows to favorites itself, which a manual order cannot span", async () => {
     const { result, rerender } = await mount([
       buildProject({ name: "Favorite", is_favorited: true }),
       buildProject({ name: "Not" }),
@@ -104,6 +104,7 @@ describe("useProjectListView filtering", () => {
     result.current.filterBarProps.onFavoritesOnlyChange(true);
     rerender();
     expect(names(result.current.filteredProjects)).toEqual(["Favorite"]);
+    expect(result.current.narrowed).toBe(true);
   });
 
   it("drops projects from initiatives the viewer cannot see", async () => {
