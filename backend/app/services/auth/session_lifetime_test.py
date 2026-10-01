@@ -8,7 +8,12 @@ from sqlmodel import select
 from app.models.platform.guild import GuildRole
 from app.services.auth import session_lifetime, sessions as session_service
 from app.services.platform import app_settings as app_settings_service
-from app.testing import create_guild, create_guild_membership, create_user
+from app.testing import (
+    create_guild,
+    create_guild_membership,
+    create_user,
+    guild_administration,
+)
 
 _AT = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
 
@@ -87,6 +92,13 @@ async def test_a_community_holds_its_members_to_the_standard(session):
     assert issued.session.chain_expires_at == _AT + timedelta(
         hours=session_lifetime.COMPLIANCE_SESSION_HOURS
     )
+
+    # While it holds the ``restrictions`` option the standard needs.
+    await guild_administration(session, guild, auth_options=[])
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+    assert issued.session.chain_expires_at == _AT + timedelta(hours=720)
 
 
 async def test_somebody_in_two_such_communities_has_one_answer(session):

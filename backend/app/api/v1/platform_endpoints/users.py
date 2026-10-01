@@ -30,6 +30,7 @@ from app.api.deps import (
     SessionDep,
     UserSessionDep,
     get_current_active_user,
+    refuses_api_keys,
     require_first_party_session,
     SystemSessionDep,
     GuildAdminContext,
@@ -1606,7 +1607,7 @@ async def create_my_api_key(
         # And the guild has to accept the credential at all. Asked here as well
         # as at the gate so a key that could never be used is never handed over.
         guild = await session.get(Guild, payload.guild_id)
-        if guild is not None and not guild.allow_api_keys:
+        if guild is not None and await refuses_api_keys(session, guild):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_API_KEYS_REFUSED,

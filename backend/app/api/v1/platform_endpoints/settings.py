@@ -85,7 +85,6 @@ from app.core.login_methods import (
     LoginMethod,
     SecondFactorRequirement,
 )
-from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import push_config
@@ -95,7 +94,6 @@ from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
-from app.services.platform import push_tokens
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
@@ -104,22 +102,6 @@ logger = logging.getLogger(__name__)
 
 # Reason stamped on a grant self-issued by the Guilds tab's billing button.
 BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
-
-# Which columns of the settings singleton this page moves itself; the other
-# areas are recorded by the service that writes them. A value rides along in
-# the record only where its type rules out a secret.
-_SESSION_LIFETIME_FIELDS: tuple[str, ...] = (
-    "session_max_hours",
-    "session_idle_minutes",
-)
-
-#: What this deployment permits a notification to leave the app carrying, for
-#: the record.
-_NOTIFICATION_FIELDS: tuple[str, ...] = (
-    "push_notifications_enabled",
-    "email_notifications_enabled",
-    "redact_notification_content",
-)
 
 #: What the operator's caps and entitlements for one community consist of.
 _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
@@ -248,11 +230,11 @@ async def update_login_methods(
     count in ``X-Affected-Count``, and proceeds only when the caller echoes
     that exact number back in ``acknowledge_stranded``. Nobody is signed out
     either way."""
-    await auth_posture.set_login_methods(
-        session,
-        methods=payload.methods,
-        acknowledge_stranded=payload.acknowledge_stranded,
-        actor_user_id=owner.id,
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(
+            session, owner, acknowledge_stranded=payload.acknowledge_stranded
+        ),
+        {"login_methods": frozenset(payload.methods)},
     )
     return await _platform_auth_payload(session)
 
@@ -270,16 +252,16 @@ async def update_second_factor_requirement(
     Two refusals on the way up, and none coming down. Asking for one while the
     deployment permits nothing that presents one is refused (409); so is
     asking while the account writing it does not meet the rule itself (400,
-    naming the unmet method), which is the same "prove it before it binds
-    anybody" a community's requirement makes.
+    naming the unmet method).
 
     Nobody is signed out. An account the rule covers is asked at its next
     request and can answer it where it stands; a credential that cannot
     present one — the app on a phone, a personal API key — works again once
     its owner holds a factor.
     """
-    await auth_posture.set_second_factor_requirement(
-        session, level=payload.level, actor=owner
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(session, owner),
+        {"second_factor_requirement": payload.level},
     )
     return await _platform_auth_payload(session)
 
@@ -298,27 +280,13 @@ async def update_session_lifetime(
     is brought under the new figure now, measured from when it was issued, so
     shortening the limit can end one on the spot.
     """
-    row = await app_settings_service.get_app_settings(session)
-    before = audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
-    row.session_max_hours = payload.session_max_hours
-    row.session_idle_minutes = payload.session_idle_minutes
-    session.add(row)
-    await session.flush()
-    # A device token carries its deadline in its own expiry, so the new figure
-    # is written into the ones already issued rather than read back on every
-    # native request.
-    await session_lifetime.apply_to_device_tokens(session)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(session, owner),
+        {
+            "session_max_hours": payload.session_max_hours,
+            "session_idle_minutes": payload.session_idle_minutes,
+        },
     )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-            actor_user_id=owner.id,
-            detail={"area": "session_lifetime", **changed},
-        )
-    await session.commit()
     return await _platform_auth_payload(session)
 
 
@@ -362,30 +330,14 @@ async def update_notification_settings(
     gets about itself keep going, because this must not lock anybody out of
     their account.
     """
-    row = await app_settings_service.ensure_settings_row(session)
-    before = audit_service.snapshot(row, _NOTIFICATION_FIELDS)
-    dropping_push = row.push_notifications_enabled and not (
-        payload.push_notifications_enabled
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(session, owner),
+        {
+            "push_notifications_enabled": payload.push_notifications_enabled,
+            "email_notifications_enabled": payload.email_notifications_enabled,
+            "redact_notification_content": payload.redact_notification_content,
+        },
     )
-    row.push_notifications_enabled = payload.push_notifications_enabled
-    row.email_notifications_enabled = payload.email_notifications_enabled
-    row.redact_notification_content = payload.redact_notification_content
-    session.add(row)
-    await session.flush()
-    if dropping_push:
-        dropped = await push_tokens.purge_all(session)
-        logger.info("push notifications switched off; dropped %d token(s)", dropped)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(row, _NOTIFICATION_FIELDS)
-    )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-            actor_user_id=owner.id,
-            detail={"area": "notifications", **changed},
-        )
-    await session.commit()
     return await _notification_payload(session)
 
 

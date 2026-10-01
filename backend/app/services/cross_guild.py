@@ -13,7 +13,11 @@ cut from their merge.
 
 from typing import Any, Awaitable, Callable, Optional, Sequence, TypeVar
 
+from sqlalchemy import or_
 from sqlmodel import select
+
+from app.core.guild_auth_options import GuildAuthOption
+from app.services.platform import guild_entitlements
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import auth_context
@@ -76,7 +80,14 @@ async def member_guild_ids(
         User.status != UserStatus.suspended,
     ]
     if auth_context.api_key_credential():
-        conditions.append(Guild.allow_api_keys.is_(True))
+        conditions.append(
+            or_(
+                Guild.allow_api_keys.is_(True),
+                ~guild_entitlements.holds_option(
+                    Guild.id, GuildAuthOption.restrictions
+                ),
+            )
+        )
     pinned = auth_context.api_key_guild_id()
     if pinned is not None:
         conditions.append(GuildMembership.guild_id == pinned)

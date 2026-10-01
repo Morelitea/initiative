@@ -41,7 +41,9 @@ from app.services.auth.assurance import (
 )
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
+from app.core.guild_auth_options import GuildAuthOption
 from app.services.platform import auth_posture
+from app.services.platform import guild_entitlements
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core import audit_context
 from app.core.messages import (
@@ -494,13 +496,23 @@ async def _enforce_guild_auth_policy(
     are one question to ``guild_connection_admits``, which also applies the
     narrowing a community put on the connection.
 
-    ``policy`` is the guild's row, read under the routed session.
+    ``policy`` is the guild's row, read under the routed session. A second
+    factor the community asks for applies while it holds the option it needs,
+    read as the database gate reads it.
     """
+    restricts, factors_apply = (
+        await session.exec(
+            select(
+                guild_entitlements.holds_option(guild_id, GuildAuthOption.restrictions),
+                guild_entitlements.holds_option(guild_id, GuildAuthOption.providers),
+            )
+        )
+    ).one()
     # Asked of everybody reaching this community, whatever it says about how
     # they arrive — so it is read before a community with no sign-in rule
     # returns. The answer names no provider and no kind of factor: the
     # step-up says a factor is what is wanted.
-    if require_second_factor and SECOND_FACTOR_AMR not in markers:
+    if require_second_factor and restricts and SECOND_FACTOR_AMR not in markers:
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
@@ -535,7 +547,11 @@ async def _enforce_guild_auth_policy(
     # And the account's own second factor, where the community asks for one.
     # The answer names no provider, so the step-up says a factor is what is
     # wanted rather than pointing at a sign-in page.
-    if LoginMethod.totp in policy.require_methods and SECOND_FACTOR_AMR not in markers:
+    if (
+        factors_apply
+        and LoginMethod.totp in policy.require_methods
+        and SECOND_FACTOR_AMR not in markers
+    ):
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
@@ -544,25 +560,41 @@ async def _enforce_guild_auth_policy(
     # And a passkey, where the community asks for one. Read from the passkey
     # markers rather than the factor's, so each method is answered by itself:
     # an assertion records the second factor as well as the key.
-    if LoginMethod.passkey in policy.require_methods and not carries_passkey(markers):
+    if (
+        factors_apply
+        and LoginMethod.passkey in policy.require_methods
+        and not carries_passkey(markers)
+    ):
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
             step_up_guild_id=guild_id,
         )
 
 
-def declines_this_credential(guild: Guild) -> bool:
+async def refuses_api_keys(session: AsyncSession, guild: Guild) -> bool:
+    """Whether ``guild`` refuses personal API keys: switched off, while it
+    holds the ``restrictions`` option that switch needs."""
+    if guild.allow_api_keys:
+        return False
+    return bool(
+        await session.scalar(
+            select(
+                guild_entitlements.holds_option(guild.id, GuildAuthOption.restrictions)
+            )
+        )
+    )
+
+
+async def declines_this_credential(session: AsyncSession, guild: Guild) -> bool:
     """Whether ``guild`` declines the credential this request was made with.
 
-    True only for a personal API key against a community that has switched them
-    off. The key's own ``guild_id`` says nothing here: a key pinned elsewhere
-    and a key pinned nowhere both address this guild the same way.
-
-    The rule itself, so the two places that apply it read the same line — the
-    guild-context gate below and the cross-guild aggregates, which visit each
-    guild in turn (see ``app.services.cross_guild``).
+    True only for a personal API key against a community that refuses them.
+    The key's own ``guild_id`` says nothing here: a key pinned elsewhere and a
+    key pinned nowhere both address this guild the same way. The cross-guild
+    aggregates, which pick their guilds in one query, ask the same question
+    there (see ``app.services.cross_guild``).
     """
-    return not guild.allow_api_keys and auth_context.api_key_credential()
+    return auth_context.api_key_credential() and await refuses_api_keys(session, guild)
 
 
 def pinned_elsewhere(guild_id: int) -> bool:
@@ -573,7 +605,7 @@ def pinned_elsewhere(guild_id: int) -> bool:
     return pinned is not None and pinned != guild_id
 
 
-def _enforce_guild_api_access(guild: Guild) -> None:
+async def _enforce_guild_api_access(session: AsyncSession, guild: Guild) -> None:
     """A community that declines personal API keys is not reached with one.
 
     Runs beside the sign-in gate and binds the same callers — members and
@@ -585,7 +617,7 @@ def _enforce_guild_api_access(guild: Guild) -> None:
     realtime sockets and the keepalive. The cross-guild aggregates, which pick
     their guilds themselves, ask the same question where they do it.
     """
-    if declines_this_credential(guild):
+    if await declines_this_credential(session, guild):
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
 
 
@@ -724,7 +756,7 @@ async def _load_guild_context(
             ),
         )
         guild, asked = await _read_grant_gate(session, guild_id)
-        _enforce_guild_api_access(guild)
+        await _enforce_guild_api_access(session, guild)
         # What the deployment asks of the account, before what this community
         # asks of the session. Asked here as well as in the dependency above
         # because the sockets, the keepalive and the stream re-check resolve
@@ -755,7 +787,7 @@ async def _load_guild_context(
     # members like any other until the platform lifts it.
     if guild.status not in LIVE_STATUS_VALUES:
         raise GuildAccessError()
-    _enforce_guild_api_access(guild)
+    await _enforce_guild_api_access(session, guild)
     # A listed community is open to anyone signed in, so the deployment's age
     # question is owed by the people in it — and the ways in that had nobody at
     # a keyboard could not put it to them. It is put here instead: at the door

@@ -33,6 +33,11 @@ class CommonMessages:
 
 
 class AuthMessages:
+    #: A sign-in rule nothing the deployment permits could answer.
+    AUTH_RULE_NOT_OFFERED = "AUTH_RULE_NOT_OFFERED"
+    #: A sign-in rule its writer does not answer yet; the unmet header names
+    #: which part.
+    AUTH_RULE_SELF_UNSATISFIED = "AUTH_RULE_SELF_UNSATISFIED"
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
     REGISTRATION_REQUIRES_INVITE = "REGISTRATION_REQUIRES_INVITE"
     UNABLE_TO_CREATE_USER = "UNABLE_TO_CREATE_USER"
@@ -145,9 +150,6 @@ class GuildMessages:
     #: the answer reads the same wherever it is met.
     GUILD_API_KEYS_REFUSED = "GUILD_API_KEYS_REFUSED"
     GUILD_AUTH_POLICY_INVALID_PROVIDER = "GUILD_AUTH_POLICY_INVALID_PROVIDER"
-    GUILD_AUTH_POLICY_SELF_UNSATISFIED = "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
-    #: The community asked for a way in the deployment does not offer.
-    GUILD_AUTH_POLICY_METHOD_UNAVAILABLE = "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
     GUILD_PERMISSION_REQUIRED = "GUILD_PERMISSION_REQUIRED"
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
     #: The guild's sign-in configuration asks for the seat above admin.
@@ -569,11 +571,6 @@ class SettingsMessages:
     LOGIN_METHODS_FACTOR_REQUIRED = "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
     #: Permitting the emailed code while the deployment cannot send mail.
     LOGIN_METHODS_NO_EMAIL = "SETTINGS_LOGIN_METHODS_NO_EMAIL"
-    # What the deployment asks of an account.
-    #: Asking for a second factor while permitting nothing that presents one.
-    FACTOR_REQUIREMENT_NO_METHOD = "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"
-    #: The account writing the requirement does not meet it yet.
-    FACTOR_REQUIREMENT_SELF_UNSATISFIED = "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
 
     # Object storage
     STORAGE_BACKFILL_RUNNING = "SETTINGS_STORAGE_BACKFILL_RUNNING"

@@ -542,7 +542,7 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Whether anything this deployment permits could answer a second-factor
     #: requirement — the authenticator app or a passkey, either will do. False
     #: means the requirement below cannot be raised, and the server refuses it
-    #: with ``SETTINGS_FACTOR_REQUIREMENT_NO_METHOD``. Answered here so the
+    #: with ``AUTH_RULE_NOT_OFFERED``. Answered here so the
     #: surface can say so before the write, and so it never has to work out
     #: which methods count.
     factor_methods_permitted: bool = True

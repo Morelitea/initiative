@@ -42,6 +42,8 @@ from app.core.notification_categories import NotificationCategory, category_of
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.guild import Guild
 from app.models.platform.notification import NotificationType
+from app.core.guild_auth_options import GuildAuthOption
+from app.services.platform import guild_entitlements
 
 
 @dataclass(frozen=True)
@@ -77,8 +79,10 @@ def _platform_policy(row: AppSetting | None) -> NotificationPolicy:
     )
 
 
-def _guild_policy(row: Guild | None) -> NotificationPolicy:
-    if row is None:
+def _guild_policy(row: Guild | None, *, lapsed: bool = False) -> NotificationPolicy:
+    """A community's own answers, while it holds the ``restrictions`` option
+    they need; ``lapsed`` when its row shows that option withdrawn."""
+    if row is None or lapsed:
         return UNRESTRICTED
     return NotificationPolicy(
         push=row.allow_push_notifications,
@@ -97,7 +101,10 @@ async def resolve(session: AsyncSession, guild_id: int | None) -> NotificationPo
     guild = (
         await session.exec(select(Guild).where(Guild.id == guild_id))
     ).one_or_none()
-    return platform.stricter_than(_guild_policy(guild))
+    held = await session.scalar(
+        select(guild_entitlements.holds_option(guild_id, GuildAuthOption.restrictions))
+    )
+    return platform.stricter_than(_guild_policy(guild, lapsed=not held))
 
 
 async def resolve_many(
@@ -114,15 +121,24 @@ async def resolve_many(
     )
     named = {gid for gid in wanted if gid is not None}
     rows = (
-        (await session.exec(select(Guild).where(Guild.id.in_(named)))).all()
+        (
+            await session.exec(
+                select(
+                    Guild,
+                    guild_entitlements.holds_option(
+                        Guild.id, GuildAuthOption.restrictions
+                    ),
+                ).where(Guild.id.in_(named))
+            )
+        ).all()
         if named
         else []
     )
-    by_id = {row.id: row for row in rows}
+    by_id = {row.id: _guild_policy(row, lapsed=not held) for row, held in rows}
     return {
         gid: platform
         if gid is None
-        else platform.stricter_than(_guild_policy(by_id.get(gid)))
+        else platform.stricter_than(by_id.get(gid, UNRESTRICTED))
         for gid in wanted
     }
 

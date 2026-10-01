@@ -197,7 +197,7 @@ async def test_policy_requires_admin_own_session_to_satisfy(
         json={"policy": "required", "provider_id": provider.id},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert response.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
     # One code for four different asks, so the header is what tells the page
     # which line of the form the refusal is about.
     assert response.headers["X-Auth-Policy-Unmet"] == "provider"
@@ -207,9 +207,9 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """With the operator toggle off the config surface closes, and the three
-    verbs part company: reading a standing requirement works, setting one 404s
-    with the same GUILD_AUTH_NOT_ENABLED shape as platform posture and writes
-    nothing, and lifting the standing one is still reachable.
+    verbs part company: reading a standing requirement works, tightening it
+    404s with the same GUILD_AUTH_NOT_ENABLED shape as platform posture and
+    writes nothing, and lifting the standing one is still reachable.
 
     Enforcement reads the policy row alone, so a requirement outlives the
     entitlement that allowed it to be set; the way to lift one outlives it too.
@@ -230,7 +230,11 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
     put = await client.put(
         _policy(guild_id),
         headers=headers,
-        json={"policy": "required", "provider_id": provider_id},
+        json={
+            "policy": "required",
+            "provider_id": provider_id,
+            "require_methods": ["sso"],
+        },
     )
     assert put.status_code == 404
     assert put.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
@@ -1195,7 +1199,7 @@ async def test_the_ask_is_written_only_by_a_session_that_has_met_it(
         json=body,
     )
     assert refused.status_code == 400
-    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert refused.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
     assert refused.headers["X-Auth-Policy-Unmet"] == ask.method
 
     saved = await client.put(_policy(seat.guild.id), headers=met, json=body)
@@ -1224,8 +1228,8 @@ async def test_a_community_cannot_ask_for_what_the_deployment_withholds(
         headers=headers,
         json={"policy": "required", "require_methods": [ask.method]},
     )
-    assert refused.status_code == 400
-    assert refused.json()["detail"] == "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "AUTH_RULE_NOT_OFFERED"
     assert refused.headers["X-Auth-Policy-Unmet"] == ask.method
 
 
@@ -1276,7 +1280,12 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
 ):
     """No sign-in rule, and still a requirement: the two are separate answers,
     which is what lets a community that lets people arrive however they like
-    ask them to hold a factor."""
+    ask them to hold a factor.
+
+    A factor applies while the community holds the option it needs: the
+    community's own while it holds ``restrictions``, a sign-in rule's while it
+    holds ``providers``. Withdrawn, the rule stays set and stops applying;
+    granted back, it applies again."""
     seat = await acting_user(guild_role=GuildRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     # A session that has presented one; the seat has to answer its own ask.
@@ -1292,6 +1301,34 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     assert response.json()["require_second_factor"] is True
     await session.refresh(seat.guild)
     assert seat.guild.require_second_factor is True
+
+    async def asked() -> bool:
+        reached = await client.get(seat.g("/initiatives/"), headers=seat.headers)
+        if reached.status_code == 200:
+            return False
+        assert reached.json()["detail"] == "GUILD_AUTH_FACTOR_REQUIRED", reached.text
+        return True
+
+    assert await asked()
+    await guild_administration(session, seat.guild, auth_options=[])
+    assert not await asked()
+    await guild_administration(session, seat.guild, auth_options=["restrictions"])
+    assert await asked()
+
+    await guild_administration(
+        session, seat.guild, auth_options=["providers", "restrictions"]
+    )
+    seat.guild.require_second_factor = False
+    session.add(seat.guild)
+    session.add(
+        GuildAuthPolicy(
+            guild_id=seat.guild.id, policy="required", require_methods=["totp"]
+        )
+    )
+    await session.commit()
+    assert await asked()
+    await guild_administration(session, seat.guild, auth_options=["restrictions"])
+    assert not await asked()
 
 
 async def test_the_seat_answers_its_own_ask_first(
@@ -1309,6 +1346,6 @@ async def test_the_seat_answers_its_own_ask_first(
     )
 
     assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
+    assert response.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
     await session.refresh(seat.guild)
     assert seat.guild.require_second_factor is False
