@@ -72,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Moving an event to another initiative clears its properties.** Its property values belong to the old initiative, so they now go with the move, as they already did for tasks, and so do those on the series' changed occurrences. Before, they stayed hidden on the event where nobody could see or clear them.
 - **Two counter steps at the same moment both count.** A step sent through the API or an automation is now one database write, so two landing together no longer lose one.
 - **Galleries and wikis on My Tools show their cover and counts**, as they do on a community's own page.
 - **Project backups leave out initiatives with projects turned off**, as every other tool already did, instead of failing on them.

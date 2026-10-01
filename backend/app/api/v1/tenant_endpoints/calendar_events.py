@@ -24,7 +24,7 @@ from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
-from sqlmodel import select
+from sqlmodel import delete, select
 
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -977,6 +977,19 @@ async def _apply_update(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=CalendarEventMessages.CANNOT_CROSS_SCOPE,
             )
+        # Into another initiative, drop property values — their definitions
+        # belong to the old initiative and can't resolve in the new one. The
+        # series' overrides move with it, so theirs go too. Done before the
+        # move, while the values still resolve.
+        if destination.initiative_id != event.calendar.initiative_id:
+            moving = [event, *await occurrences_service.overrides(session, event)]
+            await session.exec(
+                delete(CalendarEventPropertyValue).where(
+                    CalendarEventPropertyValue.event_id.in_([e.id for e in moving])
+                )
+            )
+            for moved in moving:
+                session.expire(moved, ["property_values"])
         event.calendar_id = update_data["calendar_id"]
         # Only those who can open the destination stay on the list.
         await events_service.set_event_attendees(
