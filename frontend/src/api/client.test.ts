@@ -240,16 +240,12 @@ describe("silent session renewal", () => {
       return HttpResponse.json({ access_token: "fresh" });
     });
 
-    try {
-      const response = await apiClient.get("/users/me");
+    const response = await apiClient.get("/users/me");
 
-      expect(response.data).toEqual({ id: 1 });
-      expect(request).toHaveBeenCalledTimes(1);
-      expect(renewedInsideLock).toBe(true);
-      expect(held).toEqual(["held:initiative:auth:refresh", "released:initiative:auth:refresh"]);
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    expect(response.data).toEqual({ id: 1 });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(renewedInsideLock).toBe(true);
+    expect(held).toEqual(["held:initiative:auth:refresh", "released:initiative:auth:refresh"]);
   });
 
   // Older browsers and some embedded views have no lock manager, so the turn

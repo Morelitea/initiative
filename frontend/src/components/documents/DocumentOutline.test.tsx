@@ -135,7 +135,6 @@ const layOut = (tops: Record<string, number>, toolbarHeight: number) => {
 const jsdomOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
 
 afterEach(() => {
-  vi.restoreAllMocks();
   if (jsdomOffsetHeight) {
     Object.defineProperty(HTMLElement.prototype, "offsetHeight", jsdomOffsetHeight);
   }

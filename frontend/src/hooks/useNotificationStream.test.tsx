@@ -44,7 +44,6 @@ describe("useNotificationStream", () => {
 
   afterEach(() => {
     setAuthToken(null);
-    vi.unstubAllGlobals();
   });
 
   it("connects to the user-scoped stream, with no guild in the address", () => {
@@ -343,10 +342,6 @@ describe("useNotificationStreamConnected", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
   });
 
   it("reports the socket state to consumers outside the hook's own tree", async () => {
