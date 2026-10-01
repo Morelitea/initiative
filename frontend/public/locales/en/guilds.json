@@ -233,17 +233,10 @@
     "contactSupport": "Contact support"
   },
   "noGuild": {
-    "title": "No community membership",
-    "description": "You are not a member of any community yet. Ask a community admin for an invite link, or create a new community to get started.",
-    "guildNamePlaceholder": "Community name",
-    "create": "Create",
-    "inviteCodePlaceholder": "Invite code",
-    "redeem": "Redeem",
     "accountSettings": "Account settings",
     "platformSettings": "Platform settings",
     "shellBackToStart": "Back to start",
-    "logOut": "Log out",
-    "browseCommunities": "Browse communities"
+    "logOut": "Log out"
   },
   "notifications": {
     "title": "Notifications",

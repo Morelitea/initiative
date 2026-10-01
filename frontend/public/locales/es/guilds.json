@@ -233,17 +233,10 @@
     "contactSupport": "Contactar con soporte"
   },
   "noGuild": {
-    "title": "Sin membresía de comunidad",
-    "description": "Aún no eres miembro de ninguna comunidad. Pide a un administrador de comunidad un enlace de invitación o crea un nueva comunidad para comenzar.",
-    "guildNamePlaceholder": "Nombre de la comunidad",
-    "create": "Crear",
-    "inviteCodePlaceholder": "Código de invitación",
-    "redeem": "Canjear",
     "accountSettings": "Configuración de la cuenta",
     "platformSettings": "Configuración de la plataforma",
     "shellBackToStart": "Volver al inicio",
-    "logOut": "Cerrar sesión",
-    "browseCommunities": "Explorar comunidades"
+    "logOut": "Cerrar sesión"
   },
   "notifications": {
     "title": "Notificaciones",

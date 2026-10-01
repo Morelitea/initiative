@@ -254,7 +254,7 @@ export const LandingCinematic = () => {
   const startButton = (size: "lg" | "default" = "lg", className = "") =>
     registrationOpen ? (
       <Button size={size} variant="outline" className={className} asChild>
-        <Link to="/register">
+        <Link to="/start">
           <Sparkles className="h-5 w-5" aria-hidden="true" />
           {t("hero.ctaStart")}
         </Link>

@@ -16,6 +16,7 @@ import { Route as ServerRequiredForgotPasswordRouteImport } from './routes/_serv
 import { Route as ServerRequiredLoginRouteImport } from './routes/_serverRequired/login'
 import { Route as ServerRequiredRegisterRouteImport } from './routes/_serverRequired/register'
 import { Route as ServerRequiredResetPasswordRouteImport } from './routes/_serverRequired/reset-password'
+import { Route as ServerRequiredStartRouteImport } from './routes/_serverRequired/start'
 import { Route as ServerRequiredVerifyEmailRouteImport } from './routes/_serverRequired/verify-email'
 import { Route as ServerRequiredWelcomeRouteImport } from './routes/_serverRequired/welcome'
 import { Route as AppsConnectedRouteImport } from './routes/apps.connected'
@@ -203,6 +204,11 @@ const ServerRequiredResetPasswordRoute =
     path: '/reset-password',
     getParentRoute: () => ServerRequiredRoute,
   } as any)
+const ServerRequiredStartRoute = ServerRequiredStartRouteImport.update({
+  id: '/start',
+  path: '/start',
+  getParentRoute: () => ServerRequiredRoute,
+} as any)
 const ServerRequiredVerifyEmailRoute =
   ServerRequiredVerifyEmailRouteImport.update({
     id: '/verify-email',
@@ -1329,6 +1335,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof ServerRequiredLoginRoute
   '/register': typeof ServerRequiredRegisterRoute
   '/reset-password': typeof ServerRequiredResetPasswordRoute
+  '/start': typeof ServerRequiredStartRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
@@ -1486,6 +1493,7 @@ export interface FileRoutesByTo {
   '/login': typeof ServerRequiredLoginRoute
   '/register': typeof ServerRequiredRegisterRoute
   '/reset-password': typeof ServerRequiredResetPasswordRoute
+  '/start': typeof ServerRequiredStartRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
@@ -1628,6 +1636,7 @@ export interface FileRoutesById {
   '/_serverRequired/login': typeof ServerRequiredLoginRoute
   '/_serverRequired/register': typeof ServerRequiredRegisterRoute
   '/_serverRequired/reset-password': typeof ServerRequiredResetPasswordRoute
+  '/_serverRequired/start': typeof ServerRequiredStartRoute
   '/_serverRequired/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/_serverRequired/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
@@ -1788,6 +1797,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/start'
     | '/verify-email'
     | '/welcome'
     | '/apps/connected'
@@ -1945,6 +1955,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/start'
     | '/verify-email'
     | '/welcome'
     | '/apps/connected'
@@ -2086,6 +2097,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/login'
     | '/_serverRequired/register'
     | '/_serverRequired/reset-password'
+    | '/_serverRequired/start'
     | '/_serverRequired/verify-email'
     | '/_serverRequired/welcome'
     | '/apps/connected'
@@ -2293,6 +2305,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ServerRequiredResetPasswordRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/start': {
+      id: '/_serverRequired/start'
+      path: '/start'
+      fullPath: '/start'
+      preLoaderRoute: typeof ServerRequiredStartRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/verify-email': {
@@ -3999,6 +4018,7 @@ interface ServerRequiredRouteChildren {
   ServerRequiredLoginRoute: typeof ServerRequiredLoginRoute
   ServerRequiredRegisterRoute: typeof ServerRequiredRegisterRoute
   ServerRequiredResetPasswordRoute: typeof ServerRequiredResetPasswordRoute
+  ServerRequiredStartRoute: typeof ServerRequiredStartRoute
   ServerRequiredVerifyEmailRoute: typeof ServerRequiredVerifyEmailRoute
   ServerRequiredWelcomeRoute: typeof ServerRequiredWelcomeRoute
   ServerRequiredInviteCodeRoute: typeof ServerRequiredInviteCodeRoute
@@ -4014,6 +4034,7 @@ const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
   ServerRequiredLoginRoute: ServerRequiredLoginRoute,
   ServerRequiredRegisterRoute: ServerRequiredRegisterRoute,
   ServerRequiredResetPasswordRoute: ServerRequiredResetPasswordRoute,
+  ServerRequiredStartRoute: ServerRequiredStartRoute,
   ServerRequiredVerifyEmailRoute: ServerRequiredVerifyEmailRoute,
   ServerRequiredWelcomeRoute: ServerRequiredWelcomeRoute,
   ServerRequiredInviteCodeRoute: ServerRequiredInviteCodeRoute,
