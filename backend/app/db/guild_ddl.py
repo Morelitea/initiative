@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
 from app.core.app_scopes import AppScopeResource, tool_resource
-from app.core.tools import Tool
+from app.core.tools import PROPERTY_TARGETS, Tool
 from app.db.app_rls import (
     APP_REFUSED_TABLES,
     APP_TABLE_ACCESS,
@@ -46,8 +46,10 @@ from app.db.initiative_rls import (
     initiative_of,
     INITIATIVE_SCOPED_TABLES,
     dac_asks_at_write,
+    entity_tables,
     governing_path,
     render_entity_access_fn,
+    render_entity_initiative_fn,
     InitiativePath,
 )
 from app.db import gucs
@@ -740,6 +742,22 @@ def _app_search_read() -> str:
     )
 
 
+def _property_values_scope(write: bool) -> str:
+    """An installed app reaches a property value with the scope of the tool
+    that governs the row it is on — a task's with ``projects``."""
+    tables = entity_tables()
+    arms = " ".join(
+        f"WHEN '{target}' THEN "
+        f"'{tool_resource(governing_path(tables[target])[0]).value}'"  # ty: ignore[not-subscriptable] — every target has a tool
+        for target in PROPERTY_TARGETS
+    )
+    held = IN_POLICY.field("install_write" if write else "install_read")
+    return (
+        f"({_IID} IS NULL OR "
+        f"(CASE property_values.entity_type {arms} END) = ANY ({held}))"
+    )
+
+
 def _app_predicates(table: str) -> dict[str, str]:
     """What each command asks of an installed app on ``table``, beside what
     the table's own policies ask. Empty where a tool's gate already asks it."""
@@ -759,6 +777,14 @@ def _app_predicates(table: str) -> dict[str, str]:
         }
     if table in APP_REFUSED_TABLES:
         return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), refused)
+    if table == "property_values":
+        write = _property_values_scope(True)
+        return {
+            "SELECT": _property_values_scope(False),
+            "INSERT": write,
+            "UPDATE": write,
+            "DELETE": write,
+        }
     access = APP_TABLE_ACCESS[table]
     if access.kind is AppTableKind.subscriptions:
         own = f"({_IID} IS NULL OR app_install_id = {_IID})"
@@ -1077,6 +1103,8 @@ def render_guild_rls_ddl() -> str:
         + render_guild_authorization_functions()
         + "\n"
         + render_entity_access_fn()
+        + "\n"
+        + render_entity_initiative_fn()
         + "\n"
         + render_resource_frozen_fn()
         + "\n"

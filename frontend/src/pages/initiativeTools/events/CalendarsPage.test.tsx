@@ -241,6 +241,7 @@ describe("CalendarsView on a guild calendar", () => {
     comments_enabled: true,
     archived_at: null,
     tags: [],
+    properties: [],
     grants: [],
   };
 
@@ -395,7 +396,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     end_at: inFocusMonth(3),
     all_day: true,
     attendee_previews: [],
-    property_values: [],
+    properties: [],
     tags: [],
     can: writerCan(),
   };

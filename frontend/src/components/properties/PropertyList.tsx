@@ -1,21 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { PropertySummary, Tool } from "@/api/generated/initiativeAPI.schemas";
-import {
-  useSetDocumentProperties,
-  useSetEventProperties,
-  useSetTaskProperties,
-} from "@/hooks/useProperties";
+import type { PropertySummary, PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { useSetProperties } from "@/hooks/useProperties";
 import { cn } from "@/lib/utils";
 
 import { PropertyFields } from "./PropertyFields";
 import { normalizePropertyValue } from "./propertyHelpers";
 
-export type PropertyEntityKind = "document" | "task" | "event";
-
 export interface PropertyListProps {
-  entityKind: PropertyEntityKind;
+  target: PropertyTarget;
   entityId: number;
   properties: PropertySummary[];
   disabled?: boolean;
@@ -24,6 +18,12 @@ export interface PropertyListProps {
   initiativeId?: number | null;
   /** See `PropertyInput`'s `canOpen`. */
   canOpen?: { tool: Tool; id: number | null | undefined };
+  /**
+   * Properties just added to the list and not yet on the server. The list
+   * saves when one appears, with every value it holds, so it stays the one
+   * writer of this row's values.
+   */
+  unsaved?: number[];
 }
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -32,7 +32,7 @@ const SAVE_DEBOUNCE_MS = 400;
 type DraftMap = Record<number, unknown>;
 
 /**
- * Build the replace-all payload for the PUT /properties endpoints from the
+ * Build the replace-all payload for the PUT /properties endpoint from the
  * current draft state. Every property in ``properties`` is sent even when
  * its value is empty — the backend persists attached-but-empty rows so
  * adding a property without setting a value still survives a refresh.
@@ -63,25 +63,19 @@ const buildPayload = (drafts: DraftMap, properties: PropertySummary[], removedId
 };
 
 export const PropertyList = ({
-  entityKind,
+  target,
   entityId,
   properties,
   disabled = false,
   className,
   initiativeId,
   canOpen,
+  unsaved,
 }: PropertyListProps) => {
   const { t } = useTranslation("properties");
 
-  const setDocumentMutation = useSetDocumentProperties();
-  const setTaskMutation = useSetTaskProperties();
-  const setEventMutation = useSetEventProperties();
-  const activeMutation =
-    entityKind === "document"
-      ? setDocumentMutation
-      : entityKind === "event"
-        ? setEventMutation
-        : setTaskMutation;
+  const setProperties = useSetProperties();
+  const { mutate } = setProperties;
 
   // Seed drafts from incoming properties. When the server returns a new
   // snapshot, reconcile any property whose id we don't have a local pending
@@ -144,17 +138,12 @@ export const PropertyList = ({
     saveTimeoutRef.current = setTimeout(() => {
       saveTimeoutRef.current = null;
       const payload = buildPayload(latestDraftsRef.current, properties, latestRemovedRef.current);
-      const variables = { values: { values: payload } };
-      const options = { onSettled: () => pendingRef.current.clear() };
-      if (entityKind === "document") {
-        setDocumentMutation.mutate({ documentId: entityId, ...variables }, options);
-      } else if (entityKind === "event") {
-        setEventMutation.mutate({ eventId: entityId, ...variables }, options);
-      } else {
-        setTaskMutation.mutate({ taskId: entityId, ...variables }, options);
-      }
+      mutate(
+        { target, id: entityId, values: payload },
+        { onSettled: () => pendingRef.current.clear() }
+      );
     }, SAVE_DEBOUNCE_MS);
-  }, [entityKind, entityId, properties, setDocumentMutation, setTaskMutation, setEventMutation]);
+  }, [target, entityId, properties, mutate]);
 
   useEffect(
     () => () => {
@@ -162,6 +151,16 @@ export const PropertyList = ({
     },
     []
   );
+
+  // An added property is attached by saving the whole list, carrying any
+  // value just entered for another one.
+  const requestedRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    const added = (unsaved ?? []).filter((id) => !requestedRef.current.has(id));
+    if (added.length === 0) return;
+    for (const id of added) requestedRef.current.add(id);
+    scheduleSave();
+  }, [unsaved, scheduleSave]);
 
   const handleChange = useCallback(
     (propertyId: number, value: unknown) => {
@@ -202,7 +201,7 @@ export const PropertyList = ({
         initiativeId={initiativeId}
         canOpen={canOpen}
       />
-      {activeMutation.isPending ? (
+      {setProperties.isPending ? (
         <p className="text-muted-foreground text-xs">{t("saving")}</p>
       ) : null}
     </div>

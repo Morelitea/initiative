@@ -33,6 +33,7 @@ from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
 )
@@ -152,15 +153,20 @@ class PostImporter(NamesPeopleInPassing):
                 )
             )
 
-        await session.flush()
+        props = PropertyRestore(
+            session, initiative_id=target_initiative.id, context=context
+        )
+        await props.attach(post, env.properties)
         return EnvelopeImportResult(
             entity_id=post.id,
             entity_title=post.name,
             created={
                 "posts": 1,
                 "tags": tags_created,
+                "properties": props.created,
                 **({"polls": 1} if env.poll is not None else {}),
             },
-            matched={"tags": tags_matched},
+            matched={"tags": tags_matched, "properties": props.matched},
+            unmatched_handles=await props.settle(post),
             warnings=warnings,
         )

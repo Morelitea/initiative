@@ -1360,15 +1360,11 @@ class _ScopeBuilder:
 
 
 def _document_metadata(document) -> dict:
-    from app.services.export.property_values import property_export_dict
+    from app.services.export.property_values import exported_properties
 
     return {
         "tags": sorted(tag.name for tag in document.tags or []),
-        "properties": [
-            property_export_dict(pv)
-            for pv in document.property_values or []
-            if pv.property_definition is not None
-        ],
+        "properties": exported_properties(document),
     }
 
 

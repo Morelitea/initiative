@@ -11,6 +11,12 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.document import smart_link_url
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertiesOnUpdate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
@@ -23,7 +29,7 @@ class WikiBase(SanitizedBaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
 
 
-class WikiCreate(WikiBase):
+class WikiCreate(WikiBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     tag_ids: Optional[List[int]] = None
@@ -92,7 +98,7 @@ class WikiListResponse(PageMeta):
     items: List[WikiSummary]
 
 
-class WikiPageCreate(SanitizedBaseModel):
+class WikiPageCreate(PropertiesOnCreate):
     #: Optional, and usually absent: a page is made before it is about
     #: anything, so it starts with no name rather than one somebody has to
     #: delete before typing their own. Every surface that draws a page falls
@@ -109,7 +115,7 @@ class WikiPageCreate(SanitizedBaseModel):
     tag_ids: Optional[List[int]] = None
 
 
-class WikiPageUpdate(SanitizedBaseModel):
+class WikiPageUpdate(PropertiesOnUpdate):
     """A change to one page.
 
     Every field is optional and only what is sent is written, so renaming a
@@ -204,6 +210,7 @@ class WikiPageSummary(SanitizedBaseModel):
     #: opening it.
     headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     #: A document row's kind of document and the facts its icon is drawn
     #: from — a PDF, a spreadsheet and a link to a design tool each look like
     #: what they are. ``None`` on a page.
@@ -287,6 +294,7 @@ def serialize_wiki_page_summary(
         guild_id=context.guild_id,
         headings=[WikiPageHeading(**h) for h in headings],
         tags=annotated_tags(page),
+        properties=annotated_properties(page),
     )
 
 

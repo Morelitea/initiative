@@ -34,7 +34,6 @@ import type {
   GenerateDocumentSummaryResponse,
   HTTPValidationError,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
-  PropertyValuesSetRequest,
   ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   ResourceGrantSchema,
   SpreadsheetImportRead,
@@ -1603,124 +1602,6 @@ export const useGenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost = <
 > => {
   return useMutation(
     getGenerateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Replace the custom property values on a document.
- *
- * Requires document write access. Values are validated server-side against
- * each property definition's type and options. An installed app names the
- * person a person-valued property holds by its reference for them.
- * @summary Set Document Properties
- */
-export const setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut = (
-  guildId: number,
-  documentId: number,
-  propertyValuesSetRequest: BodyType<PropertyValuesSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentRead>(
-    {
-      url: `/api/v1/c/${guildId}/documents/${documentId}/properties`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: propertyValuesSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationKey =
-  () => ["setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut"] as const;
-
-export const getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>
-      >,
-      TError,
-      SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>>,
-    TError,
-    SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
-    TContext
-  > => {
-    const mutationKey =
-      getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>
-      >,
-      SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables
-    > = (props) => {
-      const { guildId, documentId, data } = props ?? {};
-
-      return setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut(
-        guildId,
-        documentId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>>
-  >;
-export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationBody =
-  BodyType<PropertyValuesSetRequest>;
-export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables = {
-  guildId: number;
-  documentId: number;
-  data: BodyType<PropertyValuesSetRequest>;
-};
-
-/**
- * @summary Set Document Properties
- */
-export const useSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>
-      >,
-      TError,
-      SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut>>,
-  TError,
-  SetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPutMutationOptions(options),
     queryClient
   );
 };

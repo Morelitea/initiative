@@ -24,8 +24,8 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -88,8 +88,10 @@ async def get_calendar(
     calendar = result.one_or_none()
     if calendar is not None:
         await tags_service.annotate_tags(session, [calendar])
+        await properties_service.annotate_properties(session, [calendar])
         if with_events:
             await tags_service.annotate_tags(session, calendar.events or [])
+            await properties_service.annotate_properties(session, calendar.events or [])
     return calendar
 
 
@@ -102,12 +104,6 @@ def _event_export_loader_options() -> list:
         selectinload(Calendar.events)
         .selectinload(CalendarEvent.attendees)
         .selectinload(CalendarEventAttendee.user),
-        selectinload(Calendar.events)
-        .selectinload(CalendarEvent.property_values)
-        .selectinload(CalendarEventPropertyValue.property_definition),
-        selectinload(Calendar.events)
-        .selectinload(CalendarEvent.property_values)
-        .selectinload(CalendarEventPropertyValue.value_user),
     ]
 
 

@@ -32,7 +32,7 @@ from app.models.tenant.calendar_event import CalendarEventAttendee
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.project import Project
-from app.models.tenant.property import DocumentPropertyValue, PropertyType
+from app.models.tenant.property import PropertyType, PropertyValue
 from app.models.tenant.queue import QueueItem
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.task import TaskAssignee
@@ -56,9 +56,9 @@ from app.testing import (
     create_calendar,
     create_calendar_event,
     create_document,
-    create_document_property_value,
     create_project,
     create_property_definition,
+    create_property_value,
     create_queue,
     create_queue_item,
     create_resource_grant,
@@ -745,9 +745,7 @@ async def _named_on(session, initiative, owner, person, **calendar) -> dict:
     field = await create_property_definition(
         session, initiative, type=PropertyType.user_reference
     )
-    await create_document_property_value(
-        session, document, field, value_user_id=person.id
-    )
+    await create_property_value(session, document, field, value_user_id=person.id)
     queue = await create_queue(session, initiative, owner)
     item = await create_queue_item(session, queue, user_id=person.id)
     await session.commit()
@@ -772,9 +770,7 @@ async def _still_named(session, person_id: int, named: dict) -> list[str]:
             CalendarEventAttendee.calendar_event_id == named["event"],
             CalendarEventAttendee.user_id == person_id,
         ),
-        "field": select(DocumentPropertyValue).where(
-            DocumentPropertyValue.value_user_id == person_id
-        ),
+        "field": select(PropertyValue).where(PropertyValue.value_user_id == person_id),
         "queue item": select(QueueItem).where(
             QueueItem.id == named["item"], QueueItem.user_id == person_id
         ),
@@ -811,8 +807,9 @@ async def test_leaving_an_initiative_takes_you_off_its_content(
     # A person field and a queue item stay, with the person cleared.
     value = (
         await session.exec(
-            select(DocumentPropertyValue).where(
-                DocumentPropertyValue.document_id == named["document"]
+            select(PropertyValue).where(
+                PropertyValue.entity_type == "document",
+                PropertyValue.entity_id == named["document"],
             )
         )
     ).one()

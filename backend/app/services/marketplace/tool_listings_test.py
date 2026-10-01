@@ -105,6 +105,7 @@ class TestADashboardListing:
             "definition": normalize_dashboard_definition(CANVAS),
             "config": {},
             "tags": [],
+            "properties": [],
         }
 
     def test_its_configuration_is_the_installers(self):

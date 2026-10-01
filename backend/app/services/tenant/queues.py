@@ -27,6 +27,7 @@ from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.task import Task
 from app.services.tenant import relationships
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -76,7 +77,9 @@ async def get_queue(
     queue = result.one_or_none()
     if queue is not None:
         await tags_service.annotate_tags(session, [queue])
+        await properties_service.annotate_properties(session, [queue])
         await tags_service.annotate_tags(session, queue.items or [])
+        await properties_service.annotate_properties(session, queue.items or [])
     return queue
 
 
@@ -126,6 +129,7 @@ async def get_queue_item(
     item = result.one_or_none()
     if item is not None:
         await tags_service.annotate_tags(session, [item])
+        await properties_service.annotate_properties(session, [item])
     return item
 
 

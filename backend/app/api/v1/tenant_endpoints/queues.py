@@ -23,6 +23,7 @@ from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
+from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
 from app.api.actor_route import ActorRoute
@@ -288,6 +289,7 @@ async def create_queue(
         grants=queue_in.grants,
     )
     await attachments_service.claim_uploads(session, queue)
+    await properties_service.write_on_create(session, queue, queue_in.properties)
     await session.commit()
 
     hydrated = await _refetch_queue(session, queue.id)
@@ -398,6 +400,7 @@ async def add_queue_item(
         )
 
     await attachments_service.claim_uploads(session, item)
+    await properties_service.write_on_create(session, item, item_in.properties)
     await session.commit()
 
     hydrated_item = await queues_service.get_queue_item(
@@ -449,6 +452,9 @@ async def update_queue_item(
             entity_id=item.id,
             tag_ids=update_data["tag_ids"],
         )
+        updated = True
+    if item_in.properties is not None:
+        await properties_service.write_on_update(session, item, item_in.properties)
         updated = True
 
     if updated:

@@ -17,13 +17,13 @@ from app.models.tenant.document import (
     DocumentType,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
 from app.core.tools import Tool
 from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import ownership as ownership_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
 from app.db.session import routed_guild_id
@@ -141,12 +141,6 @@ def list_loader_options() -> list:
         selectinload(Document.grants).options(
             selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
-        selectinload(Document.property_values).selectinload(
-            DocumentPropertyValue.property_definition
-        ),
-        selectinload(Document.property_values).selectinload(
-            DocumentPropertyValue.value_user
-        ),
     ]
 
 
@@ -172,6 +166,7 @@ async def get_document_hydrated(
     document = (await session.exec(statement)).one_or_none()
     if document:
         await tags_service.annotate_tags(session, [document])
+        await properties_service.annotate_properties(session, [document])
         await annotate_comment_counts(session, [document])
         await ownership_service.annotate_owner_apps(session, [document])
     return document
@@ -306,30 +301,7 @@ async def duplicate_document(
     # source's — definitions are initiative-scoped, so cross-initiative
     # copies would produce orphaned values the target can't resolve.
     if initiative_id == source.initiative_id:
-        source_value_stmt = select(DocumentPropertyValue).where(
-            DocumentPropertyValue.document_id == source.id
-        )
-        source_values_result = await session.exec(source_value_stmt)
-        source_values = source_values_result.all()
-        if source_values:
-            session.add_all(
-                [
-                    DocumentPropertyValue(
-                        document_id=duplicated.id,
-                        property_id=row.property_id,
-                        value_text=row.value_text,
-                        value_number=row.value_number,
-                        value_boolean=row.value_boolean,
-                        value_date=row.value_date,
-                        value_datetime=row.value_datetime,
-                        value_user_id=row.value_user_id,
-                        value_json=deepcopy(row.value_json)
-                        if row.value_json is not None
-                        else None,
-                    )
-                    for row in source_values
-                ]
-            )
+        await properties_service.copy_values(session, source, duplicated)
     return duplicated
 
 

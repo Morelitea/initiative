@@ -12,7 +12,12 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
-from app.schemas.tenant.property import PropertySummary
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertiesOnUpdate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.archive import ContentCan
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import from_row
@@ -92,7 +97,7 @@ class CalendarEventBase(SanitizedBaseModel):
         return self
 
 
-class CalendarEventCreate(CalendarEventBase):
+class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
     title: TitleStr = Field(..., min_length=1, max_length=255)
     calendar_id: int
     recurrence: Optional[EventRule] = None
@@ -105,7 +110,7 @@ class CalendarEventCreate(CalendarEventBase):
     document_ids: Optional[List[int]] = None
 
 
-class CalendarEventUpdate(SanitizedBaseModel):
+class CalendarEventUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
     location: Optional[str] = Field(default=None, max_length=500)
@@ -173,7 +178,7 @@ class CalendarEventSummary(CalendarEventBase):
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
-    property_values: List[PropertySummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
     #: What the caller may do to this event — its calendar's edit, since events
     #: hold no grants of their own.
@@ -234,20 +239,6 @@ def _serialize_attendees(
     return result
 
 
-def _serialize_event_properties(event: "CalendarEvent") -> List[PropertySummary]:
-    """Serialize loaded event property values.
-
-    Requires ``property_values.property_definition`` (and ``.value_user``
-    for user_reference) to be eager-loaded — otherwise they are skipped.
-    """
-    # Local import avoids the schema layer pulling in the service at
-    # module import time.
-    from app.services.tenant.properties import summaries_from_rows
-
-    rows = getattr(event, "property_values", None) or []
-    return summaries_from_rows(rows)
-
-
 def serialize_calendar_event_summary(
     event: "CalendarEvent",
     *,
@@ -288,7 +279,7 @@ def serialize_calendar_event_summary(
         attendee_count=len(attendees_list),
         attendee_names=names,
         attendee_previews=previews,
-        property_values=_serialize_event_properties(event),
+        properties=annotated_properties(event),
         tags=annotated_tags(event),
         can=ContentCan(edit=can_edit),
     )

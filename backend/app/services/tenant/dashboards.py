@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -45,6 +46,7 @@ async def get_dashboard(
     dashboard = result.one_or_none()
     if dashboard is not None:
         await tags_service.annotate_tags(session, [dashboard])
+        await properties_service.annotate_properties(session, [dashboard])
     return dashboard
 
 

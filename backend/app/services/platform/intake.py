@@ -276,8 +276,8 @@ async def _record_refs(
         if field in definitions
     ]
     if inputs:
-        await properties_service.set_task_property_values(
-            session, task, inputs, initiative_id
+        await properties_service.write_values(
+            session, task, inputs, initiative_id=initiative_id
         )
 
 

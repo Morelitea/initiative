@@ -68,6 +68,7 @@ import {
   emptyTaskFormValue,
   serializeTaskFormValue,
   type TaskFormValue,
+  taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -248,8 +249,8 @@ export const ProjectTasksSection = ({
   }, [taskStatuses]);
   // Single source of truth for the aligned create dialog's fields (title,
   // description, status, priority, assignees, dates, recurrence, tags, and
-  // custom properties). TaskForm mutates it via onChange; submit batches it
-  // all into one create POST.
+  // custom properties). TaskForm mutates it via onChange; submit creates the
+  // task and its property values in one request.
   const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const filterStorageKey = `project:${projectId}:view-filters`;
   // `null` fallback on purpose: "nothing saved yet" has to stay distinguishable
@@ -1343,10 +1344,7 @@ export const ProjectTasksSection = ({
                     : null,
                   task_status_id: selectedStatusId,
                   tag_ids: composerValue.tags.map((tg) => tg.id),
-                  property_values: composerValue.properties.map((property) => ({
-                    property_id: property.property_id,
-                    value: composerValue.propertyValues[property.property_id] ?? null,
-                  })),
+                  properties: taskFormPropertyValues(composerValue),
                 };
                 Object.assign(payload, rulePayload(composerValue.recurrence));
                 payload.recurrence_strategy = composerValue.recurrence

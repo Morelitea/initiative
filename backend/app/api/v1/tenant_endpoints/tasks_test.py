@@ -375,55 +375,8 @@ async def test_create_task_with_tags(
     assert returned_tag_ids == {tag1.id, tag2.id}
 
 
-async def test_create_task_with_properties(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """``property_values`` on create attaches custom property values."""
-    from app.testing.factories import create_property_definition
-
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    text_defn = await create_property_definition(session, a.initiative, name="Notes")
-
-    response = await client.post(
-        a.g("/tasks/"),
-        headers=a.headers,
-        json={
-            "title": "Task with props",
-            "project_id": a.project.id,
-            "property_values": [{"property_id": text_defn.id, "value": "hello"}],
-        },
-    )
-
-    assert response.status_code == 201
-    props = {p["property_id"]: p["value"] for p in response.json()["properties"]}
-    assert props[text_defn.id] == "hello"
-
-
-async def _an_unknown_tag(session, a) -> dict:
-    return {"tag_ids": [999999]}
-
-
-async def _a_property_from_another_initiative(session, a) -> dict:
-    # A definition scoped to a DIFFERENT initiative in the same guild.
-    from app.testing.factories import create_property_definition
-
-    other_initiative = await create_initiative(session, a.guild, a.user)
-    foreign_defn = await create_property_definition(
-        session, other_initiative, name="Foreign"
-    )
-    return {"property_values": [{"property_id": foreign_defn.id, "value": "x"}]}
-
-
-@pytest.mark.parametrize(
-    ("title", "unreachable"),
-    [
-        ("Should Not Exist", _an_unknown_tag),
-        ("Bad Prop Task", _a_property_from_another_initiative),
-    ],
-    ids=["a tag id that is not a tag", "a property of another initiative"],
-)
 async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
-    client: AsyncClient, session: AsyncSession, acting_user, title: str, unreachable
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The whole create is refused, and no half-written task survives it."""
     from sqlmodel import func, select
@@ -434,16 +387,18 @@ async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
         a.g("/tasks/"),
         headers=a.headers,
         json={
-            "title": title,
+            "title": "Should Not Exist",
             "project_id": a.project.id,
-            **await unreachable(session, a),
+            "tag_ids": [999999],
         },
     )
 
     assert response.status_code in (400, 404)
     count = (
         await session.exec(
-            select(func.count()).select_from(Task).where(Task.title == title)
+            select(func.count())
+            .select_from(Task)
+            .where(Task.title == "Should Not Exist")
         )
     ).one()
     assert count == 0
@@ -452,7 +407,8 @@ async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
 async def test_update_task_with_tags_and_properties(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """PATCH replaces tags/properties; omitting the keys leaves them unchanged."""
+    """PATCH replaces tags; omitting the key leaves them, and the task's
+    property values, unchanged."""
     from app.testing.factories import create_property_definition, create_tag
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -460,21 +416,17 @@ async def test_update_task_with_tags_and_properties(
     tag = await create_tag(session, a.guild, name="review")
     defn = await create_property_definition(session, a.initiative, name="Estimate")
 
-    # Set tags + a property value via PATCH.
     response = await client.patch(
-        a.g(f"/tasks/{task.id}"),
-        headers=a.headers,
-        json={
-            "tag_ids": [tag.id],
-            "property_values": [{"property_id": defn.id, "value": "later"}],
-        },
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"tag_ids": [tag.id]}
     )
     assert response.status_code == 200
-    body = response.json()
-    assert {t["id"] for t in body["tags"]} == {tag.id}
-    assert {p["property_id"]: p["value"] for p in body["properties"]}[
-        defn.id
-    ] == "later"
+    assert {t["id"] for t in response.json()["tags"]} == {tag.id}
+    response = await client.put(
+        a.g(f"/properties/task/{task.id}"),
+        headers=a.headers,
+        json={"values": [{"property_id": defn.id, "value": "later"}]},
+    )
+    assert response.status_code == 200, response.text
 
     # A PATCH that omits the keys must leave tags/properties intact.
     response = await client.patch(
@@ -486,18 +438,16 @@ async def test_update_task_with_tags_and_properties(
     body = response.json()
     assert body["title"] == "Renamed"
     assert {t["id"] for t in body["tags"]} == {tag.id}
-    assert {p["property_id"] for p in body["properties"]} == {defn.id}
+    assert {p["property_id"]: p["value"] for p in body["properties"]} == {
+        defn.id: "later"
+    }
 
-    # An explicit empty list clears them.
+    # An explicit empty list clears the tags.
     response = await client.patch(
-        a.g(f"/tasks/{task.id}"),
-        headers=a.headers,
-        json={"tag_ids": [], "property_values": []},
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"tag_ids": []}
     )
     assert response.status_code == 200
-    body = response.json()
-    assert body["tags"] == []
-    assert body["properties"] == []
+    assert response.json()["tags"] == []
 
 
 async def test_create_task_requires_project_access(

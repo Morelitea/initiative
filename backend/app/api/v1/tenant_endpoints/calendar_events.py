@@ -24,7 +24,7 @@ from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import relationships
-from sqlmodel import delete, select
+from sqlmodel import select
 
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -46,7 +46,6 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.core.messages import AppMessages, CalendarEventMessages
@@ -67,7 +66,6 @@ from app.schemas.tenant.ical import (
     ICalParseRequest,
     ICalParseResult,
 )
-from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.api import resource_access
 from app.core.tools import Tool
 from app.db.session import require_guild_context
@@ -390,6 +388,7 @@ async def _exec_events(session, stmt) -> list[CalendarEvent]:
     result = await session.exec(stmt)
     events = list(result.unique().all())
     await tags_service.annotate_tags(session, events)
+    await properties_service.annotate_properties(session, events)
     return events
 
 
@@ -570,12 +569,6 @@ def _calendar_event_loader_options():
         .selectinload(ResourceGrant.role),
         selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
         selectinload(CalendarEvent.calendar).undefer(Calendar.actions),
-        selectinload(CalendarEvent.property_values).selectinload(
-            CalendarEventPropertyValue.property_definition
-        ),
-        selectinload(CalendarEvent.property_values).selectinload(
-            CalendarEventPropertyValue.value_user
-        ),
     )
 
 
@@ -662,7 +655,7 @@ async def guild_calendar_event_conditions(
             )
             conditions.extend(
                 properties_service.build_property_filter_clauses(
-                    "event", parsed, defs_map
+                    "calendar_event", parsed, defs_map
                 )
             )
 
@@ -840,6 +833,7 @@ async def create_calendar_event(
     await _notify_invited(session, event, invite_ids, current_user, guild_context)
 
     await attachments_service.claim_uploads(session, event)
+    await properties_service.write_on_create(session, event, event_in.properties)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
     return await _serialized_event(
@@ -982,14 +976,14 @@ async def _apply_update(
         # series' overrides move with it, so theirs go too. Done before the
         # move, while the values still resolve.
         if destination.initiative_id != event.calendar.initiative_id:
-            moving = [event, *await occurrences_service.overrides(session, event)]
-            await session.exec(
-                delete(CalendarEventPropertyValue).where(
-                    CalendarEventPropertyValue.event_id.in_([e.id for e in moving])
-                )
+            overrides = await occurrences_service.overrides(session, event)
+            await properties_service.drop_values(
+                session, "calendar_event", [e.id for e in (event, *overrides)]
             )
-            for moved in moving:
-                session.expire(moved, ["property_values"])
+            # With their own values gone, the overrides follow the series'.
+            for override in overrides:
+                occurrences_service.unmark(override, ["properties"])
+                session.add(override)
         event.calendar_id = update_data["calendar_id"]
         # Only those who can open the destination stay on the list.
         await events_service.set_event_attendees(
@@ -1057,6 +1051,12 @@ async def _apply_update(
         # An occurrence's own tags stay its own; a series' reach its
         # occurrences that kept the series' tags.
         await _followed(session, event, "tags")
+        updated = True
+    if event_in.properties is not None:
+        await properties_service.write_on_update(session, event, event_in.properties)
+        await session.flush()
+        # The same for its properties.
+        await _followed(session, event, "properties")
         updated = True
 
     # Validate dates after applying partial updates
@@ -1290,13 +1290,9 @@ async def _scoped_list_target(
 async def _followed(session: AsyncSession, event: CalendarEvent, field: str) -> None:
     """After a list changed on ``event``: an occurrence's own row now holds its
     own, and a series' overrides that didn't change it follow."""
-    if event.series_id is not None:
-        occurrences_service.mark(event, [field])
-        session.add(event)
-    elif event.recurrence:
-        await occurrences_service.follow(
-            session, await _refetch_event(session, event.id), [field]
-        )
+    if event.series_id is None and event.recurrence:
+        event = await _refetch_event(session, event.id)
+    await occurrences_service.followed(session, event, field)
 
 
 async def _repeating_or_404(
@@ -1492,53 +1488,4 @@ async def update_rsvp(
         current_user.id,
         context=guild_context,
         occurrence=rsvp_in.occurrence if event.recurrence else None,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Custom properties
-# ---------------------------------------------------------------------------
-
-
-@router.put("/{event_id}/properties", response_model=CalendarEventRead)
-async def set_event_properties(
-    event_id: int,
-    payload: PropertyValuesSetRequest,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: CalendarsWrite,
-) -> CalendarEventRead:
-    """Replace-all set of property values on an event.
-
-    Mirrors the tasks/documents shape: anyone with write access on the calendar
-    (or guild admin) can attach values; cross-initiative definitions return 404
-    DEFINITION_NOT_FOUND via the service layer.
-
-    Property definitions belong to an initiative. A guild calendar belongs to
-    none, so there are no definitions its events could carry and the request is
-    refused; clearing values stays available.
-
-    An installed app names the person a person-valued property holds by its
-    reference for them.
-    """
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, action=Action.contribute
-    )
-    if payload.values and event.calendar.initiative_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=CalendarEventMessages.GUILD_CALENDAR_NO_PROPERTIES,
-        )
-    await properties_service.set_event_property_values(
-        session,
-        event,
-        await properties_service.property_values_by_row_id(session, payload.values),
-        initiative_id=event.calendar.initiative_id,
-    )
-    await session.flush()
-    await _followed(session, await _refetch_event(session, event.id), "properties")
-    await session.commit()
-    hydrated = await _refetch_event(session, event.id)
-    return await _serialized_event(
-        session, hydrated, guild_context.user_id, context=guild_context
     )

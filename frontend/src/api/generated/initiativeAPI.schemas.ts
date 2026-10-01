@@ -1470,6 +1470,18 @@ export interface BreakGlassRequirements {
   passkey_enrolled: boolean;
 }
 
+/**
+ * A single (property_id, value) pair submitted by the client.
+ *
+ * The value is polymorphic because the Pydantic layer can't know the
+ * definition's type. Typed validation runs server-side in
+ * ``app.services.properties._validate_value_for_type``.
+ */
+export interface PropertyValueInput {
+  property_id: number;
+  value?: unknown;
+}
+
 export type ResourceAccessLevel = (typeof ResourceAccessLevel)[keyof typeof ResourceAccessLevel];
 
 export const ResourceAccessLevel = {
@@ -1511,6 +1523,7 @@ export interface ResourceGrantSchema {
 }
 
 export interface CalendarCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -1630,7 +1643,7 @@ export interface CalendarEventSummary {
   attendee_count: number;
   attendee_names: string[];
   attendee_previews: CalendarEventAttendeePreview[];
-  property_values: PropertySummary[];
+  properties: PropertySummary[];
   tags: TagSummary[];
   can: ContentCan;
   created_at: string;
@@ -1795,6 +1808,7 @@ export interface CalendarEventAttendeeRead {
 }
 
 export interface CalendarEventCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -1847,7 +1861,7 @@ export interface CalendarEventRead {
   attendee_count: number;
   attendee_names: string[];
   attendee_previews: CalendarEventAttendeePreview[];
-  property_values: PropertySummary[];
+  properties: PropertySummary[];
   tags: TagSummary[];
   can: ContentCan;
   created_at: string;
@@ -1870,6 +1884,7 @@ export const CalendarEventUpdateScope = {
 } as const;
 
 export interface CalendarEventUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   description?: string | null;
   location?: string | null;
@@ -1908,6 +1923,7 @@ export interface CalendarSummary {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -1939,6 +1955,7 @@ export interface CalendarRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -2569,6 +2586,7 @@ export const CounterViewMode = {
 } as const;
 
 export interface CounterCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -2585,6 +2603,7 @@ export interface CounterCreate {
 }
 
 export interface CounterGroupCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -2610,6 +2629,7 @@ export interface CounterGroupSummary {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -2648,6 +2668,7 @@ export interface CounterRead {
   initial_count: string;
   view_mode: CounterViewMode;
   position: string;
+  properties: PropertySummary[];
   created_at: string;
   updated_at: string;
 }
@@ -2663,6 +2684,7 @@ export interface CounterGroupRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -2768,6 +2790,7 @@ export type DashboardCreateDefinition = { [key: string]: unknown };
 export type DashboardCreateConfig = { [key: string]: unknown };
 
 export interface DashboardCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -2840,6 +2863,7 @@ export interface DashboardSummary {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -2884,6 +2908,7 @@ export interface DashboardRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -3384,6 +3409,7 @@ export const DocumentCreateDocumentType = {
 } as const;
 
 export interface DocumentCreate {
+  properties?: PropertyValueInput[];
   name: string;
   initiative_id: number;
   featured_image_url?: string | null;
@@ -3463,6 +3489,7 @@ export interface DocumentSummary {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   name: string;
   featured_image_url: string | null;
@@ -3472,7 +3499,6 @@ export interface DocumentSummary {
   owner_app: OwnerAppSummary | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  properties: PropertySummary[];
   document_type: DocumentType;
   file_url: string | null;
   file_content_type: string | null;
@@ -3506,6 +3532,7 @@ export interface DocumentRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   name: string;
   featured_image_url: string | null;
@@ -3515,7 +3542,6 @@ export interface DocumentRead {
   owner_app: OwnerAppSummary | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  properties: PropertySummary[];
   document_type: DocumentType;
   file_url: string | null;
   file_content_type: string | null;
@@ -3985,6 +4011,7 @@ export interface GalleryCover {
 }
 
 export interface GalleryCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -4030,6 +4057,7 @@ export interface GalleryImageRead {
   updated_at: string;
   version_count: number;
   tags: TagSummary[];
+  properties: PropertySummary[];
 }
 
 export interface GalleryImageListResponse {
@@ -4042,6 +4070,7 @@ export interface GalleryImageListResponse {
 }
 
 export interface GalleryImageUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   caption?: string | null;
   tag_ids?: number[] | null;
@@ -4076,6 +4105,7 @@ export interface GallerySummary {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -4114,6 +4144,7 @@ export interface GalleryRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -7019,6 +7050,7 @@ export interface PollWrite {
 export type PostCreateBody = { [key: string]: unknown };
 
 export interface PostCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -7045,6 +7077,7 @@ export interface PostRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -7201,6 +7234,7 @@ export interface ProjectCan {
 }
 
 export interface ProjectCreate {
+  properties?: PropertyValueInput[];
   name: string;
   description?: string | null;
   icon?: string | null;
@@ -7261,6 +7295,7 @@ export interface ProjectRead {
   task_statuses: TaskStatusRead[];
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
 }
 
@@ -7354,19 +7389,30 @@ export interface PropertyDefinitionUpdateResponse {
 }
 
 /**
- * A single (property_id, value) pair submitted by the client.
- *
- * The value is polymorphic because the Pydantic layer can't know the
- * definition's type. Typed validation runs server-side in
- * ``app.services.properties._validate_value_for_type``.
+ * What can carry custom property values: every tool and sub-tool.
  */
-export interface PropertyValueInput {
-  property_id: number;
-  value?: unknown;
-}
+export type PropertyTarget = (typeof PropertyTarget)[keyof typeof PropertyTarget];
+
+export const PropertyTarget = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  post: "post",
+  gallery: "gallery",
+  wiki: "wiki",
+  task: "task",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+  counter: "counter",
+  gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
+} as const;
 
 /**
- * Replace-all payload for PUT /{entity}/{id}/properties.
+ * Replace-all payload for ``PUT /properties/{target}/{entity_id}``.
  *
  * An empty list clears every property value on the entity.
  */
@@ -7614,6 +7660,7 @@ export interface QueryVocabulary {
 }
 
 export interface QueueCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -7625,6 +7672,7 @@ export interface QueueCreate {
 }
 
 export interface QueueItemCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -7667,6 +7715,7 @@ export interface QueueItemRead {
   user_id: number | null;
   user: UserPublic | null;
   tags: TagSummary[];
+  properties: PropertySummary[];
   documents: QueueItemDocumentRead[];
   tasks: QueueItemTaskRead[];
   attachment_count: number;
@@ -7675,6 +7724,7 @@ export interface QueueItemRead {
 }
 
 export interface QueueItemUpdate {
+  properties?: PropertyValueInput[] | null;
   label?: string | null;
   position?: number | null;
   user_id?: number | null;
@@ -7695,6 +7745,7 @@ export interface QueueSummary {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -7727,6 +7778,7 @@ export interface QueueRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -8585,6 +8637,7 @@ export const TaskCreateRecurrenceStrategy = {
 } as const;
 
 export interface TaskCreate {
+  properties?: PropertyValueInput[];
   title: string;
   priority?: TaskPriority;
   start_date?: string | null;
@@ -8598,7 +8651,6 @@ export interface TaskCreate {
   task_status_id?: number | null;
   /** @maxItems 100 */
   tag_ids?: number[];
-  property_values?: PropertyValueInput[];
   checklist?: ChecklistItemInput[];
 }
 
@@ -8737,6 +8789,7 @@ export const TaskUpdateScope = {
 } as const;
 
 export interface TaskUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   description?: string | null;
   task_status_id?: number | null;
@@ -8748,7 +8801,6 @@ export interface TaskUpdate {
   tz?: string | null;
   recurrence_strategy?: TaskUpdateRecurrenceStrategy;
   tag_ids?: number[] | null;
-  property_values?: PropertyValueInput[] | null;
   checklist?: ChecklistItemInput[] | null;
   scope?: TaskUpdateScope;
 }
@@ -9250,6 +9302,7 @@ export interface WidgetCatalog {
 }
 
 export interface WikiCreate {
+  properties?: PropertyValueInput[];
   /**
    * @minLength 1
    * @maxLength 255
@@ -9302,6 +9355,7 @@ export interface WikiSummary {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -9333,6 +9387,7 @@ export interface WikiListResponse {
 export type WikiPageCreateContent = { [key: string]: unknown } | null;
 
 export interface WikiPageCreate {
+  properties?: PropertyValueInput[];
   title?: string | null;
   parent_page_id?: number | null;
   is_draft?: boolean;
@@ -9428,6 +9483,7 @@ export interface WikiPageRead {
   updated_at: string;
   headings: WikiPageHeading[];
   tags: TagSummary[];
+  properties: PropertySummary[];
   document_type: string | null;
   file_content_type: string | null;
   original_filename: string | null;
@@ -9458,6 +9514,7 @@ export interface WikiPageSummary {
   updated_at: string;
   headings: WikiPageHeading[];
   tags: TagSummary[];
+  properties: PropertySummary[];
   document_type: string | null;
   file_content_type: string | null;
   original_filename: string | null;
@@ -9484,6 +9541,7 @@ export type WikiPageUpdateContent = { [key: string]: unknown } | null;
  * page is the same request shape as editing its body.
  */
 export interface WikiPageUpdate {
+  properties?: PropertyValueInput[] | null;
   title?: string | null;
   is_draft?: boolean | null;
   content?: WikiPageUpdateContent;
@@ -9506,6 +9564,7 @@ export interface WikiRead {
   updated_at: string;
   comments_enabled: boolean;
   tags: TagSummary[];
+  properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   /**
    * @minLength 1
@@ -9933,6 +9992,10 @@ export type ListProjectsApiV1CGuildIdProjectsGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -9955,6 +10018,10 @@ export type ListDocumentsApiV1CGuildIdDocumentsGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * Filter to documents with no tags
    */
   untagged?: boolean | null;
@@ -9966,10 +10033,6 @@ export type ListDocumentsApiV1CGuildIdDocumentsGetParams = {
    * Filter by document type
    */
   document_type?: DocumentType | null;
-  /**
-   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
-   */
-  property_filters?: string | null;
   /**
    * @minimum 1
    */
@@ -10012,6 +10075,10 @@ export type ListQueuesApiV1CGuildIdQueuesGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
   archived?: boolean | null;
@@ -10049,6 +10116,10 @@ export type ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
   archived?: boolean | null;
@@ -10083,6 +10154,10 @@ export type ListCalendarsApiV1CGuildIdCalendarsGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
   archived?: boolean | null;
@@ -10116,6 +10191,10 @@ export type ListDashboardsApiV1CGuildIdDashboardsGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
   archived?: boolean | null;
@@ -10148,6 +10227,10 @@ export type ListPostsApiV1CGuildIdPostsGetParams = {
    * Only posts carrying any of these tags.
    */
   tag_ids?: number[] | null;
+  /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
@@ -10191,6 +10274,10 @@ export type ListGalleriesApiV1CGuildIdGalleriesGetParams = {
    */
   tag_ids?: number[] | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
   archived?: boolean | null;
@@ -10223,6 +10310,10 @@ export type ListWikisApiV1CGuildIdWikisGetParams = {
    * Only wikis carrying any of these tags.
    */
   tag_ids?: number[] | null;
+  /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */

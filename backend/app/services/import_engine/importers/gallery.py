@@ -31,7 +31,8 @@ from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
 )
@@ -39,7 +40,7 @@ from app.services.storage import get_guild_storage
 from app.services.tenant import tags as tags_service
 
 
-class GalleryImporter(QuotesNobody):
+class GalleryImporter(NamesPeopleInPassing):
     envelope_type = "initiative-gallery"
     permission = PermissionKey.create_galleries
 
@@ -119,6 +120,10 @@ class GalleryImporter(QuotesNobody):
                 )
 
         await attach_tags("gallery", gallery.id, env.tags)
+        props = PropertyRestore(
+            session, initiative_id=target_initiative.id, context=context
+        )
+        await props.attach(gallery, env.properties)
 
         storage = get_guild_storage(guild_id)
         created = 0
@@ -156,6 +161,7 @@ class GalleryImporter(QuotesNobody):
             if env.cover and key == env.cover:
                 cover_id = row.id
             await attach_tags("gallery_image", row.id, image_env.tags)
+            await props.attach(row, image_env.properties)
 
         if cover_id is not None:
             gallery.cover_image_id = cover_id
@@ -165,12 +171,17 @@ class GalleryImporter(QuotesNobody):
             # worth saying out loud rather than leaving somebody to count.
             warnings.append(f"missing_image_files:{missing}")
 
-        await session.flush()
         return EnvelopeImportResult(
             entity_id=gallery.id,
             entity_title=gallery.name,
-            created={"galleries": 1, "images": created, "tags": tags_created},
-            matched={"tags": tags_matched},
+            created={
+                "galleries": 1,
+                "images": created,
+                "tags": tags_created,
+                "properties": props.created,
+            },
+            matched={"tags": tags_matched, "properties": props.matched},
             failed={"images": missing} if missing else {},
+            unmatched_handles=await props.settle(gallery),
             warnings=warnings,
         )

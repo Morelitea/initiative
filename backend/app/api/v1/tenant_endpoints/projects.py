@@ -63,6 +63,7 @@ from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import named_people
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import archive as archive_service
 from app.services.tenant import tool_listing
@@ -95,6 +96,7 @@ from app.schemas.tenant.document import (
     serialize_project_document_link,
 )
 from app.services.tenant import project_grants
+from app.schemas.tenant.property import annotated_properties
 from app.schemas.tenant.tag import annotated_tags
 
 router = APIRouter(route_class=ActorRoute)
@@ -481,6 +483,7 @@ async def _project_reads_with_order(
 
     await _attach_task_summaries(session, projects)
     await tags_service.annotate_tags(session, projects)
+    await properties_service.annotate_properties(session, projects)
     await ownership_service.annotate_owner_apps(session, projects)
     order_map: dict[int, float] = {}
     favorite_ids: set[int] = set()
@@ -689,6 +692,7 @@ def _build_project_payload(
             "task_summary": summary,
             "task_statuses": _project_task_statuses(project),
             "tags": annotated_tags(project),
+            "properties": annotated_properties(project),
             "grants": permissions_service.serialize_grants(project, context=context),
             "can": _project_can(project, user_id, context=context),
             "owner_id": ownership_service.owner_user_id_of(project),
@@ -844,6 +848,7 @@ async def create_project(
     # One claim for the project and its tasks, so a file they share is copied
     # into another initiative once.
     await attachments_service.claim_uploads(session, project, *copied)
+    await properties_service.write_on_create(session, project, project_in.properties)
     await session.commit()
 
     project = await _get_project_or_404(

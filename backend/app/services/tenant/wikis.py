@@ -40,6 +40,7 @@ from app.core.messages import WikiMessages
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.names import slugify, unique_slug
 
@@ -74,6 +75,7 @@ async def get_wiki(
     wiki = (await session.exec(statement)).one_or_none()
     if wiki is not None:
         await tags_service.annotate_tags(session, [wiki])
+        await properties_service.annotate_properties(session, [wiki])
     return wiki
 
 

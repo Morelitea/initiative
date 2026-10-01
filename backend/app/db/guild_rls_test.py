@@ -410,6 +410,7 @@ _NO_SINGLE_PARENT = {
     "reactions": "one of eight tools, per row",
     "reaction_digest_items": "gated exactly like the reaction it describes",
     "recent_views": "one of eight tools, per row",
+    "property_values": "any tool or sub-tool, per row, through entity_access",
     "search_entries": "names its tool in dac_tool",
     # One tool, two parents: a link must clear the gate on BOTH documents, so
     # there is no single row to authorize against.

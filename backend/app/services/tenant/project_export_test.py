@@ -18,7 +18,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.property import (
     PropertyDefinition,
     PropertyType,
-    TaskPropertyValue,
+    PropertyValue,
 )
 from app.models.tenant.tag import Tag
 from app.schemas.tenant.project_export import SCHEMA_VERSION
@@ -37,6 +37,7 @@ from app.testing import (
     create_initiative_member,
     create_project,
     create_property_definition,
+    create_property_value,
     create_user,
     route_as,
 )
@@ -111,14 +112,8 @@ async def _seed_populated_project(session: AsyncSession):
             user_id=assignee.id,
         )
     )
-    session.add(
-        TaskPropertyValue(
-            task_id=task.id,
-            property_id=severity.id,
-            value_text="high",
-        )
-    )
     await session.commit()
+    await create_property_value(session, task, severity, value_text="high")
 
     return owner, assignee, guild, initiative, project
 
@@ -197,9 +192,6 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
             selectinload(Project.grants),
             selectinload(Project.task_statuses),
             selectinload(Project.tasks).selectinload(Task.assignees),
-            selectinload(Project.tasks)
-            .selectinload(Task.property_values)
-            .selectinload(TaskPropertyValue.property_definition),
         )
     )
     new_project = (await session.exec(stmt)).one()
@@ -222,8 +214,16 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert [handle_of(u) for u in new_task.assignees] == [handle_of(assignee)]
     await tags_service.annotate_tags(session, [new_task])
     assert {t.name for t in new_task.tags} == {"blocker"}
-    assert len(new_task.property_values) == 1
-    pv = new_task.property_values[0]
+    pv = (
+        await session.exec(
+            select(PropertyValue)
+            .where(
+                PropertyValue.entity_type == "task",
+                PropertyValue.entity_id == new_task.id,
+            )
+            .options(selectinload(PropertyValue.property_definition))
+        )
+    ).one()
     assert pv.value_text == "high"
     assert pv.property_definition.name == "Severity"
     assert pv.property_definition.initiative_id == target_initiative.id

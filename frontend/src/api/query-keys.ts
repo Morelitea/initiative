@@ -46,9 +46,9 @@
  * `matches()` below, the only code in the app that decides whether a cached key
  * belongs to the current guild.
  */
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
-import { TOOLS, toolApiPath, toolRouteSegment } from "@/lib/tools";
+import { PARENT_TOOL, TOOLS, toolApiPath, toolRouteSegment } from "@/lib/tools";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
 // module var is per-JS-context, so it stays per-tab — unlike shared storage) so
@@ -577,6 +577,23 @@ const gallery = (id: number): Spec => toolEntity(Tool.gallery, id);
 const allWikis = (): Spec => toolList(Tool.wiki);
 const wiki = (id: number): Spec => toolEntity(Tool.wiki, id);
 
+// ── Property values (guild) ──────────────────────────────────────────────────
+
+/**
+ * Every read that shows one kind of row's property values: the kind's own
+ * reads, and for a row a tool holds, the tool's, whose pages show its rows. A
+ * task also shows in the calendar's entries, which `allTasks` names.
+ */
+const propertyHolder = (target: PropertyTarget): Spec => {
+  const own = target === PropertyTarget.task ? allTasks() : resourceAndMe(toolRouteSegment(target));
+  const parent: Tool | undefined = (PARENT_TOOL as Partial<Record<PropertyTarget, Tool>>)[target];
+  return parent ? compose(own, toolLists(parent)) : own;
+};
+
+/** Every row that can carry property values — what a definition's change reaches. */
+const allPropertyHolders = (): Spec =>
+  compose(...Object.values(PropertyTarget).map(propertyHolder));
+
 // ── Everything this guild shows (cross-tool) ─────────────────────────────────
 // Two callers, one description. Gaining (or losing) a membership row changes
 // what the guild returns for every tool, not just the initiative list: the
@@ -603,6 +620,7 @@ export const q = {
   allPosts,
   allProjects,
   allProperties,
+  allPropertyHolders,
   allQueues,
   allSettings,
   allTags,
@@ -661,6 +679,7 @@ export const q = {
   project,
   projectFilterPresets,
   projectTaskStatuses,
+  propertyHolder,
   pushSettings,
   queue,
   recentComments,

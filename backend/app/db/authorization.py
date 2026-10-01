@@ -1300,6 +1300,7 @@ GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
     "entity_access": "(text, integer, boolean, boolean, public.standing)",
+    "entity_initiative": "(text, integer)",
 }
 
 #: Functions an earlier render put in a guild schema under a name or

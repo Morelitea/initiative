@@ -77,6 +77,10 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/testing/guild_pool.py::drop": (
         "test harness: int-derived test_pool_<id> schema name"
     ),
+    "app/models/tenant/property.py::PropertyValue": (
+        "model DDL: the CHECK lists the PROPERTY_TARGETS constant, the partial "
+        "indexes name the model's own value columns"
+    ),
     "app/db/schema_provisioning.py::strip_template_registry_objects": (
         "the TEMPLATE_SCHEMA constant; policy, trigger and table names read "
         "from the catalog and quoted; function names and argument lists from "

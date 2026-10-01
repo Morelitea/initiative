@@ -35,6 +35,9 @@ class ProjectExportProject(SanitizedBaseModel):
     archived_at: Optional[datetime] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    # The project's own values, encoded as a task's are. Empty in an export
+    # taken before projects carried them.
+    property_values: List[ProjectExportPropertyValue] = []
 
 
 class ProjectExportTag(SanitizedBaseModel):

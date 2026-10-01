@@ -184,7 +184,7 @@ export const SIDEBAR_TOOLS: Tool[] = [
  * One rule, mirrored from the backend's `Tool.plural`: a trailing `y` after a
  * consonant becomes `ies`, and everything else takes an `s`.
  */
-export const toolPlural = (tool: Tool): string =>
+export const toolPlural = (tool: Tool | ChildKind): string =>
   /[^aeiou]y$/.test(tool) ? `${tool.slice(0, -1)}ies` : `${tool}s`;
 
 /**
@@ -196,8 +196,11 @@ export const toolPlural = (tool: Tool): string =>
 export const singularOf = (plural: string): string =>
   plural.endsWith("ies") ? `${plural.slice(0, -3)}y` : plural.replace(/s$/, "");
 
-/** "counter_group" → "counter-groups" — route segment AND API path segment. */
-export const toolRouteSegment = (tool: Tool): string => toolPlural(tool).replaceAll("_", "-");
+/** "counter_group" → "counter-groups" — route segment AND API path segment.
+ *  A child kind's API path follows the same rule ("calendar_event" →
+ *  "calendar-events"). */
+export const toolRouteSegment = (tool: Tool | ChildKind): string =>
+  toolPlural(tool).replaceAll("_", "-");
 
 /** Inverse of {@link toolRouteSegment}: which tool a route segment names, or
  *  null for anything unrecognized. Lets a URL carry a readable tool selector. */
@@ -454,6 +457,9 @@ export const PARENT_TOOL = {
   queue_item: Tool.queue,
   wiki_page: Tool.wiki,
 } as const satisfies Record<string, Tool>;
+
+/** An entity kind a tool holds: a task, an event, a page. */
+export type ChildKind = keyof typeof PARENT_TOOL;
 
 /**
  * Tools whose detail page does NOT carry a relations panel, and why. Stated as

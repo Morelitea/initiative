@@ -876,16 +876,12 @@ async def _apply_file_entry(
     of text, which a file document cannot hold, becomes a spreadsheet read
     from the zip instead."""
     from app.models.tenant.document import Document, DocumentType
-    from app.models.tenant.property import DocumentPropertyValue
     from app.models.tenant.upload import Upload
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
-    from app.services.import_engine.common import (
-        ensure_tag,
-        load_initiative_member_handles,
-    )
+    from app.services.import_engine.common import ensure_tag
     from app.services.import_engine.importers._base import (
+        PropertyRestore,
         grant_ownership,
-        resolve_property_values,
     )
     from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
     from app.services.tenant.documents_spreadsheet import DocumentContentError
@@ -974,28 +970,14 @@ async def _apply_file_entry(
                         resolved.id,
                     )
                 )
-            if entry.properties:
-                values = [
-                    EnvelopePropertyValue.model_validate(p) for p in entry.properties
-                ]
-                member_handles = await load_initiative_member_handles(
-                    session, initiative_id=initiative.id
-                )
-                attached = await resolve_property_values(
-                    session,
-                    initiative_id=initiative.id,
-                    values=values,
-                    member_handles=member_handles,
-                    people=context.people if context is not None else None,
-                )
-                for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
-                    session.add(
-                        DocumentPropertyValue(
-                            document_id=document.id,
-                            property_id=prop_id,
-                            **column_kwargs,
-                        )
-                    )
+            props = PropertyRestore(
+                session, initiative_id=initiative.id, context=context
+            )
+            await props.attach(
+                document,
+                [EnvelopePropertyValue.model_validate(p) for p in entry.properties],
+            )
+            unmatched_handles = await props.settle(document)
     except Exception:
         logger.exception(
             "backup file entry failed path=%s asset=%s", entry.path, entry.asset
@@ -1013,6 +995,7 @@ async def _apply_file_entry(
             entity_id=document.id,
             entity_title=document.name,
             created={"documents": 1},
+            unmatched_handles=unmatched_handles,
         ),
     )
 

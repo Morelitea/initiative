@@ -34,6 +34,7 @@ from app.services.export.adapters._common import (
     export_stem,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.export.i18n import et, export_locale
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -96,6 +97,7 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
         "schema_version": 1,
         "name": group.name,
         "description": group.description,
+        "properties": exported_properties(group),
         "counters": [
             {
                 "name": counter.name,
@@ -107,6 +109,7 @@ def _envelope(group: CounterGroup) -> dict[str, Any]:
                 "initial_count": _number(counter.initial_count),
                 "view_mode": counter.view_mode.value,
                 "position": _number(counter.position),
+                "properties": exported_properties(counter),
                 # What a reference to this counter — a chip reading its value
                 # — points at across one import.
                 "external_ref": f"counter:{counter.id}",

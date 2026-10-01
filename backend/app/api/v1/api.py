@@ -42,6 +42,7 @@ from app.api.v1.tenant_endpoints import (
     posts,
     projects,
     property_definitions,
+    property_values,
     queues,
     reactions,
     recents,
@@ -341,6 +342,9 @@ guild_router.include_router(
     property_definitions.router,
     prefix="/property-definitions",
     tags=["property-definitions"],
+)
+guild_router.include_router(
+    property_values.router, prefix="/properties", tags=["properties"]
 )
 guild_router.include_router(trash.router, prefix="/trash", tags=["trash"])
 # No prefix: the two routes are /archive/{kind}/{id} and /unarchive/{kind}/{id},

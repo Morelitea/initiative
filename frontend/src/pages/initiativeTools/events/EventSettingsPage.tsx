@@ -5,11 +5,10 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CalendarEventRead,
-  PropertyDefinitionRead,
   PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { utcDateKey } from "@/components/calendar/eventCalendarEntry";
 import {
   EventDateTimeFields,
@@ -17,7 +16,7 @@ import {
 } from "@/components/initiativeTools/events/EventDateTimeFields";
 import { toDateKey, toTimeSlotRounded } from "@/components/initiativeTools/events/eventDateTime";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { AddPropertyButton, PropertyList } from "@/components/properties";
+import { AddPropertyButton, PropertyList, usePendingProperties } from "@/components/properties";
 import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import {
@@ -129,11 +128,6 @@ export function EventSettingsPage() {
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // Custom properties — staging pattern: newly-attached definitions land in
-  // ``pendingProperties`` as stub summaries so they show up immediately in
-  // the PropertyList. The list's debounced save handles persistence.
-  const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
-
   // Attendee candidates come from whatever the event's calendar belongs to
   // (MemberMultiSelect below): every member of its initiative, or every member
   // of the guild when the calendar belongs to no initiative. Event DAC (the
@@ -144,50 +138,11 @@ export function EventSettingsPage() {
     [event?.attendees]
   );
 
-  // Merge server-side property values with freshly-attached (pending) defs —
-  // mirrors the DocumentDetailPage / TaskEditPage pattern. Pending defs are
-  // rendered as stubs so the input shows immediately; the PropertyList's
-  // debounced PUT persists them (even with null values so attached-empty
-  // rows survive a refresh).
-  const serverProperties: PropertySummary[] = useMemo(
-    () => event?.property_values ?? [],
-    [event?.property_values]
+  const savedProperties = useMemo<PropertySummary[]>(
+    () => event?.properties ?? [],
+    [event?.properties]
   );
-  const serverPropertyIds = useMemo(
-    () => new Set(serverProperties.map((p) => p.property_id)),
-    [serverProperties]
-  );
-  const combinedProperties = useMemo<PropertySummary[]>(() => {
-    const stubs: PropertySummary[] = pendingProperties
-      .filter((def) => !serverPropertyIds.has(def.id))
-      .map((def) => ({
-        property_id: def.id,
-        name: def.name,
-        type: def.type,
-        options: def.options ?? null,
-        value: null,
-      }));
-    return [...serverProperties, ...stubs];
-  }, [serverProperties, pendingProperties, serverPropertyIds]);
-  const combinedPropertyIds = useMemo(
-    () => combinedProperties.map((p) => p.property_id),
-    [combinedProperties]
-  );
-
-  // Drop pending stubs once the server snapshot confirms they exist.
-  useEffect(() => {
-    setPendingProperties((prev) => {
-      if (prev.length === 0) return prev;
-      const filtered = prev.filter((def) => !serverPropertyIds.has(def.id));
-      return filtered.length === prev.length ? prev : filtered;
-    });
-  }, [serverPropertyIds]);
-
-  const handleAddProperty = (definition: PropertyDefinitionRead) => {
-    setPendingProperties((prev) =>
-      prev.some((p) => p.id === definition.id) ? prev : [...prev, definition]
-    );
-  };
+  const attachedProperties = usePendingProperties(savedProperties);
 
   useEffect(() => {
     if (event) {
@@ -549,16 +504,17 @@ export function EventSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <PropertyList
-              entityKind="event"
+              target={PropertyTarget.calendar_event}
               entityId={eventId}
-              properties={combinedProperties}
+              properties={attachedProperties.properties}
+              unsaved={attachedProperties.unsavedIds}
               initiativeId={event.initiative_id}
               canOpen={{ tool: Tool.calendar, id: event.calendar_id }}
             />
             <AddPropertyButton
               initiativeId={event.initiative_id}
-              currentPropertyIds={combinedPropertyIds}
-              onAdd={handleAddProperty}
+              currentPropertyIds={attachedProperties.propertyIds}
+              onAdd={attachedProperties.add}
             />
           </CardContent>
         </Card>

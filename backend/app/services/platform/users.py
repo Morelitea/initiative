@@ -762,11 +762,7 @@ async def hard_delete_user(
     from app.models.platform.push_token import PushToken
     from app.models.tenant.calendar_event import CalendarEventAttendee
     from app.models.platform.guild import Guild, GuildInvite
-    from app.models.tenant.property import (
-        TaskPropertyValue,
-        DocumentPropertyValue,
-        CalendarEventPropertyValue,
-    )
+    from app.models.tenant.property import PropertyValue
 
     # Sweep EVERY guild schema, not just current memberships. An anonymized
     # user has no membership rows left (anonymize drops them), and even an
@@ -855,18 +851,13 @@ async def hard_delete_user(
                 CalendarEventAttendee.user_id == user_id
             )
         )
-        # User-typed custom-property values: NULL the reference (the value rows
-        # belong to the entity, not the user).
-        for table in (
-            TaskPropertyValue,
-            DocumentPropertyValue,
-            CalendarEventPropertyValue,
-        ):
-            await guild_session.exec(
-                update(table)
-                .where(table.value_user_id == user_id)
-                .values(value_user_id=None)
-            )
+        # Person-valued properties: NULL the reference (a value belongs to the
+        # initiative, not to the person it names).
+        await guild_session.exec(
+            update(PropertyValue)
+            .where(PropertyValue.value_user_id == user_id)
+            .values(value_user_id=None)
+        )
 
     await _in_each_guild(guild_ids, erase)
 

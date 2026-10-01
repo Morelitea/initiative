@@ -32,7 +32,6 @@ import type {
   ICalParseRequest,
   ICalParseResult,
   OccurrenceRequest,
-  PropertyValuesSetRequest,
   ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams,
   SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams,
 } from "../initiativeAPI.schemas";
@@ -1460,127 +1459,6 @@ export const useUpdateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch = <
 > => {
   return useMutation(
     getUpdateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatchMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Replace-all set of property values on an event.
- *
- * Mirrors the tasks/documents shape: anyone with write access on the calendar
- * (or guild admin) can attach values; cross-initiative definitions return 404
- * DEFINITION_NOT_FOUND via the service layer.
- *
- * Property definitions belong to an initiative. A guild calendar belongs to
- * none, so there are no definitions its events could carry and the request is
- * refused; clearing values stays available.
- *
- * An installed app names the person a person-valued property holds by its
- * reference for them.
- * @summary Set Event Properties
- */
-export const setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut = (
-  guildId: number,
-  eventId: number,
-  propertyValuesSetRequest: BodyType<PropertyValuesSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<CalendarEventRead>(
-    {
-      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/properties`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: propertyValuesSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationKey = () =>
-  ["setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut"] as const;
-
-export const getSetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut>>,
-    TError,
-    SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut>>,
-  TError,
-  SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationVariables,
-  TContext
-> => {
-  const mutationKey =
-    getSetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut>>,
-    SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationVariables
-  > = (props) => {
-    const { guildId, eventId, data } = props ?? {};
-
-    return setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut(
-      guildId,
-      eventId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut>>
-  >;
-export type SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationBody =
-  BodyType<PropertyValuesSetRequest>;
-export type SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationVariables = {
-  guildId: number;
-  eventId: number;
-  data: BodyType<PropertyValuesSetRequest>;
-};
-
-/**
- * @summary Set Event Properties
- */
-export const useSetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut>>,
-      TError,
-      SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut>>,
-  TError,
-  SetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPutMutationOptions(options),
     queryClient
   );
 };

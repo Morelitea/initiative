@@ -1,9 +1,8 @@
-"""The custom property routes an installed app calls.
+"""The custom property route an installed app calls.
 
-``PUT /{documents,calendar-events}/{id}/properties`` and ``PATCH /tasks/{id}``
-answer to the write scope of the tool that governs the item, and a person-valued
-property names the person by the install's own reference for them, on the way in
-and on the way out.
+``PUT /properties/{target}/{id}`` answers to the write scope of the tool that
+governs the item, and a person-valued property names the person by the
+install's own reference for them, on the way in and on the way out.
 """
 
 from __future__ import annotations
@@ -84,20 +83,12 @@ async def _event(client: Any, session: Any, installed: Any, headers: dict) -> in
     return event.json()["id"]
 
 
-#: Per kind: the tool's scopes, how to make an item the install may write, its
-#: route, and the response field its values come back in.
+#: Per target: the tool's scopes, how to make an item the install may write,
+#: and the route it is read from.
 _KINDS = {
-    "documents": ("documents", _document, "/documents", "properties"),
-    "tasks": ("projects", _task, "/tasks", "properties"),
-    "calendar-events": ("calendars", _event, "/calendar-events", "property_values"),
-}
-
-#: How each kind's values are replaced: the method, the path after the item,
-#: and the key the list goes under. A task's ride its own PATCH.
-_WRITES = {
-    "documents": ("PUT", "/properties", "values"),
-    "tasks": ("PATCH", "", "property_values"),
-    "calendar-events": ("PUT", "/properties", "values"),
+    "document": ("documents", _document, "/documents"),
+    "task": ("projects", _task, "/tasks"),
+    "calendar_event": ("calendars", _event, "/calendar-events"),
 }
 
 
@@ -132,21 +123,20 @@ async def test_setting_values_needs_the_tools_write(
     note = await create_property_definition(
         session, installed.placed, name="Note", type=PropertyType.text
     )
-    method, suffix, key = _WRITES[kind]
-    url = guild_url(guild_id, f"{_KINDS[kind][2]}/{item_id}{suffix}")
-    body = {key: [{"property_id": note.id, "value": "Set by the app"}]}
+    url = guild_url(guild_id, f"/properties/{kind}/{item_id}")
+    body = {"values": [{"property_id": note.id, "value": "Set by the app"}]}
 
-    read_only = await client.request(
-        method, url, headers=install_headers(installed, [f"{tool}:read"]), json=body
+    read_only = await client.put(
+        url, headers=install_headers(installed, [f"{tool}:read"]), json=body
     )
     assert read_only.status_code == 403, read_only.text
     assert read_only.json()["detail"] == AppMessages.SCOPE_REQUIRED
 
-    written = await client.request(
-        method, url, headers=install_headers(installed, scopes), json=body
+    written = await client.put(
+        url, headers=install_headers(installed, scopes), json=body
     )
     assert written.status_code == 200, written.text
-    [value] = written.json()[_KINDS[kind][3]]
+    [value] = written.json()
     assert value["property_id"] == note.id
     assert value["value"] == "Set by the app"
 
@@ -175,21 +165,19 @@ async def test_a_person_valued_property_is_set_and_read_by_reference(
     seat_ref = await _seat_reference(client, installed, headers)
     path = f"{_KINDS[kind][2]}/{item_id}"
 
-    method, suffix, key = _WRITES[kind]
-    written = await client.request(
-        method,
-        guild_url(guild_id, f"{path}{suffix}"),
+    written = await client.put(
+        guild_url(guild_id, f"/properties/{kind}/{item_id}"),
         headers=headers,
-        json={key: [{"property_id": owner.id, "value": seat_ref}]},
+        json={"values": [{"property_id": owner.id, "value": seat_ref}]},
     )
     assert written.status_code == 200, written.text
-    [value] = written.json()[_KINDS[kind][3]]
+    [value] = written.json()
     assert value["value"]["id"] == seat_ref
     assert_names_nobody(written.text, [installed.seat.user.id, guild_id])
 
     read = await client.get(guild_url(guild_id, path), headers=headers)
     assert read.status_code == 200, read.text
-    [value] = read.json()[_KINDS[kind][3]]
+    [value] = read.json()["properties"]
     assert value["value"]["id"] == seat_ref
     assert_names_nobody(read.text, [installed.seat.user.id, guild_id])
 
@@ -198,7 +186,7 @@ async def test_a_person_valued_property_is_set_and_read_by_reference(
         guild_url(guild_id, path), headers=installed.seat.headers
     )
     assert as_person.status_code == 200, as_person.text
-    [value] = as_person.json()[_KINDS[kind][3]]
+    [value] = as_person.json()["properties"]
     assert value["value"]["id"] == installed.seat.user.id
 
 
@@ -230,7 +218,7 @@ async def test_a_person_named_any_other_way_is_a_422(
 
     for named in (foreign, installed.seat.user.id, "uapp_" + "x" * 32):
         response = await client.put(
-            guild_url(guild_id, f"/documents/{document_id}/properties"),
+            guild_url(guild_id, f"/properties/document/{document_id}"),
             headers=headers,
             json={"values": [{"property_id": owner.id, "value": named}]},
         )

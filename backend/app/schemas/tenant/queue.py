@@ -11,6 +11,12 @@ from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertiesOnUpdate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.schemas.platform.user import UserPublic
@@ -54,7 +60,7 @@ class QueueItemBase(SanitizedBaseModel):
     is_visible: bool = True
 
 
-class QueueItemCreate(QueueItemBase):
+class QueueItemCreate(QueueItemBase, PropertiesOnCreate):
     label: TitleStr = Field(..., min_length=1, max_length=255)
     user_id: Optional[PersonId] = None
     tag_ids: Optional[List[int]] = None
@@ -62,7 +68,7 @@ class QueueItemCreate(QueueItemBase):
     task_ids: Optional[List[int]] = None
 
 
-class QueueItemUpdate(SanitizedBaseModel):
+class QueueItemUpdate(PropertiesOnUpdate):
     label: Optional[TitleStr] = None
     position: Optional[float] = None
     user_id: Optional[PersonId] = None
@@ -83,6 +89,7 @@ class QueueItemRead(QueueItemBase):
     user_id: Optional[PersonId] = None
     user: Optional[UserPublic] = None
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     documents: List[QueueItemDocumentRead] = Field(default_factory=list)
     tasks: List[QueueItemTaskRead] = Field(default_factory=list)
     #: How many things are pinned to this item, of whatever kind. Not
@@ -118,7 +125,7 @@ class QueueBase(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class QueueCreate(QueueBase):
+class QueueCreate(QueueBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
@@ -207,6 +214,7 @@ def serialize_queue_item(
         is_visible=item.is_visible,
         held_at_round=item.held_at_round,
         tags=annotated_tags(item),
+        properties=annotated_properties(item),
         documents=_serialize_queue_item_documents(documents),
         tasks=_serialize_queue_item_tasks(tasks),
         attachment_count=attachment_count,

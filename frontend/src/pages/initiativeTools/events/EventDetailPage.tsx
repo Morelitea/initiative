@@ -483,14 +483,14 @@ export function EventDetailPage() {
       />
 
       {/* Custom Properties — read-only view; edits happen on the Settings page. */}
-      {event.property_values.length > 0 && (
+      {event.properties.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">{t("properties")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {event.property_values.map((property) => {
+              {event.properties.map((property) => {
                 const Icon = iconForPropertyType(property.type);
                 return (
                   <li

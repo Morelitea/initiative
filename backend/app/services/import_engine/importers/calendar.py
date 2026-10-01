@@ -29,7 +29,6 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.property import CalendarEventPropertyValue
 from app.schemas.tenant.import_envelopes import (
     CalendarEnvelope,
     EventEnvelopeItem,
@@ -45,9 +44,9 @@ from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
-    resolve_property_values,
 )
 from app.services.import_engine.people import (
     PeopleMap,
@@ -134,15 +133,23 @@ class CalendarImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        props = PropertyRestore(
+            session,
+            initiative_id=target_initiative.id,
+            context=context,
+            member_handles=member_handles,
+        )
+        await props.attach(calendar, env.properties)
+
         created = 0
         failed = 0
         tags_created = 0
         tags_matched = 0
-        props_created = 0
-        props_matched = 0
+        props_created = props.created
+        props_matched = props.matched
         attendees_matched = 0
-        unmatched_handles: set[str] = set()
-        named_handles: dict[int, str] = {}
+        unmatched_handles: set[str] = set(props.unmatched)
+        named_handles: dict[int, str] = dict(props.named)
         warnings: list[str] = []
 
         # A repeating event's new id by the name it came with, for the
@@ -321,28 +328,22 @@ class CalendarImporter(NamesPeopleInPassing):
                 )
             )
 
-        attached = await resolve_property_values(
+        props = PropertyRestore(
             session,
             initiative_id=initiative_id,
-            values=item.properties,
+            context=context,
             member_handles=member_handles,
-            people=context.people if context is not None else None,
         )
-        unmatched_handles.update(attached.unmatched)
-        for user_id, handle in attached.named.items():
+        await props.attach(event, item.properties)
+        unmatched_handles.update(props.unmatched)
+        for user_id, handle in props.named.items():
             named_handles.setdefault(user_id, handle)
-        for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
-            session.add(
-                CalendarEventPropertyValue(
-                    event_id=event.id, property_id=prop_id, **column_kwargs
-                )
-            )
 
         return {
             "tags_created": tags_created,
             "tags_matched": tags_matched,
-            "props_created": attached.created,
-            "props_matched": attached.matched,
+            "props_created": props.created,
+            "props_matched": props.matched,
             "attendees_matched": attendees_matched,
         }
 

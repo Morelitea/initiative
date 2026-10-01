@@ -38,6 +38,7 @@ from app.schemas.tenant.calendar import (
     CalendarUpdate,
 )
 from app.schemas.tenant.tool import serialize_tool
+from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
@@ -192,6 +193,7 @@ async def create_calendar(
         )
 
     await attachments_service.claim_uploads(session, calendar)
+    await properties_service.write_on_create(session, calendar, calendar_in.properties)
     await session.commit()
     hydrated = await _refetch_calendar(session, calendar.id)
     return serialize_tool(

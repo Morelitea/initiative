@@ -75,7 +75,6 @@ from app.schemas.tenant.document import (
 )
 from app.schemas.tenant.resource_grant import initiative_readable
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
-from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.tenant import attachments as attachments_service
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
@@ -83,12 +82,12 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import ownership as ownership_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.names import ensure_name_free
 from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
 from app.services import reachability
-from app.services.tenant import properties as properties_service
 from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.ai_settings import resolve_ai_settings
@@ -251,6 +250,7 @@ async def serialize_document_page(
     ``me_tools.MY_TOOL_LISTS``.
     """
     await tags_service.annotate_tags(session, documents)
+    await properties_service.annotate_properties(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
     await ownership_service.annotate_owner_apps(session, documents)
     attached = await attached_projects(session, documents)
@@ -334,6 +334,7 @@ async def create_document(
     )
     await attachments_service.claim_uploads(session, document)
 
+    await properties_service.write_on_create(session, document, document_in.properties)
     await session.commit()
     return await read_after_write(session, document.id, current_user, guild_context)
 
@@ -1064,44 +1065,6 @@ async def generate_summary(
         return GenerateDocumentSummaryResponse(summary=summary)
     except AIGenerationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.code)
-
-
-@router.put("/{document_id}/properties", response_model=DocumentRead)
-async def set_document_properties(
-    document_id: int,
-    payload: PropertyValuesSetRequest,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: DocumentsWrite,
-) -> DocumentRead:
-    """Replace the custom property values on a document.
-
-    Requires document write access. Values are validated server-side against
-    each property definition's type and options. An installed app names the
-    person a person-valued property holds by its reference for them.
-    """
-    document = await resource_access.load_authorized(
-        session, Tool.document, document_id, current_user, guild_context, access="write"
-    )
-
-    try:
-        await properties_service.set_document_property_values(
-            session,
-            document,
-            await properties_service.property_values_by_row_id(session, payload.values),
-            document.initiative_id,
-        )
-    except HTTPException:
-        await session.rollback()
-        raise
-
-    document.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-    # A document already in the session keeps the property values it was
-    # read with unless the re-read refreshes it.
-    return await read_after_write(
-        session, document_id, current_user, guild_context, populate_existing=True
-    )
 
 
 async def read_after_write(

@@ -1,19 +1,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut } from "@/api/generated/calendar-events/calendar-events";
-import { setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut } from "@/api/generated/documents/documents";
 import type {
-  CalendarEventRead,
-  DocumentRead,
   PropertyDefinitionCreate,
   PropertyDefinitionRead,
   PropertyDefinitionUpdate,
   PropertyDefinitionUpdateResponse,
   PropertyOption,
-  PropertyValuesSetRequest,
-  TaskRead,
+  PropertySummary,
+  PropertyTarget,
+  PropertyValueInput,
 } from "@/api/generated/initiativeAPI.schemas";
+import { setPropertiesApiV1CGuildIdPropertiesTargetEntityIdPut } from "@/api/generated/properties/properties";
 import {
   createPropertyDefinitionApiV1CGuildIdPropertyDefinitionsPost,
   deletePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdDelete,
@@ -21,7 +19,6 @@ import {
   listPropertyDefinitionsApiV1CGuildIdPropertyDefinitionsGet,
   updatePropertyDefinitionApiV1CGuildIdPropertyDefinitionsDefinitionIdPatch,
 } from "@/api/generated/property-definitions/property-definitions";
-import { updateTaskApiV1CGuildIdTasksTaskIdPatch } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -93,15 +90,9 @@ export const useUpdateProperty = (
           propertyId,
           data
         ),
-      invalidate: () =>
-        Promise.all([
-          invalidate(q.allProperties()),
-          // Embedded summaries on documents/tasks/events need to pick up
-          // name/options/color changes.
-          invalidate(q.allDocuments()),
-          invalidate(q.allTasks()),
-          invalidate(q.allCalendarEvents()),
-        ]),
+      // Every row's embedded summaries carry the definition's name, options
+      // and color.
+      invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
       errorKey: "properties:manager.updateError",
     },
     options
@@ -115,8 +106,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) =>
           guildId,
           propertyId
         ),
-      invalidate: () =>
-        invalidate(q.allProperties(), q.allDocuments(), q.allTasks(), q.allCalendarEvents()),
+      invalidate: () => invalidate(q.allProperties(), q.allPropertyHolders()),
       errorKey: "properties:manager.deleteError",
     },
     options
@@ -172,7 +162,7 @@ export const useAppendPropertyOption = () => {
       return { option: stored, created: true as const };
     },
     onSuccess: (result) => {
-      void invalidate(q.allProperties(), q.allDocuments(), q.allTasks(), q.allCalendarEvents());
+      void invalidate(q.allProperties(), q.allPropertyHolders());
       if (result.created) {
         toast.success(t("input.optionAdded"));
       }
@@ -189,48 +179,26 @@ export const useAppendPropertyOption = () => {
   };
 };
 
-export const useSetDocumentProperties = (
-  options?: MutationOpts<DocumentRead, { documentId: number; values: PropertyValuesSetRequest }>
-) =>
-  useGuildMutation<DocumentRead, { documentId: number; values: PropertyValuesSetRequest }>(
-    {
-      mutationFn: (guildId, { documentId, values }) =>
-        setDocumentPropertiesApiV1CGuildIdDocumentsDocumentIdPropertiesPut(
-          guildId,
-          documentId,
-          values
-        ),
-      invalidate: (_data, vars) => invalidate(q.allDocuments(), q.document(vars.documentId)),
-      errorKey: "properties:manager.setValuesError",
-    },
-    options
-  );
+export interface SetPropertiesVariables {
+  target: PropertyTarget;
+  id: number;
+  /** Replace-all: every property the row keeps, an empty list clears them. */
+  values: PropertyValueInput[];
+}
 
-/** A task's values ride its own update (`property_values` on the PATCH). */
-export const useSetTaskProperties = (
-  options?: MutationOpts<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>
+/** Replace the property values on any tool or sub-tool row. */
+export const useSetProperties = (
+  options?: MutationOpts<PropertySummary[], SetPropertiesVariables>
 ) =>
-  useGuildMutation<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>(
+  useGuildMutation<PropertySummary[], SetPropertiesVariables>(
     {
-      mutationFn: (guildId, { taskId, values }) =>
-        updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, {
-          property_values: values.values,
-        }),
-      invalidate: (_data, vars) => invalidate(q.allTasks(), q.task(vars.taskId)),
+      mutationFn: (guildId, { target, id, values }) =>
+        setPropertiesApiV1CGuildIdPropertiesTargetEntityIdPut(guildId, target, id, { values }),
+      invalidate: (_data, vars) => invalidate(q.propertyHolder(vars.target)),
       errorKey: "properties:manager.setValuesError",
     },
-    options
-  );
-
-export const useSetEventProperties = (
-  options?: MutationOpts<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>
-) =>
-  useGuildMutation<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>(
-    {
-      mutationFn: (guildId, { eventId, values }) =>
-        setEventPropertiesApiV1CGuildIdCalendarEventsEventIdPropertiesPut(guildId, eventId, values),
-      invalidate: (_data, vars) => invalidate(q.allCalendarEvents(), q.calendarEvent(vars.eventId)),
-      errorKey: "properties:manager.setValuesError",
-    },
-    options
+    // Each write replaces every value on its row, so they run one at a time
+    // in the order they were made: a later write can never be overtaken by
+    // an earlier one that knew about less.
+    { scope: { id: "property-values" }, ...options }
   );

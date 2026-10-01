@@ -59,6 +59,7 @@ from app.schemas.tenant.tool import serialize_tool
 from app.api.v1.tenant_endpoints.query import REFUSAL_STATUS as _QUERY_STATUS
 from app.db.session import routed_context
 from app.schemas.sql_query import QueryColumnDescription, QueryResponse
+from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services import audit as audit_service
 from app.services import query as query_service
@@ -287,6 +288,9 @@ async def create_dashboard(
         )
 
     await attachments_service.claim_uploads(session, dashboard)
+    await properties_service.write_on_create(
+        session, dashboard, dashboard_in.properties
+    )
     await session.commit()
     if listing_id is not None:
         await count_install(guild_context.guild_id, listing_id)

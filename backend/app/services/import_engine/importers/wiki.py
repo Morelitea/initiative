@@ -42,13 +42,18 @@ from app.services.import_engine.common import (
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
 )
 from app.services.import_engine.links import links_to_pages, wiki_page_slug_ref
 from app.services.import_engine.mentions import MENTION_HANDLE, place_mention_node
 from app.services.import_engine.references import note_or_settle
-from app.services.import_engine.people import PeopleMap, quoted_account
+from app.services.import_engine.people import (
+    PeopleMap,
+    quoted_account,
+    user_reference_handles,
+)
 from app.services.tenant import tags as tags_service
 from app.services.tenant.names import slugify, unique_slug
 
@@ -96,19 +101,25 @@ class WikiImporter:
                 )
                 if person.name is None:
                     person.name = name
-        # A text document filed in it mentions people the same way a page does.
-        for filed in envelope.documents:
-            if filed.envelope is None:
+        # A text document filed in it mentions people the same way a page
+        # does, and a person-valued property anywhere in it names somebody.
+        for handle in (
+            *(
+                handle
+                for filed in envelope.documents
+                if filed.envelope is not None
+                for handle in filed.envelope.mention_handles
+            ),
+            *user_reference_handles(envelope.model_dump(mode="json")),
+        ):
+            handle = (handle or "").strip()
+            if not handle:
                 continue
-            for handle in filed.envelope.mention_handles:
-                handle = (handle or "").strip()
-                if not handle:
-                    continue
-                key = handle_key(handle)
-                counts[key] = counts.get(key, 0) + 1
-                seen.setdefault(
-                    key, ManifestPerson(handle=handle, name=None, comment_count=0)
-                )
+            key = handle_key(handle)
+            counts[key] = counts.get(key, 0) + 1
+            seen.setdefault(
+                key, ManifestPerson(handle=handle, name=None, comment_count=0)
+            )
         for key, person in seen.items():
             person.comment_count = comments.get(key, 0)
         return sorted(
@@ -196,6 +207,10 @@ class WikiImporter:
                 )
 
         await attach_tags("wiki", wiki.id, env.tags)
+        props = PropertyRestore(
+            session, initiative_id=target_initiative.id, context=context
+        )
+        await props.attach(wiki, env.properties)
 
         people = context.people if context is not None else PeopleMap()
         member_handles = (
@@ -243,6 +258,7 @@ class WikiImporter:
                     row.id,
                 )
             await attach_tags("wiki_page", row.id, page_env.tags)
+            await props.attach(row, page_env.properties)
 
         # Pass two: file each page under its parent, by slug.
         parents, cut_loops, unknown = _parent_slugs(env.pages, slugs)
@@ -349,7 +365,6 @@ class WikiImporter:
             warnings=warnings,
         )
 
-        await session.flush()
         return EnvelopeImportResult(
             entity_id=wiki.id,
             entity_title=wiki.name,
@@ -359,8 +374,10 @@ class WikiImporter:
                 "comments": comment_count,
                 "tags": tags_created,
                 "documents": filed,
+                "properties": props.created,
             },
-            matched={"tags": tags_matched},
+            matched={"tags": tags_matched, "properties": props.matched},
+            unmatched_handles=await props.settle(wiki),
             warnings=warnings,
         )
 
@@ -430,6 +447,7 @@ async def _file_documents(
                         entry.upload,
                         target_initiative=target_initiative,
                         importer=importer,
+                        context=context,
                     )
         except Exception:
             logger.exception("wiki import: a filed document failed")
@@ -468,6 +486,7 @@ async def _upload_document(
     *,
     target_initiative: Initiative,
     importer: User,
+    context: ImportContext | None,
 ) -> int | None:
     """A filed upload, as a file document over the bytes its zip brought. One
     whose file is not stored here — left out of the zip, or refused on the way
@@ -509,6 +528,11 @@ async def _upload_document(
                 tags_service.TAG_LINKS["document"], document.id, resolved.id
             )
         )
+    props = PropertyRestore(
+        session, initiative_id=target_initiative.id, context=context
+    )
+    await props.attach(document, upload.properties)
+    await props.settle(document)
     return document.id
 
 
@@ -621,18 +645,22 @@ async def _tasks_by_jira_key(session: AsyncSession, keys: set[str]) -> dict[str,
         return {}
     from sqlalchemy import or_
 
-    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.property import PropertyDefinition, PropertyValue
     from app.models.tenant.task import Task
     from app.services.import_engine.jira_fields import JIRA_KEY_PROPERTY
 
     rows = (
         await session.exec(
-            select(TaskPropertyValue.value_text, Task.id)
+            select(PropertyValue.value_text, Task.id)
             .join(
                 PropertyDefinition,
-                PropertyDefinition.id == TaskPropertyValue.property_id,
+                PropertyDefinition.id == PropertyValue.property_id,
             )
-            .join(Task, Task.id == TaskPropertyValue.task_id)
+            .join(
+                Task,
+                (PropertyValue.entity_type == "task")
+                & (Task.id == PropertyValue.entity_id),
+            )
             .where(
                 # The name the import gave it, or the one it was renamed to
                 # when that name was already taken by a different kind.
@@ -640,7 +668,7 @@ async def _tasks_by_jira_key(session: AsyncSession, keys: set[str]) -> dict[str,
                     PropertyDefinition.name == JIRA_KEY_PROPERTY,
                     PropertyDefinition.name.like(f"{JIRA_KEY_PROPERTY} (%"),
                 ),
-                TaskPropertyValue.value_text.in_(sorted(keys)),
+                PropertyValue.value_text.in_(sorted(keys)),
                 Task.deleted_at.is_(None),
             )
             .order_by(Task.id)
