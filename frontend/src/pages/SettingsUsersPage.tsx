@@ -93,6 +93,9 @@ export const SettingsUsersPage = () => {
   // invites answer to the guild's own ladder, and to a settings grant
   // standing in on it. Platform role has nothing to do with it.
   const isGuildAdmin = Boolean(activeGuild?.can.administer);
+  // Invites are handed out by whoever may change the roster, so a rung that
+  // only reads it does not list them.
+  const managesInvites = Boolean(activeGuild?.can.configure);
   const roleOptions = activeGuild?.can.seat ? SEAT_ROLE_OPTIONS : GUILD_ROLE_OPTIONS;
 
   const activeGuildId = activeGuild?.id ?? null;
@@ -143,10 +146,10 @@ export const SettingsUsersPage = () => {
   }, [activeGuildId, t]);
 
   useEffect(() => {
-    if (isGuildAdmin) {
+    if (managesInvites) {
       void loadInvites();
     }
-  }, [isGuildAdmin, loadInvites]);
+  }, [managesInvites, loadInvites]);
 
   const inviteRows = useMemo(() => invites, [invites]);
 
@@ -162,7 +165,6 @@ export const SettingsUsersPage = () => {
   );
   const rows = usersQuery.data?.items ?? [];
   const totalCount = usersQuery.data?.total_count ?? 0;
-
 
   const updateGuildMembership = useUpdateGuildMembership({
     onError: (error: unknown) => {
@@ -391,107 +393,109 @@ export const SettingsUsersPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>{t("users.invitesTitle")}</CardTitle>
-            <p className="text-muted-foreground text-sm">{t("users.invitesDescription")}</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={() => loadInvites()}>
-            <RefreshCcw className="h-4 w-4" />
-            <span className="sr-only">{t("users.refreshInvites")}</span>
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form className="grid gap-4 md:grid-cols-3" onSubmit={createInvite}>
-            <div className="space-y-2">
-              <Label htmlFor="invite-uses">{t("users.maxUsesLabel")}</Label>
-              <Input
-                id="invite-uses"
-                type="number"
-                min={1}
-                value={inviteMaxUses}
-                onChange={(event) => setInviteMaxUses(Number(event.target.value))}
-              />
+      {managesInvites ? (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>{t("users.invitesTitle")}</CardTitle>
+              <p className="text-muted-foreground text-sm">{t("users.invitesDescription")}</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="invite-days">{t("users.expiresDaysLabel")}</Label>
-              <Input
-                id="invite-days"
-                type="number"
-                min={0}
-                value={inviteExpiresDays}
-                onChange={(event) => setInviteExpiresDays(Number(event.target.value))}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" disabled={inviteSubmitting || atUserLimit}>
-                {inviteSubmitting ? t("users.generatingInvite") : t("users.generateInvite")}
-              </Button>
-            </div>
-          </form>
-          {atUserLimit && billing && activeGuildId && activeGuild?.can.seat ? (
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <Button variant="ghost" size="icon" onClick={() => loadInvites()}>
+              <RefreshCcw className="h-4 w-4" />
+              <span className="sr-only">{t("users.refreshInvites")}</span>
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form className="grid gap-4 md:grid-cols-3" onSubmit={createInvite}>
+              <div className="space-y-2">
+                <Label htmlFor="invite-uses">{t("users.maxUsesLabel")}</Label>
+                <Input
+                  id="invite-uses"
+                  type="number"
+                  min={1}
+                  value={inviteMaxUses}
+                  onChange={(event) => setInviteMaxUses(Number(event.target.value))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invite-days">{t("users.expiresDaysLabel")}</Label>
+                <Input
+                  id="invite-days"
+                  type="number"
+                  min={0}
+                  value={inviteExpiresDays}
+                  onChange={(event) => setInviteExpiresDays(Number(event.target.value))}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button type="submit" disabled={inviteSubmitting || atUserLimit}>
+                  {inviteSubmitting ? t("users.generatingInvite") : t("users.generateInvite")}
+                </Button>
+              </div>
+            </form>
+            {atUserLimit && billing && activeGuildId && activeGuild?.can.seat ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-muted-foreground text-sm">
+                  {planName
+                    ? t("users.inviteSeatsFullPlan", { plan: planName, count: maxUsers ?? 0 })
+                    : t("users.inviteSeatsFullUpgrade", { count: maxUsers ?? 0 })}
+                </p>
+                <Button size="sm" onClick={() => void openPortal(activeGuildId, "upgrade")}>
+                  {t("usagePanel.upgrade")}
+                </Button>
+              </div>
+            ) : atUserLimit ? (
               <p className="text-muted-foreground text-sm">
-                {planName
-                  ? t("users.inviteSeatsFullPlan", { plan: planName, count: maxUsers ?? 0 })
-                  : t("users.inviteSeatsFullUpgrade", { count: maxUsers ?? 0 })}
+                {t("users.inviteSeatsFull", { max: maxUsers })}
               </p>
-              <Button size="sm" onClick={() => void openPortal(activeGuildId, "upgrade")}>
-                {t("usagePanel.upgrade")}
-              </Button>
+            ) : null}
+            <div className="h-px bg-border" />
+            {invitesLoading ? (
+              <SkeletonRegion label={t("users.loadingInvites")}>
+                <ListSkeleton rows={2} avatar={false} />
+              </SkeletonRegion>
+            ) : null}
+            {invitesError ? <p className="text-destructive text-sm">{invitesError}</p> : null}
+            {!invitesLoading && !inviteRows.length ? (
+              <p className="text-muted-foreground text-sm">{t("users.noActiveInvites")}</p>
+            ) : null}
+            <div className="space-y-3">
+              {inviteRows.map((invite) => {
+                const link = inviteLinkForCode(invite.code);
+                return (
+                  <div
+                    key={invite.id}
+                    className="flex flex-col gap-3 rounded border bg-muted/30 p-4 text-sm md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <p className="font-medium">{link}</p>
+                      <InviteUsesLine
+                        uses={invite.uses}
+                        maxUses={invite.max_uses ?? null}
+                        expiresAt={invite.expires_at ?? null}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => copyInviteLink(invite.code)}
+                      >
+                        <Copy className="h-4 w-4" />
+                        <span className="sr-only">{t("users.copyInviteLink")}</span>
+                      </Button>
+                      <Button variant="outline" size="icon" onClick={() => deleteInvite(invite.id)}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">{t("users.deleteInviteLink")}</span>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ) : atUserLimit ? (
-            <p className="text-muted-foreground text-sm">
-              {t("users.inviteSeatsFull", { max: maxUsers })}
-            </p>
-          ) : null}
-          <div className="h-px bg-border" />
-          {invitesLoading ? (
-            <SkeletonRegion label={t("users.loadingInvites")}>
-              <ListSkeleton rows={2} avatar={false} />
-            </SkeletonRegion>
-          ) : null}
-          {invitesError ? <p className="text-destructive text-sm">{invitesError}</p> : null}
-          {!invitesLoading && !inviteRows.length ? (
-            <p className="text-muted-foreground text-sm">{t("users.noActiveInvites")}</p>
-          ) : null}
-          <div className="space-y-3">
-            {inviteRows.map((invite) => {
-              const link = inviteLinkForCode(invite.code);
-              return (
-                <div
-                  key={invite.id}
-                  className="flex flex-col gap-3 rounded border bg-muted/30 p-4 text-sm md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <p className="font-medium">{link}</p>
-                    <InviteUsesLine
-                      uses={invite.uses}
-                      maxUses={invite.max_uses ?? null}
-                      expiresAt={invite.expires_at ?? null}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => copyInviteLink(invite.code)}
-                    >
-                      <Copy className="h-4 w-4" />
-                      <span className="sr-only">{t("users.copyInviteLink")}</span>
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={() => deleteInvite(invite.id)}>
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">{t("users.deleteInviteLink")}</span>
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>

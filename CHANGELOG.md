@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Invite links are for whoever can change the member list.** Someone with temporary read-only access to a community's settings no longer sees its invite links, and an account with temporary access to a community can't accept an invite into it until that access ends.
 - **Ending app connections answers right away.** Revoking every member's connection, uninstalling an app, removing a member, leaving or deleting a community no longer waits for each connected service to confirm, one at a time. The services are told in the background, several at once.
 - **A service's webhook reaches every connected community faster.** One delivery is passed to several communities at once instead of one after another, so a service that connected many of them no longer times out waiting.
 - **A project made from a template keeps each task's repeat**, moved with the task's dates.
