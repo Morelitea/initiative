@@ -132,6 +132,7 @@ class TasksTableAdapter:
             template_id=self.template_id,
             format=format,
             batch=(RenderItem(key="tasks", data=data),),
+            initiative_ids=_reach(tasks),
         )
 
     async def _build_detailed(
@@ -172,7 +173,13 @@ class TasksTableAdapter:
             template_id=self.detail_template_id,
             format="pdf",
             batch=(RenderItem(key="tasks", data=data),),
+            initiative_ids=_reach(tasks),
         )
+
+
+def _reach(tasks: list[Task]) -> frozenset[int]:
+    """The initiatives the listed tasks sit in, by their projects."""
+    return frozenset(task.project.initiative_id for task in tasks if task.project)
 
 
 def _selector(params: dict) -> dict[str, Any]:

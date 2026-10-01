@@ -294,16 +294,30 @@ async def test_enrolling_answers_the_rule_it_was_asked_by(
 
 
 async def test_a_community_is_out_of_reach_until_it_is_answered(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
+    from app.api import deps
+
     user, guild = await _member_of_a_guild(session)
     await _ask(session, SecondFactorRequirement.everyone)
+    url = f"/api/v1/c/{guild.id}/initiatives/"
 
-    _refused(
-        await client.get(
-            f"/api/v1/c/{guild.id}/initiatives/", headers=get_auth_headers(user)
-        )
-    )
+    _refused(await client.get(url, headers=get_auth_headers(user)))
+
+    # Answered, the request asks the credential stores once: the seam behind
+    # the account dependency does not put the question again.
+    await _enrol(session, user)
+    asked: list[int] = []
+    holds = deps._account_holds_factor
+
+    async def counted(account, guild_id):
+        asked.append(account.id)
+        return await holds(account, guild_id)
+
+    monkeypatch.setattr(deps, "_account_holds_factor", counted)
+    answered = await client.get(url, headers=get_auth_headers(user))
+    assert answered.status_code == 200, answered.text
+    assert asked == [user.id]
 
 
 async def test_a_socket_is_refused_the_same_way(

@@ -77,13 +77,13 @@ describe("a document's export card", () => {
   });
 
   it("offers spreadsheet formats and sends the engine request", async () => {
-    let sent: { format: string | null; document_id: string | null } | null = null;
+    let sent: { format: string | null; ids: string | null } | null = null;
     server.use(
       guildHttp.get("/exports/document", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
-          document_id: url.searchParams.get("document_id"),
+          ids: url.searchParams.get("ids"),
         };
         return new HttpResponse("a,b", {
           status: 200,
@@ -96,10 +96,11 @@ describe("a document's export card", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /csv/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /csv/i }));
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
-    expect(sent).toEqual({ format: "csv", document_id: "9" });
+    expect(sent).toEqual({ format: "csv", ids: "9" });
     expect(String(vi.mocked(downloadBlob).mock.calls[0][1])).toMatch(/^budget-.*\.csv$/);
   });
 
@@ -120,7 +121,8 @@ describe("a document's export card", () => {
     renderWithProviders(<DocumentExportCard documentId={5} documentType="native" title="Notes" />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /json/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /json/i }));
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     // The server name wins over the client's {stem}.{format} fallback.
@@ -145,7 +147,7 @@ describe("a document's export card", () => {
     );
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /png/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /png/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     expect(exportToBlob).toHaveBeenCalledTimes(1);
@@ -153,7 +155,7 @@ describe("a document's export card", () => {
     expect(String(vi.mocked(downloadBlob).mock.calls[0][1])).toMatch(/^board-.*\.png$/);
   });
 
-  it("renders a plain button for single-format types (file passthrough)", async () => {
+  it("offers a single-format type its one format (file passthrough)", async () => {
     server.use(
       guildHttp.get(
         "/exports/document",
@@ -166,10 +168,10 @@ describe("a document's export card", () => {
     );
     renderWithProviders(<DocumentExportCard documentId={2} documentType="file" title="Upload" />);
 
-    // Single engine format, no extras: the button itself exports, and says
-    // what it downloads.
-    await userEvent.click(screen.getByRole("button", { name: "Original file" }));
-    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+    // One format: nothing to choose, so the wizard opens on it.
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    expect(await screen.findByText("Original file")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
   });
 });

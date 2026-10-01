@@ -45,7 +45,7 @@ from app.db.session import set_rls_context
 from app.models.platform.notification import NotificationType
 from app.services import guild_work
 from app.services.guild_sweeps import Drain, Scope, each_guild
-from app.services.platform import user_notifications
+from app.services.platform import notice_outbox
 from app.db.request_context import SystemGuild, Unattributed
 
 logger = logging.getLogger(__name__)
@@ -281,11 +281,11 @@ async def notify(session: AsyncSession, outcomes: list[JobOutcome]) -> None:
     # GUC, so the shared notifications table's own-row policies would refuse
     # the insert there.
     await set_rls_context(session, Unattributed())
-    for user_id, notification_type, data in outcomes:
-        await user_notifications.create_notification(
-            session,
-            user_id=user_id,
-            notification_type=notification_type,
-            data=data,
-        )
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(user_id, data.get("guild_id"), notification_type, data)
+            for user_id, notification_type, data in outcomes
+        ],
+    )
     await session.commit()

@@ -10,14 +10,14 @@ in the envelope are informational and dropped."""
 
 from __future__ import annotations
 
-import json
-from datetime import datetime
+from datetime import datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.db.session import routed_guild_id
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
@@ -29,7 +29,6 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.property import CalendarEventPropertyValue
 from app.schemas.tenant.import_envelopes import (
     CalendarEnvelope,
     EventEnvelopeItem,
@@ -45,15 +44,16 @@ from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
-    resolve_property_values,
 )
 from app.services.import_engine.people import (
     PeopleMap,
     bring_in_named,
     initiative_member_id,
 )
+from app.services.tenant import calendar_occurrences
 from app.services.tenant import tags as tags_service
 from app.services.tenant.named_people import Governing
 
@@ -133,23 +133,35 @@ class CalendarImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        props = PropertyRestore(
+            session,
+            initiative_id=target_initiative.id,
+            context=context,
+            member_handles=member_handles,
+        )
+        await props.attach(calendar, env.properties)
+
         created = 0
         failed = 0
         tags_created = 0
         tags_matched = 0
-        props_created = 0
-        props_matched = 0
+        props_created = props.created
+        props_matched = props.matched
         attendees_matched = 0
-        unmatched_handles: set[str] = set()
-        named_handles: dict[int, str] = {}
+        unmatched_handles: set[str] = set(props.unmatched)
+        named_handles: dict[int, str] = dict(props.named)
         warnings: list[str] = []
 
-        for item in env.events:
+        # A repeating event's new id by the name it came with, for the
+        # occurrences of it with rows of their own, which come after it.
+        series_ids: dict[str, int] = {}
+        for item in sorted(env.events, key=lambda item: item.series_ref is not None):
             try:
                 async with session.begin_nested():
                     counts = await self._apply_event(
                         session,
                         item=item,
+                        series_ids=series_ids,
                         calendar_id=calendar.id,
                         initiative_id=target_initiative.id,
                         guild_id=guild_id,
@@ -208,12 +220,29 @@ class CalendarImporter(NamesPeopleInPassing):
         member_handles: dict[str, int],
         unmatched_handles: set[str],
         named_handles: dict[int, str],
+        series_ids: dict[str, int],
         context: ImportContext | None = None,
     ) -> dict[str, int]:
         start_at = parse_datetime(item.start_at)
         end_at = parse_datetime(item.end_at)
         if start_at is None or end_at is None:
             raise ValueError("unparseable event times")
+        if item.all_day:
+            # An all-day event is its UTC dates. An export taken before that
+            # carries its creator's local midnight, whose date is the nearest
+            # UTC midnight; a newer one is already on it.
+            start_at = _nearest_midnight(start_at)
+            end_at = _nearest_midnight(end_at + timedelta(seconds=1)) - timedelta(
+                seconds=1
+            )
+        repeat, shift = recurrence.imported(
+            item.recurrence,
+            kind="event",
+            start=start_at,
+            tz=importer.timezone,
+            shift=item.recurrence_shift,
+            all_day=item.all_day,
+        )
         event = CalendarEvent(
             calendar_id=calendar_id,
             title=item.title,
@@ -222,14 +251,29 @@ class CalendarImporter(NamesPeopleInPassing):
             start_at=start_at,
             end_at=end_at,
             all_day=item.all_day,
-            recurrence=json.dumps(item.recurrence) if item.recurrence else None,
+            recurrence=repeat,
+            recurrence_shift=shift,
             created_by=importer.id,
             # When the event was written down, not when it happens. Absent
             # leaves the model default: the moment of the import.
             **_created_at(item),
         )
+        original = parse_datetime(item.original_start) if item.original_start else None
+        if item.series_ref in series_ids and original is not None:
+            series = await session.get(CalendarEvent, series_ids[item.series_ref])
+            event.series_id = series_ids[item.series_ref]
+            event.original_start = original
+            if series is not None:
+                # What it says differently stays its own, and so do the
+                # attendees, tags and properties it came with.
+                event.overridden_fields = sorted(
+                    calendar_occurrences.differences(event, series)
+                    | set(calendar_occurrences.LISTS)
+                )
         session.add(event)
         await session.flush()
+        if item.external_ref and event.recurrence and event.id is not None:
+            series_ids[item.external_ref] = event.id
 
         # An event is something other entries point at — a sprint with its
         # tasks in it — so it joins the job's ref map like a task does. The
@@ -284,28 +328,22 @@ class CalendarImporter(NamesPeopleInPassing):
                 )
             )
 
-        attached = await resolve_property_values(
+        props = PropertyRestore(
             session,
             initiative_id=initiative_id,
-            values=item.properties,
+            context=context,
             member_handles=member_handles,
-            people=context.people if context is not None else None,
         )
-        unmatched_handles.update(attached.unmatched)
-        for user_id, handle in attached.named.items():
+        await props.attach(event, item.properties)
+        unmatched_handles.update(props.unmatched)
+        for user_id, handle in props.named.items():
             named_handles.setdefault(user_id, handle)
-        for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
-            session.add(
-                CalendarEventPropertyValue(
-                    event_id=event.id, property_id=prop_id, **column_kwargs
-                )
-            )
 
         return {
             "tags_created": tags_created,
             "tags_matched": tags_matched,
-            "props_created": attached.created,
-            "props_matched": attached.matched,
+            "props_created": props.created,
+            "props_matched": props.matched,
             "attendees_matched": attendees_matched,
         }
 
@@ -316,3 +354,11 @@ def _created_at(item: EventEnvelopeItem) -> dict[str, datetime]:
     to the model default rather than overwriting it."""
     parsed = parse_datetime(item.created_at)
     return {"created_at": parsed} if parsed is not None else {}
+
+
+def _nearest_midnight(value: datetime) -> datetime:
+    return datetime.combine(
+        (value.astimezone(timezone.utc) + timedelta(hours=12)).date(),
+        time(),
+        timezone.utc,
+    )

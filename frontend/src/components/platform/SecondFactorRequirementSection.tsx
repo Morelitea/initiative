@@ -28,7 +28,7 @@ import {
   useAuthProviders,
   usePlatformAuthSettings,
   useUpdateAuthProvider,
-  useUpdateSecondFactorRequirement,
+  useUpdatePlatformAuthSettings,
 } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
@@ -69,16 +69,13 @@ const SecondFactorRequirementForm = ({
    *  itself. Answered where they stand, by the dialog every refusal opens. */
   const [unmet, setUnmet] = useState(false);
 
-  const update = useUpdateSecondFactorRequirement({
+  const update = useUpdatePlatformAuthSettings({
     onSuccess: () => {
       setUnmet(false);
       toast.success(t("auth.secondFactorRequirement.saved"));
     },
     onError: (err) => {
-      if (
-        isAxiosError(err) &&
-        getErrorCode(err) === "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
-      ) {
+      if (isAxiosError(err) && getErrorCode(err) === "AUTH_RULE_SELF_UNSATISFIED") {
         setUnmet(true);
         return;
       }
@@ -168,7 +165,7 @@ const SecondFactorRequirementForm = ({
       <div className="flex justify-end">
         <Button
           disabled={choice === saved || update.isPending || !answerable}
-          onClick={() => update.mutate({ level: choice })}
+          onClick={() => update.mutate({ second_factor_requirement: choice })}
         >
           {update.isPending ? t("common:submitting") : t("common:save")}
         </Button>

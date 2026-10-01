@@ -515,7 +515,7 @@ def _people(envelopes: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]
         for task in envelope.get("tasks") or []:
             named = [
                 *(task.get("assignee_handles") or []),
-                *user_reference_handles(task.get("property_values") or []),
+                *user_reference_handles(task.get("properties") or []),
                 *(task.get("mention_handles") or []),
                 *(
                     handle

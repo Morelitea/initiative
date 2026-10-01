@@ -30,6 +30,8 @@ from app.services.fields import (
 from app.services.fields.registry import dataset_names
 from app.services.query.resolve import resolve
 
+pytestmark = pytest.mark.always
+
 
 def _names() -> list[str]:
     """The datasets, for parametrising. Read at collection so a new one is
@@ -77,8 +79,9 @@ VIRTUAL_FIELDS = {
 #: Columns a comparison cannot be built against, and why. Everything else on
 #: the model becomes a field without anybody listing it.
 NOT_FILTERABLE = {
-    "recurrence": "a JSON rule — no operator means anything against it",
     "checklist": "a JSON list of steps — no operator means anything against it",
+    "recurrence_carry": "a JSON object of values kept for the next task in a "
+    "series — no operator means anything against it",
     "guild_id": "references a table no picker browses, and a request is "
     "already scoped to one guild",
 }

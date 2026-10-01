@@ -778,7 +778,7 @@ class TestApplyPagination:
         assert "10" in sql
 
     def test_page_size_zero_bounded_by_window(self):
-        """page_size=0 ("fetch all") is bounded by FETCH_ALL_WINDOW (SEC-14):
+        """page_size=0 ("fetch all") is bounded by FETCH_ALL_WINDOW:
         a hard LIMIT is always applied, never an unbounded scan."""
         from app.db.query import FETCH_ALL_WINDOW
 
@@ -789,7 +789,7 @@ class TestApplyPagination:
 
     def test_negative_page_size_bounded_by_window(self):
         """A negative page_size is treated as "fetch all" and window-bounded,
-        never left unbounded (SEC-14)."""
+        never left unbounded."""
         from app.db.query import FETCH_ALL_WINDOW
 
         stmt = select(_dummy_table)
@@ -1179,7 +1179,7 @@ class TestParseConditions:
             parse_conditions(raw, max_depth=1)
 
     def test_rejects_too_many_conditions_inside_a_group(self):
-        """The count is of leaves, so a group can't smuggle past the limit."""
+        """The count is of leaves, so conditions inside a group count too."""
         import json
 
         items = [{"conditions": [{"field": "f", "value": i} for i in range(51)]}]
@@ -1349,7 +1349,7 @@ class TestParseSortFields:
 
 
 class TestBuildPaginatedResponseUnbounded:
-    """SEC-14 follow-up: a capped "all rows" response must signal truncation."""
+    """A capped "all rows" response must signal truncation."""
 
     def test_truncated_unbounded_result_sets_has_next(self):
         from app.db.query import build_paginated_response

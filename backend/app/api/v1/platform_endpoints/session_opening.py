@@ -552,7 +552,7 @@ async def open_session(
     """Open the session a sign-in earned, and hand back its token.
 
     The access token carries sid/amr/sat; the rotating refresh cookie carries
-    the session (history/auth-detailed-design.md §3). ``amr`` is what this
+    the session. ``amr`` is what this
     sign-in proved. ``return_refresh_token`` hands the refresh token back in
     the body too, for the app, which keeps its own.
 

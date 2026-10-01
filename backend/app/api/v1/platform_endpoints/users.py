@@ -1,9 +1,10 @@
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -13,7 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func
+from sqlalchemy import case, func, literal
 from sqlmodel import select
 
 from app.api.actor_route import ActorRoute
@@ -29,10 +30,14 @@ from app.api.deps import (
     SessionDep,
     UserSessionDep,
     get_current_active_user,
+    refuses_api_keys,
+    require_first_party_session,
     SystemSessionDep,
     GuildAdminContext,
+    GuildContextDep,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
+    password_confirms,
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.session_opening import replace_session
@@ -45,6 +50,7 @@ from app.core.capabilities import Capability
 from app.core.usernames import UsernameError
 from app.core.rate_limit import limiter
 from app.core.security import (
+    read_handle_offer,
     get_password_hash,
     has_usable_password,
 )
@@ -63,7 +69,6 @@ from app.models.platform.guild import (
 )
 from app.models.platform.guild_image import GuildImageVariant
 from app.core.intake import IntakeStream
-from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import intake as intake_service
@@ -83,12 +88,13 @@ from app.schemas.platform.user import (
     UserEmailRead,
     AgeConfirmation,
     DecorationPack,
-    DecorationArtResponse,
     DecorationPackListResponse,
     OwnedDecoration,
     OwnedDecorationsResponse,
     ProfileDecorations,
     UsernameClaim,
+    GuildRosterMember,
+    GuildRosterResponse,
     UserGuildMember,
     UserGuildMemberListResponse,
     UserProfile,
@@ -163,7 +169,9 @@ from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
 from app.db.query import (
     MAX_ID_FILTER_VALUES,
+    apply_pagination,
     build_paginated_response,
+    ids_in,
     paginated_query,
 )
 
@@ -203,26 +211,12 @@ async def read_my_time_out(
     """
     if current_user.status != UserStatus.suspended:
         return AccountTimeOutRead()
-    # The reason travels on the notice the suspension wrote; the newest one is
-    # this suspension's.
-    notice = (
-        await session.exec(
-            select(Notification)
-            .where(
-                Notification.user_id == current_user.id,
-                Notification.type == NotificationType.account_suspended,
-            )
-            .order_by(Notification.created_at.desc())
-            .limit(1)
-        )
-    ).first()
-    reason = (notice.data or {}).get("reason") if notice is not None else None
     return AccountTimeOutRead(
         contact_email=await intake_service.contact_for(
             session, IntakeStream.moderation
         ),
         since=current_user.status_changed_at,
-        reason=reason.strip() if isinstance(reason, str) and reason.strip() else None,
+        reason=current_user.status_reason,
     )
 
 
@@ -244,6 +238,7 @@ async def read_users_me(
         session, user_id=current_user.id
     )
     payload.has_password = has_usable_password(current_user.hashed_password)
+    payload.password_required = await password_confirms(session, current_user)
     # The hosted deployment's terms. Short-circuits on the deployment switch
     # for every self-hoster, and costs one indexed count everywhere else.
     payload.legal_acceptance_required = await legal_service.acceptance_outstanding(
@@ -556,6 +551,109 @@ async def search_users(
     )
 
 
+#: The roster's groups, in the order they are listed.
+ROSTER_PRESENCE_ORDER = (
+    Presence.online,
+    Presence.idle,
+    Presence.busy,
+    Presence.offline,
+)
+
+
+@guild_router.get("/roster", response_model=GuildRosterResponse)
+async def list_roster(
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> GuildRosterResponse:
+    """The people in this community, as the sidebar lists them.
+
+    Grouped by presence (online, idle, busy, then everyone else) and
+    alphabetical within a group. ``presence_counts`` sizes each group across
+    every page.
+
+    Nobody whose direct message policy is private is listed, the reader
+    included. Where the deployment offers no direct messages there is no policy
+    to keep, and everyone is listed.
+    """
+    shown = presence.online.shown()
+    ranked = [
+        (ids_in(MemberProfile.id, ids), rank)
+        for rank, appears in enumerate(ROSTER_PRESENCE_ORDER)
+        if (ids := [user_id for user_id, p in shown.items() if p is appears])
+    ]
+    offline_rank = ROSTER_PRESENCE_ORDER.index(Presence.offline)
+    group = case(*ranked, else_=offline_rank) if ranked else literal(offline_rank)
+
+    where = [
+        GuildMembership.guild_id == guild_context.guild_id,
+        users_service.visible_to_other_people(),
+    ]
+    if await app_settings_service.direct_messages_enabled(session):
+        where.append(MemberProfile.id.in_(select(func.public.roster_listed_members())))
+
+    groups = (
+        select(group.label("presence_rank"))
+        .select_from(MemberProfile)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+        .where(*where)
+        .subquery()
+    )
+    counts = dict(
+        (
+            await session.exec(
+                select(groups.c.presence_rank, func.count()).group_by(
+                    groups.c.presence_rank
+                )
+            )
+        ).all()
+    )
+    presence_counts = {
+        appears: counts.get(rank, 0)
+        for rank, appears in enumerate(ROSTER_PRESENCE_ORDER)
+    }
+
+    shows_names = bool(guild_context.guild.show_member_names)
+    rows = (
+        await session.exec(
+            apply_pagination(
+                select(MemberProfile, GuildMembership.role)
+                .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+                .where(*where)
+                .order_by(
+                    group,
+                    *users_service.member_order(None, shows_names=shows_names),
+                    MemberProfile.username.asc(),
+                    MemberProfile.discriminator.asc(),
+                    MemberProfile.id.asc(),
+                ),
+                page,
+                page_size,
+            )
+        )
+    ).all()
+
+    items = [
+        GuildRosterMember.model_validate(user).model_copy(
+            update={
+                **_membership_standing(role),
+                "presence": shown.get(user.id, Presence.offline),
+            }
+        )
+        for user, role in rows
+    ]
+    return GuildRosterResponse(
+        **build_paginated_response(
+            items,
+            sum(presence_counts.values()),
+            page,
+            page_size,
+            presence_counts=presence_counts,
+        )
+    )
+
+
 @router.get("/me/decorations", response_model=OwnedDecorationsResponse)
 async def list_my_decorations(
     session: UserSessionDep,
@@ -609,24 +707,6 @@ def _pack_entry(
             for decoration_id, kind in pack.decorations.items()
         ],
         installed=installed,
-    )
-
-
-@router.get("/decoration-art", response_model=DecorationArtResponse)
-async def read_decoration_art(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    ids: Annotated[List[str], Query(max_length=64)] = [],  # noqa: B006 — FastAPI reads the default, never mutates it
-) -> DecorationArtResponse:
-    """The pictures packs carry for these decorations.
-
-    A profile names the decorations its owner wears by id. The client draws the
-    ones it ships art for; for any other, this answers with the picture the
-    pack carries, served by the marketplace. Ids nothing carries art for are
-    left out.
-    """
-    return DecorationArtResponse(
-        art=await profile_decorations_service.decoration_art(session, ids)
     )
 
 
@@ -968,7 +1048,10 @@ async def claim_my_username(
 
     try:
         await username_service.claim_for_user(
-            session, user=current_user, name=payload.username
+            session,
+            user=current_user,
+            name=payload.username,
+            prefer=read_handle_offer(payload.offer, payload.username),
         )
     except UsernameError as exc:
         raise HTTPException(
@@ -980,25 +1063,6 @@ async def claim_my_username(
     await session.commit()
     await session.refresh(current_user)
     return await users_service.to_self_read(current_user)
-
-
-#: The age below which somebody may not take part in the parts of the platform
-#: that are open to people they have not met.
-MINIMUM_AGE_YEARS = 16
-
-#: A bound on what counts as a date somebody could have been born on. Not a
-#: judgement about anyone — it is what separates a real answer from a typo.
-MAX_PLAUSIBLE_AGE_YEARS = 120
-
-
-def _years_since(birthdate: date, today: date) -> int:
-    """Whole years between two dates — an age, counted the way people count it.
-
-    A birthday that has not come round yet this year does not count, which is
-    the whole of the arithmetic.
-    """
-    had_birthday = (today.month, today.day) >= (birthdate.month, birthdate.day)
-    return today.year - birthdate.year - (0 if had_birthday else 1)
 
 
 @router.post("/me/age-confirmation", response_model=UserRead)
@@ -1043,34 +1107,24 @@ async def confirm_my_age(
             detail=UserMessages.AGE_ANSWER_STANDS,
         )
 
-    today = datetime.now(timezone.utc).date()
-    if payload.birthdate > today or payload.birthdate < today.replace(
-        year=today.year - MAX_PLAUSIBLE_AGE_YEARS
-    ):
+    try:
+        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+    except users_service.InvalidBirthdateError as exc:
         # Not a date anybody was born on. Refused separately from being too
         # young, so the reply says which it was.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
-        )
-    if _years_since(payload.birthdate, today) < MINIMUM_AGE_YEARS:
-        # Recorded before the refusal, so the answer holds: what is written is
-        # that they answered under age, never the date they gave.
-        current_user.age_below_minimum_at = datetime.now(timezone.utc)
-        current_user.updated_at = datetime.now(timezone.utc)
-        session.add(current_user)
-        await session.commit()
+        ) from exc
+    current_user.updated_at = datetime.now(timezone.utc)
+    session.add(current_user)
+    await session.commit()
+    if not old_enough:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_BELOW_MINIMUM,
         )
-
-    if current_user.age_confirmed_at is None:
-        current_user.age_confirmed_at = datetime.now(timezone.utc)
-        current_user.updated_at = datetime.now(timezone.utc)
-        session.add(current_user)
-        await session.commit()
-        await session.refresh(current_user)
+    await session.refresh(current_user)
 
     return await users_service.to_self_read(current_user)
 
@@ -1175,9 +1229,10 @@ async def list_my_addresses(
 async def add_my_address(
     request: Request,
     payload: UserEmailCreate,
-    session: SessionDep,
+    session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> VerificationSendResponse:
     """Start holding another address, and write to it to prove it.
 
@@ -1234,6 +1289,7 @@ async def remove_my_address(
     address_id: int,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> Response:
     try:
         await addresses.remove_for_user(
@@ -1257,6 +1313,7 @@ async def make_my_address_primary(
     address_id: int,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> UserEmailRead:
     """Move where account mail goes."""
     try:
@@ -1295,6 +1352,7 @@ async def update_users_me(
         payload = await users_service.to_self_read(current_user)
         payload.has_federated_identity = is_sso_account
         payload.has_password = has_usable_password(current_user.hashed_password)
+        payload.password_required = await password_confirms(session, current_user)
         return payload
 
     new_full_name = update_data.get("full_name")
@@ -1457,6 +1515,7 @@ async def update_users_me(
     payload = await users_service.to_self_read(current_user)
     payload.has_federated_identity = is_sso_account
     payload.has_password = has_usable_password(current_user.hashed_password)
+    payload.password_required = await password_confirms(session, current_user)
     return payload
 
 
@@ -1594,6 +1653,7 @@ async def create_my_api_key(
     payload: ApiKeyCreateRequest,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> ApiKeyCreateResponse:
     """Create a new API key for the current user."""
     # Runs on the system engine (user_api_keys has no request-path grant, see
@@ -1615,7 +1675,7 @@ async def create_my_api_key(
         # And the guild has to accept the credential at all. Asked here as well
         # as at the gate so a key that could never be used is never handed over.
         guild = await session.get(Guild, payload.guild_id)
-        if guild is not None and not guild.allow_api_keys:
+        if guild is not None and await refuses_api_keys(session, guild):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_API_KEYS_REFUSED,
@@ -1636,6 +1696,7 @@ async def delete_my_api_key(
     api_key_id: int,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> None:
     """Delete an API key for the current user."""
     # System-engine session (see list_my_api_keys); the service's user_id filter
@@ -1825,6 +1886,7 @@ async def delete_user(
     system_session: SystemSessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
+    background_tasks: BackgroundTasks,
 ) -> None:
     """Remove a member from this guild.
 
@@ -1913,9 +1975,7 @@ async def delete_user(
     # Kicked from the guild — drop the user's live content streams immediately
     # (guild-level access change), consistent with the other removal paths.
     await content_sockets.revoke_user(guild_context.guild_id, user_id)
-    await app_revocation_service.dispatch_revocations(
-        app_revocation_service.drain_revocations(session)
-    )
+    app_revocation_service.send_after_response(session, background_tasks)
 
 
 # --- profile pictures --------------------------------------------------------

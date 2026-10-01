@@ -36,7 +36,7 @@ from app.models.tenant.document import Document
 from app.models.tenant.initiative import InitiativeMember
 from app.services.marketplace import app_oauth
 from app.services.marketplace.app_refs import ensure_app_guild_ref, ensure_app_ref
-from app.testing import create_document, route_session_to_guild
+from app.testing import create_document, route_session_to_guild, drain_notices
 from app.testing.app_clients import (
     CLIENT,
     InstalledApp,
@@ -183,6 +183,7 @@ async def test_a_request_notifies_the_member_once_and_repeats_as_it_stands(
     assert again.json()["requested_access"] == "read_write"
     assert again.json()["requested_at"] == body["requested_at"]
 
+    await drain_notices()
     notices = (
         await session.exec(
             select(Notification).where(
@@ -645,6 +646,7 @@ async def test_new_requests_of_one_member_are_limited_and_repeats_are_not(
     )
     assert fresh.status_code == 201, fresh.text
 
+    await drain_notices()
     notices = (
         await session.exec(
             select(Notification).where(

@@ -49,6 +49,7 @@ import asyncio
 import contextlib
 import enum
 import logging
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -211,6 +212,9 @@ class Subscriber:
         default_factory=lambda: asyncio.Queue(maxsize=OUTBOX_LIMIT)
     )
     writer: Optional[asyncio.Task[None]] = None
+    #: When a frame was last queued for this socket, on the monotonic clock:
+    #: what the heartbeat measures the server's own silence against.
+    last_sent_at: float = field(default_factory=time.monotonic)
     #: The register it joined, which owns its writer.
     register: Optional["ContentSockets"] = field(default=None, repr=False)
 
@@ -340,6 +344,7 @@ class ContentSockets:
             return
         try:
             sub.outbox.put_nowait(frame)
+            sub.last_sent_at = time.monotonic()
         except asyncio.QueueFull:
             logger.warning(
                 "content socket outbox full for user %s in guild %s; closing",

@@ -11,12 +11,14 @@
  * order, so it offers no reorder action.
  */
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { AxiosError, AxiosHeaders } from "axios";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import type { GuildEntry, useGuilds } from "@/hooks/useGuilds";
+import { toast } from "@/lib/chesterToast";
 
 import { GuildSidebar } from "./GuildSidebar";
 
@@ -187,14 +189,17 @@ describe("GuildSidebar settings grants", () => {
 type CreateGuild = ReturnType<typeof useGuilds>["createGuild"];
 
 describe("GuildSidebar community creation", () => {
-  const createNamedGuild = async (createGuild: Mock<CreateGuild>) => {
+  const createNamedGuild = async (createGuild: Mock<CreateGuild>, { native = false } = {}) => {
     const { router } = renderPage(
       () => (
         <SidebarProvider>
           <GuildSidebar />
         </SidebarProvider>
       ),
-      { guilds: { guilds: [entry({ name: "Alpha" })], activeGuildId: 1, createGuild } }
+      {
+        guilds: { guilds: [entry({ name: "Alpha" })], activeGuildId: 1, createGuild },
+        server: { isNativePlatform: native },
+      }
     );
     fireEvent.click(await screen.findByRole("button", { name: "Create Community" }));
     fireEvent.change(await screen.findByLabelText("Community name"), {
@@ -267,6 +272,42 @@ describe("GuildSidebar community creation", () => {
     // The dialog owns the failure: leaving the page would throw away the
     // message the creator needs in order to try again.
     expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("opens nothing in the phone app, which may not sell", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    const createGuild = vi
+      .fn<CreateGuild>()
+      .mockResolvedValue(buildGuild({ id: 42, name: "Beta" }));
+    const openSpy = vi.spyOn(window, "open");
+    vi.mocked(toast.info).mockClear();
+
+    const router = await createNamedGuild(createGuild, { native: true });
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c/42"));
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(mintMock).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
+
+  it("says only why in the phone app when a free community is already held", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    const refused = new AxiosError("refused");
+    refused.response = {
+      status: 402,
+      statusText: "",
+      data: { detail: "FREE_COMMUNITY_ALREADY_HELD" },
+      headers: new AxiosHeaders(),
+      config: { headers: new AxiosHeaders() },
+    };
+    const createGuild = vi.fn<CreateGuild>().mockRejectedValue(refused);
+
+    await createNamedGuild(createGuild, { native: true });
+
+    const inApp = "You already have a free community. Another one can't be set up in the app.";
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(inApp));
+    expect(screen.getByText(inApp)).toBeInTheDocument();
   });
 
   it("closes the reserved tab when creation fails", async () => {

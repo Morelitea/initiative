@@ -1,18 +1,44 @@
-"""Which ways in this deployment permits.
+"""Which ways in this deployment and its communities permit.
 
-The one read of the setting, and the one write. Everything that gates a
+The one read of each setting, and the one write. Everything that gates a
 sign-in route asks here, so the rules live in exactly one place. (A fresh
 deployment's first value is the env's, ``AUTH_LOGIN_METHODS`` — seeded once
 into the settings row when it is created, see
-``app_settings._seeded_login_methods`` — and every change after that is
-:func:`set_login_methods`.)
+``app_settings._seeded_login_methods`` — and every change after that goes
+through :func:`change`.)
+
+**Writing a rule.** Every rule about how somebody reaches the deployment or a
+community, and what leaves a community on its behalf, is a :class:`Rule` in
+:data:`PLATFORM_RULES` or :data:`COMMUNITY_RULES`, and is written by
+:func:`change`, which runs the same steps for each:
+
+1. Take the rows a change depends on: the settings row for the deployment's
+   rules; the community's row, and while anything tightens, the settings row
+   shared and the seat lock.
+2. Loosen first. A loosening write only admits more, so it is never refused
+   for want of an entitlement or of anything to answer it.
+3. Then tighten, each against the state the loosening left. A tightening
+   needs the community's entitlement, something the deployment permits that
+   can answer it, and a writer who already answers it themselves.
+4. Write, and record each rule that moved. One that did not move records
+   nothing.
+5. Follow up and commit: a shorter session limit reaches device tokens
+   already issued, and switching push off drops the tokens it was sent to.
+
+A community's rule applies only while it holds the option the rule needs
+(``guild_administration.auth_options``), and every point that enforces
+one asks. Taking an option away stops the rule applying and
+leaves it set, so it applies again when the option comes back.
 """
 
 from __future__ import annotations
 
-from typing import Sequence
+import logging
+from dataclasses import dataclass, field
+from typing import Any, Awaitable, Callable
 
 from fastapi import HTTPException, status
+from sqlalchemy import select as sa_select
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,18 +50,29 @@ from app.core.login_methods import (
     SecondFactorRequirement,
     methods_from_values,
 )
-from app.core.messages import SettingsMessages
+from app.core.guild_auth_options import GuildAuthOption
+from app.core.messages import AuthMessages, GuildMessages, SettingsMessages
 from app.core.security import AUTH_POLICY_UNMET_HEADER
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.guild import Guild
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_totp import UserTotp
 from app.services import audit as audit_service
 from app.services import email as email_service
+from app.services.auth import guild_provider_connections as guild_connections
 from app.services.auth import identity as identity_service
+from app.services.auth import session_lifetime
+from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import guild_entitlements
+from app.services.platform import guilds as guilds_service
+from app.services.platform import push_tokens
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
+
+logger = logging.getLogger(__name__)
 
 
 def methods_from_row(row: AppSetting) -> frozenset[LoginMethod]:
@@ -124,15 +161,12 @@ async def holds_second_factor(session: AsyncSession, *, user_id: int) -> bool:
     )
 
 
-async def accounts_without_factor(
-    session: AsyncSession, *, level: SecondFactorRequirement
-) -> int:
-    """How many accounts ``level`` would ask to set one up.
+def _without_factor_clause(level: SecondFactorRequirement):
+    """Accounts ``level`` would ask to set one up.
 
     Live accounts the level covers that hold neither an authenticator nor a
-    key. It counts what the page states before the write, so an operator
-    turning the rule on knows how many people meet it the next time they open
-    the app.
+    key. Counted before the write, so an operator turning the rule on knows how
+    many people meet it the next time they open the app.
 
     An account whose identity provider carries out the second factor is
     counted here and asked for nothing in practice: the session it arrives on
@@ -140,14 +174,41 @@ async def accounts_without_factor(
     figure is therefore the most it could be, which is the honest direction
     for a warning.
     """
-    if level is SecondFactorRequirement.nobody:
-        return 0
-    conditions = [User.status == UserStatus.active, ~_holds_a_factor_clause()]
+    clause = (User.status == UserStatus.active) & ~_holds_a_factor_clause()
     if level is SecondFactorRequirement.platform_roles:
-        conditions.append(User.role != UserRole.member)
-    return (
-        await session.exec(select(func.count()).select_from(User).where(*conditions))
-    ).one()
+        clause = clause & (User.role != UserRole.member)
+    return clause
+
+
+#: The levels the settings page states a figure for. ``nobody`` asks nothing.
+_FACTOR_LEVELS = (
+    SecondFactorRequirement.platform_roles,
+    SecondFactorRequirement.everyone,
+)
+
+
+async def account_figures(
+    session: AsyncSession, *, permitted: frozenset[LoginMethod]
+) -> tuple[dict[LoginMethod, int], dict[SecondFactorRequirement, int]]:
+    """What the settings page states about accounts, in one pass over them.
+
+    How many accounts withdrawing each permitted method would leave with no way
+    in (:func:`app.services.auth.identity.stranded_clause`) — a method not
+    permitted strands nobody — and how many each level of the second-factor
+    rule would ask to set one up.
+    """
+    withdrawable = [method for method in LoginMethod if method in permitted]
+    columns = [
+        func.count().filter(
+            identity_service.stranded_clause(
+                current=permitted, requested=permitted - {method}
+            )
+        )
+        for method in withdrawable
+    ] + [func.count().filter(_without_factor_clause(level)) for level in _FACTOR_LEVELS]
+    row = (await session.exec(sa_select(*columns).select_from(User))).one()
+    stranding = dict.fromkeys(LoginMethod, 0) | dict(zip(withdrawable, row))
+    return stranding, dict(zip(_FACTOR_LEVELS, row[len(withdrawable) :]))
 
 
 async def guilds_requiring_sign_in(session: AsyncSession) -> int:
@@ -214,142 +275,6 @@ async def stranded_between(
     )
 
 
-async def set_login_methods(
-    session: AsyncSession,
-    *,
-    methods: Sequence[LoginMethod],
-    acknowledge_stranded: int | None,
-    actor_user_id: int | None,
-) -> AppSetting:
-    """Set which ways in the deployment permits.
-
-    At least one, which the column's own constraint also holds.
-
-    Three refusals, all 409. Permitting the emailed code asks that the
-    deployment can send mail, since that is how the code reaches anybody.
-    Withdrawing single sign-on while a guild requires
-    one names the guilds instead: a requirement is enforced from its policy row
-    and stands on its own, so it is lifted first and the withdrawal then goes
-    through. And a write that leaves somebody with no way in is refused with
-    the count — unless the caller acknowledges exactly that number, which is how
-    an SSO-only deployment is reachable at all: some account almost always still
-    holds a password, and a permanent refusal would make the posture unbuildable
-    rather than safe. The figure is taken over the whole write rather than one
-    method at a time, so an account holding two of the credentials being
-    withdrawn is counted. The acknowledged number must match what the server
-    computes now, so it cannot be sent blind or sent again once it has moved.
-
-    Withdrawing a method signs nobody out. Sessions already open live to their
-    own expiry, and device tokens and API keys are untouched — they are
-    credentials derived from a sign-in that already happened, not ways in.
-    """
-    requested = frozenset(methods)
-    if not requested:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=SettingsMessages.LOGIN_METHODS_EMPTY,
-        )
-    # Not merely "something is ticked": something that can begin a session is.
-    # The column's CHECK holds the same rule at the database.
-    if not requested.intersection(PRIMARY_LOGIN_METHODS):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=SettingsMessages.LOGIN_METHODS_NO_PRIMARY,
-        )
-
-    # Take the settings row before counting anything. A guild admin setting a
-    # sign-in requirement reads this same row under a shared lock, so the two
-    # transactions order rather than interleave: either this sees their new
-    # requirement, or they see single sign-on already withdrawn.
-    row = await _locked_settings(session)
-    current = methods_from_row(row)
-    withdrawn = current - requested
-    added = requested - current
-
-    # The emailed code is the one way in the deployment delivers itself, so it
-    # needs somewhere to deliver from. Checked on the way up only: an operator
-    # who later clears the SMTP settings is not retrospectively refused here,
-    # and the send route reports it at the moment it cannot send.
-    if LoginMethod.email_otp in added and not await email_service.email_configured(
-        session
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=SettingsMessages.LOGIN_METHODS_NO_EMAIL,
-        )
-
-    if LoginMethod.sso in withdrawn:
-        requiring = await guilds_requiring_sign_in(session)
-        if requiring:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=SettingsMessages.LOGIN_METHODS_GUILD_POLICIES,
-                headers={"X-Affected-Count": str(requiring)},
-            )
-
-    # The methods a community names one at a time. Withdrawing one leaves the
-    # communities that ask for it with a rule nothing can answer, so the rule
-    # is lifted first and the withdrawal then goes through. ``sso`` is counted
-    # above instead, where a rule naming a provider counts too.
-    for named in (LoginMethod.totp, LoginMethod.passkey):
-        if named not in withdrawn:
-            continue
-        requiring = await guilds_requiring_method(session, named)
-        if requiring:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=SettingsMessages.LOGIN_METHODS_GUILD_POLICIES,
-                headers={"X-Affected-Count": str(requiring)},
-            )
-
-    # And the deployment's own requirement, which names no method but needs
-    # one to exist. Withdrawing the last of them would leave a rule nobody new
-    # could answer, so the rule is lowered first and the withdrawal then goes
-    # through — the same order a community's requirement asks for.
-    if withdrawn.intersection(FACTOR_METHODS) and not requested.intersection(
-        FACTOR_METHODS
-    ):
-        if requirement_from_row(row) is not SecondFactorRequirement.nobody:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=SettingsMessages.LOGIN_METHODS_FACTOR_REQUIRED,
-            )
-
-    total_stranded = await stranded_between(
-        session, current=current, requested=requested
-    )
-
-    if total_stranded:
-        if acknowledge_stranded is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=SettingsMessages.LOGIN_METHODS_WOULD_STRAND,
-                headers={"X-Affected-Count": str(total_stranded)},
-            )
-        if acknowledge_stranded != total_stranded:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=SettingsMessages.LOGIN_METHODS_STALE_ACKNOWLEDGEMENT,
-                headers={"X-Affected-Count": str(total_stranded)},
-            )
-
-    row.login_methods = sorted(m.value for m in requested)
-    session.add(row)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED,
-        actor_user_id=actor_user_id,
-        detail={
-            "from": sorted(m.value for m in current),
-            "to": sorted(m.value for m in requested),
-            "acknowledged_stranded": total_stranded or None,
-        },
-    )
-    await session.commit()
-    await session.refresh(row)
-    return row
-
-
 async def second_factor_available(session: AsyncSession) -> bool:
     """Whether this deployment offers a second factor at all.
 
@@ -409,56 +334,591 @@ async def answers_the_rule(session: AsyncSession, *, user: User) -> bool:
     return await holds_second_factor(session, user_id=user.id)
 
 
-async def set_second_factor_requirement(
-    session: AsyncSession,
-    *,
-    level: SecondFactorRequirement,
-    actor: User,
-) -> AppSetting:
-    """Set who this deployment asks to hold a second factor.
+# ---------------------------------------------------------------------------
+# Writing a rule
+# ---------------------------------------------------------------------------
 
-    Two refusals, both on the way up; lowering carries neither, because it only
-    ever admits more.
 
-    A level needs something that can answer it — the deployment has to be
-    permitting the authenticator app or passkeys — and the account writing it
-    has to answer it already, where the level covers them. The second is the
-    same "prove it before it binds anybody" a community's requirement makes,
-    and here it also means the rule is written by somebody who will still be
-    able to open the page afterwards.
+def not_offered(unmet: str | None = None) -> HTTPException:
+    """Refuse a rule nothing the deployment permits could answer."""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=AuthMessages.AUTH_RULE_NOT_OFFERED,
+        headers={AUTH_POLICY_UNMET_HEADER: unmet} if unmet else None,
+    )
 
-    Nobody is signed out. An account the rule covers is asked at its next
-    request and can answer it there; a credential that cannot present one —
-    the app on a phone, a personal API key — works again once its owner holds
-    a factor.
+
+def self_unsatisfied(unmet: str) -> HTTPException:
+    """Refuse a rule its writer does not answer, naming the part they don't."""
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=AuthMessages.AUTH_RULE_SELF_UNSATISFIED,
+        headers={AUTH_POLICY_UNMET_HEADER: unmet},
+    )
+
+
+@dataclass
+class RuleContext:
+    """One change: the sessions it runs on, who makes it, and the rows it holds.
+
+    ``session`` writes the rules' rows: the system engine for the deployment's,
+    the seat for a community's. ``system`` reads what the deployment permits
+    and runs the follow-ups; for the deployment's rules it is ``session``.
+    ``actor`` is ``None`` for the system, which only ever loosens.
     """
-    row = await _locked_settings(session)
-    current = requirement_from_row(row)
 
-    if level is not SecondFactorRequirement.nobody:
-        permitted = methods_from_row(row)
-        if not permitted.intersection(FACTOR_METHODS):
+    session: AsyncSession
+    system: AsyncSession
+    actor: User | None
+    guild_id: int | None = None
+    #: The stranded-account count the writer was shown (``login_methods``).
+    acknowledge_stranded: int | None = None
+    settings: AppSetting = field(init=False)
+    guild: Guild = field(init=False)
+    policy: GuildAuthPolicy | None = field(default=None, init=False)
+    stranded: int = field(default=0, init=False)
+
+    @classmethod
+    def platform(
+        cls,
+        session: AsyncSession,
+        actor: User,
+        *,
+        acknowledge_stranded: int | None = None,
+    ) -> RuleContext:
+        return cls(session, session, actor, acknowledge_stranded=acknowledge_stranded)
+
+    @classmethod
+    def community(
+        cls,
+        session: AsyncSession,
+        system: AsyncSession,
+        actor: User | None,
+        guild_id: int,
+    ) -> RuleContext:
+        return cls(session, system, actor, guild_id=guild_id)
+
+    @property
+    def target(self) -> AppSetting | Guild:
+        """The row a column rule reads and writes."""
+        return self.settings if self.guild_id is None else self.guild
+
+
+FollowUp = Callable[[RuleContext, Any, Any], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class Rule:
+    """One rule, as :func:`change` writes it.
+
+    The base is a column of the settings row (a deployment's rule) or of the
+    community's row: ``loose`` is its most permissive value, ``None`` for a
+    limit where no limit is the loosest. Rules that are more than a column
+    override the hooks.
+    """
+
+    key: str
+    area: str
+    loose: Any = None
+    entitlement: GuildAuthOption | None = None
+    follow_up: FollowUp | None = None
+
+    async def read(self, ctx: RuleContext) -> Any:
+        return getattr(ctx.target, self.key)
+
+    def tightens(self, before: Any, after: Any) -> bool:
+        if self.loose is None:
+            return after is not None and (before is None or after < before)
+        return before == self.loose and after != self.loose
+
+    async def offered(self, ctx: RuleContext, after: Any) -> None:
+        """Refuse a tightening the deployment permits nothing to answer."""
+
+    async def writer_meets(self, ctx: RuleContext, after: Any) -> None:
+        """Refuse a tightening its writer does not answer themselves."""
+
+    async def check(self, ctx: RuleContext, before: Any, after: Any) -> None:
+        """Refusals of this rule's own, asked of every change to it."""
+
+    async def write(self, ctx: RuleContext, after: Any) -> None:
+        setattr(ctx.target, self.key, after)
+        ctx.session.add(ctx.target)
+
+    async def audit(self, ctx: RuleContext, moved: dict[str, tuple[Any, Any]]) -> None:
+        """Record this rule's area: every column rule in it that moved, once."""
+        names = [k for k, rule in _rules(ctx).items() if rule.area == self.area]
+        if self.key != next(k for k in names if k in moved):
+            return
+        before = {k: moved[k][0] for k in names if k in moved}
+        after = {k: moved[k][1] for k in names if k in moved}
+        actor_id = ctx.actor.id if ctx.actor else None
+        if ctx.guild_id is None:
+            await app_settings_service.record_settings_area(
+                ctx.session,
+                actor_user_id=actor_id,
+                area=self.area,
+                before=before,
+                row=ctx.settings,
+                fields=tuple(after),
+            )
+        else:
+            await guilds_service.record_settings_change(
+                ctx.session,
+                guild_id=ctx.guild_id,
+                actor_user_id=actor_id,
+                area=self.area,
+                before=before,
+                after=after,
+            )
+
+
+async def _sweep_device_tokens(ctx: RuleContext, before: Any, after: Any) -> None:
+    # A device token carries its deadline in its own expiry, so the new limit
+    # is written into the ones already issued rather than read back on every
+    # native request.
+    await session_lifetime.apply_to_device_tokens(ctx.system)
+
+
+async def _drop_push_tokens(ctx: RuleContext, before: Any, after: Any) -> None:
+    # The deployment stops keeping the addresses it was sending to. Devices
+    # register again the next time the app starts, once push is back on.
+    if before and not after:
+        dropped = await push_tokens.purge_all(ctx.system)
+        logger.info("push notifications switched off; dropped %d token(s)", dropped)
+
+
+@dataclass(frozen=True)
+class _LoginMethods(Rule):
+    """Which ways in the deployment permits. At least one, and one of them a
+    way to begin a session; the column's own constraint holds both.
+
+    Its refusals are its own, asked of every change. Permitting the emailed
+    code asks that the deployment can send mail. Withdrawing a method that a
+    community's requirement names, or the last factor method while the
+    deployment asks for a factor, is refused: that rule is lifted first and
+    the withdrawal then goes through. A write that leaves somebody with no way
+    in is refused with the count, unless the writer acknowledges exactly that
+    number; the writer's own account is refused outright, and adds another way
+    in first. Withdrawing a method signs nobody out.
+    """
+
+    async def read(self, ctx: RuleContext) -> frozenset[LoginMethod]:
+        return methods_from_row(ctx.settings)
+
+    def tightens(self, before: Any, after: Any) -> bool:
+        return bool(before - after)
+
+    async def check(self, ctx: RuleContext, before: Any, after: Any) -> None:
+        session = ctx.session
+        if not after:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=SettingsMessages.LOGIN_METHODS_EMPTY,
+            )
+        if not after.intersection(PRIMARY_LOGIN_METHODS):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=SettingsMessages.LOGIN_METHODS_NO_PRIMARY,
+            )
+        withdrawn = before - after
+        # Checked on the way up only: an operator who later clears the SMTP
+        # settings is told by the send route, at the moment it cannot send.
+        if LoginMethod.email_otp in after - before and not (
+            await email_service.email_configured(session)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=SettingsMessages.FACTOR_REQUIREMENT_NO_METHOD,
+                detail=SettingsMessages.LOGIN_METHODS_NO_EMAIL,
             )
-        if rule_covers(level, actor.role) and not await answers_the_rule(
-            session, user=actor
+        # ``sso`` counts every rule that is not open, since a rule naming a
+        # provider rests on it too; the factor methods count the rules that
+        # name them.
+        for method in sorted(withdrawn & _COMMUNITY_REQUIRABLE):
+            requiring = await (
+                guilds_requiring_sign_in(session)
+                if method is LoginMethod.sso
+                else guilds_requiring_method(session, method)
+            )
+            if requiring:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=SettingsMessages.LOGIN_METHODS_GUILD_POLICIES,
+                    headers={"X-Affected-Count": str(requiring)},
+                )
+        if (
+            withdrawn.intersection(FACTOR_METHODS)
+            and not after.intersection(FACTOR_METHODS)
+            and requirement_from_row(ctx.settings) is not SecondFactorRequirement.nobody
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=SettingsMessages.LOGIN_METHODS_FACTOR_REQUIRED,
+            )
+        if ctx.actor is not None and await identity_service.stranded_between(
+            session, current=before, requested=after, user_id=ctx.actor.id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=SettingsMessages.LOGIN_METHODS_WOULD_STRAND_SELF,
+            )
+        ctx.stranded = await stranded_between(session, current=before, requested=after)
+        if ctx.stranded and ctx.acknowledge_stranded != ctx.stranded:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    SettingsMessages.LOGIN_METHODS_WOULD_STRAND
+                    if ctx.acknowledge_stranded is None
+                    else SettingsMessages.LOGIN_METHODS_STALE_ACKNOWLEDGEMENT
+                ),
+                headers={"X-Affected-Count": str(ctx.stranded)},
+            )
+
+    async def write(self, ctx: RuleContext, after: Any) -> None:
+        ctx.settings.login_methods = sorted(m.value for m in after)
+        ctx.session.add(ctx.settings)
+
+    async def audit(self, ctx: RuleContext, moved: dict[str, tuple[Any, Any]]) -> None:
+        before, after = moved[self.key]
+        await audit_service.record(
+            ctx.session,
+            event_type=AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED,
+            actor_user_id=ctx.actor.id if ctx.actor else None,
+            detail={
+                "from": sorted(m.value for m in before),
+                "to": sorted(m.value for m in after),
+                "acknowledged_stranded": ctx.stranded or None,
+            },
+        )
+
+
+#: The methods a community's requirement can name.
+_COMMUNITY_REQUIRABLE = frozenset(
+    {LoginMethod.sso, LoginMethod.totp, LoginMethod.passkey}
+)
+
+_FACTOR_ORDER = {
+    SecondFactorRequirement.nobody: 0,
+    SecondFactorRequirement.platform_roles: 1,
+    SecondFactorRequirement.everyone: 2,
+}
+
+
+@dataclass(frozen=True)
+class _FactorRequirement(Rule):
+    """Who the deployment asks to hold a second factor. Nobody is signed out:
+    an account the rule covers is asked at its next request."""
+
+    async def read(self, ctx: RuleContext) -> SecondFactorRequirement:
+        return requirement_from_row(ctx.settings)
+
+    def tightens(self, before: Any, after: Any) -> bool:
+        return _FACTOR_ORDER[after] > _FACTOR_ORDER[before]
+
+    async def offered(self, ctx: RuleContext, after: Any) -> None:
+        if not methods_from_row(ctx.settings).intersection(FACTOR_METHODS):
+            raise not_offered()
+
+    async def writer_meets(self, ctx: RuleContext, after: Any) -> None:
+        if (
+            ctx.actor is not None
+            and rule_covers(after, ctx.actor.role)
+            and not await answers_the_rule(ctx.system, user=ctx.actor)
+        ):
+            raise self_unsatisfied(LoginMethod.totp.value)
+
+    async def write(self, ctx: RuleContext, after: Any) -> None:
+        ctx.settings.second_factor_requirement = after
+        ctx.session.add(ctx.settings)
+
+    async def audit(self, ctx: RuleContext, moved: dict[str, tuple[Any, Any]]) -> None:
+        before, after = moved[self.key]
+        await audit_service.record(
+            ctx.session,
+            event_type=AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED,
+            actor_user_id=ctx.actor.id if ctx.actor else None,
+            detail={"from": before.value, "to": after.value},
+        )
+
+
+@dataclass(frozen=True)
+class SignInRequirement:
+    """A community's sign-in requirement: ``open``, or ``required`` naming a
+    provider its members arrive through, methods they must use, or both."""
+
+    policy: str = "open"
+    provider_id: int | None = None
+    methods: frozenset[LoginMethod] = frozenset()
+
+
+_OPEN = SignInRequirement()
+
+#: The methods of a requirement that are a second factor rather than a way in.
+_FACTOR_REQUIREMENTS = frozenset({LoginMethod.totp, LoginMethod.passkey})
+
+
+@dataclass(frozen=True)
+class _SignInRequirement(Rule):
+    """The community's sign-in requirement.
+
+    The provider or single sign-on it names applies whatever the community
+    holds, and clearing it is always reachable: lifting a requirement only
+    ever admits more. The second factor it asks for applies only while the
+    community holds ``providers``.
+    """
+
+    async def read(self, ctx: RuleContext) -> SignInRequirement:
+        row = ctx.policy
+        if row is None or row.policy == "open":
+            return _OPEN
+        return SignInRequirement(
+            "required",
+            row.provider_id,
+            frozenset(LoginMethod(m) for m in row.require_methods or ()),
+        )
+
+    def tightens(self, before: Any, after: Any) -> bool:
+        return after.policy == "required" and (
+            before.policy == "open"
+            or after.provider_id not in (None, before.provider_id)
+            or not after.methods <= before.methods
+        )
+
+    async def check(self, ctx: RuleContext, before: Any, after: Any) -> None:
+        if (
+            after.policy == "required"
+            and after.provider_id is None
+            and not after.methods
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=SettingsMessages.FACTOR_REQUIREMENT_SELF_UNSATISFIED,
-                headers={AUTH_POLICY_UNMET_HEADER: LoginMethod.totp.value},
+                detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
             )
 
-    row.second_factor_requirement = level
-    session.add(row)
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED,
-        actor_user_id=actor.id,
-        detail={"from": current.value, "to": level.value},
+    async def offered(self, ctx: RuleContext, after: Any) -> None:
+        # A provider is this community's to require because it connects to it.
+        if after.provider_id is not None:
+            provider = await ctx.system.get(AuthProvider, after.provider_id)
+            if (
+                provider is None
+                or not is_login_ready(provider)
+                or await guild_connections.connection_for(
+                    ctx.system, guild_id=ctx.guild_id, provider_id=provider.id
+                )
+                is None
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+                )
+        for method in sorted(after.methods & _FACTOR_REQUIREMENTS):
+            if not await login_method_allowed(ctx.system, method):
+                raise not_offered(method.value)
+
+    async def writer_meets(self, ctx: RuleContext, after: Any) -> None:
+        from app.core import auth_context
+        from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
+
+        amr = auth_context.session_amr()
+        if (
+            after.provider_id is not None
+            and after.provider_id not in auth_context.satisfied_providers()
+        ):
+            raise self_unsatisfied("provider")
+        # Coming in by any of the community's own providers is also proof it
+        # has one that works.
+        if LoginMethod.sso in after.methods and not (
+            await guild_connections.admits_this_session(
+                ctx.system, guild_id=ctx.guild_id
+            )
+        ):
+            raise self_unsatisfied(LoginMethod.sso.value)
+        if LoginMethod.totp in after.methods and SECOND_FACTOR_AMR not in amr:
+            raise self_unsatisfied(LoginMethod.totp.value)
+        # Read from the passkey markers, so holding a factor is not taken for
+        # holding a key.
+        if LoginMethod.passkey in after.methods and not carries_passkey(amr):
+            raise self_unsatisfied(LoginMethod.passkey.value)
+
+    async def write(self, ctx: RuleContext, after: Any) -> None:
+        # No row is open.
+        if after.policy == "open":
+            if ctx.policy is not None:
+                await ctx.session.delete(ctx.policy)
+            return
+        provider = (
+            await ctx.system.get(AuthProvider, after.provider_id)
+            if after.provider_id is not None
+            else None
+        )
+        row = ctx.policy or GuildAuthPolicy(guild_id=ctx.guild_id, policy="required")
+        row.policy = "required"
+        row.provider_id = after.provider_id
+        row.provider_slug = provider.slug if provider else None
+        row.require_methods = sorted(m.value for m in after.methods)
+        ctx.session.add(row)
+
+    async def audit(self, ctx: RuleContext, moved: dict[str, tuple[Any, Any]]) -> None:
+        before, after = moved[self.key]
+        await audit_service.record(
+            ctx.session,
+            event_type=AuditEventType.GUILD_AUTH_POLICY_CHANGED,
+            actor_user_id=ctx.actor.id if ctx.actor else None,
+            guild_id=ctx.guild_id,
+            target_type="guild",
+            target_id=ctx.guild_id,
+            detail={
+                "from": before.policy,
+                "to": after.policy,
+                "provider_id": after.provider_id,
+                "require_methods": sorted(m.value for m in after.methods),
+            },
+        )
+
+
+@dataclass(frozen=True)
+class _CommunityFactor(Rule):
+    """A community asking everybody reaching it for a second factor. Which
+    kinds exist, and which providers' own account of one counts, is the
+    deployment's answer."""
+
+    async def offered(self, ctx: RuleContext, after: Any) -> None:
+        if not await second_factor_available(ctx.system):
+            raise not_offered()
+
+    async def writer_meets(self, ctx: RuleContext, after: Any) -> None:
+        if ctx.actor is not None and not await answers_the_rule(
+            ctx.system, user=ctx.actor
+        ):
+            raise self_unsatisfied(LoginMethod.totp.value)
+
+
+_RESTRICTIONS = GuildAuthOption.restrictions
+
+#: The deployment's rules, by the field that names each.
+PLATFORM_RULES: dict[str, Rule] = {
+    rule.key: rule
+    for rule in (
+        _LoginMethods("login_methods", area="login_methods"),
+        _FactorRequirement("second_factor_requirement", area="second_factor"),
+        Rule(
+            "session_max_hours",
+            area="session_lifetime",
+            follow_up=_sweep_device_tokens,
+        ),
+        Rule("session_idle_minutes", area="session_lifetime"),
+        Rule(
+            "push_notifications_enabled",
+            area="notifications",
+            loose=True,
+            follow_up=_drop_push_tokens,
+        ),
+        Rule("email_notifications_enabled", area="notifications", loose=True),
+        Rule("redact_notification_content", area="notifications", loose=False),
     )
-    await session.commit()
-    await session.refresh(row)
-    return row
+}
+
+#: A community's rules, by the field that names each.
+COMMUNITY_RULES: dict[str, Rule] = {
+    rule.key: rule
+    for rule in (
+        _SignInRequirement(
+            "auth_policy", area="auth_policy", entitlement=GuildAuthOption.providers
+        ),
+        _CommunityFactor(
+            "require_second_factor",
+            area="second_factor",
+            loose=False,
+            entitlement=_RESTRICTIONS,
+        ),
+        Rule(
+            "enforce_compliance_session",
+            area="session_limit",
+            loose=False,
+            entitlement=_RESTRICTIONS,
+            follow_up=_sweep_device_tokens,
+        ),
+        Rule(
+            "allow_api_keys", area="api_access", loose=True, entitlement=_RESTRICTIONS
+        ),
+        Rule(
+            "allow_push_notifications",
+            area="notifications",
+            loose=True,
+            entitlement=_RESTRICTIONS,
+        ),
+        Rule(
+            "allow_email_notifications",
+            area="notifications",
+            loose=True,
+            entitlement=_RESTRICTIONS,
+        ),
+        Rule(
+            "redact_notification_content",
+            area="notifications",
+            loose=False,
+            entitlement=_RESTRICTIONS,
+        ),
+    )
+}
+
+
+def _rules(ctx: RuleContext) -> dict[str, Rule]:
+    return PLATFORM_RULES if ctx.guild_id is None else COMMUNITY_RULES
+
+
+async def _load(ctx: RuleContext) -> None:
+    """Take the rows the rules read: the settings row, held, for the
+    deployment's; the community's row and its requirement for a community's."""
+    if ctx.guild_id is None:
+        ctx.settings = await _locked_settings(ctx.session)
+        return
+    guild = await ctx.session.get(Guild, ctx.guild_id)
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.GUILD_NOT_FOUND,
+        )
+    ctx.guild = guild
+    ctx.policy = await ctx.session.get(GuildAuthPolicy, ctx.guild_id)
+
+
+async def change(ctx: RuleContext, changes: dict[str, Any]) -> None:
+    """Write ``changes`` (rule key → new value) as one change, and commit."""
+    rules = _rules(ctx)
+    await _load(ctx)
+    moved: dict[str, tuple[Any, Any]] = {}
+    for key, value in changes.items():
+        before = await rules[key].read(ctx)
+        if value != before:
+            moved[key] = (before, value)
+    tightening = {k for k, (b, a) in moved.items() if rules[k].tightens(b, a)}
+
+    if ctx.guild_id is not None and tightening:
+        # Ordered against a withdrawal of what the rule rests on, and against
+        # the seat being emptied while a rule nobody could lift is set.
+        await hold_settings_for_read(ctx.system)
+        await guilds_service.lock_guild_seats(ctx.session, ctx.guild_id)
+
+    for key in sorted(moved, key=lambda k: k in tightening):
+        rule, (before, after) = rules[key], moved[key]
+        await rule.check(ctx, before, after)
+        if key in tightening:
+            if rule.entitlement is not None:
+                await guild_entitlements.require_auth_option(
+                    ctx.system, ctx.guild_id, rule.entitlement
+                )
+            await rule.offered(ctx, after)
+            await rule.writer_meets(ctx, after)
+        await rule.write(ctx, after)
+    for key in moved:
+        await rules[key].audit(ctx, moved)
+    # The deployment's follow-ups land in the change's own transaction. A
+    # community's run on the system engine, which reads what the seat wrote,
+    # so the seat's write is committed first.
+    if ctx.system is not ctx.session:
+        await ctx.session.commit()
+    for key, (before, after) in moved.items():
+        follow_up = rules[key].follow_up
+        if follow_up is not None:
+            await follow_up(ctx, before, after)
+    await ctx.system.commit()

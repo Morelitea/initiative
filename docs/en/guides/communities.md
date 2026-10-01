@@ -102,7 +102,7 @@ Promoting somebody also lifts the **initiative roles they already hold** — eve
 
 Running a community and holding the keys to it turn out to be different jobs. Your most reliable organiser is the person you want as admin. They are not necessarily the person you want changing how everybody signs in.
 
-So the top seat is its own rung, and it's narrow on purpose: the [Security and Integrations tabs](#community-settings-admins), and nothing else an admin couldn't already do. An ordinary admin doesn't see that tab at all. (On a hosted server it also holds the billing screen, when there is one to hold — a self-hosted install has no such thing.)
+So the top seat is its own rung, and it's narrow on purpose: the [Security and Integrations tabs](#community-settings-admins), and nothing else an admin couldn't already do. An ordinary admin doesn't see that tab at all. (It also holds the **Usage** tab, which on a hosted server carries the community's plan and the way to the billing portal — a self-hosted install has no such thing.)
 
 **Only a superadmin passes the seat on.** An admin can't appoint one and can't demote one, which also means nobody can quietly take it from you.
 
@@ -123,6 +123,7 @@ Open **Community settings** from the sidebar or the rail:
 
 | Tab | What's in it |
 |---|---|
+| **Usage** | Storage and members against the community's limits. On a hosted server the tab is **Plan & usage** and also shows the plan: a running trial, the next renewal and its amount, a scheduled cancellation, or a failed payment. Every change to the plan, cancelling included, is made in the billing portal the tab links to. Superadmin only, and where community settings opens for them. |
 | **Community** | Name, description, icon and banner (square, up to 512 KB), and the directory listing. |
 | **Users** | Members, roles, invite links. |
 | **Initiatives** | Create and manage the community's initiatives. |

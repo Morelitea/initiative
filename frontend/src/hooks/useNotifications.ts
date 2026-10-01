@@ -1,4 +1,5 @@
 import {
+  type InfiniteData,
   type Query,
   type QueryClient,
   useInfiniteQuery,
@@ -25,9 +26,10 @@ import {
   readNotificationSubjectApiV1NotificationsReadSubjectPost,
   unreadNotificationPlacesApiV1NotificationsUnreadGet,
 } from "@/api/generated/notifications/notifications";
-import { invalidate, q } from "@/api/query-keys";
+import { describes, invalidate, q } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useApiMutation } from "@/hooks/useApiMutation";
+import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 
 // How many rows one request carries. The popover takes every page until the
@@ -136,6 +138,78 @@ export const useAllUnreadNotifications = (options?: {
   };
 };
 
+/** The popover's query: every unread line, a page at a time. */
+const UNREAD_INBOX = { limit: NOTIFICATION_PAGE_SIZE, unread_only: true };
+const unreadInboxKey = () => [
+  ...getListNotificationsApiV1NotificationsGetQueryKey(UNREAD_INBOX),
+  "history",
+];
+
+/**
+ * Read the popover's first page again and keep what it already held beneath
+ * it, or null when the two do not add up to the server's own total.
+ *
+ * A line that arrives, or returns to the top, lands on the first page, so the
+ * rest of the inbox is what it was. Anything else — a line read or withdrawn
+ * further down — leaves a row held here that the server no longer counts, and
+ * the totals disagree.
+ */
+const readInboxHead = async (held: InfiniteData<NotificationListResponse>) => {
+  const head = await listNotificationsApiV1NotificationsGet(UNREAD_INBOX);
+  const fresh = new Set(head.notifications.map((row) => row.id));
+  const older = held.pages
+    .flatMap((page) => page.notifications)
+    .filter((row) => !fresh.has(row.id));
+  if (head.notifications.length + older.length !== head.unread_count) {
+    return null;
+  }
+  return older.length > 0
+    ? {
+        pages: [head, { notifications: older, unread_count: null, next_cursor: null }],
+        pageParams: [undefined, head.next_cursor],
+      }
+    : { pages: [{ ...head, next_cursor: null }], pageParams: [undefined] };
+};
+
+/** One read of the first page at a time, so an older answer never lands last. */
+let inboxRead: Promise<unknown> = Promise.resolve();
+
+/**
+ * What a notification frame makes stale.
+ *
+ * Every notification read is asked again, except that a line arriving
+ * (`created`) or returning to the top (`updated`) costs the popover one page
+ * rather than every page it holds. Any other change, or a popover that has not
+ * finished loading, reads it whole.
+ */
+export const refreshNotifications = (action?: string) => {
+  const key = unreadInboxKey();
+  const inbox = queryClient.getQueryCache().find({ queryKey: key, exact: true });
+  const held = inbox?.state.data as InfiniteData<NotificationListResponse> | undefined;
+  if (
+    (action !== "created" && action !== "updated") ||
+    !inbox ||
+    !held ||
+    inbox.state.fetchStatus !== "idle" ||
+    held.pages.at(-1)?.next_cursor
+  ) {
+    return invalidate(q.notifications());
+  }
+  const notifications = describes(q.notifications());
+  void queryClient.invalidateQueries({
+    predicate: (query) => query !== inbox && notifications(query.queryKey),
+  });
+  inboxRead = inboxRead
+    .then(() => readInboxHead(held))
+    .then((spliced) =>
+      spliced
+        ? queryClient.setQueryData(key, spliced)
+        : queryClient.invalidateQueries({ queryKey: key, exact: true })
+    )
+    .catch(() => queryClient.invalidateQueries({ queryKey: key, exact: true }));
+  return inboxRead;
+};
+
 /**
  * Where there is unread activity, as a set of places rather than a count.
  *
@@ -219,28 +293,36 @@ export const useReadOnOpen = (kind: string, id: number | undefined) => {
  * A failure invalidates, so the server's answer replaces this rather than the
  * optimistic state standing.
  */
-/** Fold a read into one cached page, returning it unchanged when nothing moved. */
-const applyReadToPage = (
-  page: NotificationListResponse,
+/**
+ * Fold a read into a list's cached pages, or null when nothing moved. Only the
+ * first page carries the inbox's total, so a read on any page comes off it.
+ */
+const applyReadToPages = (
+  pages: NotificationListResponse[],
   matches: (notification: NotificationRead) => boolean,
   readAt: string
-): NotificationListResponse => {
+): NotificationListResponse[] | null => {
   let cleared = 0;
-  const notifications = page.notifications.map((notification) => {
-    if (notification.read_at || !matches(notification)) {
-      return notification;
-    }
-    cleared += 1;
-    return { ...notification, read_at: readAt };
+  const next = pages.map((page) => {
+    const before = cleared;
+    const notifications = page.notifications.map((notification) => {
+      if (notification.read_at || !matches(notification)) {
+        return notification;
+      }
+      cleared += 1;
+      return { ...notification, read_at: readAt };
+    });
+    return cleared === before ? page : { ...page, notifications };
   });
   if (cleared === 0) {
-    return page;
+    return null;
   }
-  return {
-    ...page,
-    notifications,
-    unread_count: Math.max(0, page.unread_count - cleared),
-  };
+  const [first, ...rest] = next;
+  const total = first.unread_count;
+  return [
+    { ...first, unread_count: total === null ? null : Math.max(0, total - cleared) },
+    ...rest,
+  ];
 };
 
 type CachedList =
@@ -260,12 +342,10 @@ const applyRead = (client: QueryClient, matches: (notification: NotificationRead
       }
       const readAt = new Date().toISOString();
       if ("pages" in current) {
-        const pages = current.pages.map((page) => applyReadToPage(page, matches, readAt));
-        return pages.some((page, index) => page !== current.pages[index])
-          ? { ...current, pages }
-          : current;
+        const pages = applyReadToPages(current.pages, matches, readAt);
+        return pages ? { ...current, pages } : current;
       }
-      return applyReadToPage(current, matches, readAt);
+      return applyReadToPages([current], matches, readAt)?.[0] ?? current;
     }
   );
 

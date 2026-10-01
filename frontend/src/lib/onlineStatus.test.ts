@@ -37,7 +37,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
   vi.useRealTimers();
   // The manager is a singleton shared by the whole suite; hand it back the way
   // it was found, online and with nobody listening to a mocked plugin.

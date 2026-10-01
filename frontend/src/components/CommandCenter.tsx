@@ -12,13 +12,13 @@ import {
   Settings,
   ShieldCheck,
   UserCog,
-  Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SearchSuggestion } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
+import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -261,7 +261,7 @@ export function CommandCenter() {
       {
         label: t("pages.allInitiatives"),
         path: getGuildPath("/"),
-        icon: Users,
+        icon: InitiativeMark,
       },
     ];
 

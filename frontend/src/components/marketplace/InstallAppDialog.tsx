@@ -6,8 +6,9 @@
  * screen, and is confirmed once:
  *
  * 1. **What it can reach.** Each scope the app asks for, as a plain sentence.
- *    Everything this server allows starts ticked; a scope it does not allow is
- *    shown disabled, with the reason.
+ *    Everything this server allows starts ticked, except a standing (acting as
+ *    a moderator or an admin), which the seat ticks itself; a scope it does
+ *    not allow is shown disabled, with the reason.
  * 2. **Where it appears.** Only for an app with a page inside initiatives:
  *    every current initiative, or the ones picked here.
  * 3. **Who can open it there.** Built-in roles, moderators by default, applied
@@ -42,7 +43,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useInstallGuildApp } from "@/hooks/useGuildApps";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { scopeSentence, toggleScope } from "@/lib/appScopes";
+import { STANDING_SCOPES, scopeSentence, toggleScope } from "@/lib/appScopes";
 import { guildAppPath } from "@/lib/appSurfaces";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -70,9 +71,10 @@ export function InstallAppDialog({ listing, open, onOpenChange }: InstallAppDial
   const placeable = hasPage || requested.length > 0;
 
   const [name, setName] = useState(listing.name);
-  // Every scope the server allows starts ticked; the seat unticks.
+  // Every scope the server allows starts ticked, bar a standing; the seat
+  // unticks, and ticks a standing itself.
   const [scopes, setScopes] = useState<string[]>(() =>
-    requested.filter((scope) => grantable.has(scope))
+    requested.filter((scope) => grantable.has(scope) && !STANDING_SCOPES.has(scope))
   );
   const [where, setWhere] = useState<"all" | "some">("all");
   const [picked, setPicked] = useState<number[]>([]);

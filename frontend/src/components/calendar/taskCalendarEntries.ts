@@ -5,6 +5,31 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 
 import type { CalendarEntry } from "./CalendarView";
 
+export type TaskEntryKind = "start" | "due" | "span";
+
+/** What a task's calendar entry carries for opening and rescheduling it. */
+export type TaskEntryMeta = {
+  type: "task";
+  taskId: number;
+  projectId: number;
+  initiativeId: number | null;
+  kind: TaskEntryKind;
+  /** The task repeats, so moving it asks whether its series moves too. */
+  repeating: boolean;
+};
+
+/** The dates a drag of a task's entry writes. */
+export const rescheduledDates = (
+  kind: TaskEntryKind | undefined,
+  startAt: string,
+  endAt: string
+) =>
+  kind === "start"
+    ? { start_date: startAt }
+    : kind === "due"
+      ? { due_date: startAt }
+      : { start_date: startAt, due_date: endAt };
+
 /**
  * Build the calendar entries for a single task.
  *
@@ -32,6 +57,14 @@ export function buildTaskCalendarEntries(
     userId: a.id,
   }));
 
+  const meta = (kind: TaskEntryKind): TaskEntryMeta => ({
+    type: "task",
+    taskId: task.id,
+    projectId: task.project_id,
+    initiativeId: task.initiative_id,
+    kind,
+    repeating: Boolean(task.recurrence),
+  });
   const base = {
     title: task.title,
     color,
@@ -51,13 +84,7 @@ export function buildTaskCalendarEntries(
     endAt: task.start_date as string,
     allDay: true,
     kind: "start",
-    meta: {
-      type: "task",
-      taskId: task.id,
-      projectId: task.project_id,
-      initiativeId: task.initiative_id,
-      kind: "start",
-    },
+    meta: meta("start"),
   });
   const dueMarker = (): CalendarEntry => ({
     ...base,
@@ -66,13 +93,7 @@ export function buildTaskCalendarEntries(
     endAt: task.due_date as string,
     allDay: true,
     kind: "due",
-    meta: {
-      type: "task",
-      taskId: task.id,
-      projectId: task.project_id,
-      initiativeId: task.initiative_id,
-      kind: "due",
-    },
+    meta: meta("due"),
   });
 
   if (start && due) {
@@ -85,13 +106,7 @@ export function buildTaskCalendarEntries(
           startAt: task.start_date as string,
           endAt: task.due_date as string,
           allDay: false,
-          meta: {
-            type: "task",
-            taskId: task.id,
-            projectId: task.project_id,
-            initiativeId: task.initiative_id,
-            kind: "span",
-          },
+          meta: meta("span"),
         },
       ];
     }
@@ -103,13 +118,7 @@ export function buildTaskCalendarEntries(
           startAt: task.start_date as string,
           endAt: task.due_date as string,
           allDay: true,
-          meta: {
-            type: "task",
-            taskId: task.id,
-            projectId: task.project_id,
-            initiativeId: task.initiative_id,
-            kind: "span",
-          },
+          meta: meta("span"),
         },
       ];
     }
@@ -119,3 +128,17 @@ export function buildTaskCalendarEntries(
   if (due) return [dueMarker()];
   return [];
 }
+
+/**
+ * The entries for an upcoming occurrence of a repeating task: the series'
+ * current task with its dates moved there. It is not a task yet, so it is not
+ * dragged, and it opens the current task.
+ */
+export const buildTaskOccurrenceEntries = (
+  occurrence: TaskListRead,
+  color: string
+): CalendarEntry[] =>
+  buildTaskCalendarEntries(occurrence, color, false).map((entry) => ({
+    ...entry,
+    id: `${entry.id}@${occurrence.due_date}`,
+  }));

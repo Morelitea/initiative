@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import hmac
 import logging
@@ -49,14 +49,17 @@ from app.core.messages import (
     AuthMessages,
     NativeMessages,
     OidcMessages,
+    UserMessages,
 )
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
 from app.core.usernames import UsernameError
 from app.core.security import (
     REFRESH_COOKIE_NAME,
+    create_handle_offer,
     create_upload_token,
     get_password_hash,
+    read_handle_offer,
 )
 from app.core.user_input_validators import (
     is_safe_next_path,
@@ -114,6 +117,7 @@ from app.schemas.platform.auth import (
     PasswordResetSubmit,
     UploadTokenResponse,
     UsernameAvailabilityResponse,
+    UsernameSuggestionsResponse,
     VerificationConfirmRequest,
     VerificationSendResponse,
 )
@@ -123,6 +127,7 @@ from app.schemas.platform.passkey import (
     PasskeySignUpResult,
     PasskeySignUpStart,
 )
+from app.schemas.platform.guild import NewCommunity
 from app.schemas.platform.user import UserCreate, UserRead
 from app.services import audit as audit_service
 import webauthn
@@ -146,7 +151,6 @@ from app.services.auth.assurance import (
     record_for_provider,
     session_amr,
 )
-from app.services.platform import billing_claim
 from app.services.platform import legal as legal_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
@@ -228,6 +232,9 @@ class RegistrationDetails:
     full_name: str | None = None
     timezone: str | None = None
     captcha_token: str | None = None
+    community: NewCommunity | None = None
+    birthdate: date | None = None
+    username_offer: str | None = None
 
 
 @dataclass(frozen=True)
@@ -271,11 +278,26 @@ async def register_user(
             full_name=user_in.full_name,
             timezone=user_in.timezone,
             captcha_token=user_in.captcha_token,
+            community=user_in.community,
+            birthdate=user_in.birthdate,
+            username_offer=user_in.username_offer,
         ),
         invite_code=invite_code,
         hashed_password=get_password_hash(user_in.password),
     )
     return await users_service.to_self_read(registered.user)
+
+
+def _refuse_impossible_birthdate(birthdate: date | None) -> None:
+    if birthdate is None:
+        return
+    try:
+        users_service.check_birthdate(birthdate)
+    except users_service.InvalidBirthdateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.AGE_INVALID_BIRTHDATE,
+        ) from exc
 
 
 async def _registration_gate(
@@ -303,11 +325,7 @@ async def _registration_gate(
     # Registration is closed without an invite when public registration or
     # guild creation is off. The very first account bootstraps the deployment
     # and is always allowed.
-    if (
-        (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION)
-        and not invite
-        and not is_first_user
-    ):
+    if not settings.registration_open and not invite and not is_first_user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.REGISTRATION_REQUIRES_INVITE,
@@ -362,14 +380,13 @@ async def _register_account(
     One body for both doors — the password one above and the passkey one below
     — because what a registration *is* does not depend on what it hands the
     account to come back with: the same address rules, the same invite and
-    captcha gates, the same handle, the same workspace seeded and the same
-    verification letter.
+    captcha gates, the same handle and the same verification letter.
 
     What differs is the way in, and it is settled *here* rather than by the
-    caller afterwards: the guild this account gets is provisioned in the middle
-    of this, which commits, so a credential written after the fact could fail
-    and leave an account nobody can sign in to. Written in the same breath as
-    the account, it is covered by the same undo.
+    caller afterwards: this commits — and, where the registration names a
+    community, provisions it — so a credential written after the fact could
+    fail and leave an account nobody can sign in to.
+    Written in the same breath as the account, it is covered by the same undo.
 
     The caller has already refused a method this deployment does not permit and
     taken whatever its own door asks for.
@@ -379,6 +396,11 @@ async def _register_account(
     verification letter, because the thing the letter asks for has happened.
     """
     normalized_invite = (invite_code or "").strip() or None
+    if normalized_invite and details.community is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=AuthMessages.REGISTRATION_INVITE_OR_COMMUNITY,
+        )
 
     smtp_configured = False
     try:
@@ -446,12 +468,20 @@ async def _register_account(
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
         user = User(**user_kwargs)
-        # The handle: the name part as typed, the number drawn here. Registering
-        # is where an account picks one, so it counts as chosen and its owner
-        # never meets the pick screen.
+        # Under age is recorded rather than refused: it closes the directory,
+        # not the account.
+        _refuse_impossible_birthdate(details.birthdate)
+        if details.birthdate is not None:
+            users_service.record_age_answer(user, details.birthdate)
+        # The handle: the name part as typed, and the number the name check
+        # showed while it is still free. Registering is where an account picks
+        # one, so it counts as chosen and its owner never meets the pick screen.
         try:
             await username_service.insert_with_handle(
-                session, user=user, name=details.username
+                session,
+                user=user,
+                name=details.username,
+                prefer=read_handle_offer(details.username_offer, details.username),
             )
         except UsernameError as exc:
             raise HTTPException(
@@ -533,19 +563,18 @@ async def _register_account(
             )
             await session.commit()
             await cohorts.settle(session)
+        elif details.community is None:
+            await session.commit()
         else:
-            guild_name_source = (user.full_name or "").strip() or user.username
-            guild_name = (
-                guild_name_source
-                if guild_name_source.lower().endswith("guild")
-                else f"{guild_name_source}'s Guild"
-            )
             # The account is committed with the guild; if the guild cannot be
             # set up, the account goes too.
             user_id = user.id
             try:
                 guild = await guilds_service.provision_new_guild(
-                    session, name=guild_name, creator=user
+                    session,
+                    name=details.community.name,
+                    description=details.community.description,
+                    creator=user,
                 )
             except guilds_service.GuildProvisionError:
                 await session.exec(sql_delete(User).where(User.id == user_id))
@@ -555,9 +584,10 @@ async def _register_account(
                     detail=AuthMessages.UNABLE_TO_CREATE_USER,
                 )
             guild_id = guild.id
-            # Registration seeds the new account a guild of its own; claim it
-            # for them. Fire-and-forget, once the seed has committed.
-            billing_claim.claim_new_guild(user_id=user_id, guild_id=guild_id)
+            # The account was made with a guild of its own; claim it for them.
+            await guilds_service.welcome_new_guild(
+                guild_id, owner_user_id=user_id, plan=details.community.plan
+            )
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         logger.exception("Failed to register user due to integrity error")
@@ -632,6 +662,7 @@ async def begin_passkey_sign_up(
     under.
     """
     await _passkey_sign_up_allowed(session)
+    _refuse_impossible_birthdate(payload.birthdate)
     await _registration_gate(
         request,
         session,
@@ -728,6 +759,9 @@ async def finish_passkey_sign_up(
             full_name=payload.full_name,
             timezone=payload.timezone,
             captcha_token=payload.captcha_token,
+            community=payload.community,
+            birthdate=payload.birthdate,
+            username_offer=payload.username_offer,
         ),
         invite_code=invite_code,
         hashed_password=None,
@@ -752,7 +786,7 @@ async def finish_passkey_sign_up(
 async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     return {
         "has_users": await any_account_exists(session),
-        "public_registration_enabled": settings.ENABLE_PUBLIC_REGISTRATION,
+        "public_registration_enabled": settings.registration_open,
     }
 
 
@@ -994,6 +1028,23 @@ async def refresh_access_token(
     )
 
 
+@router.get("/username-suggestions", response_model=UsernameSuggestionsResponse)
+@limiter.limit("30/minute")
+async def suggest_usernames(
+    request: Request,
+    session: SystemSessionDep,
+    seed: str | None = Query(default=None, max_length=64),
+) -> UsernameSuggestionsResponse:
+    """Name parts nobody holds yet, offered while somebody picks one.
+
+    Unauthenticated for the reason the availability check is. ``seed`` is what
+    they have typed so far; the suggestions start from it where it is usable.
+    """
+    return UsernameSuggestionsResponse(
+        suggestions=await username_service.suggest(session, seed=seed)
+    )
+
+
 @router.get("/username-available", response_model=UsernameAvailabilityResponse)
 @limiter.limit("60/minute")
 async def check_username_available(
@@ -1013,11 +1064,17 @@ async def check_username_available(
     except UsernameError as exc:
         return UsernameAvailabilityResponse(available=False, reason=exc.code)
 
-    if not await username_service.has_free_slot(session, name=username):
-        return UsernameAvailabilityResponse(
-            available=False, reason="USERNAME_UNAVAILABLE"
-        )
-    return UsernameAvailabilityResponse(available=True)
+    try:
+        name, number = await username_service.allocate(session, name=username)
+    except UsernameError as exc:
+        return UsernameAvailabilityResponse(available=False, reason=exc.code)
+    # The number shown beside the name, signed so the account it becomes gets
+    # that number while it is still free.
+    return UsernameAvailabilityResponse(
+        available=True,
+        discriminator=number,
+        offer=create_handle_offer(name, number),
+    )
 
 
 async def _revoke_signed_out_login(
@@ -1085,7 +1142,7 @@ async def logout(
 
     What is revoked here is the refresh side — the rotation chain behind this
     login. The access token it came in on is short-lived and the client drops
-    it (history/auth-detailed-design.md §3.3).
+    it.
 
     A native client authenticating with a device token consumes that row too —
     the token is one installed client's, so consuming it is the same per-device
@@ -1144,7 +1201,7 @@ async def issue_upload_token(
 
     Native (Capacitor) clients call this to load ``/uploads/*`` media and
     document downloads via ``?token=`` without putting the long-lived session
-    JWT in the URL (which would leak through logs, history, and Referer). The
+    JWT in the URL. The
     token is accepted only by the uploads/download routes and is useless as a
     general API credential.
     """
@@ -1599,8 +1656,8 @@ async def _begin_provider_login(
             detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
         ) from exc
     # Discovery validated the authorization endpoint as an absolute https URL
-    # (see app.services.auth.oidc.discovery), so a malformed or tampered
-    # discovery document cannot send the user to a non-TLS location.
+    # (see app.services.auth.oidc.discovery), so this redirect always goes to
+    # an https location.
     response = RedirectResponse(begun.authorization_url)
     response.set_cookie(
         key=OIDC_FLOW_COOKIE,

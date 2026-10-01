@@ -18,6 +18,7 @@
   "allDay": "Ganztägig",
   "color": "Farbe",
   "attendees": "Teilnehmer",
+  "repeat": "Wiederholung",
   "addAttendee": "Teilnehmer hinzufügen",
   "noAttendees": "Keine Teilnehmer",
   "rsvp": "Zusage",
@@ -39,7 +40,10 @@
   "dangerZone": "Gefahrenzone",
   "detailsUpdated": "Details aktualisiert",
   "filters": {
-    "heading": "Filter"
+    "heading": "Filter",
+    "dates": "Zeitraum",
+    "searchLabel": "Name oder Beschreibung",
+    "searchCalendars": "Kalender durchsuchen..."
   },
   "loading": "Wird geladen...",
   "loadError": "Termine konnten nicht geladen werden",
@@ -102,5 +106,33 @@
     "title": "Community-Kalender",
     "empty": "Noch keine Kalender.",
     "emptyHint": "Lege einen an — für Feiertage, ein regelmäßiges Treffen oder einfach für dich."
+  },
+  "scope": {
+    "title": {
+      "edit": "Wiederkehrenden Termin ändern",
+      "delete": "Wiederkehrenden Termin löschen"
+    },
+    "description": "Dieser Termin wiederholt sich. Für welche Termine gilt das?",
+    "this": "Nur dieser Termin",
+    "following": "Termine ab diesem",
+    "all": "Alle Termine der Serie",
+    "confirm": {
+      "edit": "Speichern",
+      "delete": "Löschen"
+    }
+  },
+  "occurrence": {
+    "partOfSeries": "Ein Termin einer Serie.",
+    "openSeries": "Serie öffnen",
+    "detach": "Zu eigenem Termin machen",
+    "detached": "Dieser Termin ist jetzt ein eigener Termin.",
+    "followsSeries": "Dieser Termin wiederholt sich mit seiner Serie. Ändere die Wiederholung in der Serie.",
+    "skipped": "Ausgelassene Termine",
+    "extra": "Zusätzliche Termine",
+    "restore": "Wiederherstellen",
+    "restored": "Termin wiederhergestellt.",
+    "addDate": "Termin hinzufügen",
+    "added": "Termin hinzugefügt.",
+    "openAlone": "Nur diesen Termin ändern"
   }
 }

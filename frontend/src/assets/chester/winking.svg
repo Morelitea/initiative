@@ -2,6 +2,7 @@
   <style>
     .body { animation: tilt 2.5s ease-in-out infinite; transform-origin: 16px 16px; }
     @keyframes tilt { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-4deg); } }
+    @media (prefers-reduced-motion: reduce) { [class] { animation: none; } }
   </style>
   <g class="body">
     <rect x="3" y="16" width="26" height="12" fill="#8B5E3C"/>

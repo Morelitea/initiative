@@ -15,6 +15,8 @@ from app.db.schema_provisioning import (
     provision_guild_schema,
 )
 
+pytestmark = pytest.mark.always
+
 
 _GID_A = 990_201
 _GID_B = 990_202

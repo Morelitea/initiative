@@ -29,6 +29,7 @@ from app.testing import (
     create_guild_membership,
     create_initiative,
     create_project,
+    create_resource_grant,
     create_task,
     create_task_status,
     create_user,
@@ -231,6 +232,22 @@ class TestAncestorFreeze:
             )
         assert "frozen_ancestor_insert" in str(excinfo.value)
 
+    async def test_an_archived_project_can_still_be_unshared(
+        self, session, routed, workspace
+    ):
+        """Taking somebody's access away changes who can reach the project,
+        not the project, so the archive does not hold it."""
+        _user, guild, _i, project, _t = workspace
+        other = await create_user(session)
+        await create_guild_membership(session, user=other, guild=guild)
+        grant = await create_resource_grant(session, project, user=other)
+        await _archive(session, project)
+
+        await routed.exec(
+            text("DELETE FROM resource_grants WHERE id = :id").bindparams(id=grant.id)
+        )
+        await routed.commit()
+
     async def test_the_first_grant_on_a_new_resource_is_not_sharing(
         self, routed, workspace
     ):
@@ -411,6 +428,33 @@ class TestAncestorFreeze:
                     "UPDATE comments SET deleted_at = NULL, deleted_by = NULL, "
                     "purge_at = NULL WHERE id = :id"
                 ).bindparams(id=comment.id)
+            )
+        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
+
+    @pytest.mark.parametrize("task_archived", [False, True])
+    async def test_a_reply_cannot_come_out_from_under_a_trashed_comment(
+        self, session, routed, workspace, task_archived
+    ):
+        """A reply thrown away before its comment keeps a stamp of its own, so
+        the comment's restore leaves it where it is — and it may not come back
+        before the comment it answers does. An archive on the task does not
+        hide the trash on the comment: they are two different ways up."""
+        user, _g, _i, _p, task = workspace
+        comment = await create_comment(session, user, task=task)
+        reply = await create_comment(
+            session, user, task=task, parent_comment_id=comment.id
+        )
+        await _trash(session, reply, by=user.id)
+        await _trash(session, comment, by=user.id)
+        if task_archived:
+            await _archive(session, task)
+
+        with pytest.raises(DBAPIError) as excinfo:
+            await routed.exec(
+                text(
+                    "UPDATE comments SET deleted_at = NULL, deleted_by = NULL, "
+                    "purge_at = NULL WHERE id = :id"
+                ).bindparams(id=reply.id)
             )
         assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
 

@@ -2,13 +2,14 @@
 Integration tests for the assigned-tasks /me view.
 
 Tests GET /api/v1/me/tasks, which returns tasks ASSIGNED to the current user
-across all guilds they belong to (distinct from /me/tasks/created, which keys
-off created_by).
+across all guilds they belong to, or with ``created=true`` the tasks they
+created.
 """
 
 import json
 
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.testing import guild_of
@@ -99,12 +100,11 @@ async def test_list_my_tasks_returns_assigned(
     assert task2.id in task_ids
 
 
-async def test_list_my_tasks_excludes_unassigned_and_others(
+async def test_list_my_tasks_assigned_or_created(
     client: AsyncClient, session: AsyncSession
 ):
-    """GET /me/tasks excludes tasks not assigned to the caller — including a
-    task the caller created but isn't assigned to, and a task assigned to
-    someone else."""
+    """GET /me/tasks lists the caller's assigned tasks; ``created=true`` lists
+    the ones they created instead, whoever they are assigned to."""
     user = await create_user(session, email="user@example.com")
     other = await create_user(session, email="other@example.com")
     guild, _, project = await _setup_guild_with_project(session, user)
@@ -112,24 +112,32 @@ async def test_list_my_tasks_excludes_unassigned_and_others(
 
     mine = await _create_task(session, project, "Mine", created_by=user.id)
     await _assign(session, mine, user.id)
-
-    # Created by the caller but assigned to nobody — the assigned view must skip it.
     created_not_assigned = await _create_task(
         session, project, "Created not assigned", created_by=user.id
     )
-
-    # Assigned to someone else — must not appear for the caller.
-    others = await _create_task(session, project, "Others", created_by=user.id)
-    await _assign(session, others, other.id)
+    assigned_to_other = await _create_task(
+        session, project, "Assigned to other", created_by=user.id
+    )
+    await _assign(session, assigned_to_other, other.id)
+    from_other = await _create_task(session, project, "From other", created_by=other.id)
+    await _assign(session, from_other, user.id)
+    # A row from before ``created_by`` existed belongs to nobody's created view.
+    legacy = await _create_task(session, project, "Legacy", created_by=user.id)
+    await session.exec(update(Task).where(Task.id == legacy.id).values(created_by=None))
+    await session.commit()
 
     headers = get_auth_headers(user)
-    response = await client.get("/api/v1/me/tasks", headers=headers)
+    assigned = await client.get("/api/v1/me/tasks", headers=headers)
+    assert assigned.status_code == 200, assigned.text
+    assert {t["id"] for t in assigned.json()["items"]} == {mine.id, from_other.id}
 
-    assert response.status_code == 200, response.text
-    task_ids = {t["id"] for t in response.json()["items"]}
-    assert mine.id in task_ids
-    assert created_not_assigned.id not in task_ids
-    assert others.id not in task_ids
+    created = await client.get("/api/v1/me/tasks?created=true", headers=headers)
+    assert created.status_code == 200, created.text
+    assert {t["id"] for t in created.json()["items"]} == {
+        mine.id,
+        created_not_assigned.id,
+        assigned_to_other.id,
+    }
 
 
 async def test_admin_sees_assigned_task_in_non_member_initiative(
@@ -593,7 +601,7 @@ async def test_list_my_tasks_property_value_is_null_filter(
     from app.models.tenant.property import PropertyType
     from app.testing.factories import (
         create_property_definition,
-        create_task_property_value,
+        create_property_value,
     )
 
     user = await create_user(session, email="user@example.com")
@@ -607,9 +615,7 @@ async def test_list_my_tasks_property_value_is_null_filter(
     without_value = await _create_task(session, project, "No value", created_by=user.id)
     await _assign(session, with_value, user.id)
     await _assign(session, without_value, user.id)
-    await create_task_property_value(
-        session, with_value, definition, value_text="something"
-    )
+    await create_property_value(session, with_value, definition, value_text="something")
 
     headers = get_auth_headers(user)
     conditions = json.dumps(
@@ -645,7 +651,7 @@ async def test_list_my_tasks_property_filter_spans_guilds(
     from app.models.tenant.property import PropertyType
     from app.testing.factories import (
         create_property_definition,
-        create_task_property_value,
+        create_property_value,
     )
 
     user = await create_user(session, email="user@example.com")
@@ -674,13 +680,13 @@ async def test_list_my_tasks_property_filter_spans_guilds(
     g1_empty = await _create_task(session, project1, "g1 empty", created_by=user.id)
     await _assign(session, g1_has, user.id)
     await _assign(session, g1_empty, user.id)
-    await create_task_property_value(session, g1_has, def1, value_text="x")
+    await create_property_value(session, g1_has, def1, value_text="x")
 
     g2_has = await _create_task(session, project2, "g2 has", created_by=user.id)
     g2_empty = await _create_task(session, project2, "g2 empty", created_by=user.id)
     await _assign(session, g2_has, user.id)
     await _assign(session, g2_empty, user.id)
-    await create_task_property_value(session, g2_has, def2, value_text="y")
+    await create_property_value(session, g2_has, def2, value_text="y")
 
     headers = get_auth_headers(user)
     conditions = json.dumps(

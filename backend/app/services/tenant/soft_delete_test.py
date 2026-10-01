@@ -5,17 +5,22 @@ the needs-reassignment branch, and the upload-preservation invariants for
 file-type and native documents.
 """
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import undefer
+from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.schema_provisioning import guild_schema_name
 from app.db.soft_delete_filter import select_including_deleted
+from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
 from app.models.tenant.task import Task
 from app.models.tenant.upload import Upload
+from app.services.tenant.lifecycle_tree import CASCADE_CHILDREN, CASCADE_PARENTS
 from app.services.tenant.soft_delete import (
     restore_entity,
     soft_delete_entity,
@@ -841,6 +846,249 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
         )
     )
     assert sorted(pages.all()) == [("step-1", None), ("step-2", None)]
+
+
+async def test_restored_siblings_do_not_take_the_same_name(session: AsyncSession):
+    """Pages coming back together each take a name the others have not: a live
+    page holding "foo" sends the first to "foo-2", which the second was about
+    to take back, so the second has to see that and go on."""
+    from app.models.tenant.wiki import WikiPage
+    from app.testing.factories import create_wiki, create_wiki_page
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    wiki = await create_wiki(session, initiative, user)
+    page = await create_wiki_page(session, wiki, user, title="Steps")
+    for title in ("foo", "foo 2"):
+        await create_wiki_page(session, wiki, user, title=title, parent_page_id=page.id)
+    await soft_delete_entity(
+        session, page, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+    await create_wiki_page(session, wiki, user, title="foo")
+
+    await restore_entity(session, page)
+    await session.commit()
+
+    children = await session.exec(
+        select_including_deleted(WikiPage.slug).where(
+            WikiPage.parent_page_id == page.id
+        )
+    )
+    slugs = children.all()
+    assert len(set(slugs)) == 2, slugs
+    assert not any("~" in slug for slug in slugs), slugs
+
+
+async def _file(
+    session: AsyncSession,
+    model: type,
+    parent: SQLModel,
+    fk: str,
+    user: User,
+    built: dict[type, SQLModel],
+) -> SQLModel:
+    """A row of ``model`` filed under ``parent`` through ``fk``. ``built`` holds
+    the rows above ``parent``, by model, for a child that names one of them."""
+    from app.core.tools import Tool
+    from app.models.tenant._mixins import tool_models
+    from app.models.tenant.calendar_event import CalendarEvent
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.counter import Counter
+    from app.models.tenant.gallery import GalleryImage
+    from app.models.tenant.queue import QueueItem
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.testing.factories import (
+        TOOL_FACTORIES,
+        create_calendar_event,
+        create_comment,
+        create_counter,
+        create_gallery_image,
+        create_queue_item,
+        create_task,
+        create_wiki_page,
+    )
+
+    models = tool_models()
+    tool = next((t for t in Tool if models.get(t.plural) is model), None)
+    if tool is not None:
+        return await TOOL_FACTORIES[tool](session, parent, user)
+    if model is Task:
+        return await create_task(session, parent)
+    if model is QueueItem:
+        return await create_queue_item(session, parent)
+    if model is Counter:
+        return await create_counter(session, parent)
+    if model is CalendarEvent:
+        if fk != "calendar_id":
+            # An occurrence of a series, in the series' calendar.
+            on_model, on_fk = _first_way_up(CalendarEvent)
+            return await create_calendar_event(
+                session,
+                built[on_model],
+                user,
+                **{fk: parent.id, "original_start": parent.start_at},
+            )
+        return await create_calendar_event(session, parent, user)
+    if model is GalleryImage:
+        return await create_gallery_image(session, parent, user)
+    if model is WikiPage:
+        if fk == "wiki_id":
+            return await create_wiki_page(session, parent, user)
+        return await create_wiki_page(session, built[Wiki], user, **{fk: parent.id})
+    if model is Comment:
+        if fk != "parent_comment_id":
+            return await create_comment(
+                session, user, **{fk.removesuffix("_id"): parent}
+            )
+        # A reply sits on the same thing as the comment it answers.
+        on_model, on_fk = _first_way_up(Comment)
+        return await create_comment(
+            session, user, **{on_fk.removesuffix("_id"): built[on_model], fk: parent.id}
+        )
+    raise AssertionError(f"this test has no way to file a {model.__name__}")
+
+
+def _first_way_up(model: type) -> tuple[type, str]:
+    return next((p, fk) for p, fk in CASCADE_PARENTS[model] if p is not model)
+
+
+async def _build(
+    session: AsyncSession,
+    model: type,
+    initiative: Initiative,
+    user: User,
+    built: dict[type, SQLModel],
+) -> SQLModel:
+    """A row of ``model`` and what it is filed under, up to ``initiative``, by
+    the first way up the trash tree names. Every row lands in ``built``."""
+    if model is Initiative:
+        built[Initiative] = initiative
+        return initiative
+    parent_model, fk = _first_way_up(model)
+    parent = built.get(parent_model) or await _build(
+        session, parent_model, initiative, user, built
+    )
+    built[model] = await _file(session, model, parent, fk, user, built)
+    return built[model]
+
+
+def _trash_kind(model: type) -> str:
+    from app.api.v1.tenant_endpoints.trash import ENTITY_REGISTRY
+
+    return next(kind for kind, (m, _) in ENTITY_REGISTRY.items() if m is model)
+
+
+def _trash_edges() -> list:
+    return [
+        pytest.param(parent, child, fk, id=f"{child.__name__}.{fk}")
+        for parent, children in CASCADE_CHILDREN.items()
+        for child, fk in children
+    ]
+
+
+def _under_an_initiative() -> list:
+    return [
+        pytest.param(model, id=model.__name__)
+        for model in (Initiative, *CASCADE_PARENTS)
+    ]
+
+
+@pytest.mark.parametrize("archived", [False, True])
+@pytest.mark.parametrize(("parent_model", "child_model", "fk"), _trash_edges())
+async def test_nothing_comes_back_under_something_still_in_the_trash(
+    session: AsyncSession, client, parent_model, child_model, fk, archived
+):
+    """A child binned before its parent keeps its own stamp, so it stays in the
+    bin when the parent comes back — and until then it cannot come back at all,
+    or it would be live under something in the bin. An archive over both, which
+    stamps a child that can carry one, does not change that. Runs over every
+    edge of the trash tree, so a new one is held to it."""
+    from app.models.platform.guild import GuildRole
+    from app.services.tenant.archive import archive_entity, unarchive_entity
+    from app.testing.factories import create_guild_membership, get_auth_headers
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+    built: dict[type, SQLModel] = {}
+    parent = await _build(session, parent_model, initiative, user, built)
+    child = await _file(session, child_model, parent, fk, user, built)
+    for trashed in (child, parent):
+        await soft_delete_entity(
+            session, trashed, deleted_by_user_id=user.id, retention_days=30
+        )
+        await session.commit()
+    if archived:
+        await archive_entity(session, initiative)
+        await session.commit()
+
+    headers = get_auth_headers(user)
+    trash = f"/api/v1/c/{guild.id}/trash"
+    restore_child = f"{trash}/{_trash_kind(child_model)}/{child.id}/restore"
+    response = await client.post(restore_child, headers=headers)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "PARENT_IS_FROZEN"
+    if archived:
+        await unarchive_entity(session, initiative)
+        await session.commit()
+
+    response = await client.post(
+        f"{trash}/{_trash_kind(parent_model)}/{parent.id}/restore", headers=headers
+    )
+    assert response.status_code == 200, response.text
+    response = await client.post(restore_child, headers=headers)
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.parametrize("model", _under_an_initiative())
+async def test_the_trash_works_inside_an_archive(session: AsyncSession, client, model):
+    """Archived content can still be thrown away and brought back: it comes
+    back into the archive, as everything around it is. A tool nobody owns comes
+    back to whoever wrote it, archived or not."""
+    from app.models.platform.guild import GuildRole
+    from app.services.tenant import ownership as ownership_service
+    from app.services.tenant.archive import archive_entity
+    from app.testing.factories import (
+        create_guild_membership,
+        get_auth_headers,
+        route_session_to_guild,
+    )
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+    row = await _build(session, model, initiative, user, {})
+    tool = ownership_service.tool_for_row(row)
+    if tool is not None:
+        await route_session_to_guild(session, guild.id)
+        await ownership_service.set_resource_owner(
+            session, tool=tool, row=row, new_owner=None
+        )
+        await session.commit()
+    await archive_entity(session, initiative)
+    await session.commit()
+    await soft_delete_entity(
+        session, row, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    response = await client.post(
+        f"/api/v1/c/{guild.id}/trash/{_trash_kind(model)}/{row.id}/restore",
+        headers=get_auth_headers(user),
+    )
+    assert response.status_code == 200, response.text
+    await session.refresh(row)
+    assert row.deleted_at is None
+    assert getattr(row, "archived_at", True) is not None
+    if tool is not None:
+        owner = await ownership_service.current_owner(
+            session, tool=tool, resource_id=row.id
+        )
+        assert owner == ownership_service.Owner(user_id=user.id)
 
 
 async def test_every_tool_takes_its_thread_to_the_trash_and_back(

@@ -8,7 +8,8 @@
  * These notices belong to the person rather than to any community, so the
  * server sends no guild with them.
  */
-import { describe, expect, it } from "vitest";
+import { Capacitor } from "@capacitor/core";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildNotification } from "@/__tests__/factories/notification.factory";
 import type { NotificationType } from "@/api/generated/initiativeAPI.schemas";
@@ -65,6 +66,64 @@ describe("notificationText — account notices", () => {
     expect(notificationText(named, t)).toContain("notifications.guildOnHoldWithContact");
     expect(notificationText(nobody, t)).toContain("notifications.guildOnHold");
     expect(notificationText(nobody, t)).not.toContain("WithContact");
+  });
+
+  it("names the day a held community is deleted, where it is", () => {
+    const dated = notice("guild_on_hold", {
+      community: "Acme",
+      contact: "help@example.com",
+      delete_on: "2026-10-24",
+    });
+    const line = notificationText(dated, t);
+    expect(line).toContain("notifications.guildOnHoldDeletingWithContact");
+    expect(line).toContain("2026");
+    expect(
+      notificationText(notice("guild_on_hold", { community: "Acme", delete_on: "2026-10-24" }), t)
+    ).toContain("notifications.guildOnHoldDeleting(");
+  });
+
+  it("says when a trial ends, that it has, and that a new community is ready", () => {
+    const ending = notificationText(
+      notice("guild_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
+      t
+    );
+    expect(ending).toContain("notifications.guildTrialEnding");
+    expect(ending).toContain("Acme");
+    expect(ending).toContain("2026");
+    expect(notificationText(notice("guild_trial_ended", { community: "Acme" }), t)).toContain(
+      "notifications.guildTrialEnded"
+    );
+    expect(notificationText(notice("guild_welcome", { community: "Acme" }), t)).toBe(
+      'notifications.guildWelcome({"community":"Acme"})'
+    );
+  });
+
+  it("asks for no plan in the phone app, which may not sell", () => {
+    const native = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    try {
+      expect(
+        notificationText(
+          notice("guild_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
+          t
+        )
+      ).toContain("notifications.guildTrialEndingInApp(");
+      expect(notificationText(notice("guild_trial_ended", { community: "Acme" }), t)).toBe(
+        'notifications.guildTrialEndedInApp({"community":"Acme"})'
+      );
+      expect(notificationText(notice("guild_welcome", { community: "Acme" }), t)).toBe(
+        'notifications.guildWelcomeInApp({"community":"Acme"})'
+      );
+    } finally {
+      native.mockRestore();
+    }
+  });
+
+  it("takes a trial notice to the community's Plan & usage tab", () => {
+    expect(
+      notificationLink(
+        notice("guild_trial_ending", { guild_id: 7, target_path: "/settings/usage" })
+      )
+    ).toBe("/c/7/settings/usage");
   });
 
   it("covers the rest of the account notices", () => {

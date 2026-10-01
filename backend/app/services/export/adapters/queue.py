@@ -13,8 +13,8 @@ column, so the printout is the full queue, not just the visible rotation.
 Markdown renders as a numbered turn-order list rather than a table.
 
 Access rule for every format: READ on the queue (exporting is a formatted
-read), enforced by the ``get_queue_for_export`` seam at both count and build
-time, under the caller's RLS session.
+read), enforced by ``ToolExportAdapter.fetch`` at both count and build time,
+under the caller's RLS session.
 """
 
 from __future__ import annotations
@@ -38,10 +38,11 @@ from app.services.export.adapters._common import (
     ToolExportAdapter,
     envelope_key,
     export_stem,
+    related_reach,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.export.i18n import et, export_locale
-from app.services.permissions import EXPORT_ACCESS
 from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -67,22 +68,6 @@ class QueueAdapter(ToolExportAdapter):
     tool = Tool.queue
     formats = ("json", "pdf", "csv", "xlsx", "md")
 
-    async def fetch(
-        self,
-        session: AsyncSession,
-        user: User,
-        guild_id: int,
-        queue_id: int,
-        /,
-        *,
-        access: str = EXPORT_ACCESS,
-    ) -> Queue:
-        from app.services.tenant.queues import get_queue_for_export
-
-        return await get_queue_for_export(
-            session, user, guild_id, queue_id=queue_id, access=access
-        )
-
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
     ) -> list[int]:
@@ -96,13 +81,30 @@ class QueueAdapter(ToolExportAdapter):
         return len(queue.items)
 
     async def prepare(
-        self, session: AsyncSession, queues: list[Queue], /
+        self, session: AsyncSession, queues: list[Queue], ctx: BuildContext, /
     ) -> "Attachments":
         # Every item across every queue, in one pass: the payload builders below
         # are synchronous and hold no session, and an export of a dozen queues
         # is exactly where a per-item fetch would show.
         return await queue_attachments_for(
             session, [item for queue in queues for item in queue.items]
+        )
+
+    async def prepared_reach(
+        self, session: AsyncSession, ctx: BuildContext, /
+    ) -> set[int]:
+        # Only the envelope names what is attached; the reports do not.
+        if ctx.format != "json":
+            return set()
+        attachments: Attachments = ctx.prepared
+        return await related_reach(
+            session,
+            (
+                related
+                for by_item in (attachments.documents, attachments.tasks)
+                for items in by_item.values()
+                for related in items
+            ),
         )
 
     def item(self, queue: Queue, ctx: BuildContext, /) -> RenderItem:
@@ -175,6 +177,7 @@ def _envelope(
         "description": queue.description,
         "is_active": queue.is_active,
         "current_round": queue.current_round,
+        "properties": exported_properties(queue),
         "items": [
             {
                 "label": item.label,
@@ -188,6 +191,7 @@ def _envelope(
                 # so an import can't rebind them — names and titles it is.
                 "member": _member(item),
                 "tags": _tags(item),
+                "properties": exported_properties(item),
                 "documents": sorted(
                     related.entity.name
                     for related in attachments.documents.get(item.id, [])

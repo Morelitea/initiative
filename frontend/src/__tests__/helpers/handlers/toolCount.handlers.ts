@@ -3,21 +3,14 @@ import { HttpResponse } from "msw";
 import { guildHttp } from "../guildHttp";
 
 /**
- * Every tool answers "how many of you are in each initiative?" at the same
- * address. Nothing by default: a surface that shows the numbers renders zeros
- * unless a test says otherwise, and none of them warn about an unhandled call.
+ * Every tool's "how many of you are in each initiative?" is one request, and
+ * one tool page's "how many in each view?" another. Nothing by default: a
+ * surface that shows the numbers renders zeros (or no badge) unless a test
+ * says otherwise, and none of them warn about an unhandled call.
  */
-const COUNT_PATHS = [
-  "/projects",
-  "/documents",
-  "/queues",
-  "/counter-groups",
-  "/calendars",
-  "/dashboards",
-  "/posts",
-  "/galleries",
+export const toolCountHandlers = [
+  guildHttp.get("/tools/counts/by-initiative", () => HttpResponse.json({ counts: {} })),
+  guildHttp.get("/tools/:tool/counts", () =>
+    HttpResponse.json({ views: {}, tag_counts: {}, untagged_count: 0 })
+  ),
 ];
-
-export const toolCountHandlers = COUNT_PATHS.map((path) =>
-  guildHttp.get(`${path}/counts/by-initiative`, () => HttpResponse.json({ counts: {} }))
-);

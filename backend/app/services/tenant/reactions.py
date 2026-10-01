@@ -30,7 +30,6 @@ from app.core.messages import ReactionMessages
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
 from app.db import session as db_session
-from app.models.tenant.comment import Comment
 from app.models.tenant.reaction import Reaction
 from app.models.platform.user import User
 from app.services.platform import accounts as accounts_service
@@ -430,7 +429,6 @@ async def _queue_reaction_notification(
         reactor=reactor,
         reaction=reaction,
         context_title=ctx.title,
-        about=ctx.about,
         subject=subject,
         guild_id=guild_id,
     )
@@ -514,15 +512,4 @@ async def purge_reactions_for(
             Reaction.target_type == target.value,
             Reaction.target_id.in_(ids),
         )
-    )
-
-
-async def purge_comment_reactions(
-    session: AsyncSession, comments: Sequence[Comment]
-) -> None:
-    """The purge hook for comments — called from ``hard_purge_entity``."""
-    await purge_reactions_for(
-        target=ReactionTarget.comment,
-        target_ids=[c.id for c in comments if c.id is not None],
-        session=session,
     )

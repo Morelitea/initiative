@@ -189,7 +189,6 @@ RUNTIME_SEEDED_SETTINGS = frozenset(
         "S3_ACCESS_KEY_ID",
         "S3_SECRET_ACCESS_KEY",
         "S3_USE_PATH_STYLE",
-        "S3_KMS_KEY_ID",
         "S3_LOCAL_FALLBACK",
         # The platform OIDC provider. Seeded into the provider row by
         # app/services/auth/platform_provider.py; after that the row holds the
@@ -333,13 +332,13 @@ class Settings(BaseSettings):
     JWT_SIGNING_KEY: str | None = None
 
     # The JWT algorithm and cookie names are constants in app.core.security
-    # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
-    # JWT algorithm is an alg-confusion hazard, and the cookie names are part
-    # of the auth contract, not deployment configuration.
+    # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — the JWT
+    # algorithm is fixed, and the cookie names are part of the auth contract,
+    # not deployment configuration.
 
-    # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
+    # New login model (auth rewrite, Phase 0).
     # The access token is short-lived + stateless: verified locally with no
-    # per-request DB read (the 10k+ win), so a leak is stale within one TTL. The
+    # per-request DB read (the 10k+ win), and expires within one TTL. The
     # refresh token is long, opaque, rotating, and revocable via ``auth_sessions``.
     #
     # Together these are how long somebody stays signed in: the browser renews
@@ -387,9 +386,8 @@ class Settings(BaseSettings):
     def _validate_secret_key(cls, value: str) -> str:
         # SECRET_KEY signs the OIDC state HMAC and roots all Fernet field encryption
         # (SMTP password, OIDC client secret, AI keys, refresh tokens) plus the
-        # email_hash HMAC. A known placeholder or short key makes every one of those
-        # forgeable/decryptable, so fail closed at startup rather than booting with a
-        # guessable key. The hint points at the safe rotation path because the naive
+        # email_hash HMAC, so a known placeholder or short key fails closed at
+        # startup. The hint points at the safe rotation path because the naive
         # fix — "just set a new key" — silently orphans all encrypted data.
         return _validate_strong_key(value, "SECRET_KEY", rotation_hint=True)
 
@@ -504,6 +502,11 @@ class Settings(BaseSettings):
         can be rotated without touching encrypted-at-rest data; falls back to
         SECRET_KEY for deployments that haven't set one."""
         return self.JWT_SIGNING_KEY or self.SECRET_KEY
+
+    @property
+    def registration_open(self) -> bool:
+        """Whether somebody may register without an invite."""
+        return self.ENABLE_PUBLIC_REGISTRATION and not self.DISABLE_GUILD_CREATION
 
     @property
     def app_url_is_https(self) -> bool:
@@ -729,12 +732,12 @@ class Settings(BaseSettings):
     UPLOADS_DIR: str = "uploads"
     # Blob storage backend. "local" = filesystem under UPLOADS_DIR (FOSS/self-host/
     # dev default). "s3" = any S3-compatible object store (a self-hosted Garage
-    # instance, AWS S3, R2, etc.) — see the S3_* settings below.
+    # or MinIO instance, R2, etc.) — see the S3_* settings below.
     STORAGE_BACKEND: str = "local"
     # --- S3 / S3-compatible object storage (only used when STORAGE_BACKEND="s3") ---
     # Point at your own object store (e.g. a self-hosted Garage instance): set
     # S3_BUCKET + S3_ENDPOINT_URL + S3_REGION, S3_USE_PATH_STYLE=true (Garage and
-    # most non-AWS stores), and the access/secret keys (or leave them unset to use
+    # most self-hosted stores), and the access/secret keys (or leave them unset to use
     # the ambient credential chain). See docs/en/running-a-server/object-storage.md.
     S3_BUCKET: str | None = None
     S3_REGION: str = "us-east-1"
@@ -742,6 +745,8 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY_ID: str | None = None
     S3_SECRET_ACCESS_KEY: str | None = None
     S3_USE_PATH_STYLE: bool = False
+    # Read only by migration 0137's one-time seed, which has shipped and cannot
+    # change. Nothing at runtime reads it.
     S3_KMS_KEY_ID: str | None = None
     # Migration safety net: while cutting a deployment over from "local" to "s3",
     # set true so a read that misses in S3 falls back to the local filesystem
@@ -809,6 +814,9 @@ class Settings(BaseSettings):
         ),
     )
     DISABLE_GUILD_CREATION: bool = False
+    # Communities one account may create in a day; 0 means no limit. Accounts
+    # holding ``guilds.manage`` are not held to it.
+    GUILD_CREATION_DAILY_LIMIT: int = Field(default=5, ge=0)
     # Boot back-fill normally skips guild schemas stamped with the current
     # provisioning-artifact version; set true to force a full sweep once.
     FORCE_GUILD_BACKFILL: bool = False
@@ -1064,8 +1072,8 @@ class Settings(BaseSettings):
             items = value.split(",")
         else:
             items = value
-        # Drop blanks and any "*": a wildcard combined with credentialed CORS is
-        # the origin-reflection vuln (CRIT-001). APP_URL and the native origins
+        # Drop blanks and any "*": credentialed CORS takes explicit origins
+        # only. APP_URL and the native origins
         # are always allowed via the `cors_origins` property, so the effective
         # allowlist is never empty even when this is.
         return [

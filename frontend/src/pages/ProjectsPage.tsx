@@ -7,35 +7,26 @@ import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
 import { ProjectCardActionButton } from "@/components/projects/ProjectCardActionButton";
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
-import {
-  isProjectStatus,
-  type ProjectStatus,
-  ProjectStatusFilter,
-} from "@/components/projects/ProjectStatusFilter";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import {
-  useProjectStatusCounts,
-  useProjects,
-  useRemoveProjectTemplate,
-  useUnarchiveProject,
-} from "@/hooks/useProjects";
+import { useRemoveProjectTemplate, useUnarchiveProject } from "@/hooks/useProjects";
+import { useToolCounts } from "@/hooks/useToolCounts";
+import { isToolView, type ToolView, toolViewParams } from "@/lib/tools";
 
 /** Scoped to an initiative: the initiative page's Projects tab. */
 type ProjectsViewProps = { fixedInitiativeId: number; canCreate?: boolean };
 
 export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps) => {
   const { t } = useTranslation(["projects", "common", "access"]);
-  const { user } = useAuth();
   // Single source of truth for "what can I do in each initiative" — honors
   // guild-admin / PAM / membership so this page never re-derives access from
   // raw membership flags (which would wrongly exclude guild admins).
@@ -57,9 +48,9 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   // linkable and answers the back button.
   const router = useRouter();
   const search = useSearch({ strict: false }) as { status?: string };
-  const status: ProjectStatus = isProjectStatus(search.status) ? search.status : "active";
+  const status: ToolView = isToolView(search.status) ? search.status : "active";
   const setStatus = useCallback(
-    (next: ProjectStatus) => {
+    (next: ToolView) => {
       void router.navigate({
         to: ".",
         search: { ...search, status: next === "active" ? undefined : next },
@@ -73,15 +64,14 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   // which of the three states the server returns.
   const projectsParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
-    ...(status === "templates" ? { template: true } : {}),
-    ...(status === "archived" ? { archived: true } : {}),
+    ...toolViewParams(Tool.project, status),
   };
-  const projectsQuery = useProjects(
-    Object.keys(projectsParams).length > 0 ? projectsParams : undefined
+  // How much sits behind each state, so the filter says so before it is
+  // opened: scoped to the initiative, whatever the other filters say.
+  const countsQuery = useToolCounts(
+    Tool.project,
+    lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}
   );
-  // Totals for all three states, so the filter can say how much sits behind
-  // each one before it is opened.
-  const statusCounts = useProjectStatusCounts(lockedInitiativeId);
 
   // This is a guild-scoped page and the initiatives list is cheap + cached, so
   // fetch it unconditionally. Create access is derived from the same payload
@@ -128,28 +118,14 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
     }
   }, [canCreateProjects, setIsComposerOpen]);
 
-  const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);
-
   const availableInitiatives = useMemo(() => {
     const initiatives = Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [];
     return initiatives.sort((a, b) => a.name.localeCompare(b.name));
   }, [initiativesQuery.data]);
 
-  // Filter initiatives where user can view projects (for the dropdown)
-  const viewableInitiatives = useMemo(
-    () => availableInitiatives.filter((initiative) => initiative.can.view.includes(Tool.project)),
-    [availableInitiatives]
-  );
-
   const lockedInitiativeName = lockedInitiativeId
     ? (availableInitiatives.find((init) => init.id === lockedInitiativeId)?.name ?? null)
     : null;
-
-  // Get IDs of initiatives where user can view projects
-  const viewableInitiativeIds = useMemo(() => {
-    if (!user) return null;
-    return new Set(viewableInitiatives.map((i) => i.id));
-  }, [viewableInitiatives, user]);
 
   const accessRestricted = (
     <Card className="border-destructive/50 bg-destructive/5">
@@ -247,9 +223,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             // Status is a different list, not a different filter of the same
             // one: remounting drops any in-flight bulk selection with it.
             key={status}
-            projects={projects}
-            isLoading={projectsQuery.isLoading}
-            isError={projectsQuery.isError}
+            params={projectsParams}
             loadingLabel={statusCopy.loading}
             errorLabel={statusCopy.error}
             noMatchesLabel={t("noMatchingProjects")}
@@ -258,7 +232,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             // Inside an initiative every card would carry the same name.
             showInitiativeLabel={!lockedInitiativeId}
             sortable={status === "active"}
-            viewableInitiativeIds={viewableInitiativeIds}
             renderItemActions={renderItemActions}
             toolbarActions={
               canCreateProjects && lockedInitiativeId ? (
@@ -276,7 +249,12 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             toolbarMenuItems={projectImport.menuItem}
             toolbarMenuDialogs={projectImport.dialog}
             leadingToolbar={
-              <ProjectStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
+              <ToolViewFilter
+                tool={Tool.project}
+                value={status}
+                onChange={setStatus}
+                counts={countsQuery.data?.views}
+              />
             }
           />
         )}

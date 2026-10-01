@@ -152,6 +152,19 @@ class OnlineRoll:
         since = monotonic() - self._last_active.get(user_id, 0.0)
         return Presence.idle if since >= IDLE_AFTER_SECONDS else Presence.online
 
+    def shown(self) -> Dict[int, Presence]:
+        """Everyone this process sees as here, and how each appears.
+
+        Bounded by the open sockets, so a roster can ask the database who is
+        here among its members without asking about every member.
+        """
+        appearing = {}
+        for user_id in self._sockets:
+            presence = self.presence_of(user_id)
+            if presence is not Presence.offline:
+                appearing[user_id] = presence
+        return appearing
+
     def is_online(self, user_id: int) -> bool:
         """Whether this account appears at all — any of the shown states.
 

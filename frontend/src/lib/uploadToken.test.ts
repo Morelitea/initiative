@@ -8,8 +8,9 @@ import { clearUploadToken, getUploadToken, refreshUploadToken } from "./uploadTo
 // The scoped upload token is a NATIVE-only concern: on web, media loads use the
 // HttpOnly session cookie, so getUploadToken() must stay a no-op there.
 
-// Re-spy per test: afterEach's restoreAllMocks() detaches the spy, so a
-// module-level spy would only intercept the first test's calls.
+// Re-spy per test: every spy is restored when a test ends (restoreMocks in
+// vitest.config.ts), so a module-level spy would only intercept the first
+// test's calls.
 let postMock: MockInstance;
 
 describe("uploadToken", () => {
@@ -20,7 +21,6 @@ describe("uploadToken", () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     clearUploadToken();
   });
 

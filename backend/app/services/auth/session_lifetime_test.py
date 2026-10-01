@@ -5,10 +5,16 @@ from types import SimpleNamespace
 
 from sqlmodel import select
 
+from app.core.clock import utcnow
 from app.models.platform.guild import GuildRole
 from app.services.auth import session_lifetime, sessions as session_service
 from app.services.platform import app_settings as app_settings_service
-from app.testing import create_guild, create_guild_membership, create_user
+from app.testing import (
+    create_guild,
+    create_guild_membership,
+    create_user,
+    guild_administration,
+)
 
 _AT = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
 
@@ -87,6 +93,13 @@ async def test_a_community_holds_its_members_to_the_standard(session):
     assert issued.session.chain_expires_at == _AT + timedelta(
         hours=session_lifetime.COMPLIANCE_SESSION_HOURS
     )
+
+    # While it holds the ``restrictions`` option the standard needs.
+    await guild_administration(session, guild, auth_options=[])
+    issued = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_AT
+    )
+    assert issued.session.chain_expires_at == _AT + timedelta(hours=720)
 
 
 async def test_somebody_in_two_such_communities_has_one_answer(session):
@@ -248,6 +261,43 @@ async def test_a_communitys_standard_reaches_its_members_device_tokens(session):
     assert row.expires_at <= row.created_at + timedelta(
         hours=session_lifetime.COMPLIANCE_SESSION_HOURS
     )
+
+
+async def test_a_device_token_meets_the_limit_that_applies_when_it_is_used(session):
+    """A token issued while no limit applied is held to one that applies now
+    the next time its window is read, whoever changed what: here a community
+    whose option comes back, with nothing swept."""
+    from app.models.platform.user_token import UserToken
+    from app.services.platform import user_tokens
+
+    user = await create_user(session, email="sl-use@example.com")
+    guild = await create_guild(session, name="sl-use-g")
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
+    await _set_platform_hours(session, None)
+    await _hold_to_the_standard(session, guild)
+    await guild_administration(session, guild, auth_options=[])
+    raw = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Pixel", commit=False
+    )
+    # Issued a day ago, with its first slide due.
+    token = (
+        await session.exec(select(UserToken).where(UserToken.user_id == user.id))
+    ).one()
+    token.created_at = utcnow() - timedelta(days=1)
+    token.expires_at = utcnow() + timedelta(days=88)
+    session.add(token)
+    await session.commit()
+
+    assert await user_tokens.get_device_token(session, token=raw) is not None
+    await guild_administration(session, guild, auth_options=["restrictions"])
+    token.expires_at = utcnow() + timedelta(days=88)
+    session.add(token)
+    await session.commit()
+    assert await user_tokens.get_device_token(session, token=raw) is None
+    # Refused and stored, so what reads the expiry agrees.
+    assert (await _token_times(session, user.id)).expires_at <= utcnow()
 
 
 # ---------------------------------------------------------------------------

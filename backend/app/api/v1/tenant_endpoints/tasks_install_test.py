@@ -15,16 +15,19 @@ from typing import Any
 from sqlmodel import select
 
 from app.core.messages import AppMessages, QueryMessages
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.task import Task
-from app.models.tenant.property import PropertyType
 from app.testing import (
     create_resource_grant,
     guild_url,
     create_project,
-    create_property_definition,
+    create_relationship,
     create_task,
     route_session_to_guild,
+    drain_notices,
 )
 from app.testing.app_clients import (
     assert_names_nobody,
@@ -71,6 +74,7 @@ async def _own_project(client: Any, installed: Any, headers: dict, name: str) ->
 
 
 async def _assignment_lines(session: Any, user_id: int) -> list[Notification]:
+    await drain_notices()
     return list(
         (
             await session.exec(
@@ -357,6 +361,60 @@ async def test_updates_moves_and_ticks_what_it_may_write(
     assert_names_nobody(got.text, [installed.seat.user.id, gid])
 
 
+async def test_makes_a_project_from_a_template_with_its_task_links(
+    client, session, acting_user, role_session
+):
+    """A template's dependency lands between the copies an app makes, with
+    the install as the one making the links."""
+    scopes = [*WRITE, "relationships:write"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    template = await create_project(
+        session, installed.placed, installed.seat.user, is_template=True
+    )
+    await create_resource_grant(session, template, all_initiative_members=True)
+    design = await create_task(session, template, title="Design")
+    build = await create_task(session, template, title="Build")
+    await create_relationship(
+        session,
+        installed.guild,
+        source=(SearchEntityType.task, build.id),
+        target=(SearchEntityType.task, design.id),
+        relationship_type=RelationshipType.depends_on,
+    )
+
+    created = await client.post(
+        guild_url(installed.guild.id, "/projects/"),
+        headers=install_headers(installed, scopes),
+        json={
+            "name": "From template",
+            "initiative_id": installed.placed.id,
+            "template_id": template.id,
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    await route_session_to_guild(session, installed.guild.id)
+    copies = {
+        task.title: task.id
+        for task in (
+            await session.exec(
+                select(Task).where(Task.project_id == created.json()["id"])
+            )
+        ).all()
+    }
+    edges = (
+        await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.source_id == copies["Build"],
+                EntityRelationship.source_type == SearchEntityType.task.value,
+            )
+        )
+    ).all()
+    assert [(e.relationship_type, e.target_id, e.created_by) for e in edges] == [
+        (RelationshipType.depends_on.value, copies["Design"], None)
+    ]
+
+
 async def test_a_task_in_a_project_it_only_reads_is_not_its_to_change(
     client, session, acting_user, role_session
 ):
@@ -372,46 +430,3 @@ async def test_a_task_in_a_project_it_only_reads_is_not_its_to_change(
         json={"title": "Mine now"},
     )
     assert response.status_code == 403, response.text
-
-
-async def test_a_person_valued_property_takes_a_reference(
-    client, session, acting_user, role_session
-):
-    await lift_person_and_guild_ids(session)
-    # The definition is the initiative's, and the person it names has to be
-    # one of the initiative's members.
-    scopes = [*WRITE, "initiatives:read", "members:read"]
-    installed = await install_app(session, acting_user, role_session, granted=scopes)
-    headers = install_headers(installed, scopes)
-    gid = installed.guild.id
-    seat_ref = await _reference_for_seat(client, session, installed, headers)
-    project_id = await _own_project(client, installed, headers, "The app's")
-    owner = await create_property_definition(
-        session, installed.placed, name="Owner", type=PropertyType.user_reference
-    )
-
-    created = await client.post(
-        guild_url(gid, "/tasks/"),
-        headers=headers,
-        json={
-            "project_id": project_id,
-            "title": "Owned",
-            "property_values": [{"property_id": owner.id, "value": seat_ref}],
-        },
-    )
-    assert created.status_code == 201, created.text
-    [value] = created.json()["properties"]
-    assert value["value"]["id"] == seat_ref
-    assert_names_nobody(created.text, [installed.seat.user.id, gid])
-
-    by_row_id = await client.patch(
-        guild_url(gid, f"/tasks/{created.json()['id']}"),
-        headers=headers,
-        json={
-            "property_values": [
-                {"property_id": owner.id, "value": installed.seat.user.id}
-            ]
-        },
-    )
-    assert by_row_id.status_code == 422, by_row_id.text
-    assert by_row_id.json()["detail"] == AppMessages.REFERENCE_UNKNOWN

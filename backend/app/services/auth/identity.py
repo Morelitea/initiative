@@ -328,9 +328,17 @@ def _holds_an_address_clause():
 
     Any address, confirmed or not: a code sent to an unconfirmed one proves it
     on arrival, so both are ways in. This is the only credential an account
-    does not have to do anything to acquire.
+    does not have to do anything to acquire. A synthetic placeholder is not a
+    mailbox, so it is not one.
     """
-    return select(UserEmail.id).where(UserEmail.user_id == User.id).exists()
+    return (
+        select(UserEmail.id)
+        .where(
+            UserEmail.user_id == User.id,
+            UserEmail.source != addresses.SOURCE_SYNTHETIC,
+        )
+        .exists()
+    )
 
 
 #: What each way in is answered with, as a predicate on ``User``. The one
@@ -361,30 +369,37 @@ def _can_sign_in_clause(permitted: frozenset[LoginMethod]):
     return or_(*ways_in)
 
 
+def stranded_clause(
+    *, current: frozenset[LoginMethod], requested: frozenset[LoginMethod]
+):
+    """Accounts that can begin a session under ``current`` and not under
+    ``requested``.
+
+    Both sets in one predicate rather than one per method, so an account
+    holding two credentials whose methods go together is counted for the pair —
+    which asking about each method on its own cannot do, since each of the two
+    is a way in while the other is still offered.
+    """
+    return _can_sign_in_clause(current) & ~_can_sign_in_clause(requested)
+
+
 async def stranded_between(
     session: AsyncSession,
     *,
     current: frozenset[LoginMethod],
     requested: frozenset[LoginMethod],
+    user_id: int | None = None,
 ) -> int:
-    """How many accounts can begin a session under ``current`` and not under
-    ``requested``.
-
-    One query over both sets rather than one per method, so an account holding
-    two credentials whose methods go together is counted for the pair — which
-    asking about each method on its own cannot do, since each of the two is a
-    way in while the other is still offered.
-    """
-    return (
-        await session.exec(
-            select(func.count())
-            .select_from(User)
-            .where(
-                _can_sign_in_clause(current),
-                ~_can_sign_in_clause(requested),
-            )
-        )
-    ).one()
+    """How many accounts :func:`stranded_clause` matches — of every account,
+    or of the one ``user_id`` names."""
+    query = (
+        select(func.count())
+        .select_from(User)
+        .where(stranded_clause(current=current, requested=requested))
+    )
+    if user_id is not None:
+        query = query.where(User.id == user_id)
+    return (await session.exec(query)).one()
 
 
 async def _permitted_methods(session: AsyncSession) -> frozenset[LoginMethod]:
@@ -485,7 +500,7 @@ async def any_account_exists(session: AsyncSession) -> bool:
 async def _registration_open(session: AsyncSession) -> bool:
     """Mirrors the existing OIDC flow's gate: a closed instance still admits
     the very first user (fresh-install bootstrap)."""
-    if settings.ENABLE_PUBLIC_REGISTRATION and not settings.DISABLE_GUILD_CREATION:
+    if settings.registration_open:
         return True
     return not await any_account_exists(session)
 

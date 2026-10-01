@@ -1,22 +1,19 @@
 name: Dev Build
 
 on:
-  push:
-    branches:
-      - dev
-    # Skip the dev image build on docs-only pushes.
-    paths-ignore:
-      - "docs/**"
-      - "zensical.toml"
-      - ".github/workflows/docs.yml"
-  workflow_dispatch: # Allow manual trigger
+  # A push to dev reaches this from CI, once every check has passed on it.
+  workflow_call:
+  # By hand from dev at any time, without waiting for CI. The ota-dev
+  # environment that signs the image is open to the dev branch only.
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   sha:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       short: ${{ steps.sha.outputs.short }}
       ota-dev-key: ${{ steps.sha.outputs.ota-dev-key }}
@@ -31,6 +28,9 @@ jobs:
 
   docker:
     needs: sha
+    permissions:
+      contents: read
+      id-token: write  # the image's signature
     uses: ./.github/workflows/docker-image.yml
     with:
       name: dev
@@ -38,11 +38,43 @@ jobs:
       signing-environment: ota-dev
       build-args: |
         VITE_VERSION_SUFFIX=-dev-${{ needs.sha.outputs.short }}
-        VITE_OTA_DEV_KEY=${{ needs.sha.outputs.ota-dev-key }}
-      # dev-<sha> first: it is the tag the merge job inspects.
+        VITE_OTA_DEV_PUBLIC_KEY=${{ needs.sha.outputs.ota-dev-key }}
+      # Only the commit's own tag: :dev moves in the job below.
       tags: |
         type=raw,value=dev-${{ needs.sha.outputs.short }}
-        type=raw,value=dev
     # inherit, not a list: the called job's environment secrets
     # (OTA_SIGNING_KEY) read as empty without it.
     secrets: inherit
+
+  move-dev-tag:
+    name: Move :dev
+    needs: [sha, docker]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Checked now, not when the build started: a re-run of an older run, or
+      # a build that finished after a newer one, publishes its own dev-<sha>
+      # and leaves :dev on the newer commit.
+      - name: Point :dev at this build while it is the tip of dev
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
+          SHORT: ${{ needs.sha.outputs.short }}
+          COMMIT: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          tip=$(git ls-remote "https://github.com/$REPOSITORY" refs/heads/dev | cut -f1)
+          if [[ "$tip" != "$COMMIT" ]]; then
+            echo "dev is at ${tip:0:9}, not ${COMMIT:0:9}: published $IMAGE:dev-$SHORT and left :dev where it is." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          docker buildx imagetools create -t "$IMAGE:dev" "$IMAGE:dev-$SHORT"
+          echo "$IMAGE:dev now points at dev-$SHORT." | tee -a "$GITHUB_STEP_SUMMARY"

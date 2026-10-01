@@ -11,8 +11,8 @@ Three questions, in order:
 1. **Is it live?** Published, not scheduled for later, not expired.
 2. **Is it for them?** The row's two audience filters — a minimum platform rung
    and "administers a guild somewhere". This is relevance, not confidentiality:
-   an announcement is a notice about the product, and the thing that must not
-   leak is a *draft*, which RLS handles.
+   an announcement is a notice about the product; a *draft* is kept private by
+   RLS.
 3. **Have they finished with it?** Dismissals take it out of the queue once
    there are as many as the notice asked for (normally one); merely having
    seen it does not.
@@ -28,7 +28,7 @@ import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional
 
 from sqlalchemy import case, func, or_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -632,17 +632,11 @@ async def prune_unreferenced_images(
             [s.model_dump(mode="json") for s in builtin.sections]
         )
 
-    stale: Sequence[AnnouncementImage] = (
-        await session.exec(
-            select(AnnouncementImage).where(AnnouncementImage.created_at < cutoff)
+    # One statement on the digests, so the bytes are never read to be dropped.
+    result = await session.exec(
+        delete(AnnouncementImage).where(
+            AnnouncementImage.created_at < cutoff,
+            AnnouncementImage.sha256.not_in(referenced),
         )
-    ).all()
-    removed = 0
-    for image in stale:
-        if image.sha256 in referenced:
-            continue
-        await session.delete(image)
-        removed += 1
-    if removed:
-        await session.flush()
-    return removed
+    )
+    return result.rowcount or 0

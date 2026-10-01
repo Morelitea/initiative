@@ -3,15 +3,20 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Annotated, Any, List, Literal, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import GuildId
 from app.core.messages import CounterMessages
-from app.models.tenant.counter import CounterViewMode
+from app.models.tenant.counter import COUNTER_DIGITS, COUNTER_PLACES, CounterViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tool import ToolSummaryBase
 
@@ -23,6 +28,12 @@ if TYPE_CHECKING:  # pragma: no cover
 # ---------------------------------------------------------------------------
 # Counter schemas
 # ---------------------------------------------------------------------------
+
+#: A number a counter can store. Anything longer is refused here rather than
+#: by the database, and nothing is rounded away on the way in.
+CounterNumber = Annotated[
+    Decimal, Field(max_digits=COUNTER_DIGITS, decimal_places=COUNTER_PLACES)
+]
 
 
 def _validate_counter_constraints(
@@ -43,13 +54,13 @@ def _validate_counter_constraints(
 class CounterBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     color: Optional[str] = None
-    count: Decimal = Decimal("0")
-    min: Optional[Decimal] = None
-    max: Optional[Decimal] = None
-    step: Decimal = Decimal("1")
-    initial_count: Decimal = Decimal("0")
+    count: CounterNumber = Decimal("0")
+    min: Optional[CounterNumber] = None
+    max: Optional[CounterNumber] = None
+    step: CounterNumber = Decimal("1")
+    initial_count: CounterNumber = Decimal("0")
     view_mode: CounterViewMode = CounterViewMode.number
-    position: Decimal = Decimal("0")
+    position: CounterNumber = Decimal("0")
 
     @model_validator(mode="after")
     def _check(self) -> "CounterBase":
@@ -62,7 +73,7 @@ class CounterBase(SanitizedBaseModel):
         return self
 
 
-class CounterCreate(CounterBase):
+class CounterCreate(CounterBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
 
 
@@ -74,16 +85,25 @@ class CounterUpdate(SanitizedBaseModel):
     # endpoint drops explicit nulls for them. ``gt=0`` rejects a provided step
     # of 0/negative with a clean 422. ``position`` allows negatives so a
     # fractional drop-to-front (prev - 1) still validates.
-    min: Optional[Decimal] = None
-    max: Optional[Decimal] = None
-    step: Optional[Decimal] = Field(default=None, gt=0)
-    initial_count: Optional[Decimal] = None
+    min: Optional[CounterNumber] = None
+    max: Optional[CounterNumber] = None
+    step: Optional[CounterNumber] = Field(default=None, gt=0)
+    initial_count: Optional[CounterNumber] = None
     view_mode: Optional[CounterViewMode] = None
-    position: Optional[Decimal] = None
+    position: Optional[CounterNumber] = None
 
 
 class CounterSetCountRequest(SanitizedBaseModel):
-    count: Decimal
+    count: CounterNumber
+
+
+class CounterStepRequest(SanitizedBaseModel):
+    """Move a counter up or down. ``amount`` left out moves it by the counter's
+    own ``step``; given, it must be more than nothing, since which way the
+    counter goes is ``direction``'s to say."""
+
+    direction: Literal["up", "down"]
+    amount: Optional[CounterNumber] = Field(default=None, gt=0)
 
 
 class CounterSortField(str, Enum):
@@ -124,6 +144,7 @@ class CounterRead(SanitizedBaseModel):
     initial_count: str
     view_mode: CounterViewMode
     position: str
+    properties: List[PropertySummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -138,7 +159,7 @@ class CounterGroupBase(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class CounterGroupCreate(CounterGroupBase):
+class CounterGroupCreate(CounterGroupBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     # Initial sharing — the same grant list the PUT /grants endpoint takes.
@@ -221,6 +242,7 @@ def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRe
         initial_count=_format_decimal(counter.initial_count),
         view_mode=counter.view_mode,
         position=_format_decimal(counter.position),
+        properties=annotated_properties(counter),
         created_at=counter.created_at,
         updated_at=counter.updated_at,
     )

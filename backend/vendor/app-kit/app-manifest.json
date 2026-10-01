@@ -34,7 +34,7 @@
         },
         "scopes": {
           "type": "array",
-          "maxItems": 52,
+          "maxItems": 54,
           "uniqueItems": true,
           "items": {
             "anyOf": [
@@ -67,7 +67,9 @@
                   "sharing:read",
                   "sharing:write",
                   "members:read",
-                  "initiatives:read"
+                  "initiatives:read",
+                  "initiatives:moderate",
+                  "guild:admin"
                 ]
               },
               {

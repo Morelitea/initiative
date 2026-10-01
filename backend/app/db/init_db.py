@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
 import asyncio
 import logging
+import re
+from urllib.parse import quote, quote_plus
 
 import asyncpg
 from sqlalchemy import delete as sql_delete
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 
@@ -233,12 +236,138 @@ async def migrate_database() -> None:
         await run_migrations()
 
 
+#: Where to report a start that failed.
+ISSUES_URL = "https://github.com/Morelitea/initiative/issues"
+
+_URL_CREDENTIALS = re.compile(r"(://)[^/@\s]+@")
+
+#: Shorter configured values are left alone: taking every two-letter string
+#: out of an error would leave nothing to read.
+_SHORTEST_SECRET = 4
+
+
+def _secret_values() -> set[str]:
+    """Every configured value a report must not repeat, as written and as a
+    URL would encode it: the database passwords, and each setting named as a
+    secret, key, token or password."""
+    values = set()
+    for name, value in settings.model_dump().items():
+        if not isinstance(value, str):
+            continue
+        if name.startswith("DATABASE_URL"):
+            try:
+                value = make_url(value).password or ""
+            except Exception:
+                continue
+        elif not re.search(r"SECRET|PASSWORD|TOKEN|KEY", name):
+            continue
+        if len(value) >= _SHORTEST_SECRET:
+            values |= {value, quote(value, safe=""), quote_plus(value)}
+    return values
+
+
+def _scrubbed(line: str) -> str:
+    line = _URL_CREDENTIALS.sub(r"\1***@", line)
+    for value in sorted(_secret_values(), key=len, reverse=True):
+        line = line.replace(value, "***")
+    return line
+
+
+async def _database_facts() -> dict[str, str]:
+    """The server's version and the revisions the database is stamped at,
+    read on the provisioning engine (connected as the app connects), each
+    reported as unknown when it cannot be read."""
+    from app.db import session as db_session
+
+    facts: dict[str, str] = {}
+
+    async def read() -> None:
+        async with db_session.provisioning_engine.connect() as conn:
+            facts["postgres"] = str(await conn.scalar(text("SHOW server_version")))
+            if await conn.scalar(text("SELECT to_regclass('public.alembic_version')")):
+                rows = await conn.execute(
+                    text("SELECT version_num FROM alembic_version")
+                )
+                facts["stamped"] = ", ".join(sorted(r[0] for r in rows)) or "none"
+            else:
+                facts["stamped"] = "none"
+
+    try:
+        await asyncio.wait_for(read(), timeout=10)
+    except Exception as error:
+        reason = f"unknown ({type(error).__name__})"
+        facts.setdefault("postgres", reason)
+        facts.setdefault("stamped", reason)
+    return facts
+
+
+def _failed_start_report(error: BaseException, facts: dict[str, str]) -> str:
+    """What a start that failed prints, for its operator to paste into an
+    issue: the version, how the database is given, the server's version,
+    where the migrations stand, and the error's first line, with the
+    passwords and keys it is configured with taken out."""
+    revisions, head = migration_chain()
+    stamped = facts.get("stamped", "unknown")
+    lines = [
+        ("version", get_version()),
+        (
+            "database",
+            "one DATABASE_URL"
+            if settings.database_logins_derived
+            else "separate logins",
+        ),
+        ("postgres", facts.get("postgres", "unknown")),
+        ("migrations", f"database at {stamped}, this version at {head or 'unknown'}"),
+    ]
+    # Revisions are dated, so the one after the stamp is the one a failed
+    # upgrade stopped at.
+    if _is_dated_revision(stamped) and head and stamped < head:
+        after = sorted(r for r in revisions if _is_dated_revision(r) and r > stamped)
+        if after:
+            lines.append(("stopped at", after[0]))
+    message = str(error).strip().splitlines()
+    lines.append(
+        ("error", f"{type(error).__name__}: {message[0] if message else ''}"[:300])
+    )
+    body = "\n".join(
+        f"  {label + ':':<12} {_scrubbed(value)}" for label, value in lines
+    )
+    return (
+        f"\n{'=' * 70}\n"
+        f"Initiative could not start.\n\n"
+        f"To report it, open an issue at\n"
+        f"  {ISSUES_URL}\n"
+        f"and paste this block. The passwords and keys this server is\n"
+        f"configured with are taken out; read it over before you post it.\n\n"
+        f"{body}\n"
+        f"{'=' * 70}"
+    )
+
+
 async def prepare_database() -> None:
     """Bring the database to what this release serves, and seed it.
 
     Every step is idempotent. The server's startup runs this before it serves
-    anything, and ``python -m app.db.init_db`` runs it on its own.
+    anything, and ``python -m app.db.init_db`` runs it on its own. A failure
+    is logged with a short report to paste into an issue, then raised as it
+    was; the refusals that already say what to do (``SystemExit``) pass
+    through untouched.
     """
+    try:
+        await _prepare_database()
+    except Exception as error:
+        # The report is a courtesy: if it cannot be made, the error it was
+        # about is still the one raised.
+        try:
+            report = _failed_start_report(error, await _database_facts())
+        except Exception:
+            logger.exception("The report on this failed start could not be made")
+        else:
+            logger.error(report)
+        raise
+
+
+async def _prepare_database() -> None:
     # The prerequisites the app's own logins cannot create for themselves: the
     # logins, and the guild-search match operator. Applied from
     # DATABASE_URL_BOOTSTRAP when set, verified otherwise, before anything

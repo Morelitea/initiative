@@ -19,6 +19,7 @@ ships but cannot read or validate must never take its own listing down.
 
 import pathlib
 
+import pytest
 from sqlmodel import select
 
 from app.models.platform.marketplace import MarketplaceListing
@@ -34,6 +35,8 @@ from app.services.marketplace.definitions import (
     normalize_publisher,
     normalize_listing_definition,
 )
+
+pytestmark = pytest.mark.always
 
 
 async def _seeded(session) -> dict[str, MarketplaceListing]:

@@ -1,7 +1,7 @@
 """Server-side session lifecycle for the new login model (auth rewrite, Phase 0).
 
-This is the substrate that makes the stateless access token revocable
-(history/auth-detailed-design.md §3.2–§3.3). One ``auth_sessions`` row = one
+This is the substrate that makes the stateless access token revocable.
+One ``auth_sessions`` row = one
 login; each ``/auth/refresh`` **rotates** it — mints a fresh row pointing at the
 one it replaces (``parent_id`` chain) and single-use-revokes the old one. Reuse
 of an already-spent refresh token is treated as **theft** and kills the whole
@@ -311,7 +311,7 @@ async def rotate_session(
         )
     ).first()
     if claimed is None:
-        # Lost the race to a concurrent rotation — same danger as a replay.
+        # Lost the race to a concurrent rotation — treated as reuse.
         await revoke_chain(session, session_id=row.id, now=issued)
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).

@@ -298,7 +298,7 @@ async def test_provision_recovers_from_email_race_as_email_match(session):
 
 async def test_provision_email_race_unverified_is_refused(session):
     """Case (b) with an unverified asserted email → EMAIL_UNVERIFIED, mirroring
-    the non-raced account-takeover guard."""
+    the non-raced unverified-email refusal."""
     from app.services.auth.identity import _provision
 
     provider = await _create_provider(session)

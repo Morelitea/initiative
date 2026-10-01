@@ -1,4 +1,4 @@
-"""Unit tests for app.services.user_tokens (SEC-13).
+"""Unit tests for app.services.user_tokens.
 
 Covers the at-rest hashing and sliding-window device-token TTL:
 - tokens are stored as SHA-256 hashes, never plaintext

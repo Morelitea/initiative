@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from app.core import recurrence
 from app.models.tenant.task import TaskStatusCategory
 
 #: What an imported tag is coloured. A foreign label rarely carries a colour,
@@ -101,6 +102,29 @@ def iso_from_timestamp(value: Any) -> Optional[str]:
         return datetime.fromisoformat(text).isoformat()
     except ValueError:
         return None
+
+
+def repeat_fields(
+    rule: str | None, due: str | None, tz: str | None, *, rolling: bool = False
+) -> dict[str, Any]:
+    """A source's repeat as a task's envelope fields: ``rule`` picked in
+    ``tz`` (UTC without one) from the task's ``due`` date, the way the app's
+    own form stores a pick. Empty when there is no due date to repeat from or
+    the rule is not one a task can repeat by, so the task imports as a
+    one-off rather than the import failing."""
+    if not rule or not due:
+        return {}
+    try:
+        text, shift = recurrence.stored(
+            rule, datetime.fromisoformat(due), tz, kind="task"
+        )
+    except (ValueError, TypeError):
+        return {}
+    return {
+        "recurrence": text,
+        "recurrence_shift": shift,
+        "recurrence_strategy": "rolling" if rolling else "fixed",
+    }
 
 
 def dedupe_names(values: Any) -> list[str]:

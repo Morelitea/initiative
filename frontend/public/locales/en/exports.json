@@ -32,6 +32,8 @@
   "wizard": {
     "titleInitiative": "Export initiative",
     "titleGuild": "Export community",
+    "titleEntities_one": "Export {{count}} item",
+    "titleEntities_other": "Export {{count}} items",
     "back": "Back",
     "next": "Next",
     "start": "Start export",
@@ -61,12 +63,50 @@
       "documentSpreadsheet": "Spreadsheets",
       "documentOthersNote": "Whiteboards and links export as JSON; uploaded files ride along unchanged."
     },
+    "format": {
+      "prompt": "Choose a format"
+    },
+    "content": {
+      "prompt": "Choose which events to export",
+      "allDatesNote": "Leave the dates empty to export every event.",
+      "tasksPrompt": "Choose which tasks to export",
+      "allTasksNote": "With no filter, every task is exported, archived ones too."
+    },
+    "filter": {
+      "toggle": "Filter",
+      "toggleFor": "Filter {{tool}}",
+      "eventDates": "Event dates",
+      "tasks": "Tasks in each project",
+      "templates": "Templates",
+      "withoutTemplates": "Without templates",
+      "templatesOnly": "Templates only",
+      "untaggedOnly": "Untagged only"
+    },
+    "filterSummary": {
+      "search": "“{{search}}”",
+      "tags_one": "{{count}} tag",
+      "tags_other": "{{count}} tags",
+      "statuses_one": "{{count}} status",
+      "statuses_other": "{{count}} statuses",
+      "assignees_one": "{{count}} assignee",
+      "assignees_other": "{{count}} assignees",
+      "activeOnly": "Active only",
+      "archivedOnly": "Archived only",
+      "withoutArchived": "without archived",
+      "withArchived": "with archived",
+      "more_one": "{{count}} more filter",
+      "more_other": "{{count}} more filters",
+      "tasks": "Tasks ({{filters}})"
+    },
     "confirm": {
       "prompt": "Ready to export",
       "modeBackup": "Importable backup",
       "modeReport": "Report",
       "uploadsIncluded": "Uploaded files included",
       "uploadsExcluded": "Uploaded files excluded",
+      "toolFilters": "{{tool}}: {{filters}}",
+      "selected_one": "{{count}} selected",
+      "selected_other": "{{count}} selected",
       "note": "The export runs in the background — you can keep working and we'll notify you when it's ready."
     },
     "progress": {
@@ -75,7 +115,8 @@
     },
     "done": {
       "title": "Export ready",
-      "note": "Your download has started. You can re-download it from community settings until it expires."
+      "note": "Your download has started. You can re-download it from community settings until it expires.",
+      "noteInline": "Your download has started."
     },
     "failed": {
       "title": "Export failed",

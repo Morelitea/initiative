@@ -30,13 +30,13 @@ _VAR_RE = re.compile(r"\{\{(\w+)\}\}")
 # Namespaces whose templates are rendered into HTML email bodies. Interpolated
 # variable VALUES (display names, resource titles, comment text — all
 # user-controlled) are HTML-escaped by default for these namespaces so a
-# display name like ``<a href="https://phish">Reset your password</a>`` shows
-# as literal text instead of rendering inside the trusted, brand-styled email.
+# display name containing markup shows as literal text instead of rendering
+# inside the email.
 # The template text itself (e.g. ``<strong>{{actor}}</strong>``) is trusted and
 # never escaped. Plain-text contexts (subjects, textBody alternatives) opt out
 # per call with ``escape=False`` — a missed opt-out shows a cosmetic ``&amp;``,
-# whereas a missed opt-in would be a phishing-injection hole, so HTML-safe is
-# the default.
+# whereas a missed opt-in would render user markup, so HTML-safe is the
+# default.
 _HTML_NAMESPACES = frozenset({"email"})
 
 

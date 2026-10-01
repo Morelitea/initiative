@@ -93,7 +93,25 @@
     "unsavedTitle": "Nicht gespeicherte Änderungen verwerfen?",
     "unsavedBody": "Sie haben nicht gespeicherte Änderungen an dieser Aufgabe. Wenn Sie jetzt gehen, gehen sie verloren.",
     "unsavedLeave": "Verlassen",
-    "unsavedStay": "Bleiben"
+    "unsavedStay": "Bleiben",
+    "skipOccurrence": "Diesen Termin überspringen",
+    "taskSkipped": "Weiter zum nächsten Termin",
+    "skipError": "Dieser Termin konnte nicht übersprungen werden"
+  },
+  "scope": {
+    "title": {
+      "edit": "Wiederkehrende Aufgabe ändern",
+      "delete": "Wiederkehrende Aufgabe löschen"
+    },
+    "description": "Diese Aufgabe wiederholt sich. Für welche Aufgaben gilt das?",
+    "this": "Nur diese Aufgabe",
+    "following": "Aufgaben ab dieser",
+    "all": "Alle Aufgaben der Serie",
+    "allCount": "Alle Aufgaben der Serie ({{count}})",
+    "confirm": {
+      "edit": "Speichern",
+      "delete": "Löschen"
+    }
   },
   "focus": {
     "title": "Fokus",

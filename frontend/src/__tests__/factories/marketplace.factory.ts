@@ -62,6 +62,7 @@ export function buildMarketplaceListingDetail(
     ...summary,
     long_description: null,
     definition: null,
+    example: null,
     requested_scopes: [],
     grantable_scopes: [],
     app_names: {},

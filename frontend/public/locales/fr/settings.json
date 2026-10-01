@@ -36,7 +36,15 @@
       "data": "Données",
       "dangerZone": "Zone de danger",
       "security": "Sécurité",
-      "integrations": "Intégrations"
+      "integrations": "Intégrations",
+      "usage": "Utilisation",
+      "planAndUsage": "Forfait et utilisation"
+    },
+    "tabBadge": {
+      "paymentFailed": "Échec du paiement",
+      "trial_one": "Essai · {{count}} jour",
+      "trial_other": "Essai · {{count}} jours",
+      "trialLastDay": "Essai · dernier jour"
     }
   },
   "profile": {
@@ -812,6 +820,10 @@
     "signInLockedUntil": "Jusqu'au {{time}}",
     "liftSignInLock": "Réactiver la connexion par mot de passe",
     "signInLockLifted": "Cette personne peut de nouveau se connecter avec un mot de passe.",
+    "clearSecondFactor": "Retirer l'authentification à deux facteurs",
+    "clearSecondFactorDescription": "Retirer l'authentificateur du compte de {{handle}} ? C'est pour le cas où cette personne a perdu son téléphone et ses codes de récupération. Toutes ses sessions sont fermées et elle est prévenue par e-mail ; elle se connecte ensuite comme d'habitude et peut le configurer à nouveau.",
+    "clearSecondFactorConfirm": "Retirer",
+    "secondFactorCleared": "Authentification à deux facteurs retirée. Cette personne peut se connecter comme d'habitude.",
     "sheet": {
       "open": "Gérer",
       "openLabel": "Gérer le compte {{handle}}",
@@ -1240,7 +1252,7 @@
     "backendLabel": "Backend de stockage",
     "backendLocal": "Système de fichiers local",
     "backendS3": "Compatible S3",
-    "backendHelp": "Local stocke les fichiers sur le disque du serveur. S3 fonctionne avec AWS S3, une instance Garage/MinIO auto-hébergée, Cloudflare R2 et similaires.",
+    "backendHelp": "Local stocke les fichiers sur le disque du serveur. S3 fonctionne avec tout stockage compatible S3, comme une instance Garage ou MinIO auto-hébergée, ou Cloudflare R2.",
     "cutoverTitle": "Passer à S3 ne déplace pas les fichiers existants",
     "cutoverHelp": "Enregistrez ces paramètres, lancez Tester la connexion, puis utilisez Migration ci-dessous pour copier les fichiers locaux existants dans le bucket. Ne basculez le backend sur S3 qu'une fois la migration terminée — vous pouvez laisser « Servir les objets manquants depuis le local » activé pendant une période de vérification.",
     "bucketLabel": "Bucket",
@@ -1248,16 +1260,14 @@
     "regionLabel": "Région",
     "endpointLabel": "URL du point de terminaison",
     "endpointPlaceholder": "https://s3.example.com",
-    "endpointHelp": "Laissez vide pour AWS S3. Renseignez-le pour Garage, MinIO, R2 ou tout stockage non-AWS.",
+    "endpointHelp": "L'adresse de l'API S3 de votre stockage.",
     "accessKeyLabel": "ID de clé d'accès",
     "accessKeyPlaceholder": "Laissez vide pour utiliser la chaîne d'identifiants de l'environnement",
     "secretKeyLabel": "Clé d'accès secrète",
     "secretKeySet": "•••••••• (inchangée)",
     "secretKeyHelp": "Laissez vide pour conserver la clé enregistrée. Stockée chiffrée ; jamais affichée.",
-    "kmsLabel": "ID de clé KMS (facultatif)",
-    "kmsPlaceholder": "Pour le chiffrement côté serveur SSE-KMS",
     "pathStyleLabel": "Adressage de type chemin",
-    "pathStyleHelp": "Requis pour Garage et la plupart des stockages non-AWS.",
+    "pathStyleHelp": "Requis pour Garage et la plupart des stockages auto-hébergés.",
     "localFallbackLabel": "Servir les objets manquants depuis le local",
     "localFallbackHelp": "Pendant la bascule, lire depuis le disque local les blobs pas encore copiés vers S3.",
     "save": "Enregistrer",
@@ -1678,6 +1688,7 @@
     "identityDescription": "Votre nom, votre adresse, votre pseudo et l'horloge sur laquelle vous êtes.",
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
+    "passwordsOffDescription": "La connexion par mot de passe est désactivée sur ce serveur : il n'y a donc aucun mot de passe à définir ou à changer ici.",
     "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo.",
     "setPasswordTitle": "Définir un mot de passe",
     "setPasswordDescription": "Votre compte se connecte sans mot de passe. Définissez-en un ici pour disposer d'un autre moyen d'accès.",

@@ -13,6 +13,13 @@ name, so a new tool is a new scope the moment it joins ``Tool``:
 Writing implies reading. :func:`expand` applies that once, so no later check
 has to ask twice.
 
+Two more name a **standing** rather than a resource: ``initiatives:moderate``
+(acting as a moderator in an initiative the app is placed in) and
+``guild:admin`` (acting with a guild admin's standing). A grant holds them by
+exact name, :func:`expand` gives them nothing, and no token carries one unless
+it asks for it by its level (:class:`InstallLevel`); see
+``app.services.marketplace.app_oauth``.
+
 Beside that fixed vocabulary sits one open family: ``apps:<public_id>``, which
 lets an app call another app's public endpoints through Initiative. It names
 no resource of the community's, so :func:`expand` gives it nothing; it is
@@ -71,14 +78,39 @@ def scope_name(resource: AppScopeResource, access: AppScopeAccess) -> str:
     return f"{resource.value}:{access.value}"
 
 
-#: Every scope an app can be granted, in a stable order.
-ALL_SCOPES: tuple[str, ...] = tuple(
+class InstallLevel(str, Enum):
+    """A standing an installation token may ask for, above what its scopes
+    alone give it."""
+
+    moderator = "moderator"
+    guild_admin = "guild_admin"
+
+
+#: The scope a community grants for each level.
+LEVEL_SCOPES: dict[InstallLevel, str] = {
+    InstallLevel.moderator: "initiatives:moderate",
+    InstallLevel.guild_admin: "guild:admin",
+}
+STANDING_SCOPES: frozenset[str] = frozenset(LEVEL_SCOPES.values())
+
+#: The resource scopes, in a stable order.
+_RESOURCE_SCOPES: tuple[str, ...] = tuple(
     scope_name(resource, access)
     for resource in AppScopeResource
     for access in AppScopeAccess
     if not (access is AppScopeAccess.write and resource in READ_ONLY_RESOURCES)
 )
+
+#: Every scope an app can be granted, in a stable order: the resource scopes,
+#: then the standings.
+ALL_SCOPES: tuple[str, ...] = _RESOURCE_SCOPES + tuple(LEVEL_SCOPES.values())
 _ALL_SCOPES = frozenset(ALL_SCOPES)
+_PARSEABLE = frozenset(_RESOURCE_SCOPES)
+
+
+def is_standing_scope(scope: str) -> bool:
+    """Whether ``scope`` names a standing (:data:`LEVEL_SCOPES`)."""
+    return scope in STANDING_SCOPES
 
 
 #: The prefix of the scope family that lets an app call another app.
@@ -135,9 +167,10 @@ class UnknownAppScope(ValueError):
 
 
 def parse_scope(scope: str) -> tuple[AppScopeResource, AppScopeAccess]:
-    """Split ``scope`` into its resource and access, or raise
-    :class:`UnknownAppScope`."""
-    if scope not in _ALL_SCOPES:
+    """Split a resource scope into its resource and access, or raise
+    :class:`UnknownAppScope`. A standing scope names no resource and is not
+    one."""
+    if scope not in _PARSEABLE:
         raise UnknownAppScope(scope)
     resource, _, access = scope.partition(":")
     return AppScopeResource(resource), AppScopeAccess(access)
@@ -159,12 +192,12 @@ def expand(
     """The resources ``scopes`` let an app read and write.
 
     Writing implies reading, so every written resource is in the read set too.
-    An ``apps:`` scope names no resource and adds nothing.
+    An ``apps:`` scope or a standing names no resource and adds nothing.
     """
     read: set[AppScopeResource] = set()
     write: set[AppScopeResource] = set()
     for scope in scopes:
-        if app_scope_target(scope) is not None:
+        if app_scope_target(scope) is not None or is_standing_scope(scope):
             continue
         resource, access = parse_scope(scope)
         read.add(resource)

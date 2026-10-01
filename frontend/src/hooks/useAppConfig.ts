@@ -105,5 +105,14 @@ export const useAppConfig = () => {
      *  reason — and false is the default here too: it is the one way in an
      *  operator turns on rather than one they inherit. */
     emailOtpLoginEnabled: query.data?.login_methods?.includes("email_otp") ?? false,
+    /** Whether signing in here ever asks for an authenticator code. It is
+     *  asked after a password or an emailed code, and only while the
+     *  authenticator app is permitted; a passkey or single sign-on never asks
+     *  for it. False until the config loads, so staff are not offered to clear
+     *  a code nothing is asking for. */
+    authenticatorAskedAtSignIn:
+      (query.data?.login_methods?.includes("totp") ?? false) &&
+      ((query.data?.login_methods?.includes("password") ?? false) ||
+        (query.data?.login_methods?.includes("email_otp") ?? false)),
   };
 };

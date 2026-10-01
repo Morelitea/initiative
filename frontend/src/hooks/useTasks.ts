@@ -16,6 +16,7 @@ import type {
   TaskReorderRequest,
   TaskStatusCategory,
   TaskStatusRead,
+  TaskUpdateScope,
 } from "@/api/generated/initiativeAPI.schemas";
 import { getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey } from "@/api/generated/smart-chips/smart-chips";
 import {
@@ -35,6 +36,7 @@ import {
   moveTaskApiV1CGuildIdTasksTaskIdMovePost,
   readTaskApiV1CGuildIdTasksTaskIdGet,
   reorderTasksApiV1CGuildIdTasksReorderPost,
+  skipTaskApiV1CGuildIdTasksTaskIdSkipPost,
   toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch,
   updateTaskApiV1CGuildIdTasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
@@ -45,6 +47,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
+import { withZone } from "@/lib/recurrence";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
 import type { MutationOpts } from "@/types/mutation";
@@ -166,7 +169,7 @@ export const useUpdateTask = (
   return useMutation({
     ...rest,
     mutationFn: async ({ taskId, data, params }: UpdateTaskVariables) => {
-      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, data, params);
+      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(data), params);
     },
     onMutate: ({ taskId, statusChange }) => {
       // Snapshot the task's previous status category so onSuccess can detect
@@ -293,7 +296,7 @@ export const useUpdateTaskInGuild = (
       taskId: number;
       data: Parameters<typeof updateTaskApiV1CGuildIdTasksTaskIdPatch>[2];
     }) => {
-      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, data);
+      return updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(data));
     },
     onMutate: ({ guildId, taskId }) => {
       const cached = findCachedTask(guildId, queryClient, taskId);
@@ -322,12 +325,27 @@ export const useUpdateTaskInGuild = (
   });
 };
 
-export const useDeleteTask = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+/** Which tasks of a repeating series a delete is for; `this` skips it. */
+type DeleteTaskVariables = { taskId: number; scope?: TaskUpdateScope };
+
+export const useDeleteTask = (options?: MutationOpts<void, DeleteTaskVariables>) =>
+  useGuildMutation<void, DeleteTaskVariables>(
     {
-      mutationFn: (guildId, taskId) => deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId),
+      mutationFn: (guildId, { taskId, scope }) =>
+        deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId, scope ? { scope } : undefined),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
+    },
+    options
+  );
+
+/** Move a repeating task on to its next occurrence without completing it. */
+export const useSkipTask = (options?: MutationOpts<TaskRead, number>) =>
+  useGuildMutation<TaskRead, number>(
+    {
+      mutationFn: (guildId, taskId) => skipTaskApiV1CGuildIdTasksTaskIdSkipPost(guildId, taskId),
+      invalidate: (_data, taskId) => invalidate(q.allTasks(), q.task(taskId)),
+      errorKey: "tasks:edit.skipError",
     },
     options
   );
@@ -359,7 +377,9 @@ export const useBulkUpdateTasks = (
     {
       mutationFn: (guildId, { taskIds, changes }) =>
         Promise.all(
-          taskIds.map((taskId) => updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, changes))
+          taskIds.map((taskId) =>
+            updateTaskApiV1CGuildIdTasksTaskIdPatch(guildId, taskId, withZone(changes))
+          )
         ),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkUpdateError",

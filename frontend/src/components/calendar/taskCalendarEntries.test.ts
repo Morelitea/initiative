@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildTag } from "@/__tests__/factories";
 import { buildTask, buildTaskAssignee } from "@/__tests__/factories/task.factory";
 
-import { buildTaskCalendarEntries } from "./taskCalendarEntries";
+import { buildTaskCalendarEntries, buildTaskOccurrenceEntries } from "./taskCalendarEntries";
 
 // Local-time ISO strings (no trailing "Z") so parseISO / isSameDay don't shift
 // the day across timezones in CI.
@@ -132,5 +132,18 @@ describe("buildTaskCalendarEntries", () => {
     expect(entry.color).toBe(COLOR);
     expect(entry.tags).toEqual([tag]);
     expect(entry.attendees).toEqual([{ name: "Alice", avatarUrl: null, userId: 42 }]);
+  });
+
+  it("keeps an occurrence apart from the task and still", () => {
+    const task = buildTask({ id: 15, start_date: undefined, due_date: "2026-01-15T17:00:00" });
+    const next = { ...task, due_date: "2026-01-22T17:00:00" };
+    const [current] = buildTaskCalendarEntries(task, COLOR);
+    const [occurrence] = buildTaskOccurrenceEntries(next, COLOR);
+    expect(occurrence.id).not.toBe(current.id);
+    expect(occurrence).toMatchObject({
+      startAt: "2026-01-22T17:00:00",
+      draggable: false,
+      meta: { taskId: 15 },
+    });
   });
 });

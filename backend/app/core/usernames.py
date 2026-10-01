@@ -271,6 +271,11 @@ def random_name() -> str:
     return f"{secrets.choice(_ADJECTIVES)}-{secrets.choice(_NOUNS)}"
 
 
+def random_nouns(count: int) -> list[str]:
+    """``count`` different words to add to a name part."""
+    return secrets.SystemRandom().sample(_NOUNS, count)
+
+
 def random_discriminator() -> int:
     """A number drawn at random rather than counted.
 

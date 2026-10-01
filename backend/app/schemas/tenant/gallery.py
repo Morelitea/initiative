@@ -9,6 +9,12 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertiesOnUpdate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase
 
@@ -22,7 +28,7 @@ class GalleryBase(SanitizedBaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
 
 
-class GalleryCreate(GalleryBase):
+class GalleryCreate(GalleryBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     tag_ids: Optional[List[int]] = None
@@ -87,7 +93,7 @@ class GalleryListResponse(PageMeta):
     items: List[GallerySummary]
 
 
-class GalleryImageUpdate(SanitizedBaseModel):
+class GalleryImageUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, max_length=255)
     caption: Optional[str] = Field(default=None, max_length=2000)
     tag_ids: Optional[List[int]] = None
@@ -137,6 +143,7 @@ class GalleryImageRead(SanitizedBaseModel):
     #: than one is what says "this went through rounds".
     version_count: int = 1
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
 
 
 class GalleryImageListResponse(PageMeta):
@@ -202,6 +209,7 @@ def serialize_gallery_image(
         updated_at=image.updated_at,
         version_count=int(getattr(image, "version_count", 1)),
         tags=annotated_tags(image),
+        properties=annotated_properties(image),
     )
 
 

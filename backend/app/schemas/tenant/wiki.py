@@ -11,6 +11,12 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.document import smart_link_url
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertiesOnUpdate,
+    PropertySummary,
+    annotated_properties,
+)
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
@@ -23,7 +29,7 @@ class WikiBase(SanitizedBaseModel):
     description: Optional[str] = Field(default=None, max_length=2000)
 
 
-class WikiCreate(WikiBase):
+class WikiCreate(WikiBase, PropertiesOnCreate):
     name: TitleStr = Field(..., min_length=1, max_length=255)
     initiative_id: int
     tag_ids: Optional[List[int]] = None
@@ -92,7 +98,7 @@ class WikiListResponse(PageMeta):
     items: List[WikiSummary]
 
 
-class WikiPageCreate(SanitizedBaseModel):
+class WikiPageCreate(PropertiesOnCreate):
     #: Optional, and usually absent: a page is made before it is about
     #: anything, so it starts with no name rather than one somebody has to
     #: delete before typing their own. Every surface that draws a page falls
@@ -109,7 +115,7 @@ class WikiPageCreate(SanitizedBaseModel):
     tag_ids: Optional[List[int]] = None
 
 
-class WikiPageUpdate(SanitizedBaseModel):
+class WikiPageUpdate(PropertiesOnUpdate):
     """A change to one page.
 
     Every field is optional and only what is sent is written, so renaming a
@@ -204,6 +210,7 @@ class WikiPageSummary(SanitizedBaseModel):
     #: opening it.
     headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     #: A document row's kind of document and the facts its icon is drawn
     #: from — a PDF, a spreadsheet and a link to a design tool each look like
     #: what they are. ``None`` on a page.
@@ -274,16 +281,20 @@ class WikiPageLinks(SanitizedBaseModel):
 
 
 def serialize_wiki_page_summary(
-    page: "Any", *, context: GuildContext
+    page: "Any", *, context: GuildContext, heading_nodes: Optional[list] = None
 ) -> WikiPageSummary:
+    """A page as a row. ``heading_nodes`` are its headings as the tree read
+    them (``wikis.heading_nodes``), in place of its body."""
     from app.services.tenant.wikis import page_headings
 
+    headings = page_headings(page.content if heading_nodes is None else heading_nodes)
     return from_row(
         WikiPageSummary,
         page,
         guild_id=context.guild_id,
-        headings=[WikiPageHeading(**h) for h in page_headings(page.content)],
+        headings=[WikiPageHeading(**h) for h in headings],
         tags=annotated_tags(page),
+        properties=annotated_properties(page),
     )
 
 
@@ -293,13 +304,14 @@ def serialize_document_as_page(
     context: GuildContext,
     wiki_id: int,
     position: int,
+    heading_nodes: list,
     parent_page_id: Optional[int] = None,
 ) -> WikiPageSummary:
     """A document, as the wiki's navigation draws it.
 
     Everything a row needs, read off the document itself — including its
-    headings, so a document in a wiki opens in the sidebar exactly as a page
-    written here does.
+    headings (``heading_nodes``, as the tree read them), so a document in a
+    wiki opens in the sidebar exactly as a page written here does.
     """
     from app.services.tenant.names import slugify
     from app.services.tenant.wikis import page_headings
@@ -317,7 +329,7 @@ def serialize_document_as_page(
         created_by=document.created_by,
         created_at=document.created_at,
         updated_at=document.updated_at,
-        headings=[WikiPageHeading(**h) for h in page_headings(document.content)],
+        headings=[WikiPageHeading(**h) for h in page_headings(heading_nodes)],
         document_type=getattr(document.document_type, "value", document.document_type),
         file_content_type=document.file_content_type,
         original_filename=document.original_filename,

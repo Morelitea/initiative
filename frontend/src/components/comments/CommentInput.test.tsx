@@ -7,7 +7,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
@@ -22,8 +22,6 @@ const Host = ({ initial = "" }: { initial?: string }) => {
 };
 
 const field = () => screen.getByRole("textbox") as HTMLTextAreaElement;
-
-afterEach(() => vi.restoreAllMocks());
 
 describe("the comment field", () => {
   it("cancels its blur timer when it goes away", async () => {

@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Annotated, Dict, List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
 from pydantic import (
     ConfigDict,
@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.platform.guild import NewCommunity
 from app.schemas.query import PageMeta
 
 from app.core.capabilities import Capability, standing_capabilities
@@ -81,13 +82,13 @@ class UserCreate(SanitizedBaseModel):
     # itself (first user = owner, everyone else = member) and the guild-admin
     # endpoint forces ``member``; standing platform roles change only via
     # ``/operator/users/{id}/platform-role`` (capability-gated, bounded
-    # delegation). See SEC-1.
+    # delegation).
     email: EmailStr
     # The name part of the handle. The number behind it is drawn server-side —
     # it is never anyone's to choose.
     username: str = Field(max_length=64)
     full_name: Optional[TitleStr] = None
-    # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
+    # ``max_length`` is a cheap bound so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
     # so all policy failures surface with a flat error code from
@@ -103,6 +104,14 @@ class UserCreate(SanitizedBaseModel):
     # server-side via ``app.services.captcha`` before the row is
     # written. Ignored when captcha isn't configured.
     captcha_token: Optional[str] = None
+    # The community this account is made with, when it is made to start one
+    # rather than to join one.
+    community: Optional[NewCommunity] = None
+    # The signed number the name check showed beside the handle, kept if
+    # still free.
+    username_offer: Optional[str] = Field(default=None, max_length=1024)
+    # Answers the directory's age question at sign-up; the date is not kept.
+    birthdate: Optional[date] = None
 
 
 def _avatar_out(value: Optional[str]) -> Optional[str]:
@@ -437,16 +446,6 @@ class OwnedDecoration(SanitizedBaseModel):
     image_url: Optional[str] = None
 
 
-class DecorationArtResponse(SanitizedBaseModel):
-    """Pictures for decorations whose art is carried by their pack rather than
-    shipped with the client, by decoration id. An id the client draws itself,
-    or one no pack on this deployment names, is absent."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    art: Dict[str, str] = {}
-
-
 class DecorationPack(SanitizedBaseModel):
     """One installable set of decorations, and whether this account has it.
 
@@ -517,6 +516,30 @@ class UserProfile(SanitizedBaseModel):
     presence: Presence = Presence.offline
     #: When the account was made.
     joined_at: datetime
+
+
+class GuildRosterMember(UserSummary):
+    """One person on a community's people roster.
+
+    ``UserSummary`` plus what a roster row draws beside the name: how they
+    appear right now and the line they wrote. Both are public, as they are on
+    the profile.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    presence: Presence = Presence.offline
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
+
+
+class GuildRosterResponse(PageMeta):
+    """A page of the roster, and how many people are in each presence group
+    across every page, so a group's heading can count people not yet loaded."""
+
+    items: List[GuildRosterMember]
+    presence_counts: dict[Presence, int]
 
 
 class UserEmailRead(SanitizedBaseModel):
@@ -651,6 +674,11 @@ class UserRead(UserBase):
     # hold both, and one that gave its password up holds neither. Populated by
     # the self endpoints; defaults False elsewhere.
     has_password: bool = False
+    # True when confirming a change asks this account for its password: it
+    # holds one and the deployment signs people in with passwords. Otherwise a
+    # recent sign-in answers. Populated by the self endpoints; defaults False
+    # elsewhere.
+    password_required: bool = False
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]
@@ -715,6 +743,10 @@ class OperatorUserRead(UserRead):
     #: and code sign-in off; it turns back on by itself at that time.
     sign_in_locked_until: Optional[datetime] = None
 
+    #: Whether the account holds an authenticator it has proved — what the
+    #: roster offers to clear when its holder has lost it.
+    second_factor_enrolled: bool = False
+
     @field_validator("email", mode="after")
     @classmethod
     def _mask_email(cls, value: str) -> str:
@@ -736,6 +768,8 @@ class UsernameClaim(SanitizedBaseModel):
     """
 
     username: str = Field(max_length=64)
+    #: The signed number the name check showed, kept if still free.
+    offer: Optional[str] = Field(default=None, max_length=1024)
 
 
 class AgeConfirmation(SanitizedBaseModel):

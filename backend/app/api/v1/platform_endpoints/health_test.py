@@ -20,6 +20,12 @@ def request_engine_on_the_test_database(engine, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(db_session, "engine", engine)
 
 
+@pytest.fixture(autouse=True)
+def no_held_readiness_answer(monkeypatch: pytest.MonkeyPatch):
+    """Each test swaps the checks, so none may be answered from the last."""
+    monkeypatch.setattr(health, "_ready_run", None)
+
+
 async def test_healthz_answers_without_touching_anything(client: AsyncClient):
     """Liveness is about this process only, so it answers the same whether or
     not its dependencies are reachable."""
@@ -105,6 +111,53 @@ async def test_readyz_reports_a_hung_dependency_rather_than_hanging(
     resp = await client.get("/api/v1/readyz")
     assert resp.status_code == 200, resp.text
     assert resp.json()["checks"]["storage"] == "error"
+
+
+async def test_readyz_checks_once_per_window_however_often_it_is_called(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    """Callers share one run of the checks while it is running, even past the
+    window, and reuse its answer until the window since it started has
+    passed."""
+    import asyncio
+    from types import SimpleNamespace
+
+    clock = 0.0
+    monkeypatch.setattr(health, "time", SimpleNamespace(monotonic=lambda: clock))
+    runs = 0
+    release = asyncio.Event()
+
+    async def counted() -> None:
+        nonlocal runs
+        runs += 1
+        await release.wait()
+
+    for name in health.CHECKS:
+        monkeypatch.setitem(health.CHECKS, name, lambda: asyncio.sleep(0))
+    monkeypatch.setitem(health.CHECKS, "database", counted)
+
+    async def readyz() -> int:
+        return (await client.get("/api/v1/readyz")).status_code
+
+    waiting = [asyncio.create_task(readyz()) for _ in range(3)]
+    while runs == 0:
+        await asyncio.sleep(0)
+    clock = health.READY_CACHE_SECONDS + 1
+    waiting.append(asyncio.create_task(readyz()))
+    await asyncio.sleep(0.01)
+    release.set()
+    assert await asyncio.gather(*waiting) == [200] * 4
+    assert runs == 1
+
+    # The finished run started at 0, so its answer has expired.
+    assert await readyz() == 200
+    assert runs == 2
+    clock += health.READY_CACHE_SECONDS - 0.1
+    assert await readyz() == 200
+    assert runs == 2
+    clock += 0.1
+    assert await readyz() == 200
+    assert runs == 3
 
 
 @pytest.mark.parametrize("path", ["/api/v1/healthz", "/api/v1/readyz"])

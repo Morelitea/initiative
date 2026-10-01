@@ -8,13 +8,19 @@ import type { GuildEntry } from "@/hooks/useGuilds";
 
 const state = vi.hoisted(() => ({
   billing: null as { url: string } | null,
+  // The phone app, where nothing may be sold.
+  native: false,
   support: { available: false } as { available: boolean } | undefined,
 }));
 const askMock = vi.hoisted(() => vi.fn());
 const openPortalMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useBillingPortal", () => ({
-  useBillingPortal: () => ({ billing: state.billing, openPortal: openPortalMock }),
+  useBillingPortal: () => ({
+    billing: state.billing,
+    canSell: state.billing != null && !state.native,
+    openPortal: openPortalMock,
+  }),
 }));
 vi.mock("@/hooks/useSupport", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useSupport")>("@/hooks/useSupport");
@@ -57,6 +63,7 @@ describe("guildStatusNoticeApplies", () => {
 describe("GuildStatusNotice", () => {
   beforeEach(() => {
     window.sessionStorage.clear();
+    state.native = false;
     state.billing = null;
     state.support = { available: false };
     askMock.mockReset();
@@ -78,6 +85,18 @@ describe("GuildStatusNotice", () => {
     expect(screen.queryByText("Something is wrong")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Update payment method" }));
     expect(openPortalMock).toHaveBeenCalledWith(7, "manage");
+  });
+
+  it("says the payment was declined in the app without offering to fix it there", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    state.native = true;
+    askMock.mockResolvedValue({ payment_failed: true });
+    renderWithProviders(<GuildStatusNotice guild={seatGuild()} />);
+    expect(await screen.findByText("The payment for Acme was declined")).toBeInTheDocument();
+    expect(screen.getByText("Payment details can't be changed in the app.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Update payment method" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "OK" }));
+    expect(openPortalMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the default notice when the payment is not the problem", async () => {

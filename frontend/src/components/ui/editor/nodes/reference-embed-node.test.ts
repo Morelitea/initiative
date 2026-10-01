@@ -6,6 +6,7 @@ import {
   $createTextNode,
   $getRoot,
   defineExtension,
+  type ElementNode,
   type LexicalEditor,
 } from "lexical";
 import { describe, expect, it } from "vitest";
@@ -100,7 +101,7 @@ describe("switching between a link and an embed", () => {
     editor.getEditorState().read(() => {
       const line = $getRoot().getChildAtIndex(1);
       expect(line?.getType()).toBe("paragraph");
-      const link = $getRoot().getChildAtIndex(1)?.getFirstChild?.();
+      const link = $getRoot().getChildAtIndex<ElementNode>(1)?.getFirstChild?.();
       expect($isEntityMentionNode(link) && link.getEntityId()).toBe(12);
     });
   });

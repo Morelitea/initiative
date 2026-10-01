@@ -20,7 +20,6 @@ import type {
   TaskPriority,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Markdown } from "@/components/Markdown";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import type { KanbanCardFields } from "@/components/projects/kanbanFields";
 import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
@@ -35,7 +34,7 @@ import { Icon } from "@/components/ui/icon-picker";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
-import { summarizeRecurrence } from "@/lib/recurrence";
+import { summarizeStored } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import type { TranslateFn } from "@/types/i18n";
@@ -310,12 +309,10 @@ const KanbanCardContent = memo(
     const { shows, showsProperty } = visibleFields;
 
     const recurrenceSummary = task.recurrence
-      ? summarizeRecurrence(
+      ? summarizeStored(
           task.recurrence,
-          {
-            referenceDate: task.start_date || task.due_date,
-            strategy: task.recurrence_strategy,
-          },
+          task.due_date || task.start_date,
+          { strategy: task.recurrence_strategy, shift: task.recurrence_shift },
           t as TranslateFn
         )
       : null;
@@ -345,14 +342,11 @@ const KanbanCardContent = memo(
             {task.title}
             {unreadDot}
           </Link>
-          {shows("description") && task.description ? (
-            <Markdown
-              content={task.description}
-              // Two lines of words, not a picture that fills the card.
-              className="line-clamp-2 w-full min-w-0 [&_img]:hidden"
-              mentions
-              zoomImages={false}
-            />
+          {shows("description") && task.description_excerpt ? (
+            // Two lines of words, not a picture that fills the card.
+            <p className="wrap-break-word line-clamp-2 w-full min-w-0 text-muted-foreground text-sm">
+              {task.description_excerpt}
+            </p>
           ) : null}
           <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">
             {shows("assignees") && task.assignees.length > 0 ? (

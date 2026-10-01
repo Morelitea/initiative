@@ -18,6 +18,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DashboardRead, PublishTarget } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -29,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { useSetPublishedView } from "@/hooks/useDashboards";
 import { useProjects } from "@/hooks/useProjects";
+import { toolViewParams } from "@/lib/tools";
 
 export interface PublishedViewCardProps {
   dashboard: DashboardRead;
@@ -44,6 +46,7 @@ export function PublishedViewCard({ dashboard }: PublishedViewCardProps) {
   const projects = useProjects({
     initiative_id: dashboard.initiative_id,
     slim: true,
+    ...toolViewParams(Tool.project, "active"),
   });
   const [adding, setAdding] = useState<string>("");
 

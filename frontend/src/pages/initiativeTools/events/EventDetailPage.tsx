@@ -1,5 +1,5 @@
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
-import { CalendarDays, MapPin, Settings, Trash2, Users } from "lucide-react";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { CalendarDays, MapPin, Repeat, Settings, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +7,10 @@ import { type RSVPStatus, SearchEntityType, Tool } from "@/api/generated/initiat
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
+import {
+  type OccurrenceScope,
+  useScopePrompt,
+} from "@/components/recurrence/OccurrenceScopeDialog";
 import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
@@ -25,15 +29,18 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,
+  useOccurrenceAction,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { summarizeStored } from "@/lib/recurrence";
 import { hour12Option } from "@/lib/timeFormat";
-import { eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
+import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
+import type { TranslateFn } from "@/types/i18n";
 
 const RSVP_LABEL_KEYS: Record<
   string,
@@ -55,11 +62,13 @@ const formatDateTime = (dateStr: string, allDay: boolean): string => {
   const date = new Date(dateStr);
 
   if (allDay) {
+    // An all-day event's date is its UTC date, the same for every viewer.
     return date.toLocaleDateString(undefined, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "UTC",
     });
   }
 
@@ -133,18 +142,24 @@ const rsvpBadgeVariant = (
 };
 
 export function EventDetailPage() {
-  const { t } = useTranslation(["calendars", "common"]);
+  const { t } = useTranslation(["calendars", "common", "dates"]);
   const { eventId, calendarId: calendarIdParam } = useParams({ strict: false }) as {
     eventId: string;
     calendarId?: string;
   };
+  // Opened from a calendar, a repeating event names the occurrence it was.
+  const { occurrence } = useSearch({ strict: false }) as { occurrence?: string };
   const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
   const parsedId = Number(eventId);
   const navigate = useNavigate();
   const gp = useGuildPath();
   const { user } = useAuth();
 
-  const eventQuery = useCalendarEvent(Number.isFinite(parsedId) ? parsedId : null);
+  const eventQuery = useCalendarEvent(
+    Number.isFinite(parsedId) ? parsedId : null,
+    undefined,
+    occurrence
+  );
   const event = eventQuery.data;
   useReadOnOpen("calendar_event", event?.id);
   // The path supplies the initiative while this loads; the entity is the
@@ -170,6 +185,22 @@ export function EventDetailPage() {
   const updateRSVP = useUpdateEventRSVP(parsedId, {
     onSuccess: () => {
       toast.success(t("rsvpUpdated"));
+    },
+  });
+
+  // A repeating event's occurrence, or one with a row of its own: a change
+  // asks which occurrences it is for.
+  const scopePrompt = useScopePrompt();
+  const seriesId = event?.series_id ?? parsedId;
+  const toEvent = (id: number) =>
+    void navigate({ to: gp(eventRoute(initiativeId, event?.calendar_id ?? 0, id)) });
+  const openAlone = useOccurrenceAction(seriesId, "open", {
+    onSuccess: (opened) => toEvent(opened.id),
+  });
+  const detach = useOccurrenceAction(seriesId, "detach", {
+    onSuccess: (detached) => {
+      toast.success(t("occurrence.detached"));
+      toEvent(detached.id);
     },
   });
 
@@ -209,6 +240,36 @@ export function EventDetailPage() {
     );
   }
 
+  // The occurrence is the series at that start, with the series' length.
+  const shownStart =
+    event.recurrence && occurrence && !Number.isNaN(Date.parse(occurrence))
+      ? occurrence
+      : event.start_at;
+  const repeating = Boolean(event.recurrence) || event.series_id != null;
+  // The occurrence a change here is about, by its start in the series.
+  const occurrenceStart = event.original_start ?? shownStart;
+  const scoped = (scope: OccurrenceScope) =>
+    event.series_id != null ? { scope } : { scope, occurrence: occurrenceStart };
+
+  const handleDelete = async () => {
+    if (!repeating) {
+      setDeleteConfirmOpen(true);
+      return;
+    }
+    const scope = await scopePrompt.ask("delete");
+    if (scope) deleteEvent.mutate({ eventId: parsedId, ...scoped(scope) });
+  };
+
+  // An answer is for one event: a series' is for the occurrence shown.
+  const handleAnswer = (status: RSVPStatus) =>
+    updateRSVP.mutate({
+      rsvp_status: status,
+      ...(event.recurrence ? { occurrence: occurrenceStart } : {}),
+    });
+  const shownEnd = new Date(
+    Date.parse(shownStart) + Date.parse(event.end_at) - Date.parse(event.start_at)
+  ).toISOString();
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb header */}
@@ -223,8 +284,21 @@ export function EventDetailPage() {
           {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
           {canWrite && (
             <>
+              {repeating && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => detach.mutate(occurrenceStart)}
+                  disabled={detach.isPending}
+                >
+                  {t("occurrence.detach")}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" asChild>
-                <Link to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}>
+                <Link
+                  to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}
+                  search={event.recurrence && occurrence ? { occurrence } : {}}
+                >
                   <Settings className="h-4 w-4" />
                 </Link>
               </Button>
@@ -232,7 +306,7 @@ export function EventDetailPage() {
                 variant="ghost"
                 size="sm"
                 className="text-destructive hover:text-destructive"
-                onClick={() => setDeleteConfirmOpen(true)}
+                onClick={() => void handleDelete()}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -253,11 +327,50 @@ export function EventDetailPage() {
           <div className="flex items-start gap-3">
             <CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
             <div>
-              <p className="font-medium">
-                {formatDateRange(event.start_at, event.end_at, event.all_day)}
-              </p>
+              <p className="font-medium">{formatDateRange(shownStart, shownEnd, event.all_day)}</p>
             </div>
           </div>
+
+          {event.recurrence && (
+            <div className="flex items-start gap-3">
+              <Repeat className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+              <div className="space-y-1 text-sm">
+                <p>
+                  {summarizeStored(
+                    event.recurrence,
+                    event.start_at,
+                    { shift: event.recurrence_shift, allDay: event.all_day },
+                    t as TranslateFn
+                  )}
+                </p>
+                {canWrite && occurrence && (
+                  <Button
+                    variant="link"
+                    className="h-auto p-0"
+                    onClick={() => openAlone.mutate(occurrenceStart)}
+                    disabled={openAlone.isPending}
+                  >
+                    {t("occurrence.openAlone")}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {event.series_id != null && (
+            <div className="flex items-start gap-3">
+              <Repeat className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+              <div className="space-y-1 text-sm">
+                <p>{t("occurrence.partOfSeries")}</p>
+                <Link
+                  className="text-primary underline-offset-4 hover:underline"
+                  to={gp(eventRoute(initiativeId, event.calendar_id, event.series_id))}
+                >
+                  {t("occurrence.openSeries")}
+                </Link>
+              </div>
+            </div>
+          )}
 
           {event.location && (
             <div className="flex items-start gap-3">
@@ -284,7 +397,7 @@ export function EventDetailPage() {
               )}
               <Select
                 value={myRsvpStatus ?? "pending"}
-                onValueChange={(value) => updateRSVP.mutate({ rsvp_status: value as RSVPStatus })}
+                onValueChange={(value) => handleAnswer(value as RSVPStatus)}
                 disabled={updateRSVP.isPending}
               >
                 <SelectTrigger className="w-[140px]">
@@ -370,14 +483,14 @@ export function EventDetailPage() {
       />
 
       {/* Custom Properties — read-only view; edits happen on the Settings page. */}
-      {event.property_values.length > 0 && (
+      {event.properties.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">{t("properties")}</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {event.property_values.map((property) => {
+              {event.properties.map((property) => {
                 const Icon = iconForPropertyType(property.type);
                 return (
                   <li
@@ -405,10 +518,11 @@ export function EventDetailPage() {
         description={t("deleteEventConfirm")}
         confirmLabel={t("deleteEvent")}
         cancelLabel={t("common:cancel")}
-        onConfirm={() => deleteEvent.mutate(parsedId)}
+        onConfirm={() => deleteEvent.mutate({ eventId: parsedId })}
         isLoading={deleteEvent.isPending}
         destructive
       />
+      {scopePrompt.dialog}
     </div>
   );
 }

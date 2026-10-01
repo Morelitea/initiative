@@ -22,7 +22,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeListRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
   listInitiativesApiV1CGuildIdInitiativesGet,
@@ -105,7 +105,7 @@ export function MyToolsPage() {
     // `combine` rather than a `useMemo` over the results: the results array is
     // a fresh identity every render, so a memo keyed on it would never hit and
     // the table's columns would rebuild under it each time.
-    combine: (results): InitiativeListRead[] => results.flatMap((result) => result.data ?? []),
+    combine: (results): InitiativeRead[] => results.flatMap((result) => result.data ?? []),
   });
 
   const emptyDescription = createdByMe ? t("empty.descriptionMine") : t("empty.description");

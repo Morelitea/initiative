@@ -33,6 +33,7 @@ from app.services.import_engine.mapping import (
     build_envelope,
     dedupe_names,
     iso_from_timestamp,
+    repeat_fields,
     statuses_from_names,
 )
 
@@ -157,7 +158,7 @@ def build_project_envelope(
             ],
             "assignee_handles": [],
             "checklist": [],
-            "property_values": [],
+            "properties": [],
             "links": [],
             "comments": [],
         }
@@ -170,6 +171,16 @@ def build_project_envelope(
             stamp = iso_from_timestamp(_cell(row, column_name))
             if stamp:
                 task[field] = stamp
+        # The Repeat column is an RRULE, picked in the task's own zone. A
+        # finished task holds no repeat here; the series goes on in its next.
+        if not done:
+            task.update(
+                repeat_fields(
+                    _cell(row, "Repeat"),
+                    task.get("due_date"),
+                    _cell(row, "Timezone") or None,
+                )
+            )
         task_id = _cell(row, "taskId")
         if task_id:
             task["external_ref"] = f"ticktick:{task_id}"

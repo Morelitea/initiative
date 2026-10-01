@@ -18,7 +18,12 @@ import {
   setAuthToken,
   setHasActiveSession,
 } from "@/api/client";
-import type { PasskeySignInResult, Token, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  NewCommunity,
+  PasskeySignInResult,
+  Token,
+  UserRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -72,6 +77,11 @@ interface StepUpPayload {
   recoveryCode?: string;
 }
 
+interface EmailCodeStepUpPayload {
+  challenge: string;
+  code: string;
+}
+
 interface RegisterPayload {
   email: string;
   password: string;
@@ -88,6 +98,12 @@ interface RegisterPayload {
    *  ``GET /api/v1/config``). Backend validates server-side; missing
    *  when the deployment has no captcha. */
   captcha_token?: string;
+  /** The community the new account makes and owns. Omitted, it makes none. */
+  community?: NewCommunity;
+  /** ISO date, answering the age question at sign-up. */
+  birthdate?: string;
+  /** The signed number the name check showed beside the handle. */
+  username_offer?: string;
 }
 
 interface AuthContextValue {
@@ -98,8 +114,7 @@ interface AuthContextValue {
   /**
    * True when the signed-in user came from a stored snapshot the server has not
    * confirmed — the app opened with no signal. Cleared as soon as any request
-   * succeeds; a rejected one ends the session. See
-   * `history/offline-reading-design.md`.
+   * succeeds; a rejected one ends the session.
    */
   sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;
@@ -108,6 +123,7 @@ interface AuthContextValue {
   applyEmailOtpSignIn: (token: Token) => Promise<void>;
   stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
   stepUpWithPasskey: () => Promise<void>;
+  stepUpWithEmailCode: (payload: EmailCodeStepUpPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<UserRead>;
   /** Finish a sign-in that ended outside this page: a browser's, whose cookie
    *  the server set, or the app's, with what its callback redeemed. */
@@ -617,18 +633,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await adoptSteppedUpSession(await presentPasskeyForStepUp());
   };
 
-  const register = async ({
-    email,
-    password,
-    username,
-    full_name,
-    inviteCode,
-    timezone,
-    captcha_token,
-  }: RegisterPayload) => {
+  /**
+   * The same move, answered with a code sent to one of the account's proved
+   * addresses. `challenge` is the handle the send route handed back.
+   */
+  const stepUpWithEmailCode = async ({ challenge, code }: EmailCodeStepUpPayload) => {
+    const response = await apiClient.post<Token>("/auth/step-up/email-otp/verify", {
+      challenge,
+      code,
+    });
+    await adoptSteppedUpSession(response.data);
+  };
+
+  const register = async ({ inviteCode, ...body }: RegisterPayload) => {
     const response = await apiClient.post<UserRead>(
       "/auth/register",
-      { email, password, username, full_name, timezone, captcha_token },
+      body,
       inviteCode
         ? {
             params: { invite_code: inviteCode },
@@ -778,6 +798,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     applyEmailOtpSignIn,
     stepUpWithFactor,
     stepUpWithPasskey,
+    stepUpWithEmailCode,
     register,
     completeOidcLogin,
     logout,

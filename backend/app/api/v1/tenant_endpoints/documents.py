@@ -26,7 +26,6 @@ from app.core.relationships import Related, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.project import Project
 from app.services.permissions import Action
-from app.services.tenant import archive as archive_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships
 from app.services.tenant.relationships import Endpoint
@@ -63,9 +62,7 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.schemas.tenant.document import (
     DocumentCopyRequest,
-    DocumentCountsResponse,
     DocumentCreate,
-    DocumentDuplicateRequest,
     DocumentFileVersionRead,
     DocumentRead,
     DocumentSummary,
@@ -78,7 +75,6 @@ from app.schemas.tenant.document import (
 )
 from app.schemas.tenant.resource_grant import initiative_readable
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
-from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.services.tenant import attachments as attachments_service
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
@@ -86,12 +82,12 @@ from app.api import resource_access
 from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import ownership as ownership_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.names import ensure_name_free
 from app.services.tenant import tool_listing
 from app.services import notifications as notifications_service
 from app.services import reachability
-from app.services.tenant import properties as properties_service
 from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.ai_settings import resolve_ai_settings
@@ -150,7 +146,7 @@ def _file_download_response(
     """Build a hardened download response for a stored upload blob.
 
     Shared by the current-document download and the per-version download so
-    the path-traversal guard and SVG/HTML stored-XSS hardening can't drift
+    the filename checks and SVG/HTML response hardening can't drift
     between the two endpoints. Serves through the guild's storage backend
     (local FileResponse or S3 streaming proxy) via :func:`build_upload_response`.
     """
@@ -254,6 +250,7 @@ async def serialize_document_page(
     ``me_tools.MY_TOOL_LISTS``.
     """
     await tags_service.annotate_tags(session, documents)
+    await properties_service.annotate_properties(session, documents)
     await documents_service.annotate_comment_counts(session, documents)
     await ownership_service.annotate_owner_apps(session, documents)
     attached = await attached_projects(session, documents)
@@ -267,74 +264,6 @@ async def serialize_document_page(
         )
         for document in documents
     ]
-
-
-@router.get("/counts", response_model=DocumentCountsResponse)
-async def get_document_counts(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(default=None),
-    is_template: Optional[bool] = Query(
-        default=None, description="Filter to template (or non-template) documents"
-    ),
-    document_type: Optional[DocumentType] = Query(
-        default=None, description="Filter by document type"
-    ),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
-) -> DocumentCountsResponse:
-    """Get per-tag document counts for visible documents.
-
-    Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
-    because counts should reflect all tags. The remaining filters mirror the
-    list endpoint so the sidebar counts match the list beside it.
-    """
-    if initiative_id is not None:
-        await get_initiative_or_404(session, initiative_id=initiative_id)
-
-    conditions = visible_document_conditions(
-        guild_context,
-        current_user.id,
-        initiative_id=initiative_id,
-        search=search,
-        is_template=is_template,
-        document_type=document_type,
-    )
-    conditions.append(archive_service.archive_filter_clause(Document, archived))
-
-    # Subquery: IDs of visible documents
-    visible_docs_subq = select(Document.id).where(*conditions).subquery()
-
-    # Total count
-    total_stmt = select(func.count()).select_from(visible_docs_subq)
-    total_count = (await session.exec(total_stmt)).one()
-
-    # Per-tag counts. Guild scoping needs no clause of its own — a tag of
-    # another guild lives in another schema, which this query cannot reach.
-    spec = tags_service.TOOL_TAG_LINKS[Tool.document]
-    tag_rows = (
-        await session.exec(
-            tags_service.tag_counts_for(spec, select(visible_docs_subq.c.id))
-        )
-    ).all()
-    tag_counts = {tag_id: count for tag_id, count in tag_rows}
-
-    # Untagged count
-    untagged_stmt = (
-        select(func.count())
-        .select_from(visible_docs_subq)
-        .where(tags_service.untagged_clause(spec, visible_docs_subq.c.id))
-    )
-    untagged_count = (await session.exec(untagged_stmt)).one()
-
-    return DocumentCountsResponse(
-        total_count=total_count,
-        untagged_count=untagged_count,
-        tag_counts=tag_counts,
-    )
 
 
 @router.post("/", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
@@ -405,6 +334,7 @@ async def create_document(
     )
     await attachments_service.claim_uploads(session, document)
 
+    await properties_service.write_on_create(session, document, document_in.properties)
     await session.commit()
     return await read_after_write(session, document.id, current_user, guild_context)
 
@@ -443,7 +373,7 @@ async def upload_document_file(
     )
 
     # Read the body with a hard cap so an over-limit upload is rejected before
-    # the whole payload is buffered into memory (memory-exhaustion DoS guard).
+    # the whole payload is buffered into memory.
     try:
         contents = await attachments_service.read_upload_bounded(
             file, attachments_service.MAX_DOCUMENT_FILE_SIZE
@@ -571,7 +501,7 @@ async def upload_document_version(
     await storage_config.ensure_storage_config_fresh(session)
 
     # Read the body with a hard cap so an over-limit upload is rejected before
-    # the whole payload is buffered into memory (memory-exhaustion DoS guard).
+    # the whole payload is buffered into memory.
     try:
         contents = await attachments_service.read_upload_bounded(
             file, attachments_service.MAX_DOCUMENT_FILE_SIZE
@@ -996,42 +926,23 @@ async def _duplicate_into(
 
 
 @router.post(
-    "/{document_id}/duplicate",
-    response_model=DocumentRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def duplicate_document(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    payload: DocumentDuplicateRequest | None = Body(default=None),
-) -> DocumentRead:
-    document = await resource_access.load_authorized(
-        session, Tool.document, document_id, current_user, guild_context, access="write"
-    )
-    return await _duplicate_into(
-        session,
-        document,
-        initiative_id=document.initiative_id,
-        name=(payload.name if payload else None) or f"{document.name} (Copy)",
-        user=current_user,
-        guild_context=guild_context,
-    )
-
-
-@router.post(
     "/{document_id}/copy",
     response_model=DocumentRead,
     status_code=status.HTTP_201_CREATED,
 )
 async def copy_document(
     document_id: int,
-    payload: DocumentCopyRequest,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    payload: DocumentCopyRequest | None = Body(default=None),
 ) -> DocumentRead:
+    """Copy a document into an initiative — its own, unless another is named.
+
+    A copy beside its original is named "<name> (Copy)" unless the body names
+    it; one in another initiative keeps the original's name.
+    """
+    payload = payload or DocumentCopyRequest()
     document = await resource_access.load_authorized(
         session, Tool.document, document_id, current_user, guild_context
     )
@@ -1046,11 +957,17 @@ async def copy_document(
             access="write",
             context=guild_context,
         )
+    initiative_id = payload.target_initiative_id or document.initiative_id
     return await _duplicate_into(
         session,
         document,
-        initiative_id=payload.target_initiative_id,
-        name=payload.name or document.name,
+        initiative_id=initiative_id,
+        name=payload.name
+        or (
+            f"{document.name} (Copy)"
+            if initiative_id == document.initiative_id
+            else document.name
+        ),
         user=current_user,
         guild_context=guild_context,
     )
@@ -1148,44 +1065,6 @@ async def generate_summary(
         return GenerateDocumentSummaryResponse(summary=summary)
     except AIGenerationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.code)
-
-
-@router.put("/{document_id}/properties", response_model=DocumentRead)
-async def set_document_properties(
-    document_id: int,
-    payload: PropertyValuesSetRequest,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: DocumentsWrite,
-) -> DocumentRead:
-    """Replace the custom property values on a document.
-
-    Requires document write access. Values are validated server-side against
-    each property definition's type and options. An installed app names the
-    person a person-valued property holds by its reference for them.
-    """
-    document = await resource_access.load_authorized(
-        session, Tool.document, document_id, current_user, guild_context, access="write"
-    )
-
-    try:
-        await properties_service.set_document_property_values(
-            session,
-            document,
-            await properties_service.property_values_by_row_id(session, payload.values),
-            document.initiative_id,
-        )
-    except HTTPException:
-        await session.rollback()
-        raise
-
-    document.updated_at = datetime.now(timezone.utc)
-    await session.commit()
-    # A document already in the session keeps the property values it was
-    # read with unless the re-read refreshes it.
-    return await read_after_write(
-        session, document_id, current_user, guild_context, populate_existing=True
-    )
 
 
 async def read_after_write(

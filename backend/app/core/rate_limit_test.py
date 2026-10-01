@@ -1,4 +1,4 @@
-"""Tests for the shared rate limiter configuration (SEC-14).
+"""Tests for the shared rate limiter configuration.
 
 These assert *configuration* rather than throttling behaviour: the suite sets
 ``limiter.enabled = False`` (see ``conftest.py``), so a burst test would be
@@ -78,7 +78,7 @@ class TestLimiterConfiguration:
 
 class TestMiddlewareRegistration:
     """SlowAPIMiddleware must be in the app's middleware stack, otherwise the
-    limiter's default_limits never apply to undecorated routes (SEC-14)."""
+    limiter's default_limits never apply to undecorated routes."""
 
     def test_slowapi_middleware_registered(self):
         registered = {m.cls for m in app.user_middleware}
@@ -137,7 +137,7 @@ class TestRouteResolution:
 
 class TestDefaultLimitThrottlesUndecoratedRoute:
     """The global default applied via the middleware actually throttles a route
-    that has no ``@limiter.limit`` decorator (SEC-14 acceptance).
+    that has no ``@limiter.limit`` decorator.
 
     Built on a throwaway app + a fresh Limiter (its own in-memory storage), so
     it shares no state with the suite-wide limiter and can't flake against other

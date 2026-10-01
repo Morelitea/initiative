@@ -2,8 +2,7 @@
 
 The bytes live in ``public.user_avatars`` and are addressed by their own
 digest, so a profile payload carries a URL rather than the image and the
-browser fetches each picture exactly once. See
-``history/user-avatars-design.md``.
+browser fetches each picture exactly once.
 
 Validation is header-only — format and dimensions are read out of the first
 bytes and the body is capped before it is buffered — so nothing here decodes an

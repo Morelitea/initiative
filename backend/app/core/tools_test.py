@@ -12,7 +12,11 @@ The plain ``set(registry) == set(enum)`` rows live together in
 ``app/core/registry_coverage_test.py``, one row per registry.
 """
 
+import pytest
+
 from app.core.tools import Tool
+
+pytestmark = pytest.mark.always
 
 
 def test_trash_listing_covers_every_soft_delete_model():
@@ -280,9 +284,10 @@ def test_a_tag_assignment_is_an_edge_like_any_other():
 
 def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     # ONE generic route serves every tool — its {tool} path param is the Tool
-    # enum itself, so a new member is covered with no new endpoint. Only the
-    # two content-level extras keep hand-written set-tags routes; the exact
-    # equality means a re-added per-tool copy fails here.
+    # enum itself, so a new member is covered with no new endpoint. The
+    # content-level extras (tasks, events, queue items) take ``tag_ids`` on
+    # their own PATCH; the exact equality means a re-added set-tags route
+    # fails here.
     from app.main import app
 
     spec = app.openapi()
@@ -292,12 +297,7 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
         if "put" in item and path.endswith("/tags")
     }
     generic = "/api/v1/c/{guild_id}/tools/{tool}/{tool_id}/tags"
-    extras = {
-        "/api/v1/c/{guild_id}/tasks/{task_id}/tags",
-        "/api/v1/c/{guild_id}/queues/{queue_id}/items/{item_id}/tags",
-        "/api/v1/c/{guild_id}/calendar-events/{event_id}/tags",
-    }
-    assert put_tag_paths == {generic} | extras
+    assert put_tag_paths == {generic}
 
     tool_param = next(
         p for p in spec["paths"][generic]["put"]["parameters"] if p["name"] == "tool"
@@ -308,42 +308,13 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
     assert set(enum_values) == {t.value for t in Tool}
 
 
-def test_every_tool_mounts_the_recent_view_route():
-    # Opening a tab is one route, mounted from the resource-access registry for
-    # every tool (tenant_endpoints/tool_views.py); closing one is
-    # tenant_endpoints/recents.py. The exact equality means a tool that loses
-    # its route — or a hand-written copy added back somewhere else — fails here.
-    # The operation ids are asserted too: they are the generated frontend
-    # client's function names.
-    from app.api.resource_access import RESOURCE_ACCESS
-    from app.main import app
-
-    spec = app.openapi()
-    mounted = {path for path in spec["paths"] if path.endswith("/view")}
-    expected = {
-        f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
-        f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
-        for tool in Tool
-    }
-    assert mounted == expected
-
-    for tool in Tool:
-        path = (
-            f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
-            f"/{{{RESOURCE_ACCESS[tool].path_param}}}/view"
-        )
-        item = spec["paths"][path]
-        assert set(item) == {"post"}, tool
-        assert item["post"]["operationId"].startswith(f"record_{tool.value}_view")
-
-
-def test_every_tool_mounts_both_list_routes():
-    # A tool's guild-wide list and the sidebar counts beside it are one pair of
-    # routes, mounted from TOOL_LISTS for every tool
-    # (tenant_endpoints/tool_lists.py). The operation-id stems are asserted
-    # too: they are the generated frontend client's function names, so a tool
-    # that loses a half — or gains a hand-written copy somewhere else — fails
-    # here rather than silently changing the client.
+def test_every_tool_mounts_its_list_route():
+    # A tool's guild-wide list is mounted from TOOL_LISTS for every tool
+    # (tenant_endpoints/tool_lists.py), which also feeds the one sidebar-counts
+    # route. The operation-id stem is asserted too: it is the generated
+    # frontend client's function name, so a tool that loses its list — or
+    # gains a hand-written copy somewhere else — fails here rather than
+    # silently changing the client.
     from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
     from app.main import app
 
@@ -353,13 +324,7 @@ def test_every_tool_mounts_both_list_routes():
     for tool in Tool:
         segment = tool.route_segment
         listing = spec["paths"][f"/api/v1/c/{{guild_id}}/{segment}/"]["get"]
-        counts = spec["paths"][
-            f"/api/v1/c/{{guild_id}}/{segment}/counts/by-initiative"
-        ]["get"]
         assert listing["operationId"].startswith(f"list_{tool.plural}_"), tool
-        assert counts["operationId"].startswith(
-            f"get_{tool.value}_counts_by_initiative_"
-        ), tool
         # Every tool is taggable, so every list narrows by tag.
         assert "tag_ids" in {p["name"] for p in listing["parameters"]}, tool
 

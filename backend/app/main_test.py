@@ -21,13 +21,13 @@ from app.main import (
     SecurityHeadersMiddleware,
     validation_exception_handler,
 )
-from app.testing import create_app_service_registration
+from app.testing import captcha_switched_on, create_app_service_registration
 
 
 async def test_validation_handler_strips_input_and_url() -> None:
     # FastAPI's default 422 echoes back `input` (and a pydantic docs `url`). On
-    # a failed password/secret validation that would leak the submitted value
-    # (pentest LOW-001). The handler must drop them while keeping loc/msg/type.
+    # a failed password/secret validation that would echo the submitted value.
+    # The handler must drop them while keeping loc/msg/type.
     exc = RequestValidationError(
         [
             {
@@ -72,20 +72,10 @@ async def test_csp_admits_the_stored_captcha_provider(
 ) -> None:
     # The provider is a setting, so the header follows the stored value rather
     # than the env the process started with.
-    from app.services import captcha_config
-
     monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", None)
-    monkeypatch.setattr(
-        captcha_config,
-        "_resolved",
-        captcha_config.ResolvedCaptchaConfig(
-            provider="turnstile", site_key="site", secret_key="secret"
-        ),
-    )
-    resp = await client.get("/api/v1/config")
-    assert "https://challenges.cloudflare.com" in resp.headers.get(
-        "content-security-policy", ""
-    )
+    with captcha_switched_on():
+        resp = await client.get("/api/v1/config")
+    assert "https://*.hcaptcha.com" in resp.headers.get("content-security-policy", "")
 
 
 # --- WebAssembly worker assets (WebAssembly is named on these responses only) ---
@@ -209,7 +199,7 @@ async def test_register_validation_error_omits_input(client: AsyncClient) -> Non
         assert "input" not in err
 
 
-# --- HSTS (Strict-Transport-Security) (pentest SEC-16) ---
+# --- HSTS (Strict-Transport-Security) ---
 
 
 async def _hsts_for(app_url: str) -> str | None:
@@ -262,7 +252,7 @@ async def test_no_hsts_in_test_env_http(client: AsyncClient) -> None:
     assert "strict-transport-security" not in resp.headers
 
 
-# --- API docs gating (pentest SEC-16) ---
+# --- API docs gating ---
 
 
 async def test_docs_and_openapi_served_when_enabled(client: AsyncClient) -> None:

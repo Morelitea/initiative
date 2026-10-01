@@ -41,7 +41,7 @@ vi.mock("@/hooks/useGuildAuthPolicy", () => ({
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
   useConnectProvider: () => ({ mutateAsync: connect, isPending: false }),
   useCreateClaimRule: () => ({ mutateAsync: createRule, isPending: false }),
-  useUpdateGuildAuthPolicy: () => ({ mutateAsync: updatePolicy, isPending: false }),
+  useUpdateGuildAuthSettings: () => ({ mutateAsync: updatePolicy, isPending: false }),
 }));
 
 import { ConnectSignInWizard } from "./ConnectSignInWizard";
@@ -105,9 +105,7 @@ describe("ConnectSignInWizard", () => {
       guild_role: "member",
     });
     expect(updatePolicy).toHaveBeenCalledWith({
-      policy: "required",
-      provider_id: 11,
-      require_methods: [],
+      auth_policy: { policy: "required", provider_id: 11, require_methods: [] },
     });
   });
 

@@ -31,8 +31,7 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 Every ``table=True`` model MUST land in ``SHARED_TABLES`` or (via level 2)
 ``GUILD_SCOPED_TABLES``. ``tenancy_test.py`` enforces this against
 ``SQLModel.metadata`` so a new table can't be added without a placement
-decision — an unclassified guild-scoped table would silently leak across
-tenants. See ``history/schema-per-guild-design.md`` (§2 Table classification).
+decision.
 """
 
 from __future__ import annotations
@@ -71,6 +70,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # like the settings above: one message can gather rows from every
         # community somebody is in, so it belongs to none of them.
         "email_outbox",
+        # A notice waiting to be delivered to one account, from whichever
+        # community it happened in. Per-account for the same reason.
+        "notice_outbox",
         # The picture on a user's profile. Public-plane identity like the row
         # it hangs off: one user spans guilds, and the bytes are served to
         # anyone holding the URL.
@@ -262,7 +264,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # Own-row tables (also listed in OWN_ROW_TABLES below): guild-level
         # placement, but rows belong to ONE user and carry own_row_* policies.
         "export_jobs",  # a job may span initiatives ("export all my tasks"), so
-        # it can't use initiative_access; the row leaks selector text and gates
+        # it can't use initiative_access; the row holds selector text and gates
         # the artifact download, so it must not be guild-wide-readable either.
         "import_jobs",  # same shape as export_jobs: a backup import spans
         # initiatives, and the row's options/plan/report text plus the staged
@@ -379,6 +381,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # Roster rows: the membership IS the fact, and ``user_id`` already names
         # whose it is.
         "calendar_event_attendees",
+        "calendar_event_answers",
         "initiative_members",
         "initiative_role_permissions",
         "task_assignees",
@@ -406,6 +409,8 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "project_favorites",
         "project_orders",
         "recent_views",
+        # A property value belongs to the initiative, not to whoever set it.
+        "property_values",
         # Machinery. Written by a trigger, a poller or a scheduler rather than
         # by a person; each already records the actor it needs (the outbox
         # carries ``actor_user_id``) or has none to record.

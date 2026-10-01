@@ -58,9 +58,9 @@ import {
 } from "@/api/generated/tasks/tasks";
 import {
   getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
-  getReadWikiPageByIdApiV1CGuildIdWikiPagesPageIdGetQueryKey,
+  getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
   readWikiApiV1CGuildIdWikisWikiIdGet,
-  readWikiPageByIdApiV1CGuildIdWikiPagesPageIdGet,
+  readWikiPageApiV1CGuildIdWikiPagesPageIdGet,
 } from "@/api/generated/wikis/wikis";
 import {
   eventRoute,
@@ -142,8 +142,10 @@ type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
 
 /**
  * The kinds that live inside a tool and can be read by their own id, keyed by
- * the child-kind registry ({@link PARENT_TOOL}). A counter, a queue item and a
- * picture have no read by id alone, so a link never names one.
+ * the child-kind registry ({@link PARENT_TOOL}). A picture has no read by id
+ * alone, so a link never names one. A counter and a queue item do
+ * (`/counters/{id}`, `/queue-items/{id}`), but nothing links to either yet,
+ * so neither has a resolver.
  */
 const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
   task: async (read, guildId, id) => {
@@ -166,8 +168,8 @@ const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
   },
   wiki_page: async (read, guildId, id) => {
     const page = await read(
-      getReadWikiPageByIdApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, id),
-      () => readWikiPageByIdApiV1CGuildIdWikiPagesPageIdGet(guildId, id)
+      getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey(guildId, id),
+      () => readWikiPageApiV1CGuildIdWikiPagesPageIdGet(guildId, id)
     );
     const initiativeId = await toolInitiative(read, guildId, Tool.wiki, page.wiki_id);
     return wikiPageRoute(initiativeId, page.wiki_id, id);

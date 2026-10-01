@@ -1,6 +1,6 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
@@ -16,10 +16,6 @@ import { formatDateTime } from "@/lib/formatDate";
 export const GuildInvitePage = () => {
   const { code = "" } = useParams({ strict: false }) as { code: string };
   const normalizedCode = code.trim();
-  const registerLink = useMemo(
-    () => `/register${normalizedCode ? `?invite_code=${encodeURIComponent(normalizedCode)}` : ""}`,
-    [normalizedCode]
-  );
   const { user, refreshUser } = useAuth();
   const { refreshGuilds } = useGuilds();
   const { t } = useTranslation(["guilds", "common"]);
@@ -157,7 +153,8 @@ export const GuildInvitePage = () => {
                       {t("invite.needAccount")}{" "}
                       <Link
                         className="text-primary underline-offset-4 hover:underline"
-                        to={registerLink}
+                        to="/start"
+                        search={normalizedCode ? { invite_code: normalizedCode } : {}}
                       >
                         {t("invite.registerWithInvite")}
                       </Link>

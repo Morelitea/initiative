@@ -12,9 +12,7 @@ other from it.
 
 Random rather than derived from a key: a derived value is only stable while its
 key is, and this deployment rotates ``SECRET_KEY``
-(``app.db.secret_key_rotation``). A reference has to outlast that. The full
-reasoning, and the alternatives weighed against it, are in
-``history/opaque-identity-design.md``.
+(``app.db.secret_key_rotation``). A reference has to outlast that.
 
 This is the pairwise pseudonymous identifier of OpenID Connect Core §8.1,
 generalised: ``purpose`` is the sector. A sector that lives inside one guild —

@@ -92,7 +92,7 @@ export function SmartChipInsertDialog({
   } = useGuildPickerSuggestions(debounced, {
     types,
     initiative_id: initiativeId ?? undefined,
-    template: false,
+    is_template: false,
     limit: LIMIT,
     enabled: hasInitiative,
   });

@@ -10,8 +10,8 @@ import type { MutationOpts } from "@/types/mutation";
  * generic `/tools/{tool}/{toolId}/tags` route, then invalidates that tool's
  * list + detail queries so every consumer reflects the change.
  *
- * Tasks and queue items are sub-resources, not tools — their set-tags hooks
- * live with their own feature hooks (`useSetTaskTags`, `useSetQueueItemTags`).
+ * Tasks, events and queue items are sub-resources, not tools — their tags are
+ * set by their own update (`tag_ids` on the PATCH).
  */
 export const useSetToolTags = (
   tool: Tool,

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import type { ImportJobRead } from "@/api/generated/initiativeAPI.schemas";
 
 import {
   AtlassianChooseStep,
@@ -20,7 +21,7 @@ vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
-function job(overrides: Record<string, unknown> = {}) {
+function job(overrides: Partial<ImportJobRead> = {}): ImportJobRead {
   return {
     id: 77,
     guild_id: 1,

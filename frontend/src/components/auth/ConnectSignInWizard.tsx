@@ -45,7 +45,7 @@ import {
   useConnectProvider,
   useCreateClaimRule,
   useGuildProviderConnections,
-  useUpdateGuildAuthPolicy,
+  useUpdateGuildAuthSettings,
 } from "@/hooks/useGuildAuthPolicy";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
@@ -95,7 +95,7 @@ export const ConnectSignInWizard = ({
   const connectionsQuery = useGuildProviderConnections(guildId);
   const connect = useConnectProvider(guildId);
   const createRule = useCreateClaimRule(guildId);
-  const updatePolicy = useUpdateGuildAuthPolicy(guildId);
+  const updatePolicy = useUpdateGuildAuthSettings(guildId);
 
   const [providerId, setProviderId] = useState<number | null>(startOn);
   // The wizard stays mounted between openings, so a provider chosen for it
@@ -186,9 +186,7 @@ export const ConnectSignInWizard = ({
       }
       if (insist) {
         await updatePolicy.mutateAsync({
-          policy: "required",
-          provider_id: providerId,
-          require_methods: [],
+          auth_policy: { policy: "required", provider_id: providerId, require_methods: [] },
         });
       }
       toast.success(t("settings:guildAuth.connections.connected"));

@@ -16,11 +16,13 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
 from app.testing import (
+    create_comment,
     create_post,
     create_project,
     create_resource_grant,
     create_task,
     guild_of,
+    drain_notices,
 )
 from app.testing.schema_harness import route_session_to_guild
 
@@ -123,7 +125,7 @@ class TestReactionToggle:
             a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
         )
         assert listed.status_code == 200
-        [comment] = listed.json()
+        [comment] = listed.json()["comments"]
         group = comment["reactions"][0]
         assert group["count"] == 2
         # "reacted" is answered for the caller, not for whoever reacted last.
@@ -163,7 +165,7 @@ class TestReactionToggle:
             a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
         )
         assert listed.status_code == 200
-        [comment] = listed.json()
+        [comment] = listed.json()["comments"]
         assert [g["emoji"] for g in comment["reactions"]] == [THUMBS]
         assert comment["reactions"][0]["reacted"] is True
 
@@ -393,7 +395,7 @@ class TestReactionAccess:
             a.g("/comments/"), headers=b.headers, params={"task_id": task.id}
         )
         assert listed.status_code == 200
-        [comment] = listed.json()
+        [comment] = listed.json()["comments"]
         assert comment["reactions"][0]["count"] == 1
         # "reacted" answers for the caller, who has not reacted here.
         assert comment["reactions"][0]["reacted"] is False
@@ -611,6 +613,7 @@ class TestReactionNotifications:
         )
         assert reacted.status_code == 200, reacted.text
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -650,6 +653,7 @@ class TestReactionNotifications:
             json={"emoji": THUMBS},
         )
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -697,6 +701,7 @@ class TestReactionNotifications:
             )
             assert reacted.status_code == 200, reacted.text
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -750,13 +755,16 @@ class TestReactionNotifications:
             headers=b.headers,
             json={"emoji": THUMBS},
         )
+        await drain_notices()
         await user_notifications.mark_all_notifications_read(session, user_id=a.user.id)
+        await session.commit()
         await client.put(
             a.g(f"/reactions/comment/{comment_id}"),
             headers=b.headers,
             json={"emoji": PARTY},
         )
 
+        await drain_notices()
         bell = (
             await session.exec(
                 select(Notification).where(
@@ -798,6 +806,7 @@ class TestReactionNotifications:
             )
 
         async def _bell():
+            await drain_notices()
             return (
                 await session.exec(
                     select(Notification).where(
@@ -827,6 +836,17 @@ class TestReactionNotifications:
             headers=b.headers,
             json={"emoji": THUMBS},
         )
+        session.expunge_all()
+        assert await _bell() == []
+
+        # Reacted and taken back before anything was delivered: the line is
+        # written and then taken back, in that order, and nothing is left.
+        for _ in range(2):
+            await client.put(
+                a.g(f"/reactions/comment/{comment_id}"),
+                headers=b.headers,
+                json={"emoji": THUMBS},
+            )
         session.expunge_all()
         assert await _bell() == []
 
@@ -861,6 +881,7 @@ class TestReactionNotifications:
         )
 
         async def _bell():
+            await drain_notices()
             return (
                 await session.exec(
                     select(Notification).where(
@@ -929,37 +950,38 @@ class TestReactionNotifications:
 
 
 class TestReactionLifecycle:
-    async def test_purging_a_comment_takes_its_reactions(
+    async def test_purging_a_post_takes_what_names_it(
         self, client, session, acting_user
     ):
-        from app.models.tenant.comment import Comment
+        """Reactions on the post and on its comments, and recent views of it,
+        go with the post: they name it by id, and nothing could remove them
+        once it is gone."""
         from app.models.tenant.reaction import Reaction
-        from app.services.tenant.soft_delete import hard_purge_entity
+        from app.models.tenant.recent_view import RecentView
         from sqlmodel import select
 
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-        task = await create_task(session, a.project)
-        comment_id = await _comment_on_task(client, a, task.id)
-        await client.put(
-            a.g(f"/reactions/comment/{comment_id}"),
-            headers=a.headers,
-            json={"emoji": THUMBS},
-        )
-
-        await route_session_to_guild(session, a.guild.id)
-        comment = (
-            await session.exec(select(Comment).where(Comment.id == comment_id))
-        ).one()
-        await hard_purge_entity(session, comment)
-        await session.commit()
-
-        await route_session_to_guild(session, a.guild.id)
-        left = (
-            await session.exec(
-                select(Reaction).where(
-                    Reaction.target_type == "comment",
-                    Reaction.target_id == comment_id,
-                )
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _posts_enabled(session, a.initiative)
+        post = await create_post(session, a.initiative, a.user)
+        comment = await create_comment(session, a.user, post=post)
+        for path in (
+            f"/reactions/post/{post.id}",
+            f"/reactions/comment/{comment.id}",
+        ):
+            resp = await client.put(
+                a.g(path), headers=a.headers, json={"emoji": THUMBS}
             )
-        ).all()
-        assert left == []
+            assert resp.status_code == 200, resp.text
+        viewed = await client.post(a.g(f"/recents/post/{post.id}"), headers=a.headers)
+        assert viewed.status_code == 200, viewed.text
+
+        trashed = await client.delete(a.g(f"/posts/{post.id}"), headers=a.headers)
+        assert trashed.status_code in (200, 204), trashed.text
+        purged = await client.delete(
+            a.g(f"/trash/post/{post.id}/purge"), headers=a.headers
+        )
+        assert purged.status_code == 204, purged.text
+
+        await route_session_to_guild(session, a.guild.id)
+        assert (await session.exec(select(Reaction))).all() == []
+        assert (await session.exec(select(RecentView))).all() == []

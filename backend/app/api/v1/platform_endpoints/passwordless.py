@@ -22,7 +22,9 @@ from app.api.deps import (
     SystemSessionDep,
     CurrentUser,
 )
-from app.api.v1.platform_endpoints.password_recheck import require_password
+from app.api.v1.platform_endpoints.password_recheck import (
+    require_password_or_recent_proof,
+)
 from app.api.v1.platform_endpoints.session_opening import (
     count_wrong_answer,
     refuse_if_locked,
@@ -35,6 +37,7 @@ from app.core.messages import AuthMessages
 from app.core.password_policy import enforce_password_policy
 from app.core.rate_limit import (
     count_sign_in_failure,
+    get_user_or_ip_key,
     limiter,
     sign_in_allowance_left,
 )
@@ -95,7 +98,7 @@ async def _record_recovery_refusal(
 
 
 @router.post("/password/remove", response_model=RecoveryCodes)
-@limiter.limit("5/15minutes")
+@limiter.limit("5/15minutes", key_func=get_user_or_ip_key)
 async def remove_password(
     request: Request,
     response: Response,
@@ -125,7 +128,9 @@ async def remove_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.PASSWORD_NOT_HELD,
         )
-    require_password(current_user, payload.current_password)
+    await require_password_or_recent_proof(
+        request, system_session, current_user, payload.current_password
+    )
 
     # What the account would be left with. The deployment's posture is half of
     # that answer: a credential it does not accept opens nothing, so an account

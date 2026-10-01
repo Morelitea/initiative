@@ -19,10 +19,9 @@
 import { useRouter, useSearch } from "@tanstack/react-router";
 import type { FlatNamespace } from "i18next";
 import { Plus } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
@@ -34,31 +33,19 @@ import { DashboardCard } from "@/components/initiativeTools/dashboards/Dashboard
 import { GalleryCard } from "@/components/initiativeTools/galleries/GalleryCard";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import { CreateToolDialog } from "@/components/initiativeTools/shared/CreateToolDialog";
-import {
-  archivedParam,
-  ToolArchiveFilter,
-  type ToolArchiveState,
-} from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { WikiCard } from "@/components/initiativeTools/wikis/WikiCard";
 import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketplaceButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
+import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
-import { TagPicker } from "@/components/tags/TagPicker";
+import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
@@ -68,10 +55,11 @@ import { useGalleriesList } from "@/hooks/useGalleries";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useQueuesList } from "@/hooks/useQueues";
+import { useToolCounts } from "@/hooks/useToolCounts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useWikisList } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolDetailRoute, toolKebabSingular } from "@/lib/tools";
+import { type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 // ---------------------------------------------------------------------------
@@ -93,17 +81,11 @@ export type ToolIndexRow = BulkAccessItem & {
 /** How the shared page has narrowed the list, handed to the tool's list hook. */
 export type ToolIndexFilters = {
   /**
-   * The search box after a beat's pause — for a tool whose endpoint does the
-   * matching, so a keystroke is not a request.
+   * The tool's filter fields, as its list endpoint takes them: the search
+   * after a beat's pause, so a keystroke is not a request, and nothing for a
+   * field left empty.
    */
-  search: string;
-  /**
-   * The search box as typed — for a tool that matches the loaded page in the
-   * browser, where waiting would only make the list lag the cursor.
-   */
-  searchQuery: string;
-  /** Tags to narrow by, for a tool whose endpoint takes them. */
-  tagIds: number[];
+  list: ToolListFilters;
   /** `true` on the archive view, omitted on the live one. */
   archived: true | undefined;
   /** The page and its size, for a tool whose list is paged. */
@@ -119,12 +101,6 @@ export type ToolIndexList = {
   /** Rows the server holds for this archive state — what the pager counts. */
   totalCount: number;
   hasNext: boolean;
-  /**
-   * A filter only this tool has, e.g. a queue's active/inactive select. It
-   * sits beside the shared search box, counts towards the filter button's
-   * badge, and clears with "Clear all".
-   */
-  extraFilter?: { field: ReactNode; active: boolean; clear: () => void };
 };
 
 /** Everything one tool adds to the shared page. */
@@ -143,15 +119,10 @@ export type ToolIndexEntry = {
     create: string;
     /** The line under the create dialog's title. */
     createDescription: string;
-    searchPlaceholder: string;
     noMatches: string;
     emptyTitle: string;
     emptyBody: string;
   };
-  /** Every tool list takes `tag_ids`; the flag exists so an entry can opt out. */
-  tagFilter?: boolean;
-  /** Its list arrives a page at a time, and the page is carried in the URL. */
-  paginated?: boolean;
 };
 
 /** A tool that is not browsed as a grid of cards, and what it is instead. */
@@ -171,12 +142,12 @@ export const toolIndexEntry = (tool: Tool): ToolIndexEntry | null => {
 // ---------------------------------------------------------------------------
 
 const useWikiRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const search = filters.search.trim();
   const query = useWikisList({
+    ...filters.list,
     initiative_id: initiativeId,
     archived: filters.archived,
-    ...(search ? { search } : {}),
-    ...(filters.tagIds.length > 0 ? { tag_ids: filters.tagIds } : {}),
+    page: filters.page,
+    page_size: filters.pageSize,
   });
 
   const rows = useMemo(
@@ -194,12 +165,12 @@ const useWikiRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndex
 };
 
 const useGalleryRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const search = filters.search.trim();
   const query = useGalleriesList({
+    ...filters.list,
     initiative_id: initiativeId,
     archived: filters.archived,
-    ...(search ? { search } : {}),
-    ...(filters.tagIds.length > 0 ? { tag_ids: filters.tagIds } : {}),
+    page: filters.page,
+    page_size: filters.pageSize,
   });
 
   const rows = useMemo(
@@ -220,34 +191,20 @@ const useGalleryRows = (initiativeId: number, filters: ToolIndexFilters): ToolIn
   };
 };
 
-/** What a queue list is showing: everything, or only what is running. */
-type QueueStatusFilter = "all" | "active" | "inactive";
-
 const useQueueRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
-  const { t } = useTranslation("queues");
-  const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>("all");
-
   const query = useQueuesList({
+    ...filters.list,
     initiative_id: initiativeId,
     archived: filters.archived,
     page: filters.page,
     page_size: filters.pageSize,
-    ...(filters.tagIds.length > 0 ? { tag_ids: filters.tagIds } : {}),
   });
 
-  const rows = useMemo(() => {
-    const search = filters.searchQuery.trim().toLowerCase();
-    return (query.data?.items ?? [])
-      .filter((queue) => {
-        const matchesSearch = !search || queue.name.toLowerCase().includes(search);
-        const matchesStatus =
-          statusFilter === "all" ||
-          (statusFilter === "active" && queue.is_active) ||
-          (statusFilter === "inactive" && !queue.is_active);
-        return matchesSearch && matchesStatus;
-      })
-      .map((queue) => ({ ...queue, card: <QueueCard queue={queue} /> }));
-  }, [query.data, filters.searchQuery, statusFilter]);
+  const rows = useMemo(
+    () =>
+      (query.data?.items ?? []).map((queue) => ({ ...queue, card: <QueueCard queue={queue} /> })),
+    [query.data]
+  );
 
   return {
     rows,
@@ -255,56 +212,26 @@ const useQueueRows = (initiativeId: number, filters: ToolIndexFilters): ToolInde
     isError: query.isError,
     totalCount: query.data?.total_count ?? 0,
     hasNext: query.data?.has_next ?? false,
-    extraFilter: {
-      active: statusFilter !== "all",
-      clear: () => setStatusFilter("all"),
-      field: (
-        <div className="w-full space-y-2 sm:w-48">
-          <Label
-            htmlFor="queue-status-filter"
-            className="block font-medium text-muted-foreground text-xs"
-          >
-            {t("filters.status")}
-          </Label>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value as QueueStatusFilter)}
-          >
-            <SelectTrigger id="queue-status-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("filters.allStatuses")}</SelectItem>
-              <SelectItem value="active">{t("filters.activeOnly")}</SelectItem>
-              <SelectItem value="inactive">{t("filters.inactiveOnly")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      ),
-    },
   };
 };
 
-/**
- * Rows a whole shelf at a time. Counter groups and dashboards ask for fifty and
- * match names in the browser, which is why neither shows a pager.
- */
-const WHOLE_SHELF = { page: 1, page_size: 50 } as const;
-
 const useCounterGroupRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
   const query = useCounterGroupsList({
+    ...filters.list,
     initiative_id: initiativeId,
     archived: filters.archived,
-    ...WHOLE_SHELF,
-    ...(filters.tagIds.length > 0 ? { tag_ids: filters.tagIds } : {}),
+    page: filters.page,
+    page_size: filters.pageSize,
   });
 
-  const rows = useMemo(() => {
-    const search = filters.searchQuery.trim().toLowerCase();
-    return (query.data?.items ?? [])
-      .filter((group) => !search || group.name.toLowerCase().includes(search))
-      .map((group) => ({ ...group, card: <CounterGroupCard group={group} /> }));
-  }, [query.data, filters.searchQuery]);
+  const rows = useMemo(
+    () =>
+      (query.data?.items ?? []).map((group) => ({
+        ...group,
+        card: <CounterGroupCard group={group} />,
+      })),
+    [query.data]
+  );
 
   return {
     rows,
@@ -317,18 +244,21 @@ const useCounterGroupRows = (initiativeId: number, filters: ToolIndexFilters): T
 
 const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndexList => {
   const query = useDashboardsList({
+    ...filters.list,
     initiative_id: initiativeId,
     archived: filters.archived,
-    ...WHOLE_SHELF,
-    ...(filters.tagIds.length > 0 ? { tag_ids: filters.tagIds } : {}),
+    page: filters.page,
+    page_size: filters.pageSize,
   });
 
-  const rows = useMemo(() => {
-    const search = filters.searchQuery.trim().toLowerCase();
-    return (query.data?.items ?? [])
-      .filter((dashboard) => !search || dashboard.name.toLowerCase().includes(search))
-      .map((dashboard) => ({ ...dashboard, card: <DashboardCard dashboard={dashboard} /> }));
-  }, [query.data, filters.searchQuery]);
+  const rows = useMemo(
+    () =>
+      (query.data?.items ?? []).map((dashboard) => ({
+        ...dashboard,
+        card: <DashboardCard dashboard={dashboard} />,
+      })),
+    [query.data]
+  );
 
   return {
     rows,
@@ -356,27 +286,22 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
   [Tool.queue]: {
     useList: useQueueRows,
-    tagFilter: true,
     text: {
       ns: "queues",
       create: "createQueue",
       createDescription: "noQueuesDescription",
-      searchPlaceholder: "filters.searchQueues",
       noMatches: "filters.noMatchingQueues",
       emptyTitle: "noQueues",
       emptyBody: "noQueuesDescription",
     },
-    paginated: true,
   },
 
   [Tool.counter_group]: {
     useList: useCounterGroupRows,
-    tagFilter: true,
     text: {
       ns: "counterGroups",
       create: "createGroup",
       createDescription: "noGroupsDescription",
-      searchPlaceholder: "filters.searchGroups",
       noMatches: "filters.noMatchingGroups",
       emptyTitle: "noGroups",
       emptyBody: "noGroupsDescription",
@@ -385,12 +310,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
   [Tool.dashboard]: {
     useList: useDashboardRows,
-    tagFilter: true,
     text: {
       ns: "dashboards",
       create: "createDashboard",
       createDescription: "noDashboardsDescription",
-      searchPlaceholder: "filters.searchDashboards",
       noMatches: "filters.noMatchingDashboards",
       emptyTitle: "noDashboards",
       emptyBody: "noDashboardsDescription",
@@ -399,12 +322,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
   [Tool.gallery]: {
     useList: useGalleryRows,
-    tagFilter: true,
     text: {
       ns: "galleries",
       create: "createGallery",
       createDescription: "createGalleryDescription",
-      searchPlaceholder: "filters.searchGalleries",
       noMatches: "filters.noMatchingGalleries",
       emptyTitle: "noGalleries",
       emptyBody: "noGalleriesDescription",
@@ -417,12 +338,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
       ns: "wikis",
       create: "createWiki",
       createDescription: "createWikiDescription",
-      searchPlaceholder: "filters.searchWikis",
       noMatches: "filters.noMatchingWikis",
       emptyTitle: "noWikis",
       emptyBody: "noWikisDescription",
     },
-    tagFilter: true,
   },
 };
 
@@ -432,10 +351,9 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
 /**
  * Which page of the list is showing, kept in the URL so a deep link lands on it
- * and the back button walks through the pages that were read. Inert for a tool
- * whose whole shelf arrives at once — the URL keeps no page it cannot turn.
+ * and the back button walks through the pages that were read.
  */
-const useListPage = (paginated: boolean) => {
+const useListPage = () => {
   const router = useRouter();
   const search = useSearch({ strict: false }) as { create?: string; page?: number };
 
@@ -448,7 +366,6 @@ const useListPage = (paginated: boolean) => {
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
-      if (!paginated) return;
       setPageState((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
         void router.navigate({
@@ -459,7 +376,7 @@ const useListPage = (paginated: boolean) => {
         return next;
       });
     },
-    [router, paginated]
+    [router]
   );
 
   return { page, pageSize, setPage, setPageSize };
@@ -485,28 +402,41 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const guildId = useActiveGuildId();
   const unread = useUnreadTree();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [tagFilters, setTagFilters] = useState<TagSummary[]>([]);
+  const [filters, setFilters] = useState<ToolListFilters>({});
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const search = useDebouncedValue(searchQuery, 300);
+  const search = useDebouncedValue(filters.search ?? "", 300).trim();
 
-  // Which of the tool's two states the list is showing. Archived rows are off
-  // the live list, so this is the only place they can be reached.
-  const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
+  // Which of the tool's views the list is showing. Archived rows are off the
+  // live list, so this is the only place they can be reached.
+  const [view, setView] = useState<ToolView>("active");
+  // How much sits in each view, whatever the filters say.
+  const countsQuery = useToolCounts(tool, { initiative_id: fixedInitiativeId });
 
-  const { page, pageSize, setPage, setPageSize } = useListPage(Boolean(entry.paginated));
+  const { page, pageSize, setPage, setPageSize } = useListPage();
 
   const list = entry.useList(fixedInitiativeId, {
-    search,
-    searchQuery,
-    tagIds: tagFilters.map((tag) => tag.id),
-    archived: archivedParam(archiveState),
+    list: {
+      ...filters,
+      search: search || undefined,
+      tag_ids: filters.tag_ids?.length ? filters.tag_ids : undefined,
+    },
+    archived: toolViewParams(tool, view).archived,
     page,
     pageSize,
   });
+
+  // A page past the end (its rows deleted, a link to one that is gone) has
+  // nothing on it and no pager to leave by, so the list moves to its last page.
+  // A failed read says nothing about where the end is, so it moves nothing.
+  const lastPage = Math.max(1, Math.ceil(list.totalCount / pageSize));
+  useEffect(() => {
+    if (!list.isLoading && !list.isError && list.rows.length === 0 && page > lastPage) {
+      setPage(lastPage);
+    }
+  }, [list.isLoading, list.isError, list.rows.length, page, lastPage, setPage]);
 
   // Canonical create answer: this initiative's server-computed create flag. An
   // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
@@ -533,31 +463,35 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
     fixedInitiativeId,
   });
 
-  // Counted from the box as typed rather than from the debounced value, so the
-  // badge and "Clear all" answer the keystroke instead of trailing it by a beat.
+  // Counted from the fields as set rather than from the debounced search, so
+  // the badge and "Clear all" answer the keystroke instead of trailing it.
+  // Each property condition counts as a filter of its own.
+  const { property_filters: propertyFilters, ...fields } = filters;
   const activeFilterCount =
-    (searchQuery.trim() ? 1 : 0) +
-    (tagFilters.length > 0 ? 1 : 0) +
-    (list.extraFilter?.active ? 1 : 0);
+    Object.values(fields).filter((value) =>
+      Array.isArray(value)
+        ? value.length > 0
+        : typeof value === "string"
+          ? value.trim()
+          : value != null
+    ).length + parsePropertyFilters(propertyFilters).length;
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    setTagFilters([]);
-    list.extraFilter?.clear();
+  // A narrower list may not reach the page being read.
+  const changeFilters = (next: ToolListFilters) => {
+    setFilters(next);
+    if (page !== 1) setPage(1);
   };
-
-  const searchId = `${toolKebabSingular(tool)}-search`;
-  const tagsId = `${toolKebabSingular(tool)}-tags`;
 
   return (
     <div className="space-y-6">
       <ToolListToolbar
         leading={
-          <ToolArchiveFilter
+          <ToolViewFilter
             tool={tool}
-            value={archiveState}
+            value={view}
+            counts={countsQuery.data?.views}
             onChange={(next) => {
-              setArchiveState(next);
+              setView(next);
               // The other state's cursor means nothing in this one: switching
               // from page 3 of the live list into a one-page archive would
               // land on an empty page with the archive sitting on page 1.
@@ -588,38 +522,15 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
         title={t("filters.heading")}
-        onClear={clearFilters}
+        onClear={() => changeFilters({})}
         activeCount={activeFilterCount}
       >
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="w-full space-y-2 lg:flex-1">
-            <Label htmlFor={searchId} className="block font-medium text-muted-foreground text-xs">
-              {t("filters.searchLabel")}
-            </Label>
-            <Input
-              id={searchId}
-              placeholder={t(entry.text.searchPlaceholder)}
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="min-w-60"
-            />
-          </div>
-          {entry.tagFilter ? (
-            <div className="w-full space-y-2 sm:w-64">
-              <Label htmlFor={tagsId} className="block font-medium text-muted-foreground text-xs">
-                {t("tags:picker.filterLabel")}
-              </Label>
-              <TagPicker
-                id={tagsId}
-                variant="filter"
-                selectedTags={tagFilters}
-                onChange={setTagFilters}
-                placeholder={t("tags:picker.anyTag")}
-              />
-            </div>
-          ) : null}
-          {list.extraFilter?.field}
-        </div>
+        <ToolFilterFields
+          tool={tool}
+          value={filters}
+          onChange={changeFilters}
+          initiativeId={fixedInitiativeId}
+        />
       </ToolFilterPanel>
 
       {list.isLoading ? (
@@ -654,19 +565,17 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
             ))}
           </div>
 
-          {entry.paginated ? (
-            <PaginationBar
-              page={page}
-              pageSize={pageSize}
-              totalCount={list.totalCount}
-              hasNext={list.hasNext}
-              onPageChange={setPage}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
-            />
-          ) : null}
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            totalCount={list.totalCount}
+            hasNext={list.hasNext}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </>
       ) : activeFilterCount > 0 ? (
         <p className="text-muted-foreground text-sm">{t(entry.text.noMatches)}</p>

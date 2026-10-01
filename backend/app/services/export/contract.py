@@ -7,9 +7,9 @@ second ``RenderBackend`` implementation behind ``engine.get_backend``, touching
 no adapter, template, or endpoint).
 
 ``RenderItem.data`` is structured JSON the template reads (Typst
-``sys.inputs``) — never string-interpolated into ``.typ`` source. That is the
-typst-injection guard, the analogue of the CSV formula-injection
-neutralization in ``app/services/platform/csv_export.py``.
+``sys.inputs``) — never string-interpolated into ``.typ`` source, so user text
+is always data, never Typst markup (as ``app/services/platform/csv_export.py``
+keeps cell text from being read as a formula).
 """
 
 from __future__ import annotations
@@ -57,6 +57,10 @@ class RenderRequest:
     template_id: str
     format: str  # "pdf" (v1)
     batch: tuple[RenderItem, ...]
+    #: The initiatives whose content the batch holds. A queued job records
+    #: them, and its artifact is served only to someone who still reaches
+    #: every one.
+    initiative_ids: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True)

@@ -19,7 +19,7 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
-import { usePlatformAuthSettings, useUpdateLoginMethods } from "@/hooks/useSettings";
+import { usePlatformAuthSettings, useUpdatePlatformAuthSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 
@@ -50,14 +50,14 @@ export const PlatformAuthSection = () => {
   // The change the server has asked to have acknowledged, with its number.
   const [pending, setPending] = useState<{ methods: LoginMethod[]; stranded: number } | null>(null);
 
-  const updateMethods = useUpdateLoginMethods({
+  const updateMethods = useUpdatePlatformAuthSettings({
     onSuccess: () => toast.success(t("auth.methods.saved")),
     onError: (err, variables) => {
       // A refusal that names a number is the server asking for it back, so it
       // is the one the dialog shows and the one the next write sends.
       const stranded = strandedByServer(err);
       if (stranded !== null) {
-        setPending({ methods: variables.methods, stranded });
+        setPending({ methods: variables.methods ?? [], stranded });
         return;
       }
       setPending(null);

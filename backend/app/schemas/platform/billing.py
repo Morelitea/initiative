@@ -7,6 +7,8 @@ excluded from the OpenAPI schema.
 
 from __future__ import annotations
 
+from datetime import date
+from enum import Enum
 from typing import Optional
 
 from pydantic import Field, model_validator
@@ -90,6 +92,54 @@ class BillingGuildTierRead(SanitizedBaseModel):
     plan_is_free: Optional[bool] = None
     member_count: int
     applied: bool
+
+
+class BillingCommunityNoticeKind(str, Enum):
+    """What a community notice says. A closed set: billing picks one, and the
+    words are ours."""
+
+    trial_ending = "trial_ending"
+    trial_ended = "trial_ended"
+
+
+#: The sources that send a community notice. Only the trial's end, for now.
+_NOTICE_SOURCES = frozenset({BillingSource.trial_expiry})
+
+
+class BillingCommunityNotice(SanitizedBaseModel):
+    """Body of ``POST /billing/community-notice``.
+
+    Billing asks for one of a fixed set of notices to reach a community's seat;
+    no free text crosses. ``recipient_user_ref`` is the billing reference of the
+    person billing holds as the community's owner — the one a portal handoff
+    signs — or None, and either way the community's current superadmins are who
+    hears it when that person is not a member any more. ``event_id`` is claimed
+    in ``billing_event_log`` like a tier write's, so a retried delivery tells
+    nobody twice.
+    """
+
+    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    event_id: str = Field(min_length=1, max_length=128)
+    source: BillingSource
+    kind: BillingCommunityNoticeKind
+    recipient_user_ref: Optional[str] = Field(default=None, max_length=REF_MAX_LENGTH)
+    trial_ends_on: date
+
+    @model_validator(mode="after")
+    def _source_sends_notices(self) -> "BillingCommunityNotice":
+        if self.source not in _NOTICE_SOURCES:
+            raise ValueError(BillingMessages.NOTICE_SOURCE_NOT_ALLOWED)
+        return self
+
+
+class BillingCommunityNoticeRead(SanitizedBaseModel):
+    """Whether this delivery told anybody.
+
+    False for a replayed event id (the first delivery did the telling), for a
+    community that is deleted or suspended, and for one with nobody to tell.
+    """
+
+    delivered: bool
 
 
 class BillingUsageRequest(SanitizedBaseModel):

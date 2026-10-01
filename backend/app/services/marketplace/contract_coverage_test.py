@@ -27,6 +27,8 @@ import pytest
 from app.services.marketplace import contract
 from app.services.marketplace.definitions import normalize_listing_definition
 
+pytestmark = pytest.mark.always
+
 #: The endpoint a widget binds and a sample is keyed by, written once.
 READ_ENDPOINT = "app.acme.tracker.read"
 

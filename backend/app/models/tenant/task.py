@@ -8,20 +8,20 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
+    event,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.core import recurrence
 from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.property import TaskPropertyValue
 
 
 class TaskStatusCategory(str, Enum):
@@ -117,8 +117,17 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     due_date: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    recurrence: Optional[dict] = Field(
-        default=None, sa_column=Column(JSON, nullable=True)
+    # RFC 5545 recurrence lines as picked (``app.core.recurrence``).
+    recurrence: Optional[str] = Field(default=None, sa_column=Column(Text))
+    # Minutes from the start's UTC time to where the repeat was picked: whole
+    # days for a rule of days, the offset for a rule of hours.
+    recurrence_shift: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default="0")
+    )
+    # No occurrence of the series starts after this; null when it never ends.
+    # Written from ``recurrence`` on every save (see the listener below).
+    recurrence_until: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
     recurrence_strategy: str = Field(
         default="fixed",
@@ -127,6 +136,17 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     recurrence_occurrence_count: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    # The first task of the repeating series this task is in, set when the
+    # series first moves on. A name for the series rather than a key: the
+    # series goes on when its first task is purged.
+    series_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True, index=True)
+    )
+    # What an edit of just this task changed from, by field; the next task in
+    # the series is made with these (``app.services.tenant.task_series``).
+    recurrence_carry: Optional[dict] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
     )
     position: float = Field(
         default=0,
@@ -168,7 +188,20 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         }
     )
-    property_values: List["TaskPropertyValue"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+
+
+@event.listens_for(Task, "before_insert")
+@event.listens_for(Task, "before_update")
+def _write_recurrence_until(_mapper, _connection, task: Task) -> None:
+    # A task series starts at its due date, or its start date without one.
+    start = task.due_date or task.start_date
+    task.recurrence_until = (
+        recurrence.last_start(
+            task.recurrence,
+            start,
+            task.recurrence_shift,
+            done=task.recurrence_occurrence_count,
+        )
+        if task.recurrence and start
+        else None
     )

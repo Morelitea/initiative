@@ -48,12 +48,13 @@ from sqlmodel import SQLModel
 import app.db.base  # noqa: F401 — registers every model's table on the metadata
 from app.core.reactions import ReactionTarget
 from app.core.relationships import ENDPOINT_KINDS
-from app.core.tools import Tool
+from app.core.tools import PROPERTY_TARGETS, Tool
 from app.db import gucs
 from app.db.initiative_rls import (
     COMMENT_PARENTS,
     INITIATIVE_PATHS,
     NAMED_PEOPLE,
+    entity_tables,
     governing_path,
 )
 from app.db.errors import (
@@ -63,6 +64,7 @@ from app.db.errors import (
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.models.tenant._mixins import archive_models
+from app.models.tenant.wiki import WikiPage
 
 #: The SQLSTATE the guard raises, with a constraint name so it is told apart
 #: from any other object-not-in-prerequisite-state error. 55000 is Postgres's
@@ -84,6 +86,32 @@ LIFECYCLE_COLUMNS: tuple[str, ...] = (
     "purge_at",
     "updated_at",
 )
+
+#: Rows that hold a NAME which is unique among their siblings, mapped to the
+#: column holding it and the column that says which siblings it competes with.
+#:
+#: A name is an address somebody types, not a fact about the row, so a row in
+#: the bin has no business keeping one: a wiki page called "Step 1", thrown
+#: away, must not stop the next "Step 1" from being written. It therefore
+#: PARKS its name when it is stamped and takes it back when it is restored —
+#: with a suffix, if somebody has taken it in the meantime, because coming back
+#: under a slightly different address always beats not coming back
+#: (``services.tenant.soft_delete``).
+#:
+#: Both happen in the same UPDATE as the stamp they go with, and the guards
+#: below take that change as part of the lifecycle — see
+#: :func:`_released_name_step` — so a name comes and goes whatever the row is
+#: inside, archived or not.
+RELEASED_NAMES: dict[type, tuple[str, str]] = {
+    WikiPage: ("slug", "wiki_id"),
+}
+
+#: What a parked name is parked behind. Deliberately outside the alphabet these
+#: names are generated from (see ``names.slugify``), so a parked name
+#: can never be one a live row would pick, and the id after it makes it unique
+#: among everything else in the bin.
+PARK = "~"
+
 
 #: Tables carrying the archive lifecycle (the ``ArchiveMixin`` subclasses).
 ARCHIVABLE_TABLES: frozenset[str] = frozenset(
@@ -109,6 +137,29 @@ FROZEN_TABLES: frozenset[str] = ARCHIVABLE_TABLES | TRASHABLE_TABLES
 #: property value, a grant — has nothing of its own to read. They inherit from
 #: the nearest ancestor that does, which is one hop for most and two at worst.
 SELF_STAMPED_TABLES: frozenset[str] = ARCHIVABLE_TABLES & TRASHABLE_TABLES
+
+
+def _derive_own_kind_parents() -> dict[str, tuple[str, ...]]:
+    found: dict[str, list[str]] = {}
+    for table in sorted(FROZEN_TABLES):
+        for fk in SQLModel.metadata.tables[table].foreign_keys:
+            if fk.column.table.name != table:
+                continue
+            if (fk.ondelete or "").upper() == "SET NULL":
+                continue
+            found.setdefault(table, []).append(fk.parent.name)
+    return {table: tuple(columns) for table, columns in found.items()}
+
+
+#: Rows filed under another row of the same table — a reply under its comment,
+#: a page under its page — mapped to the column naming that row.
+#:
+#: The sharing walk goes straight to the tool and never passes through these,
+#: but the trash does: a page thrown away on its own, and its parent after it,
+#: is still inside that parent. Read off the keys the way the trash reads its
+#: cascade (``lifecycle_tree``), so a key that lets go on delete is a pointer
+#: rather than a parent.
+_OWN_KIND_PARENTS: dict[str, tuple[str, ...]] = _derive_own_kind_parents()
 
 
 #: Tables the freeze does not reach, and why. Reading frozen content still
@@ -143,6 +194,13 @@ FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
         "uploads",
     }
 )
+
+#: Tables where taking a row away is never a change to what it names. A grant
+#: is somebody's access, and removing it narrows who can reach a resource
+#: without touching the resource, so it may go whatever state the resource is
+#: in — archived content is the content most worth taking somebody off. Giving
+#: or raising access is still a change, and stays refused.
+_REVOCABLE_TABLES: frozenset[str] = frozenset({"resource_grants"})
 
 #: Edge tables, which name two ends and belong to neither. They take the freeze
 #: on INSERT and UPDATE — no new link to or from frozen content, because a link
@@ -267,8 +325,33 @@ def _trashed(alias: str, table: str) -> str | None:
     return f"{alias}.deleted_at IS NOT NULL"
 
 
+def _any(legs: list[str]) -> str | None:
+    if len(legs) < 2:
+        return legs[0] if legs else None
+    return "(" + " OR ".join(legs) + ")"
+
+
+def _parent_legs(table: str, alias: str, *, trashed_ok: str) -> list[str]:
+    """Each way up from ``table``, one call apiece: the hop toward its tool,
+    and the row it is filed under when that is one of its own kind."""
+    legs = [
+        f"({alias}.{column} IS NOT NULL AND resource_frozen("
+        f"'{table}', {alias}.{column}, {trashed_ok}))"
+        for column in _OWN_KIND_PARENTS.get(table, ())
+    ]
+    toward_tool = _tool_hop(table, alias, trashed_ok=trashed_ok)
+    if toward_tool is not None:
+        legs.insert(0, toward_tool)
+    return legs
+
+
 def _parent_call(table: str, alias: str, *, trashed_ok: str) -> str | None:
-    """The call that carries the walk one hop up from ``table``.
+    """Whether anything up any of ``table``'s ways up is frozen."""
+    return _any(_parent_legs(table, alias, trashed_ok=trashed_ok))
+
+
+def _tool_hop(table: str, alias: str, *, trashed_ok: str) -> str | None:
+    """The call that carries the walk one hop up from ``table``, toward its tool.
 
     Read off the join chain the table already declares for sharing: the first
     hop is the only one a caller needs, because the function walks the rest. A
@@ -417,11 +500,19 @@ def render_frozen_ancestor_fn() -> str:
     table and both reasons — a frozen ancestry, and a row's own frozen state on
     a delete. It keeps the name it was created under: the triggers that call it
     depend on it, so renaming it would mean dropping and rebuilding every one.
+
+    A trigger that refuses on account of the thing ABOVE the row names
+    ``FROZEN_PARENT_CONSTRAINT`` as its argument, so the refusal says so.
     """
     return f"""
 CREATE OR REPLACE FUNCTION public.fn_frozen_ancestor_guard() RETURNS trigger
     LANGUAGE plpgsql AS $frozen_ancestor$
 BEGIN
+    IF TG_NARGS > 0 AND TG_ARGV[0] = '{FROZEN_PARENT_CONSTRAINT}' THEN
+        RAISE EXCEPTION 'what this is inside is archived or in the trash'
+            USING ERRCODE = '{FROZEN_SQLSTATE}',
+                  CONSTRAINT = '{FROZEN_PARENT_CONSTRAINT}';
+    END IF;
     RAISE EXCEPTION 'archived or trashed content is read-only'
         USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
 END;
@@ -446,6 +537,10 @@ def frozen_write_triggers(table: str) -> list[str]:
     * an UPDATE guard on the ancestry it would END UP under, because no cascade
       can have stamped a row for a parent it has not reached yet — the same
       reason INSERT keeps its walk.
+    * a guard on coming out of the trash under something still in it. A row
+      trashed before its parent keeps its own stamp, and an archive reaches it
+      in the trash, so it can leave the trash still archived: stamped, but out
+      of the trash while the thing above it is in.
 
     A row with nothing of its own to read inherits instead, and asks about both
     ancestries: the one it has as well as the one it is moving to.
@@ -478,6 +573,16 @@ def frozen_write_triggers(table: str) -> list[str]:
                 f"BEFORE UPDATE ON {table} FOR EACH ROW WHEN ({moving_into}) "
                 f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
             )
+        under_trash = _trashed_ancestor_leg(table, "NEW")
+        if under_trash is not None:
+            out.append(
+                f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_trashed_ancestor_update "
+                f"BEFORE UPDATE ON {table} FOR EACH ROW "
+                f"WHEN (OLD.deleted_at IS NOT NULL AND NEW.deleted_at IS NULL "
+                f"AND {under_trash}) "
+                f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard("
+                f"'{FROZEN_PARENT_CONSTRAINT}')"
+            )
         return out
 
     # Leaving an initiative takes the person off what they held or were named
@@ -497,10 +602,15 @@ def frozen_write_triggers(table: str) -> list[str]:
         guard = (
             "fn_frozen_row_guard" if inherits_the_archive else "fn_frozen_parent_guard"
         )
+        when = f"{prior} OR {proposed}"
+        unfrozen = _UNFROZEN_ROWS.get(table)
+        if unfrozen is not None:
+            # Either side, so a grant raised to owner or lowered from it passes.
+            when = f"NOT ({unfrozen('OLD')} OR {unfrozen('NEW')}) AND ({when})"
         out.append(
             f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_update "
             f"BEFORE UPDATE ON {table} FOR EACH ROW "
-            f"WHEN ({on_departure('UPDATE', f'{prior} OR {proposed}')}) "
+            f"WHEN ({on_departure('UPDATE', when)}) "
             f"EXECUTE FUNCTION public.{guard}()"
         )
         if inherits_the_archive:
@@ -516,15 +626,53 @@ def frozen_write_triggers(table: str) -> list[str]:
                 f"EXECUTE FUNCTION public.fn_frozen_parent_guard()"
             )
     doomed = freeze_leg(table, "DELETE", alias="OLD")
-    if doomed is not None:
-        doomed = on_departure("DELETE", doomed)
-    if doomed is not None:
+    if doomed is None:
+        # A schema provisioned before the table was let go still has one.
         out.append(
-            f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
-            f"BEFORE DELETE ON {table} FOR EACH ROW WHEN ({doomed}) "
-            f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
+            f"DROP TRIGGER IF EXISTS tr_{table}_frozen_ancestor_delete ON {table}"
         )
+        return out
+    out.append(
+        f"CREATE OR REPLACE TRIGGER tr_{table}_frozen_ancestor_delete "
+        f"BEFORE DELETE ON {table} FOR EACH ROW "
+        f"WHEN ({on_departure('DELETE', doomed)}) "
+        f"EXECUTE FUNCTION public.fn_frozen_ancestor_guard()"
+    )
     return out
+
+
+def _released_name_step() -> str:
+    """plpgsql, for the guards: take a row's released name out of what they
+    compare when this write parks it or takes it back.
+
+    Parking goes with the stamp — the name becomes itself, cut short, behind
+    ``PARK`` and the row's id. Taking it back goes with the restore — from a
+    parked name to the part before ``PARK``, cut short and numbered if a live
+    sibling holds it. Any other change to the name is content.
+    """
+    arms = " ".join(
+        f"WHEN '{model.__tablename__}' THEN '{column}'"
+        for model, (column, _scope) in RELEASED_NAMES.items()
+    )
+    if not arms:
+        return ""
+    return f"""
+    released := CASE TG_TABLE_NAME {arms} END;
+    parked := '{PARK}' || (was ->> 'id');
+    IF released IS NOT NULL AND (
+        (was ->> 'deleted_at' IS NULL AND now_ ->> 'deleted_at' IS NOT NULL
+         AND right(now_ ->> released, length(parked)) = parked
+         AND starts_with(was ->> released,
+                         left(now_ ->> released, -length(parked))))
+        OR
+        (was ->> 'deleted_at' IS NOT NULL AND now_ ->> 'deleted_at' IS NULL
+         AND right(was ->> released, length(parked)) = parked
+         AND strpos(now_ ->> released, '{PARK}') = 0
+         AND starts_with(left(was ->> released, -length(parked)),
+                         regexp_replace(now_ ->> released, '-[0-9]+$', '')))
+    ) THEN
+        lifecycle := lifecycle || released;
+    END IF;"""
 
 
 def render_frozen_parent_guard_fn() -> str:
@@ -555,6 +703,8 @@ DECLARE
     lifecycle text[] := ARRAY[{cols}];
     was jsonb := to_jsonb(OLD);
     now_ jsonb := to_jsonb(NEW);
+    released text;
+    parked text;
 BEGIN
     IF {gucs.PURGING} THEN
         RETURN NEW;
@@ -568,7 +718,7 @@ BEGIN
     END IF;
     IF {gucs.RESTRUCTURING} THEN
         RETURN NEW;
-    END IF;
+    END IF;{_released_name_step()}
     IF (now_ - lifecycle) IS DISTINCT FROM (was - lifecycle) THEN
         RAISE EXCEPTION 'archived or trashed content is read-only'
             USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
@@ -594,11 +744,15 @@ CREATE OR REPLACE FUNCTION public.fn_frozen_row_guard() RETURNS trigger
     LANGUAGE plpgsql AS $frozen_guard$
 DECLARE
     lifecycle text[] := ARRAY[{cols}];
+    was jsonb := to_jsonb(OLD);
+    now_ jsonb := to_jsonb(NEW);
+    released text;
+    parked text;
 BEGIN
     IF {gucs.PURGING} OR {gucs.RESTRUCTURING} THEN
         RETURN NEW;
-    END IF;
-    IF (to_jsonb(NEW) - lifecycle) IS DISTINCT FROM (to_jsonb(OLD) - lifecycle) THEN
+    END IF;{_released_name_step()}
+    IF (now_ - lifecycle) IS DISTINCT FROM (was - lifecycle) THEN
         RAISE EXCEPTION 'archived or trashed content is read-only'
             USING ERRCODE = '{FROZEN_SQLSTATE}', CONSTRAINT = '{FROZEN_CONSTRAINT}';
     END IF;
@@ -671,6 +825,17 @@ def _reactions_leg(alias: str, trashed_ok: str) -> str:
     return f"COALESCE((CASE {alias}.target_type {arms} ELSE false END), false)"
 
 
+def _property_values_leg(alias: str, trashed_ok: str) -> str:
+    """A property value freezes with the thing it is on."""
+    tables = entity_tables()
+    arms = " ".join(
+        f"WHEN '{target}' THEN resource_frozen("
+        f"'{tables[target]}', {alias}.entity_id, {trashed_ok})"
+        for target in PROPERTY_TARGETS
+    )
+    return f"COALESCE((CASE {alias}.entity_type {arms} ELSE false END), false)"
+
+
 def _edge_leg(alias: str, trashed_ok: str) -> str:
     """An edge freezes with EITHER end.
 
@@ -707,6 +872,17 @@ def _resource_grants_leg(alias: str, trashed_ok: str) -> str:
     )
 
 
+#: Rows the freeze lets through on what they say rather than where they sit.
+#:
+#: An owner grant says who administers a resource, which is not a change to
+#: it: ownership goes when its holder leaves, and an admin claims it or hands it
+#: on, whatever state the resource is in. Sharing it with anybody else still
+#: changes it, and stays refused.
+_UNFROZEN_ROWS: dict[str, Callable[[str], str]] = {
+    "resource_grants": lambda alias: f"{alias}.level = 'owner'",
+}
+
+
 #: Tables whose ancestors are a property of the ROW rather than of the table,
 #: so the walk cannot be read off a join chain and is declared here instead.
 #: Read by BOTH halves — the policy leg and the dispatch function's own arm —
@@ -714,6 +890,7 @@ def _resource_grants_leg(alias: str, trashed_ok: str) -> str:
 _FREEZE_DEVIATIONS: dict[str, Callable[[str, str], str]] = {
     "comments": _comments_leg,
     "reactions": _reactions_leg,
+    "property_values": _property_values_leg,
     "relationships": _edge_leg,
     "resource_grants": _resource_grants_leg,
 }
@@ -735,18 +912,29 @@ def freeze_leg(
 
     ``trashed_ok`` states that question directly, for the one caller that asks
     it outside a DELETE — see :func:`_trashed_ancestor_leg`.
+
+    A row in ``_UNFROZEN_ROWS`` is let through here for INSERT and DELETE. An
+    UPDATE has two rows to ask about, so :func:`frozen_write_triggers` asks.
     """
     if table in FREEZE_EXEMPT_TABLES:
         return None
-    if command == "DELETE" and table in _EDGE_TABLES:
+    if command == "DELETE" and table in _EDGE_TABLES | _REVOCABLE_TABLES:
         return None
     if trashed_ok is None:
         trashed_ok = command == "DELETE"
-    flag = "true" if trashed_ok else "false"
     alias = alias or table
+    leg = _any(_freeze_branches(table, alias, trashed_ok=trashed_ok))
+    unfrozen = _UNFROZEN_ROWS.get(table)
+    if leg is None or unfrozen is None or command == "UPDATE":
+        return leg
+    return f"(NOT ({unfrozen(alias)}) AND {leg})"
 
-    walked = _parent_call(table, alias, trashed_ok=flag)
-    if walked is not None:
+
+def _freeze_branches(table: str, alias: str, *, trashed_ok: bool) -> list[str]:
+    """The freeze walk from ``table``, one call per way up."""
+    flag = "true" if trashed_ok else "false"
+    walked = _parent_legs(table, alias, trashed_ok=flag)
+    if walked:
         return walked
 
     # No governing tool, but the row names its initiative: guild-wide
@@ -754,8 +942,8 @@ def freeze_leg(
     # freeze with the initiative and with nothing else.
     columns = SQLModel.metadata.tables[table].c
     if "initiative_id" in columns:
-        return f"resource_frozen('initiatives', {alias}.initiative_id, {flag})"
-    return None
+        return [f"resource_frozen('initiatives', {alias}.initiative_id, {flag})"]
+    return []
 
 
 def _trashed_ancestor_leg(table: str, alias: str) -> str | None:
@@ -772,9 +960,17 @@ def _trashed_ancestor_leg(table: str, alias: str) -> str | None:
     walk sees an archive (if anything) and the child may come back unstamped —
     which for a comment, a queue item, a counter, a picture or a calendar event
     is the only way it can come back at all.
+
+    Asked of each way up on its own. A reply sits under its comment and under
+    the comment's task, and an archive on the task says nothing about whether
+    the comment is in the trash; asked of both at once, the one would hide the
+    other.
     """
-    frozen = freeze_leg(table, "UPDATE", alias=alias)
-    if frozen is None:
+    if table in FREEZE_EXEMPT_TABLES:
         return None
-    archived = freeze_leg(table, "UPDATE", alias=alias, trashed_ok=True)
-    return f"(({frozen}) AND NOT ({archived}))"
+    pairs = zip(
+        _freeze_branches(table, alias, trashed_ok=False),
+        _freeze_branches(table, alias, trashed_ok=True),
+        strict=True,
+    )
+    return _any([f"(({frozen}) AND NOT ({archived}))" for frozen, archived in pairs])

@@ -1,7 +1,7 @@
 """Tier 2: dynamic sort/filter payloads never become SQL text.
 
 The list endpoints build ORDER BY / WHERE from user-supplied field names and
-values through :mod:`app.db.query`. The security contract: a field name must
+values through :mod:`app.db.query`. The contract: a field name must
 resolve to a mapped column object or be dropped (never spliced into SQL), and a
 value must be bound as a parameter (never interpolated). These compile the
 built statements and assert both — no database required, so they run fast and
@@ -28,7 +28,7 @@ class _Widget(_Base):
 
 _ALLOWED = {"id": _Widget.id, "name": _Widget.name}
 
-# A field name / sort key an attacker might send to break out of the identifier.
+# A field name / sort key that contains SQL syntax.
 _INJECTION = "name); DROP TABLE widgets_injection_probe; --"
 
 
@@ -48,13 +48,13 @@ def test_hostile_sort_field_is_dropped_not_interpolated():
 
 def test_hostile_sort_field_dropped_without_allowlist():
     """The ``getattr(model, field)`` fallback resolves an unknown attribute to
-    None, so a hostile field is dropped there too."""
+    None, so an unknown field is dropped there too."""
     stmt = apply_sorting(select(_Widget), _Widget, sort_by=_INJECTION)
     assert "DROP TABLE" not in _sql_with_literals(stmt)
 
 
 def test_valid_sort_applied_while_hostile_sibling_dropped():
-    """A real field still sorts; the hostile sibling is silently dropped."""
+    """A real field still sorts; the unknown sibling is silently dropped."""
     stmt = apply_sorting(
         select(_Widget),
         _Widget,

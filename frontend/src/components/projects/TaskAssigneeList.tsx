@@ -34,7 +34,7 @@ export const TaskAssigneeList = ({ assignees, size = "sm", className }: TaskAssi
         const anonymized = isAnonymizedUser(assignee);
         const displayName = getUserDisplayName(assignee);
         // Suppress avatar image and the deterministic colour fallback for
-        // anonymized rows — both leak the prior user's identity.
+        // anonymized rows — both are derived from the prior user's identity.
         const avatarSrc = anonymized
           ? undefined
           : resolveUploadUrl(assignee.avatar_url) || undefined;

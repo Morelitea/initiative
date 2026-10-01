@@ -98,7 +98,7 @@ def guild_of(obj) -> int:
 
 
 def _pin_sql(search_path: str) -> str:
-    # search_path is always built from int(guild_id) — injection-safe.
+    # search_path is always built from int(guild_id), so it is safe to inline.
     return f"SELECT set_config('search_path', '{search_path}', true)"
 
 

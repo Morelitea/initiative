@@ -15,6 +15,10 @@ checks are the same rule applied to the source, so it reads as the wrong line.
 import re
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.always
+
 
 BACKEND = Path(__file__).resolve().parents[2]
 

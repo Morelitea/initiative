@@ -12,7 +12,8 @@ from dataclasses import replace
 from datetime import date, datetime, timezone
 
 from httpx import AsyncClient
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.engine import Engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -23,6 +24,7 @@ from app.core.tools import Tool
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.task import TaskStatusCategory
+from app.services.tenant import tags as tags_service
 from app.testing import route_session_to_guild
 from app.testing.factories import (
     create_document,
@@ -32,6 +34,7 @@ from app.testing.factories import (
     create_initiative,
     create_project,
     create_resource_grant,
+    create_tag,
     create_task,
     create_task_status,
 )
@@ -402,9 +405,11 @@ async def test_list_projects_slim_permission_for_member(
     item = next(p for p in response.json()["items"] if p["id"] == project.id)
     assert (item["can"]["edit"], item["can"]["delete"]) == (True, False)
 
-    writable = await client.get(member.g("/projects/writable"), headers=member.headers)
+    writable = await client.get(
+        member.g("/projects/?slim=true&writable=true"), headers=member.headers
+    )
     assert writable.status_code == 200
-    assert [p["id"] for p in writable.json()] == [project.id]
+    assert [p["id"] for p in writable.json()["items"]] == [project.id]
 
 
 async def test_create_project(client: AsyncClient, acting_user):
@@ -619,17 +624,31 @@ async def test_create_from_template_copies_task_relations(
     """A dependency between two template tasks lands between their copies.
 
     Both ends are remapped to the new project's tasks; the template's own
-    tasks keep their edge and gain nothing pointing at the copies.
+    tasks keep their edge and gain nothing pointing at the copies. A copy made
+    in another initiative leaves behind a link to something that stays in the
+    template's, as the relationships surface would refuse to make it.
     """
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     template, first, second = await _template_with_dependency(session, admin)
+    elsewhere = await create_project(
+        session, admin.initiative, admin.user, name="Elsewhere"
+    )
+    outside = await create_task(session, elsewhere, title="Outside")
+    await create_relationship(
+        session,
+        admin.guild,
+        source=(SearchEntityType.task, outside.id),
+        target=(SearchEntityType.task, first.id),
+        relationship_type=RelationshipType.related_to,
+    )
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
 
     response = await client.post(
         admin.g("/projects/"),
         headers=admin.headers,
         json={
             "name": "From template",
-            "initiative_id": admin.initiative.id,
+            "initiative_id": other_initiative.id,
             "template_id": template.id,
         },
     )
@@ -649,16 +668,28 @@ async def test_create_from_template_copies_task_relations(
     ]
 
     original = await _relations_of(client, admin, first.id)
-    assert [r["other"]["id"] for r in original] == [second.id]
+    assert sorted(r["other"]["id"] for r in original) == sorted([second.id, outside.id])
 
 
 async def test_duplicate_project_copies_task_relations(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Duplicating a project carries its task relations, ids remapped, and
-    a symmetric relation to something outside the project is kept as-is."""
+    a symmetric relation to something outside the project is kept as-is; each
+    task's tags land on its own copy."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     source, first, second = await _template_with_dependency(session, admin)
+    design = await create_tag(session, admin.guild, name="design")
+    build = await create_tag(session, admin.guild, name="build")
+    for task, tag in ((first, design), (second, build)):
+        await tags_service.set_entity_tags(
+            session,
+            tags_service.TAG_LINKS["task"],
+            guild_id=admin.guild.id,
+            entity_id=task.id,
+            tag_ids=[tag.id],
+        )
+    await session.commit()
     other_project = await create_project(
         session, admin.initiative, admin.user, name="Elsewhere"
     )
@@ -682,10 +713,16 @@ async def test_duplicate_project_copies_task_relations(
     new_first, new_second = tasks["Design"], tasks["Build"]
 
     relations = await _relations_of(client, admin, new_first["id"])
-    assert sorted((r["relationship_type"], r["other"]["id"]) for r in relations) == [
+    assert sorted(
+        (r["relationship_type"], r["other"]["id"])
+        for r in relations
+        if r["relationship_type"] != RelationshipType.tagged_with
+    ) == [
         ("depends_on", new_second["id"]),
         ("related_to", outside.id),
     ]
+    assert [t["name"] for t in new_first["tags"]] == ["design"]
+    assert [t["name"] for t in new_second["tags"]] == ["build"]
 
 
 async def test_a_duplicate_keeps_the_sources_sharing_and_needs_the_create_right(
@@ -1120,14 +1157,63 @@ async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     added = await client.post(url, headers=user.headers)
     assert added.status_code == 200
     assert added.json()["is_favorited"] is True
-    listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
-    assert [(p["id"], p["is_favorited"]) for p in listed.json()] == [(project.id, True)]
+
+    sent: list[str] = []
+
+    def record(_conn, _cursor, statement, _params, _context, _many) -> None:
+        sent.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
+    (item,) = listed.json()
+    assert (item["id"], item["is_favorited"]) == (project.id, True)
+    # The slim projection: what the sidebar reads, without the task summary
+    # pass or the heavy relationships.
+    assert item["initiative_id"] == user.initiative.id
+    assert item["can"]["edit"] is True
+    assert (item["documents"], item["grants"], item["tags"]) == ([], [], [])
+    assert item["initiative"] is None
+    assert sent
+    assert not [statement for statement in sent if "FROM tasks" in statement], sent
 
     removed = await client.delete(url, headers=user.headers)
     assert removed.status_code == 200
     assert removed.json()["is_favorited"] is False
     listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
     assert listed.json() == []
+
+
+async def test_reordering_puts_the_named_projects_first_and_keeps_the_rest(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The ids asked for lead, in that order, and the rest follow in the order
+    they held; the answer is the list as it now stands."""
+    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    first, second, third = [
+        await create_project(session, user.initiative, user.user, name=name)
+        for name in ("First", "Second", "Third")
+    ]
+    url = user.g("/projects/reorder")
+
+    moved = await client.post(
+        url, headers=user.headers, json={"project_ids": [third.id]}
+    )
+    assert moved.status_code == 200, moved.text
+    assert [(p["id"], p["sort_order"]) for p in moved.json()] == [
+        (third.id, 0.0),
+        (first.id, 1.0),
+        (second.id, 2.0),
+    ]
+
+    # The order it already holds changes nothing, and is answered the same.
+    kept = await client.post(
+        url, headers=user.headers, json={"project_ids": [third.id, first.id]}
+    )
+    assert kept.status_code == 200, kept.text
+    assert [p["id"] for p in kept.json()] == [third.id, first.id, second.id]
 
 
 async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
@@ -1408,10 +1494,10 @@ async def test_project_counts_by_initiative(
     # Guild admin: the counts span initiatives, so they count what reaches
     # the reader — the admin's own project in each, not the member's beside it.
     response = await client.get(
-        admin.g("/projects/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {
+    assert response.json()["counts"]["project"] == {
         str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
@@ -1419,10 +1505,10 @@ async def test_project_counts_by_initiative(
     # Member: only projects shared with them, and no entry for
     # initiatives they are not in.
     response = await client.get(
-        member.g("/projects/counts/by-initiative"), headers=member.headers
+        member.g("/tools/counts/by-initiative"), headers=member.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(admin.initiative.id): 1}
+    assert response.json()["counts"]["project"] == {str(admin.initiative.id): 1}
 
 
 # ── Default view mode ─────────────────────────────────────────────────

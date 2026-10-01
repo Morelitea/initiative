@@ -45,7 +45,12 @@ import json
 from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
-from app.core.app_scopes import APP_SCOPE_PREFIX
+from app.core.app_scopes import (
+    APP_SCOPE_PREFIX,
+    LEVEL_SCOPES,
+    STANDING_SCOPES,
+    InstallLevel,
+)
 from app.core.tools import Tool
 from app.db import gucs
 from app.db.authorization import LIVE_GRANT, sql_values
@@ -244,6 +249,10 @@ SELECT
 #: The ``apps:`` scope family names another app rather than a resource of the
 #: community's, so it adds nothing to what the install reads or writes.
 _APP_SCOPE_FAMILY = APP_SCOPE_PREFIX.rstrip(":")
+#: The standings, as a SQL list: they name no resource.
+_STANDING_SCOPES_SQL = ", ".join(f"'{scope}'" for scope in sorted(STANDING_SCOPES))
+_MODERATE_SCOPE = LEVEL_SCOPES[InstallLevel.moderator]
+_GUILD_ADMIN_SCOPE = LEVEL_SCOPES[InstallLevel.guild_admin]
 #: The community statuses whose content is in use, as the person seam reads
 #: them.
 _LIVE_STATUSES_SQL = sql_values(sorted(LIVE_STATUS_VALUES))
@@ -304,7 +313,9 @@ ISSUABLE_SCOPES_SQL = (
 #: What the install statement writes: each key and its expression.
 _INSTALL_STANDING: dict[gucs.Guc, str] = {
     gucs.STANDING_GUILD_ID: f"""COALESCE({gucs.GUILD_ID.text}, '')""",
-    gucs.GUILD_ADMIN: """'false'""",
+    gucs.GUILD_ADMIN: """COALESCE((
+      SELECT lv.administers::text FROM standing_level lv
+    ), 'false')""",
     gucs.GUILD_SEAT: """'false'""",
     gucs.SETTINGS_RUNG: """''""",
     gucs.PAM_GUILD_ID: """''""",
@@ -314,7 +325,11 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
       SELECT string_agg(p.initiative_id::text, ',' ORDER BY p.initiative_id)
       FROM placed p
     ), '')""",
-    gucs.MANAGER_INITIATIVES: """''""",
+    gucs.MANAGER_INITIATIVES: """COALESCE((
+      SELECT string_agg(p.initiative_id::text, ',' ORDER BY p.initiative_id)
+      FROM placed p
+      JOIN standing_level lv ON lv.moderates
+    ), '')""",
     gucs.MEMBER_ROLE_IDS: """COALESCE((
       SELECT string_agg(DISTINCT mr.role_id::text, ',')
       FROM member_role mr
@@ -335,10 +350,17 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
       WHERE t.enabled
     ), '')""",
     gucs.OVERRIDE_INITIATIVES: """COALESCE((
-      SELECT string_agg(DISTINCT mr.initiative_id::text, ',')
-      FROM member_role mr
-      JOIN placed p ON p.initiative_id = mr.initiative_id
-      WHERE mr.overrides
+      SELECT string_agg(DISTINCT o.initiative_id::text, ',')
+      FROM (
+        SELECT mr.initiative_id
+        FROM member_role mr
+        JOIN placed p ON p.initiative_id = mr.initiative_id
+        WHERE mr.overrides
+        UNION
+        SELECT p.initiative_id
+        FROM placed p
+        JOIN standing_level lv ON lv.moderates
+      ) o
     ), '')""",
     gucs.INSTALL_READ: """COALESCE((
       SELECT string_agg(DISTINCT h.resource, ',') FROM held h
@@ -371,7 +393,14 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: allow there: a tool's view key for a read scope on it, its create key for a
 #: write scope, and every other key denied, so no member default answers for
 #: it. It administers nothing, manages nothing, holds no initiative role a
-#: share could name, and carries no grant. The community's sign-in rules
+#: share could name, and carries no grant — unless its token carries a
+#: standing (``standing_level``), which only an installation token that asked
+#: for one does, and only while the seat's grant still holds that scope:
+#: ``initiatives:moderate`` on a token narrowed to an initiative makes it a
+#: manager there with "Full access", as a moderator is; ``guild:admin`` makes
+#: it a guild admin, within the one initiative a narrowed token names. Either is still bounded by
+#: its resource scopes, which every tool policy asks first. The community's
+#: sign-in rules
 #: govern people signing in; an install's admission is the seat's consent, so
 #: that value is what ``live`` says.
 #:
@@ -445,6 +474,7 @@ granted_scope AS (
   FROM install i
   CROSS JOIN LATERAL unnest(i.granted_scopes) AS s(scope)
   WHERE split_part(s.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
+    AND s.scope NOT IN ({_STANDING_SCOPES_SQL})
   GROUP BY 1
 ),
 token_scope AS (
@@ -452,7 +482,18 @@ token_scope AS (
          bool_or(split_part(t.scope, ':', 2) = 'write') AS writes
   FROM unnest({gucs.TOKEN_SCOPES}) AS t(scope)
   WHERE split_part(t.scope, ':', 1) <> '{_APP_SCOPE_FAMILY}'
+    AND t.scope NOT IN ({_STANDING_SCOPES_SQL})
   GROUP BY 1
+),
+standing_level AS (
+  SELECT
+    bool_or(t.scope = '{_MODERATE_SCOPE}')
+      AND {gucs.SCOPE_INITIATIVE_ID} IS NOT NULL AS moderates,
+    bool_or(t.scope = '{_GUILD_ADMIN_SCOPE}') AS administers
+  FROM install i
+  CROSS JOIN LATERAL unnest({gucs.TOKEN_SCOPES}) AS t(scope)
+  WHERE {gucs.USER_ID} IS NULL
+    AND t.scope = ANY (i.granted_scopes)
 ),
 held AS (
   SELECT g.resource,
@@ -828,9 +869,15 @@ class InstallContext:
     enabled_tools: tuple[str, ...] = ()
     #: For a member token, the member's initiative roles, and the initiatives
     #: where their role holds "Full access", within ``member_initiatives``.
-    #: Empty for the install itself.
+    #: For the install itself, no roles, and "Full access" exactly where its
+    #: token holds the moderator standing.
     member_role_ids: tuple[int, ...] = ()
     override_initiatives: tuple[int, ...] = ()
+    #: The initiative its token holds the moderator standing in, as a manager
+    #: of it. Empty otherwise, and always for a member token.
+    manager_initiatives: tuple[int, ...] = ()
+    #: Its token holds the guild admin standing. Never for a member token.
+    guild_admin: bool = False
     #: The resources its scopes let it read, and write.
     install_read: tuple[str, ...] = ()
     install_write: tuple[str, ...] = ()
@@ -848,17 +895,18 @@ class InstallContext:
         return self.live
 
     def overrides_sharing(self, initiative_id: Optional[int]) -> bool:
-        """Whether the member a member token acts for holds "Full access" in
-        ``initiative_id``. Never, for the install itself."""
+        """Whether the request holds "Full access" in ``initiative_id``: the
+        member a member token acts for, by their role, or the install itself,
+        by the moderator standing."""
         return initiative_id is not None and initiative_id in self.override_initiatives
 
     # --- A person's standing, as an install answers it -----------------------
     # A route that serves both actors reads these off whichever context it was
     # handed. Each is what the install standing statement wrote for the key a
-    # person's standing sets: an install is never an admin, a grantee or a
-    # manager, and it is nobody. A member token names its member in
-    # ``member_user_id``; what that member's writes own is written by the
-    # tool table's trigger, as for the install.
+    # person's standing sets: an install is never a grantee, it is an admin or
+    # a manager only by a standing its token holds, and it is nobody. A member
+    # token names its member in ``member_user_id``; what that member's writes
+    # own is written by the tool table's trigger, as for the install.
 
     @property
     def user_id(self) -> None:
@@ -867,7 +915,7 @@ class InstallContext:
 
     @property
     def is_admin(self) -> bool:
-        return False
+        return self.guild_admin
 
     @property
     def content_read_only(self) -> bool:
@@ -895,10 +943,6 @@ class InstallContext:
         self, *, access: str = "read", require_owner: bool = False
     ) -> bool:
         return False
-
-    @property
-    def manager_initiatives(self) -> tuple[int, ...]:
-        return ()
 
     def holds(self, scope: str) -> bool:
         """Whether the standing lets this install use ``scope``: its resource

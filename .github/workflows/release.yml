@@ -1,0 +1,105 @@
+name: Release
+
+# scripts/promote.sh behind a button: Actions → Release → Run workflow. It
+# runs as the release app, so the pull request it opens gets its CI and the
+# release branch its candidate build (release-candidate.yml), as one a person
+# opened would; a branch pushed with the workflow's own token starts neither.
+# Every run waits for a code owner's approval (the release environment), which
+# holds the app's client ID (a variable) and private key (a secret).
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: What to promote to main
+        type: choice
+        options: [patch, minor, major, docs]
+        default: patch
+      force-native:
+        description: Build a fresh app even when no native change is detected
+        type: boolean
+        default: false
+      dry-run:
+        description: Show what would happen, and change nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  options:
+    # Before anyone is asked to approve: a combination promote.sh refuses.
+    name: Check the options
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Refuse a fresh app build without a version bump
+        if: inputs.kind == 'docs' && inputs.force-native
+        run: |
+          echo "::error::force-native builds the app for a new version; docs promotes no version."
+          exit 1
+
+  promote:
+    name: promote.sh --${{ inputs.kind }}
+    needs: options
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    env:
+      # The script commits; a hook installed by pnpm install has nothing to add.
+      HUSKY: "0"
+    steps:
+      - name: Get the release app's token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # What promote.sh does: push a branch, open a labelled pull request,
+          # and read CI on dev. The release branch is cut from dev, whose
+          # workflows usually differ from main's, and GitHub refuses an app's
+          # push of such a branch without the workflows grant.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-checks: read
+          permission-statuses: read
+          permission-workflows: write
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      # The script regenerates the API client for the new version.
+      - uses: ./.github/actions/setup-backend
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Commit as the release app
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          id=$(gh api "users/${SLUG}[bot]" --jq .id)
+          git config --global user.name "${SLUG}[bot]"
+          git config --global user.email "${id}+${SLUG}[bot]@users.noreply.github.com"
+          # The script checks both branches against origin.
+          git branch main origin/main
+
+      - name: Run promote.sh
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          KIND: ${{ inputs.kind }}
+          FORCE_NATIVE: ${{ inputs.force-native }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          args=(-y)
+          if [[ "$KIND" == docs ]]; then args+=(--docs); else args+=("--$KIND"); fi
+          if [[ "$FORCE_NATIVE" == true ]]; then args+=(--force-native); fi
+          if [[ "$DRY_RUN" == true ]]; then args+=(--dry-run); fi
+          scripts/promote.sh "${args[@]}"

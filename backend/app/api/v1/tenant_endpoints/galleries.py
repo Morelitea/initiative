@@ -82,6 +82,7 @@ from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import galleries as galleries_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 
@@ -159,6 +160,7 @@ async def annotate_gallery_rows(session: RLSSessionDep, galleries: list) -> None
     """Everything a gallery row carries beyond its columns, one grouped query
     each for the page."""
     await tags_service.annotate_tags(session, galleries)
+    await properties_service.annotate_properties(session, galleries)
     await comments_service.annotate_comment_counts(
         session, galleries, column="gallery_id"
     )
@@ -410,6 +412,7 @@ async def create_gallery(
             tag_ids=gallery_in.tag_ids,
         )
     await attachments_service.claim_uploads(session, gallery)
+    await properties_service.write_on_create(session, gallery, gallery_in.properties)
     await session.commit()
     hydrated = await _refetch_gallery(
         session, gallery.id, user_id=guild_context.user_id
@@ -550,6 +553,7 @@ async def list_gallery_images(
     )
     images = list((await session.exec(stmt)).unique().all())
     await tags_service.annotate_tags(session, images)
+    await properties_service.annotate_properties(session, images)
     await galleries_service.annotate_version_counts(session, images)
     items = [serialize_gallery_image(i, context=guild_context) for i in images]
     return GalleryImageListResponse(
@@ -694,8 +698,8 @@ async def update_gallery_image(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> GalleryImageRead:
-    """Retitle, caption or retag a picture. Requires write access on the
-    gallery."""
+    """Retitle, caption, retag or set the properties of a picture. Requires
+    write access on the gallery."""
     gallery, image = await _load_image(
         session, gallery_id, image_id, current_user, guild_context, access="write"
     )
@@ -712,6 +716,7 @@ async def update_gallery_image(
             entity_id=image.id,
             tag_ids=update_data["tag_ids"],
         )
+    await properties_service.write_on_update(session, image, image_in.properties)
     image.updated_at = datetime.now(timezone.utc)
     session.add(image)
     await attachments_service.claim_uploads(session, image)

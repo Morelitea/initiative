@@ -23,6 +23,16 @@ import type { OperatorUserRead, UserRead, UserRole } from "@/api/generated/initi
 const state = vi.hoisted(() => ({
   roster: [] as OperatorUserRead[],
   search: undefined as string | null | undefined,
+  clearSecondFactor: vi.fn(),
+  authenticatorAskedAtSignIn: true,
+  passwordLoginEnabled: true,
+}));
+
+vi.mock("@/hooks/useAppConfig", () => ({
+  useAppConfig: () => ({
+    authenticatorAskedAtSignIn: state.authenticatorAskedAtSignIn,
+    passwordLoginEnabled: state.passwordLoginEnabled,
+  }),
 }));
 
 vi.mock("@/hooks/useOperatorUsers", () => ({
@@ -35,6 +45,7 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
   useOperatorSetUsername: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorClearAgeBlock: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorLiftSignInLock: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorClearSecondFactor: () => ({ mutate: state.clearSecondFactor, isPending: false }),
   useOperatorSetSuspension: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorReactivateUser: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
@@ -74,6 +85,8 @@ const lever = (sheet: HTMLElement, name: string) =>
 describe("SettingsPlatformUsersPage", () => {
   beforeEach(() => {
     state.roster = [];
+    state.clearSecondFactor.mockClear();
+    state.passwordLoginEnabled = true;
   });
 
   it("identifies an account by its handle, and shows no address or name", async () => {
@@ -147,6 +160,50 @@ describe("SettingsPlatformUsersPage", () => {
     expect(menu).toHaveTextContent("Delete user");
     // Suspending is a setting the sheet holds, not a one-shot menu item.
     expect(menu).not.toHaveTextContent("Suspend");
+  });
+
+  it.each([true, false])(
+    "offers a password reset only where passwords sign in (%s)",
+    async (passwords) => {
+      state.passwordLoginEnabled = passwords;
+      renderRoster(masked(), buildUser({ role: "moderator" }));
+
+      const triggers = await screen.findAllByRole("button", { name: /actions for/i });
+      await userEvent.click(triggers[1]);
+      const item = within(await screen.findByRole("menu")).queryByText("Reset password");
+      expect(Boolean(item)).toBe(passwords);
+    }
+  );
+
+  it.each<[string, UserRole, boolean, boolean, boolean]>([
+    ["offers to clear an authenticator to a moderator", "moderator", true, true, true],
+    ["offers nothing to clear on an account without one", "moderator", false, true, false],
+    ["offers support no way to clear one", "support", true, true, false],
+    // A passkey or single sign-on never asks for the code, so where nothing
+    // else is permitted there is nothing to get past.
+    ["offers nothing where signing in never asks for the code", "moderator", true, false, false],
+  ])("%s", async (_label, role, enrolled, asked, offered) => {
+    state.authenticatorAskedAtSignIn = asked;
+    const rows = masked();
+    rows[1].second_factor_enrolled = enrolled;
+    renderRoster(rows, buildUser({ role }));
+
+    const triggers = await screen.findAllByRole("button", { name: /actions for/i });
+    await userEvent.click(triggers[1]);
+    const item = within(await screen.findByRole("menu")).queryByText(
+      "Clear two-factor authentication"
+    );
+    if (!offered) {
+      expect(item).not.toBeInTheDocument();
+      return;
+    }
+
+    // It signs them out everywhere, so it asks first.
+    await userEvent.click(item as HTMLElement);
+    const dialog = await screen.findByRole("alertdialog");
+    expect(state.clearSecondFactor).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Clear it" }));
+    expect(state.clearSecondFactor).toHaveBeenCalledWith(rows[1].id);
   });
 });
 

@@ -4,8 +4,9 @@ Names the user a newly created guild belongs to. Sent server-to-server at
 creation, independently of the billing-portal tab the client opens; the service
 treats the two as the same claim, so whichever arrives second changes nothing.
 
-* the payload is one signed handoff token and nothing else — the user id and
-  guild id travel inside it, never in the clear;
+* the payload is one signed handoff token — the user id and guild id travel
+  inside it, never in the clear — and, when the person picked one, the
+  catalog tier the community starts on;
 * no retry queue and no delivery guarantee;
 * guild creation must never fail or slow because the service is down: the send
   runs as a detached task with a tight timeout and swallows every error.
@@ -57,7 +58,7 @@ def billing_claim_enabled() -> bool:
     )
 
 
-async def _send_claim(user_id: int, guild_id: int) -> None:
+async def _send_claim(user_id: int, guild_id: int, plan: str | None = None) -> None:
     """One attempt, no retry; never raises."""
     try:
         user_ref, guild_ref = await billing_refs(user_id=user_id, guild_id=guild_id)
@@ -68,7 +69,10 @@ async def _send_claim(user_id: int, guild_id: int) -> None:
         )
         url = settings.BILLING_SERVICE_URL.rstrip("/") + CLAIM_PATH
         async with httpx.AsyncClient(timeout=_CLAIM_TIMEOUT) as client:
-            await client.post(url, json={"handoff_token": token})
+            body = {"handoff_token": token}
+            if plan:
+                body["plan"] = plan
+            await client.post(url, json=body)
     except HandoffSigningNotConfiguredError:
         # Checked before the task was spawned; only reachable if the setting
         # changed underneath us. Not worth a stack trace.
@@ -77,14 +81,15 @@ async def _send_claim(user_id: int, guild_id: int) -> None:
         logger.debug("billing: claim for guild %s failed", guild_id)
 
 
-def claim_new_guild(*, user_id: int, guild_id: int) -> None:
-    """Tell billing that ``user_id`` holds ``guild_id``.
+def claim_new_guild(*, user_id: int, guild_id: int, plan: str | None = None) -> None:
+    """Tell billing that ``user_id`` holds ``guild_id``, and the catalog tier
+    it starts on if one was picked.
 
     Call **after the guild's rows are committed**: the claim states that the
     guild exists, so it is dispatched once that is true.
     """
     if not billing_claim_enabled():
         return
-    task = asyncio.create_task(_send_claim(int(user_id), int(guild_id)))
+    task = asyncio.create_task(_send_claim(int(user_id), int(guild_id), plan))
     _pending_claims.add(task)
     task.add_done_callback(_pending_claims.discard)

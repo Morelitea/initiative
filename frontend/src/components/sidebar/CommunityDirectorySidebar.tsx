@@ -30,21 +30,29 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { asGuildCategory, GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
+import { asGuildCategories, GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 
 export const CommunityDirectorySidebar = () => {
   const { t } = useTranslation(["guilds", "common"]);
   // Read loosely rather than through the route: this renders inside the app
   // shell, which is mounted above the route that declares these params.
   const search = useSearch({ strict: false }) as { category?: unknown };
-  const category = asGuildCategory(search.category);
+  const categories = asGuildCategories(search.category);
 
+  // A shelf opens on itself alone, and shows as open while it is among the
+  // ones picked; "All" is open when none are.
   const shelf = (value: (typeof GUILD_CATEGORIES)[number] | undefined, label: string) => (
     <SidebarMenuItem key={value ?? "all"}>
-      <SidebarMenuButton asChild isActive={category === value}>
+      <SidebarMenuButton
+        asChild
+        isActive={value ? categories.includes(value) : categories.length === 0}
+      >
         <Link
           to="/communities"
-          search={(prev: Record<string, unknown>) => ({ ...prev, category: value })}
+          search={(prev: Record<string, unknown>) => ({
+            ...prev,
+            category: value ? [value] : undefined,
+          })}
         >
           <span className="truncate">{label}</span>
         </Link>

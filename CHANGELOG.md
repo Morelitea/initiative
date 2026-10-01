@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-10-01
+
+### Added
+
+- **A friendlier sign-up** that asks what you're here for: joining by invite, joining a public community, a space for your own to-dos, or a community for a group. A personal space starts with a **To do** list, and a group's community starts with its first initiative and an invite link to send.
+- **A People tab** showing who's in your community and who's online.
+- **Repeating events and tasks**: change just one occurrence, skip one, or change the rest of the series. New repeats such as "the last Friday" or "the first work day of the month", and every date shows on the calendar.
+- **Custom properties on every tool**, with filters on every list.
+- **Filtered exports**, using the same filters as each list.
+- **What's new** shows release notes right in the app.
+- **A `stable` image tag** for servers that would rather wait. A release moves to it once it has been out three days with no reported regressions; `latest` still gets every release right away.
+
+### Changed
+
+- **A new front page and Download page.**
+- **Search and filters cover the whole list**, not just what's loaded.
+- **All-day events are the same days for everyone**, whatever their timezone.
+- **Comments open on the newest conversations**, with **Load older comments** for the rest.
+- **If your server doesn't use passwords, nothing asks for one.** Deleting your account, setting up two-factor or changing passkeys asks for a recent sign-in instead, or emails you a code.
+- **Initiatives have their own icon**: the figure from the Initiative logo, in place of the members icon.
+- **App and API integrations may need updating.** Repeats are now standard `RRULE` text, counters are changed through `/counters/{id}`, and many routes were merged into others.
+
+### Removed
+
+- **The KMS key setting for file storage.** Use the bucket's own encryption instead.
+
+### Fixed
+
+- **Live documents stop flashing "Syncing…"** while you type, and wiki page saves and offline edits are no longer overwritten.
+- **Calendars with repeating events export again**, and imported events keep their days.
+- **Repeats carry over** from Todoist, TickTick, Vikunja and project templates.
+- **Property filters are fast** on big lists.
+- **Trash and archive work for archived things.** They can be deleted, restored and handed to a new owner, and nothing is restored inside something that's still in the trash.
+- **The document toolbar shows which formatting is on.**
+- **Sign-in:** you can't turn off your own only way to sign in, and wrong passwords in settings count toward the account lock.
+- **Changing your password stops notifications to every phone** until it signs in again.
+- **Only a community admin can remove a moderator.**
+
 ## [0.73.2] - 2026-09-29
 
 ### Fixed

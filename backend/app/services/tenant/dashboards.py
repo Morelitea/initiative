@@ -11,10 +11,10 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import session as db_session
 from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -46,57 +46,7 @@ async def get_dashboard(
     dashboard = result.one_or_none()
     if dashboard is not None:
         await tags_service.annotate_tags(session, [dashboard])
-    return dashboard
-
-
-async def get_dashboard_for_export(
-    session: AsyncSession,
-    current_user,
-    guild_id: int,
-    *,
-    dashboard_id: int,
-    access: str = "owner",
-) -> Dashboard:
-    """The dashboard-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. It takes the owner
-    rung, or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``).
-
-    A dashboard built on an app this build does not ship is refused here: its
-    definition belongs to its publisher, and the way to have it somewhere else
-    is to install the app there. ``adapters/backup`` filters those out before
-    they reach this seam, so a community's backup is not failed by one of them.
-    """
-    from fastapi import HTTPException, status as http_status
-
-    from app.core.messages import ExportMessages
-    from app.core.tools import Tool
-    from app.services.export.provenance import builtin_listing_uids, is_exportable
-    from app.services.permissions import DAC_RESOURCES, require_export_access
-
-    dashboard = await get_dashboard(session, dashboard_id)
-    if dashboard is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=Tool.dashboard.not_found_code,
-        )
-    if dashboard.initiative is not None and not dashboard.initiative.dashboards_enabled:
-        raise HTTPException(
-            status_code=http_status.HTTP_403_FORBIDDEN,
-            detail=Tool.dashboard.feature_disabled_code,
-        )
-    require_export_access(
-        DAC_RESOURCES[Tool.dashboard],
-        dashboard,
-        context=db_session.guild_context(session),
-        access=access,
-    )
-    builtin = await builtin_listing_uids(session, [dashboard.listing_uid])
-    if not is_exportable(dashboard.listing_uid, builtin):
-        raise HTTPException(
-            status_code=http_status.HTTP_400_BAD_REQUEST,
-            detail=ExportMessages.EXPORT_THIRD_PARTY_APP,
-        )
+        await properties_service.annotate_properties(session, [dashboard])
     return dashboard
 
 

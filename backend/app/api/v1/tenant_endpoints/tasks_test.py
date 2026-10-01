@@ -28,6 +28,7 @@ from app.models.tenant.task import Task, TaskStatusCategory
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.core.messages import TaskMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.testing.factories import (
@@ -73,10 +74,26 @@ async def _create_task(session, project, title="Test Task", checklist=None):
 async def test_list_tasks_in_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test listing tasks filtered by project."""
+    """Test listing tasks filtered by project. A row carries its description
+    as a plain-text excerpt and a flag, never the whole text."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task1 = await _create_task(session, a.project, "Task 1")
-    task2 = await _create_task(session, a.project, "Task 2")
+    long = await create_task(
+        session,
+        a.project,
+        description="## [WIP] Plan\n\n"
+        + "Draft the **budget**, then share it with everyone. " * 15,
+    )
+    short = await create_task(
+        session,
+        a.project,
+        description=f"Ask @[Mel]({a.user.id}) about [the budget](https://example.com).",
+    )
+    linked = await create_task(
+        session,
+        a.project,
+        description="Read [the brief](https://example.com/" + "a" * 700 + ")",
+    )
+    bare = await create_task(session, a.project)
 
     conditions = json.dumps(
         [{"field": "project_id", "op": "eq", "value": a.project.id}]
@@ -86,10 +103,25 @@ async def test_list_tasks_in_project(
     )
 
     assert response.status_code == 200
-    data = response.json()["items"]
-    task_ids = {t["id"] for t in data}
-    assert task1.id in task_ids
-    assert task2.id in task_ids
+    rows = {row["id"]: row for row in response.json()["items"]}
+    assert {
+        task.id: (
+            rows[task.id]["description_excerpt"],
+            rows[task.id]["has_description"],
+        )
+        for task in (long, short, linked, bare)
+    } == {
+        long.id: (
+            "[WIP] Plan Draft the budget, then share it with everyone. Draft the"
+            " budget, then share it with everyone. Draft the budget, then share it"
+            " with everyone. Draft…",
+            True,
+        ),
+        short.id: ("Ask @Mel about the budget.", True),
+        linked.id: ("Read…", True),
+        bare.id: (None, False),
+    }
+    assert not any("description" in row for row in rows.values())
 
 
 async def test_list_tasks_hides_a_project_the_member_holds_no_grant_on(
@@ -248,7 +280,8 @@ async def test_an_archived_project_still_lists_its_tasks(
 
 
 async def test_create_task(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test creating a new task."""
+    """Creating a task. Its repeat is stored as picked, with the shift from the
+    zone it was picked in; a repeat a task can't have is refused."""
     from app.services.tenant import task_statuses as task_statuses_service
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -264,6 +297,10 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
         "project_id": a.project.id,
         "task_status_id": status.id,
         "priority": "high",
+        # Mondays at midnight in Berlin are Sundays in UTC.
+        "due_date": "2026-10-04T22:00:00Z",
+        "recurrence": "FREQ=WEEKLY;BYDAY=MO",
+        "tz": "Europe/Berlin",
     }
 
     response = await client.post(a.g("/tasks/"), headers=a.headers, json=payload)
@@ -273,6 +310,15 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
     assert data["title"] == "New Task"
     assert data["description"] == "Task description"
     assert data["priority"] == "high"
+    assert (data["recurrence"], data["recurrence_shift"]) == (
+        "RRULE:FREQ=WEEKLY;BYDAY=MO",
+        1440,
+    )
+
+    hourly = await client.post(
+        a.g("/tasks/"), headers=a.headers, json={**payload, "recurrence": "FREQ=HOURLY"}
+    )
+    assert hourly.status_code == 422
 
 
 async def test_create_task_with_status(
@@ -329,55 +375,8 @@ async def test_create_task_with_tags(
     assert returned_tag_ids == {tag1.id, tag2.id}
 
 
-async def test_create_task_with_properties(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """``property_values`` on create attaches custom property values."""
-    from app.testing.factories import create_property_definition
-
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    text_defn = await create_property_definition(session, a.initiative, name="Notes")
-
-    response = await client.post(
-        a.g("/tasks/"),
-        headers=a.headers,
-        json={
-            "title": "Task with props",
-            "project_id": a.project.id,
-            "property_values": [{"property_id": text_defn.id, "value": "hello"}],
-        },
-    )
-
-    assert response.status_code == 201
-    props = {p["property_id"]: p["value"] for p in response.json()["properties"]}
-    assert props[text_defn.id] == "hello"
-
-
-async def _an_unknown_tag(session, a) -> dict:
-    return {"tag_ids": [999999]}
-
-
-async def _a_property_from_another_initiative(session, a) -> dict:
-    # A definition scoped to a DIFFERENT initiative in the same guild.
-    from app.testing.factories import create_property_definition
-
-    other_initiative = await create_initiative(session, a.guild, a.user)
-    foreign_defn = await create_property_definition(
-        session, other_initiative, name="Foreign"
-    )
-    return {"property_values": [{"property_id": foreign_defn.id, "value": "x"}]}
-
-
-@pytest.mark.parametrize(
-    ("title", "unreachable"),
-    [
-        ("Should Not Exist", _an_unknown_tag),
-        ("Bad Prop Task", _a_property_from_another_initiative),
-    ],
-    ids=["a tag id that is not a tag", "a property of another initiative"],
-)
 async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
-    client: AsyncClient, session: AsyncSession, acting_user, title: str, unreachable
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The whole create is refused, and no half-written task survives it."""
     from sqlmodel import func, select
@@ -388,16 +387,18 @@ async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
         a.g("/tasks/"),
         headers=a.headers,
         json={
-            "title": title,
+            "title": "Should Not Exist",
             "project_id": a.project.id,
-            **await unreachable(session, a),
+            "tag_ids": [999999],
         },
     )
 
     assert response.status_code in (400, 404)
     count = (
         await session.exec(
-            select(func.count()).select_from(Task).where(Task.title == title)
+            select(func.count())
+            .select_from(Task)
+            .where(Task.title == "Should Not Exist")
         )
     ).one()
     assert count == 0
@@ -406,7 +407,8 @@ async def test_a_create_naming_something_it_cannot_reach_persists_no_task(
 async def test_update_task_with_tags_and_properties(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """PATCH replaces tags/properties; omitting the keys leaves them unchanged."""
+    """PATCH replaces tags; omitting the key leaves them, and the task's
+    property values, unchanged."""
     from app.testing.factories import create_property_definition, create_tag
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -414,21 +416,17 @@ async def test_update_task_with_tags_and_properties(
     tag = await create_tag(session, a.guild, name="review")
     defn = await create_property_definition(session, a.initiative, name="Estimate")
 
-    # Set tags + a property value via PATCH.
     response = await client.patch(
-        a.g(f"/tasks/{task.id}"),
-        headers=a.headers,
-        json={
-            "tag_ids": [tag.id],
-            "property_values": [{"property_id": defn.id, "value": "later"}],
-        },
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"tag_ids": [tag.id]}
     )
     assert response.status_code == 200
-    body = response.json()
-    assert {t["id"] for t in body["tags"]} == {tag.id}
-    assert {p["property_id"]: p["value"] for p in body["properties"]}[
-        defn.id
-    ] == "later"
+    assert {t["id"] for t in response.json()["tags"]} == {tag.id}
+    response = await client.put(
+        a.g(f"/properties/task/{task.id}"),
+        headers=a.headers,
+        json={"values": [{"property_id": defn.id, "value": "later"}]},
+    )
+    assert response.status_code == 200, response.text
 
     # A PATCH that omits the keys must leave tags/properties intact.
     response = await client.patch(
@@ -440,18 +438,16 @@ async def test_update_task_with_tags_and_properties(
     body = response.json()
     assert body["title"] == "Renamed"
     assert {t["id"] for t in body["tags"]} == {tag.id}
-    assert {p["property_id"] for p in body["properties"]} == {defn.id}
+    assert {p["property_id"]: p["value"] for p in body["properties"]} == {
+        defn.id: "later"
+    }
 
-    # An explicit empty list clears them.
+    # An explicit empty list clears the tags.
     response = await client.patch(
-        a.g(f"/tasks/{task.id}"),
-        headers=a.headers,
-        json={"tag_ids": [], "property_values": []},
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"tag_ids": []}
     )
     assert response.status_code == 200
-    body = response.json()
-    assert body["tags"] == []
-    assert body["properties"] == []
+    assert response.json()["tags"] == []
 
 
 async def test_create_task_requires_project_access(
@@ -1309,26 +1305,21 @@ async def recurring_task_env(session: AsyncSession, acting_user):
         (
             "rolling",
             datetime(2026, 1, 20, 17, 0, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 3, "ends": "never"},
+            "RRULE:FREQ=DAILY;INTERVAL=3",
             time(17, 0),
             None,
         ),
         (
             "fixed",
             datetime(2026, 1, 20, 9, 30, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 2, "ends": "never"},
+            "RRULE:FREQ=DAILY;INTERVAL=2",
             time(9, 30),
             date(2026, 1, 22),
         ),
         (
             "rolling",
             datetime(2026, 1, 20, 0, 0, 0, tzinfo=timezone.utc),
-            {
-                "frequency": "weekly",
-                "interval": 1,
-                "weekdays": ["monday"],
-                "ends": "never",
-            },
+            "RRULE:FREQ=WEEKLY;BYDAY=MO",
             time(0, 0),
             None,
         ),
@@ -1345,7 +1336,7 @@ async def test_completing_a_recurring_task_opens_the_next_occurrence(
     recurring_task_env,
     strategy: str,
     due: datetime,
-    recurrence: dict,
+    recurrence: str,
     next_time: time,
     next_date: date | None,
 ):
@@ -1401,18 +1392,18 @@ async def test_completing_a_recurring_task_opens_the_next_occurrence(
             # 5pm Los Angeles on Sunday 2026-05-03, which is already the 4th
             # in UTC, completed at 9pm the same Sunday.
             datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 3, "ends": "never"},
+            "RRULE:FREQ=DAILY;INTERVAL=3",
             datetime(2026, 5, 4, 4, 0, 0, tzinfo=timezone.utc),
             datetime(2026, 5, 6, 17, 0, 0, tzinfo=LOS_ANGELES),
         ),
         (
             # 2:30 AM Los Angeles, completed on the US spring-forward day.
-            # 2:30 AM does not exist that night, and the next occurrence lands
-            # on the following day, where it does.
+            # 2:30 AM does not exist that night, so the day's time is 3:30,
+            # and the next occurrence is a day on from it.
             datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc),
-            {"frequency": "daily", "interval": 1, "ends": "never"},
+            "RRULE:FREQ=DAILY",
             datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc),
-            datetime(2026, 3, 9, 2, 30, 0, tzinfo=LOS_ANGELES),
+            datetime(2026, 3, 9, 3, 30, 0, tzinfo=LOS_ANGELES),
         ),
     ],
     ids=[
@@ -1424,13 +1415,13 @@ async def test_rolling_recurrence_counts_from_the_users_own_calendar_day(
     session: AsyncSession,
     recurring_task_env,
     due: datetime,
-    recurrence: dict,
+    recurrence: str,
     completed_at: datetime,
     next_local: datetime,
 ):
-    """A rolling occurrence lands on the user's local calendar day, carrying
-    the original's local time of day — alarm-clock semantics: "every day at
-    2:30 AM" goes on firing at 2:30 AM once the clocks have moved.
+    """A rolling occurrence counts from the user's local calendar day, at the
+    original's local time of day; from there the rule steps in UTC terms, as
+    every repeat does.
     """
     a, todo, done = await recurring_task_env(timezone="America/Los_Angeles")
 
@@ -1490,7 +1481,7 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         title="Tagged recurring task",
         task_status_id=todo.id,
         due_date=datetime(2026, 5, 4, 12, 0, 0, tzinfo=timezone.utc),
-        recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
+        recurrence="RRULE:FREQ=DAILY",
         recurrence_strategy="fixed",
     )
     await tags_service.set_entity_tags(
@@ -1533,6 +1524,76 @@ async def test_completing_a_tagged_recurring_task_copies_tags_to_next_occurrence
         session, tags_service.TAG_LINKS["task"], successor.id
     )
     assert copied == [tag_id]
+
+
+async def test_a_task_changes_alone_or_with_its_series(
+    client: AsyncClient, session: AsyncSession, recurring_task_env
+):
+    """An edit of just this task stays on it, the next task is made with what
+    it changed from; an edit of all reaches every task of the series; a skip
+    moves the task on without completing it; and a delete is this task (a
+    skip) or the whole series."""
+    from app.testing.factories import create_tag, create_task
+
+    a, todo, done = await recurring_task_env()
+    tag = await create_tag(session, a.guild, name="garden")
+    first = await create_task(
+        session,
+        a.project,
+        title="Water plants",
+        task_status_id=todo.id,
+        due_date=datetime(2026, 5, 4, 12, 0, tzinfo=timezone.utc),
+        recurrence="RRULE:FREQ=DAILY",
+    )
+    await session.commit()
+
+    async def patch(task_id: int, **body):
+        response = await client.patch(
+            a.g(f"/tasks/{task_id}"), headers=a.headers, json=body
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    async def live() -> dict[int, dict]:
+        conditions = json.dumps(
+            [{"field": "project_id", "op": "eq", "value": a.project.id}]
+        )
+        listing = await client.get(
+            a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
+        )
+        return {task["id"]: task for task in listing.json()["items"]}
+
+    # Completed and tagged in one save: the next task has the tag.
+    await patch(first.id, task_status_id=done.id, tag_ids=[tag.id])
+    (second_id,) = set(await live()) - {first.id}
+    assert [t["id"] for t in (await live())[second_id]["tags"]] == [tag.id]
+    second = await patch(
+        second_id,
+        title="Water ferns",
+        due_date="2026-05-05T15:00:00Z",
+        scope="this",
+    )
+    assert (second["series_id"], second["series_size"]) == (first.id, 2)
+
+    await patch(second_id, task_status_id=done.id)
+    (third_id,) = set(await live()) - {first.id, second_id}
+    third = (await live())[third_id]
+    assert third["title"] == "Water plants"
+    assert third["due_date"].startswith("2026-05-06T12:00")
+
+    third = await patch(third_id, title="Water everything", scope="all")
+    assert third["series_size"] == 3
+    assert {task["title"] for task in (await live()).values()} == {"Water everything"}
+
+    skipped = await client.post(a.g(f"/tasks/{third_id}/skip"), headers=a.headers)
+    assert skipped.json()["due_date"].startswith("2026-05-07T12:00")
+    refused = await client.post(a.g(f"/tasks/{first.id}/skip"), headers=a.headers)
+    assert refused.json()["detail"] == TaskMessages.NOT_REPEATING
+
+    await client.delete(a.g(f"/tasks/{third_id}?scope=this"), headers=a.headers)
+    assert (await live())[third_id]["due_date"].startswith("2026-05-08T12:00")
+    await client.delete(a.g(f"/tasks/{third_id}?scope=all"), headers=a.headers)
+    assert await live() == {}
 
 
 async def test_filter_tasks_by_date_window_group(

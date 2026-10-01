@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, List
 
 
@@ -762,11 +762,7 @@ async def hard_delete_user(
     from app.models.platform.push_token import PushToken
     from app.models.tenant.calendar_event import CalendarEventAttendee
     from app.models.platform.guild import Guild, GuildInvite
-    from app.models.tenant.property import (
-        TaskPropertyValue,
-        DocumentPropertyValue,
-        CalendarEventPropertyValue,
-    )
+    from app.models.tenant.property import PropertyValue
 
     # Sweep EVERY guild schema, not just current memberships. An anonymized
     # user has no membership rows left (anonymize drops them), and even an
@@ -855,18 +851,13 @@ async def hard_delete_user(
                 CalendarEventAttendee.user_id == user_id
             )
         )
-        # User-typed custom-property values: NULL the reference (the value rows
-        # belong to the entity, not the user).
-        for table in (
-            TaskPropertyValue,
-            DocumentPropertyValue,
-            CalendarEventPropertyValue,
-        ):
-            await guild_session.exec(
-                update(table)
-                .where(table.value_user_id == user_id)
-                .values(value_user_id=None)
-            )
+        # Person-valued properties: NULL the reference (a value belongs to the
+        # initiative, not to the person it names).
+        await guild_session.exec(
+            update(PropertyValue)
+            .where(PropertyValue.value_user_id == user_id)
+            .values(value_user_id=None)
+        )
 
     await _in_each_guild(guild_ids, erase)
 
@@ -1079,17 +1070,23 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
         )
 
 
-async def _sign_in_locks(user_ids: List[int]) -> dict[int, "SignInLock"]:
-    """The sign-in locks standing on these accounts, on the system engine.
+async def _sign_in_state(
+    user_ids: List[int],
+) -> tuple[dict[int, "SignInLock"], set[int]]:
+    """The sign-in locks standing on these accounts, and which of them hold a
+    second factor, on the system engine.
 
-    ``sign_in_locks`` carries no request-path grants, for the reason
-    ``user_emails`` does not. One query for the whole page.
+    ``sign_in_locks`` and ``user_totp`` carry no request-path grants, for the
+    reason ``user_emails`` does not. One query each for the whole page.
     """
     from app.db.session import SystemSessionLocal
     from app.services.auth import sign_in_locks
 
     async with SystemSessionLocal() as system_session:
-        return await sign_in_locks.closed(system_session, user_ids)
+        return (
+            await sign_in_locks.closed(system_session, user_ids),
+            await totp_service.enrolled_among(system_session, user_ids=user_ids),
+        )
 
 
 async def to_self_read(user: User) -> "UserRead":
@@ -1120,7 +1117,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     from app.schemas.platform.user import OperatorUserRead
 
     primary, proven = await _reach([u.id for u in users])
-    locks = await _sign_in_locks([u.id for u in users])
+    locks, enrolled = await _sign_in_state([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
     # which on an ordinary roster is nobody.
     retention = (
@@ -1134,6 +1131,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         payload.email = primary.get(user.id) or ""
         payload.email_verified = user.id in proven
         payload.purge_at = _erase_at(user, retention)
+        payload.second_factor_enrolled = user.id in enrolled
         lock = locks.get(user.id)
         if lock is not None:
             payload.sign_in_locked_until = lock.locked_until
@@ -1174,3 +1172,51 @@ def _erase_at(user: User, retention: int | None) -> datetime | None:
 async def to_operator_read_one(user: User) -> "OperatorUserRead":
     """``to_operator_read`` for the routes that return one account."""
     return (await to_operator_read([user]))[0]
+
+
+#: The age below which somebody may not take part in the parts of the platform
+#: that are open to people they have not met.
+MINIMUM_AGE_YEARS = 16
+
+#: A bound on what counts as a date somebody could have been born on. Not a
+#: judgement about anyone — it is what separates a real answer from a typo.
+MAX_PLAUSIBLE_AGE_YEARS = 120
+
+
+def _years_since(birthdate: date, today: date) -> int:
+    """Whole years between two dates — an age, counted the way people count it.
+
+    A birthday that has not come round yet this year does not count, which is
+    the whole of the arithmetic.
+    """
+    had_birthday = (today.month, today.day) >= (birthdate.month, birthdate.day)
+    return today.year - birthdate.year - (0 if had_birthday else 1)
+
+
+class InvalidBirthdateError(ValueError):
+    """A date nobody could have been born on."""
+
+
+def check_birthdate(birthdate: date) -> None:
+    """Raise :class:`InvalidBirthdateError` for a date nobody was born on."""
+    today = datetime.now(timezone.utc).date()
+    if birthdate > today or birthdate < today.replace(
+        year=today.year - MAX_PLAUSIBLE_AGE_YEARS
+    ):
+        raise InvalidBirthdateError(birthdate)
+
+
+def record_age_answer(user: User, birthdate: date) -> bool:
+    """Write onto the account what a birthdate says about it, and whether it
+    is old enough.
+
+    The date itself is not kept: only when the question was first answered,
+    or that it was answered under age.
+    """
+    check_birthdate(birthdate)
+    if _years_since(birthdate, datetime.now(timezone.utc).date()) < MINIMUM_AGE_YEARS:
+        user.age_below_minimum_at = datetime.now(timezone.utc)
+        return False
+    if user.age_confirmed_at is None:
+        user.age_confirmed_at = datetime.now(timezone.utc)
+    return True

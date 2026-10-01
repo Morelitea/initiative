@@ -1,24 +1,22 @@
 """Guild storage usage for the SPA's usage panel.
 
-A guild admin's settings page shows storage used against the operator-set
-cap (``guilds.max_storage_bytes``). The number is the same
+The seat's Usage tab shows storage used against the operator-set cap
+(``guilds.max_storage_bytes``). The number is the same
 ``SUM(uploads.size_bytes)`` that ``enforce_storage_quota`` enforces against,
 summed over every upload the guild stores; it renders regardless of whether an
-external billing URL is configured. Guild-admin only — the guild-wide total
-mirrors the admin-only settings surface it backs (like ``status``, it is not
-disclosed to regular members).
+external billing URL is configured.
+
+Read on the settings surface, by its admin rung — the same authority as the
+caps it is shown against (``GET /communities/{id}``): an administrator, or a
+settings grant at either rung, which is how support holding the seat sees the
+tab. Not disclosed to regular members, like ``status``.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 
-from app.core.messages import GuildMessages
-from app.api.deps import (
-    RLSSessionDep,
-    GuildContextDep,
-    CurrentUser,
-)
+from app.api.deps import SettingsAdminContextDep
 from app.schemas.base import SanitizedBaseModel
 from app.services.tenant.attachments import get_guild_storage_usage
 
@@ -32,15 +30,10 @@ class GuildStorageUsageRead(SanitizedBaseModel):
 
 @router.get("/usage", response_model=GuildStorageUsageRead)
 async def read_storage_usage(
-    current_user: CurrentUser,
-    session: RLSSessionDep,
-    guild_context: GuildContextDep,
+    guild_context: SettingsAdminContextDep,
 ) -> GuildStorageUsageRead:
-    if not guild_context.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ADMIN_REQUIRED,
-        )
+    # Summed on the guild-wide session of its own; the settings rung is only
+    # the question of who may read the total.
     usage_bytes = await get_guild_storage_usage(guild_context.guild_id)
     return GuildStorageUsageRead(
         guild_id=guild_context.guild_id, usage_bytes=usage_bytes

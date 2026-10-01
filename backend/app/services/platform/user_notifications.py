@@ -6,9 +6,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.notification_categories import PERSONAL_TYPES, Channel
-from app.db import gucs
-from app.db.session import raise_flag
 from app.models.platform.notification import Notification, NotificationType
+from app.services import keyset_cursor
 from app.services.platform import notification_prefs, notification_stream
 
 
@@ -44,21 +43,6 @@ def _place(data: Mapping[str, object]) -> dict[str, object]:
     }
 
 
-async def name_recipient(session: AsyncSession, user_id: int) -> None:
-    """Say who the next notification write is for.
-
-    The bell is the one table whose rows are written by somebody other than the
-    person they belong to: a mention is caused by one account and delivered to
-    another. The write path therefore runs under a role that cannot use "the row
-    is mine" as its rule, and names the recipient instead — transaction-local,
-    so it lasts exactly as long as the write that set it.
-
-    Every read and write of a recipient's line goes through here first, which is
-    what lets one policy cover the lookup, the insert and the rollup.
-    """
-    await raise_flag(session, gucs.NOTIFY_TARGET_USER_ID, user_id)
-
-
 async def create_notification(
     session: AsyncSession,
     *,
@@ -71,7 +55,10 @@ async def create_notification(
     for that category.
 
     Every notification in the app is written through here, which is what makes
-    this the one place the in-app channel can be honoured. Returns ``None``
+    this the one place the in-app channel can be honoured. It runs on the
+    system engine: the notice worker calls it, and only a direct message and
+    the suspension notice call it inline. A request that causes a notice writes
+    it to ``notice_outbox`` instead, and holds no right to the bell. Returns ``None``
     when the recipient does not want it, so a caller can tell the difference
     between "wrote a line" and "there is nothing to point at".
 
@@ -80,7 +67,6 @@ async def create_notification(
     None and this reads it.
     """
     place = _place(data)
-    await name_recipient(session, user_id)
     if prefs is None:
         prefs = await notification_prefs.load_prefs_for_delivery(user_id)
     if not notification_prefs.wants(
@@ -123,7 +109,6 @@ async def find_unread_by_data(
     has seen a line, the next event starts a fresh one, which is what keeps
     "new" meaning something.
     """
-    await name_recipient(session, user_id)
     stmt = select(Notification).where(
         Notification.user_id == user_id,
         Notification.type == notification_type,
@@ -162,7 +147,6 @@ async def refresh_notification(
     A withdrawal passes ``bump=False``: taking something away is not news, and
     must not resurrect a line the recipient has already dealt with.
     """
-    await name_recipient(session, notification.user_id)
     notification.data = dict(data)
     if bump:
         notification.created_at = datetime.now(timezone.utc)
@@ -184,32 +168,11 @@ async def delete_notification(
     """Remove a notification outright — used when every event it rolled up has
     been taken back, so the line has nothing left to say."""
     user_id = notification.user_id
-    await name_recipient(session, user_id)
     await session.delete(notification)
     await session.flush()
     # Read the recipient off before the delete — the instance is expunged, and
     # a bell still showing a withdrawn line is the thing this prevents.
     notification_stream.queue_signal(session, user_id, "withdrawn")
-
-
-def _decode_cursor(cursor: str | None) -> tuple[datetime, int] | None:
-    """``<iso8601>|<id>`` — the sort key of the last row of the previous page.
-
-    The id breaks ties, so two notifications written in the same instant cannot
-    hide each other at a page boundary. A cursor that does not parse is treated
-    as no cursor: a malformed one should start the list again, not fail it.
-    """
-    if not cursor:
-        return None
-    stamp, _, raw_id = cursor.partition("|")
-    try:
-        return datetime.fromisoformat(stamp), int(raw_id)
-    except (ValueError, TypeError):
-        return None
-
-
-def encode_cursor(notification: Notification) -> str:
-    return f"{notification.created_at.isoformat()}|{notification.id}"
 
 
 async def list_notifications(
@@ -221,12 +184,13 @@ async def list_notifications(
     unread_only: bool = False,
     guild_id: int | None = None,
     personal_only: bool = False,
-) -> tuple[list[Notification], int, str | None]:
+) -> tuple[list[Notification], int | None, str | None]:
     """One page of the inbox, newest first, plus the unread total.
 
     Returns the cursor for the next page, or None at the end. The popover asks
     for ``unread_only`` and takes every page; the inbox page takes them as it
-    is scrolled.
+    is scrolled. The total is counted on the first page only — a later page
+    answers None — since it is one figure for the whole inbox.
     """
     stmt = select(Notification).where(Notification.user_id == user_id)
     if unread_only:
@@ -235,7 +199,7 @@ async def list_notifications(
         stmt = stmt.where(Notification.guild_id == guild_id)
     if personal_only:
         stmt = stmt.where(Notification.type.in_(sorted(PERSONAL_TYPES)))
-    position = _decode_cursor(cursor)
+    position = keyset_cursor.decode(cursor)
     if position is not None:
         stamp, last_id = position
         stmt = stmt.where(
@@ -249,19 +213,13 @@ async def list_notifications(
     notifications = [row[0] if isinstance(row, tuple) else row for row in rows]
     # One more than asked for is how "is there another page" is answered
     # without a second count query.
-    next_cursor = (
-        encode_cursor(notifications[limit - 1]) if len(notifications) > limit else None
-    )
+    next_cursor = None
+    if len(notifications) > limit:
+        last = notifications[limit - 1]
+        next_cursor = keyset_cursor.encode(last.created_at, last.id)
     notifications = notifications[:limit]
-
-    count_stmt = select(func.count()).where(
-        Notification.user_id == user_id,
-        Notification.read_at.is_(None),
-    )
-    count_result = await session.exec(count_stmt)
-    unread_row = count_result.one()
-    unread_count = unread_row[0] if isinstance(unread_row, tuple) else unread_row
-    return notifications, unread_count, next_cursor
+    unread = await unread_count(session, user_id=user_id) if position is None else None
+    return notifications, unread, next_cursor
 
 
 async def unread_places(session: AsyncSession, *, user_id: int) -> list[dict[str, Any]]:

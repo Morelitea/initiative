@@ -227,10 +227,9 @@ describe("InitiativeDirectory", () => {
       can: initiativeCan({ view: [Tool.project, Tool.queue] }),
     });
     server.use(
-      guildHttp.get("/projects/counts/by-initiative", () =>
-        HttpResponse.json({ counts: { "7": 3 } })
-      ),
-      guildHttp.get("/queues/counts/by-initiative", () => HttpResponse.json({ counts: { "7": 2 } }))
+      guildHttp.get("/tools/counts/by-initiative", () =>
+        HttpResponse.json({ counts: { project: { "7": 3 }, queue: { "7": 2 } } })
+      )
     );
 
     renderDirectory([memberEntry()], user);

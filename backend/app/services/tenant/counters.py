@@ -6,27 +6,23 @@ Initiative; Counters are independent numeric values clamped to optional
 """
 
 from datetime import datetime, timezone
-from app.db import session as db_session
-from app.core.tools import Tool
 from decimal import Decimal
 from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
+from sqlalchemy import func, literal, update
 from sqlmodel import select
 
-from app.services.permissions import (
-    DAC_RESOURCES,
-    require_export_access,
-)
 from app.models.tenant.counter import (
+    COUNTER_LIMIT,
     Counter,
     CounterGroup,
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.platform.user import User
 from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -73,41 +69,8 @@ async def get_counter_group(
     group = result.one_or_none()
     if group is not None:
         await tags_service.annotate_tags(session, [group])
-    return group
-
-
-async def get_counter_group_for_export(
-    session: AsyncSession,
-    current_user: User,
-    guild_id: int,
-    *,
-    group_id: int,
-    access: str = "owner",
-) -> CounterGroup:
-    """The counter-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. It takes the owner rung,
-    or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``). The guild role is resolved here
-    rather than taken from a request context, so the seam works transport-free."""
-    from fastapi import HTTPException, status as http_status
-
-    group = await get_counter_group(session, group_id)
-    if group is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=Tool.counter_group.not_found_code,
-        )
-    if group.initiative is not None and not group.initiative.counter_groups_enabled:
-        raise HTTPException(
-            status_code=http_status.HTTP_403_FORBIDDEN,
-            detail=Tool.counter_group.feature_disabled_code,
-        )
-    require_export_access(
-        DAC_RESOURCES[Tool.counter_group],
-        group,
-        context=db_session.guild_context(session),
-        access=access,
-    )
+        await properties_service.annotate_properties(session, [group])
+        await properties_service.annotate_properties(session, group.counters or [])
     return group
 
 
@@ -146,8 +109,9 @@ async def get_counter(
     stmt = select(Counter).where(Counter.id == counter_id)
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
-    result = await session.exec(stmt)
-    return result.one_or_none()
+    counter = (await session.exec(stmt)).one_or_none()
+    await properties_service.annotate_properties(session, [counter])
+    return counter
 
 
 # ---------------------------------------------------------------------------
@@ -174,18 +138,35 @@ async def set_count(session: AsyncSession, counter: Counter, value: Decimal) -> 
     return counter
 
 
-async def increment_counter(session: AsyncSession, counter: Counter) -> Counter:
-    counter.count = clamp(counter.count + counter.step, counter.min, counter.max)
-    _touch(counter)
-    session.add(counter)
-    return counter
+async def step_counter(
+    session: AsyncSession,
+    counter_id: int,
+    *,
+    up: bool,
+    amount: Optional[Decimal] = None,
+) -> None:
+    """Move a counter by ``amount``, or by its own step, within its bounds.
 
-
-async def decrement_counter(session: AsyncSession, counter: Counter) -> Counter:
-    counter.count = clamp(counter.count - counter.step, counter.min, counter.max)
-    _touch(counter)
-    session.add(counter)
-    return counter
+    One statement, so two steps landing together each count: the new value is
+    computed from the row as the database holds it, not from a copy read
+    earlier. ``GREATEST`` and ``LEAST`` skip a NULL bound, so an open side needs
+    no case of its own, and the largest number a counter can store bounds both
+    sides, so an open counter stops there rather than overflowing.
+    """
+    by = Counter.step if amount is None else literal(amount)
+    moved = Counter.count + by if up else Counter.count - by
+    await session.exec(
+        update(Counter)
+        .where(Counter.id == counter_id)
+        .values(
+            count=func.least(
+                func.greatest(moved, Counter.min, -COUNTER_LIMIT),
+                Counter.max,
+                COUNTER_LIMIT,
+            ),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
 
 
 async def reset_counter(session: AsyncSession, counter: Counter) -> Counter:

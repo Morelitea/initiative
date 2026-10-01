@@ -1,8 +1,8 @@
-"""Static guard against new SQL-injection surfaces (Tier 1 regression net).
+"""Static guard against new string-built SQL sites (Tier 1 regression net).
 
 Interpolating a value into raw SQL (f-string, ``%`` format, or ``str.format``)
 inside a ``text()`` / ``execute()`` / ``exec_driver_sql()`` call is the shape
-that lets a bad interpolation become injection. This test inventories every
+that turns a value into SQL text. This test inventories every
 such site under ``app/`` and asserts the set matches a **reviewed allowlist**:
 each entry was audited and is safe only because what it interpolates is an
 integer-derived identifier (``guild_<id>``), a module constant, operator
@@ -11,7 +11,7 @@ request-derived data.
 
 When this test fails it means a new dynamic-SQL site appeared (or a known one
 moved/left). A NEW site must be reviewed and, only if it interpolates nothing
-attacker-influenced, added to ``ALLOWED_DYNAMIC_SQL`` with a one-line reason.
+request-derived, added to ``ALLOWED_DYNAMIC_SQL`` with a one-line reason.
 This forces a human to look before any new string-built SQL lands.
 
 Known limitation (by design, this is a tripwire not a proof): it flags the
@@ -25,6 +25,10 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.always
+
 
 # app/ package dir and the backend root the keys are expressed relative to.
 _APP_DIR = Path(__file__).resolve().parents[1]
@@ -34,7 +38,7 @@ _BACKEND_DIR = _APP_DIR.parent
 _SQL_CALLEES = {"text", "exec_driver_sql", "execute", "executescript"}
 
 # Reviewed, safe dynamic-SQL sites. Key: "<relpath>::<enclosing.qualname>".
-# Value: why the interpolation is not attacker-influenced. Provisioning / DDL /
+# Value: why the interpolation carries no request data. Provisioning / DDL /
 # admin-job layer only — the request path (endpoints, services) must stay empty.
 ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/db/guild_ddl.py::<module>": (
@@ -66,6 +70,16 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     ),
     "app/db/schema_provisioning.py::drop_guild_schema": (
         "int-derived guild_<id> schema/role names"
+    ),
+    "app/testing/guild_pool.py::activate": (
+        "test harness: int-derived guild_<id> / test_pool_<id> schema names"
+    ),
+    "app/testing/guild_pool.py::drop": (
+        "test harness: int-derived test_pool_<id> schema name"
+    ),
+    "app/models/tenant/property.py::PropertyValue": (
+        "model DDL: the CHECK lists the PROPERTY_TARGETS constant, the partial "
+        "indexes name the model's own value columns"
     ),
     "app/db/schema_provisioning.py::strip_template_registry_objects": (
         "the TEMPLATE_SCHEMA constant; policy, trigger and table names read "

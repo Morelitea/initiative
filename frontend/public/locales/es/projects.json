@@ -80,8 +80,7 @@
     "loadError": "No se pudieron cargar los proyectos archivados.",
     "unarchive": "Desarchivar",
     "noArchived": "No hay proyectos archivados",
-    "noArchivedDescription": "Los proyectos activos están en la pestaña Activos.",
-    "sharingUnavailable": "No se puede cambiar el uso compartido de un proyecto archivado."
+    "noArchivedDescription": "Los proyectos activos están en la pestaña Activos."
   },
   "createDialog": {
     "title": "Crear proyecto",
@@ -368,15 +367,13 @@
     "repeatEveryMonths": "meses",
     "repeatEveryYears": "años",
     "repeatOn": "Repetir el",
-    "month": "Mes",
     "on": "El",
-    "dayMode": "Día",
-    "weekdayMode": "Día de la semana",
     "position": "Posición",
     "positionFirst": "Primero",
     "positionSecond": "Segundo",
     "positionThird": "Tercero",
     "positionFourth": "Cuarto",
+    "positionFifth": "Quinto",
     "positionLast": "Último",
     "weekday": "Día de la semana",
     "ends": "Termina",
@@ -389,30 +386,15 @@
     "strategyAfterCompletion": "Después de completar",
     "strategyOnScheduleDescription": "Se crea una nueva tarea según un cronograma fijo basado en fechas.",
     "strategyAfterCompletionDescription": "Se crea una nueva tarea un intervalo fijo después de que se complete la anterior.",
-    "monthJanuary": "Enero",
-    "monthFebruary": "Febrero",
-    "monthMarch": "Marzo",
-    "monthApril": "Abril",
-    "monthMay": "Mayo",
-    "monthJune": "Junio",
-    "monthJuly": "Julio",
-    "monthAugust": "Agosto",
-    "monthSeptember": "Septiembre",
-    "monthOctober": "Octubre",
-    "monthNovember": "Noviembre",
-    "monthDecember": "Diciembre",
-    "summary": {
-      "everyDay": "Cada día",
-      "everyNDays": "Cada {{count}} días",
-      "everyWeek": "Cada semana el {{days}}",
-      "everyNWeeks": "Cada {{count}} semanas el {{days}}",
-      "everyMonthDay": "Cada mes el día {{day}}",
-      "everyNMonthsDay": "Cada {{count}} meses el día {{day}}",
-      "everyMonthWeekday": "Cada mes el {{position}} {{weekday}}",
-      "everyNMonthsWeekday": "Cada {{count}} meses el {{position}} {{weekday}}",
-      "everyYear": "Cada año el {{day}} de {{month}}",
-      "everyNYears": "Cada {{count}} años el {{day}} de {{month}}"
-    }
+    "mode": {
+      "day_of_month": "Días del mes",
+      "weekday": "Un día de la semana del mes",
+      "weekdays": "Cada día de la semana elegido",
+      "set": "El primero o el último de los días elegidos"
+    },
+    "lastDay": "Último",
+    "months": "Meses",
+    "nextDates": "Próximas:"
   },
   "progressLabel": "Progreso del proyecto",
   "preview": {
@@ -431,11 +413,5 @@
     "noComments": "Aún no hay comentarios.",
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
-  },
-  "status": {
-    "label": "Mostrar",
-    "active": "Activos",
-    "templates": "Plantillas",
-    "archived": "Archivados"
   }
 }

@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.tenant.archive import ToolState
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
+from app.schemas.tenant.property import PropertySummary, annotated_properties
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -39,6 +40,9 @@ class ToolSummaryBase(ToolState):
     # thread belongs to the task, not to the tool.
     comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
+    # Every tool carries custom properties, filled by
+    # ``properties_service.annotate_properties`` beside the tags.
+    properties: List[PropertySummary] = Field(default_factory=list)
     # The full sharing state — every resource_grants row for this tool. Exposed
     # on the summary so a list can manage sharing without a detail fetch.
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
@@ -73,8 +77,8 @@ def serialize_tool(
     user_id: Optional[int] = None,
     **fields: Any,
 ) -> Summary:
-    """One tool row in ``schema``: its columns, the sharing state, tags and
-    affordances every tool reports alike, the schema's
+    """One tool row in ``schema``: its columns, the sharing state, tags,
+    properties and affordances every tool reports alike, the schema's
     :meth:`~ToolSummaryBase.derived_fields`, and then ``fields``."""
     # Local import avoids a schema -> service import cycle.
     from app.services.permissions import client_access, serialize_grants
@@ -86,6 +90,7 @@ def serialize_tool(
             "guild_id": context.guild_id,
             "can": client_access(row, user_id, context=context),
             "tags": annotated_tags(row),
+            "properties": annotated_properties(row),
             "grants": serialize_grants(row, context=context),
             **schema.derived_fields(row, context=context, user_id=user_id),
             **fields,

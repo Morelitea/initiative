@@ -2,7 +2,7 @@
 
 A delivery leaves this deployment, so the guild it came from and the member
 whose write caused it are named by reference rather than by row id — the same
-rule every other boundary follows (``history/opaque-identity-design.md``).
+rule every other boundary follows.
 
 Which reference depends on who is receiving, because a reference is pairwise:
 
@@ -26,13 +26,17 @@ guild role and a request handler doing the same.
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 
 from app.db import session as db_session
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.services.platform import identity_refs
 
-__all__ = ["drop_subscription_refs", "name_for_subscriber"]
+__all__ = [
+    "drop_subscription_refs",
+    "name_for_subscriber",
+    "names_for_subscribers",
+]
 
 
 def _sector(
@@ -42,6 +46,11 @@ def _sector(
     if app_install_id is not None:
         return IdentityPurpose.app, app_install_id
     return IdentityPurpose.webhook, subscription_id
+
+
+#: ``(app_install_id, subscription_id, actor_ids)`` — one subscriber to name,
+#: and the people it will be told about.
+Subscriber = tuple[int | None, int, Collection[int]]
 
 
 async def name_for_subscriber(
@@ -57,35 +66,51 @@ async def name_for_subscriber(
     session for the whole batch, because a delivery names as many people as the
     transaction it describes touched.
     """
-    purpose, sector_id = _sector(
-        guild_id=guild_id,
-        app_install_id=app_install_id,
-        subscription_id=subscription_id,
+    (names,) = await names_for_subscribers(
+        guild_id=guild_id, subscribers=[(app_install_id, subscription_id, actor_ids)]
     )
-    wanted = {actor_id for actor_id in actor_ids if actor_id is not None}
+    return names
 
+
+async def names_for_subscribers(
+    *, guild_id: int, subscribers: Sequence[Subscriber]
+) -> list[tuple[str, dict[int, str]]]:
+    """:func:`name_for_subscriber` for each of many subscribers, in order — one
+    session and one commit for the lot, for a page listing them."""
+    if not subscribers:
+        return []
+    names = []
     async with db_session.SystemSessionLocal() as session:
-        guild_ref = await identity_refs.ensure_ref(
-            session,
-            entity_type=IdentityEntity.guild,
-            entity_id=guild_id,
-            purpose=purpose,
-            sector_guild_id=guild_id,
-            sector_id=sector_id,
-        )
-        actor_refs = {
-            actor_id: await identity_refs.ensure_ref(
+        for app_install_id, subscription_id, actor_ids in subscribers:
+            purpose, sector_id = _sector(
+                guild_id=guild_id,
+                app_install_id=app_install_id,
+                subscription_id=subscription_id,
+            )
+            guild_ref = await identity_refs.ensure_ref(
                 session,
-                entity_type=IdentityEntity.user,
-                entity_id=actor_id,
+                entity_type=IdentityEntity.guild,
+                entity_id=guild_id,
                 purpose=purpose,
                 sector_guild_id=guild_id,
                 sector_id=sector_id,
             )
-            for actor_id in sorted(wanted)
-        }
+            actor_refs = {
+                actor_id: await identity_refs.ensure_ref(
+                    session,
+                    entity_type=IdentityEntity.user,
+                    entity_id=actor_id,
+                    purpose=purpose,
+                    sector_guild_id=guild_id,
+                    sector_id=sector_id,
+                )
+                for actor_id in sorted(
+                    {actor_id for actor_id in actor_ids if actor_id is not None}
+                )
+            }
+            names.append((guild_ref, actor_refs))
         await session.commit()
-    return guild_ref, actor_refs
+    return names
 
 
 async def drop_subscription_refs(*, guild_id: int, subscription_id: int) -> int:

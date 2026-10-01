@@ -37,7 +37,10 @@ _VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 #: replaced the next time the app starts. Copying one would only add a second
 #: place for the same SQL to drift. ``app.services.storage`` is where the
 #: deployment keeps its files: a migration that copies one must write it where
-#: the current app reads it, as with encryption.
+#: the current app reads it, as with encryption. ``app.core.recurrence`` is the
+#: converter for RFC 5545 repeats: a migration that writes one must write what
+#: the current app reads, and the standard it implements does not move. The
+#: revision states the shape it converts from itself.
 _ALLOWED = frozenset(
     {
         "app.db.guild_migrations",
@@ -45,6 +48,7 @@ _ALLOWED = frozenset(
         "app.core.encryption",
         "app.db.authorization",
         "app.services.storage",
+        "app.core.recurrence",
     }
 )
 

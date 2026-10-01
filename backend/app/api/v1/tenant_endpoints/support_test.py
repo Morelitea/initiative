@@ -107,11 +107,14 @@ async def test_the_case_names_who_asked_and_where_from(
 
     await set_rls_context(session, SystemGuild(operations["guild"].id))
     case = (await session.exec(select(IntakeCase))).one()
-    from app.models.tenant.property import TaskPropertyValue
+    from app.models.tenant.property import PropertyValue
 
     values = (
         await session.exec(
-            select(TaskPropertyValue).where(TaskPropertyValue.task_id == case.task_id)
+            select(PropertyValue).where(
+                PropertyValue.entity_type == "task",
+                PropertyValue.entity_id == case.task_id,
+            )
         )
     ).all()
     held = {int(v.value_number) for v in values if v.value_number is not None}
@@ -142,6 +145,7 @@ async def test_a_stranger_cannot_ask_on_a_community_they_are_not_in(
     assert response.status_code == 403, response.text
 
 
+@pytest.mark.always
 async def test_every_support_error_code_is_localized():
     """A refusal reaches the reader as its own sentence."""
     import json

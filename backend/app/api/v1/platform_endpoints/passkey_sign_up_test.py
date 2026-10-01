@@ -154,13 +154,10 @@ async def test_a_deployment_that_does_not_permit_passkeys_has_no_such_door(
     client: AsyncClient, session: AsyncSession, acting_user, ceremony
 ):
     owner = await acting_user("owner")
-    await auth_posture.set_login_methods(
-        session,
-        methods=[LoginMethod.password],
-        acknowledge_stranded=None,
-        actor_user_id=owner.user.id,
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(session, owner.user),
+        {"login_methods": frozenset([LoginMethod.password])},
     )
-    await session.commit()
 
     refused = await client.post(BEGIN, json=DETAILS)
     assert refused.status_code == 403, refused.text

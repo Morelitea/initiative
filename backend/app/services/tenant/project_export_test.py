@@ -18,7 +18,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.property import (
     PropertyDefinition,
     PropertyType,
-    TaskPropertyValue,
+    PropertyValue,
 )
 from app.models.tenant.tag import Tag
 from app.schemas.tenant.project_export import SCHEMA_VERSION
@@ -37,6 +37,7 @@ from app.testing import (
     create_initiative_member,
     create_project,
     create_property_definition,
+    create_property_value,
     create_user,
     route_as,
 )
@@ -90,6 +91,12 @@ async def _seed_populated_project(session: AsyncSession):
         title="Fix the thing",
         description="Important",
         position=1024.0,
+        series_id=4242,
+        recurrence_carry={
+            "title": "Fix it once",
+            "tag_ids": [tag.id],
+            "assignee_ids": [assignee.id],
+        },
         checklist=[
             *checklist_items("step 1"),
             *checklist_items("step 2", done=True),
@@ -105,14 +112,8 @@ async def _seed_populated_project(session: AsyncSession):
             user_id=assignee.id,
         )
     )
-    session.add(
-        TaskPropertyValue(
-            task_id=task.id,
-            property_id=severity.id,
-            value_text="high",
-        )
-    )
     await session.commit()
+    await create_property_value(session, task, severity, value_text="high")
 
     return owner, assignee, guild, initiative, project
 
@@ -151,8 +152,14 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert [t.color for t in exported_task.tags] == ["#FF0000"]
     assert exported_task.assignee_handles == [handle_of(assignee)]
     assert {i.text for i in exported_task.checklist} == {"step 1", "step 2"}
-    assert exported_task.property_values[0].property_name == "Severity"
-    assert exported_task.property_values[0].value_text == "high"
+    assert exported_task.properties[0].property_name == "Severity"
+    assert exported_task.properties[0].value_text == "high"
+    assert exported_task.series == 4242
+    assert exported_task.recurrence_carry == {
+        "title": "Fix it once",
+        "tags": [{"name": "blocker", "color": "#FF0000"}],
+        "assignee_handles": [handle_of(assignee)],
+    }
 
     # Target initiative in the same guild — assignee is a member of both
     target_initiative = await create_initiative(
@@ -185,9 +192,6 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
             selectinload(Project.grants),
             selectinload(Project.task_statuses),
             selectinload(Project.tasks).selectinload(Task.assignees),
-            selectinload(Project.tasks)
-            .selectinload(Task.property_values)
-            .selectinload(TaskPropertyValue.property_definition),
         )
     )
     new_project = (await session.exec(stmt)).one()
@@ -198,12 +202,28 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert len(new_project.tasks) == 1
     new_task = new_project.tasks[0]
     assert new_task.title == "Fix the thing"
+    # Its series is named after the first task of it the import made.
+    assert new_task.series_id == new_task.id
+    await tags_service.annotate_tags(session, [new_task])
+    assert new_task.recurrence_carry == {
+        "title": "Fix it once",
+        "tag_ids": [tag.id for tag in new_task.tags],
+        "assignee_ids": [assignee.id],
+    }
     assert {i["text"] for i in new_task.checklist} == {"step 1", "step 2"}
     assert [handle_of(u) for u in new_task.assignees] == [handle_of(assignee)]
     await tags_service.annotate_tags(session, [new_task])
     assert {t.name for t in new_task.tags} == {"blocker"}
-    assert len(new_task.property_values) == 1
-    pv = new_task.property_values[0]
+    pv = (
+        await session.exec(
+            select(PropertyValue)
+            .where(
+                PropertyValue.entity_type == "task",
+                PropertyValue.entity_id == new_task.id,
+            )
+            .options(selectinload(PropertyValue.property_definition))
+        )
+    ).one()
     assert pv.value_text == "high"
     assert pv.property_definition.name == "Severity"
     assert pv.property_definition.initiative_id == target_initiative.id

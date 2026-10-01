@@ -63,8 +63,7 @@ async function bootstrap() {
 
   // What this device last loaded, if it is still ours and still fresh. Decided
   // before render so a launch with no signal has its content in hand rather
-  // than waiting on a request that will not answer — see
-  // `history/offline-reading-design.md`.
+  // than waiting on a request that will not answer.
   const offlinePersist = await prepareOfflineCache();
 
   // On native, set the API base URL immediately from storage so requests

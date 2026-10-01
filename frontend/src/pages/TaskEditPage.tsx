@@ -9,6 +9,7 @@ import {
   Loader2,
   MoreHorizontal,
   Save,
+  SkipForward,
   Sparkles,
   Trash2,
   X,
@@ -16,15 +17,18 @@ import {
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
-import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
+import type { PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
+import {
+  getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
+  readTaskApiV1CGuildIdTasksTaskIdGet,
+} from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { normalizePropertyValue } from "@/components/properties/propertyHelpers";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
@@ -36,6 +40,7 @@ import {
   serializeTaskFormValue,
   TaskForm,
   type TaskFormValue,
+  taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -56,7 +61,7 @@ import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
-import { useComments } from "@/hooks/useComments";
+import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useReadOnOpen } from "@/hooks/useNotifications";
@@ -69,13 +74,16 @@ import {
   useDuplicateTask,
   useGenerateTaskDescription,
   useMoveTask,
+  useSkipTask,
   useTask,
   useUpdateTask,
 } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { dateRangeBounds } from "@/lib/dateRange";
+import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
+import { fromStored, rulePayload } from "@/lib/recurrence";
 import { referenceRef } from "@/lib/smartChips";
 import { dateTimePattern } from "@/lib/timeFormat";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
@@ -122,6 +130,7 @@ type TaskFormSource = Omit<
     | "due_date"
     | "recurrence"
     | "recurrence_strategy"
+    | "recurrence_shift"
     | "tags"
     | "properties"
   >,
@@ -137,12 +146,24 @@ const formValueFromTask = (task: TaskFormSource): TaskFormValue => ({
   assigneeIds: task.assignees?.map((assignee) => assignee.id) ?? [],
   startDate: toLocalInputValue(task.start_date),
   dueDate: toLocalInputValue(task.due_date),
-  recurrence: task.recurrence ?? null,
+  recurrence: fromStored(task.recurrence, task.due_date ?? task.start_date, task.recurrence_shift),
   recurrenceStrategy: task.recurrence_strategy ?? "fixed",
   tags: task.tags ?? [],
   properties: task.properties ?? [],
   propertyValues: seedPropertyValues(task.properties ?? []),
 });
+
+/** The fields an edit of a repeating task can keep from the rest of its series. */
+const seriesFields = (value: TaskFormValue) =>
+  JSON.stringify([
+    value.title,
+    value.description,
+    value.priority,
+    [...value.assigneeIds].sort(),
+    value.startDate,
+    value.dueDate,
+    value.tags.map((tag) => tag.id).sort(),
+  ]);
 
 type MoveTaskVariables = {
   targetProjectId: number;
@@ -195,13 +216,10 @@ export const TaskEditPage = () => {
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
   const commentsQueryParams = { task_id: parsedTaskId };
-  const commentsQueryKey = getListCommentsApiV1CGuildIdCommentsGetQueryKey(
-    guildId,
-    commentsQueryParams
-  );
   const commentsQuery = useComments(commentsQueryParams, {
     enabled: Number.isFinite(parsedTaskId),
   });
+  const commentsCache = useCommentsCache(commentsQueryParams);
 
   // Aliased early so handleSubmit / effective* derivations both see it.
   // The duplicate declaration further down was kept until this fix; the
@@ -225,24 +243,18 @@ export const TaskEditPage = () => {
     startDate,
     dueDate,
     tags,
-    propertyValues,
     statusId: effectiveStatusId,
     priority: effectivePriority,
     recurrence: effectiveRecurrence,
     recurrenceStrategy: effectiveRecurrenceStrategy,
   } = form.values;
-  const attachedProperties = form.values.properties;
   const setDescription = (next: string) => form.set({ description: next });
 
   const isProjectContextLoading =
     Number.isFinite(projectId) && projectQuery.isLoading && !projectQuery.data;
 
-  const updateTask = useUpdateTask({
-    onSuccess: (updatedTask) => {
-      form.settle(formValueFromTask(updatedTask));
-      toast.success(t("edit.taskUpdated"));
-    },
-  });
+  const updateTask = useUpdateTask();
+  const isSaving = updateTask.isPending;
 
   const duplicateTask = useDuplicateTask({
     onSuccess: (newTask) => {
@@ -254,8 +266,34 @@ export const TaskEditPage = () => {
     },
   });
 
+  const scopePrompt = useScopePrompt();
+  const repeating = Boolean(task?.recurrence);
+
+  const skipTask = useSkipTask({
+    onSuccess: (skipped) => {
+      form.settle(formValueFromTask(skipped));
+      toast.success(t("edit.taskSkipped"));
+    },
+  });
+
   const deleteTask = useDeleteTask({
-    onSuccess: () => {
+    onSuccess: async (_data, { scope }) => {
+      // Deleting just this one of a series skips it, so the task is still
+      // here, unless it was the series' last and is gone.
+      if (scope === "this") {
+        try {
+          form.settle(
+            formValueFromTask(await readTaskApiV1CGuildIdTasksTaskIdGet(guildId, parsedTaskId))
+          );
+          toast.success(t("edit.taskSkipped"));
+          return;
+        } catch (error) {
+          if (getHttpStatus(error) !== 404) {
+            toast.success(t("edit.taskSkipped"));
+            return;
+          }
+        }
+      }
       toast.success(t("edit.taskDeleted"));
       bypassGuardRef.current = true;
       // Back to the project the task lived in — the projects list is a step
@@ -315,7 +353,7 @@ export const TaskEditPage = () => {
   // TaskForm flags the inverted range; blocking submit keeps it out of the API.
   const { isInverted: datesInverted } = dateRangeBounds(startDate, dueDate);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isReadOnly) {
       return;
@@ -335,15 +373,46 @@ export const TaskEditPage = () => {
       assignee_ids: assigneeIds,
       start_date: startDate ? new Date(startDate).toISOString() : null,
       due_date: dueDate ? new Date(dueDate).toISOString() : null,
-      recurrence: effectiveRecurrence,
+      ...rulePayload(effectiveRecurrence),
       recurrence_strategy: effectiveRecurrence ? effectiveRecurrenceStrategy : "fixed",
       tag_ids: tags.map((tag) => tag.id),
-      property_values: attachedProperties.map((property) => ({
-        property_id: property.property_id,
-        value: propertyValues[property.property_id] ?? null,
-      })),
     };
-    updateTask.mutate({ taskId: parsedTaskId, data: payload as never });
+    const properties = taskFormPropertyValues(form.values);
+    // Sent only when they changed, with the task's own fields, so the edit
+    // lands whole or not at all.
+    if (
+      !task ||
+      JSON.stringify(properties) !== JSON.stringify(taskFormPropertyValues(formValueFromTask(task)))
+    ) {
+      payload.properties = properties;
+    }
+    if (task && repeating && seriesFields(form.values) !== seriesFields(formValueFromTask(task))) {
+      const scope = await scopePrompt.ask("edit", { tool: "tasks", count: task.series_size });
+      if (scope === null) {
+        return;
+      }
+      payload.scope = scope;
+    }
+    updateTask.mutate(
+      { taskId: parsedTaskId, data: payload as never },
+      {
+        onSuccess: (updatedTask) => {
+          form.settle(formValueFromTask(updatedTask));
+          toast.success(t("edit.taskUpdated"));
+        },
+      }
+    );
+  };
+
+  const handleDelete = async () => {
+    if (!repeating) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    const scope = await scopePrompt.ask("delete", { tool: "tasks", count: task?.series_size });
+    if (scope !== null) {
+      deleteTask.mutate({ taskId: parsedTaskId, scope });
+    }
   };
 
   const handleMoveTask = (targetProjectId: number) => {
@@ -421,36 +490,7 @@ export const TaskEditPage = () => {
   const writableProjectsQuery = useWritableProjects({
     enabled: Boolean(canWriteProject && !projectIsArchived),
   });
-  const writableProjects = writableProjectsQuery.data ?? [];
-
-  const handleCommentCreated = (comment: CommentRead) => {
-    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return [comment];
-      }
-      return [...previous, comment];
-    });
-  };
-
-  const handleCommentDeleted = (commentId: number) => {
-    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return previous;
-      }
-      return previous.filter((comment) => comment.id !== commentId);
-    });
-  };
-
-  const handleCommentUpdated = (updatedComment: CommentRead) => {
-    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return previous;
-      }
-      return previous.map((comment) =>
-        comment.id === updatedComment.id ? updatedComment : comment
-      );
-    });
-  };
+  const writableProjects = writableProjectsQuery.data?.items ?? [];
 
   // What the unsaved-changes guard asks: do the fields still say what the task
   // says? (Kept before the early returns so the guard hooks below run
@@ -518,7 +558,8 @@ export const TaskEditPage = () => {
   // the status was archived out of the list since the task was last saved.
   // Delete and move are excluded: their confirm/move dialogs stay open and
   // already show the mutation's own loading state.
-  const menuActionPending = duplicateTask.isPending || toggleArchive.isPending;
+  const menuActionPending =
+    duplicateTask.isPending || toggleArchive.isPending || skipTask.isPending;
 
   // Assemble the shared TaskForm value from the page's individual states. The
   // effective* fallbacks keep the form from flashing defaults during the
@@ -663,18 +704,20 @@ export const TaskEditPage = () => {
                 selectedAssignees={task?.assignees}
                 descriptionSlot={descriptionSlot}
                 recurrenceReferenceDate={dueDate || startDate || task?.due_date || task?.start_date}
+                storedRecurrence={
+                  task?.recurrence
+                    ? { rule: task.recurrence, shift: task.recurrence_shift ?? 0 }
+                    : null
+                }
               />
 
               {/* Save and cancel are the only actions that earn a button here;
                   everything else a task supports lives behind the overflow
                   menu so the row stays readable at any width. */}
               <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="submit"
-                  disabled={updateTask.isPending || isReadOnly || datesInverted}
-                >
+                <Button type="submit" disabled={isSaving || isReadOnly || datesInverted}>
                   <Save className="h-4 w-4" />
-                  {updateTask.isPending ? t("edit.saving") : t("edit.saveTask")}
+                  {isSaving ? t("edit.saving") : t("edit.saveTask")}
                 </Button>
                 <Button
                   type="button"
@@ -747,11 +790,20 @@ export const TaskEditPage = () => {
                           </>
                         )}
                       </DropdownMenuItem>
+                      {repeating ? (
+                        <DropdownMenuItem
+                          disabled={skipTask.isPending}
+                          onSelect={() => skipTask.mutate(parsedTaskId)}
+                        >
+                          <SkipForward className="h-4 w-4" />
+                          {t("edit.skipOccurrence")}
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         disabled={deleteTask.isPending}
-                        onSelect={() => setShowDeleteConfirm(true)}
+                        onSelect={() => void handleDelete()}
                       >
                         <Trash2 className="h-4 w-4" />
                         {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
@@ -801,9 +853,12 @@ export const TaskEditPage = () => {
         entityId={parsedTaskId}
         comments={commentsQuery.data ?? []}
         isLoading={commentsQuery.isLoading}
-        onCommentCreated={handleCommentCreated}
-        onCommentDeleted={handleCommentDeleted}
-        onCommentUpdated={handleCommentUpdated}
+        hasOlder={commentsQuery.hasNextPage}
+        isLoadingOlder={commentsQuery.isFetchingNextPage}
+        onLoadOlder={() => void commentsQuery.fetchNextPage()}
+        onCommentCreated={commentsCache.putComment}
+        onCommentDeleted={commentsCache.removeComment}
+        onCommentUpdated={commentsCache.putComment}
         canModerate={canModerateComments}
         initiativeId={projectQuery.data?.initiative_id ?? 0}
       />
@@ -819,6 +874,8 @@ export const TaskEditPage = () => {
         onConfirm={handleMoveTask}
       />
 
+      {scopePrompt.dialog}
+
       <ConfirmDialog
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
@@ -826,7 +883,7 @@ export const TaskEditPage = () => {
         description={t("edit.deleteDescription")}
         confirmLabel={t("common:delete")}
         onConfirm={() => {
-          deleteTask.mutate(parsedTaskId);
+          deleteTask.mutate({ taskId: parsedTaskId });
           setShowDeleteConfirm(false);
         }}
         isLoading={deleteTask.isPending}

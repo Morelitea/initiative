@@ -11,12 +11,13 @@ import { createContext, type ReactNode, useContext } from "react";
 
 import type {
   OwnerAppSummary,
+  PropertySummary,
   ResourceGrantSchema,
   TagSummary,
   Tool,
   ToolCan,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { ExportFormatOption } from "@/components/exports/ExportButton";
+import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
 
 /**
  * The slice of a tool's read schema its settings need. Every tool — queues,
@@ -29,6 +30,7 @@ export interface ToolSettingsEntity {
   description?: string | null;
   initiative_id: number | null;
   tags: TagSummary[];
+  properties?: PropertySummary[];
   grants: ResourceGrantSchema[];
   comments_enabled: boolean;
   /** When this was archived, or null while it is live. */
@@ -56,7 +58,7 @@ export interface ToolSettingsEntity {
  */
 export interface ToolExportOptions {
   formats?: ExportFormatOption[];
-  extraActions?: { labelKey: string; onSelect: () => void }[];
+  extraActions?: ExportExtraAction[];
 }
 
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */

@@ -51,6 +51,8 @@ from app.services.marketplace.service_apps import (
     SURFACE_SCOPES,
 )
 
+pytestmark = pytest.mark.always
+
 
 def platform_accepts(manifest) -> None:
     """Run a manifest through the whole app path, not the service normalizer.

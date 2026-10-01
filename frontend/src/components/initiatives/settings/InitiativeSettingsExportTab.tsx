@@ -31,8 +31,7 @@ export const InitiativeSettingsExportTab = ({ initiativeId }: InitiativeSettings
       {/* Mounted outside the open check so a job started in the wizard keeps
           polling (and delivers its download) after the dialog closes. */}
       <ExportWizard
-        scope="initiative"
-        initiativeId={initiativeId}
+        scope={{ kind: "initiative", initiativeId }}
         open={wizardOpen}
         onOpenChange={setWizardOpen}
       />

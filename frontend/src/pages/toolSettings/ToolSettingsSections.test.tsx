@@ -4,6 +4,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildPropertySummary,
   buildTagSummary,
   ownerCan,
   readerCan,
@@ -108,6 +109,27 @@ describe("ToolSettingsDetailsPage tags", () => {
   });
 });
 
+describe("ToolSettingsDetailsPage properties", () => {
+  it("shows what a tool in an initiative carries", async () => {
+    resetFactories();
+    renderSection(
+      ToolSettingsDetailsPage,
+      buildEntity({ properties: [buildPropertySummary({ name: "Budget" })] })
+    );
+
+    expect(await screen.findByText("Budget")).toBeInTheDocument();
+    expect(screen.getByText("Properties")).toBeInTheDocument();
+  });
+
+  it("offers none on a guild-level tool, which has no definitions to add", async () => {
+    resetFactories();
+    renderSection(ToolSettingsDetailsPage, buildEntity({ initiative_id: null }));
+
+    await screen.findByRole("switch", { name: "Enable comments" });
+    expect(screen.queryByText("Properties")).not.toBeInTheDocument();
+  });
+});
+
 describe("ToolSettingsDetailsPage comments switch", () => {
   it("turns comments off and keeps the new state", async () => {
     resetFactories();
@@ -196,15 +218,15 @@ describe("ToolSettingsAdvancedPage", () => {
 
     expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
   });
-  it("offers the owner an export of the tool, by the tool's own id", async () => {
+  it("offers the owner an export of the tool", async () => {
     resetFactories();
-    let sent: { format: string | null; queue_id: string | null } | null = null;
+    let sent: { format: string | null; ids: string | null } | null = null;
     server.use(
       guildHttp.get("/exports/queue", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
-          queue_id: url.searchParams.get("queue_id"),
+          ids: url.searchParams.get("ids"),
         };
         return new HttpResponse("a,b", { status: 200, headers: { "Content-Type": "text/csv" } });
       })
@@ -213,9 +235,10 @@ describe("ToolSettingsAdvancedPage", () => {
 
     expect(await screen.findByText("Download a copy", { exact: false })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Export" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
+    await userEvent.click(await screen.findByRole("button", { name: "CSV" }));
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
 
-    await waitFor(() => expect(sent).toEqual({ format: "csv", queue_id: "7" }));
+    await waitFor(() => expect(sent).toEqual({ format: "csv", ids: "7" }));
   });
 
   it("offers no export to someone who may edit it but not delete it", async () => {

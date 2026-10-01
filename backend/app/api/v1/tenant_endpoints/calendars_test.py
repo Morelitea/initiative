@@ -305,10 +305,10 @@ async def test_calendar_counts_by_initiative(
     await create_guild_calendar(session, admin.guild, admin.user)
 
     response = await client.get(
-        admin.g("/calendars/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200, response.text
-    assert response.json()["counts"] == {str(admin.initiative.id): 1}
+    assert response.json()["counts"]["calendar"] == {str(admin.initiative.id): 1}
 
 
 # ---------------------------------------------------------------------------

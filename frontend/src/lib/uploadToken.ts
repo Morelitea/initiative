@@ -7,8 +7,8 @@ import { apiClient } from "@/api/client";
  *
  * Native (Capacitor) WebViews can't attach the Authorization header or the
  * HttpOnly session cookie to <img>/<iframe> media loads, so those URLs carry
- * auth as a `?token=` query param. We must NOT put the long-lived session JWT
- * there (it leaks via logs, history, and Referer). Instead the app mints a
+ * auth as a `?token=` query param. URLs are kept in logs, history and Referer
+ * headers, so the long-lived session JWT never goes there. Instead the app mints a
  * short-lived, uploads-scoped token from `POST /api/v1/auth/upload-token` and
  * stamps that into the URL.
  *

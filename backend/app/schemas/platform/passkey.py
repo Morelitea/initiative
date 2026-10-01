@@ -1,12 +1,13 @@
 """Payloads for the account's passkeys."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.platform.guild import NewCommunity
 from app.services.auth.native_handoff import is_challenge
 
 #: The longest name a passkey may be given. Mirrors the service's cap.
@@ -106,6 +107,12 @@ class PasskeySignUpStart(SanitizedBaseModel):
     full_name: Optional[TitleStr] = None
     timezone: Optional[str] = Field(default=None, max_length=64)
     captcha_token: Optional[str] = Field(default=None, max_length=4096)
+    community: Optional[NewCommunity] = None
+    # The signed number the name check showed beside the handle, kept if
+    # still free.
+    username_offer: Optional[str] = Field(default=None, max_length=1024)
+    # Answers the directory's age question at sign-up; the date is not kept.
+    birthdate: Optional[date] = None
 
 
 class PasskeySignUpFinish(PasskeySignUpStart):

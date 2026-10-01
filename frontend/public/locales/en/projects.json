@@ -80,8 +80,7 @@
     "loadError": "Unable to load archived projects.",
     "unarchive": "Unarchive",
     "noArchived": "No archived projects",
-    "noArchivedDescription": "Active projects stay on the Active tab.",
-    "sharingUnavailable": "Sharing can't be changed on an archived project."
+    "noArchivedDescription": "Active projects stay on the Active tab."
   },
   "createDialog": {
     "title": "Create project",
@@ -368,15 +367,13 @@
     "repeatEveryMonths": "months",
     "repeatEveryYears": "years",
     "repeatOn": "Repeat on",
-    "month": "Month",
     "on": "On",
-    "dayMode": "Day",
-    "weekdayMode": "Weekday",
     "position": "Position",
     "positionFirst": "First",
     "positionSecond": "Second",
     "positionThird": "Third",
     "positionFourth": "Fourth",
+    "positionFifth": "Fifth",
     "positionLast": "Last",
     "weekday": "Weekday",
     "ends": "Ends",
@@ -389,30 +386,15 @@
     "strategyAfterCompletion": "After completion",
     "strategyOnScheduleDescription": "A new task is created on a fixed schedule based on dates.",
     "strategyAfterCompletionDescription": "A new task is created a fixed interval after the previous one is completed.",
-    "monthJanuary": "January",
-    "monthFebruary": "February",
-    "monthMarch": "March",
-    "monthApril": "April",
-    "monthMay": "May",
-    "monthJune": "June",
-    "monthJuly": "July",
-    "monthAugust": "August",
-    "monthSeptember": "September",
-    "monthOctober": "October",
-    "monthNovember": "November",
-    "monthDecember": "December",
-    "summary": {
-      "everyDay": "Every day",
-      "everyNDays": "Every {{count}} days",
-      "everyWeek": "Every week on {{days}}",
-      "everyNWeeks": "Every {{count}} weeks on {{days}}",
-      "everyMonthDay": "Every month on day {{day}}",
-      "everyNMonthsDay": "Every {{count}} months on day {{day}}",
-      "everyMonthWeekday": "Every month on the {{position}} {{weekday}}",
-      "everyNMonthsWeekday": "Every {{count}} months on the {{position}} {{weekday}}",
-      "everyYear": "Every year on {{month}} {{day}}",
-      "everyNYears": "Every {{count}} years on {{month}} {{day}}"
-    }
+    "mode": {
+      "day_of_month": "Days of the month",
+      "weekday": "A weekday of the month",
+      "weekdays": "Every chosen weekday",
+      "set": "The first or last of chosen days"
+    },
+    "lastDay": "Last",
+    "months": "Months",
+    "nextDates": "Next:"
   },
   "progressLabel": "Project progress",
   "preview": {
@@ -431,11 +413,5 @@
     "noComments": "No comments yet.",
     "commentedOn": "commented on",
     "loadMore": "Load more"
-  },
-  "status": {
-    "label": "Show",
-    "active": "Active",
-    "templates": "Templates",
-    "archived": "Archived"
   }
 }

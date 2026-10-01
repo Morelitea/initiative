@@ -1,6 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { apiClient } from "@/api/client";
+
 import { useCollaboration } from "./useCollaboration";
 
 const calls: string[] = [];
@@ -30,7 +32,6 @@ describe("useCollaboration", () => {
     calls.length = 0;
     provider.connected = true;
     provider.unsentEdits.mockReturnValue(null);
-    vi.unstubAllGlobals();
   });
 
   it("hands the room the last rendering before the socket closes", () => {
@@ -61,8 +62,7 @@ describe("useCollaboration", () => {
       update: new Uint8Array([1, 2]),
       stateVector: new Uint8Array([3]),
     });
-    const fetch = vi.fn(() => Promise.resolve({ ok: true } as Response));
-    vi.stubGlobal("fetch", fetch);
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
 
     const { result, unmount } = renderHook(() =>
       useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => ({ a: 1 }) })
@@ -72,11 +72,11 @@ describe("useCollaboration", () => {
     });
     unmount();
 
-    expect(fetch).toHaveBeenCalledTimes(1);
-    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/api/v1/c/1/collaboration/documents/7/collaborate");
-    expect(init.keepalive).toBe(true);
-    expect(JSON.parse(init.body as string)).toEqual({
+    expect(post).toHaveBeenCalledTimes(1);
+    const [url, body, config] = post.mock.calls[0];
+    expect(url).toBe("/c/1/collaboration/documents/7/collaborate");
+    expect(config).toMatchObject({ adapter: "fetch", fetchOptions: { keepalive: true } });
+    expect(JSON.parse(body as string)).toEqual({
       update: "AQI=",
       state_vector: "Aw==",
       content: { a: 1 },
@@ -97,5 +97,44 @@ describe("useCollaboration", () => {
     window.dispatchEvent(new Event("pagehide"));
 
     expect(calls).toEqual(['send {"a":2}']);
+  });
+
+  it("counts a body as synced from its first sync on, through a reconnect", () => {
+    const { result } = renderHook(() =>
+      useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => undefined })
+    );
+    act(() => {
+      result.current.providerFactory?.("7", new Map());
+    });
+    const onSync = provider.on.mock.calls.filter(([type]) => type === "sync").at(-1)?.[1] as (
+      synced: boolean
+    ) => void;
+    expect(result.current.hasSynced).toBe(false);
+
+    act(() => onSync(true));
+    expect(result.current).toMatchObject({ isSynced: true, hasSynced: true });
+
+    // The socket dropped and is reconnecting: not in step with the room right
+    // now, but the editor already holds the document.
+    act(() => onSync(false));
+    expect(result.current).toMatchObject({ isSynced: false, hasSynced: true });
+  });
+
+  it("starts over when the page moves to another body", () => {
+    const { result, rerender } = renderHook(
+      ({ path }) => useCollaboration({ socketPath: path, finalContent: () => undefined }),
+      { initialProps: { path: "documents/7/collaborate" } }
+    );
+    act(() => {
+      result.current.providerFactory?.("7", new Map());
+    });
+    const onSync = provider.on.mock.calls.filter(([type]) => type === "sync").at(-1)?.[1] as (
+      synced: boolean
+    ) => void;
+    act(() => onSync(true));
+    expect(result.current.hasSynced).toBe(true);
+
+    rerender({ path: "documents/8/collaborate" });
+    expect(result.current.hasSynced).toBe(false);
   });
 });

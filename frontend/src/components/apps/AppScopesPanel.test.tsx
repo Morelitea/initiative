@@ -64,6 +64,34 @@ describe("AppScopesPanel", () => {
     expect([...sent[0]].sort()).toEqual(["projects:read", "projects:write"]);
   });
 
+  it("says acting as a moderator or an admin plainly, on rows of their own", async () => {
+    const standings = ["initiatives:moderate", "guild:admin"];
+    renderPage(() => (
+      <AppScopesPanel
+        app={app({
+          requested_scopes: ["initiatives:read", ...standings],
+          grantable_scopes: ["initiatives:read", ...standings],
+          granted_scopes: ["initiatives:read"],
+        })}
+      />
+    ));
+
+    const initiatives = await row("Initiatives");
+    expect(initiatives.getByLabelText("Read")).toBeChecked();
+    expect(initiatives.queryByLabelText("Read and change")).not.toBeInTheDocument();
+    expect(screen.queryByText("Community")).not.toBeInTheDocument();
+
+    const moderate = screen.getByLabelText("Act as a moderator in the initiatives it's placed in");
+    expect(moderate).not.toBeChecked();
+    expect(screen.getByLabelText("Act as an admin across your whole community")).not.toBeChecked();
+
+    moderate.click();
+    await waitFor(() => expect(moderate).toBeChecked());
+    screen.getByRole("button", { name: "Save" }).click();
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect([...sent[0]].sort()).toEqual(["initiatives:moderate", "initiatives:read"]);
+  });
+
   it("takes the change away with the read", async () => {
     renderPage(() => (
       <AppScopesPanel app={app({ granted_scopes: ["projects:read", "projects:write"] })} />

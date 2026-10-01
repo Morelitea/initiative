@@ -1,4 +1,3 @@
-from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
@@ -6,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload, selectinload, undefer
-from sqlmodel import select, delete
+from sqlmodel import select
 
 from app.api import resource_access
 from app.api.actor_route import ActorRoute
@@ -22,6 +21,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
+from app.core import recurrence
 from app.core.audit_events import AuditEventType
 from app.core.messages import ChecklistMessages, TaskMessages
 from app.db.query import build_paginated_response, paginated_query
@@ -30,14 +30,12 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment
 from app.models.tenant.project import Project
-from app.models.tenant.property import TaskPropertyValue
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.schemas.ai_generation import (
     GenerateChecklistResponse,
     GenerateDescriptionResponse,
 )
-from app.schemas.tenant.property import PropertyValuesSetRequest
-from app.schemas.tenant.tag import TagSetRequest
+from app.schemas.recurrence import OccurrenceScope
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
@@ -46,7 +44,6 @@ from app.schemas.tenant.task import (
     TaskMoveRequest,
     TaskRead,
     TaskReorderRequest,
-    TaskRecurrence,
     TaskUpdate,
 )
 from app.services import ai_generation as ai_generation_service
@@ -61,6 +58,7 @@ from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_creation as task_creation_service
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_queries
+from app.services.tenant import task_series
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant.soft_delete import trash
 from app.services.tenant.task_completion import sync_completed_at
@@ -204,13 +202,18 @@ async def list_my_tasks(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     conditions: Optional[str] = Query(default=None),
+    created: bool = Query(
+        default=False,
+        description="The tasks you created instead of the ones assigned to you",
+    ),
     include_archived: bool = Query(default=False, description="Include archived tasks"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
     sorting: Optional[str] = Query(default=None),
     tz: Optional[str] = Query(default=None),
 ) -> TaskListResponse:
-    """Tasks assigned to the current user across every guild they belong to.
+    """Tasks assigned to the current user across every guild they belong to,
+    or with ``created`` the tasks they created.
 
     An optional ``guild_ids`` conditions entry narrows to a subset of guilds.
     """
@@ -221,41 +224,7 @@ async def list_my_tasks(
         session,
         current_user,
         q,
-        include_archived=include_archived,
-        page=page,
-        page_size=page_size,
-    )
-    return TaskListResponse(
-        **build_paginated_response(
-            items=items,
-            total_count=total_count,
-            page=actual_page,
-            page_size=page_size,
-            sorting=sorting,
-        )
-    )
-
-
-@me_router.get("/tasks/created", response_model=TaskListResponse)
-async def list_my_created_tasks(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    conditions: Optional[str] = Query(default=None),
-    include_archived: bool = Query(default=False, description="Include archived tasks"),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=0, le=100),
-    sorting: Optional[str] = Query(default=None),
-    tz: Optional[str] = Query(default=None),
-) -> TaskListResponse:
-    """Tasks created by the current user across every guild they belong to."""
-    q = await task_queries.parse_task_list_query(
-        session, conditions, sorting, tz, across_guilds_for=current_user
-    )
-    items, total_count, actual_page = await task_queries.list_global_tasks(
-        session,
-        current_user,
-        q,
-        created=True,
+        created=created,
         include_archived=include_archived,
         page=page,
         page_size=page_size,
@@ -304,7 +273,7 @@ async def list_tasks(
         task_queries.refuse_person_filters(q)
 
     # Guild-scoped list. Cross-guild "my tasks" aggregates live under
-    # /me/tasks and /me/tasks/created (see list_my_tasks above).
+    # /me/tasks (see list_my_tasks above).
     build = await task_queries.guild_task_query_builder(
         session,
         current_user,
@@ -324,11 +293,11 @@ async def list_tasks(
         )
 
     count_stmt = select(func.count()).select_from(build(select(Task.id)).subquery())
-    statement = task_queries.list_statement(build, q, *task_queries.LIST_ROW_OPTIONS)
-    tasks, total_count, actual_page = await paginated_query(
+    statement = task_queries.list_row_statement(build, q)
+    rows, total_count, actual_page = await paginated_query(
         session, statement, count_stmt, page, page_size
     )
-    items = await task_queries.list_reads(session, tasks, routed_guild_id(session))
+    items = await task_queries.list_reads(session, rows, routed_guild_id(session))
     return TaskListResponse(
         **build_paginated_response(
             items=items,
@@ -361,19 +330,18 @@ async def create_task(
             "assignee_ids",
             "task_status_id",
             "tag_ids",
-            "property_values",
+            "properties",
             "checklist",
+            "tz",
         }
     )
-
-    # Serialize recurrence to JSON if present
-    if task_data.get("recurrence") is not None:
-        if isinstance(task_data["recurrence"], TaskRecurrence):
-            task_data["recurrence"] = task_data["recurrence"].model_dump(mode="json")
-        elif isinstance(task_data["recurrence"], dict):
-            # Already a dict, convert to model and back to ensure proper serialization
-            recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
-            task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
+    if task_data.get("recurrence"):
+        task_data["recurrence"], task_data["recurrence_shift"] = recurrence.stored(
+            task_data["recurrence"],
+            task_data.get("due_date") or task_data.get("start_date"),
+            task_in.tz,
+            kind="task",
+        )
 
     task_data.pop("project_id", None)
     task = await task_creation_service.create_task_row(
@@ -411,15 +379,6 @@ async def create_task(
                 entity_id=task.id,
                 tag_ids=task_in.tag_ids,
             )
-        if task_in.property_values:
-            await properties_service.set_task_property_values(
-                session,
-                task,
-                await properties_service.property_values_by_row_id(
-                    session, task_in.property_values
-                ),
-                project.initiative_id,
-            )
     except HTTPException:
         await session.rollback()
         raise
@@ -434,6 +393,7 @@ async def create_task(
     await attachments_service.claim_uploads(session, task)
 
     _touch_project(project, datetime.now(timezone.utc))
+    await properties_service.write_on_create(session, task, task_in.properties)
     await session.commit()
     return await _response(session, task.id, TaskMessages.MISSING_AFTER_CREATE)
 
@@ -471,8 +431,16 @@ async def update_task(
     update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
     tag_ids = update_data.pop("tag_ids", None)
-    property_values = update_data.pop("property_values", None)
+    update_data.pop("properties", None)
     checklist_sent = update_data.pop("checklist", None) is not None
+    picked_in = update_data.pop("tz", None)
+    scope = update_data.pop("scope", None)
+    before = (
+        await task_series.values_of(session, task)
+        if task.recurrence or task.series_id
+        else None
+    )
+    previous_start = task.due_date or task.start_date
     previous_description = task.description
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
@@ -498,19 +466,51 @@ async def update_task(
                 setattr(task, field, None)
                 task.recurrence_strategy = "fixed"
                 continue
-            if isinstance(value, TaskRecurrence):
-                value = value.model_dump(mode="json")
-            elif isinstance(value, dict):
-                # Already a dict, convert to model and back to ensure proper serialization
-                recurrence_obj = TaskRecurrence.model_validate(value)
-                value = recurrence_obj.model_dump(mode="json")
         if field == "recurrence_strategy" and value is None:
             continue
         setattr(task, field, value)
+    start = task.due_date or task.start_date
+    if update_data.get("recurrence"):
+        task.recurrence, task.recurrence_shift = recurrence.stored(
+            update_data["recurrence"], start, picked_in, kind="task"
+        )
+    elif (
+        task.recurrence
+        and previous_start
+        and start
+        and start != previous_start
+        and scope != "this"
+    ):
+        # The repeat moves with its start, its days kept as they were picked.
+        task.recurrence, task.recurrence_shift = recurrence.restarted(
+            task.recurrence, task.recurrence_shift, previous_start, start, picked_in
+        )
     if checklist_sent:
         task.checklist = checklist_service.normalize(
             task_in.checklist or [], existing=task.checklist
         )
+    series: list[Task] = []
+    if before is not None:
+        after = task_series.values_after(
+            task, before, assignee_ids=assignee_ids, tag_ids=tag_ids
+        )
+        moved = task_series.changed(before, after)
+        if scope == "this" and task.recurrence:
+            task_series.keep(task, before, after)
+        else:
+            task_series.release(task, moved)
+        if scope == "all":
+            series = await task_series.others(session, task)
+            for project in {
+                member.project_id: member.project for member in series
+            }.values():
+                resource_access.authorize(
+                    _GOVERNING,
+                    project,
+                    current_user,
+                    context=guild_context,
+                    access="write",
+                )
     now = datetime.now(timezone.utc)
     task.updated_at = now
     sync_completed_at(
@@ -528,16 +528,6 @@ async def update_task(
             for assignee in task.assignees
             if assignee.id not in existing_assignee_ids
         ]
-
-    await task_creation_service.advance_recurrence_if_needed(
-        session,
-        task,
-        previous_status_category=previous_status_category,
-        now=now,
-        # An installed app has no zone of its own; a rolling recurrence it
-        # completes counts days in UTC.
-        user_timezone=current_user.timezone if current_user is not None else None,
-    )
 
     if new_assignees:
         assigned_by = await notifications_service.author_of(
@@ -563,18 +553,30 @@ async def update_task(
                 entity_id=task.id,
                 tag_ids=tag_ids,
             )
-        if property_values is not None:
-            await properties_service.set_task_property_values(
-                session,
-                task,
-                await properties_service.property_values_by_row_id(
-                    session, task_in.property_values or []
-                ),
-                project.initiative_id,
-            )
+        await properties_service.write_on_update(session, task, task_in.properties)
     except HTTPException:
         await session.rollback()
         raise
+    if series:
+        await task_series.apply_to_others(
+            session,
+            series,
+            after,
+            moved,
+            now=now,
+            author_id=current_user.id if current_user is not None else None,
+        )
+    # Once the task has everything this edit gives it, so a completion's next
+    # task is copied from what was saved.
+    await task_creation_service.advance_recurrence_if_needed(
+        session,
+        task,
+        previous_status_category=previous_status_category,
+        now=now,
+        # An installed app has no zone of its own; a rolling recurrence it
+        # completes counts days in UTC.
+        user_timezone=current_user.timezone if current_user is not None else None,
+    )
 
     let_go: set[str] = set()
     if task.description != previous_description:
@@ -648,9 +650,7 @@ async def move_task(
     # their definitions belong to the old initiative and can't resolve in
     # the new one.
     if source_project.initiative_id != target_project.initiative_id:
-        await session.exec(
-            delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
-        )
+        await properties_service.drop_values(session, "task", [task.id])
     # Only those who can open the destination stay assigned.
     await task_creation_service.set_task_assignees(
         session,
@@ -695,6 +695,7 @@ async def duplicate_task(
         start_date=original_task.start_date,
         due_date=original_task.due_date,
         recurrence=original_task.recurrence,
+        recurrence_shift=original_task.recurrence_shift,
         recurrence_strategy=original_task.recurrence_strategy,
         position=position,
         created_by=current_user.id,
@@ -721,36 +722,12 @@ async def duplicate_task(
     await tags_service.copy_entity_tags(
         session,
         tags_service.TAG_LINKS["task"],
-        source_id=original_task.id,
-        target_id=new_task.id,
+        {original_task.id: new_task.id},
     )
 
     # Copy property values — duplicate stays in the same project and
     # therefore the same initiative, so definitions always resolve.
-    source_values_stmt = select(TaskPropertyValue).where(
-        TaskPropertyValue.task_id == original_task.id
-    )
-    source_values_result = await session.exec(source_values_stmt)
-    source_values = source_values_result.all()
-    if source_values:
-        session.add_all(
-            [
-                TaskPropertyValue(
-                    task_id=new_task.id,
-                    property_id=row.property_id,
-                    value_text=row.value_text,
-                    value_number=row.value_number,
-                    value_boolean=row.value_boolean,
-                    value_date=row.value_date,
-                    value_datetime=row.value_datetime,
-                    value_user_id=row.value_user_id,
-                    value_json=deepcopy(row.value_json)
-                    if row.value_json is not None
-                    else None,
-                )
-                for row in source_values
-            ]
-        )
+    await properties_service.copy_values(session, original_task, new_task)
 
     if new_task.description:
         await task_description_service.record_references(
@@ -768,12 +745,68 @@ async def delete_task(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    scope: Optional[OccurrenceScope] = Query(default=None),
 ) -> None:
+    """Trash the task. For a repeating one, ``this`` skips it so the series
+    goes on (trashing it when the series has no more), ``following`` (the
+    default) trashes it and so ends the repeat, and ``all`` trashes every
+    other task of the series too."""
     task = await _load_for_change(session, task_id, current_user, guild_context)
     project = task.project
-    await trash(session, task, deleted_by_user_id=current_user.id)
-    _touch_project(project, datetime.now(timezone.utc))
+    now = datetime.now(timezone.utc)
+    skipped = (
+        scope == "this"
+        and bool(task.recurrence)
+        and await task_series.skip(
+            session, task, now=now, user_timezone=current_user.timezone
+        )
+    )
+    if not skipped:
+        series = await task_series.others(session, task) if scope == "all" else []
+        for member in series:
+            resource_access.authorize(
+                _GOVERNING,
+                member.project,
+                current_user,
+                context=guild_context,
+                access="write",
+            )
+        for doomed in [task, *series]:
+            await trash(session, doomed, deleted_by_user_id=current_user.id)
+    _touch_project(project, now)
     await session.commit()
+
+
+@router.post("/{task_id}/skip", response_model=TaskRead)
+async def skip_task(
+    task_id: int,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
+) -> Task:
+    """Move a repeating task on to its next occurrence without completing it."""
+    task = await _load_for_change(session, task_id, current_user, guild_context)
+    if not task.recurrence:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=TaskMessages.NOT_REPEATING,
+        )
+    now = datetime.now(timezone.utc)
+    if not await task_series.skip(
+        session,
+        task,
+        now=now,
+        # An installed app has no zone of its own; a rolling repeat it skips
+        # counts days in UTC.
+        user_timezone=current_user.timezone if current_user is not None else None,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=TaskMessages.NO_LATER_OCCURRENCE,
+        )
+    _touch_project(task.project, now)
+    await session.commit()
+    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
 
 
 @router.post("/reorder", response_model=List[TaskRead])
@@ -1055,60 +1088,3 @@ async def generate_task_description(
         return GenerateDescriptionResponse(description=description)
     except ai_generation_service.AIGenerationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.code)
-
-
-@router.put("/{task_id}/tags", response_model=TaskRead)
-async def set_task_tags(
-    task_id: int,
-    tags_in: TagSetRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> Task:
-    """Set the tags for a task. Replaces all existing tags with the provided list."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
-    await tags_service.set_entity_tags(
-        session,
-        tags_service.TAG_LINKS["task"],
-        guild_id=guild_context.guild_id,
-        entity_id=task.id,
-        tag_ids=tags_in.tag_ids,
-    )
-    now = datetime.now(timezone.utc)
-    task.updated_at = now
-    _touch_project(task.project, now)
-    await session.commit()
-    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)
-
-
-@router.put("/{task_id}/properties", response_model=TaskRead)
-async def set_task_properties(
-    task_id: int,
-    payload: PropertyValuesSetRequest,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: ProjectsWrite,
-) -> Task:
-    """Replace the custom property values on a task.
-
-    Requires write access (same permission gate as PUT /tags). Validates
-    each value against its definition's type and options server-side. An
-    installed app names the person a person-valued property holds by its
-    reference for them.
-    """
-    task = await _load_for_change(session, task_id, current_user, guild_context)
-    try:
-        await properties_service.set_task_property_values(
-            session,
-            task,
-            await properties_service.property_values_by_row_id(session, payload.values),
-            task.project.initiative_id,
-        )
-    except HTTPException:
-        await session.rollback()
-        raise
-    now = datetime.now(timezone.utc)
-    task.updated_at = now
-    _touch_project(task.project, now)
-    await session.commit()
-    return await _response(session, task.id, TaskMessages.MISSING_AFTER_UPDATE)

@@ -260,7 +260,7 @@ async def test_a_restored_page_takes_its_name_back(
     )
 
     assert restored.status_code == 200, restored.text
-    back = await client.get(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    back = await client.get(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
     assert back.status_code == 200, back.text
     assert back.json()["slug"] == "step-1"
 
@@ -290,12 +290,12 @@ async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
     )
 
     assert restored.status_code == 200, restored.text
-    back = await client.get(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    back = await client.get(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
     assert back.status_code == 200, back.text
     assert back.json()["slug"] == "step-1-2"
     # And the page that took the name in the meantime keeps it.
     held = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{replacement.json()['id']}"), headers=a.headers
+        a.g(f"/wiki-pages/{replacement.json()['id']}"), headers=a.headers
     )
     assert held.json()["slug"] == "step-1"
 
@@ -372,7 +372,7 @@ async def test_moving_a_page_renumbers_its_new_siblings(
 async def test_a_page_from_another_wiki_reads_as_missing(
     client: AsyncClient, acting_user, session
 ):
-    """A page is addressed through its wiki, so an id from a different one is
+    """A page is written through its wiki, so an id from a different one is
     not found rather than somebody else's page."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
@@ -380,8 +380,10 @@ async def test_a_page_from_another_wiki_reads_as_missing(
     theirs = await create_wiki(session, a.initiative, a.user)
     stray = await create_wiki_page(session, theirs, a.user, title="Elsewhere")
 
-    response = await client.get(
-        a.g(f"/wikis/{mine.id}/pages/{stray.id}"), headers=a.headers
+    response = await client.patch(
+        a.g(f"/wikis/{mine.id}/pages/{stray.id}"),
+        headers=a.headers,
+        json={"title": "Moved in"},
     )
 
     assert response.status_code == 404
@@ -413,23 +415,61 @@ async def test_deleting_a_page_takes_its_sub_pages(
 # ---------------------------------------------------------------------------
 
 
+def _body(tag: str, heading: str) -> dict:
+    """A Lexical body holding one heading, nested a level down, and a paragraph."""
+    return {
+        "root": {
+            "type": "root",
+            "children": [
+                {"type": "paragraph", "children": [{"type": "text", "text": "Intro"}]},
+                {
+                    "type": "quote",
+                    "children": [
+                        {
+                            "type": "heading",
+                            "tag": tag,
+                            "children": [{"type": "text", "text": heading}],
+                        }
+                    ],
+                },
+            ],
+        }
+    }
+
+
 async def test_a_document_put_in_a_wiki_is_one_of_its_pages(
     client: AsyncClient, acting_user, session
 ):
-    """It joins by an edge, so it reads as a page without becoming one."""
+    """It joins by an edge, so it reads as a page without becoming one — its
+    headings drawn in the tree like a page's own."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
     wiki = await create_wiki(session, a.initiative, a.user)
-    await create_wiki_page(session, wiki, a.user, title="Written here")
-    document = await create_document(session, a.initiative, a.user)
+    await create_wiki_page(
+        session, wiki, a.user, title="Written here", content=_body("h1", "Opening")
+    )
+    document = await create_document(
+        session, a.initiative, a.user, content=_body("h3", "Loot table")
+    )
 
     response = await client.put(
         a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
     )
     assert response.status_code == 200, response.text
 
-    rows = {row["title"]: row["kind"] for row in response.json()["items"]}
-    assert rows == {"Written here": "page", document.name: "document"}
+    rows = {
+        row["title"]: (row["kind"], row["headings"]) for row in response.json()["items"]
+    }
+    assert rows == {
+        "Written here": (
+            "page",
+            [{"text": "Opening", "level": 1, "anchor": "opening"}],
+        ),
+        document.name: (
+            "document",
+            [{"text": "Loot table", "level": 3, "anchor": "loot-table"}],
+        ),
+    }
 
 
 async def test_a_page_filed_under_another_reads_after_it(
@@ -896,19 +936,69 @@ async def test_a_draft_page_reads_as_missing_to_a_reader(
         initiative=a.initiative,
         initiative_role="member",
     )
-    response = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}"), headers=b.headers
-    )
-
-    assert response.status_code == 404
-
-    # The page's own address answers the same way: its writer reads it, and a
-    # reader is told nothing.
-    by_id = a.g(f"/wiki-pages/{page.id}")
-    written = await client.get(by_id, headers=a.headers)
+    # Its writer reads it, and a reader is told nothing.
+    url = a.g(f"/wiki-pages/{page.id}")
+    written = await client.get(url, headers=a.headers)
     assert written.status_code == 200, written.text
     assert written.json()["wiki_id"] == wiki.id
-    assert (await client.get(by_id, headers=b.headers)).status_code == 404
+    assert (await client.get(url, headers=b.headers)).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Live editing
+# ---------------------------------------------------------------------------
+
+
+async def test_a_body_saved_outside_a_live_session_is_refused(
+    client: AsyncClient, acting_user, session, monkeypatch
+):
+    """A page being edited live has its room as the writer of its body, as a
+    document's does. A body arriving over REST is refused; a rename is not."""
+    from app.services.tenant.collaboration import collaboration_manager
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, title="Live")
+    url = a.g(f"/wikis/{wiki.id}/pages/{page.id}")
+    monkeypatch.setattr(
+        collaboration_manager, "has_active_collaborators", lambda *_a: True
+    )
+
+    refused = await client.patch(
+        url, headers=a.headers, json={"content": {"root": "written outside"}}
+    )
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "WIKI_LIVE_SESSION_OWNS_CONTENT"
+    await session.refresh(page, ["content"])
+    assert page.content != {"root": "written outside"}
+
+    renamed = await client.patch(url, headers=a.headers, json={"title": "Renamed"})
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["title"] == "Renamed"
+
+
+async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
+    client: AsyncClient, acting_user, session
+):
+    """Stored Yjs state predates a body saved over REST; left in place, the
+    next live session would load it and save it back over the edit."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(
+        session, wiki, a.user, title="Stale", yjs_state=b"stale yjs blob"
+    )
+
+    saved = await client.patch(
+        a.g(f"/wikis/{wiki.id}/pages/{page.id}"),
+        headers=a.headers,
+        json={"content": {"root": {"children": [], "type": "root"}}},
+    )
+
+    assert saved.status_code == 200, saved.text
+    await session.refresh(page, ["yjs_state"])
+    assert page.yjs_state is None
 
 
 # ---------------------------------------------------------------------------

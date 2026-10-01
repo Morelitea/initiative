@@ -5,7 +5,7 @@
 
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, http, type PathParams } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
@@ -195,14 +195,17 @@ describe("OperatorDashboardPlacementPage", () => {
         agreed: false,
       },
     ];
-    let sent: unknown = null;
+    let sent: { agreed: boolean } | null = null;
     server.use(
       http.get(REQUESTS_URL, () => HttpResponse.json(waiting)),
-      http.put("/api/v1/settings/communities/7/narrowings/41", async ({ request }) => {
-        sent = await request.json();
-        waiting = [];
-        return HttpResponse.json({ ...sent, connection_id: 41 });
-      })
+      http.put<PathParams, { agreed: boolean }>(
+        "/api/v1/settings/communities/7/narrowings/41",
+        async ({ request }) => {
+          sent = await request.json();
+          waiting = [];
+          return HttpResponse.json({ ...sent, connection_id: 41 });
+        }
+      )
     );
     renderPage("operator");
 

@@ -26,7 +26,8 @@ favorites, recents, queues. Those would extend the schema under a future
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -35,11 +36,15 @@ from sqlmodel import select
 from app.core.relationships import RelationshipType, decode_node_id, node_id
 from app.core.search import SearchEntityType
 from app.core.user_display import display_name, handle_of
+from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
+from app.schemas.tenant.property import annotated_properties
+from app.services.export.property_values import exported_properties
 from app.core.version import get_version
 from app.models.tenant.comment import Comment
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.project import Project
-from app.models.tenant.property import PropertyType, TaskPropertyValue
+from app.models.platform.user_profile_view import MemberProfile
+from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task, TaskStatus
 from app.schemas.tenant.project_export import (
     SCHEMA_VERSION,
@@ -47,7 +52,6 @@ from app.schemas.tenant.project_export import (
     ProjectExportEnvelope,
     ProjectExportProject,
     ProjectExportPropertyDefinition,
-    ProjectExportPropertyValue,
     ProjectExportChecklistItem,
     ProjectExportTag,
     ProjectExportTask,
@@ -60,6 +64,7 @@ from app.services.import_engine.mentions import (
     markdown_mention_ids,
 )
 from app.services.import_engine.references import detach_markdown_references
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -82,17 +87,13 @@ async def build_project_export(
             selectinload(Project.task_statuses),
             selectinload(Project.tasks).selectinload(Task.task_status),
             selectinload(Project.tasks).selectinload(Task.assignees),
-            selectinload(Project.tasks)
-            .selectinload(Task.property_values)
-            .selectinload(TaskPropertyValue.property_definition),
-            selectinload(Project.tasks)
-            .selectinload(Task.property_values)
-            .selectinload(TaskPropertyValue.value_user),
         )
     )
     project = (await session.exec(stmt)).one()
     await tags_service.annotate_tags(session, [project])
+    await properties_service.annotate_properties(session, [project])
     await tags_service.annotate_tags(session, project.tasks or [])
+    await properties_service.annotate_properties(session, project.tasks or [])
 
     task_ids = [task.id for task in (project.tasks or []) if task.id is not None]
     comments_by_task = await _load_comments(session, task_ids)
@@ -140,24 +141,20 @@ async def build_project_export(
         for s in statuses_sorted
     ]
 
-    # Tasks (and gather property-definition references along the way)
+    # Tasks (and gather property-definition references along the way, from
+    # the project's own values first)
     tasks: list[ProjectExportTask] = []
-    referenced_property_ids: dict[int, _PropDefSnapshot] = {}
+    referenced_property_ids = {
+        summary.property_id for summary in annotated_properties(project)
+    }
     tasks_sorted = sorted(project.tasks or [], key=lambda t: (t.position, t.id or 0))
     for task in tasks_sorted:
-        property_values: list[ProjectExportPropertyValue] = []
-        for pv in task.property_values or []:
-            pd = pv.property_definition
-            if pd is None:
-                continue
-            referenced_property_ids[pd.id] = _PropDefSnapshot(  # ty: ignore[invalid-assignment] — persisted row, id is set
-                name=pd.name,
-                type=pd.type,
-                position=pd.position,
-                color=pd.color,
-                options=pd.options,
-            )
-            property_values.append(_serialize_property_value(pv, pd.type))
+        referenced_property_ids.update(
+            summary.property_id for summary in annotated_properties(task)
+        )
+        properties = [
+            EnvelopePropertyValue(**value) for value in exported_properties(task)
+        ]
 
         checklist = [
             ProjectExportChecklistItem(
@@ -185,6 +182,9 @@ async def build_project_export(
         description, described = detach_markdown_mentions(
             task.description, mention_handles
         )
+        carry, carry_described = await _portable_carry(
+            session, task.recurrence_carry, mention_handles
+        )
         tasks.append(
             ProjectExportTask(
                 title=task.title,
@@ -193,8 +193,11 @@ async def build_project_export(
                 start_date=task.start_date,
                 due_date=task.due_date,
                 recurrence=task.recurrence,
+                recurrence_shift=task.recurrence_shift,
                 recurrence_strategy=task.recurrence_strategy,
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
+                series=task.series_id,
+                recurrence_carry=carry,
                 position=task.position,
                 archived_at=task.archived_at,
                 completed_at=task.completed_at,
@@ -202,25 +205,28 @@ async def build_project_export(
                 tags=task_tags,
                 assignee_handles=assignee_handles,
                 checklist=checklist,
-                property_values=property_values,
+                properties=properties,
                 created_at=task.created_at,
                 updated_at=task.updated_at,
                 external_ref=task_ref(task.id),
                 links=links_by_task.get(task.id, []),
                 comments=comments_by_task.get(task.id, []),
-                mention_handles=described,
+                mention_handles=list(dict.fromkeys(described + carry_described)),
             )
         )
 
+    definitions = await properties_service.load_definitions_by_ids(
+        session, referenced_property_ids
+    )
     property_definitions = [
         ProjectExportPropertyDefinition(
-            name=snap.name,
-            type=snap.type,
-            position=snap.position,
-            color=snap.color,
-            options=snap.options,
+            name=definition.name,
+            type=definition.type,
+            position=definition.position,
+            color=definition.color,
+            options=definition.options,
         )
-        for snap in referenced_property_ids.values()
+        for definition in definitions.values()
     ]
 
     return ProjectExportEnvelope(
@@ -238,6 +244,9 @@ async def build_project_export(
             archived_at=project.archived_at,
             start_date=project.start_date,
             end_date=project.end_date,
+            properties=[
+                EnvelopePropertyValue(**value) for value in exported_properties(project)
+            ],
         ),
         tags=project_tags,
         task_statuses=statuses,
@@ -375,20 +384,59 @@ async def list_project_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every project the user may include in an aggregate export —
-    DAC-visible (a request that reaches the whole guild sees all). The aggregate
-    export includes read-accessible projects by design; the per-project seams
-    still enforce their own access level per entity."""
+    DAC-visible (a request that reaches the whole guild sees all), in
+    initiatives that have projects switched on. The aggregate export includes
+    read-accessible projects by design; the per-project seams still enforce
+    their own access level per entity."""
     from sqlmodel import select
 
+    from app.models.tenant.initiative import Initiative
     from app.models.tenant.project import Project
 
     if not initiative_ids:
         return []
-    conditions = [
-        Project.initiative_id.in_(initiative_ids),
-    ]
-    statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
+    statement = (
+        select(Project.id)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(
+            Project.initiative_id.in_(initiative_ids),
+            Initiative.projects_enabled.is_(True),
+        )
+        .order_by(Project.id.asc())
+    )
     return list(await session.exec(statement))
+
+
+async def _portable_carry(
+    session: AsyncSession,
+    carry: dict[str, Any] | None,
+    mention_handles: Mapping[int, str],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """``recurrence_carry`` as the envelope names things: its description's
+    mentions by handle and references by ref, its tags by name and colour and
+    its assignees by handle. Also the handles the description mentions."""
+    if not carry:
+        return None, []
+    portable = {
+        field: value
+        for field, value in carry.items()
+        if field not in {"tag_ids", "assignee_ids"}
+    }
+    described: list[str] = []
+    if "description" in carry:
+        description, described = detach_markdown_mentions(
+            carry["description"], mention_handles
+        )
+        portable["description"] = detach_markdown_references(description)
+    if "tag_ids" in carry:
+        tags = await session.exec(select(Tag).where(Tag.id.in_(carry["tag_ids"])))
+        portable["tags"] = [{"name": tag.name, "color": tag.color} for tag in tags]
+    if "assignee_ids" in carry:
+        people = await session.exec(
+            select(MemberProfile).where(MemberProfile.id.in_(carry["assignee_ids"]))
+        )
+        portable["assignee_handles"] = [handle_of(person) for person in people]
+    return portable, described
 
 
 def _fallback_status_name(statuses_sorted: list[TaskStatus]) -> str:
@@ -398,58 +446,3 @@ def _fallback_status_name(statuses_sorted: list[TaskStatus]) -> str:
         if s.is_default:
             return s.name
     return statuses_sorted[0].name if statuses_sorted else "Backlog"
-
-
-def _serialize_property_value(
-    pv: TaskPropertyValue,
-    prop_type: PropertyType,
-) -> ProjectExportPropertyValue:
-    """Encode a typed property value into the export's flat shape."""
-    base = ProjectExportPropertyValue(
-        property_name=pv.property_definition.name,
-        property_type=prop_type,
-    )
-    if (
-        prop_type == PropertyType.text
-        or prop_type == PropertyType.url
-        or prop_type == PropertyType.select
-    ):
-        base.value_text = pv.value_text
-    elif prop_type == PropertyType.number:
-        base.value_number = (
-            float(pv.value_number) if pv.value_number is not None else None
-        )
-    elif prop_type == PropertyType.checkbox:
-        base.value_boolean = pv.value_boolean
-    elif prop_type == PropertyType.date:
-        base.value_text = pv.value_date.isoformat() if pv.value_date else None
-    elif prop_type == PropertyType.datetime:
-        base.value_text = pv.value_datetime.isoformat() if pv.value_datetime else None
-    elif prop_type == PropertyType.multi_select:
-        base.value_json = pv.value_json
-    elif prop_type == PropertyType.user_reference:
-        if pv.value_user is not None:
-            base.value_handle = handle_of(pv.value_user)
-    return base
-
-
-class _PropDefSnapshot:
-    """Lightweight value object for collecting referenced property
-    definitions without importing the SQLModel class into the envelope."""
-
-    __slots__ = ("name", "type", "position", "color", "options")
-
-    def __init__(
-        self,
-        *,
-        name: str,
-        type: PropertyType,
-        position: float,
-        color: Optional[str],
-        options: Optional[list[dict]],
-    ) -> None:
-        self.name = name
-        self.type = type
-        self.position = position
-        self.color = color
-        self.options = options

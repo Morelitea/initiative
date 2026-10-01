@@ -196,13 +196,13 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     await create_resource_grant(session, doc, all_initiative_members=True)
 
     refused = await client.post(
-        writer.g(f"/documents/{doc.id}/duplicate"), headers=writer.headers
+        writer.g(f"/documents/{doc.id}/copy"), headers=writer.headers
     )
     assert refused.status_code == 403
     assert refused.json()["detail"] == "DOCUMENT_CREATE_PERMISSION_REQUIRED"
 
     duplicated = await client.post(
-        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
+        owner.g(f"/documents/{doc.id}/copy"), headers=owner.headers
     )
     assert duplicated.status_code == 201, duplicated.text
     assert duplicated.json()["name"] == "Plan (Copy)"
@@ -216,7 +216,7 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     }
 
     again = await client.post(
-        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
+        owner.g(f"/documents/{doc.id}/copy"), headers=owner.headers
     )
     assert again.status_code == 409
     assert again.json()["detail"] == "DOCUMENT_NAME_ALREADY_EXISTS"
@@ -841,13 +841,12 @@ async def test_list_documents_filters_by_template_and_type(
     assert [item["id"] for item in response.json()["items"]] == [plain.id]
 
 
-async def test_document_counts_filter_by_template_and_type(
+async def test_the_tag_tree_narrows_by_document_type(
     client: AsyncClient, session, acting_user
 ):
-    """The tag-sidebar counts honor the same template/type narrowing as the
-    list, so the two never disagree."""
+    """The one filter of its own the counts route reads for documents: the
+    tag tree honors the type the list beside it is narrowed to."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
-
     await create_document(session, actor.initiative, actor.user, is_template=True)
     await create_document(
         session,
@@ -858,33 +857,20 @@ async def test_document_counts_filter_by_template_and_type(
     )
     await create_document(session, actor.initiative, actor.user)
 
-    response = await client.get(actor.g("/documents/counts"), headers=actor.headers)
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 3
+    async def untagged(**params) -> int:
+        response = await client.get(
+            actor.g("/tools/document/counts"),
+            headers=actor.headers,
+            params={**params, "include_tags": True},
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["untagged_count"]
 
-    response = await client.get(
-        actor.g("/documents/counts"),
-        headers=actor.headers,
-        params={"is_template": True},
+    assert await untagged(view="templates") == 2
+    assert (
+        await untagged(view="templates", filters='{"document_type": "whiteboard"}') == 1
     )
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 2
-
-    response = await client.get(
-        actor.g("/documents/counts"),
-        headers=actor.headers,
-        params={"is_template": True, "document_type": "whiteboard"},
-    )
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 1
-
-    response = await client.get(
-        actor.g("/documents/counts"),
-        headers=actor.headers,
-        params={"document_type": "native"},
-    )
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 2
+    assert await untagged(filters='{"document_type": "native"}') == 1
 
 
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
@@ -922,10 +908,10 @@ async def test_document_counts_by_initiative(
     # a guild admin included. Theirs is the one document they hold in each,
     # not the member's two alongside it.
     response = await client.get(
-        admin.g("/documents/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {
+    assert response.json()["counts"]["document"] == {
         str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
@@ -933,10 +919,10 @@ async def test_document_counts_by_initiative(
     # A member counts only documents shared with them, and gets no entry
     # at all for initiatives they are not in.
     response = await client.get(
-        member.g("/documents/counts/by-initiative"), headers=member.headers
+        member.g("/tools/counts/by-initiative"), headers=member.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(admin.initiative.id): 2}
+    assert response.json()["counts"]["document"] == {str(admin.initiative.id): 2}
 
 
 async def test_reading_a_document_can_leave_the_body_out(

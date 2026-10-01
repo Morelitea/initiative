@@ -29,6 +29,7 @@ from app.core.app_access_token import (
     is_access_token,
     unseal_access_token,
 )
+from app.core.app_scopes import InstallLevel
 from app.core.messages import AuthMessages
 from app.schemas.platform.app_oauth import (
     AppAccessTokenResponse,
@@ -54,6 +55,7 @@ _PARAMETERS = (
     "installation",
     "scope",
     "resource",
+    "level",
     "assertion",
 )
 
@@ -82,6 +84,10 @@ _TOKEN_REQUEST_BODY: dict[str, Any] = {
                         "installation": {"type": "string"},
                         "scope": {"type": "string"},
                         "resource": {"type": "string"},
+                        "level": {
+                            "type": "string",
+                            "enum": [level.value for level in InstallLevel],
+                        },
                         "assertion": {"type": "string"},
                     },
                 }
@@ -162,6 +168,7 @@ async def issue_app_access_token(
             installation=params["installation"],
             scope=params["scope"],
             resource=params["resource"],
+            level=params["level"],
             assertion=params["assertion"],
         )
     except app_oauth.OAuthError as exc:

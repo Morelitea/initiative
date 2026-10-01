@@ -1,29 +1,27 @@
 """Export endpoints: create (auto inline-vs-job), poll, and download.
 
 The artifact is content, so its download is a gated read: the download route
-loads the ExportJob row under RLS (own-row + guild-admin policies) — that
-lookup IS the authorization — and only then streams the file from the guild's
-storage backend. Artifacts are deliberately never registered in ``uploads``,
-so the guild-wide ``/uploads/{guild_id}/…`` media route cannot serve them: an
-export is a per-user snapshot and may contain initiative-isolated content the
-rest of the guild must not reach.
+loads the ExportJob row under RLS (own-row + guild-admin policies), asks again
+that the caller reaches every initiative the artifact holds, and only then
+streams the file from the guild's storage backend. Artifacts are deliberately
+never registered in ``uploads``, so the guild-wide ``/uploads/{guild_id}/…``
+media route cannot serve them: an export is a per-user snapshot and may contain
+initiative-isolated content the rest of the guild must not reach.
 
-Each exportable tool's route is mounted from its adapter in ``ADAPTERS``: the
-path, the selector parameters and the format choices are the adapter's, and
-``_TOOL_ROUTES`` holds only what a route says in its own words.
+Every tool exports through one route, ``GET /{tool}``: the formats it offers
+are its adapter's in ``ADAPTERS``.
 """
 
-import inspect
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from math import ceil
-from typing import Annotated, Any, List, Literal, Optional, Union, cast
+from typing import Annotated, Any, List, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from sqlalchemy import func, not_
 from sqlmodel import select
 
 from app.api.deps import (
@@ -36,11 +34,12 @@ from app.api.deps import (
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import ExportMessages
-from app.core.tools import BULK_EXPORT_TOOLS, Tool, tool_export_source
+from app.core.tools import Tool, tool_export_source
 from app.core.user_display import display_name
 from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
+from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.backup_export import BackupEstimate
 from app.schemas.tenant.export_job import (
     ExportJobRead,
@@ -50,7 +49,6 @@ from app.schemas.tenant.export_job import (
 )
 from app.services import audit as audit_service
 from app.services.export.adapters import ADAPTERS
-from app.services.export.adapters._common import ToolExportAdapter
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
     build_upload_response,
@@ -58,6 +56,7 @@ from app.services.storage import (
     get_guild_storage,
 )
 from app.services.export import limits as export_limits
+from app.services.membership import initiative_scope_clause
 
 router = APIRouter()
 
@@ -204,11 +203,21 @@ async def export_events(
     property_filters: Optional[str] = Query(
         default=None, description="Same JSON property filters as the event list"
     ),
+    start_after: Optional[datetime] = Query(
+        default=None, description="Same date range as the event list"
+    ),
+    start_before: Optional[datetime] = Query(default=None),
+    tz: Optional[str] = Query(
+        default=None,
+        max_length=64,
+        description="IANA timezone for the file name's date",
+    ),
 ) -> Union[Response, JSONResponse]:
     """Export calendar events (the same visibility and filters as ``GET
-    /calendar-events/``) as one iCalendar file, every date included. Small
-    results return the file directly; large results return ``202`` with a
-    queued job to poll and download."""
+    /calendar-events/``) as one iCalendar file: every date, unless a range is
+    given. A repeating event starting in the range travels whole, with its
+    changed occurrences. Small results return the file directly; large results
+    return ``202`` with a queued job to poll and download."""
     result = await _start_export(
         session,
         current_user,
@@ -221,254 +230,12 @@ async def export_events(
             "calendar_ids": calendar_ids,
             "exclude_calendar_ids": exclude_calendar_ids,
             "property_filters": property_filters,
+            "start_after": start_after.isoformat() if start_after else None,
+            "start_before": start_before.isoformat() if start_before else None,
+            "tz": tz,
         },
     )
     return _export_response(result, guild_context)
-
-
-# ---------------------------------------------------------------------------
-# One route per exportable tool
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class _ToolExportRoute:
-    """What one tool's export route says beyond what its adapter knows."""
-
-    #: The route's description.
-    doc: str
-    #: The ``{tool}_ids`` parameter's description; one artifact per entity,
-    #: zipped, when unset.
-    bulk_description: Optional[str] = None
-    #: The format asked for when none is; ``None`` makes it required.
-    default_format: Optional[str] = "json"
-    #: Parameters after the selector, passed through to the adapter.
-    extra_params: tuple[inspect.Parameter, ...] = ()
-    #: The route's operation name, when it is not ``export_<tool>``.
-    name: Optional[str] = None
-
-
-def _query_param(name: str, annotation: Any, default: Any) -> inspect.Parameter:
-    return inspect.Parameter(
-        name, inspect.Parameter.KEYWORD_ONLY, annotation=annotation, default=default
-    )
-
-
-#: Each exportable tool's route, in the order they are published.
-_TOOL_ROUTES: dict[Tool, _ToolExportRoute] = {
-    Tool.project: _ToolExportRoute(
-        doc="""Export a project: ``json`` is the self-contained backup envelope (the
-        same JSON ``POST /projects/import`` consumes); ``pdf``/``csv``/``xlsx``
-        render a project report (unarchived tasks). Takes the owner rung on the
-        project. Small projects return the file inline; large ones return ``202``
-        with a queued job to poll and download.""",
-    ),
-    Tool.document: _ToolExportRoute(
-        doc="""Export a document. Valid formats depend on the document type:
-        ``json`` for Lexical (importable envelope) and whiteboards (standard
-        Excalidraw file), ``csv``/``xlsx`` for spreadsheets, ``file`` for uploaded
-        files (unconverted, original name), ``md`` for smart links. Takes the owner
-        rung on the document. Small documents return the file inline; large ones return
-        ``202`` with a queued job to poll and download.""",
-        bulk_description=(
-            "Bulk selection: one artifact per document, zipped. The format "
-            "must be valid for every selected document's type."
-        ),
-        default_format=None,
-    ),
-    Tool.queue: _ToolExportRoute(
-        doc="""Export a queue: ``json`` is an importable envelope (items, rotation
-        state, tags by name — member assignments and linked documents/tasks ride
-        along as display text); ``pdf``/``csv``/``xlsx`` render the turn order as
-        a table and ``md`` as a numbered list. Takes the owner rung on the
-        queue. Small queues return the file inline; large ones return ``202`` with a
-        queued job to poll and download.""",
-    ),
-    Tool.counter_group: _ToolExportRoute(
-        doc="""Export a counter group: ``json`` is an importable envelope (every
-        counter's configuration and current value); ``pdf``/``csv``/``xlsx``/
-        ``md`` render the counters as a table. Takes the owner rung on the
-        group. Small groups
-        return the file inline; large ones return ``202`` with a queued job to
-        poll and download.""",
-        bulk_description="Bulk selection: one artifact per group, zipped",
-    ),
-    Tool.dashboard: _ToolExportRoute(
-        doc="""Export a dashboard as an importable envelope: its presentation spec and
-        canvas config. A dashboard owns no child content — the data it displays
-        belongs to the tools it points at — so there is no report format. Takes
-        the owner rung on it. A dashboard built on an app this build does not ship
-        cannot be exported; install that app where you want it instead. Small
-        selections return the file inline; large ones return ``202`` with a queued
-        job to poll and download.""",
-    ),
-    Tool.post: _ToolExportRoute(
-        doc="""Export a post as an importable envelope: its body, tags and poll.
-        A notice has no report shape, so there is no rendered format. Takes the owner rung on it. Small selections
-        return the file inline; large ones return ``202`` with a queued job to
-        poll and download.""",
-    ),
-    Tool.wiki: _ToolExportRoute(
-        doc="""Export a wiki: ``json`` is an importable envelope (every page, the tree
-        they sit in, and its home page); ``pdf``/``md``/``docx`` are the published
-        pages as one document, each under a heading at its depth. The download is
-        always a zip: the wiki, and under ``documents/`` each document filed in it
-        that the caller could export on its own. Takes the owner rung on
-        the wiki. Small selections return the file inline; large ones return
-        ``202`` with a queued job to poll and download.""",
-    ),
-    Tool.gallery: _ToolExportRoute(
-        doc="""Export a gallery as a zip: its importable envelope, and each picture it
-        names under ``assets/``. Takes the owner rung on it. Small selections
-        return the file inline; large ones return ``202`` with a queued job to
-        poll and download.""",
-    ),
-    Tool.calendar: _ToolExportRoute(
-        doc="""Export calendars: ``ics`` is one iCalendar file per calendar (RRULE and
-        attendee RSVPs preserved); ``json`` is one importable envelope per
-        calendar holding its events. Each calendar takes the owner rung on it: with
-        no ids, every calendar the caller may export in the initiative (or across
-        the guild) is included, and the rest are left out. Small exports return the
-        file inline; large ones return ``202`` with a queued job to poll and
-        download.""",
-        bulk_description="Bulk selection of calendars",
-        default_format="ics",
-        name="export_calendars",
-        extra_params=(
-            _query_param(
-                "initiative_id",
-                Optional[int],
-                Query(
-                    default=None,
-                    description=(
-                        "All exportable calendars in this initiative (ignored "
-                        "when ids given)"
-                    ),
-                ),
-            ),
-        ),
-    ),
-}
-
-
-def _tool_route_signature(
-    tool: Tool, spec: _ToolExportRoute, formats: tuple[str, ...]
-) -> inspect.Signature:
-    """The signature FastAPI reads off a tool's export handler: the request
-    context, the selector, the tool's own parameters, then ``format`` and
-    ``tz``, in the order the route publishes them."""
-    # Built at runtime from the adapter's formats, so OpenAPI carries the enum.
-    format_type: Any = Literal[formats]  # ty: ignore[invalid-type-form]
-    return inspect.Signature(
-        [
-            inspect.Parameter(
-                "session", inspect.Parameter.KEYWORD_ONLY, annotation=RLSSessionDep
-            ),
-            inspect.Parameter(
-                "current_user",
-                inspect.Parameter.KEYWORD_ONLY,
-                annotation=CurrentUserDep,
-            ),
-            inspect.Parameter(
-                "guild_context",
-                inspect.Parameter.KEYWORD_ONLY,
-                annotation=GuildContextDep,
-            ),
-            _query_param(f"{tool.value}_id", Optional[int], Query(default=None)),
-            _query_param(
-                f"{tool.value}_ids",
-                Optional[list[int]],
-                Query(
-                    default=None,
-                    description=spec.bulk_description
-                    or f"Bulk selection: one artifact per {tool.value}, zipped",
-                ),
-            ),
-            *spec.extra_params,
-            _query_param(
-                "format",
-                format_type,
-                Query()
-                if spec.default_format is None
-                else Query(default=spec.default_format),
-            ),
-            _query_param(
-                "tz",
-                Optional[str],
-                Query(
-                    default=None,
-                    max_length=64,
-                    description="IANA timezone for report timestamps",
-                ),
-            ),
-        ]
-    )
-
-
-def _mount_tool_export(tool: Tool, spec: _ToolExportRoute) -> None:
-    """Mount ``GET /<tool>``: export a selection of one tool's entities in
-    one of the formats its adapter offers."""
-    source = tool_export_source(tool)
-    adapter = cast(ToolExportAdapter, ADAPTERS[source])
-    param_names = (
-        f"{tool.value}_id",
-        f"{tool.value}_ids",
-        *(param.name for param in spec.extra_params),
-        "tz",
-    )
-    name = spec.name or f"export_{tool.value}"
-
-    async def export_tool(
-        *,
-        session: RLSSessionDep,
-        current_user: User,
-        guild_context: GuildContext,
-        format: str,
-        **values: Any,
-    ) -> Response:
-        result = await _start_export(
-            session,
-            current_user,
-            guild_context,
-            source=source,
-            format=format,
-            params={key: values[key] for key in param_names},
-        )
-        return _export_response(result, guild_context)
-
-    export_tool.__name__ = export_tool.__qualname__ = name
-    export_tool.__doc__ = spec.doc
-    setattr(
-        export_tool,
-        "__signature__",
-        _tool_route_signature(tool, spec, adapter.formats),
-    )
-    router.add_api_route(
-        f"/{source}",
-        export_tool,
-        methods=["GET"],
-        response_model=None,
-        name=name,
-    )
-
-
-def _published_position(tool: Tool) -> int:
-    """Where a tool's route sits among the published ones: in
-    ``_TOOL_ROUTES`` order, and after them for a tool with no entry yet."""
-    order = list(_TOOL_ROUTES)
-    return order.index(tool) if tool in _TOOL_ROUTES else len(order)
-
-
-def _generic_route(tool: Tool) -> _ToolExportRoute:
-    return _ToolExportRoute(
-        doc=f"Export a selection of {tool.plural}. Small selections return the "
-        "file inline; large ones return ``202`` with a queued job to poll and "
-        "download."
-    )
-
-
-for _tool in sorted(BULK_EXPORT_TOOLS, key=_published_position):
-    _mount_tool_export(_tool, _TOOL_ROUTES.get(_tool) or _generic_route(_tool))
 
 
 def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
@@ -490,6 +257,14 @@ def _parse_json_param(raw: Optional[str]) -> Optional[dict]:
             detail=ExportMessages.EXPORT_INVALID_PARAMS,
         )
     return value
+
+
+_FILTERS_DESCRIPTION = (
+    "JSON object of tool→filters narrowing what each tool exports: the tool's "
+    "own list filters (as its list route takes them, such as "
+    '``{"queue": {"tag_ids": [3]}}``), and for calendars an ``events`` date '
+    "range. ``archived`` omitted exports live and archived rows alike."
+)
 
 
 async def _guild_export_available_at(session) -> Optional[datetime]:
@@ -555,6 +330,7 @@ async def estimate_aggregate_export(
         default=None, description="Required when scope=initiative"
     ),
     include_uploads: bool = Query(default=True),
+    filters: Optional[str] = Query(default=None, description=_FILTERS_DESCRIPTION),
 ) -> BackupEstimate:
     """Pre-flight numbers for the export wizard: per-tool entity counts and
     the uploads footprint (approximate — embedded document images resolve at
@@ -572,6 +348,7 @@ async def estimate_aggregate_export(
             scope=scope,
             initiative_id=initiative_id,
             include_uploads=include_uploads,
+            filters=_parse_json_param(filters),
         )
 
 
@@ -600,6 +377,7 @@ async def export_initiative(
     include_uploads: bool = Query(
         default=True, description="Backup mode: bundle referenced upload blobs"
     ),
+    filters: Optional[str] = Query(default=None, description=_FILTERS_DESCRIPTION),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
@@ -622,6 +400,7 @@ async def export_initiative(
             "include": _parse_json_param(include),
             "formats": _parse_json_param(formats),
             "include_uploads": include_uploads,
+            "filters": _parse_json_param(filters),
             "tz": tz,
         },
     )
@@ -662,6 +441,7 @@ async def export_guild(
     include_uploads: bool = Query(
         default=True, description="Backup mode: bundle referenced upload blobs"
     ),
+    filters: Optional[str] = Query(default=None, description=_FILTERS_DESCRIPTION),
     tz: Optional[str] = Query(
         default=None, max_length=64, description="IANA timezone for report timestamps"
     ),
@@ -684,6 +464,7 @@ async def export_guild(
             "include": _parse_json_param(include),
             "formats": _parse_json_param(formats),
             "include_uploads": include_uploads,
+            "filters": _parse_json_param(filters),
             "tz": tz,
         },
     )
@@ -759,7 +540,7 @@ async def list_export_jobs(
     return [serialize_export_job(job, guild_id=guild_context.guild_id) for job in jobs]
 
 
-@router.get("/{job_id}", response_model=ExportJobRead)
+@router.get("/{job_id:int}", response_model=ExportJobRead)
 async def get_export_job(
     job_id: int,
     session: RLSSessionDep,
@@ -775,15 +556,42 @@ async def get_export_job(
     return serialize_export_job(job, guild_id=guild_context.guild_id)
 
 
-@router.get("/{job_id}/download")
+async def _require_reach(
+    session: RLSSessionDep, user: User, initiative_ids: list[int]
+) -> None:
+    """Refuse unless the caller reaches every initiative in ``initiative_ids``
+    that still exists. One deleted since the render, in the trash or purged,
+    is skipped."""
+    if not initiative_ids:
+        return
+    unreached = (
+        await session.exec(
+            select(func.count())
+            .select_from(Initiative)
+            .where(
+                Initiative.id.in_(initiative_ids),
+                Initiative.deleted_at.is_(None),
+                not_(initiative_scope_clause(user.id, Initiative.id)),
+            )
+        )
+    ).one()
+    if unreached:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ExportMessages.EXPORT_OUT_OF_REACH,
+        )
+
+
+@router.get("/{job_id:int}/download")
 async def download_export_artifact(
     job_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> Response:
-    """Stream a finished export's artifact. The RLS-gated job lookup is the
-    authorization; storage is touched only after it passes."""
+    """Stream a finished export's artifact. The RLS-gated job lookup and the
+    initiatives the artifact holds are the authorization, asked now rather
+    than when it was rendered; storage is touched only after both pass."""
     job = await session.get(ExportJob, job_id)
     if job is None:
         raise HTTPException(
@@ -805,6 +613,14 @@ async def download_export_artifact(
             if job.destination_ref
             else ExportMessages.EXPORT_NOT_READY,
         )
+    if job.initiative_ids is None:
+        # Rendered before the job recorded what it holds.
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE, detail=ExportMessages.EXPORT_EXPIRED
+        )
+    if job.source == "guild":
+        require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
+    await _require_reach(session, current_user, job.initiative_ids)
     storage = get_guild_storage(guild_context.guild_id)
     # Recover the download name from the artifact key. A named artifact
     # (passthrough / .lexical) is stored as `exports/{job_id}-{filename}`;
@@ -822,10 +638,10 @@ async def download_export_artifact(
     # Where the operator has turned it on and the backend can sign a URL,
     # redirect to it: the bytes then travel from the object store to the
     # client instead of through this process for the length of the download.
-    # The authorization is unchanged — the RLS-gated lookup above is what
-    # decided this, and the URL is minted only after it passed. A filesystem
-    # backend signs nothing and returns None, so those deployments keep the
-    # proxied response whatever the setting says.
+    # The authorization is unchanged — the checks above decided this, and the
+    # URL is minted only after they passed. A filesystem backend signs nothing
+    # and returns None, so those deployments keep the proxied response
+    # whatever the setting says.
     signed = (
         storage.presign_get(
             job.artifact_ref,
@@ -847,3 +663,77 @@ async def download_export_artifact(
             detail=ExportMessages.EXPORT_JOB_NOT_FOUND,
         )
     return build_upload_response(blob, filename=filename)
+
+
+#: The format asked for when none is. A document has none: which formats are
+#: valid depends on its type, so the caller names one.
+_DEFAULT_FORMATS: dict[Tool, Optional[str]] = {
+    Tool.document: None,
+    Tool.calendar: "ics",
+}
+
+#: What each tool exports to, from its adapter.
+_TOOL_FORMATS = {tool: ADAPTERS[tool_export_source(tool)].formats for tool in Tool}
+
+#: Every format some tool exports, so OpenAPI carries the choices and an
+#: unknown one is refused at the HTTP layer. Which of them a given tool takes
+#: is its adapter's answer, which the engine checks.
+_ALL_FORMATS = tuple(sorted({f for formats in _TOOL_FORMATS.values() for f in formats}))
+ToolExportFormat: Any = Literal[_ALL_FORMATS]  # ty: ignore[invalid-type-form]
+
+
+# Registered after the job routes, which match only a numeric id, so a tool's
+# name never reaches them and a job id never reaches this.
+@router.get("/{tool}", response_model=None)
+async def export_tool(
+    tool: Tool,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+    ids: Optional[list[int]] = Query(
+        default=None,
+        description="What to export: one artifact per id, zipped when there is "
+        "more than one",
+    ),
+    format: Optional[ToolExportFormat] = Query(
+        default=None,
+        description="One of the tool's export formats ("
+        + "; ".join(f"{t.value}: {', '.join(f)}" for t, f in _TOOL_FORMATS.items())
+        + "). ``json`` is the importable envelope. A document's formats depend on "
+        "its type, so it has no default; a calendar defaults to ``ics``, every "
+        "other tool to ``json``",
+    ),
+    initiative_id: Optional[int] = Query(
+        default=None,
+        description="Calendars only: with no ids, every calendar the caller may "
+        "export in this initiative",
+    ),
+    filters: Optional[str] = Query(
+        default=None,
+        description="JSON object narrowing the export: the tool's own list "
+        "filters, and for calendars an ``events`` date range "
+        '(``{"events": {"start_after": …, "start_before": …}}``)',
+    ),
+    tz: Optional[str] = Query(
+        default=None, max_length=64, description="IANA timezone for report timestamps"
+    ),
+) -> Response:
+    """Export a selection of one tool's entities. Each takes the owner rung on
+    it. Small selections return the file inline; large ones return ``202`` with
+    a queued job to poll and download."""
+    params: dict[str, Any] = {
+        f"{tool.value}_ids": ids,
+        "filters": _parse_json_param(filters),
+        "tz": tz,
+    }
+    if initiative_id is not None:
+        params["initiative_id"] = initiative_id
+    result = await _start_export(
+        session,
+        current_user,
+        guild_context,
+        source=tool_export_source(tool),
+        format=format or _DEFAULT_FORMATS.get(tool, "json") or "",
+        params=params,
+    )
+    return _export_response(result, guild_context)

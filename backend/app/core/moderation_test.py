@@ -15,6 +15,8 @@ from app.core.moderation import (
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 
+pytestmark = pytest.mark.always
+
 
 @pytest.mark.parametrize("target", list(SearchEntityType))
 def test_every_community_target_resolves_to_a_venue(target: SearchEntityType):

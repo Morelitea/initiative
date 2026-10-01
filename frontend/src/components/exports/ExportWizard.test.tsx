@@ -1,11 +1,16 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { endOfMonth, startOfDay, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
+import { dateRangeParams } from "@/components/ui/date-range-field";
+import { EMPTY_TASK_FILTERS, taskSpecConditions } from "@/lib/filters/taskFilters";
 
 import { ExportWizard } from "./ExportWizard";
 
@@ -91,7 +96,7 @@ describe("ExportWizard", () => {
       sent = url;
     });
 
-    renderWithProviders(<ExportWizard scope="guild" open onOpenChange={() => {}} />);
+    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
 
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
 
@@ -141,7 +146,7 @@ describe("ExportWizard", () => {
     });
 
     renderWithProviders(
-      <ExportWizard scope="initiative" initiativeId={5} open onOpenChange={() => {}} />
+      <ExportWizard scope={{ kind: "initiative", initiativeId: 5 }} open onOpenChange={() => {}} />
     );
 
     await userEvent.click(screen.getByRole("button", { name: /report à la carte/i }));
@@ -196,7 +201,7 @@ describe("ExportWizard", () => {
     );
 
     const { rerender } = renderWithProviders(
-      <ExportWizard scope="guild" open onOpenChange={() => {}} />
+      <ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />
     );
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
     await screen.findByText("3 items");
@@ -207,8 +212,8 @@ describe("ExportWizard", () => {
     // Close while the job still renders, then re-open: the wizard must land
     // on the progress view for the running job, not the mode step — a second
     // walk-through couldn't start a new job and would silently track this one.
-    rerender(<ExportWizard scope="guild" open={false} onOpenChange={() => {}} />);
-    rerender(<ExportWizard scope="guild" open onOpenChange={() => {}} />);
+    rerender(<ExportWizard scope={{ kind: "guild" }} open={false} onOpenChange={() => {}} />);
+    rerender(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
 
     expect(await screen.findByText(/preparing your export/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /importable backup/i })).not.toBeInTheDocument();
@@ -218,7 +223,7 @@ describe("ExportWizard", () => {
     stubJobLifecycle(() => {});
 
     renderWithProviders(
-      <ExportWizard scope="initiative" initiativeId={5} open onOpenChange={() => {}} />
+      <ExportWizard scope={{ kind: "initiative", initiativeId: 5 }} open onOpenChange={() => {}} />
     );
     await userEvent.click(screen.getByRole("button", { name: /report à la carte/i }));
 
@@ -241,7 +246,7 @@ describe("ExportWizard", () => {
       max_upload_bytes: 268_435_456,
     });
 
-    renderWithProviders(<ExportWizard scope="guild" open onOpenChange={() => {}} />);
+    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
 
     expect(await screen.findByText(/exceed the 256 MB limit/i)).toBeInTheDocument();
@@ -252,5 +257,320 @@ describe("ExportWizard", () => {
     // stops counting bytes against the cap).
     await userEvent.click(screen.getByRole("switch", { name: /include uploaded files/i }));
     await waitFor(() => expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled());
+  });
+
+  it("sends each tool's filters with the estimate and the export, archived left out by default", async () => {
+    const estimates: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/estimate", ({ request }) => {
+        estimates.push(new URL(request.url).searchParams);
+        return HttpResponse.json({
+          ...ESTIMATE,
+          tools: { ...ESTIMATE.tools, queue: { count: 6, disabled: false } },
+        });
+      })
+    );
+    let sent: URL | null = null;
+    stubJobLifecycle((url) => {
+      sent = url;
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    await user.click(screen.getByRole("button", { name: /importable backup/i }));
+    await screen.findByText("3 items");
+
+    // A calendar search, with the archive left on its default, "All".
+    const calendar = screen.getByRole("group", { name: "Calendar" });
+    await user.click(within(calendar).getByRole("button", { name: "Filter Calendar" }));
+    expect(within(calendar).getByRole("radio", { name: "All" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    await user.type(within(calendar).getByLabelText("Name or description"), "standup");
+
+    // Live projects only.
+    const projects = screen.getByRole("group", { name: "Projects" });
+    await user.click(within(projects).getByRole("button", { name: "Filter Projects" }));
+    await user.click(within(projects).getByRole("radio", { name: "Active" }));
+
+    // Stopped queues, by the queue list's own status filter.
+    const queues = screen.getByRole("group", { name: "Queues" });
+    await user.click(within(queues).getByRole("button", { name: "Filter Queues" }));
+    await user.click(within(queues).getByRole("combobox", { name: "Status" }));
+    await user.click(await screen.findByRole("option", { name: "Inactive" }));
+
+    const expected = {
+      calendar: { search: "standup" },
+      project: { archived: false },
+      queue: { is_active: false },
+    };
+    await waitFor(() =>
+      expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Calendar: “standup”")).toBeInTheDocument();
+    expect(screen.getByText("Projects: Active only")).toBeInTheDocument();
+    expect(screen.getByText("Queues: 1 more filter")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
+  });
+
+  it("narrows projects and documents by templates, and documents to untagged ones", async () => {
+    const estimates: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/estimate", ({ request }) => {
+        estimates.push(new URL(request.url).searchParams);
+        return HttpResponse.json(ESTIMATE);
+      })
+    );
+    let sent: URL | null = null;
+    stubJobLifecycle((url) => {
+      sent = url;
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    await user.click(screen.getByRole("button", { name: /importable backup/i }));
+    await screen.findByText("3 items");
+
+    const projects = screen.getByRole("group", { name: "Projects" });
+    await user.click(within(projects).getByRole("button", { name: "Filter Projects" }));
+    await user.click(
+      within(within(projects).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
+        name: "Templates only",
+      })
+    );
+
+    const documents = screen.getByRole("group", { name: "Documents" });
+    await user.click(within(documents).getByRole("button", { name: "Filter Documents" }));
+    await user.click(
+      within(within(documents).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
+        name: "Without templates",
+      })
+    );
+    await user.click(within(documents).getByRole("switch", { name: "Untagged only" }));
+
+    const expected = {
+      project: { is_template: true },
+      document: { is_template: false, untagged: true },
+    };
+    await waitFor(() =>
+      expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
+    );
+    expect(within(documents).getByRole("button", { name: "Filter Documents" })).toHaveTextContent(
+      "2"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Projects: Templates only")).toBeInTheDocument();
+    expect(screen.getByText("Documents: Without templates · Untagged only")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
+  });
+
+  it("narrows each project's tasks by the task list's filters", async () => {
+    const estimates: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/estimate", ({ request }) => {
+        estimates.push(new URL(request.url).searchParams);
+        return HttpResponse.json({
+          ...ESTIMATE,
+          tools: { ...ESTIMATE.tools, queue: { count: 6, disabled: false } },
+        });
+      })
+    );
+    let sent: URL | null = null;
+    stubJobLifecycle((url) => {
+      sent = url;
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "initiative", initiativeId: 5 }} open onOpenChange={() => {}} />
+    );
+    await user.click(screen.getByRole("button", { name: /importable backup/i }));
+    await screen.findByText("3 items");
+
+    // Done tasks due this week, archived ones left out.
+    const projects = screen.getByRole("group", { name: "Projects" });
+    await user.click(within(projects).getByRole("button", { name: "Filter Projects" }));
+    await user.click(within(projects).getByRole("combobox", { name: "Filter by status" }));
+    await user.click(await screen.findByRole("option", { name: "Done" }));
+    await user.keyboard("{Escape}");
+    await user.click(within(projects).getByRole("combobox", { name: "Due filter" }));
+    await user.click(await screen.findByRole("option", { name: "Due next 7 days" }));
+    await user.click(within(projects).getByRole("switch", { name: "Show archived" }));
+
+    const expected = {
+      project: {
+        tasks: {
+          conditions: JSON.stringify(
+            taskSpecConditions({
+              ...EMPTY_TASK_FILTERS,
+              status_categories: ["done"],
+              due: "7_days",
+            })
+          ),
+          include_archived: false,
+        },
+      },
+    };
+    await waitFor(() =>
+      expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
+    );
+    expect(within(projects).getByRole("button", { name: "Filter Projects" })).toHaveTextContent(
+      "1"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(
+      screen.getByText("Projects: Tasks (1 status, Due next 7 days, without archived)")
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
+  });
+
+  it("exports named calendars in the chosen format, narrowed to a date range", async () => {
+    let sent: URLSearchParams | null = null;
+    server.use(
+      guildHttp.get("/exports/calendar", ({ request }) => {
+        sent = new URL(request.url).searchParams;
+        return new HttpResponse("BEGIN:VCALENDAR", {
+          headers: { "Content-Type": "text/calendar" },
+        });
+      })
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ExportWizard
+        scope={{
+          kind: "entities",
+          tool: Tool.calendar,
+          ids: [4, 5],
+          formats: TOOL_EXPORT_FORMATS[Tool.calendar] ?? [],
+          filenameStem: "calendars",
+        }}
+        open
+        onOpenChange={() => {}}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "iCalendar (.ics)" }));
+    await user.click(screen.getByLabelText("Event dates"));
+    await user.click(await screen.findByRole("button", { name: "This month" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(sent!.getAll("ids")).toEqual(["4", "5"]);
+    expect(sent!.get("format")).toBe("ics");
+    // Only the content key travels: the ids already say which calendars.
+    const now = new Date();
+    expect(JSON.parse(sent!.get("filters")!)).toEqual({
+      events: dateRangeParams({ from: startOfMonth(now), until: startOfDay(endOfMonth(now)) }),
+    });
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+  });
+
+  it("exports named projects in the chosen format, narrowed to the filtered tasks", async () => {
+    let sent: URLSearchParams | null = null;
+    server.use(
+      guildHttp.get("/exports/project", ({ request }) => {
+        sent = new URL(request.url).searchParams;
+        return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
+      })
+    );
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ExportWizard
+        scope={{
+          kind: "entities",
+          tool: Tool.project,
+          ids: [3],
+          formats: TOOL_EXPORT_FORMATS[Tool.project] ?? [],
+          filenameStem: "projects",
+        }}
+        open
+        onOpenChange={() => {}}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "CSV" }));
+    expect(screen.getByText("Choose which tasks to export")).toBeInTheDocument();
+    // A report leaves archived tasks out, as its task list does, until asked.
+    expect(screen.getByRole("switch", { name: "Show archived" })).not.toBeChecked();
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(await screen.findByRole("option", { name: "To do" }));
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Tasks (1 status)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(sent!.getAll("ids")).toEqual(["3"]);
+    expect(sent!.get("format")).toBe("csv");
+    expect(JSON.parse(sent!.get("filters")!)).toEqual({
+      tasks: {
+        conditions: JSON.stringify(
+          taskSpecConditions({ ...EMPTY_TASK_FILTERS, status_categories: ["todo"] })
+        ),
+        include_archived: false,
+      },
+    });
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+  });
+
+  it("goes from format to confirm for a tool whose content has no filter", async () => {
+    let sent: URLSearchParams | null = null;
+    server.use(
+      guildHttp.get("/exports/queue", ({ request }) => {
+        sent = new URL(request.url).searchParams;
+        return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
+      })
+    );
+    const drawPicture = vi.fn();
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ExportWizard
+        scope={{
+          kind: "entities",
+          tool: Tool.queue,
+          ids: [7],
+          formats: TOOL_EXPORT_FORMATS[Tool.queue] ?? [],
+          filenameStem: "queues",
+          extraActions: [{ labelKey: "export.formatPng", onSelect: drawPicture }],
+        }}
+        open
+        onOpenChange={onOpenChange}
+      />
+    );
+
+    // The menu's grouping: the envelope is the backup, everything else a
+    // report — the client-side picture included, which closes the wizard.
+    expect(screen.getByText("Backup")).toBeInTheDocument();
+    expect(screen.getByText("Report")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "PNG image" }));
+    expect(drawPicture).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    await user.click(screen.getByRole("button", { name: "CSV" }));
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(sent!.getAll("ids")).toEqual(["7"]);
+    expect(sent!.get("format")).toBe("csv");
+    expect(sent!.get("filters")).toBeNull();
   });
 });

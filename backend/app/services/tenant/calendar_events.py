@@ -22,10 +22,10 @@ from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.document import Document
 from app.services.tenant import relationships
-from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.tools import Tool
 from app.services.tenant import named_people
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -53,12 +53,6 @@ async def get_event(
             .selectinload(ResourceGrant.role),
             selectinload(CalendarEvent.calendar).selectinload(Calendar.initiative),
             selectinload(CalendarEvent.calendar).undefer(Calendar.actions),
-            selectinload(CalendarEvent.property_values).selectinload(
-                CalendarEventPropertyValue.property_definition
-            ),
-            selectinload(CalendarEvent.property_values).selectinload(
-                CalendarEventPropertyValue.value_user
-            ),
         )
     )
     if populate_existing:
@@ -67,6 +61,7 @@ async def get_event(
     event = result.one_or_none()
     if event is not None:
         await tags_service.annotate_tags(session, [event])
+        await properties_service.annotate_properties(session, [event])
     return event
 
 

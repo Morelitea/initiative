@@ -1,4 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
@@ -10,13 +11,19 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
 import { ToolCommentsPanel } from "./ToolCommentsPanel";
 
-/** Records the query the panel derived for the thread it wants. */
+/** Records the query the panel derived for the thread it wants. The first
+ *  page names an older one behind it; that one is the end of the thread. */
 const captureList = () => {
   const seen: URLSearchParams[] = [];
   server.use(
     guildHttp.get("/comments/", ({ request }) => {
-      seen.push(new URL(request.url).searchParams);
-      return HttpResponse.json([buildComment({ content: "Existing" })]);
+      const params = new URL(request.url).searchParams;
+      seen.push(params);
+      return HttpResponse.json(
+        params.get("cursor") === "older"
+          ? { comments: [buildComment({ content: "Earlier" })], next_cursor: null }
+          : { comments: [buildComment({ content: "Existing" })], next_cursor: "older" }
+      );
     })
   );
   return seen;
@@ -97,8 +104,9 @@ describe("ToolCommentsPanel", () => {
     await waitFor(() => expect(requests).toHaveLength(0));
   });
 
-  it("shows the thread the entity carries", async () => {
-    captureList();
+  it("shows the newest conversations and loads older ones on demand", async () => {
+    const requests = captureList();
+    const user = userEvent.setup();
 
     renderPage(() => (
       <ToolCommentsPanel
@@ -108,5 +116,14 @@ describe("ToolCommentsPanel", () => {
     ));
 
     expect(await screen.findByText("Existing")).toBeInTheDocument();
+    expect(screen.queryByText("Earlier")).not.toBeInTheDocument();
+    expect(requests[0].get("cursor")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Load older comments" }));
+
+    expect(await screen.findByText("Earlier")).toBeInTheDocument();
+    expect(requests[1].get("cursor")).toBe("older");
+    expect(requests[1].get("project_id")).toBe("1");
+    expect(screen.queryByRole("button", { name: "Load older comments" })).not.toBeInTheDocument();
   });
 });

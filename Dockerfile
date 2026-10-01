@@ -1,20 +1,21 @@
-FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS frontend-build
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS frontend-deps
 WORKDIR /frontend
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN apk add --no-cache zip
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
+
+FROM frontend-deps AS frontend-build
 COPY frontend .
 COPY VERSION /VERSION
 COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
-# A public key the app also accepts app updates from, for a build signed with
-# its own key (see docs/en/running-a-server/building-your-own-image.md).
-ARG VITE_OTA_DEV_KEY=
+# The dev signing key's public half: the dev app accepts updates signed with it.
+ARG VITE_OTA_DEV_PUBLIC_KEY=
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_VERSION_SUFFIX=$VITE_VERSION_SUFFIX
-ENV VITE_OTA_DEV_KEY=$VITE_OTA_DEV_KEY
+ENV VITE_OTA_DEV_PUBLIC_KEY=$VITE_OTA_DEV_PUBLIC_KEY
 # Browser SPA build (base "/") served by the backend at /app/static.
 RUN pnpm run build
 # Capacitor-flavored OTA bundle (base "", __IS_CAPACITOR__=true) shipped at /app/ota so the
@@ -32,6 +33,28 @@ RUN cp -r dist /tmp/browser-dist \
 RUN --mount=type=secret,id=ota_signing_key \
     node scripts/sign-ota.mjs /ota "$(cat /VERSION)${VITE_VERSION_SUFFIX}" \
       "$(cat /MIN_NATIVE_VERSION)" /run/secrets/ota_signing_key
+
+# The virtualenv is built in a stage of its own, on the same base, and copied
+# into the runtime below. It depends on the lockfile alone, so a build reuses it
+# until the lockfile changes; built in the runtime stage it sat above the
+# package refresh, which every published build runs again, and was rebuilt
+# (and stored in the build cache again) every time. uv never reaches the image.
+FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS backend-deps
+# uv binary (pinned) for native, lockfile-based dependency installs
+COPY --from=ghcr.io/astral-sh/uv:0.11.21@sha256:ff07b86af50d4d9391d9daf4ff89ce427bc544f9aae87057e69a1cc0aa369946 /uv /uvx /bin/
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-system
+WORKDIR /app
+# No app source needed: this is a package=false project. --no-dev keeps
+# test/lint tooling out of the runtime image.
+COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
+RUN uv sync --frozen --no-dev
+
+# The stages that depend on the lockfiles alone, which is all the CI build cache
+# keeps (docker-image.yml): every other layer differs from one build to the
+# next. Nothing ships from here, and an image build never builds it.
+FROM scratch AS dependencies
+COPY --from=frontend-deps /frontend/package.json /frontend/
+COPY --from=backend-deps /app/pyproject.toml /backend/
 
 FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS backend-runtime
 ARG VERSION=0.1.0
@@ -52,7 +75,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 #
 # This layer sits above the application so a code change reuses it. A build
 # that must apply today's updates passes a new APT_REFRESH, which is all it
-# takes to run this layer again.
+# takes to run this layer again, and every layer above it.
 ARG APT_REFRESH=
 RUN apt-get update \
     && apt-get dist-upgrade -y \
@@ -63,23 +86,19 @@ RUN apt-get update \
          echo "$remaining" >&2; \
          exit 1; \
        fi \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /app/uploads
-# uv binary (pinned) for native, lockfile-based dependency installs
-COPY --from=ghcr.io/astral-sh/uv:0.11.21@sha256:ff07b86af50d4d9391d9daf4ff89ce427bc544f9aae87057e69a1cc0aa369946 /uv /uvx /bin/
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-system
+    && rm -rf /var/lib/apt/lists/*
+# uv is a build-time tool: it synced the venv in backend-deps and is never
+# invoked again — entrypoint.sh and start.sh run everything out of
+# /app/.venv/bin. Copying only /app keeps both binaries out of the image, and
+# with them a package manager and its own dependencies, which have no
+# reason to ship with this application.
+#
+# This is the first thing written to /app, so the directory comes from
+# backend-deps with its times too, and an unchanged venv is the same layer
+# every build. Anything that wrote to /app before it would give /app a new
+# time, and the 340 MB layer a new digest, on every build.
+COPY --from=backend-deps /app /app
 WORKDIR /app
-# Install dependencies first as a cached layer keyed on the lockfile (no app source needed —
-# this is a package=false project). --no-dev keeps test/lint tooling out of the runtime image.
-COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
-# uv is a build-time tool. It syncs the venv here and is never invoked again —
-# entrypoint.sh and start.sh run everything out of /app/.venv/bin. Removing both
-# binaries in the SAME layer keeps them out of the image entirely, rather than
-# leaving them recoverable in an earlier one. That drops a package manager, and
-# its own dependencies, out of the runtime attack surface: the image scan flags
-# GHSA-4w2j-m93h-cj5j in the quinn-proto bundled inside these binaries, which
-# has nothing to do with this application and no reason to ship with it.
-RUN uv sync --frozen --no-dev && rm -f /bin/uv /bin/uvx
 COPY backend/ .
 # Put the synced venv on PATH so uvicorn/alembic/python resolve to it
 ENV PATH="/app/.venv/bin:$PATH"
@@ -89,6 +108,6 @@ COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
 COPY --from=frontend-build /ota/ ./ota/
 COPY backend/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && mkdir -p /app/uploads
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["sh", "start.sh"]

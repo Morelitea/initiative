@@ -372,13 +372,34 @@
     "title": "{{community}} ist pausiert",
     "greeting": "Hallo,",
     "body": "<strong>{{community}}</strong> ist pausiert, deshalb kann sie vorerst niemand öffnen – weder ihre Mitglieder noch ihre Administratoren. Nichts darin wurde geändert oder entfernt.",
-    "deletion": "Ist sie am <strong>{{date}}</strong> noch pausiert, wird sie gelöscht.",
+    "bodyDeleting": "<strong>{{community}}</strong> ist pausiert und wird am <strong>{{date}}</strong> gelöscht, wenn ihr Tarif nicht wiederhergestellt wird. Bis dahin kann sie niemand öffnen – weder ihre Mitglieder noch ihre Administratoren –, und nichts darin wurde geändert oder entfernt.",
+    "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> ist pausiert und wird am <strong>{{date}}</strong> gelöscht, wenn die Pause nicht aufgehoben wird. Bis dahin kann sie niemand öffnen – weder ihre Mitglieder noch ihre Administratoren –, und nichts darin wurde geändert oder entfernt.",
     "contact": "Wende dich an <strong>{{contact}}</strong>, um das zu klären.",
     "contactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
     "textBody": "{{community}} ist pausiert, deshalb kann sie vorerst niemand öffnen. Nichts darin wurde geändert oder entfernt.",
-    "textDeletion": "Ist sie am {{date}} noch pausiert, wird sie gelöscht.",
+    "textBodyDeleting": "{{community}} ist pausiert und wird am {{date}} gelöscht, wenn ihr Tarif nicht wiederhergestellt wird. Bis dahin kann sie niemand öffnen, und nichts darin wurde geändert oder entfernt.",
+    "textBodyDeletingUnlessLifted": "{{community}} ist pausiert und wird am {{date}} gelöscht, wenn die Pause nicht aufgehoben wird. Bis dahin kann sie niemand öffnen, und nichts darin wurde geändert oder entfernt.",
     "textContact": "Wende dich an {{contact}}, um das zu klären.",
-    "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären."
+    "textContactNobody": "Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "buttonLabel": "Tarif wiederherstellen"
+  },
+  "communityTrialEnding": {
+    "subject": "Die Testphase von {{community}} endet am {{date}}",
+    "title": "Die Testphase von {{community}} endet am {{date}}",
+    "body": "Die Testphase von <strong>{{community}}</strong> endet am <strong>{{date}}</strong>. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können – danach ist die Community schreibgeschützt, bis ein Tarif gewählt ist.",
+    "buttonLabel": "Abrechnungsportal öffnen"
+  },
+  "communityTrialEnded": {
+    "subject": "Die Testphase von {{community}} ist beendet",
+    "title": "Die Testphase von {{community}} ist beendet",
+    "body": "Die Testphase von <strong>{{community}}</strong> ist beendet, und die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können. Es wurde nichts gelöscht.",
+    "buttonLabel": "Tarif wählen"
+  },
+  "communityWelcome": {
+    "subject": "{{community}} ist bereit",
+    "title": "{{community}} ist bereit",
+    "body": "<strong>{{community}}</strong> ist eingerichtet und bereit für ihre Mitglieder. Richte ihren Tarif im Abrechnungsportal ein, sobald du so weit bist.",
+    "buttonLabel": "Tarif einrichten"
   },
   "signInLocked": {
     "fallbackText": "Wenn du das warst, musst du nichts weiter tun. Wenn nicht, kennt vielleicht jemand deine E-Mail-Adresse. Dein Passwort ist weiterhin sicher, aber überlege, dich mit einem Passkey anzumelden.",
@@ -392,6 +413,23 @@
       "title": "Anmeldung mit Passwort pausiert",
       "body_one": "Für dein Konto kamen immer wieder falsche Passwörter oder Codes an, deshalb ist die Anmeldung mit Passwort oder Code für eine Stunde ausgeschaltet. Passkeys funktionieren weiterhin, und wo du schon angemeldet bist, bleibst du angemeldet. Um sie sofort wieder einzuschalten, setze dein Passwort über „Passwort vergessen?“ auf der Anmeldeseite zurück.",
       "body_other": "Für dein Konto kamen immer wieder falsche Passwörter oder Codes an, deshalb ist die Anmeldung mit Passwort oder Code für {{count}} Stunden ausgeschaltet. Passkeys funktionieren weiterhin, und wo du schon angemeldet bist, bleibst du angemeldet. Um sie sofort wieder einzuschalten, setze dein Passwort über „Passwort vergessen?“ auf der Anmeldeseite zurück."
+    }
+  },
+  "dates": {
+    "long": "{{day}}. {{month}} {{year}}",
+    "months": {
+      "m1": "Januar",
+      "m2": "Februar",
+      "m3": "März",
+      "m4": "April",
+      "m5": "Mai",
+      "m6": "Juni",
+      "m7": "Juli",
+      "m8": "August",
+      "m9": "September",
+      "m10": "Oktober",
+      "m11": "November",
+      "m12": "Dezember"
     }
   }
 }

@@ -291,11 +291,34 @@ async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
             )
         )
     ).all()
-    assert owners == [], (
-        "the test database's objects were handed to the declared provisioner "
-        "by conftest's bootstrap, so the signal must find none: "
-        f"{owners}"
-    )
+    if owners:
+        # Which objects, so an earlier test that left one behind is named.
+        from sqlalchemy import text
+
+        from app.db.guild_migrations import GUILD_OR_TEMPLATE_SCHEMA_REGEX
+
+        found = (
+            await session.exec(
+                text(
+                    "SELECT n.nspname || '.' || c.relname, c.relkind, "
+                    "       pg_get_userbyid(c.relowner) "
+                    "  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    " WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S') "
+                    "   AND c.relowner <> CAST(:owner AS regrole) "
+                    "   AND (n.nspname ~ :schemas "
+                    "        OR (n.nspname = 'public' AND c.relname = ANY(:tables)))"
+                ).bindparams(
+                    owner=login_roles()[0].name,
+                    schemas=GUILD_OR_TEMPLATE_SCHEMA_REGEX,
+                    tables=sorted(GRANTABLE_SHARED_TABLES),
+                )
+            )
+        ).all()
+        pytest.fail(
+            "the test database's objects were handed to the declared provisioner "
+            "by conftest's bootstrap, so the signal must find none: "
+            f"{owners}; owned elsewhere: {found}"
+        )
 
 
 async def test_an_object_owned_elsewhere_is_seen(session):

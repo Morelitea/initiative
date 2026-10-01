@@ -2,10 +2,9 @@
 
 Focused on the handover — ``POST`` on a body's ``…/collaborate`` path — which a
 leaving tab fires as a ``keepalive`` fetch when its socket is already gone,
-carrying the Yjs edits the room never saw. It shares the header-less auth of
-``/uploads/*`` and downloads (``UploadUserDep``): the HttpOnly session cookie on
-web, a short-lived uploads-scoped ``?token=`` on native. The long-lived session
-JWT must never authenticate via the URL (SEC-12).
+carrying the Yjs edits the room never saw. It authenticates as every other
+write does: the HttpOnly session cookie on web, the Authorization header on
+native. A ``?token=`` in the URL authenticates nothing here.
 """
 
 import base64
@@ -27,9 +26,11 @@ from app.testing import (
     create_user,
     create_wiki,
     create_wiki_page,
+    get_auth_headers,
     get_auth_token,
 )
 from app.core.search import SearchEntityType
+from app.services.tenant.collaboration import collaboration_manager
 from app.services.tenant.collaborative_resources import resource_for
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
@@ -97,16 +98,15 @@ async def test_collaboration_guild_admin_gets_full_access(
 async def test_a_handover_merges_into_the_room_and_saves_both_views(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """A short-lived, uploads-scoped ?token= authenticates the handover (the
-    credential native WebViews carry in the URL). The edits land in the Yjs
-    state and the rendering in the content column, together."""
+    """The edits land in the Yjs state and the rendering in the content
+    column, together."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
 
-    token, _ = create_upload_token(user_id=owner.user.id)
     response = await client.post(
-        f"{_document_url(owner.guild.id, doc.id)}?token={token}",
+        _document_url(owner.guild.id, doc.id),
         json=_handover(_typed("written offline")),
+        headers=owner.headers,
     )
 
     assert response.status_code == 204, response.text
@@ -192,18 +192,65 @@ async def test_an_unreadable_update_is_refused(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "DOCUMENT_COLLABORATION_UPDATE_INVALID"
+    # The room it opened to try is not left behind for the next caller.
+    key = (owner.guild.id, SearchEntityType.document.value, doc.id)
+    assert key not in collaboration_manager._rooms
 
 
-async def test_a_session_jwt_is_refused_in_the_query(
+async def test_a_refused_handover_leaves_the_next_one_the_saved_document(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """Only the uploads-scoped token is accepted in ?token=; the session JWT
-    is not. SEC-12."""
+    """A handover that is refused loads the room and takes nothing; the next one
+    still merges into what the row holds, not into a room left behind."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(
+        session,
+        owner.initiative,
+        owner.user,
+        yjs_state=_typed("from a peer. ").get_update(),
+    )
+    headers = {"Authorization": f"Bearer {get_auth_token(owner.user)}"}
+
+    refused = await client.post(
+        _document_url(owner.guild.id, doc.id),
+        json={"update": _b64(b"not yjs"), "state_vector": _b64(b"\x00")},
+        headers=headers,
+    )
+    assert refused.status_code == 400
+    # The row changes underneath, as another tab's save would change it.
+    doc.yjs_state = _typed("saved since. ").get_update()
+    session.add(doc)
+    await session.commit()
+
+    taken = await client.post(
+        _document_url(owner.guild.id, doc.id),
+        json=_handover(_typed("offline")),
+        headers=headers,
+    )
+
+    assert taken.status_code == 204, taken.text
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.yjs_state))
+        )
+    ).one()
+    merged = _text_of(saved.yjs_state or b"")
+    assert "saved since." in merged and "offline" in merged
+
+
+async def test_a_token_in_the_query_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    """The handover is a write: a ``?token=`` authenticates none, the
+    uploads-scoped one included."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
+    token, _ = create_upload_token(user_id=owner.user.id)
 
     response = await client.post(
-        f"{_document_url(owner.guild.id, doc.id)}?token={get_auth_token(owner.user)}",
+        f"{_document_url(owner.guild.id, doc.id)}?token={token}",
         json=_handover(_typed("x")),
     )
 
@@ -250,11 +297,10 @@ async def test_a_non_member_is_refused(
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     outsider = await create_user(session)
-    token, _ = create_upload_token(user_id=outsider.id)
-
     response = await client.post(
-        f"{_document_url(owner.guild.id, doc.id)}?token={token}",
+        _document_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
+        headers=get_auth_headers(outsider),
     )
 
     assert response.status_code == 403
@@ -291,11 +337,10 @@ async def test_a_break_glass_grantee_can_hand_over(
     await _approved_grant(
         session, user=grantee, guild=owner.guild, owner=owner.user, level="read_write"
     )
-    token, _ = create_upload_token(user_id=grantee.id)
-
     response = await client.post(
-        f"{_document_url(owner.guild.id, doc.id)}?token={token}",
+        _document_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
+        headers=get_auth_headers(grantee),
     )
 
     assert response.status_code == 204, response.text
@@ -312,11 +357,10 @@ async def test_a_read_grant_cannot_hand_over(
     await _approved_grant(
         session, user=grantee, guild=owner.guild, owner=owner.user, level="read"
     )
-    token, _ = create_upload_token(user_id=grantee.id)
-
     response = await client.post(
-        f"{_document_url(owner.guild.id, doc.id)}?token={token}",
+        _document_url(owner.guild.id, doc.id),
         json=_handover(_typed("x")),
+        headers=get_auth_headers(grantee),
     )
 
     assert response.status_code == 403

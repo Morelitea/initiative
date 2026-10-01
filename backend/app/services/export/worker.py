@@ -104,6 +104,7 @@ async def _sweep(
             )
             job.status = ExportJobStatus.failed
             job.error = ExportMessages.EXPORT_RENDER_FAILED
+            _forget_filters(job)
             outcomes.append(_outcome(job, guild_id))
         else:
             logger.warning(
@@ -144,7 +145,7 @@ async def _render(
         await session.commit()
 
     try:
-        location = await _execute(
+        reach, location = await _execute(
             session, job, guild_id=guild_id, heartbeat=throttled(touch)
         )
     except _Superseded:
@@ -172,6 +173,7 @@ async def _render(
         job.status = ExportJobStatus.done
         job.artifact_ref = location.artifact_ref
         job.destination_ref = location.destination_ref
+        job.initiative_ids = sorted(reach)
         job.error = None
         # Only an artifact the app holds has a GC deadline. A delivered
         # archive sits in the operator's destination under whatever
@@ -182,10 +184,18 @@ async def _render(
             if location.artifact_ref
             else None
         )
+    _forget_filters(job)
     job.updated_at = datetime.now(timezone.utc)
     session.add(job)
     await session.commit()
     return _outcome(job, guild_id)
+
+
+def _forget_filters(job: ExportJob) -> None:
+    """Filters are one person's instruction for one render. Once it has ended,
+    the row keeps none of them."""
+    if job.params and "filters" in job.params:
+        job.params = {k: v for k, v in job.params.items() if k != "filters"}
 
 
 def _outcome(job: ExportJob, guild_id: int) -> JobOutcome:
@@ -234,8 +244,9 @@ async def _execute(
     *,
     guild_id: int,
     heartbeat: data_jobs.Heartbeat,
-) -> export_engine.ArtifactLocation:
-    """Re-run the adapter query as the job's creator and render it out."""
+) -> tuple[frozenset[int], export_engine.ArtifactLocation]:
+    """Re-run the adapter query as the job's creator and render it out.
+    Returns the initiatives the artifact holds, and where it was written."""
     from app.api.deps import establish_guild_access
 
     adapter = export_engine.get_adapter(job.source, job.format)
@@ -272,7 +283,7 @@ async def _execute(
     request = await _beating(build(), heartbeat)
 
     assert job.id is not None
-    return await export_engine.render_to_storage(
+    return request.initiative_ids, await export_engine.render_to_storage(
         request,
         job_id=job.id,
         source=job.source,

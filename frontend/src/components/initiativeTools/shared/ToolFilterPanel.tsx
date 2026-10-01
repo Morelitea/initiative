@@ -7,6 +7,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { useIsCompactViewport } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 
+/** How many filters are set, as a small pill; nothing while none are. */
+export const FilterCountBadge = ({ count }: { count: number }) =>
+  count > 0 ? (
+    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-[11px] text-primary-foreground tabular-nums">
+      {count}
+    </span>
+  ) : null;
+
 type ToolFilterButtonProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,11 +48,7 @@ export const ToolFilterButton = ({
     >
       <Filter className="h-4 w-4" />
       <span className="hidden sm:inline">{t("toolbar.filters")}</span>
-      {activeCount > 0 ? (
-        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-[11px] text-primary-foreground tabular-nums">
-          {activeCount}
-        </span>
-      ) : null}
+      <FilterCountBadge count={activeCount} />
     </Button>
   );
 };

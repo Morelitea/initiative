@@ -65,6 +65,45 @@ def _build(content, selection="Work"):
 # --- finding the real header ----------------------------------------------
 
 
+_WEEKLY = "RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO"
+
+
+@pytest.mark.parametrize(
+    ("repeat", "status", "fields"),
+    [
+        (
+            _WEEKLY,
+            "0",
+            {
+                "recurrence": _WEEKLY,
+                "recurrence_shift": 1440,
+                "recurrence_strategy": "fixed",
+            },
+        ),
+        ("RRULE:FREQ=DAILY;TT_SKIP=HOLIDAY", "0", {}),
+        (_WEEKLY, "2", {}),
+    ],
+    ids=[
+        "picked in the task's zone",
+        "a rule a task cannot repeat by",
+        "a finished task holds no repeat",
+    ],
+)
+def test_a_repeat_is_read_in_the_tasks_zone(repeat, status, fields):
+    """Mondays at midnight in Berlin are Sundays in UTC, which the shift
+    keeps; a rule with TickTick's own parts, or a finished task, leaves the
+    task a one-off."""
+    row = _row(
+        Status=status,
+        Repeat=repeat,
+        Timezone="Europe/Berlin",
+        **{"Due Date": "2026-03-08T23:00:00+0000"},
+    )
+    task = _build(_csv(row)).envelope["tasks"][0]
+    assert {key: task[key] for key in fields} == fields
+    assert ("recurrence" in task) == bool(fields)
+
+
 def test_the_preamble_is_skipped_however_long_it_is():
     content = "one\ntwo\nthree\nfour\nfive\nsix\nseven\n" + HEADER + _row()
     assert [o.name for o in tm.preview(content)] == ["Work"]

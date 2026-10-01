@@ -29,11 +29,6 @@ export const propertyHandlers = [
     );
   }),
 
-  guildHttp.get("/property-definitions/:definitionId", ({ params }) => {
-    const id = Number(params.definitionId);
-    return HttpResponse.json(buildPropertyDefinition({ id }));
-  }),
-
   guildHttp.patch("/property-definitions/:definitionId", async ({ params, request }) => {
     const id = Number(params.definitionId);
     const body = (await request.json()) as Record<string, unknown>;
@@ -50,20 +45,8 @@ export const propertyHandlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
-  guildHttp.get("/property-definitions/:definitionId/entities", () => {
-    return HttpResponse.json({ tasks: [], documents: [] });
-  }),
-
-  // ── Attach values ─────────────────────────────────────────────────────────
-  // The components under test only care that the request goes through; the
-  // returned payload is ignored beyond invalidation, so we use loose shapes.
-  guildHttp.put("/documents/:documentId/properties", ({ params }) => {
-    const id = Number(params.documentId);
-    return HttpResponse.json({ id, properties: [] });
-  }),
-
-  guildHttp.put("/tasks/:taskId/properties", ({ params }) => {
-    const id = Number(params.taskId);
-    return HttpResponse.json({ id, properties: [] });
-  }),
+  // ── Set values ────────────────────────────────────────────────────────────
+  // One route for every target. Echoes nothing back: the components under
+  // test refetch the row rather than read the answer.
+  guildHttp.put("/properties/:target/:entityId", () => HttpResponse.json([])),
 ];

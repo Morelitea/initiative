@@ -2,14 +2,25 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+    event,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.core import recurrence
 from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
-    from app.models.tenant.property import CalendarEventPropertyValue
     from app.models.platform.user_profile_view import MemberProfile
 
 
@@ -21,6 +32,11 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
     """
 
     __tablename__ = "calendar_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "series_id", "original_start", name="uq_calendar_events_occurrence"
+        ),
+    )
     _display_field = "title"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -40,9 +56,39 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    # RFC 5545 recurrence lines as picked (``app.core.recurrence``).
     recurrence: Optional[str] = Field(
         default=None,
         sa_column=Column(Text, nullable=True),
+    )
+    # Minutes from the start's UTC time to where the repeat was picked: whole
+    # days for a rule of days, the offset for a rule of hours.
+    recurrence_shift: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default="0")
+    )
+    # No occurrence starts after this; null when the series never ends.
+    # Written from ``recurrence`` on every save (see the listener below).
+    recurrence_until: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    # One occurrence of a repeating event, changed on its own: the series it
+    # belongs to and the start it has there. Goes with its series to the bin.
+    series_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("calendar_events.id", ondelete="CASCADE"),
+            nullable=True,
+            index=True,
+        ),
+    )
+    original_start: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    # What the occurrence changed; everything else follows the series.
+    overridden_fields: List[str] = Field(
+        default_factory=list,
+        sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -54,6 +100,11 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
     )
 
     calendar: Optional["Calendar"] = Relationship(back_populates="events")
+    # Set on an override built before its series has an id (an import), so
+    # the flush writes ``series_id``; never loaded.
+    series: Optional["CalendarEvent"] = Relationship(
+        sa_relationship_kwargs={"remote_side": "CalendarEvent.id", "lazy": "noload"}
+    )
     creator: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "foreign(CalendarEvent.created_by) == MemberProfile.id",
@@ -64,10 +115,6 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    property_values: List["CalendarEventPropertyValue"] = Relationship(
-        back_populates="calendar_event",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
 
 
 class RSVPStatus(str, Enum):
@@ -75,6 +122,16 @@ class RSVPStatus(str, Enum):
     accepted = "accepted"
     declined = "declined"
     tentative = "tentative"
+
+
+@event.listens_for(CalendarEvent, "before_insert")
+@event.listens_for(CalendarEvent, "before_update")
+def _write_recurrence_until(_mapper, _connection, row: CalendarEvent) -> None:
+    row.recurrence_until = (
+        recurrence.last_start(row.recurrence, row.start_at, row.recurrence_shift)
+        if row.recurrence
+        else None
+    )
 
 
 class CalendarEventAttendee(SQLModel, table=True):
@@ -111,4 +168,31 @@ class CalendarEventAttendee(SQLModel, table=True):
             ),
             "viewonly": True,
         }
+    )
+
+
+class CalendarEventAnswer(SQLModel, table=True):
+    """An attendee's answer for one occurrence of a repeating event that has no
+    row of its own. Answering takes read access, like the attendee row beside
+    it, and an occurrence's own row takes write, so the answer waits here; it
+    moves onto the attendee row when the occurrence gets one."""
+
+    __tablename__ = "calendar_event_answers"
+
+    calendar_event_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("calendar_events.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+    )
+    user_id: int = Field(primary_key=True, index=True)
+    original_start: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), primary_key=True),
+    )
+    rsvp_status: RSVPStatus = Field(
+        sa_column=Column(
+            SQLEnum(RSVPStatus, name="rsvp_status", create_type=False),
+            nullable=False,
+        ),
     )

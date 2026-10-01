@@ -9,8 +9,6 @@ Forward (entity -> reference) is ``ensure_ref``, which mints on first use, so a
 new purpose needs no migration and no backfill: every existing user and guild
 acquires a reference for it the first time one is asked for. Reverse (reference
 -> entity) is ``resolve_ref``, an indexed lookup.
-
-See ``history/opaque-identity-design.md``.
 """
 
 from __future__ import annotations
@@ -256,6 +254,24 @@ async def resolve_billing_guild(*, ref: str) -> int | None:
         row.entity_type != IdentityEntity.guild
         or row.purpose != IdentityPurpose.billing
     ):
+        return None
+    return row.entity_id
+
+
+async def resolve_billing_user(*, ref: str) -> int | None:
+    """Which user one billing reference names, or None.
+
+    The user half of :func:`resolve_billing_guild`, for a notice billing
+    addresses to a person by the reference a portal handoff gave it. A
+    reference minted for a guild, or for another purpose, names nobody here.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as session:
+        row = await resolve_ref(session, ref=ref)
+    if row is None:
+        return None
+    if row.entity_type != IdentityEntity.user or row.purpose != IdentityPurpose.billing:
         return None
     return row.entity_id
 

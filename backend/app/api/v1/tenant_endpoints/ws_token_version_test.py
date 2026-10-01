@@ -1,4 +1,4 @@
-"""Regression test for SEC-4: token revocation on realtime channels.
+"""Regression test: token revocation on realtime channels.
 
 Every realtime WebSocket endpoint reads its first frame's credential through
 ``authenticate_ws_token``. A session token minted before a ``token_version``

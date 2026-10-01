@@ -23,6 +23,7 @@ from app.models.platform.access_grant import AccessGrant
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
+from app.models.platform.user import UserStatus
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import email as email_service
@@ -33,6 +34,7 @@ from app.testing import (
     create_tool_entity,
     enable_all_tools,
     set_notification_prefs,
+    drain_notices,
 )
 from app.testing.factories import create_initiative
 
@@ -91,6 +93,17 @@ async def _caller(acting_user, kind: str, owner, initiative):
     )
 
 
+async def _roster(client: AsyncClient, actor, initiative_id: int, **params) -> dict:
+    """One page of the initiative's roster as ``actor`` reads it."""
+    response = await client.get(
+        actor.g(f"/initiatives/{initiative_id}/members"),
+        headers=actor.headers,
+        params=params,
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 async def _project_shared_with_the_initiative(session: AsyncSession, initiative, owner):
     """A project every member of the initiative may read, so that the
     membership row is the only thing that changes when somebody joins."""
@@ -104,6 +117,7 @@ async def _project_shared_with_the_initiative(session: AsyncSession, initiative,
 async def _notifications_for(
     session: AsyncSession, user_id: int, ntype: NotificationType
 ) -> list[Notification]:
+    await drain_notices()
     result = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,
@@ -115,6 +129,7 @@ async def _notifications_for(
 
 async def _pending_mail_for(session: AsyncSession, user_id: int) -> int:
     """How much notification mail is waiting for this account."""
+    await drain_notices()
     result = await session.exec(
         select(EmailOutboxItem).where(EmailOutboxItem.user_id == user_id)
     )
@@ -423,7 +438,8 @@ async def test_create_initiative_makes_creator_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Creating an initiative makes the creator a manager — the moderator role
-    here, because the creator is a guild admin."""
+    here, because the creator is a guild admin — and the read reports their
+    role and the headcount rather than the roster."""
     admin = await acting_user(guild_role=GuildRole.admin)
 
     payload = {"name": "New Initiative"}
@@ -434,9 +450,12 @@ async def test_create_initiative_makes_creator_manager(
 
     assert response.status_code == 201
     data = response.json()
-    assert len(data["members"]) == 1
-    assert data["members"][0]["user"]["id"] == admin.user.id
-    assert data["members"][0]["role_name"] == "moderator"
+    assert "members" not in data
+    assert (data["member_count"], data["role_display_name"]) == (1, "Moderator")
+    rows = (await _roster(client, admin, data["id"]))["items"]
+    assert [(row["user"]["id"], row["role_name"]) for row in rows] == [
+        (admin.user.id, "moderator")
+    ]
 
 
 async def test_updating_an_initiative_records_the_new_name_and_description(
@@ -698,8 +717,8 @@ async def test_the_roster_answers_its_members_and_a_guild_admin(
         assert response.json()["detail"] == InitiativeMessages.NOT_A_MEMBER
         return
 
-    body = response.json()
-    rows = body["items"] if isinstance(body, dict) else body
+    # The roster nests each person beside their role; the search is people.
+    rows = [row.get("user", row) for row in response.json()["items"]]
     # A roster names members by handle. An address is never a guild's to hand
     # out, so it is absent from the shape entirely.
     assert {row["username"] for row in rows} == {
@@ -707,6 +726,41 @@ async def test_the_roster_answers_its_members_and_a_guild_admin(
         insider.user.username,
     }
     assert all("email" not in row for row in rows)
+
+
+async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The roster is read a page at a time and can be narrowed to the managers,
+    while the initiative list carries each one's headcount and the caller's own
+    role instead of everyone's. A suspended member is in neither."""
+    owner, initiative = await _initiative_with_owner(session, acting_user)
+    insider = await _caller(acting_user, "member", owner, initiative)
+    await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=initiative,
+        initiative_role="member",
+        status=UserStatus.suspended,
+    )
+
+    first = await _roster(client, insider, initiative.id, page_size=1)
+    managers = await _roster(client, insider, initiative.id, is_manager="true")
+    others = await _roster(client, insider, initiative.id, is_manager="false")
+    listed = await client.get(insider.g("/initiatives/"), headers=insider.headers)
+
+    assert (first["total_count"], len(first["items"]), first["has_next"]) == (
+        2,
+        1,
+        True,
+    )
+    assert [row["user"]["id"] for row in managers["items"]] == [owner.user.id]
+    assert [row["user"]["id"] for row in others["items"]] == [insider.user.id]
+    assert listed.status_code == 200, listed.text
+    assert [
+        (row["id"], row["member_count"], row["role_display_name"])
+        for row in listed.json()
+    ] == [(initiative.id, 2, "Member")]
 
 
 @pytest.mark.parametrize(
@@ -737,9 +791,8 @@ async def test_adding_a_member_takes_manager_standing(
 
     assert response.status_code == status_code, response.text
     if detail is None:
-        assert newcomer.user.id in {
-            member["user"]["id"] for member in response.json()["members"]
-        }
+        rows = (await _roster(client, actor, initiative.id))["items"]
+        assert newcomer.user.id in {row["user"]["id"] for row in rows}
     else:
         assert response.json()["detail"] == detail
 
@@ -795,8 +848,8 @@ async def test_update_initiative_member_role(
     )
 
     assert response.status_code == 200
-    data = response.json()
-    member_roles = {m["user"]["id"]: m["role_name"] for m in data["members"]}
+    rows = (await _roster(client, admin, admin.initiative.id))["items"]
+    member_roles = {m["user"]["id"]: m["role_name"] for m in rows}
     assert member_roles[member.user.id] == "project_manager"
 
 
@@ -804,7 +857,8 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A member's row carries the role they actually hold — its own name,
-    display name, and manager standing — for custom roles too."""
+    display name, and manager standing — for custom roles too, and the role
+    list counts each role's holders."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     member = await acting_user(
         guild_role=GuildRole.member,
@@ -827,12 +881,18 @@ async def test_member_roster_reports_a_custom_role_as_itself(
     )
 
     assert response.status_code == 200
-    row = next(
-        m for m in response.json()["members"] if m["user"]["id"] == member.user.id
-    )
+    rows = (await _roster(client, admin, admin.initiative.id))["items"]
+    row = next(m for m in rows if m["user"]["id"] == member.user.id)
     assert row["role_name"] == "leads"
     assert row["role_display_name"] == "Leads"
     assert row["is_manager"] is True
+
+    roles = await client.get(
+        admin.g(f"/initiatives/{admin.initiative.id}/roles"), headers=admin.headers
+    )
+    assert roles.status_code == 200, roles.text
+    counts = {r["name"]: r["member_count"] for r in roles.json()}
+    assert (counts["leads"], counts["member"], sum(counts.values())) == (1, 0, 2)
 
 
 @pytest.mark.parametrize(
@@ -892,7 +952,8 @@ async def test_inviting_a_guild_admin_lands_them_on_a_manager_role(
     )
 
     assert response.status_code == 200, response.text
-    roles = {m["user"]["id"]: m["role_name"] for m in response.json()["members"]}
+    rows = (await _roster(client, actor, admin.initiative.id))["items"]
+    roles = {m["user"]["id"]: m["role_name"] for m in rows}
     assert roles[target.user.id] == expected_role
 
 
@@ -964,8 +1025,7 @@ async def test_removing_a_membership_ends_it(
     )
 
     assert response.status_code == 200, response.text
-    remaining = {m["user"]["id"] for m in response.json()["members"]}
-    assert remaining == (set() if who == "the last manager" else {owner.user.id})
+    assert response.json()["member_count"] == (0 if who == "the last manager" else 1)
     levels = (
         await session.exec(
             select(ResourceGrant.level).where(ResourceGrant.user_id == target.user.id)
@@ -1233,10 +1293,12 @@ async def test_self_join_answers_each_policy_and_caller(
     role_name, is_manager = outcome
     rows = [
         member
-        for member in response.json()["members"]
+        for member in (await _roster(client, actor, initiative.id))["items"]
         if member["user"]["id"] == actor.user.id
     ]
     assert len(rows) == 1
+    # The join answers with the joiner's own role on the initiative it returns.
+    assert response.json()["role_display_name"] == rows[0]["role_display_name"]
     assert rows[0]["role_name"] == role_name
     assert rows[0]["is_manager"] is is_manager
     assert rows[0]["oidc_managed"] is False
@@ -1627,20 +1689,18 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
 
 
 @pytest.mark.parametrize(
-    ("caller", "path", "status_code", "expected"),
+    ("caller", "status_code", "expected"),
     [
-        ("manager", "", 200, "everyone waiting"),
-        ("admin", "", 200, "everyone waiting"),
-        ("member", "", 403, InitiativeMessages.MANAGER_REQUIRED),
-        ("asker", "", 403, InitiativeMessages.MANAGER_REQUIRED),
-        ("asker", "/me", 200, "their own"),
+        ("manager", 200, "everyone waiting"),
+        ("admin", 200, "everyone waiting"),
+        ("member", 403, InitiativeMessages.MANAGER_REQUIRED),
+        ("asker", 403, InitiativeMessages.MANAGER_REQUIRED),
     ],
     ids=[
         "its manager",
         "a guild admin",
         "a plain member of it",
         "somebody waiting at it",
-        "somebody waiting, asking after theirs",
     ],
 )
 async def test_the_join_queue_answers_each_caller(
@@ -1648,14 +1708,12 @@ async def test_the_join_queue_answers_each_caller(
     session: AsyncSession,
     acting_user,
     caller: str,
-    path: str,
     status_code: int,
     expected: str,
 ):
     """Who asked to get in is manager business, and a guild admin's too — a
     non-manager member of the initiative has no more claim on it than the
-    people waiting at it. A requester reaches their own row through ``/me``
-    and nobody else's.
+    people waiting at it.
 
     ``initiative_join_requests`` is guild-level: the schema boundary is its
     only DB gate, so row visibility is an app-layer contract — pinned here.
@@ -1668,7 +1726,7 @@ async def test_the_join_queue_answers_each_caller(
     )
 
     response = await client.get(
-        actor.g(f"/initiatives/{initiative.id}/join-requests{path}"),
+        actor.g(f"/initiatives/{initiative.id}/join-requests"),
         headers=actor.headers,
     )
 
@@ -1678,11 +1736,7 @@ async def test_the_join_queue_answers_each_caller(
         return
 
     seen = {row["user"]["id"] for row in response.json()}
-    assert seen == (
-        {asker.user.id for asker, _ in knocks}
-        if expected == "everyone waiting"
-        else {knocks[0][0].user.id}
-    )
+    assert seen == {asker.user.id for asker, _ in knocks}
 
 
 @pytest.mark.parametrize(
@@ -2094,7 +2148,9 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     )
     request_id = created.json()["id"]
 
-    # Capture only after the request lands, so the queue mail is out of the way.
+    # Capture only after the request's own notice is delivered, so the queue
+    # mail is out of the way.
+    await drain_notices()
     sent = _capture_join_request_emails(monkeypatch)
 
     resolved = await client.post(

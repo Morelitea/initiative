@@ -30,10 +30,13 @@ import hmac
 import json
 import logging
 import time
+from datetime import date
+from typing import Literal
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
@@ -44,12 +47,14 @@ logger = logging.getLogger(__name__)
 MEMBERSHIP_PING_PATH = "/api/v1/pings/membership"
 LIFECYCLE_PING_PATH = "/api/v1/pings/lifecycle"
 PAYMENT_ISSUE_PATH = "/api/v1/payment-issue"
+PLAN_SUMMARY_PATH = "/api/v1/plan-summary"
 
 # httpx defaults to no total deadline; keep the whole attempt short — the
 # ping is advisory and must never hold resources behind a slow billing pod.
 _PING_TIMEOUT = httpx.Timeout(3.0, connect=2.0)
 _PAYMENT_ISSUE_TIMEOUT = httpx.Timeout(2.0, connect=1.0)
 _PAYMENT_ISSUE_MAX_BYTES = 256
+_PLAN_SUMMARY_MAX_BYTES = 1024
 
 # Strong references so in-flight pings aren't garbage-collected mid-send
 # (asyncio keeps only weak refs to tasks).
@@ -193,3 +198,76 @@ async def guild_payment_failed(guild_id: int) -> bool:
     except Exception:
         return False
     return isinstance(answer, dict) and answer.get("payment_failed") is True
+
+
+class PlanCharge(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True)
+
+    # Minor units of ``currency``.
+    total: int = Field(ge=0)
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+
+
+class PlanChange(BaseModel):
+    model_config = ConfigDict(strict=True, frozen=True)
+
+    action: Literal["cancel", "pause", "resume"]
+    on: date
+
+
+class PlanSummary(BaseModel):
+    """Billing's account of a guild's plan, as billing answered it.
+
+    Read for one response and never stored: what a plan costs is billing's to
+    hold (see ``app.models.platform.billing``). Fields billing adds later are
+    ignored; a field that is here and malformed refuses the whole answer.
+    """
+
+    model_config = ConfigDict(strict=True, frozen=True)
+
+    tier_name: str | None = Field(default=None, max_length=64)
+    trial_ends_on: date | None = None
+    renews_on: date | None = None
+    next_charge: PlanCharge | None = None
+    scheduled_change: PlanChange | None = None
+    payment_failed: bool = False
+
+
+def build_plan_summary_query(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
+    return _signed_post(PLAN_SUMMARY_PATH, {"guild_ref": guild_ref})
+
+
+async def guild_plan_summary(guild_id: int) -> PlanSummary | None:
+    """Ask billing for ``guild_id``'s plan, or ``None`` when it cannot say.
+
+    A read. The signed POST is a query like :func:`guild_payment_failed`'s and
+    changes nothing on billing's side: initiative never writes to billing, and
+    every change to a plan is made in the billing portal.
+
+    A guild billing holds no reference for has never been there, so it has no
+    trial, charge or failure to report: that is an empty summary, not a
+    missing one, and nothing is minted to ask.
+    """
+    if not billing_ping_enabled():
+        return None
+    try:
+        guild_ref = await existing_ref(
+            entity_type=IdentityEntity.guild,
+            entity_id=guild_id,
+            purpose=IdentityPurpose.billing,
+        )
+        if guild_ref is None:
+            return PlanSummary()
+        url, body, headers = build_plan_summary_query(guild_ref)
+        async with httpx.AsyncClient(
+            timeout=_PAYMENT_ISSUE_TIMEOUT, follow_redirects=False
+        ) as client:
+            response = await client.post(url, content=body, headers=headers)
+        if (
+            response.status_code != 200
+            or len(response.content) > _PLAN_SUMMARY_MAX_BYTES
+        ):
+            return None
+        return PlanSummary.model_validate_json(response.content)
+    except Exception:
+        return None

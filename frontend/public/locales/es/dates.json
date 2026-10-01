@@ -50,6 +50,7 @@
     "second": "segundo",
     "third": "tercer",
     "fourth": "cuarto",
+    "fifth": "quinto",
     "last": "último"
   },
   "recurrenceSummary": {
@@ -72,6 +73,15 @@
     "inMonth": "en {{month}}",
     "afterCompletion": "después de completar",
     "untilDate": "hasta {{date}}",
-    "forOccurrences": "por {{count}} ocurrencias"
+    "forOccurrences": "por {{count}} ocurrencias",
+    "custom": "Se repite con un calendario personalizado",
+    "onDays": "los días {{days}}",
+    "onLastDay": "el último día",
+    "lastDayItem": "el último día",
+    "onEveryWeekdays": "cada {{weekdays}}",
+    "onFirstWorkDay": "el primer día laborable",
+    "onLastWorkDay": "el último día laborable",
+    "onFirstOf": "el primer {{weekdays}}",
+    "onLastOf": "el último {{weekdays}}"
   }
 }

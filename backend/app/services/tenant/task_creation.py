@@ -18,7 +18,6 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import HTTPException, status as http_status
-from pydantic import ValidationError
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import delete, select
@@ -28,17 +27,16 @@ from app.core.messages import TaskMessages
 from app.core.tools import Tool
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
-from app.schemas.tenant.task import TaskRecurrence
 from app.services import notifications as notifications_service
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_description as task_description_service
+from app.services.tenant import task_series
 from app.services.tenant import task_statuses as task_statuses_service
-from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant.task_completion import sync_completed_at
-from app.core.user_input_validators import resolve_zone
 
 
 async def next_position(session: AsyncSession, project_id: int) -> float:
@@ -183,97 +181,57 @@ async def advance_recurrence_if_needed(
         return False
 
     try:
-        recurrence = TaskRecurrence.model_validate(task.recurrence)
-    except ValidationError:
+        dates = task_series.next_dates(task, now=now, user_timezone=user_timezone)
+    except ValueError:
         return False
-
-    strategy = task.recurrence_strategy or "fixed"
-    if strategy == "rolling":
-        # For rolling: use the user's local *calendar day* of completion
-        # but preserve the task's original *local* time-of-day. Doing
-        # this math in UTC produced an off-by-one when the task's
-        # local time crossed UTC midnight: e.g. a 5pm LA task is
-        # midnight UTC the next day, so a UTC-anchored
-        # ``now.replace(hour=0)`` landed the new occurrence one local
-        # day earlier than the user's "complete + 3 days" intuition.
-        zone = resolve_zone(user_timezone)
-        now_local = now.astimezone(zone)
-        due_local = task.due_date.astimezone(zone)
-        # ``replace()`` doesn't consult the zone's transition table on
-        # its own, so a gap-time result (e.g. 2:30 AM on a spring-
-        # forward day) is left labelled with the surrounding offset.
-        # The trailing ``astimezone(zone)`` is defensive — when the
-        # source and target tzinfo are the same ZoneInfo instance
-        # CPython short-circuits to ``return self``, so this is a
-        # no-op in that case, but it documents the intent and makes
-        # the call site safe if a future change resolves ``zone``
-        # from a different cache. The downstream ``+ timedelta``
-        # advance preserves wall-clock time across DST, which is the
-        # behaviour we want for daily recurrence: an "every day at
-        # 2:30 AM" task continues to fire at 2:30 AM after DST kicks
-        # in, the same way an alarm clock would.
-        base_local = now_local.replace(
-            hour=due_local.hour,
-            minute=due_local.minute,
-            second=due_local.second,
-            microsecond=due_local.microsecond,
-        ).astimezone(zone)
-        # ``get_next_due_date`` is timezone-naive about its frequency
-        # math (adds ``timedelta(days=...)`` directly), so keep the
-        # base in local time for the duration of the calculation and
-        # let the caller convert back to UTC if needed. Storing a
-        # timezone-aware value preserves the right instant either way.
-        base_date = base_local
-    else:
-        base_date = task.due_date
-    next_due = get_next_due_date(
-        base_date,
-        recurrence,
-        completed_occurrences=task.recurrence_occurrence_count,
-    )
-    if next_due is None:
+    if dates is None:
         task.recurrence = None
         return False
+    new_start, next_due = dates
 
-    duration = None
-    if task.start_date and task.due_date:
-        duration = task.due_date - task.start_date
-    new_start = next_due - duration if duration else None
-
+    # An edit of just this task leaves the next one with what it changed from.
+    values = task_series.carried(task)
+    task.series_id = task.series_id or task.id
     default_status = await task_statuses_service.get_default_status(
         session, task.project_id
     )
     new_task = Task(
         project_id=task.project_id,
         task_status_id=default_status.id,
-        title=task.title,
-        description=task.description,
-        priority=task.priority,
+        title=values.get("title", task.title),
+        description=values.get("description", task.description),
+        priority=values.get("priority", task.priority),
         start_date=new_start,
         due_date=next_due,
-        recurrence=recurrence.model_dump(mode="json"),
-        recurrence_strategy=strategy,
+        recurrence=task.recurrence,
+        recurrence_shift=task.recurrence_shift,
+        recurrence_strategy=task.recurrence_strategy or "fixed",
         position=await next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
+        series_id=task.series_id,
         created_by=task.created_by,
         checklist=checklist_service.cloned(task.checklist),
     )
     sync_completed_at(new_task, default_status.category, now=now)
     session.add(new_task)
     await session.flush()
-    assignee_ids = [assignee.id for assignee in task.assignees]
+    assignee_ids = values.get(
+        "assignee_ids", [assignee.id for assignee in task.assignees]
+    )
     project = await session.get(Project, task.project_id)
     if project is None:  # the task was just read inside it
         raise RuntimeError("a recurring task's project is gone")
     await set_task_assignees(
         session, new_task, assignee_ids, project=project, carried=True
     )
-    await tags_service.copy_entity_tags(
-        session,
-        tags_service.TAG_LINKS["task"],
-        source_id=task.id,
-        target_id=new_task.id,
-    )
+    if "tag_ids" in values:
+        await task_series.retag(session, new_task.id, values["tag_ids"])
+    else:
+        await tags_service.copy_entity_tags(
+            session,
+            tags_service.TAG_LINKS["task"],
+            {task.id: new_task.id},
+        )
     if new_task.description:
         await task_description_service.record_references(
             session, new_task, author_id=task.created_by
@@ -292,9 +250,11 @@ async def advance_recurrence_if_needed(
         .execution_options(populate_existing=True)
     )
     await tags_service.annotate_tags(session, [new_task])
+    await properties_service.annotate_properties(session, [new_task])
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"
+    task.recurrence_carry = None
     task.updated_at = now
     session.add(task)
     return True

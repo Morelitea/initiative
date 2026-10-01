@@ -9,8 +9,8 @@ that guild's routed context, and merges by ``last_viewed_at``. Opening a tab
 navigates into the entity's guild (which sets the server-held context) before
 any content is fetched.
 
-Closing a tab is the one cross-guild write: a guild-ADDRESSED delete
-(``?guild_id=``, validated like any context) of the caller's own row.
+Opening and closing a tab are guild-addressed (``/c/{guild_id}/recents/…``):
+per-schema ids are only unique within a guild.
 """
 
 from __future__ import annotations
@@ -18,10 +18,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Annotated, Any, Callable, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import selectinload, undefer
+from fastapi import APIRouter, Depends, status
 from sqlmodel import select
 
+from app.api import resource_access
 from app.db.session import require_guild_context
 from app.api.deps import (
     RLSSessionDep,
@@ -33,20 +33,18 @@ from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership
-from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
-from app.schemas.tenant.recent_view import RecentItemRead
-from app.services import permissions as permissions_service
+from app.schemas.tenant.recent_view import RecentItemRead, RecentViewWrite
 from app.services.tenant import recent_views as recent_views_service
 from app.services.cross_guild import gather_across_guilds
 from app.services.tenant.recent_views import RecentEntityType
 
 
 router = APIRouter()
-# Guild-scoped sub-router: closing a tab (the delete) is the one guild-scoped
-# recents operation and mounts under /c/{guild_id}/recents. The cross-guild
-# tabs-bar list stays on the top-level router above — fully separate endpoints.
+# Guild-scoped sub-router: opening and closing a tab mount under
+# /c/{guild_id}/recents. The cross-guild tabs-bar list stays on the top-level
+# router above — fully separate endpoints.
 guild_router = APIRouter()
 
 
@@ -105,32 +103,22 @@ async def _enrich_recent_rows(
 ) -> List[RecentItemRead]:
     """Resolve one guild's recent_views rows into render-only tab items.
 
-    Must run inside that guild's routed context — relationships and ids are
-    per-schema, and the standing the seam computed for that community is what
-    decides, so a row reaches the same verdict here as on its detail page.
+    Must run inside that guild's routed context — ids are per-schema, and the
+    routed session is what decides: a thing the reader may not read does not
+    load, so its tab is dropped, the same verdict its detail page reaches.
     """
     context = require_guild_context(session)
     ids_by_type = recent_views_service.group_ids_by_type(rows)
 
-    # One eager-load per tool that actually appears in this batch. Every
-    # recentable tool is a DAC resource with the same ``grants`` + ``initiative``
-    # shape, so the query is identical apart from the model.
+    # One query per tool that actually appears in this batch, reading the row
+    # alone: a tab shows a name, so nothing about its sharing is loaded.
     loaded: Dict[str, Dict[int, Any]] = {}
     for tool, spec in RECENT_TOOL_SPECS.items():
         ids = ids_by_type.get(tool.value)
         if not ids:
             continue
         model = spec.model
-        stmt = (
-            select(model)
-            .where(model.id.in_(ids))
-            .options(
-                selectinload(model.grants).selectinload(ResourceGrant.role),
-                selectinload(model.initiative),
-                undefer(model.actions),
-            )
-        )
-        result = await session.exec(stmt)
+        result = await session.exec(select(model).where(model.id.in_(ids)))
         loaded[tool.value] = {row.id: row for row in result.all()}
 
     items: List[RecentItemRead] = []
@@ -141,17 +129,6 @@ async def _enrich_recent_rows(
         tool, spec = entry
         entity = loaded.get(row.entity_type, {}).get(row.entity_id)
         if entity is None:
-            continue
-        try:
-            permissions_service.require_access(
-                permissions_service.DAC_RESOURCES[tool],
-                entity,
-                context=context,
-                access="read",
-            )
-        except HTTPException:
-            # Permission denied / not found — drop the row from the bar but let
-            # any other error bubble up so latent bugs stay visible.
             continue
         items.append(
             # ``model_construct`` skips the SanitizedBaseModel validator so
@@ -211,6 +188,38 @@ async def list_recents(
     items = await gather_across_guilds(session, current_user.id, member_guilds, _fetch)
     items.sort(key=lambda item: item.last_viewed_at, reverse=True)
     return items[:limit]
+
+
+@guild_router.post("/{entity_type}/{entity_id}", response_model=RecentViewWrite)
+async def record_recent(
+    entity_type: RecentEntityType,
+    entity_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> RecentViewWrite:
+    """Open a tab: record that the caller opened this entity.
+
+    Takes read access, the same the entity's own page takes, and refuses in
+    the tool's own words. A PAM grantee's browsing is transient by design and
+    is not stored.
+    """
+    row = await resource_access.load_authorized(
+        session, Tool(entity_type.value), entity_id, current_user, guild_context
+    )
+    record = await recent_views_service.record_view(
+        session,
+        user_id=current_user.id,
+        entity_type=entity_type,
+        entity_id=row.id,
+        persist=not guild_context.is_pam,
+        limit=current_user.recent_tabs_limit,
+    )
+    return RecentViewWrite(
+        entity_type=entity_type,
+        entity_id=row.id,
+        last_viewed_at=record.last_viewed_at,
+    )
 
 
 @guild_router.delete(

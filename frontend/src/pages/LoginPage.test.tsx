@@ -425,6 +425,14 @@ describe("LoginPage passkey", () => {
     expect(mocks.signInWithPasskey).not.toHaveBeenCalled();
   });
 
+  it("says so where no way in is offered, rather than showing an empty card", async () => {
+    mocks.config = { passwordLoginEnabled: false, passkeyLoginEnabled: false };
+    renderLogin();
+
+    expect(await screen.findByText(/offers no way to sign in/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
+  });
+
   it("takes one fresh turn in autofill when the challenge it waited on has lapsed", async () => {
     mocks.browserOffersPasskeyAutofill.mockResolvedValue(true);
     mocks.signInWithPasskey.mockRejectedValue(lapsedChallenge());
@@ -457,6 +465,9 @@ describe("LoginPage passkey", () => {
     renderLogin();
 
     await user.click(await passkeyButton());
+    // The click only starts the trip: the device name and the challenge's
+    // digest are awaited before the browser opens.
+    await waitFor(() => expect(Browser.open).toHaveBeenCalledTimes(1));
 
     // The browser is sent the challenge of a sign-in this app has written down,
     // so the code it hands back can only be redeemed here.

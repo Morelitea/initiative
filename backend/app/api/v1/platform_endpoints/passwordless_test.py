@@ -27,6 +27,7 @@ from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import email_outbox
 from app.services.auth import sessions as session_service
+from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import user_tokens
@@ -206,14 +207,81 @@ async def test_the_only_way_in_stays(client: AsyncClient, session: AsyncSession)
 async def test_removing_re_checks_the_password(
     client: AsyncClient, session: AsyncSession
 ):
+    """Wrong answers count against the account, as they do at sign-in: once it
+    is locked, the right password is refused too."""
     user = await _account(session, "pl-wrongpw@example.com")
     await _seed_passkey(session, user)
 
+    for _ in range(sign_in_locks.LOCK_AFTER_FAILURES):
+        response = await client.post(
+            REMOVE, json={"current_password": "not-it"}, headers=get_auth_headers(user)
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
+
     response = await client.post(
-        REMOVE, json={"current_password": "not-it"}, headers=get_auth_headers(user)
+        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
     )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
+    assert response.status_code == 429
+    assert response.json()["detail"] == "SIGN_IN_LOCKED"
+
+
+async def test_the_right_password_starts_the_count_over(
+    client: AsyncClient, session: AsyncSession
+):
+    """As a sign-in does: wrong answers either side of a right one do not add
+    up to a lock."""
+    user = await _account(session, "pl-recount@example.com")
+
+    async def begin(password: str) -> Response:
+        return await client.post(
+            "/api/v1/auth/passkeys/register/begin",
+            headers=get_auth_headers(user),
+            json={"current_password": password, "name": "Laptop"},
+        )
+
+    for _ in range(2):
+        for _ in range(sign_in_locks.LOCK_AFTER_FAILURES - 1):
+            response = await begin("not-it")
+            assert response.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
+        response = await begin(PASSWORD)
+        assert response.status_code == 200, response.text
+
+
+async def test_the_allowance_is_the_account_s_not_the_address_s(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Two accounts behind one address: one running out leaves the other its
+    own allowance."""
+    from app.core.rate_limit import limiter
+
+    monkeypatch.setattr(limiter, "enabled", True)
+    monkeypatch.setattr(limiter, "_default_limits", [])
+    limiter.reset()
+    spent = await _account(session, "pl-spent@example.com")
+    neighbour = await _account(session, "pl-neighbour@example.com")
+
+    try:
+        for _ in range(5):
+            response = await client.post(
+                REMOVE,
+                json={"current_password": PASSWORD},
+                headers=get_auth_headers(spent),
+            )
+            assert response.status_code == 409
+        response = await client.post(
+            REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(spent)
+        )
+        assert response.status_code == 429
+
+        response = await client.post(
+            REMOVE,
+            json={"current_password": PASSWORD},
+            headers=get_auth_headers(neighbour),
+        )
+        assert response.status_code == 409
+    finally:
+        limiter.reset()
 
 
 async def test_an_account_holding_none_has_nothing_to_remove(
@@ -759,6 +827,19 @@ async def _set_a_password(
     )
 
 
+async def _turn_off_the_factor(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    from app.models.platform.user_totp import UserTotp
+
+    session.add(UserTotp(user_id=user.id, confirmed_at=datetime.now(timezone.utc)))
+    await session.commit()
+    codes = await _issue_codes(session, user)
+    return await client.post(
+        "/api/v1/auth/totp/disable", headers=headers, json={"recovery_code": codes[0]}
+    )
+
+
 _GATED = [
     ("delete-account", _delete_account, 200),
     ("enrol-a-factor", _enrol_a_factor, 200),
@@ -767,6 +848,7 @@ _GATED = [
     ("remove-a-passkey", _remove_passkey, 204),
     ("re-issue-the-codes", _regenerate_codes, 200),
     ("set-a-password", _set_a_password, 200),
+    ("turn-off-the-factor", _turn_off_the_factor, 204),
 ]
 
 
@@ -846,6 +928,69 @@ async def test_a_session_resumed_from_a_device_token_is_not_a_sign_in(
     response = await _regenerate_codes(client, session, user, headers)
     assert response.status_code == 403, response.text
     assert response.json()["detail"] == "RECENT_PROOF_REQUIRED"
+
+
+async def _withdraw_passwords(session: AsyncSession) -> None:
+    """Leave the deployment signing nobody in with a password."""
+    row = await app_settings_service.get_app_settings(session)
+    row.login_methods = ["sso", "totp", "passkey"]
+    session.add(row)
+    await session.commit()
+
+
+async def _remove_the_password(
+    client: AsyncClient, session: AsyncSession, user: User, headers: dict[str, str]
+) -> Response:
+    await _seed_passkey(session, user)
+    return await client.post(REMOVE, headers=headers, json={})
+
+
+# Re-issuing codes asks a password holder to be enrolled first, which is not
+# this question; giving the password up is asked of password holders only.
+_GATED_FOR_A_HELD_PASSWORD = [
+    row for row in _GATED if row[0] != "re-issue-the-codes"
+] + [("remove-the-password", _remove_the_password, 200)]
+
+
+@pytest.mark.parametrize(
+    "slug,route,ok",
+    _GATED_FOR_A_HELD_PASSWORD,
+    ids=[row[0] for row in _GATED_FOR_A_HELD_PASSWORD],
+)
+async def test_a_password_nobody_signs_in_with_is_not_asked_for(
+    client: AsyncClient, session: AsyncSession, slug: str, route, ok: int
+):
+    """Where the deployment takes no password, one the account still holds is
+    not a way in, so a recent sign-in answers in its place — and one of a
+    while ago does not."""
+    await _withdraw_passwords(session)
+    fresh = await _account(session, f"nopw-fresh-{slug}@example.com")
+    stale = await _account(session, f"nopw-stale-{slug}@example.com")
+
+    answered = await route(client, session, fresh, await _proof_headers(session, fresh))
+    refused = await route(
+        client, session, stale, await _proof_headers(session, stale, minutes_ago=11)
+    )
+
+    assert answered.status_code == ok, answered.text
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == "RECENT_PROOF_REQUIRED"
+
+
+async def test_the_account_says_whether_its_password_is_asked_for(
+    client: AsyncClient, session: AsyncSession
+):
+    """What the confirmation forms read to decide whether to show the field."""
+    user = await _account(session, "pl-required@example.com")
+    headers = get_auth_headers(user)
+
+    before = await client.get("/api/v1/users/me", headers=headers)
+    await _withdraw_passwords(session)
+    after = await client.get("/api/v1/users/me", headers=headers)
+
+    assert before.json()["password_required"] is True
+    assert after.json()["has_password"] is True
+    assert after.json()["password_required"] is False
 
 
 async def test_an_account_holding_a_password_answers_with_it_instead(

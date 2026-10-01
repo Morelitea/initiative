@@ -18,6 +18,7 @@
   "allDay": "All day",
   "color": "Color",
   "attendees": "Attendees",
+  "repeat": "Repeat",
   "addAttendee": "Add attendee",
   "noAttendees": "No attendees",
   "rsvp": "RSVP",
@@ -39,7 +40,10 @@
   "dangerZone": "Danger Zone",
   "detailsUpdated": "Details updated",
   "filters": {
-    "heading": "Filters"
+    "heading": "Filters",
+    "dates": "Dates",
+    "searchLabel": "Name or description",
+    "searchCalendars": "Search calendars..."
   },
   "loading": "Loading...",
   "loadError": "Failed to load events",
@@ -102,5 +106,33 @@
     "title": "Community calendar",
     "empty": "No calendars yet.",
     "emptyHint": "Add one for holidays, for a recurring meetup, or just for yourself."
+  },
+  "scope": {
+    "title": {
+      "edit": "Change a repeating event",
+      "delete": "Delete a repeating event"
+    },
+    "description": "This event repeats. Which events is this for?",
+    "this": "Just this event",
+    "following": "Events after this point",
+    "all": "All events in the series",
+    "confirm": {
+      "edit": "Save",
+      "delete": "Delete"
+    }
+  },
+  "occurrence": {
+    "partOfSeries": "One occurrence of a repeating event.",
+    "openSeries": "Open the series",
+    "detach": "Make this its own event",
+    "detached": "This occurrence is now its own event.",
+    "followsSeries": "This occurrence repeats with its series. Change how it repeats from the series.",
+    "skipped": "Skipped dates",
+    "extra": "Extra dates",
+    "restore": "Restore",
+    "restored": "Date restored.",
+    "addDate": "Add a date",
+    "added": "Date added.",
+    "openAlone": "Change just this occurrence"
   }
 }

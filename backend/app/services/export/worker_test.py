@@ -18,7 +18,12 @@ from app.services.export import engine as export_engine
 from app.services.export import limits as export_limits
 from app.services.export import worker as export_worker
 from app.services.import_engine import atlassian
-from app.testing import create_export_job, create_task, route_session_to_guild
+from app.testing import (
+    create_export_job,
+    create_task,
+    route_session_to_guild,
+    drain_notices,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +51,7 @@ async def _notices(
     job_id: int,
     kind: NotificationType = NotificationType.export_ready,
 ) -> int:
+    await drain_notices()
     rows = await session.exec(
         select(Notification).where(Notification.user_id == user_id)
     )
@@ -108,7 +114,9 @@ async def test_a_render_that_lost_its_row_writes_nothing(
             row.updated_at = datetime.now(timezone.utc)
             session.add(row)
             await session.commit()
-            return export_engine.ArtifactLocation(artifact_ref="exports/lost.pdf")
+            return frozenset(), export_engine.ArtifactLocation(
+                artifact_ref="exports/lost.pdf"
+            )
         return await real_execute(
             bookkeeping, running, guild_id=guild_id, heartbeat=heartbeat
         )

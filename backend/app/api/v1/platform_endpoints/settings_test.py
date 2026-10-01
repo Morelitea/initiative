@@ -1,7 +1,7 @@
 """Tests for the platform settings endpoints.
 
 The page is several surfaces behind one router: the SMTP test-email path
-(pentest SEC-16 — a failed delivery answers with a machine-readable code and
+(a failed delivery answers with a machine-readable code and
 keeps the mail host in the server log), the OIDC claim-mapping editor, the
 operator's Guilds tab (caps, lifecycle status, sign-in entitlements, the
 billing handoff), object storage, the community directory and how long a
@@ -33,6 +33,7 @@ from app.testing import (
     create_project,
     create_user,
     guild_administration,
+    drain_notices,
 )
 from sqlmodel import select
 from app.db.request_context import SystemGuild, Unattributed
@@ -264,6 +265,7 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
     assert nudged == [guild_id, guild_id]
 
     session.expire_all()
+    await drain_notices()
     notices = (
         await session.exec(
             select(Notification).where(
@@ -474,10 +476,9 @@ _S3_PAYLOAD = {
     "s3_bucket": "my-bucket",
     "s3_region": "eu-west-1",
     "s3_endpoint_url": "https://s3.example.com",
-    "s3_access_key_id": "AKIAEXAMPLE",
+    "s3_access_key_id": "GKEXAMPLE",
     "s3_secret_access_key": "super-secret-value",
     "s3_use_path_style": True,
-    "s3_kms_key_id": None,
     "s3_local_fallback": True,
 }
 
@@ -1036,16 +1037,16 @@ async def test_the_session_limit_starts_unset(client: AsyncClient, owner):
 
 
 async def test_an_owner_sets_and_clears_the_session_limit(client: AsyncClient, owner):
-    set_it = await client.put(
-        "/api/v1/settings/auth/session-lifetime",
+    set_it = await client.patch(
+        "/api/v1/settings/auth/platform",
         json={"session_max_hours": 12},
         headers=owner.headers,
     )
     assert set_it.status_code == 200, set_it.text
     assert set_it.json()["session_max_hours"] == 12
 
-    cleared = await client.put(
-        "/api/v1/settings/auth/session-lifetime",
+    cleared = await client.patch(
+        "/api/v1/settings/auth/platform",
         json={"session_max_hours": None},
         headers=owner.headers,
     )
@@ -1053,8 +1054,8 @@ async def test_an_owner_sets_and_clears_the_session_limit(client: AsyncClient, o
 
 
 async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
-    response = await client.put(
-        "/api/v1/settings/auth/session-lifetime",
+    response = await client.patch(
+        "/api/v1/settings/auth/platform",
         json={"session_max_hours": 0},
         headers=owner.headers,
     )
@@ -1089,8 +1090,8 @@ _ROUTES: list[tuple[str, str, str, dict | None]] = [
     ),
     (
         _CONFIG_MANAGE,
-        "put",
-        "/api/v1/settings/auth/session-lifetime",
+        "patch",
+        "/api/v1/settings/auth/platform",
         {"session_max_hours": 12},
     ),
     (_GUILDS_MANAGE, "get", GUILDS, None),
@@ -1249,7 +1250,7 @@ _COLOURS = {"light_accent_color": "#123456", "dark_accent_color": "#abcdef"}
 async def test_cookie_consent_starts_off(client, owner):
     """A deployment nobody arrives at uninvited is not asked to explain itself
     to arrivals. An owner running a public front door turns it on."""
-    response = await client.get(INTERFACE, headers=owner.headers)
+    response = await client.get("/api/v1/config")
 
     assert response.status_code == 200, response.text
     assert response.json()["cookie_consent_enabled"] is False

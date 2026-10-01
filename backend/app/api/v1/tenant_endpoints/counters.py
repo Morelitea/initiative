@@ -14,6 +14,8 @@ from fastapi import (
     status,
 )
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.db.session import routed_guild_id
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -41,12 +43,14 @@ from app.schemas.tenant.counter import (
     CounterGroupUpdate,
     CounterRead,
     CounterSetCountRequest,
+    CounterStepRequest,
     CounterSortRequest,
     CounterUpdate,
     serialize_counter,
     _validate_counter_constraints,
 )
 from app.schemas.tenant.tool import serialize_tool
+from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import counters as counters_service
 from app.api import resource_access
@@ -57,11 +61,11 @@ from app.api.content_socket import serve_tool_stream
 
 router = APIRouter(route_class=ActorRoute)
 
-#: Flat read-back route, mounted at the guild root. An event envelope names
-#: ``(resource_type, id)`` and nothing else, so the resource has to be
-#: addressable by its own id — a nested path would need a parent the envelope
-#: never carries. Writes stay nested under their group, where the caller is
-#: already working inside one.
+#: A counter's own routes, mounted at the guild root: the read-back and the
+#: three count writes. An event envelope names ``(resource_type, id)`` and
+#: nothing else, so the counter has to be addressable by its own id — a nested
+#: path would need a parent the envelope never carries. Editing and removing a
+#: counter stay nested under its group, where the caller is working inside one.
 counters_router = APIRouter(route_class=ActorRoute)
 logger = logging.getLogger(__name__)
 
@@ -161,6 +165,7 @@ async def create_counter_group(
         grants=group_in.grants,
     )
     await attachments_service.claim_uploads(session, group)
+    await properties_service.write_on_create(session, group, group_in.properties)
     await session.commit()
 
     hydrated = await _refetch_group(session, group.id)
@@ -322,6 +327,7 @@ async def add_counter(
         position=counter_in.position,
     )
     session.add(counter)
+    await properties_service.write_on_create(session, counter, counter_in.properties)
     await session.commit()
 
     hydrated = await counters_service.get_counter(
@@ -525,96 +531,79 @@ async def read_counter(
     return serialize_counter(counter, context=guild_context)
 
 
-@router.post("/{group_id}/counters/{counter_id}/set", response_model=CounterRead)
+async def _writable_counter(
+    session: AsyncSession,
+    counter_id: int,
+    current_user: User | None,
+    guild_context: ActorContext,
+) -> Counter:
+    """A live counter the caller may write, addressed by its own id.
+
+    Authorized on the group it belongs to, as reading it is.
+    """
+    counter = await counters_service.get_counter(session, counter_id)
+    if counter is None or counter.deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
+        )
+    await resource_access.load_authorized(
+        session,
+        Tool.counter_group,
+        counter.counter_group_id,
+        current_user,
+        guild_context,
+        access="write",
+    )
+    return counter
+
+
+@counters_router.post("/counters/{counter_id}/set", response_model=CounterRead)
 async def set_counter_count(
-    group_id: int,
     counter_id: int,
     payload: CounterSetCountRequest,
     session: ActorSessionDep,
     current_user: ActorUserDep,
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-    )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
+    """Put a counter at a number, held within its bounds."""
+    counter = await _writable_counter(session, counter_id, current_user, guild_context)
     await counters_service.set_count(session, counter, payload.count)
     return await _commit_and_broadcast_count(
-        session, group_id, counter, context=guild_context
+        session, counter.counter_group_id, counter, context=guild_context
     )
 
 
-@router.post("/{group_id}/counters/{counter_id}/increment", response_model=CounterRead)
-async def increment_counter(
-    group_id: int,
+@counters_router.post("/counters/{counter_id}/step", response_model=CounterRead)
+async def step_counter(
     counter_id: int,
+    payload: CounterStepRequest,
     session: ActorSessionDep,
     current_user: ActorUserDep,
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
+    """Move a counter up or down, by ``amount`` or by its own step, held within
+    its bounds. Two steps landing together each count."""
+    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    await counters_service.step_counter(
+        session, counter.id, up=payload.direction == "up", amount=payload.amount
     )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
-    await counters_service.increment_counter(session, counter)
     return await _commit_and_broadcast_count(
-        session, group_id, counter, context=guild_context
+        session, counter.counter_group_id, counter, context=guild_context
     )
 
 
-@router.post("/{group_id}/counters/{counter_id}/decrement", response_model=CounterRead)
-async def decrement_counter(
-    group_id: int,
-    counter_id: int,
-    session: ActorSessionDep,
-    current_user: ActorUserDep,
-    guild_context: CounterGroupsWrite,
-) -> CounterRead:
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-    )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
-    await counters_service.decrement_counter(session, counter)
-    return await _commit_and_broadcast_count(
-        session, group_id, counter, context=guild_context
-    )
-
-
-@router.post("/{group_id}/counters/{counter_id}/reset", response_model=CounterRead)
+@counters_router.post("/counters/{counter_id}/reset", response_model=CounterRead)
 async def reset_counter(
-    group_id: int,
     counter_id: int,
     session: ActorSessionDep,
     current_user: ActorUserDep,
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-    )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
+    """Put a counter back to the value it starts from."""
+    counter = await _writable_counter(session, counter_id, current_user, guild_context)
     await counters_service.reset_counter(session, counter)
     return await _commit_and_broadcast_count(
-        session, group_id, counter, context=guild_context
+        session, counter.counter_group_id, counter, context=guild_context
     )
 
 

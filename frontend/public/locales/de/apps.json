@@ -228,7 +228,8 @@
       "tags": "Tags",
       "sharing": "Freigaben",
       "members": "Mitglieder",
-      "initiatives": "Initiativen"
+      "initiatives": "Initiativen",
+      "guild": "Community"
     },
     "sentences": {
       "projects": {
@@ -287,7 +288,11 @@
         "read": "Sehen, wer in deiner Community ist"
       },
       "initiatives": {
-        "read": "Die Initiativen deiner Community sehen"
+        "read": "Die Initiativen deiner Community sehen",
+        "moderate": "In den Initiativen, in denen sie platziert ist, als Moderator handeln"
+      },
+      "guild": {
+        "admin": "In deiner gesamten Community als Administrator handeln"
       },
       "fallback": {
         "read": "{{resource}} lesen",

@@ -1,11 +1,10 @@
 import { useTranslation } from "react-i18next";
 
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { DocumentType } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentType, type Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
-import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
-import { PropertyFilter } from "@/components/properties/PropertyFilter";
-import { TagPicker } from "@/components/tags/TagPicker";
+import { PropertyFilterParam } from "@/components/properties/PropertyFilter";
+import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
+import type { ToolFilterFieldsProps } from "@/components/tools/ToolFilterFields";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,9 +15,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** "All" is a sentinel: the underlying filters are absent, not a value. */
-export const ALL_DOCUMENT_TYPES = "all" as const;
-export type DocumentTypeFilter = DocumentType | typeof ALL_DOCUMENT_TYPES;
+/** "All" is a sentinel: the underlying filter is absent, not a value. */
+const ALL_DOCUMENT_TYPES = "all";
 
 /** Order the types are offered in — native first, since it's the common case. */
 const DOCUMENT_TYPE_OPTIONS = [
@@ -29,51 +27,24 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: DocumentType.smart_link, labelKey: "page.typeSmartLink" },
 ] as const;
 
-export interface DocumentsFilterBarProps {
-  searchQuery: string;
-  onSearchQueryChange: (value: string) => void;
-  filtersOpen: boolean;
-  onFiltersOpenChange: (open: boolean) => void;
-  viewMode: "grid" | "list" | "tags";
-  tagFilters: TagSummary[];
-  onTagFiltersChange: (tags: TagSummary[]) => void;
-  documentTypeFilter: DocumentTypeFilter;
-  onDocumentTypeFilterChange: (value: DocumentTypeFilter) => void;
-  propertyFilters: PropertyFilterCondition[];
-  onPropertyFiltersChange: (next: PropertyFilterCondition[]) => void;
-  /** How many filters are currently set — tells "Clear all" whether it has
-   *  anything to do. */
-  activeCount?: number;
-  /** Resets search, tags, type, and property conditions — offered in the
-   *  sheet. */
-  onClear?: () => void;
-}
+type DocumentFilterFieldsProps = ToolFilterFieldsProps<typeof Tool.document> & {
+  /** Off where tags are browsed some other way (the tag tree). */
+  tags?: boolean;
+};
 
-export const DocumentsFilterBar = ({
-  searchQuery,
-  onSearchQueryChange,
-  filtersOpen,
-  onFiltersOpenChange,
-  viewMode,
-  tagFilters,
-  onTagFiltersChange,
-  documentTypeFilter,
-  onDocumentTypeFilterChange,
-  propertyFilters,
-  onPropertyFiltersChange,
-  onClear,
-  activeCount,
-}: DocumentsFilterBarProps) => {
-  const { t } = useTranslation("documents");
+/** What the documents list narrows by: a search, tags, a type, and property
+ *  conditions. */
+export const DocumentFilterFields = ({
+  value,
+  onChange,
+  initiativeId,
+  tags = true,
+  children,
+}: DocumentFilterFieldsProps) => {
+  const { t } = useTranslation(["documents", "tags"]);
 
   return (
-    <ToolFilterPanel
-      open={filtersOpen}
-      onOpenChange={onFiltersOpenChange}
-      title={t("page.filters")}
-      onClear={onClear}
-      activeCount={activeCount}
-    >
+    <>
       <div className="flex flex-wrap items-end gap-4">
         <div className="w-full space-y-2 sm:flex-1">
           <Label
@@ -86,11 +57,11 @@ export const DocumentsFilterBar = ({
             id="document-search"
             type="search"
             placeholder={t("page.searchPlaceholder")}
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
+            value={value.search ?? ""}
+            onChange={(event) => onChange({ ...value, search: event.target.value })}
           />
         </div>
-        {viewMode !== "tags" && (
+        {tags && (
           <div className="w-full space-y-2 sm:w-48">
             <Label
               htmlFor="document-tag-filter"
@@ -98,11 +69,11 @@ export const DocumentsFilterBar = ({
             >
               {t("page.filterByTag")}
             </Label>
-            <TagPicker
-              selectedTags={tagFilters}
-              onChange={onTagFiltersChange}
+            <TagFilterPicker
+              id="document-tag-filter"
+              tagIds={value.tag_ids ?? []}
+              onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
               placeholder={t("page.allTags")}
-              variant="filter"
             />
           </div>
         )}
@@ -114,8 +85,13 @@ export const DocumentsFilterBar = ({
             {t("page.filterByType")}
           </Label>
           <Select
-            value={documentTypeFilter}
-            onValueChange={(value) => onDocumentTypeFilterChange(value as DocumentTypeFilter)}
+            value={value.document_type ?? ALL_DOCUMENT_TYPES}
+            onValueChange={(next) =>
+              onChange({
+                ...value,
+                document_type: next === ALL_DOCUMENT_TYPES ? undefined : (next as DocumentType),
+              })
+            }
           >
             <SelectTrigger id="document-type-filter">
               <SelectValue />
@@ -130,8 +106,46 @@ export const DocumentsFilterBar = ({
             </SelectContent>
           </Select>
         </div>
+        {children}
       </div>
-      <PropertyFilter value={propertyFilters} onChange={onPropertyFiltersChange} />
+      <PropertyFilterParam
+        value={value.property_filters}
+        onChange={(next) => onChange({ ...value, property_filters: next })}
+        initiativeId={initiativeId}
+      />
+    </>
+  );
+};
+
+export interface DocumentsFilterBarProps extends DocumentFilterFieldsProps {
+  filtersOpen: boolean;
+  onFiltersOpenChange: (open: boolean) => void;
+  /** How many filters are currently set — tells "Clear all" whether it has
+   *  anything to do. */
+  activeCount?: number;
+  /** Resets search, tags, type, and property conditions — offered in the
+   *  sheet. */
+  onClear?: () => void;
+}
+
+export const DocumentsFilterBar = ({
+  filtersOpen,
+  onFiltersOpenChange,
+  onClear,
+  activeCount,
+  ...fields
+}: DocumentsFilterBarProps) => {
+  const { t } = useTranslation("documents");
+
+  return (
+    <ToolFilterPanel
+      open={filtersOpen}
+      onOpenChange={onFiltersOpenChange}
+      title={t("page.filters")}
+      onClear={onClear}
+      activeCount={activeCount}
+    >
+      <DocumentFilterFields {...fields} />
     </ToolFilterPanel>
   );
 };

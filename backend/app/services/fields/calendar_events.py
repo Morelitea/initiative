@@ -13,9 +13,18 @@ from app.core.tools import Tool
 from app.services.fields.derive import derive_fields
 from app.services.fields.spec import Dataset, Hop, Relation
 
-#: A recurrence rule is an instruction to the calendar, not a value anybody
-#: narrows a list by.
-_INTERNAL = frozenset({"recurrence"})
+#: A recurrence rule and its end are instructions to the calendar, not values
+#: anybody narrows a list by.
+_INTERNAL = frozenset(
+    {
+        "recurrence",
+        "recurrence_until",
+        "recurrence_shift",
+        "series_id",
+        "original_start",
+        "overridden_fields",
+    }
+)
 
 
 def build() -> Dataset:

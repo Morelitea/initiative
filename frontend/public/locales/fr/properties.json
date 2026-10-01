@@ -48,7 +48,7 @@
   },
   "manager": {
     "title": "Propriétés personnalisées",
-    "description": "Définissez des métadonnées réutilisables pour les documents, les tâches et les événements de cette initiative.",
+    "description": "Définissez des métadonnées réutilisables pour tout élément de cette initiative.",
     "newDefinition": "Nouvelle propriété",
     "editDefinition": "Modifier la propriété",
     "nameLabel": "Nom",
@@ -60,7 +60,7 @@
     "colorLabel": "Couleur",
     "delete": "Supprimer la propriété",
     "deleteConfirmTitle": "Supprimer cette propriété ?",
-    "deleteConfirmBody": "Cela supprimera la propriété et toutes les valeurs associées aux documents, tâches et événements.",
+    "deleteConfirmBody": "Cela supprimera la propriété et toutes ses valeurs dans cette initiative.",
     "orphanedWarning": "{{count}} valeurs existantes font référence à des options supprimées. Elles s'afficheront comme « Option inconnue » jusqu'à leur mise à jour.",
     "createError": "Échec de la création de la propriété",
     "updateError": "Échec de la mise à jour de la propriété",

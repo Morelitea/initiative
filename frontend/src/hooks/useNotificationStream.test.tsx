@@ -1,13 +1,18 @@
+import type { InfiniteData } from "@tanstack/react-query";
 import { render, renderHook, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import { buildNotification, buildUser } from "@/__tests__/factories";
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { setAuthToken } from "@/api/client";
-import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { NotificationListResponse, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { getListNotificationsApiV1NotificationsGetQueryKey } from "@/api/generated/notifications/notifications";
 import { q } from "@/api/query-keys";
 import { AuthContext } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
 
 import { useNotificationStream, useNotificationStreamConnected } from "./useNotificationStream";
 
@@ -44,7 +49,6 @@ describe("useNotificationStream", () => {
 
   afterEach(() => {
     setAuthToken(null);
-    vi.unstubAllGlobals();
   });
 
   it("connects to the user-scoped stream, with no guild in the address", () => {
@@ -76,6 +80,55 @@ describe("useNotificationStream", () => {
     socket.receive({ resource: "notification", action: "created", ids: {} });
 
     expect(timesNamed(q.notifications())).toBe(1);
+  });
+
+  it("reads only the popover's first page when a line arrives", async () => {
+    // The popover's own key, as `useAllUnreadNotifications` builds it.
+    const inboxKey = [
+      ...getListNotificationsApiV1NotificationsGetQueryKey({ limit: 50, unread_only: true }),
+      "history",
+    ];
+    const held = Array.from({ length: 60 }, () => buildNotification());
+    queryClient.setQueryData<InfiniteData<NotificationListResponse>>(inboxKey, {
+      pages: [
+        { notifications: held.slice(0, 50), unread_count: 60, next_cursor: "c1" },
+        { notifications: held.slice(50), unread_count: null, next_cursor: null },
+      ],
+      pageParams: [undefined, "c1"],
+    });
+    const arrived = buildNotification();
+    let unread = 61;
+    const cursors: (string | null)[] = [];
+    server.use(
+      http.get("/api/v1/notifications/", ({ request }) => {
+        cursors.push(new URL(request.url).searchParams.get("cursor"));
+        return HttpResponse.json({
+          notifications: [arrived, ...held.slice(0, 49)],
+          unread_count: unread,
+          next_cursor: "c2",
+        });
+      })
+    );
+    const heldIds = () =>
+      queryClient
+        .getQueryData<InfiniteData<NotificationListResponse>>(inboxKey)
+        ?.pages.flatMap((page) => page.notifications.map((row) => row.id));
+    renderWithProviders(<Probe />);
+    const socket = latestSocket();
+    socket.open();
+
+    socket.receive({ resource: "notification", action: "created", ids: {} });
+
+    await waitFor(() => expect(heldIds()).toEqual([arrived.id, ...held.map((row) => row.id)]));
+    expect(cursors).toEqual([null]);
+
+    // A line read further down leaves a row held here that the server no
+    // longer counts, so the popover is read whole.
+    unread = 59;
+    socket.receive({ resource: "notification", action: "created", ids: {} });
+
+    await waitFor(() => expect(queryClient.getQueryState(inboxKey)?.isInvalidated).toBe(true));
+    queryClient.clear();
   });
 
   it("catches up on connect, since nothing signalled while the socket was down", () => {
@@ -343,10 +396,6 @@ describe("useNotificationStreamConnected", () => {
   beforeEach(() => {
     MockWebSocket.instances = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
   });
 
   it("reports the socket state to consumers outside the hook's own tree", async () => {

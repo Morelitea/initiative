@@ -5,8 +5,7 @@ Every initiative has a built-in ``moderator`` role carrying
 initiative regardless of per-item sharing, and may manage sharing — the gate-4
 (DAC) override, scoped to one initiative (the initiative-scoped sibling of the
 guild-admin override). A guild admin is the one who puts somebody on it, and a
-guild admin joining an initiative lands on it. See
-history/initiative-admin-override-design.md.
+guild admin joining an initiative lands on it.
 """
 
 from httpx import AsyncClient
@@ -186,11 +185,12 @@ async def test_moderator_reaches_restricted_content(
 # ── Who may hand out the role ────────────────────────────────────────────────
 
 
-async def test_only_a_guild_admin_puts_a_member_on_the_moderator_role(
+async def test_only_a_guild_admin_moves_a_member_on_or_off_the_moderator_role(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A project manager may edit roles and staff the initiative; the one role
-    a community admin keeps for themselves is the one carrying Full access."""
+    a community admin keeps for themselves is the one carrying Full access —
+    putting somebody on it, and taking them off it again."""
     admin, owner, pm, guild, initiative = await _setup(session, acting_user)
     moderator = await _role_by_name(session, initiative, "moderator")
 
@@ -221,6 +221,36 @@ async def test_only_a_guild_admin_puts_a_member_on_the_moderator_role(
     )
     assert resp.status_code == 200, resp.text
     assert (await _role_of(session, initiative, joiner.user)).name == "moderator"
+
+    # A project manager can neither demote the moderator, by either route, nor
+    # remove them.
+    member = await _role_by_name(session, initiative, "member")
+    members_url = f"/api/v1/c/{guild.id}/initiatives/{initiative.id}/members"
+    for resp in (
+        await client.patch(
+            f"{members_url}/{joiner.user.id}",
+            headers=pm.headers,
+            json={"role_id": member.id},
+        ),
+        await client.post(
+            members_url,
+            headers=pm.headers,
+            json={"user_id": joiner.user.id, "role_id": member.id},
+        ),
+        await client.delete(f"{members_url}/{joiner.user.id}", headers=pm.headers),
+    ):
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
+    assert (await _role_of(session, initiative, joiner.user)).name == "moderator"
+
+    # A community admin can.
+    resp = await client.patch(
+        f"{members_url}/{joiner.user.id}",
+        headers=admin.headers,
+        json={"role_id": member.id},
+    )
+    assert resp.status_code == 200, resp.text
+    assert (await _role_of(session, initiative, joiner.user)).name == "member"
 
 
 async def test_moderator_permissions_are_not_editable(

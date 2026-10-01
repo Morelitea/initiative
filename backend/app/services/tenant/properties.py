@@ -1,119 +1,181 @@
-"""Service layer for custom property definitions and values.
+"""Custom properties on every tool and sub-tool — the one seam.
+
+Every tool and every sub-tool (``PROPERTY_TARGETS``) may carry a value for any
+property defined in its initiative. The values live in one table,
+``property_values``, addressed by ``(entity_type, entity_id)``; this module is
+the only code that turns a target into behaviour. :data:`PROPERTY_LINKS` holds
+one :class:`PropertyLinkSpec` per target, derived from the registries the
+policies are rendered from, and every surface — the write route, the read
+field, list filters, copying and moving — reads it.
 
 Responsibilities:
-* Validate raw input values against a PropertyDefinition's type and
-  return the dict of typed columns to set on a value row.
-* Replace-all attach of property values on documents, tasks, and
-  calendar events.
-* Serialize attached values to the ``PropertySummary`` API shape.
-* Shared helpers for list-endpoint property filter predicates.
+* Validate raw input values against a definition's type and return the typed
+  columns to store.
+* Replace-all writes, the annotation every serializer reads, and the copy and
+  drop a duplicate, an occurrence, a move or a purge asks for.
+* List filter predicates over the value table.
 
-The caller owns session lifecycle (commit) — these functions only issue
-the in-transaction INSERT/DELETE statements; RLS context replays
-automatically on each transaction.
+The caller owns session lifecycle (commit) — these functions only issue the
+in-transaction statements; RLS context replays automatically on each
+transaction.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+)
 
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 from pydantic_core import PydanticCustomError
-from sqlalchemy import func, true
+from sqlalchemy import exists, func, insert, literal, true
+from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.identity_boundary import current_install_boundary
-from app.core.messages import AppMessages, PropertyMessages
+from app.core.messages import AppMessages, PropertyMessages, QueryMessages
+from app.core.tools import PROPERTY_TARGETS, Tool
+from app.db.initiative_rls import entity_tables, governing_path
 from app.models.platform.identity_ref import IdentityEntity
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.document import Document
 from app.models.tenant.property import (
-    CalendarEventPropertyValue,
-    DocumentPropertyValue,
+    VALUE_COLUMNS,
     PropertyDefinition,
     PropertyType,
-    TaskPropertyValue,
+    PropertyValue,
 )
-from app.models.tenant.task import Task
 from app.schemas.tenant.property import (
     PropertyOption,
     PropertySummary,
     PropertyValueInput,
 )
-from app.core.tools import Tool
 from app.services.tenant import named_people
 
 # Cap on the number of property predicates accepted by list endpoints.
-# Bounds the per-request subquery count against each entity's value table.
+# Bounds the per-request subquery count against the value table.
 MAX_PROPERTY_FILTERS = 5
 
 _HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
 
-_VALUE_COLUMNS = (
-    "value_text",
-    "value_number",
-    "value_boolean",
-    "value_date",
-    "value_datetime",
-    "value_user_id",
-    "value_json",
-)
+
+# ---------------------------------------------------------------------------
+# The seam
+# ---------------------------------------------------------------------------
+
+
+#: Run after a target's values changed, for a target whose own shape reacts:
+#: ``(session, row)``.
+ValuesChanged = Callable[[AsyncSession, Any], Awaitable[None]]
 
 
 @dataclass(frozen=True)
-class PropertyValueBinding:
-    """Per-entity-kind handles into the property-values schema.
+class PropertyLinkSpec:
+    """How one target carries properties.
 
-    Holds the four pieces of SQLAlchemy metadata shared by every
-    property-values code path: the value model (row class), the FK column
-    that points at the parent (``event_id`` / ``task_id`` / ``document_id``),
-    the parent model class, and the parent's primary key column. Storing
-    them together lets a single helper dispatch against any entity kind
-    without per-kind ``if/elif`` branches.
+    Three facts, all read from registries that already hold them: the row's
+    model (from its table), the tool whose sharing governs it, and the column
+    on the row naming that tool's row — ``None`` where the row IS the tool row.
     """
 
+    target: str
     model: type[SQLModel]
-    fk_column: Any
-    parent_model: type[SQLModel]
-    parent_id_column: Any
+    tool: Tool
+    via: Optional[str]
+    changed: Optional[ValuesChanged] = None
+
+    def governing_id(self, row: Any) -> int:
+        return row.id if self.via is None else getattr(row, self.via)
 
 
-BINDINGS: Mapping[str, PropertyValueBinding] = {
-    "document": PropertyValueBinding(
-        model=DocumentPropertyValue,
-        fk_column=DocumentPropertyValue.document_id,
-        parent_model=Document,
-        parent_id_column=Document.id,
-    ),
-    "task": PropertyValueBinding(
-        model=TaskPropertyValue,
-        fk_column=TaskPropertyValue.task_id,
-        parent_model=Task,
-        parent_id_column=Task.id,
-    ),
-    "event": PropertyValueBinding(
-        model=CalendarEventPropertyValue,
-        fk_column=CalendarEventPropertyValue.event_id,
-        parent_model=CalendarEvent,
-        parent_id_column=CalendarEvent.id,
-    ),
+def _models_by_table() -> dict[str, type[SQLModel]]:
+    import app.db.base  # noqa: F401 — registers every model on the metadata
+
+    return {
+        mapper.class_.__tablename__: mapper.class_
+        for mapper in SQLModel._sa_registry.mappers  # type: ignore[attr-defined]
+        if hasattr(mapper.class_, "__tablename__")
+    }
+
+
+async def _occurrences_follow(session: AsyncSession, row: Any) -> None:
+    """A series' values carry to the occurrences that follow it."""
+    from app.services.tenant import calendar_occurrences
+
+    await calendar_occurrences.followed(session, row, "properties")
+
+
+#: What a target does when its values change, beyond the write itself.
+_CHANGED: dict[str, ValuesChanged] = {"calendar_event": _occurrences_follow}
+
+
+def _link(target: str, models: dict[str, type[SQLModel]]) -> PropertyLinkSpec:
+    table = entity_tables()[target]
+    governed = governing_path(table)
+    if governed is None:  # pragma: no cover - every target has a tool
+        raise RuntimeError(f"no single tool governs {table!r}")
+    tool, hops = governed
+    if len(hops) > 1:  # pragma: no cover - a target is a tool or one hop under it
+        raise RuntimeError(f"{table!r} is more than one hop from its tool")
+    return PropertyLinkSpec(
+        target=target,
+        model=models[table],
+        tool=tool,
+        via=hops[0][0] if hops else None,
+        changed=_CHANGED.get(target),
+    )
+
+
+def _links() -> dict[str, PropertyLinkSpec]:
+    models = _models_by_table()
+    return {target: _link(target, models) for target in PROPERTY_TARGETS}
+
+
+#: One spec per ``PROPERTY_TARGETS`` entry, keyed by the wire name.
+PROPERTY_LINKS: dict[str, PropertyLinkSpec] = _links()
+
+#: The same registry keyed by model, so a caller holding rows need not also say
+#: what they are. Derived, never a second list.
+PROPERTY_LINKS_BY_MODEL: dict[type[SQLModel], PropertyLinkSpec] = {
+    spec.model: spec for spec in PROPERTY_LINKS.values()
 }
 
 
-def _binding_for(entity_kind: str) -> PropertyValueBinding:
+def link_for(entity: Any) -> PropertyLinkSpec:
+    """The spec for a row or its model. Raises for a type that carries none."""
+    model = entity if isinstance(entity, type) else type(entity)
     try:
-        return BINDINGS[entity_kind]
-    except KeyError as exc:
-        raise ValueError(f"Unknown entity kind: {entity_kind!r}") from exc
+        return PROPERTY_LINKS_BY_MODEL[model]
+    except KeyError:  # pragma: no cover - a programming error, not a request
+        raise KeyError(f"{model.__name__} carries no properties") from None
+
+
+def _of(target: str, entity_ids: Iterable[int]) -> Any:
+    """The value rows on these ``target`` rows."""
+    return (PropertyValue.entity_type == target) & PropertyValue.entity_id.in_(
+        list(entity_ids)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
 
 
 def _empty_columns() -> Dict[str, Any]:
     """Return all typed value columns set to None (baseline for an update)."""
-    return {col: None for col in _VALUE_COLUMNS}
+    return {col: None for col in VALUE_COLUMNS}
 
 
 def _bad_value(code: str = PropertyMessages.INVALID_VALUE_FOR_TYPE) -> HTTPException:
@@ -221,7 +283,7 @@ def _is_empty_value(raw_value: Any) -> bool:
     """Return True when ``raw_value`` represents "attached but no value".
 
     Attached-but-empty property rows are allowed so a user can add a
-    property definition to a document/task/event without being forced to
+    property definition to anything without being forced to
     enter a value — the row persists (all typed columns null) and the "is
     empty" filter can match it.
     """
@@ -245,7 +307,7 @@ def _validate_value_for_type(
 
     Raises ``HTTPException`` 400 on type mismatches or select/option
     issues. Who a ``user_reference`` may name is asked of the whole set by
-    :func:`_set_property_values`.
+    :func:`write_values`.
     """
     cols = _empty_columns()
 
@@ -301,34 +363,28 @@ def _validate_value_for_type(
     return cols
 
 
-async def _load_definitions(
-    session: AsyncSession,
-    definition_ids: Iterable[int],
-) -> Dict[int, PropertyDefinition]:
-    ids = list({did for did in definition_ids if did is not None})
-    if not ids:
-        return {}
-    stmt = select(PropertyDefinition).where(PropertyDefinition.id.in_(ids))
-    result = await session.exec(stmt)
-    return {defn.id: defn for defn in result.all() if defn.id is not None}
+# ---------------------------------------------------------------------------
+# Writes
+# ---------------------------------------------------------------------------
 
 
-async def _set_property_values(
+async def write_values(
     session: AsyncSession,
-    *,
-    entity_kind: str,
-    entity_id: int,
+    row: Any,
     values: Sequence[PropertyValueInput],
-    governing: named_people.Governing,
+    *,
+    initiative_id: Optional[int],
 ) -> None:
-    initiative_id = governing.initiative_id
-    binding = _binding_for(entity_kind)
-    value_model = binding.model
-    fk_column = binding.fk_column
+    """Replace every property value on ``row`` with ``values``.
 
+    Each value's definition must belong to ``initiative_id`` — the row's own
+    initiative — and a person a value names must be able to open the tool row
+    that governs ``row``. The caller has authorized the write and owns the
+    commit.
+    """
+    spec = link_for(row)
     # Always wipe existing rows for the entity — replace-all semantics.
-    await session.exec(delete(value_model).where(fk_column == entity_id))
-
+    await session.exec(delete(PropertyValue).where(_of(spec.target, [row.id])))
     if not values:
         return
 
@@ -339,14 +395,12 @@ async def _set_property_values(
             detail=PropertyMessages.INVALID_VALUE_FOR_TYPE,
         )
 
-    definitions = await _load_definitions(session, requested_ids)
-
-    fk_name = fk_column.key
+    definitions = await load_definitions_by_ids(session, requested_ids)
     named: set[int] = set()
     rows = []
     for entry in values:
         defn = definitions.get(entry.property_id)
-        if defn is None or defn.initiative_id != initiative_id:
+        if defn is None or initiative_id is None or defn.initiative_id != initiative_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=PropertyMessages.DEFINITION_NOT_FOUND,
@@ -354,9 +408,128 @@ async def _set_property_values(
         cols = _validate_value_for_type(defn, entry.value)
         if cols["value_user_id"] is not None:
             named.add(cols["value_user_id"])
-        rows.append(value_model(**{fk_name: entity_id, "property_id": defn.id}, **cols))
+        rows.append(
+            PropertyValue(
+                entity_type=spec.target,
+                entity_id=row.id,
+                property_id=defn.id,
+                **cols,
+            )
+        )
+    governing = named_people.Governing(spec.tool, spec.governing_id(row), initiative_id)
     await named_people.require_readers(session, governing, named)
     session.add_all(rows)
+
+
+async def set_values(
+    session: AsyncSession,
+    row: Any,
+    values: Sequence[PropertyValueInput],
+    *,
+    initiative_id: Optional[int],
+) -> None:
+    """The whole write a person or an app makes: resolve an app's person
+    references, replace the values, mark the row changed, and let a target
+    whose own shape reacts (a repeating event) do so. Authorization is the
+    caller's."""
+    await write_values(
+        session,
+        row,
+        await property_values_by_row_id(session, values),
+        initiative_id=initiative_id,
+    )
+    if hasattr(row, "updated_at"):
+        row.updated_at = datetime.now(timezone.utc)
+        session.add(row)
+    await session.flush()
+    spec = link_for(row)
+    if spec.changed is not None:
+        await spec.changed(session, row)
+
+
+async def write_on_create(
+    session: AsyncSession,
+    row: Any,
+    values: Sequence[PropertyValueInput],
+) -> None:
+    """The values a create sent with its row, written in the same transaction,
+    so the row and its values land together or not at all.
+
+    Held to the row's own initiative, read the way the policies read it
+    (``entity_initiative``), so a row that belongs to none carries none.
+    """
+    if values:
+        await _write_in_place(session, row, values)
+
+
+async def write_on_update(
+    session: AsyncSession,
+    row: Any,
+    values: Optional[Sequence[PropertyValueInput]],
+) -> None:
+    """The values an update sent with its row, replacing the ones it holds in
+    the same transaction. ``None`` leaves them as they are."""
+    if values is not None:
+        await _write_in_place(session, row, values)
+
+
+async def _write_in_place(
+    session: AsyncSession, row: Any, values: Sequence[PropertyValueInput]
+) -> None:
+    """``values`` onto ``row`` in the caller's transaction, held to the row's
+    own initiative as the policies read it."""
+    await session.flush()
+    initiative_id = (
+        await session.exec(select(func.entity_initiative(link_for(row).target, row.id)))
+    ).one()
+    await write_values(
+        session,
+        row,
+        await property_values_by_row_id(session, values),
+        initiative_id=initiative_id,
+    )
+
+
+async def copy_values(
+    session: AsyncSession,
+    source: Any,
+    destination: Any,
+) -> None:
+    """Give ``destination`` the values ``source`` holds, replacing its own.
+
+    For a duplicate or an occurrence: the same definitions apply, so the two
+    rows must share an initiative — a caller copying across initiatives copies
+    nothing instead.
+    """
+    src, dst = link_for(source), link_for(destination)
+    # The destination's pending changes first (a series' override takes its
+    # calendar just before), so its values are held to where it now sits.
+    await session.flush()
+    await session.exec(delete(PropertyValue).where(_of(dst.target, [destination.id])))
+    columns = ("property_id", *VALUE_COLUMNS)
+    now = datetime.now(timezone.utc)
+    await session.exec(
+        insert(PropertyValue).from_select(
+            ["entity_type", "entity_id", *columns, "created_at", "updated_at"],
+            select(
+                literal(dst.target),
+                literal(destination.id),
+                *(getattr(PropertyValue, c) for c in columns),
+                literal(now),
+                literal(now),
+            ).where(_of(src.target, [source.id])),
+        )
+    )
+
+
+async def drop_values(
+    session: AsyncSession, target: str, entity_ids: Iterable[int]
+) -> None:
+    """Remove every value on these rows: a move to another initiative, whose
+    definitions are not theirs, or a purge."""
+    ids = list(entity_ids)
+    if ids:
+        await session.exec(delete(PropertyValue).where(_of(target, ids)))
 
 
 async def property_values_by_row_id(
@@ -397,63 +570,9 @@ async def property_values_by_row_id(
     return resolved
 
 
-async def set_document_property_values(
-    session: AsyncSession,
-    document: Document,
-    values: Sequence[PropertyValueInput],
-    initiative_id: int,
-) -> None:
-    """Replace all property values attached to ``document``.
-
-    Caller is responsible for ``session.commit()``.
-    """
-    await _set_property_values(
-        session,
-        entity_kind="document",
-        entity_id=document.id,
-        values=values,
-        governing=named_people.Governing(Tool.document, document.id, initiative_id),
-    )
-
-
-async def set_task_property_values(
-    session: AsyncSession,
-    task: Task,
-    values: Sequence[PropertyValueInput],
-    initiative_id: int,
-) -> None:
-    """Replace all property values attached to ``task``.
-
-    Caller is responsible for ``session.commit()``.
-    """
-    await _set_property_values(
-        session,
-        entity_kind="task",
-        entity_id=task.id,
-        values=values,
-        governing=named_people.Governing(Tool.project, task.project_id, initiative_id),
-    )
-
-
-async def set_event_property_values(
-    session: AsyncSession,
-    event: CalendarEvent,
-    values: Sequence[PropertyValueInput],
-    initiative_id: int,
-) -> None:
-    """Replace all property values attached to ``event``.
-
-    Caller is responsible for ``session.commit()``.
-    """
-    await _set_property_values(
-        session,
-        entity_kind="event",
-        entity_id=event.id,
-        values=values,
-        governing=named_people.Governing(
-            Tool.calendar, event.calendar_id, initiative_id
-        ),
-    )
+# ---------------------------------------------------------------------------
+# Reads
+# ---------------------------------------------------------------------------
 
 
 def _number_to_json(v: Optional[Decimal]) -> Optional[float]:
@@ -496,31 +615,66 @@ def _rehydrate_value(
     return None  # pragma: no cover
 
 
-def summaries_from_rows(rows: Iterable[Any]) -> List[PropertySummary]:
-    """Build :class:`PropertySummary` list from loaded value rows.
-
-    ``rows`` must be ``DocumentPropertyValue`` / ``TaskPropertyValue`` /
-    ``CalendarEventPropertyValue`` instances with ``property_definition``
-    (and ``value_user`` when applicable) eager-loaded. Sync so it can be
-    called from the existing non-async doc/task serializers.
-    """
+def summaries_from_rows(rows: Iterable[PropertyValue]) -> List[PropertySummary]:
+    """:class:`PropertySummary` list from value rows with ``property_definition``
+    (and ``value_user`` where it applies) loaded, sorted by name."""
     summaries: List[PropertySummary] = []
     for row in rows:
-        defn = getattr(row, "property_definition", None)
+        defn = row.property_definition
         if defn is None:
             continue
-        value = _rehydrate_value(defn, row, getattr(row, "value_user", None))
         summaries.append(
             PropertySummary(
                 property_id=defn.id,
                 name=defn.name,
                 type=defn.type,
                 options=_parsed_options(defn) or None,
-                value=value,
+                value=_rehydrate_value(defn, row, row.value_user),
             )
         )
     summaries.sort(key=lambda s: s.name.lower())
     return summaries
+
+
+async def summaries_by_id(
+    session: AsyncSession, target: str, entity_ids: Iterable[int]
+) -> dict[int, List[PropertySummary]]:
+    """Every value on these ``target`` rows, as summaries, by row id."""
+    ids = list(dict.fromkeys(entity_ids))
+    if not ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(PropertyValue)
+            .where(_of(target, ids))
+            .options(
+                selectinload(PropertyValue.property_definition),
+                selectinload(PropertyValue.value_user),
+            )
+        )
+    ).all()
+    grouped: dict[int, list[PropertyValue]] = defaultdict(list)
+    for row in rows:
+        grouped[row.entity_id].append(row)
+    return {
+        entity_id: summaries_from_rows(values) for entity_id, values in grouped.items()
+    }
+
+
+async def annotate_properties(session: AsyncSession, entities: Iterable[Any]) -> None:
+    """Set ``.properties`` on every row — the single serialization path.
+
+    The target comes from the rows themselves, so a caller never states twice
+    what it is already holding. One query for the whole page.
+    """
+    rows = [entity for entity in entities if entity is not None]
+    if not rows:
+        return
+    by_id = await summaries_by_id(
+        session, link_for(rows[0]).target, [r.id for r in rows]
+    )
+    for row in rows:
+        object.__setattr__(row, "properties", by_id.get(row.id, []))
 
 
 async def count_orphaned_values(
@@ -534,60 +688,50 @@ async def count_orphaned_values(
     changes — the SPA surfaces the count as a warning. Orphaned values are
     preserved (not cleared) by design.
 
-    Executes two ``COUNT`` queries per value table (one for value_text,
-    one for value_json) rather than pulling rows into Python. For
-    multi_select the JSONB ``<@`` operator asks Postgres whether every
-    stored slug is contained in the valid-slug set — rows that fail that
-    check (i.e. contain at least one slug outside the new option list)
-    count as orphans.
+    Two ``COUNT`` queries (one for value_text, one for value_json) rather than
+    pulling rows into Python. For multi_select the JSONB ``<@`` operator asks
+    Postgres whether every stored slug is contained in the valid-slug set —
+    rows that fail that check (i.e. contain at least one slug outside the new
+    option list) count as orphans.
     """
     valid_list = list(valid_slugs)
-    count = 0
-    for binding in BINDINGS.values():
-        value_model = binding.model
-        # value_text (single select): NOT IN the new slug list counts.
-        stmt_text = select(func.count()).where(
-            value_model.property_id == defn_id,
-            value_model.value_text.is_not(None),
-            value_model.value_text.not_in(valid_list) if valid_list else true(),
-        )
-        count += (await session.exec(stmt_text)).one()
-
-        # value_json (multi_select): not fully contained in the valid set
-        # means at least one element is orphaned.
-        stmt_json = select(func.count()).where(
-            value_model.property_id == defn_id,
-            value_model.value_json.is_not(None),
-            ~value_model.value_json.op("<@")(valid_list),
-        )
-        count += (await session.exec(stmt_json)).one()
-
-    return count
+    # value_text (single select): NOT IN the new slug list counts.
+    stmt_text = select(func.count()).where(
+        PropertyValue.property_id == defn_id,
+        PropertyValue.value_text.is_not(None),
+        PropertyValue.value_text.not_in(valid_list) if valid_list else true(),
+    )
+    # value_json (multi_select): not fully contained in the valid set means
+    # at least one element is orphaned.
+    stmt_json = select(func.count()).where(
+        PropertyValue.property_id == defn_id,
+        PropertyValue.value_json.is_not(None),
+        ~PropertyValue.value_json.op("<@")(valid_list),
+    )
+    return (await session.exec(stmt_text)).one() + (await session.exec(stmt_json)).one()
 
 
-def typed_column_for_property(
-    value_model: Any,
-    property_type: PropertyType,
-) -> Any:
-    """Return the SA column on ``value_model`` used for the given type.
+# ---------------------------------------------------------------------------
+# List filters
+# ---------------------------------------------------------------------------
 
-    Used by list filter builders to compile a typed-column predicate for
-    property_values subqueries (see ``build_property_value_predicate``).
-    """
+
+def typed_column_for_property(property_type: PropertyType) -> Any:
+    """The value column a property of this type is stored in."""
     if property_type in {PropertyType.text, PropertyType.url, PropertyType.select}:
-        return value_model.value_text
+        return PropertyValue.value_text
     if property_type is PropertyType.number:
-        return value_model.value_number
+        return PropertyValue.value_number
     if property_type is PropertyType.checkbox:
-        return value_model.value_boolean
+        return PropertyValue.value_boolean
     if property_type is PropertyType.date:
-        return value_model.value_date
+        return PropertyValue.value_date
     if property_type is PropertyType.datetime:
-        return value_model.value_datetime
+        return PropertyValue.value_datetime
     if property_type is PropertyType.user_reference:
-        return value_model.value_user_id
+        return PropertyValue.value_user_id
     if property_type is PropertyType.multi_select:
-        return value_model.value_json
+        return PropertyValue.value_json
     raise ValueError(f"Unsupported property type: {property_type!r}")
 
 
@@ -734,63 +878,70 @@ def build_property_value_predicate(
     return None
 
 
+def _value_on(target: str, parent_id: Any, property_id: int, predicate: Any) -> Any:
+    """Whether the row ``parent_id`` names holds a value for ``property_id``
+    that ``predicate`` accepts.
+
+    Correlated to the row rather than ``parent.id IN (…)``: the planner can
+    start from the rows the list has already narrowed to, and the negation is
+    an anti-join, where ``NOT IN`` would read every value of the property.
+    """
+    return (
+        exists()
+        .where(
+            PropertyValue.entity_type == target,
+            PropertyValue.entity_id == parent_id,
+            PropertyValue.property_id == property_id,
+            predicate,
+        )
+        # Named, so a query that does not select the row's table fails
+        # rather than reading every value as one row's.
+        .correlate(parent_id.expression.table)
+    )
+
+
 def property_value_presence_predicate(
-    value_model: Any,
+    target: str,
     parent_id_column: Any,
-    entity_id_column: Any,
     property_id: int,
     property_type: PropertyType,
     is_empty: bool,
 ) -> Any:
-    """Build an IN / NOT IN subquery matching presence of a property value.
+    """Match rows by whether they hold a value for the property.
 
-    - ``is_empty=True`` → match entities that either have no row in the
-      value table OR have a row where the typed column is NULL
-      (multi_select: empty / null JSON array).
-    - ``is_empty=False`` → match entities that have a row with a
-      non-empty value.
+    - ``is_empty=True`` → match rows that either have no value row OR have one
+      whose typed column is NULL (multi_select: empty / null JSON array).
+    - ``is_empty=False`` → match rows that have a non-empty value.
 
-    ``parent_id_column`` is ``Task.id`` / ``Document.id`` /
-    ``CalendarEvent.id``; ``entity_id_column`` is
-    ``TaskPropertyValue.task_id`` /
-    ``DocumentPropertyValue.document_id`` /
-    ``CalendarEventPropertyValue.event_id``.
+    ``parent_id_column`` is the target's own id column (``Task.id``, …).
     """
-    typed = typed_column_for_property(value_model, property_type)
+    typed = typed_column_for_property(property_type)
     non_empty = typed.is_not(None)
     if property_type is PropertyType.multi_select:
         # Treat a stored empty array as "empty" too, so the filter
         # behaves the same way as the UI does for multi-selects.
         non_empty = typed.is_not(None) & (func.jsonb_array_length(typed) > 0)
 
-    subq = select(entity_id_column).where(
-        value_model.property_id == property_id, non_empty
-    )
-    if is_empty:
-        return parent_id_column.not_in(subq)
-    return parent_id_column.in_(subq)
+    held = _value_on(target, parent_id_column, property_id, non_empty)
+    return ~held if is_empty else held
 
 
 def build_single_property_clause(
-    entity_kind: str,
+    target: str,
     property_id: int,
     op: Any,
     value: Any,
     defn: PropertyDefinition,
 ) -> Any:
-    """Compile one property filter condition into a single SA WHERE clause.
+    """Compile one property filter condition on ``target`` rows into a single
+    WHERE clause: ``EXISTS (SELECT 1 FROM property_values …)`` on the row.
 
     Returns ``None`` when the condition is unsupported (unknown type,
-    malformed value) — callers skip it, matching the silent-skip pattern
-    the inline helpers followed before this was lifted.
-
-    The task list endpoint calls this per-condition from its
-    ``property_values`` virtual field handler; the batch
-    :func:`build_property_filter_clauses` below calls it in a loop.
+    malformed value) — callers skip it.
     """
     from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles
 
-    binding = _binding_for(entity_kind)
+    parent_id = PROPERTY_LINKS[target].model.id
 
     if op == FilterOp.is_null:
         # Callers using the parsed-filter API have already normalized
@@ -803,39 +954,27 @@ def build_single_property_clause(
         except ValueError:
             return None
         return property_value_presence_predicate(
-            binding.model,
-            binding.parent_id_column,
-            binding.fk_column,
-            property_id,
-            defn.type,
-            is_empty=is_empty,
+            target, parent_id, property_id, defn.type, is_empty=is_empty
         )
 
     try:
-        column = typed_column_for_property(binding.model, defn.type)
+        column = typed_column_for_property(defn.type)
     except ValueError:
         return None
     predicate = build_property_value_predicate(column, defn.type, op, value)
     if predicate is None:
         return None
-    subq = select(binding.fk_column).where(
-        binding.model.property_id == property_id, predicate
-    )
-    return binding.parent_id_column.in_(subq)
+    return _value_on(target, parent_id, property_id, predicate)
 
 
 def build_property_filter_clauses(
-    entity_kind: str,
+    target: str,
     conditions: Sequence["ParsedPropertyFilter"],
     defs_map: Dict[int, PropertyDefinition],
 ) -> List[Any]:
-    """Build the WHERE-clause list for a set of parsed property filters.
-
-    Shared by the documents, tasks (global list), and events list
-    endpoints. Unknown / inaccessible property_ids are silently skipped
-    because RLS on ``property_definitions`` has already decided
-    visibility — any id missing from ``defs_map`` was filtered out at the
-    definitions-load step.
+    """The WHERE-clause list for a set of parsed property filters on
+    ``target`` rows. Unknown / inaccessible property ids are skipped: RLS on
+    ``property_definitions`` decided visibility when ``defs_map`` was loaded.
     """
     clauses: List[Any] = []
     for cond in conditions:
@@ -843,7 +982,7 @@ def build_property_filter_clauses(
         if defn is None:
             continue
         clause = build_single_property_clause(
-            entity_kind, cond.property_id, cond.op, cond.value, defn
+            target, cond.property_id, cond.op, cond.value, defn
         )
         if clause is not None:
             clauses.append(clause)
@@ -949,3 +1088,40 @@ async def load_definitions_by_ids(
     stmt = select(PropertyDefinition).where(PropertyDefinition.id.in_(ids))
     result = await session.exec(stmt)
     return {defn.id: defn for defn in result.all() if defn.id is not None}
+
+
+async def property_filter_clauses(
+    session: AsyncSession, target: str, raw: Optional[str], *, names_people: bool
+) -> list:
+    """WHERE clauses for the ``property_filters`` a list of ``target`` carries.
+
+    The one reading of the param, for every list and every view of one (a
+    tool's list, the event list, the posts timeline). A filter on a
+    person-valued property takes row ids, which an installed app does not
+    hold, so it is left to people (``names_people``), as the task list does.
+    """
+    from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles
+
+    try:
+        parsed = parse_property_filters(raw)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+    if not parsed:
+        return []
+    definitions = await load_definitions_by_ids(
+        session, [condition.property_id for condition in parsed]
+    )
+    if not names_people and any(
+        condition.op is not FilterOp.is_null
+        and (definition := definitions.get(condition.property_id)) is not None
+        and definition.type is PropertyType.user_reference
+        for condition in parsed
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+    return build_property_filter_clauses(target, parsed, definitions)

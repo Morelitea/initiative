@@ -36,7 +36,15 @@
       "data": "Data",
       "dangerZone": "Danger zone",
       "security": "Security",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "usage": "Usage",
+      "planAndUsage": "Plan & usage"
+    },
+    "tabBadge": {
+      "paymentFailed": "Payment failed",
+      "trial_one": "Trial · {{count}} day",
+      "trial_other": "Trial · {{count}} days",
+      "trialLastDay": "Trial · last day"
     }
   },
   "profile": {
@@ -812,6 +820,10 @@
     "signInLockedUntil": "Until {{time}}",
     "liftSignInLock": "Turn password sign-in back on",
     "signInLockLifted": "They can sign in with a password again.",
+    "clearSecondFactor": "Clear two-factor authentication",
+    "clearSecondFactorDescription": "Take the authenticator off {{handle}}'s account? This is for when they've lost their phone and their recovery codes. They're signed out everywhere and emailed about it, then sign in the way they usually do and can set it up again.",
+    "clearSecondFactorConfirm": "Clear it",
+    "secondFactorCleared": "Two-factor authentication cleared. They can sign in the way they usually do.",
     "sheet": {
       "open": "Manage",
       "openLabel": "Manage account {{handle}}",
@@ -1240,7 +1252,7 @@
     "backendLabel": "Storage backend",
     "backendLocal": "Local filesystem",
     "backendS3": "S3-compatible",
-    "backendHelp": "Local stores files on the server disk. S3 works with AWS S3, a self-hosted Garage/MinIO instance, Cloudflare R2, and similar.",
+    "backendHelp": "Local stores files on the server disk. S3 works with any S3-compatible store, such as a self-hosted Garage or MinIO instance, or Cloudflare R2.",
     "cutoverTitle": "Switching to S3 doesn't move existing files",
     "cutoverHelp": "Save these settings, run Test connection, then use Backfill below to copy existing local files into the bucket. Switch the backend to S3 only once the backfill completes — optionally keep \"Serve missing objects from local\" on during a verification window.",
     "bucketLabel": "Bucket",
@@ -1248,16 +1260,14 @@
     "regionLabel": "Region",
     "endpointLabel": "Endpoint URL",
     "endpointPlaceholder": "https://s3.example.com",
-    "endpointHelp": "Leave blank for AWS S3. Set this for Garage, MinIO, R2, or any non-AWS store.",
+    "endpointHelp": "The address of your store's S3 API.",
     "accessKeyLabel": "Access key ID",
     "accessKeyPlaceholder": "Leave blank to use the ambient credential chain",
     "secretKeyLabel": "Secret access key",
     "secretKeySet": "•••••••• (unchanged)",
     "secretKeyHelp": "Leave blank to keep the stored key. Stored encrypted; never displayed.",
-    "kmsLabel": "KMS key ID (optional)",
-    "kmsPlaceholder": "For SSE-KMS server-side encryption",
     "pathStyleLabel": "Path-style addressing",
-    "pathStyleHelp": "Required for Garage and most non-AWS stores.",
+    "pathStyleHelp": "Required for Garage and most self-hosted stores.",
     "localFallbackLabel": "Serve missing objects from local",
     "localFallbackHelp": "During cutover, read blobs not yet copied to S3 from the local disk.",
     "save": "Save",
@@ -1678,6 +1688,7 @@
     "identityDescription": "Your name, your address, your handle, and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
+    "passwordsOffDescription": "Password sign-in is turned off on this server, so there is no password to set or change here.",
     "fullNameHelp": "Only communities set to show real names use it. Everywhere else you are your handle.",
     "setPasswordTitle": "Set a password",
     "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",

@@ -1,6 +1,6 @@
 """The database privilege posture, asserted as CI invariants.
 
-The actor model (see ``history/remove-superadmin-bypassrls-design.md``) is only
+The actor model is only
 as durable as the catalog state that implements it — a hotfix migration adding
 a broad ``GRANT``, a manually flipped role attribute, or a new RLS table
 without a decision would all land silently. These tests re-derive the posture
@@ -16,7 +16,7 @@ table placement:
   rendered through the capabilities;
 * every RLS-enabled shared table is FORCEd (even table owners obey policies);
 * the retired ``is_superadmin`` GUC appears in no policy anywhere;
-* no app role may CREATE objects in ``public`` (search_path hijack guard);
+* no app role may CREATE objects in ``public`` (it is on every search_path);
 * login-role memberships in scoped roles are INHERIT FALSE (no standing
   access without an explicit ``SET ROLE``).
 """
@@ -35,6 +35,8 @@ from app.db.user_columns import (
 )
 from app.db.public_rls import PUBLIC_RLS, role_name
 from app.db.system_grants import ROLE_GRANTS, tier_table_grants
+
+pytestmark = pytest.mark.always
 
 
 # Shared tables that carry (FORCEd) row-level security: what the registry in
@@ -462,12 +464,17 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
         assert not bypasses, "app_profile_reader must not hold BYPASSRLS"
 
 
+#: ``users`` columns written only through capability-gated endpoints on the
+#: system engine: the platform-tier ladder, and why an account was suspended.
+SYSTEM_ONLY_USER_COLUMNS = {"role", "status_reason"}
+
+
 async def test_users_role_is_writable_only_by_the_system_engine(engine):
-    """``users.role`` (the platform-tier ladder) is assigned only through the
-    capability-gated endpoint that runs on the system engine. Each request-path
-    floor holds a column-scoped UPDATE covering every ``users`` column *except*
-    ``role``; ``app_admin`` keeps the full grant the endpoint relies on
-    (migration 0144). A new ``users`` column must be granted to the request
+    """``users.role`` (the platform-tier ladder) and ``users.status_reason`` are
+    written only through capability-gated endpoints that run on the system
+    engine. Each request-path floor holds a column-scoped UPDATE covering every
+    other ``users`` column; ``app_admin`` keeps the full grant the endpoints
+    rely on (migrations 0144, 20261001_0429). A new ``users`` column must be granted to the request
     floors too, or this test fails — the same "decide it explicitly" discipline
     as the table-grant registry."""
     # ``app_guild_base`` is absent: the guild-routed path holds nothing on the
@@ -488,7 +495,7 @@ async def test_users_role_is_writable_only_by_the_system_engine(engine):
                 )
             ).scalars()
         )
-        expected = all_columns - {"role"}
+        expected = all_columns - SYSTEM_ONLY_USER_COLUMNS
         for role in request_roles:
             rows = (
                 await conn.execute(
@@ -503,13 +510,13 @@ async def test_users_role_is_writable_only_by_the_system_engine(engine):
                 )
             ).all()
             writable = {name for name, can_update in rows if can_update}
-            assert "role" not in writable, (
-                f"{role} must not hold UPDATE on users.role — role assignment is "
-                "system-engine-only"
+            assert not writable & SYSTEM_ONLY_USER_COLUMNS, (
+                f"{role} must not hold UPDATE on {sorted(SYSTEM_ONLY_USER_COLUMNS)}"
+                " — they are system-engine-only"
             )
             assert writable == expected, (
                 f"{role} UPDATE columns on users drifted from 'every column but "
-                f"role': missing {sorted(expected - writable)}, unexpected "
+                f"the system-only ones': missing {sorted(expected - writable)}, unexpected "
                 f"{sorted(writable - expected)} (grant the new column, or exclude it)"
             )
         # Positive control: the system engine retains the role write its

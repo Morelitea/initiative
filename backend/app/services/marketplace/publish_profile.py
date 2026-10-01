@@ -40,6 +40,7 @@ from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from app.core import recurrence
 from app.core.references import REFERENCE_NODES, reference_as_text, text_node
 from app.core.tools import Tool, tool_export_source
 
@@ -150,6 +151,26 @@ def _clean_properties(values: Any) -> list[Any]:
     ]
 
 
+def _property_lists(node: Any) -> Iterator[tuple[dict[str, Any], str]]:
+    """Every list of property values an envelope carries, wherever it sits —
+    a tool row's own, each row inside it, a project's tasks'. A list is one
+    only when every entry is a property value, so a key of the same name in a
+    dashboard's configuration is left alone."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if (
+                key in ("properties", "property_values")
+                and isinstance(value, list)
+                and all(isinstance(v, dict) and "property_type" in v for v in value)
+            ):
+                yield node, key
+            else:
+                yield from _property_lists(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _property_lists(item)
+
+
 # --- per tool ---------------------------------------------------------------
 
 
@@ -176,7 +197,6 @@ def _strip_project(env: dict[str, Any]) -> None:
         task["archived_at"] = None
         task["created_at"] = None
         task["updated_at"] = None
-        task["property_values"] = _clean_properties(task.get("property_values"))
         task["links"] = [
             link
             for link in task.get("links") or []
@@ -186,7 +206,6 @@ def _strip_project(env: dict[str, Any]) -> None:
 
 def _strip_document(env: dict[str, Any]) -> None:
     env["mention_handles"] = []
-    env["properties"] = _clean_properties(env.get("properties"))
     content = env.get("content")
     if env.get("document_type") == "native":
         env["content"] = _clean_editor_state(content)
@@ -216,7 +235,6 @@ def _strip_calendar(env: dict[str, Any]) -> None:
             continue
         event["attendees"] = []
         event["created_at"] = None
-        event["properties"] = _clean_properties(event.get("properties"))
 
 
 def _strip_queue(env: dict[str, Any]) -> None:
@@ -268,6 +286,9 @@ def strip_for_listing(tool: Tool, envelope: dict[str, Any]) -> dict[str, Any]:
 
     stripped = copy.deepcopy(envelope)
     _STRIPPERS[tool](stripped)
+    # Every target carries properties; none of them takes a person along.
+    for owner, key in list(_property_lists(stripped)):
+        owner[key] = _clean_properties(owner[key])
     # Whatever still points into a community's uploads — a whiteboard's
     # picture, a link in a body — points nowhere once it leaves.
     return replace_upload_urls(
@@ -288,9 +309,19 @@ def _property_date_slots(values: Any) -> Iterator[tuple[dict[str, Any], str]]:
 
 
 def _recurrence_slot(owner: dict[str, Any]) -> Iterator[tuple[dict[str, Any], str]]:
-    recurrence = owner.get("recurrence")
-    if isinstance(recurrence, dict):
-        yield recurrence, "end_date"
+    # A template published before RRULE keeps its repeat's end in JSON.
+    repeat = owner.get("recurrence")
+    if isinstance(repeat, dict):
+        yield repeat, "end_date"
+
+
+def _repeating(tool: Tool, env: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """Every item whose repeat is RRULE lines, which keep their dates inside."""
+    if tool not in (Tool.project, Tool.calendar):
+        return
+    for item in env.get("tasks" if tool is Tool.project else "events") or []:
+        if isinstance(item, dict) and isinstance(item.get("recurrence"), str):
+            yield item
 
 
 def _date_slots(tool: Tool, env: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
@@ -308,15 +339,14 @@ def _date_slots(tool: Tool, env: dict[str, Any]) -> list[tuple[dict[str, Any], s
                     (task, "completed_at"),
                 ]
                 slots += _recurrence_slot(task)
-                slots += _property_date_slots(task.get("property_values"))
     elif tool is Tool.calendar:
         for event in env.get("events") or []:
             if isinstance(event, dict):
                 slots += [(event, "start_at"), (event, "end_at")]
                 slots += _recurrence_slot(event)
-                slots += _property_date_slots(event.get("properties"))
-    elif tool is Tool.document:
-        slots += _property_date_slots(env.get("properties"))
+    # A date-typed property plans with its date, on whatever carries it.
+    for owner, key in _property_lists(env):
+        slots += _property_date_slots(owner[key])
     return slots
 
 
@@ -348,6 +378,8 @@ def shift_dates(tool: Tool, envelope: dict[str, Any], days: int) -> dict[str, An
         parsed = _parse(owner.get(key))
         if parsed is not None:
             owner[key] = (parsed + delta).isoformat()
+    for owner in _repeating(tool, shifted):
+        owner["recurrence"] = recurrence.moved(owner["recurrence"], delta)
     return shifted
 
 

@@ -14,8 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 
+import { apiClient } from "@/api/client";
 import { toBase64 } from "@/lib/base64";
-import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 import {
   type CollaborationProvider,
@@ -62,8 +62,14 @@ export interface UseCollaborationResult {
   providerFactory: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
   /** Current connection status */
   connectionStatus: ConnectionStatus;
-  /** Whether the initial sync is complete */
+  /** Whether the room and this client agree right now. False again while a
+   *  dropped socket reconnects. */
   isSynced: boolean;
+  /** Whether this body has synced with its room at least once. What a
+   *  "syncing" cover waits on: after the first sync the editor already holds
+   *  the document, and what is written during a reconnect is handed over when
+   *  the socket is back. */
+  hasSynced: boolean;
   /** List of current collaborators */
   collaborators: CollaboratorInfo[];
   /** Whether the server's collaborator roster has been received for this
@@ -97,6 +103,7 @@ export function useCollaboration({
 
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [isSynced, setIsSynced] = useState(false);
+  const [hasSynced, setHasSynced] = useState(false);
   const [collaborators, setCollaborators] = useState<CollaboratorInfo[]>([]);
   const [collaboratorsReady, setCollaboratorsReady] = useState(false);
 
@@ -157,16 +164,13 @@ export function useCollaboration({
     };
     let body = JSON.stringify({ ...edits, content: rendering ?? null });
     if (body.length > KEEPALIVE_LIMIT) body = JSON.stringify(edits);
-    fetch(resolveHeaderlessApiUrl(path), {
-      method: "POST",
-      body,
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      keepalive: body.length <= KEEPALIVE_LIMIT,
-    })
-      .then((response) => {
-        if (response.ok) provider.handedOver(unsent.stateVector);
+    apiClient
+      .post(path, body, {
+        headers: { "Content-Type": "application/json" },
+        adapter: "fetch",
+        fetchOptions: { keepalive: body.length <= KEEPALIVE_LIMIT },
       })
+      .then(() => provider.handedOver(unsent.stateVector))
       .catch(() => {});
   }, []);
 
@@ -193,12 +197,13 @@ export function useCollaboration({
       // Reset state when switching bodies - critical for navigation
       setConnectionStatus("disconnected");
       setIsSynced(false);
+      setHasSynced(false);
       setCollaborators([]);
       setCollaboratorsReady(false);
     }
     currentWsUrlRef.current = wsUrl;
     handoverPathRef.current =
-      wsUrl && activeGuildId ? `/api/v1/c/${activeGuildId}/collaboration/${socketPath}` : null;
+      wsUrl && activeGuildId ? `/c/${activeGuildId}/collaboration/${socketPath}` : null;
   }, [wsUrl, activeGuildId, socketPath, handOver]);
 
   // Create the provider factory that Lexical's CollaborationPlugin will call
@@ -231,6 +236,7 @@ export function useCollaboration({
       // Reset state for the new document
       setConnectionStatus("disconnected");
       setIsSynced(false);
+      setHasSynced(false);
       setCollaborators([]);
       setCollaboratorsReady(false);
 
@@ -367,6 +373,7 @@ export function useCollaboration({
     if (!isReady) {
       setConnectionStatus("disconnected");
       setIsSynced(false);
+      setHasSynced(false);
       setCollaborators([]);
       setCollaboratorsReady(false);
     }
@@ -404,6 +411,12 @@ export function useCollaboration({
     providerRef.current?.sendContent(content);
   }, []);
 
+  // Sticky until the room changes: set from the one place that learns of a
+  // sync, whichever path the provider took to get there.
+  useEffect(() => {
+    if (isSynced) setHasSynced(true);
+  }, [isSynced]);
+
   const isCollaborating = connectionStatus === "connected" && isSynced;
 
   return useMemo(
@@ -411,6 +424,7 @@ export function useCollaboration({
       providerFactory,
       connectionStatus,
       isSynced,
+      hasSynced,
       collaborators,
       collaboratorsReady,
       isCollaborating,
@@ -422,6 +436,7 @@ export function useCollaboration({
       providerFactory,
       connectionStatus,
       isSynced,
+      hasSynced,
       collaborators,
       collaboratorsReady,
       isCollaborating,

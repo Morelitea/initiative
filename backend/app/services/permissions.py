@@ -95,8 +95,8 @@ def granted_scope_clause(
     """
     if isinstance(context, InstallContext):
         # An installed app is granted to by name or through its placements,
-        # and has no admin leg to set aside: the table's own policy answers
-        # exactly what reaches it.
+        # and is an admin only by a standing its token asked for: the table's
+        # own policy answers exactly what reaches it.
         return true()
     if context is not None and context.grant_satisfies(access=access):
         return true()

@@ -43,11 +43,7 @@ import {
   ScrollText,
 } from "lucide-react";
 
-import type {
-  InitiativeListRead,
-  InitiativeMemberRead,
-  PermissionKey,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, PermissionKey } from "@/api/generated/initiativeAPI.schemas";
 import { ListingKind, Tool } from "@/api/generated/initiativeAPI.schemas";
 
 /**
@@ -115,6 +111,53 @@ export const TOOL_LISTING_KINDS: Partial<Record<Tool, ListingKind>> = {
 /** Which marketplace shelf a tool's list links to, or null when it has none. */
 export const toolListingKind = (tool: Tool): ListingKind | null => TOOL_LISTING_KINDS[tool] ?? null;
 
+/** The slices a tool's list can show, in the order a page offers them. */
+export const TOOL_VIEWS = ["active", "templates", "archived"] as const;
+
+export type ToolView = (typeof TOOL_VIEWS)[number];
+
+export const isToolView = (value: unknown): value is ToolView =>
+  typeof value === "string" && (TOOL_VIEWS as readonly string[]).includes(value);
+
+/** The list parameters that select a view. */
+export interface ToolViewParams {
+  archived?: true;
+  is_template?: boolean;
+}
+
+type ToolViewSpec = Partial<Record<ToolView, ToolViewParams>>;
+
+const DEFAULT_VIEWS: ToolViewSpec = { active: {}, archived: { archived: true } };
+
+/** A tool with templates: its live rows without them, the templates on their
+ *  own, and an archive holding both. */
+const TEMPLATE_VIEWS: ToolViewSpec = {
+  active: { is_template: false },
+  templates: { is_template: true },
+  archived: { archived: true },
+};
+
+/**
+ * Each tool's views, as the list parameters that select them. Mirrors backend
+ * `ToolListSpec.views`, which the counts endpoint counts by: every tool has
+ * the live list and the archive, and the two with blueprints keep them in a
+ * view of their own. Stated as the exceptions, so a new tool gets the two.
+ */
+const TOOL_VIEW_SPECS: Partial<Record<Tool, ToolViewSpec>> = {
+  [Tool.project]: TEMPLATE_VIEWS,
+  [Tool.document]: TEMPLATE_VIEWS,
+};
+
+/** The views a tool's list offers. */
+export const toolViews = (tool: Tool): ToolView[] =>
+  TOOL_VIEWS.filter((view) => view in (TOOL_VIEW_SPECS[tool] ?? DEFAULT_VIEWS));
+
+/** What a tool's list endpoint is asked for to show `view`. Most tools' live
+ *  view asks for nothing, which keeps its query key — and so its cache entry —
+ *  the one every other caller of the list already uses. */
+export const toolViewParams = (tool: Tool, view: ToolView): ToolViewParams =>
+  (TOOL_VIEW_SPECS[tool] ?? DEFAULT_VIEWS)[view] ?? {};
+
 /**
  * Sidebar display order within an initiative. Projects render last because the
  * initiative's project list expands directly beneath that row.
@@ -141,7 +184,7 @@ export const SIDEBAR_TOOLS: Tool[] = [
  * One rule, mirrored from the backend's `Tool.plural`: a trailing `y` after a
  * consonant becomes `ies`, and everything else takes an `s`.
  */
-export const toolPlural = (tool: Tool): string =>
+export const toolPlural = (tool: Tool | ChildKind): string =>
   /[^aeiou]y$/.test(tool) ? `${tool.slice(0, -1)}ies` : `${tool}s`;
 
 /**
@@ -153,8 +196,11 @@ export const toolPlural = (tool: Tool): string =>
 export const singularOf = (plural: string): string =>
   plural.endsWith("ies") ? `${plural.slice(0, -3)}y` : plural.replace(/s$/, "");
 
-/** "counter_group" → "counter-groups" — route segment AND API path segment. */
-export const toolRouteSegment = (tool: Tool): string => toolPlural(tool).replaceAll("_", "-");
+/** "counter_group" → "counter-groups" — route segment AND API path segment.
+ *  A child kind's API path follows the same rule ("calendar_event" →
+ *  "calendar-events"). */
+export const toolRouteSegment = (tool: Tool | ChildKind): string =>
+  toolPlural(tool).replaceAll("_", "-");
 
 /** Inverse of {@link toolRouteSegment}: which tool a route segment names, or
  *  null for anything unrecognized. Lets a URL carry a readable tool selector. */
@@ -325,21 +371,21 @@ export const entityRefRoute = (refType: string, id: number): string => `/go/${re
  *  settings page reads the id without a per-tool lookup. */
 export const toolParamName = (tool: Tool): string => `${toolCamelSingular(tool)}Id`;
 
-/** "counter_group" → "counter-group". The KEBAB SINGULAR: export-engine source
- * name, envelope discriminator, and entity-ref segment. */
+/** "counter_group" → "counter-group". The KEBAB SINGULAR: envelope
+ * discriminator and entity-ref segment. */
 export const toolKebabSingular = (tool: Tool): string => tool.replaceAll("_", "-");
 
-/** Export-engine endpoint (relative to /c/{guildId}), e.g. "/exports/counter-group"
- * — the engine's source name is the KEBAB SINGULAR of the tool. */
-export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabSingular(tool)}`;
+/** Export endpoint (relative to /c/{guildId}), e.g. "/exports/counter_group".
+ * It takes the selection as `ids`. */
+export const toolExportEndpoint = (tool: Tool): string => `/exports/${tool}`;
 
 /**
  * The `{tool}_id` field that names one tool entity in a payload, e.g.
  * "counter_group_id".
  *
- * One spelling, three uses: the comment column a thread hangs off (backend
- * `_COMMENT_PARENTS`), the id the realtime bus puts in a comment envelope, and
- * the single-entity export selector. They agree because they are this rule.
+ * One spelling, two uses: the comment column a thread hangs off (backend
+ * `_COMMENT_PARENTS`) and the id the realtime bus puts in a comment envelope.
+ * They agree because they are this rule.
  */
 export const toolIdParam = (tool: Tool): string => `${tool}_id`;
 
@@ -351,9 +397,6 @@ export const toolEnvelopeType = (tool: Tool): string => `initiative-${toolKebabS
  * or null for an unknown/backup type. */
 export const toolForEnvelopeType = (type: string): Tool | null =>
   BULK_EXPORT_TOOLS.find((tool) => toolEnvelopeType(tool) === type) ?? null;
-
-/** Bulk-selection export selector param, e.g. "counter_group_ids". */
-export const toolExportIdsParam = (tool: Tool): string => `${tool}_ids`;
 
 /** nav.json label key, e.g. "counterGroups". Typed against the nav namespace
  * so `t(toolNavLabelKey(tool))` satisfies typed i18next — the drift test
@@ -372,14 +415,6 @@ export const toolViewPermission = (tool: Tool): PermissionKey =>
 /** Role permission key gating creation, e.g. "create_counter_groups". */
 export const toolCreatePermission = (tool: Tool): PermissionKey =>
   `create_${toolPlural(tool)}` as PermissionKey;
-
-/** Membership view flag, e.g. "can_view_counter_groups". */
-export const toolMemberViewFlag = (tool: Tool): keyof InitiativeMemberRead =>
-  `can_view_${toolPlural(tool)}` as keyof InitiativeMemberRead;
-
-/** Membership create flag, e.g. "can_create_counter_groups". */
-export const toolMemberCreateFlag = (tool: Tool): keyof InitiativeMemberRead =>
-  `can_create_${toolPlural(tool)}` as keyof InitiativeMemberRead;
 
 /**
  * The shape every tool's read schema shares where comments are concerned: the
@@ -423,6 +458,9 @@ export const PARENT_TOOL = {
   wiki_page: Tool.wiki,
 } as const satisfies Record<string, Tool>;
 
+/** An entity kind a tool holds: a task, an event, a page. */
+export type ChildKind = keyof typeof PARENT_TOOL;
+
 /**
  * Tools whose detail page does NOT carry a relations panel, and why. Stated as
  * an exclusion, like {@link NON_EXPORTABLE_TOOLS}, so a tool is linkable on its
@@ -443,8 +481,8 @@ export const showsRelations = (tool: Tool): boolean => !NO_RELATIONS_PANEL.has(t
  * The initiative master-switch field for a tool (same spelling as the view
  * permission). Every tool has one.
  */
-export const isToolEnabled = (tool: Tool, initiative: InitiativeListRead): boolean =>
-  Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeListRead]);
+export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
+  Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
 /** Guild-relative create target for a tool inside an initiative: the tool's
  *  own tab, with its create dialog open (`?create=true`). Callers prepend the

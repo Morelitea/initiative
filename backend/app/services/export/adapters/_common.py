@@ -12,18 +12,31 @@ rows it loads and how one row serialises.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Iterable
+from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 
+from pydantic import BaseModel
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ExportMessages
+from app.core.relationships import Related
 from app.core.tools import Tool, tool_envelope_type, tool_export_source
+from app.db import session as db_session
 from app.models.platform.user import User
+from app.models.tenant.document import Document
+from app.models.tenant.project import Project
+from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.engine import ExportError
-from app.services.permissions import EXPORT_ACCESS
+from app.services.export.filters import narrow, parse_filters
+from app.services.permissions import (
+    DAC_RESOURCES,
+    EXPORT_ACCESS,
+    require_export_access,
+)
 from app.services.platform.csv_export import safe_filename_component
 from app.core.user_input_validators import resolve_zone
 
@@ -48,6 +61,60 @@ def selection_ids(params: dict, *, single_key: str, multi_key: str) -> list[int]
     return list(dict.fromkeys(ids))
 
 
+async def related_reach(session: AsyncSession, related: Iterable[Related]) -> set[int]:
+    """The initiatives of the documents and tasks at the far end of these
+    edges: a document's own, and a task's by its project."""
+    entities = [r.entity for r in related if r.entity is not None]
+    reach = {e.initiative_id for e in entities if isinstance(e, Document)}
+    project_ids = {e.project_id for e in entities if isinstance(e, Task)}
+    if project_ids:
+        reach |= set(
+            await session.exec(
+                select(Project.initiative_id).where(Project.id.in_(project_ids))
+            )
+        )
+    return reach
+
+
+async def get_for_export(
+    session: AsyncSession,
+    user: User,
+    guild_id: int,
+    tool: Tool,
+    entity_id: int,
+    load: Callable[[AsyncSession, int], Awaitable[Any]],
+    /,
+    *,
+    access: str = EXPORT_ACCESS,
+) -> Any:
+    """Load one entity with ``load`` and authorize exporting it: the row must be
+    there, its tool switched on in its initiative, and ``access`` held on it —
+    the owner rung for an export of the entity itself, ``"read"`` from an
+    initiative or community backup (``permissions.require_export_access``)."""
+    from app.api.resource_access import require_tool_enabled
+    from app.services import reachability
+
+    row = await load(session, entity_id)
+    if row is None:
+        raise await reachability.missing_or_denied(
+            tool.plural,
+            entity_id,
+            user.id,
+            guild_id,
+            not_found=tool.not_found_code,
+            denied=tool.no_access_code,
+        )
+    if row.initiative is not None:
+        require_tool_enabled(tool, row.initiative)
+    require_export_access(
+        DAC_RESOURCES[tool],
+        row,
+        context=db_session.guild_context(session),
+        access=access,
+    )
+    return row
+
+
 def export_stem(name: str, date: str) -> str:
     """The filename stem an export item is keyed by: the entity's own name,
     reduced to filename-safe characters, and the date the export was taken."""
@@ -63,13 +130,15 @@ def envelope_key(tool: Tool, name: str, date: str) -> str:
 @dataclass(frozen=True)
 class BuildContext:
     """What one batch of render items is built against: the requested format,
-    the creator (locale and attribution), the guild, a single clock read, and
-    whatever ``ToolExportAdapter.prepare`` loaded for the whole batch."""
+    the creator (locale and attribution), the guild, a single clock read, the
+    tool's export filters, and whatever ``ToolExportAdapter.prepare`` loaded
+    for the whole batch."""
 
     format: str
     user: User
     guild_id: int
     now: datetime
+    filters: BaseModel | None = None
     prepared: Any = None
 
     @property
@@ -82,8 +151,8 @@ class ToolExportAdapter:
     one item.
 
     A subclass names its ``Tool`` and fills in the tool-shaped hooks —
-    :meth:`fetch` (which rows, and the RLS seam that authorizes them),
-    :meth:`initiative_ids` (which of them one initiative holds),
+    :meth:`get_row` (how one row loads, when not the tool's registered
+    loader), :meth:`initiative_ids` (which of them one initiative holds),
     :meth:`rows` (how many rows one entity is worth) and :meth:`item` (how one
     entity serialises). Everything else — the registry key, the selection
     params, counting, and the ``RenderRequest`` — is the same for every tool
@@ -104,6 +173,9 @@ class ToolExportAdapter:
     #: data generated from the queries' shapes, because its results are the
     #: publisher's community, not something they made for the listing.
     example_is_generated: bool = False
+    #: Filters on what one entity holds rather than on which entities, by the
+    #: key they take in the tool's export filters (``app.services.export.filters``).
+    content_filters: ClassVar[dict[str, type[BaseModel]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -122,10 +194,19 @@ class ToolExportAdapter:
         access: str = EXPORT_ACCESS,
     ) -> Any:
         """Load and authorize one selected entity under the caller's RLS
-        session — that query IS the access check. ``access`` is the rung the
-        seam asks for: the owner rung for an export of the entity itself, and
-        ``"read"`` from an initiative or community backup."""
-        raise NotImplementedError
+        session (:func:`get_for_export`). A tool whose export carries more
+        than the row extends this."""
+        return await get_for_export(
+            session, user, guild_id, self.tool, entity_id, self.get_row, access=access
+        )
+
+    async def get_row(self, session: AsyncSession, entity_id: int, /) -> Any:
+        """One row by id, or ``None``: the tool's registered loader, the wider
+        one where it has two."""
+        from app.api.resource_access import RESOURCE_ACCESS
+
+        config = RESOURCE_ACCESS[self.tool]
+        return await (config.hydrated_loader or config.loader)(session, entity_id)
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
@@ -153,7 +234,23 @@ class ToolExportAdapter:
         beside it — a gallery's pictures ride next to its envelope."""
         return (self.item(entity, ctx),)
 
-    async def prepare(self, session: AsyncSession, entities: list[Any], /) -> Any:
+    async def reach(
+        self, session: AsyncSession, params: dict, entities: list[Any], /
+    ) -> set[int]:
+        """The initiatives whose content these entities hold. A guild-level
+        entity holds none."""
+        return {entity.initiative_id for entity in entities} - {None}
+
+    async def prepared_reach(
+        self, session: AsyncSession, ctx: BuildContext, /
+    ) -> set[int]:
+        """The initiatives of what :meth:`prepare` loaded beside the entities,
+        when the items ``ctx.format`` writes name it."""
+        return set()
+
+    async def prepare(
+        self, session: AsyncSession, entities: list[Any], ctx: BuildContext, /
+    ) -> Any:
         """Anything the item builders need across the whole batch, loaded in
         one pass (they are synchronous and hold no session)."""
         return None
@@ -183,11 +280,23 @@ class ToolExportAdapter:
         params: dict,
         format: str,
     ) -> list[Any]:
-        """Every selected entity, fetched and authorized one by one."""
-        return [
-            await self.fetch(session, user, guild_id, entity_id)
-            for entity_id in self.selection(params)
+        """Every selected entity, fetched and authorized one by one, then
+        narrowed to those the tool's filters leave. A selection is refused
+        whole if any of it is, filtered out or not."""
+        ids = self.selection(params)
+        entities = [
+            await self.fetch(session, user, guild_id, entity_id) for entity_id in ids
         ]
+        kept = set(
+            await narrow(
+                session,
+                user,
+                self.tool,
+                parse_filters(self.tool, params.get("filters")),
+                ids,
+            )
+        )
+        return [entity for entity_id, entity in zip(ids, entities) if entity_id in kept]
 
     async def count(
         self,
@@ -218,8 +327,9 @@ class ToolExportAdapter:
             # One clock read: the filename date and the subtitle timestamp
             # must not straddle midnight into disagreeing dates.
             now=datetime.now(resolve_zone(params.get("tz"))),
-            prepared=await self.prepare(session, entities),
+            filters=parse_filters(self.tool, params.get("filters")),
         )
+        ctx = replace(ctx, prepared=await self.prepare(session, entities, ctx))
         batch = tuple(item for entity in entities for item in self.items(entity, ctx))
         if format == "json":
             # An envelope names people by handle, never by id — including the
@@ -240,4 +350,8 @@ class ToolExportAdapter:
             template_id=self.template_id,
             format=format,
             batch=batch,
+            initiative_ids=frozenset(
+                await self.reach(session, params, entities)
+                | await self.prepared_reach(session, ctx)
+            ),
         )

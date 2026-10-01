@@ -34,11 +34,11 @@ from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import session as db_session
 from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 #: How big a picture may be. Larger than a document image (10 MB): a gallery
@@ -225,6 +225,7 @@ async def get_gallery(
     gallery = result.one_or_none()
     if gallery is not None:
         await tags_service.annotate_tags(session, [gallery])
+        await properties_service.annotate_properties(session, [gallery])
     return gallery
 
 
@@ -248,6 +249,7 @@ async def get_image(
     image = (await session.exec(stmt)).one_or_none()
     if image is not None:
         await tags_service.annotate_tags(session, [image])
+        await properties_service.annotate_properties(session, [image])
     return image
 
 
@@ -382,53 +384,3 @@ async def list_gallery_ids_for_export(
         .order_by(Gallery.id.asc())
     )
     return list(await session.exec(statement))
-
-
-async def get_gallery_for_export(
-    session: AsyncSession,
-    current_user: Any,
-    guild_id: int,
-    *,
-    gallery_id: int,
-    access: str = "owner",
-) -> tuple[Gallery, list[GalleryImage]]:
-    """The gallery-export seam: fetch + authorize in one place so the rule
-    holds on the worker's render-time replay too. It takes the owner rung, or
-    ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``).
-
-    The pictures come back with it, oldest first, because that is the order
-    they were put in and a restore should read the same way round.
-    """
-    from fastapi import HTTPException, status
-
-    from app.core.tools import Tool
-    from app.services import permissions as permissions_service
-
-    gallery = await get_gallery(session, gallery_id)
-    if gallery is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.gallery.not_found_code,
-        )
-    if gallery.initiative is not None and not gallery.initiative.galleries_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.gallery.feature_disabled_code,
-        )
-    permissions_service.require_export_access(
-        permissions_service.DAC_RESOURCES[Tool.gallery],
-        gallery,
-        context=db_session.guild_context(session),
-        access=access,
-    )
-    images = list(
-        await session.exec(
-            select(GalleryImage)
-            .where(GalleryImage.gallery_id == gallery.id)
-            .options(*image_loader_options())
-            .order_by(*image_order(oldest_first=True))
-        )
-    )
-    await tags_service.annotate_tags(session, images)
-    return gallery, images

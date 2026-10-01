@@ -67,10 +67,17 @@ READ_TAGS = (
     "counters",
     "calendars",
     "calendar-events",
+    # A window of a calendar: its events, a repeating one expanded into its
+    # occurrences, beside the tasks due in it. The events have no list of
+    # their own; this is what "what's on this week" reads.
+    "calendar-entries",
     "posts",
     "galleries",
     "wikis",
     "dashboards",
+    # How many of each a page holds, and its tag tree: counted from the lists
+    # above, for every tool at once.
+    "tools",
 )
 
 # Curated writes: author and edit, across every tool.
@@ -129,7 +136,7 @@ _WRITABLE_SEGMENTS = (
 #     its own action, taking a destination rather than a field.
 #   * A counter's count is the one thing about it ``PATCH`` cannot set — the
 #     update schema shapes the counter (name, bounds, step, initial count) and
-#     the count itself moves through these three. Without them, writing a
+#     the count itself moves through these two. Without them, writing a
 #     counter would mean renaming it. ``reset`` and ``reset-all`` are not here:
 #     they discard counts rather than record one.
 #   * Ticking one checklist item. ``PATCH /tasks/{id}`` rewrites the list's
@@ -152,7 +159,7 @@ _EXTRA_WRITE_ROUTE_MAPS = [
             pattern=r".*/counters/" + _ID + "/" + verb + "$",
             mcp_type=MCPType.TOOL,
         )
-        for verb in ("set", "increment", "decrement")
+        for verb in ("set", "step")
     ),
 ]
 

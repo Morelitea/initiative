@@ -28,6 +28,8 @@ from app.db import base  # noqa: F401 — import side effect registers every mod
 from app.db.tenancy import GUILD_SCOPED_TABLES, SHARED_TABLES
 from app.models.tenant._mixins import SoftDeleteMixin
 
+pytestmark = pytest.mark.always
+
 _TABLE_NAMES = set(SQLModel.metadata.tables)
 
 

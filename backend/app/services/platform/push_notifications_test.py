@@ -9,6 +9,7 @@ registered channels together.
 import re
 from pathlib import Path
 
+import pytest
 from sqlalchemy import text
 from sqlmodel import select
 
@@ -54,6 +55,11 @@ _IN_APP_ONLY = {
     # A community put on hold: an inbox notice beside its email, about paying
     # for it, which is no reason to interrupt someone on a device.
     NotificationType.guild_on_hold,
+    # A trial ending or ended, or a new community's plan to choose: the same
+    # errand as a hold, told the same way.
+    NotificationType.guild_trial_ending,
+    NotificationType.guild_trial_ended,
+    NotificationType.guild_welcome,
     # An app asking a member to consent: answered on the app's settings, where
     # it waits until they get to it.
     NotificationType.app_consent_requested,
@@ -77,6 +83,7 @@ def test_in_app_only_types_fall_back_to_the_general_channel():
     assert channel_for(None) == DEFAULT_CHANNEL
 
 
+@pytest.mark.always
 def test_channels_are_registered_by_the_android_app():
     """Every channel the backend routes to must be one the app creates on
     launch. A channel id the app never created is not an error anywhere — the
@@ -98,6 +105,7 @@ def test_channels_are_registered_by_the_android_app():
     )
 
 
+@pytest.mark.always
 def test_the_manifest_falls_back_to_a_channel_the_app_creates():
     """The web bundle updates over the air; channels ship with the APK.
 
@@ -145,8 +153,8 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     """The caller's session holds nothing on ``push_tokens`` here, as a
     community-routed one does not: the recipient's rows are read, the delivered
     one stamped and the dead one dropped all the same. A device whose session
-    has ended is not sent to and is dropped too. The same value registered by
-    another account is left alone."""
+    has ended, or that names no sign-in, is not sent to and is dropped too. The
+    same value registered by another account is left alone."""
     from app.models.platform.push_token import PushToken
     from app.services.platform import push_notifications, push_tokens
     from app.testing import create_user
@@ -170,9 +178,7 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     monkeypatch.setattr(push_config, "ensure_push_config_fresh", _enabled)
 
     async def _send(client, push_token, title, body, data=None, channel_id=None):
-        return (
-            (True, False) if push_token in ("live", "unlinked-new") else (False, True)
-        )
+        return (True, False) if push_token == "live" else (False, True)
 
     monkeypatch.setattr(push_notifications, "send_push_notification", _send)
 
@@ -193,8 +199,7 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         (recipient, "live", signed_in),
         (recipient, "gone", signed_in),
         (recipient, "signed-out", signed_out),
-        (recipient, "unlinked-new", None),
-        (recipient, "unlinked-old", None),
+        (recipient, "unlinked", None),
         (bystander, "gone", elsewhere),
     ):
         await push_tokens.register_push_token(
@@ -205,15 +210,6 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
             session_id=sid,
         )
     recipient_id, bystander_id = recipient.id, bystander.id
-    # Registered before rows named their sign-in: sent to for a grace period
-    # after it was last registered.
-    await session.exec(
-        text(
-            "UPDATE push_tokens SET updated_at = now() - interval '8 days' "
-            "WHERE push_token = 'unlinked-old'"
-        )
-    )
-    await session.commit()
 
     await _as_guild_floor(session)
     try:
@@ -227,7 +223,7 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
         )
     finally:
         await _reset_role(session)
-    assert sent == 2
+    assert sent == 1
 
     session.expire_all()
     rows = (
@@ -238,7 +234,6 @@ async def test_delivery_reads_stamps_and_prunes_on_the_system_engine(
     held = {(row.user_id, row.push_token): row for row in rows}
     assert set(held) == {
         (recipient_id, "live"),
-        (recipient_id, "unlinked-new"),
         (bystander_id, "gone"),
     }
     assert held[(recipient_id, "live")].last_used_at is not None

@@ -65,7 +65,7 @@ describe("chooseNoGuildLayout", () => {
 
     it("does not match a partial-prefix collision like /profileX", () => {
       // ``startsWith("/profile/")`` (with the trailing slash) plus the
-      // exact-match arm prevents this from leaking. Pin it so a future
+      // exact-match arm keeps this from matching. Pin it so a future
       // refactor can't drop the slash and silently widen the gate.
       expect(
         chooseNoGuildLayout({
@@ -96,6 +96,17 @@ describe("chooseNoGuildLayout", () => {
           canAccessPlatformAreas: false,
         })
       ).toBe("empty");
+    });
+  });
+
+  describe("the billing forwarder (no guilds)", () => {
+    it("renders the shell on a community's billing link, and nowhere else under it", () => {
+      const at = (pathname: string) =>
+        chooseNoGuildLayout({ hasGuilds: false, pathname, canAccessPlatformAreas: false });
+      expect(at("/c/7/billing")).toBe("shell");
+      expect(at("/c/7/billing/x")).toBe("empty");
+      expect(at("/c/x/billing")).toBe("empty");
+      expect(at("/c/7/settings")).toBe("empty");
     });
   });
 

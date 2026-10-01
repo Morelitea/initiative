@@ -139,7 +139,6 @@ describe("ContactActionsMenu", () => {
 
     // Not "ada": a bare name is refused by every field that takes one.
     expect(writeText).toHaveBeenCalledWith("ada#1234");
-    vi.unstubAllGlobals();
   });
 
   it("stars somebody from the menu, and says so once they are starred", async () => {

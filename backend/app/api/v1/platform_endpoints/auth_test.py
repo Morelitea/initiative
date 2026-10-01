@@ -10,7 +10,7 @@ Tests the auth API endpoints including:
 """
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -71,20 +71,28 @@ async def test_bootstrap_status_no_users(client: AsyncClient):
     assert "public_registration_enabled" in data
 
 
-async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSession):
-    """Test bootstrap status when users exist."""
+async def test_bootstrap_status_with_users(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Registration reads as open only where somebody may register without an
+    invite, which turning community creation off closes too."""
+    from app.core.config import settings
+
     await create_user(session)
 
     response = await client.get("/api/v1/auth/bootstrap")
+    assert response.json() == {"has_users": True, "public_registration_enabled": True}
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["has_users"] is True
-    assert "public_registration_enabled" in data
+    monkeypatch.setattr(settings, "DISABLE_GUILD_CREATION", True)
+    response = await client.get("/api/v1/auth/bootstrap")
+    assert response.json()["public_registration_enabled"] is False
 
 
-async def test_register_first_user(client: AsyncClient):
-    """Test that first registered user becomes owner and gets a guild."""
+async def test_register_first_user(client: AsyncClient, session: AsyncSession):
+    """The first registered user becomes owner, and a registration that names
+    no community creates none."""
+    from app.models.platform.guild import GuildMembership
+
     user_data = {
         "email": "first@example.com",
         "username": "first",
@@ -100,6 +108,83 @@ async def test_register_first_user(client: AsyncClient):
     assert data["full_name"] == "First User"
     assert data["status"] == "active"
     assert data["role"] == "owner"  # First user bootstraps as owner
+    held = await session.exec(
+        select(GuildMembership).where(GuildMembership.user_id == data["id"])
+    )
+    assert held.all() == []
+
+
+async def test_register_with_a_community_makes_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """A registration that names a community makes it, with the new account as
+    its superadmin; one that also carries an invite is refused."""
+    from app.models.platform.guild import Guild, GuildMembership, GuildRole
+
+    await create_user(session)
+    community = {"name": "Book Club", "description": "Monthly reads"}
+    response = await client.post(
+        "/api/v1/auth/register?invite_code=anything",
+        json={
+            "email": "both@example.com",
+            "username": "both",
+            "password": "securepassword123",
+            "community": community,
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "REGISTRATION_INVITE_OR_COMMUNITY"
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "founder@example.com",
+            "username": "founder",
+            "password": "securepassword123",
+            "community": community,
+        },
+    )
+    assert response.status_code == 201
+    held = (
+        await session.exec(
+            select(Guild, GuildMembership.role)
+            .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+            .where(GuildMembership.user_id == response.json()["id"])
+        )
+    ).all()
+    assert [(g.name, g.description, role) for g, role in held] == [
+        ("Book Club", "Monthly reads", GuildRole.superadmin)
+    ]
+
+
+async def test_register_answers_the_age_question(client: AsyncClient):
+    """A birthdate given at sign-up answers the directory's age question; under
+    age is recorded on the account rather than refusing it."""
+    today = date.today()
+
+    def register(name: str, birthdate: date):
+        return client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": f"{name}@example.com",
+                "username": name,
+                "password": "securepassword123",
+                "birthdate": birthdate.isoformat(),
+            },
+        )
+
+    adult = await register("adult", date(today.year - 30, 1, 1))
+    assert adult.status_code == 201
+    assert adult.json()["age_confirmed_at"] is not None
+
+    minor = await register("minor", date(today.year - 10, 1, 1))
+    assert minor.status_code == 201
+    assert minor.json()["age_confirmed_at"] is None
+    assert minor.json()["age_below_minimum_at"] is not None
+
+    unborn = await register("unborn", today + timedelta(days=1))
+    assert unborn.status_code == 422
+    assert unborn.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
 
 
 async def test_register_with_invite_blocked_when_guild_full(
@@ -1769,7 +1854,7 @@ async def test_oidc_next_rejects_non_relative_paths(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """Only a rooted relative path is carried: absolute URLs, protocol-relative
-    forms, and unrooted strings never set the cookie — and a tampered cookie is
+    forms, and unrooted strings never set the cookie — and such a cookie is
     dropped at the callback rather than echoed."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
@@ -1784,7 +1869,7 @@ async def test_oidc_next_rejects_non_relative_paths(
         assert response.status_code in (302, 307)
         assert "oidc_next" not in response.cookies, bad
 
-    # Cookie tampered between login and callback: the callback re-validates
+    # Cookie changed between login and callback: the callback re-validates
     # and redirects without any next parameter.
     client.cookies.set("oidc_next", "https://evil.example/x")
     response = await _run_oidc_flow(
@@ -1881,7 +1966,7 @@ async def test_row_provider_full_login_flow(
 async def test_oidc_callback_rejects_forged_state(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A forged state is refused, and so is a genuine one presented by a
+    """An unknown state is refused, and so is a genuine one presented by a
     browser other than the one the sign-in began in."""
     await _enable_platform_oidc(session)
     _wire_fake_idp(monkeypatch, FakeIdp())
@@ -1967,7 +2052,7 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     monkeypatch,
     verified_claim,
 ):
-    """SEC-9: an OIDC login must not link to / log into a pre-existing local
+    """An OIDC login must not link to / log into a pre-existing local
     account when the IdP does not assert ``email_verified is True`` for a
     matching email. A false claim (IdP allows unverified emails) and an absent
     claim (e.g. Azure AD) are both refused — fail closed."""
@@ -1992,7 +2077,7 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     assert "session_token" not in response.cookies
     assert await _federated_identities(session) == []
     # The account must not have been silently promoted to verified, and its
-    # profile must not have been overwritten by the attacker-supplied claims.
+    # profile must not have been overwritten by the IdP's claims.
     await session.refresh(existing)
     assert not await addresses.has_proven_address(session, user_id=existing.id)
     assert existing.full_name == "Victim"
@@ -2003,7 +2088,7 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     session: AsyncSession,
     monkeypatch,
 ):
-    """SEC-9 counterpart: a matching email with ``email_verified=true`` logs
+    """Counterpart: a matching email with ``email_verified=true`` logs
     into the existing account, promotes it to verified, and now writes the
     (provider, subject) link so later logins resolve by subject."""
     existing = await create_user(
@@ -2318,7 +2403,7 @@ async def test_password_reset_rejects_short_password(
     assert response.json()["detail"] == "PASSWORD_TOO_SHORT"
 
     # Reset token must still be redeemable — we failed before consuming it.
-    # Tokens are stored hashed (SEC-13), so look the row up by its hash.
+    # Tokens are stored hashed, so look the row up by its hash.
     from sqlmodel import select
 
     from app.services.platform.user_tokens import _hash_token
@@ -2444,6 +2529,7 @@ async def test_register_rolls_back_when_guild_seed_fails(
             "username": "seedfail",
             "full_name": "Seed Fail",
             "password": "securepassword123",
+            "community": {"name": "Seed Fail"},
         },
     )
 

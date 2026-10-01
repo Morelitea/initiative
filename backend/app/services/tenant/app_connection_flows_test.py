@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -30,9 +31,15 @@ from app.core.app_access_token import seal_install_token
 from app.core.config import settings
 from app.core.security import SESSION_COOKIE_NAME
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
-from app.core.messages import AppChannelMessages
+from app.core.messages import AccessGrantMessages, AppChannelMessages
 from app.db import cohorts
 from app.db.session import set_rls_context
+from app.models.platform.access_grant import (
+    AccessGrant,
+    AccessGrantPurpose,
+    AccessLevel,
+    SettingsLevel,
+)
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.app_install import AppInstall
 from app.models.tenant.app_hook_delivery import AppHookDelivery
@@ -43,6 +50,7 @@ from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import app_connection_flows, app_revocation, app_schedules
 from app.testing import (
+    create_access_grant,
     create_app_service_registration,
     create_guild_app,
     create_marketplace_listing,
@@ -638,6 +646,66 @@ class TestInstallationStyleFlow:
         stored = await _reload(session, a.guild.id, app.id)
         assert "workspace" not in (stored.config or {})
 
+    async def _lent_seat(self, session, acting_user, a, *, content: str):
+        """A support account the community's seat is lent to, beside a
+        ``content`` grant."""
+        support = await acting_user("support")
+        await create_access_grant(
+            session, user=support.user, guild=a.guild, access_level=content
+        )
+        await create_access_grant(
+            session,
+            user=support.user,
+            guild=a.guild,
+            purpose=AccessGrantPurpose.settings.value,
+            access_level=SettingsLevel.superadmin.value,
+        )
+        return replace(support, guild=a.guild)
+
+    async def test_a_lent_seat_beside_a_read_grant_cannot_start_it(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, a)
+        support = await self._lent_seat(session, acting_user, a, content="read")
+
+        response = await client.post(
+            support.g(f"/apps/{app.id}/connections/workspace/connect"),
+            headers=support.headers,
+        )
+
+        assert response.status_code == 403, response.text
+        assert response.json()["detail"] == AccessGrantMessages.WRITE_GRANT_REQUIRED
+
+    async def test_a_lent_seat_whose_write_grant_lapses_mid_flow_is_refused(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        """The flow is finished only while its starter may still change what
+        the seat holds."""
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _install(session, a)
+        support = await self._lent_seat(session, acting_user, a, content="read_write")
+        start = await _start(client, support, app, "workspace")
+
+        await session.exec(
+            update(AccessGrant)
+            .where(
+                AccessGrant.user_id == support.user.id,
+                AccessGrant.purpose == AccessGrantPurpose.content.value,
+            )
+            .values(access_level=AccessLevel.read.value)
+        )
+        await session.commit()
+
+        setup = await client.get(
+            "/api/v1/app-connections/setup",
+            headers=_cookie(support),
+            params={"state": start["state"], "installation_id": "42"},
+        )
+
+        assert _landing(setup.headers["location"])["outcome"] == "refused"
+        assert vendor.token_requests == []
+
     async def test_an_install_awaiting_approval_says_so(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
@@ -997,6 +1065,28 @@ class TestRevocation:
         assert response.status_code == 204
         assert len(vendor.revocations) == app_revocation.REVOKE_ATTEMPTS
 
+    async def test_revocations_are_sent_together(self, monkeypatch):
+        """Each delivery waits for the other, so both finish only when they run
+        at once."""
+        both = asyncio.Barrier(2)
+        delivered = []
+
+        async def deliver(intent):
+            await asyncio.wait_for(both.wait(), timeout=1)
+            delivered.append(intent.connection_id)
+
+        monkeypatch.setattr(app_revocation, "_deliver", deliver)
+        intents = [
+            app_revocation.RevocationIntent(
+                guild_id=1, app_id=1, listing_uid="l", connection_id=connection_id
+            )
+            for connection_id in ("a", "b")
+        ]
+
+        await app_revocation.dispatch_revocations(intents)
+
+        assert sorted(delivered) == ["a", "b"]
+
     async def test_a_hook_revocation_hands_the_app_the_tokens(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
@@ -1104,16 +1194,26 @@ class TestVendorWebhooks:
         assert _key("203.0.113.7") == _key("203.0.113.7")
 
     async def test_a_delivery_reaches_each_community_that_connected_it_once(
-        self, client: AsyncClient, acting_user, session, vendor, listing
+        self, client: AsyncClient, acting_user, session, vendor, listing, monkeypatch
     ):
         """Two communities connected installation 42 and a third connected 7.
-        A delivery for 42 is forwarded to each of the two, on a lifecycle
-        token naming that install, and a redelivery forwards nothing."""
+        A delivery for 42 is forwarded to each of the two at once, on a
+        lifecycle token naming that install, and a redelivery forwards
+        nothing."""
         seats = [await acting_user(guild_role=GuildRole.superadmin) for _ in range(3)]
         apps = [
             await _install(session, seat, config=_connected(value))
             for seat, value in zip(seats, ("42", "42", "7"))
         ]
+        # Each forward waits for the other, so both go only when sent together.
+        both = asyncio.Barrier(2)
+        call_hook = app_connection_flows.call_hook
+
+        async def together(*args, **kwargs):
+            await asyncio.wait_for(both.wait(), timeout=1)
+            return await call_hook(*args, **kwargs)
+
+        monkeypatch.setattr(app_connection_flows, "call_hook", together)
         body, headers = vendor.webhook({"action": "opened", "installation": {"id": 42}})
 
         response = await client.post(HOOK_ROUTE, content=body, headers=headers)
@@ -1128,7 +1228,7 @@ class TestVendorWebhooks:
             )
             for _, token in forwarded
         ]
-        assert [claim["app_install_id"] for claim in claims] == [
+        assert sorted(claim["app_install_id"] for claim in claims) == [
             apps[0].id,
             apps[1].id,
         ]

@@ -51,6 +51,7 @@ history/
 - **Dev ports are per checkout.** The main working tree keeps `8000`/`5173`; each linked worktree is allocated the lowest free offset (`8001`/`5174`, `8002`/`5175`, …), so several agents can run a dev environment at once. `scripts/dev-ports.sh` is the single source of truth — every dev script sources it, and it exports `DEV_BACKEND_PORT`, `DEV_FRONTEND_PORT`, `VITE_API_URL`, `VITE_DEV_PROXY_TARGET` and per-checkout log paths. Offsets live in `~/.cache/initiative/dev-ports`, keyed by checkout path: a checkout keeps its ports for as long as it exists, and a deleted one's slot is reused. There is no derived fallback — if the registry can't be read or written the dev scripts stop and say so, because a guessed pair could already be another checkout's. Pin a checkout by setting `DEV_BACKEND_PORT`/`DEV_FRONTEND_PORT` yourself. The VSCode "Dev Environment" debug config works in any worktree: launch.json cannot run a shell, so it starts `backend/scripts/dev_api.py`, which asks `dev-ports.sh` for the port and runs uvicorn in-process. Starting a dev environment on a port something else already holds reports it and stops, rather than taking the port.
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && pnpm lint` — run tests and linters. Tests are co-located alongside source files in `app/` (not in a separate `tests/` directory).
+- `scripts/ci/check` — the fast checks CI runs (ruff, ruff format, ty, frozen migrations and one Alembic head, biome, tsc, and generated-types / `env-contract.json` drift), for what the branch changed against `origin/dev`. CI calls the same script for those steps, and the husky pre-push hook runs it (`git push --no-verify` skips it once). No tests and no database. `scripts/ci/check all` runs everything; `scripts/ci/check codegen` regenerates drifted files for you to review and commit.
 
 ## Generated API Types (Orval)
 
@@ -97,8 +98,8 @@ The native (Capacitor) app receives web-bundle updates over the air: each Docker
 - CI (`docker-publish.yml` `decide` job) compares `MIN_NATIVE_VERSION` against the previous tag: if it moved, it builds and attaches a fresh APK; if not, the **Android build is skipped** and the release ships Docker-only — existing installs update over the air.
 - The app refuses a bundle whose `minNativeVersion` exceeds the installed native app version and prompts the user to update from the store/APK instead.
 - **Every update the app installs is signed.** The image build signs a statement of the bundle (version, sha256, `minNativeVersion`) with the ECDSA P-256 key in the `ota-release` environment secret `OTA_SIGNING_KEY` (`frontend/scripts/sign-ota.mjs`, passed as the BuildKit secret `ota_signing_key`), and `/native/bundle/manifest` serves it. The app verifies it against the public keys in `frontend/src/lib/otaTrust.ts` (the release key, then an offline backup) and ignores an unsigned bundle, so local images never update the app.
-  - **The release build fails without the key** (`Require the app update signing key` in `docker-publish.yml`), so an official image never ships unsigned. `ota-release` releases the secret only to `v*` tags and `main`.
-  - **Dev images are signed with a separate dev key** (`OTA_SIGNING_KEY` in the `ota-dev` environment, `dev` branch only; public half in `.github/ota-dev-key.pub`, baked in as `VITE_OTA_DEV_KEY`). Only the dev app trusts it: `dev-app.yml` builds it as `com.morelitea.initiative.dev` ("Initiative Dev"), signed with the dev keystore in the same environment. See CONTRIBUTING.md.
+  - **The release build fails without the key** (`Require the app update signing key` in `docker-publish.yml`), so an official image never ships unsigned. `ota-release` releases the secret only to `v*` tags, `main` and `release/v*` branches, where the release candidate is built.
+  - **Dev images are signed with a separate dev key** (`OTA_SIGNING_KEY` in the `ota-dev` environment, `dev` branch only; public half in `.github/ota-dev-key.pub`, baked in as `VITE_OTA_DEV_PUBLIC_KEY`). Only the dev app trusts it: `dev-app.yml` builds it as `com.morelitea.initiative.dev` ("Initiative Dev"), signed with the dev keystore in the same environment. See CONTRIBUTING.md.
   - **The backup key is held offline by the owners.** To retire the release key: set `OTA_SIGNING_KEY` to the backup private key (every installed app already trusts it), then ship an app update whose `otaTrust.ts` replaces the retired public key with a new backup. No APK is needed, and servers do nothing.
   - **This key is the project's, not an operator's.** Unlike `SECRET_KEY`, which each deployment owns because it protects that deployment's own data, the update key vouches for code the project publishes to one app that talks to every server; a key held by each server would only prove what the server already sent.
 - Edge case the detector can't see: a native-affecting change that lands **only** via `pnpm-lock.yaml` (no `package.json` range change). Force a rebuild by editing `MIN_NATIVE_VERSION` manually that release.
@@ -118,7 +119,7 @@ the last release** — the newest revision that has run on somebody's database.
 
 ### Releasing a Version
 
-Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `main` with the version bump and changelog stamp. Only code owners (@jordandrako, @LeeJMorel) can run this script.
+Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `main` with the version bump and changelog stamp. Only code owners (@jordandrako, @LeeJMorel) can run this script. The same script runs from GitHub: **Actions → Release → Run workflow**, choose patch, minor, major or docs (and dry run), and approve the run. It runs as the release app, whose client ID (`RELEASE_APP_CLIENT_ID`) and private key (`RELEASE_APP_PRIVATE_KEY`) the `release` environment holds, so the PR's CI and the release candidate start as they would for a PR a person opened.
 
 ```bash
 # Patch release (0.29.1 → 0.29.2)
@@ -134,7 +135,7 @@ Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `
 ./scripts/promote.sh --dry-run
 ```
 
-After the release PR merges to `main`, `tag-release.yml` auto-creates the version tag, which triggers the Docker build and GitHub Release.
+The release branch's image is built once: `release-candidate.yml` builds and signs it on every push to `release/vX.Y.Z`, walks it from every release in both setups (`upgrade.yml`), and tags it `candidate-<tree>` when that passes. After the release PR merges to `main`, `tag-release.yml` auto-creates the version tag, and `docker-publish.yml` retags the candidate whose tree the tag holds as the release (no rebuild). Without one, it builds the image and walks it the same way before tagging it, so no release image is published unwalked. Then it makes the GitHub Release.
 
 ### Semantic Versioning Guidelines
 
@@ -341,7 +342,8 @@ and `test_<checkout>_<worker>_*` (see `backend/conftest.py`). Concurrent runs fr
 different worktrees therefore don't share a database or drop each other's roles.
 Those databases persist so warm runs skip the migration; reclaim them with
 `cd backend && python scripts/drop_test_dbs.py` (add `--yes` to actually drop,
-`--all` for every checkout's).
+`--orphaned` for those of checkouts that no longer exist — safe while others
+test — or `--all` for every checkout's).
 
 Parallelism is per-invocation. `-n auto` pays for itself on a big run — measured
 6m29s → 1m52s on `app/services` (1363 tests, 16 cores) — and costs more than it
@@ -358,15 +360,87 @@ and opens its own engines, ~500MB resident each, so `conftest.py`'s
 takes the lower of that and the core count (16 cores + 16GB RAM → 8 workers).
 Override with `PYTEST_XDIST_AUTO_NUM_WORKERS` on a host that knows better.
 
-The suite is also the cluster's heaviest **writer** — a TRUNCATE per test and a
-CREATE/DROP of a ~60-table schema per guild test — and what that fills is WAL,
+**Guild schemas are pooled per worker.** Building one costs ~0.8s and ~6MB of
+WAL, and guild ids restart at 1 every test, so each worker keeps the schemas
+for guild ids 1–3 instead of dropping them. A finished test's schema is emptied
+(only the tables it wrote to, sequences back to 1) and parked as
+`test_pool_<id>`, a name no `guild_[0-9]+` enumerator sees. The next test that
+provisions that id gets it back by rename. A schema that a test changed is
+dropped and rebuilt: an event trigger logs DDL on guild schemas, and a
+fingerprint covers the grants and role memberships DDL events can't see. See
+`app/testing/guild_pool.py`. A test *about* provisioning takes
+`@pytest.mark.fresh_guild_schema`; `PYTEST_GUILD_POOL=0` turns the pool off
+for a whole run, to rule it in or out when a failure looks order-dependent.
+A test that leaves `guild_template` changed fails at teardown, because the
+worker renders provisioning from the template once.
+
+The suite is also the cluster's heaviest **writer** — a TRUNCATE per test, and
+a guild schema built for every guild id above the pool — and what that fills is WAL,
 not table data (per-worker databases sit near 100MB; `pg_wal` was measured at
-2.5GB). Writing it grows the page cache, which is what makes a WSL2 VM balloon
+2.5GB before the pool). Writing it grows the page cache, which is what makes a WSL2 VM balloon
 past its ceiling and die mid-run. The local `docker-compose.yml` db service
 therefore also runs with `fsync=off`, `full_page_writes=off`,
 `synchronous_commit=off`, `wal_level=minimal`, `max_wal_senders=0` and
 `max_wal_size=512MB` — safe for a cluster holding only the dev database and
 throwaway test databases, and not something to copy into any deployment.
+
+**Which backend tests a pull request runs.** CI picks one of two modes in its
+Detect Changes job, and the run's summary page says which:
+
+- **Every test**, when the change touches something test selection cannot
+  see: `alembic/` (migrations run before any test), `app/db/`,
+  `app/core/capabilities.py` or `config.py` (the roles, grants and policies a
+  start renders), `app/testing/`, `conftest.py`, `pytest.ini`, the
+  dependencies, `backend/scripts/ci/`, non-Python files under `app/`, or the CI
+  workflow. Every push to `main` and `dev` runs every test too.
+- **Only the always-run core** when nothing in `backend/` changed but
+  something other than documentation did: the core holds the backend's checks
+  on files elsewhere (the locale catalogues, the app-kit contract, the Android
+  channels).
+- **Otherwise, two passes**: the **always-run core**, then the tests the
+  change reaches. The second pass uses
+  [pytest-testmon](https://testmon.org): every full run records which code each
+  test executed, dev's recording is published as the `test-selection-data`
+  artifact, and a pull request runs the tests whose recorded code it changed.
+  A change inside a function selects the tests that ran it; a change at a
+  file's top level (a pydantic field, a constant) selects every test that used
+  the file.
+
+The **always-run core** is every test marked `always` (a file's
+`pytestmark = pytest.mark.always`, or `@pytest.mark.always` on one test). Mark
+a test `always` when it checks something across *every* table, route,
+registry, capability or migration, scans the source tree for a pattern, or
+reads a file outside `backend/`: selection only knows code a test has already
+run, so a new file (a model, a route, a revision) or a frontend file reaches no
+test until one of these catches it. Keep the core cheap: it runs on every pull
+request.
+
+**The nightly run** (`.github/workflows/nightly.yml`) varies what the gates
+hold fixed: Postgres 16 and 18, `TZ=Pacific/Auckland` for both suites and a
+German locale for the backend's (the frontend tests pin English in
+`vitest.config.ts`, because the app formats in the browser's locale), and a
+shuffled order (`pytest --shuffle=SEED`, the seed in the
+run's header; `vitest --sequence.shuffle --sequence.seed=SEED`). A failed
+night opens an issue labelled `nightly`. **A flaky test is quarantined, not
+retried**: mark it `@pytest.mark.quarantine(issue=<number>, since="YYYY-MM-DD")`
+and open the issue. Every run leaves it out except `pytest --quarantined`,
+which the nightly runs and which fails once a quarantine is two weeks old: by
+then the test is fixed or deleted (`app/testing/run_options.py`). It also
+holds **what a community costs the database** (`pytest -m budget`,
+`app/db/budgets_test.py`, deselected otherwise): its parsed policies' memory
+per connection, the gates that read the standing staying `plpgsql`, and the
+standing being read once a statement. Each is a count Postgres reports rather
+than a time; when a change lowers one, lower its budget with it.
+
+**The browser journeys** (`frontend/e2e/*.journey.ts`, Playwright, Chromium)
+walk the paths a person takes through an image started from
+`docker-compose.example.yml` as shipped: the first owner building a community
+through to a task, and an invited member seeing only what they were let into.
+`.github/workflows/journeys.yml` runs them on every push to `dev`, nightly, on
+a pull request labelled `journeys`, and before Release Candidate marks a
+candidate checked or Build and Release publishes a build of its own. Each run
+keeps its HTML report for 90 days. They need an empty database: the first
+journey registers the first owner. No retries, as for every other test.
 
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:
@@ -400,6 +474,10 @@ cd backend && pytest -m seam app/db/seam_conformance_test.py
 
 # Run all frontend tests
 cd frontend && pnpm test:run
+
+# The browser journeys (frontend/e2e/*.journey.ts) against a fresh install:
+# start docker-compose.example.yml with the image to check, then
+cd frontend && pnpm exec playwright install chromium && JOURNEYS_URL=http://localhost:8173 pnpm test:journeys
 
 # Run frontend tests in watch mode
 cd frontend && pnpm test
@@ -510,7 +588,7 @@ Two cross-cutting overrides sit above all four:
 - **PAM** — platform roles may be **temporarily** granted scoped access via the DB tooling (time-bound, audited `access_grants`; `pam_read`/`pam_write` RLS legs). Never a standing bypass.
 - **Guild admin** — **always** has read/write to **every** aspect of their guild, regardless of initiative membership or sharing (`GuildContext.is_admin` / the `app.guild_admin` RLS leg, computed from the membership row by the standing statement).
 
-Two rules follow from this being a **DB-layer** standard: authorization is a property of the *current moment*, not of a connection or a cached snapshot (re-derive it when grant/role/membership/PAM change); and a non-DB-enforced channel (e.g. an out-of-band realtime push) must carry **no content it hasn't continuously authorized** — prefer a content-free signal + an RLS-gated refetch so the gates above are the only decision point. See [`history/realtime-authorization-design.md`](history/realtime-authorization-design.md).
+Two rules follow from this being a **DB-layer** standard: authorization is a property of the *current moment*, not of a connection or a cached snapshot (re-derive it when grant/role/membership/PAM change); and a non-DB-enforced channel (e.g. an out-of-band realtime push) must carry **no content it hasn't continuously authorized** — prefer a content-free signal + an RLS-gated refetch so the gates above are the only decision point.
 
 ### Three engines (Postgres logins) — [`session.py`](backend/app/db/session.py)
 
@@ -524,7 +602,7 @@ Guild **content** (projects, tasks, documents, initiatives, queues, counters, ca
 
 - The canonical structure of a guild schema is the Alembic-maintained **`guild_template`** schema. There is **no committed schema artifact** — provisioning reflects the live template at runtime ([`app/db/guild_ddl.py`](backend/app/db/guild_ddl.py) `render_guild_schema_ddl`) so new guilds match by construction. `guild_template` is seeded on fresh installs from the frozen baseline snapshot [`alembic/baseline/guild_template_0125.sql`](backend/alembic/baseline/guild_template_0125.sql) (a write-once seed, never edited) and evolved by ordinary guild migrations thereafter.
 - Provisioning + per-guild roles live in [`schema_provisioning.py`](backend/app/db/schema_provisioning.py); the DDL it applies is rendered once per process by `get_provisioning_bundle()` (structure from the live template, RLS from the registry, stamp over both + grants). `backfill_guild_schemas()` re-provisions on boot only guilds whose stamp is stale, so a guild migration reaches existing guilds automatically; `FORCE_GUILD_BACKFILL=true` forces a full sweep.
-- **Guild isolation** is the schema boundary + `SET ROLE` (the request login role cannot reach any guild schema). On top of that, the guild **content** tables (projects, tasks, documents, queues, counters, calendar + children, property defs, and the polymorphic `resource_grants` — the single DAC table replacing the old per-resource `*_permissions`/`*_role_permissions`) carry **initiative-member RLS**: per-command PERMISSIVE policies that defer to one function, `initiative_access(initiative_id, user_id, need_write, standing)` (initiative member OR guild admin OR PAM OR the system engine, all read from the request's standing rather than walked per row — see rule 7 below). Every gate takes the standing as its last argument: a policy passes `(SELECT current_standing())`, a sub-select naming no row, so the standing is read once per statement rather than once per row, and a leg a policy reads inline is its own once-per-statement sub-select (`app.db.authorization.Legs`). `public.standing` is the shared type; `current_standing()` is rendered into each schema with the gates, so a schema's policies still call only that schema's functions. A child table's **read** policy is one `EXISTS` into its parent and nothing more: that scan runs the parent's own `SELECT` policy, which asks the same question, so the child restates only the write standing (`app/db/child_read_shortcut_test.py` holds the assumption that makes it the same answer). The **structural** initiative tables (`initiatives`, `initiative_members`, `initiative_roles`, `initiative_role_permissions`) are **read** within the schema boundary and not initiative-scoped for reading (co-members read their roster, and the standing statement reads the membership table before any standing exists); they are **written** by the initiative's managers — `managed_*` policies rendered from `MANAGED_TABLES` in [`tenancy.py`](backend/app/db/tenancy.py) that admit a manager of that initiative by the standing (`app.manager_initiatives`, a value the seam computed, so the membership table is gated by no read of itself), the community's admin, a settings rung beside a `read_write` grant, or the system engine; a member's own row into an initiative whose join policy is `open` is the one further way in. The app layer uses the **same** function — [`membership.py`](backend/app/services/membership.py)'s `initiative_scope_clause` emits `func.initiative_access(...)`, so there's no parallel re-implementation. Policies are **rendered at runtime** by [`app/db/guild_ddl.py`](backend/app/db/guild_ddl.py) `render_guild_rls_ddl()` from the per-table `INITIATIVE_PATHS` registry in [`app/db/initiative_rls.py`](backend/app/db/initiative_rls.py) (the single source of truth — `INITIATIVE_SCOPED_TABLES`, and in turn `GUILD_SCOPED_TABLES`, derive from it) — applied by `apply_guild_rls` during provisioning (+ boot backfill); the function is rendered into each guild schema by the same provisioning run, ahead of the policies that call it (the nine guild-logic functions live in the schema, see [`app/db/authorization.py`](backend/app/db/authorization.py); the six that read shared tables stay in `public`; none pins a `SET search_path` and none is `SECURITY DEFINER`; the gates are `plpgsql`, because a body with a sub-select is never inlined and a SQL function that is not inlined is re-planned on every query execution, while plpgsql keeps its plan for the session). The tables whose row names its subject as a `(kind, id)` pair — `comments`, `reactions`, `reaction_digest_items`, `recent_views`, `relationships` — defer to one of those nine, `entity_access(kind, id, need_write, need_share_write, standing)`: one `CASE` arm per kind, derived from the comment parents, reaction targets, recentable tools and edge kinds, so a policy there is one call rather than one `EXISTS` per kind (the inline form parsed to ~1 MB of policy tree per table per backend). One consequence: a guild member who isn't in an initiative gets **404** (RLS hides the row), not 403, for that initiative's content.
+- **Guild isolation** is the schema boundary + `SET ROLE` (the request login role cannot reach any guild schema). On top of that, the guild **content** tables (projects, tasks, documents, queues, counters, calendar + children, property defs, and the polymorphic `resource_grants` — the single DAC table replacing the old per-resource `*_permissions`/`*_role_permissions`) carry **initiative-member RLS**: per-command PERMISSIVE policies that defer to one function, `initiative_access(initiative_id, user_id, need_write, standing)` (initiative member OR guild admin OR PAM OR the system engine, all read from the request's standing rather than walked per row — see rule 7 below). Every gate takes the standing as its last argument: a policy passes `(SELECT current_standing())`, a sub-select naming no row, so the standing is read once per statement rather than once per row, and a leg a policy reads inline is its own once-per-statement sub-select (`app.db.authorization.Legs`). `public.standing` is the shared type; `current_standing()` is rendered into each schema with the gates, so a schema's policies still call only that schema's functions. A child table's **read** policy is one `EXISTS` into its parent and nothing more: that scan runs the parent's own `SELECT` policy, which asks the same question, so the child restates only the write standing (`app/db/child_read_shortcut_test.py` holds the assumption that makes it the same answer). The **structural** initiative tables (`initiatives`, `initiative_members`, `initiative_roles`, `initiative_role_permissions`) are **read** within the schema boundary and not initiative-scoped for reading (co-members read their roster, and the standing statement reads the membership table before any standing exists); they are **written** by the initiative's managers — `managed_*` policies rendered from `MANAGED_TABLES` in [`tenancy.py`](backend/app/db/tenancy.py) that admit a manager of that initiative by the standing (`app.manager_initiatives`, a value the seam computed, so the membership table is gated by no read of itself), the community's admin, a settings rung beside a `read_write` grant, or the system engine; a member's own row into an initiative whose join policy is `open` is the one further way in. The app layer uses the **same** function — [`membership.py`](backend/app/services/membership.py)'s `initiative_scope_clause` emits `func.initiative_access(...)`, so there's no parallel re-implementation. Policies are **rendered at runtime** by [`app/db/guild_ddl.py`](backend/app/db/guild_ddl.py) `render_guild_rls_ddl()` from the per-table `INITIATIVE_PATHS` registry in [`app/db/initiative_rls.py`](backend/app/db/initiative_rls.py) (the single source of truth — `INITIATIVE_SCOPED_TABLES`, and in turn `GUILD_SCOPED_TABLES`, derive from it) — applied by `apply_guild_rls` during provisioning (+ boot backfill); the function is rendered into each guild schema by the same provisioning run, ahead of the policies that call it (the nine guild-logic functions live in the schema, see [`app/db/authorization.py`](backend/app/db/authorization.py); the seven that read shared tables stay in `public`; none pins a `SET search_path` and none is `SECURITY DEFINER`; the gates are `plpgsql`, because a body with a sub-select is never inlined and a SQL function that is not inlined is re-planned on every query execution, while plpgsql keeps its plan for the session). The tables whose row names its subject as a `(kind, id)` pair — `comments`, `reactions`, `reaction_digest_items`, `recent_views`, `relationships` — defer to one of those nine, `entity_access(kind, id, need_write, need_share_write, standing)`: one `CASE` arm per kind, derived from the comment parents, reaction targets, recentable tools and edge kinds, so a policy there is one call rather than one `EXISTS` per kind (the inline form parsed to ~1 MB of policy tree per table per backend). One consequence: a guild member who isn't in an initiative gets **404** (RLS hides the row), not 403, for that initiative's content.
 
 ### Roles assumed per request (`set_rls_context`)
 
@@ -698,8 +776,9 @@ The typical deployment process:
 
 # 2. Merge the release PR on GitHub
 
+#    (release-candidate.yml builds, signs and walks the image on the release branch)
 # 3. tag-release.yml auto-creates the version tag
-#    docker-publish.yml builds, publishes, and notifies
+#    docker-publish.yml publishes that image under the version tags, and notifies
 
 # 4. Verify on Docker Hub
 # Check: https://hub.docker.com/r/USERNAME/initiative/tags

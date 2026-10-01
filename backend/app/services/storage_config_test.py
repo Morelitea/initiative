@@ -53,7 +53,6 @@ async def test_refresh_loads_db_over_env(
         s3_secret_access_key="db-secret",
         secret_provided=True,
         s3_use_path_style=True,
-        s3_kms_key_id=None,
         s3_local_fallback=False,
     )
 
@@ -77,7 +76,6 @@ async def test_test_connection_local_is_noop(session: AsyncSession) -> None:
         access_key_id=None,
         secret_access_key=None,
         use_path_style=False,
-        kms_key_id=None,
         local_fallback=False,
     )
     ok, _message = await storage_config.test_connection(cfg)
@@ -85,9 +83,9 @@ async def test_test_connection_local_is_noop(session: AsyncSession) -> None:
 
 
 def test_build_s3_client_disables_flexible_checksums() -> None:
-    """Regression: botocore >=1.36's default flexible checksums break non-AWS
-    S3 stores (signature/AccessDenied, classically on GetObject). The client must
-    pin both checksum knobs to "when_required" for S3-compatible interop."""
+    """Regression: botocore >=1.36's default flexible checksums break many
+    S3-compatible stores (signature/AccessDenied, classically on GetObject). The
+    client must pin both checksum knobs to "when_required" for interop."""
     from app.services.storage import build_s3_client
 
     cfg = storage_config.ResolvedStorageConfig(
@@ -98,7 +96,6 @@ def test_build_s3_client_disables_flexible_checksums() -> None:
         access_key_id="GK",
         secret_access_key="x",
         use_path_style=True,
-        kms_key_id=None,
         local_fallback=False,
     )
     client = build_s3_client(cfg)
@@ -115,7 +112,6 @@ async def test_test_connection_s3_requires_bucket(session: AsyncSession) -> None
         access_key_id=None,
         secret_access_key=None,
         use_path_style=False,
-        kms_key_id=None,
         local_fallback=False,
     )
     ok, message = await storage_config.test_connection(cfg)

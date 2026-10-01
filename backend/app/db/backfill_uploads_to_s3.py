@@ -1,7 +1,6 @@
 """Backfill: copy existing local uploads into the configured S3 bucket.
 
-The final step of the local→S3 migration (see
-``history/blob-storage-tenancy-design.md`` §11). Run it with the ``S3_*`` settings
+The final step of the local→S3 migration. Run it with the ``S3_*`` settings
 pointed at your object store **while the app is still on
 ``STORAGE_BACKEND=local``**: it copies every blob under
 ``UPLOADS_DIR/guild_<id>/`` to the S3 key ``guild_<id>/<file>``, setting the
@@ -47,10 +46,10 @@ _warned_head_forbidden = False
 def _object_exists(dest: StorageBackend, key: str) -> bool:
     """Whether ``key`` is already in ``dest``, tolerating a 403 HeadObject.
 
-    Many S3 stores (and AWS itself) return **403 Forbidden** instead of 404 for
-    ``HeadObject`` on a *missing* key when the credentials lack ``s3:ListBucket``
-    on the bucket. That must not abort the migration: we can't confirm presence,
-    so we report "not present" and let the idempotent write below decide — a real
+    Many S3 stores return **403 Forbidden** instead of 404 for ``HeadObject`` on
+    a *missing* key when the credentials lack ``s3:ListBucket`` on the bucket.
+    That must not abort the migration: we can't confirm presence, so we report
+    "not present" and let the idempotent write below decide — a real
     write-permission problem then surfaces on ``PutObject`` (recorded per file),
     while a fresh bucket simply gets every object (re-runs lose the skip
     optimization but stay correct). Non-403 errors propagate as before.
@@ -159,7 +158,7 @@ async def _guild_upload_meta(
         return {}
     rows = (
         await conn.execute(
-            # schema = guild_schema_name(int) — injection-safe.
+            # schema = guild_schema_name(int), a digits-only identifier.
             text(
                 f'SELECT filename, content_type, content_hash FROM "{schema}".uploads'  # noqa: S608
             )
@@ -231,7 +230,6 @@ async def backfill_uploads_to_s3(
                     bucket=cfg.bucket,
                     client=client,
                     prefix=f"guild_{int(gid)}/",
-                    kms_key_id=cfg.kms_key_id,
                 )
                 backfill_guild_dir(
                     guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run

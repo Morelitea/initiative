@@ -1,4 +1,4 @@
-"""Tests for transactional email rendering (SEC-5: HTML escaping)."""
+"""Tests for transactional email rendering (HTML escaping)."""
 
 from dataclasses import replace
 
@@ -14,8 +14,8 @@ EVIL_NAME = '<a href="https://phish.example">Reset your password</a>'
 
 async def test_mention_email_escapes_malicious_display_name(session, monkeypatch):
     """A mention email whose actor display name contains markup must show the
-    literal text in the HTML part (no live phishing link inside the trusted,
-    brand-styled body) while the plain-text alternative keeps the raw text."""
+    literal text in the HTML part (no live link inside the brand-styled body)
+    while the plain-text alternative keeps the raw text."""
     user = await create_user(session, full_name="Victim")
 
     captured: dict = {}
@@ -78,10 +78,10 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     """The manager's copy resolves from the `initiativeJoinRequest` block and
     neutralizes the requester's free-text note in the HTML part.
 
-    The note is the one piece of this mail a stranger writes, and `email_t`
+    The note is the one piece of this mail the requester writes, and `email_t`
     returns the key itself when a template is missing — so this pins both that
-    the keys exist and that the note can't smuggle markup into a brand-styled
-    body.
+    the keys exist and that the note renders as text, not markup, in the
+    brand-styled body.
     """
     manager = await create_user(session, full_name="Grace")
 
@@ -188,18 +188,78 @@ async def test_the_hold_letter_names_the_deletion_day_when_there_is_one(
 
     monkeypatch.setattr(email_service, "send_email", fake_send_email)
 
-    for delete_at in (datetime(2026, 10, 24, tzinfo=timezone.utc), None):
+    day = datetime(2026, 10, 24, tzinfo=timezone.utc)
+    for delete_at, plan_managed in ((day, True), (day, False), (None, True)):
         await email_service.send_community_on_hold_email(
             session,
             recipients=["seat@example.com"],
             community="Acme",
             contact="help@example.com",
+            guild_id=7,
             delete_at=delete_at,
+            plan_managed=plan_managed,
         )
 
-    dated, undated = sent
-    assert "<strong>24 October 2026</strong>" in dated["html_body"]
-    assert "24 October 2026, it will be deleted" in dated["text_body"]
-    assert "help@example.com" in dated["text_body"]
+    billed, held, undated = sent
+    assert (
+        "<strong>24 October 2026</strong> unless its plan is restored"
+        in (billed["html_body"])
+    )
+    assert billed["text_body"].startswith(
+        "Acme is on hold and will be deleted on 24 October 2026 unless its plan is"
+        " restored."
+    )
+    assert "help@example.com" in billed["text_body"]
+    # Restoring the plan lifts the hold, so the letter leads to the portal.
+    for part in ("html_body", "text_body"):
+        assert "/c/7/billing?page=manage" in billed[part]
+        assert "Restore the plan" in billed[part]
+    # Where no plan is behind the hold, the plan is not what lifts it.
+    assert "unless the hold is lifted" in held["text_body"]
+    assert "plan" not in held["text_body"]
+    assert "/billing" not in held["html_body"]
     assert "deleted" not in undated["html_body"]
     assert "deleted" not in undated["text_body"]
+
+
+async def test_the_hold_letter_is_written_in_its_readers_language(session, monkeypatch):
+    from datetime import datetime, timezone
+
+    sent: list[dict] = []
+
+    async def fake_send_email(_session, **kwargs):
+        sent.append(kwargs)
+
+    monkeypatch.setattr(email_service, "send_email", fake_send_email)
+
+    await email_service.send_community_on_hold_email(
+        session,
+        recipients=["seat@example.com"],
+        community="Acme",
+        contact=None,
+        guild_id=7,
+        delete_at=datetime(2026, 3, 4, tzinfo=timezone.utc),
+        plan_managed=True,
+        locale="de",
+    )
+
+    (letter,) = sent
+    assert letter["subject"] == "Acme ist pausiert"
+    assert "am 4. März 2026 gelöscht" in letter["text_body"]
+    assert "Tarif wiederherstellen" in letter["html_body"]
+
+
+@pytest.mark.parametrize(
+    ("locale", "expected"),
+    [
+        ("en", "8 October 2026"),
+        ("de", "8. Oktober 2026"),
+        ("es", "8 de octubre de 2026"),
+        ("fr", "8 octobre 2026"),
+        ("xx", "8 October 2026"),
+    ],
+)
+def test_a_letter_writes_a_day_the_way_its_language_does(locale, expected):
+    from datetime import date
+
+    assert email_service.email_date(date(2026, 10, 8), locale) == expected

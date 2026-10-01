@@ -102,14 +102,40 @@ To run as a different user — for example, to match the account that owns the u
 
 ## Docker images
 
-Published images are multi-architecture (`linux/amd64` and `linux/arm64`):
+Published images run on `linux/amd64` and `linux/arm64`. Pick a tag by how you feel about surprises:
+
+| Tag | Moves to | Suits you if |
+|---|---|---|
+| `latest` | every release, the day it ships | you like new things, and you'll say something when one bites |
+| `stable` | a release we have promoted by hand, after it was out at least three days with no open regression reported against it | you would rather somebody else found it first |
+| `0.53`, `0` | the newest release in that line | you want fixes without choosing each one |
+| `0.53.3` | nowhere, ever | you upgrade when you decide to, and not a minute before |
+
+The example compose file uses `latest`. To follow `stable`, change its `image:` line to `morelitea/initiative:stable`, then:
 
 ```bash
-docker pull morelitea/initiative:latest    # most recent release
-docker pull morelitea/initiative:0.53       # pin to a minor version
+docker compose pull && docker compose up -d
 ```
 
-Tags follow the version number, so you can pin to `latest`, a major (`0`), a minor (`0.53`), or an exact patch (`0.53.3`).
+Three days is the least a release waits, not a timer: `stable` moves when we promote the next release that qualifies, so it can sit on one version for a while. A release with a security fix can reach it sooner. And `stable` only works because people run `latest`: a bug report with the **Version** filled in is exactly what holds a release back from it.
+
+### Checking an image is ours
+
+You never have to. But every image is signed by the workflow that built it, and carries a list of everything inside it (an SBOM) and a record of how it was built. If your setup checks images before running them, this is the check, using [cosign](https://docs.sigstore.dev/cosign/system_config/installation/):
+
+```bash
+cosign verify morelitea/initiative:stable \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github\.com/Morelitea/initiative/\.github/workflows/docker-image\.yml@refs/(heads/(main|release/v.+)|tags/v.+)$'
+```
+
+It passes only for an image our release workflow built from a release branch or tag. Images from `dev` are signed as well, from `refs/heads/dev`, which this deliberately doesn't accept.
+
+To read the SBOM:
+
+```bash
+docker buildx imagetools inspect morelitea/initiative:stable --format '{{ json .SBOM }}'
+```
 
 ## First-time setup checklist
 

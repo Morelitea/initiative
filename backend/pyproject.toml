@@ -3,7 +3,7 @@ name = "initiative-backend"
 version = "0.1.0"
 description = "FastAPI backend for Initiative project management app"
 authors = [{ name = "Jordan", email = "jordan@morels.me" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136.1,<0.142",
     "uvicorn[standard]>=0.41.0,<0.55",
@@ -15,7 +15,7 @@ dependencies = [
     # 48523 alg-allowlist bypass with a PyJWK key, 48524 unbounded JWKS fetch).
     # We verify OIDC id_tokens with jwt.decode + PyJWKClient, so this is a security
     # floor, not a preference — an older install is exploitable.
-    "PyJWT>=2.13.0,<3",
+    "PyJWT>=2.14.0,<3",
     "argon2-cffi>=25.1.0,<26",
     "pyotp>=2.9.0,<3",                   # RFC 6238 TOTP arithmetic
     "webauthn>=2.5.0,<4",                # WebAuthn/FIDO2 ceremony verification
@@ -59,6 +59,7 @@ dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=1.3.0,<2",
     "pytest-cov>=7.1.0,<8",
+    "pytest-testmon>=2.1,<3",
     "pytest-xdist>=3.6",
     "ruff>=0.4.7,<0.17",
     "ty>=0.0.48,<0.1",
@@ -69,7 +70,7 @@ dev = [
 package = false
 
 [tool.ty.rules]
-# Full default rule set is enforced (CI runs a bare `uv run ty check app`).
+# Full default rule set is enforced (CI runs `scripts/ci/check ty`).
 # Only the rules below are off, because SQLModel models don't use Mapped[]
 # column annotations: class-level attribute access types as the plain Python
 # value (int, datetime, ...), so every ORM expression — Model.field == x,

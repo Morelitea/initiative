@@ -443,15 +443,38 @@ async def test_an_event_dims_once_it_has_happened(
         a.user,
         start_at=datetime.now(timezone.utc) + timedelta(days=2),
     )
+    # A repeat reads as its next occurrence, and dims on its last once it ends.
+    began = (datetime.now(timezone.utc) - timedelta(days=10, hours=-1)).replace(
+        microsecond=0
+    )
+    daily = await create_calendar_event(
+        session, calendar, a.user, start_at=began, recurrence="RRULE:FREQ=DAILY"
+    )
+    ended = await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        start_at=began,
+        recurrence="RRULE:FREQ=DAILY;COUNT=3",
+    )
 
     body = await _chips(
         client,
         a,
-        f"calendar_event:{past.id}:when",
-        f"calendar_event:{soon.id}:when",
+        *(f"calendar_event:{event.id}:when" for event in (past, soon, daily, ended)),
     )
     assert body[f"calendar_event:{past.id}:when"]["tone"] == "muted"
     assert body[f"calendar_event:{soon.id}:when"]["tone"] == "neutral"
+    assert [
+        (
+            body[f"calendar_event:{event.id}:when"]["tone"],
+            datetime.fromisoformat(body[f"calendar_event:{event.id}:when"]["date"]),
+        )
+        for event in (daily, ended)
+    ] == [
+        ("neutral", began + timedelta(days=10)),
+        ("muted", began + timedelta(days=2)),
+    ]
 
 
 async def test_a_page_of_chips_is_read_together(
