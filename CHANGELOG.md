@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The KMS key setting for object storage** (`S3_KMS_KEY_ID`, and its field under Platform settings › Storage). If you set one, turn on default encryption on the bucket instead and new files pick it up. Files already stored with your key read back as before.
 - **More API routes the app no longer uses**: `PUT /tasks/{id}/tags` (send `tag_ids` to `PATCH /tasks/{id}`), `PUT /queues/{id}/items/reorder`, `GET /initiatives/{id}/join-requests/me`, `GET /property-definitions/{id}` and its `/entities` (an event about a property definition now names its initiative, with the field `properties`), `DELETE /dashboards/{id}/published/{type}/{id}` (publish the list without it), `DELETE /apps/{id}/placements/{initiative_id}`, and `GET /users/decoration-art`.
 - **API routes merged into ones that already existed.** The nine `GET /c/{guild_id}/<tool>/counts/by-initiative` routes are now one, `GET /c/{guild_id}/tools/counts/by-initiative`, which returns every tool's counts keyed by tool, so the sidebar loads its badges in one request. Also:
   - `POST /documents/{id}/duplicate` → `POST /documents/{id}/copy`, which copies into the document's own initiative when `target_initiative_id` is left out.

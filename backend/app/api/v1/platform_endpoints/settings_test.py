@@ -476,10 +476,9 @@ _S3_PAYLOAD = {
     "s3_bucket": "my-bucket",
     "s3_region": "eu-west-1",
     "s3_endpoint_url": "https://s3.example.com",
-    "s3_access_key_id": "AKIAEXAMPLE",
+    "s3_access_key_id": "GKEXAMPLE",
     "s3_secret_access_key": "super-secret-value",
     "s3_use_path_style": True,
-    "s3_kms_key_id": None,
     "s3_local_fallback": True,
 }
 

@@ -181,11 +181,9 @@ class FakeS3Client:
         return {"Errors": errors} if errors else {}
 
 
-def _s3(prefix="guild_7/", kms_key_id=None):
+def _s3(prefix="guild_7/"):
     client = FakeS3Client()
-    return client, S3Storage(
-        bucket="bucket", client=client, prefix=prefix, kms_key_id=kms_key_id
-    )
+    return client, S3Storage(bucket="bucket", client=client, prefix=prefix)
 
 
 def test_s3_write_applies_guild_prefix_and_content_type():
@@ -196,19 +194,6 @@ def test_s3_write_applies_guild_prefix_and_content_type():
     assert client.objects[("bucket", "guild_7/abc.png")]["extra"]["ContentType"] == (
         "image/png"
     )
-    # No KMS params unless configured.
-    assert (
-        "ServerSideEncryption"
-        not in client.objects[("bucket", "guild_7/abc.png")]["extra"]
-    )
-
-
-def test_s3_write_adds_kms_sse_when_configured():
-    client, storage = _s3(kms_key_id="arn:aws:kms:key/abc")
-    storage.write("x.bin", b"data")
-    extra = client.objects[("bucket", "guild_7/x.bin")]["extra"]
-    assert extra["ServerSideEncryption"] == "aws:kms"
-    assert extra["SSEKMSKeyId"] == "arn:aws:kms:key/abc"
 
 
 def test_s3_key_reduces_to_basename():
@@ -301,7 +286,6 @@ def test_build_upload_response_escapes_quote_in_filename():
 def test_resolver_namespaces_by_guild_for_s3(monkeypatch):
     monkeypatch.setattr(storage_module.settings, "STORAGE_BACKEND", "s3")
     monkeypatch.setattr(storage_module.settings, "S3_BUCKET", "bucket")
-    monkeypatch.setattr(storage_module.settings, "S3_KMS_KEY_ID", None)
     monkeypatch.setattr(storage_module, "_get_s3_client", lambda: FakeS3Client())
 
     scoped = get_guild_storage(42)
