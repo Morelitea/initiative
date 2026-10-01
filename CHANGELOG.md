@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An account can create up to five communities a day.** Change it with `GUILD_CREATION_DAILY_LIMIT` (`0` for no limit). Operators and owners aren't limited.
 - **Choose whether signing up creates a community.** Set `REGISTRATION_CREATES_GUILD=false` and a new account starts on the page for creating or joining one, instead of with a community of its own.
 - **The notification list counts unread notifications on its first page only (API).** `unread_count` on `GET /notifications/` is `null` on any page read with a `cursor`; read it from the first page.
+- **An app's community-wide settings are the superadmin's.** Other admins and members see whether each one is filled in, not what it's set to, and the app's settings no longer offer them a form they can't save. `values` on a guild-wide connection is empty for them (API).
 - **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
 - **Only a sign-in manages API keys and email addresses (API).** Creating or deleting an API key, and adding, removing or choosing the primary of your email addresses, take a signed-in session, on the web or in the mobile app; an API key gets `403 SESSION_REQUIRED`.
 

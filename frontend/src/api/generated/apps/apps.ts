@@ -999,7 +999,8 @@ export const useInstallGuildAppApiV1CGuildIdAppsPost = <
  *
  * Any member may read this: the per-member connection blocks report the
  * caller's own state, and a guild-scoped one reports presence rather than
- * values, so there is nothing here that belongs to somebody else.
+ * values to everybody but the seat that sets them, so there is nothing here
+ * that belongs to somebody else.
  * @summary Get Guild App
  */
 export const getGuildAppApiV1CGuildIdAppsAppIdGet = (

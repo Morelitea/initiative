@@ -250,7 +250,7 @@ function AppDetailPanels({ appId, canManage }: { appId: number; canManage: boole
       <AppConnectionsPanel
         appId={appId}
         connections={detail.data.connections}
-        isGuildAdmin={canManage}
+        canManage={canManage}
       />
 
       {canManage && (
