@@ -1010,6 +1010,7 @@
     "connect": "Conectar",
     "connectReading": "Leyendo claves…",
     "connectHelp": "Lee el conjunto de claves que la aplicación sirve en su URL base guardada y, cuando confirmes sus huellas, lo fija en lugar de cualquier dirección del conjunto de claves.",
+    "connectSaveFirst": "Guarda la nueva URL base y luego conecta.",
     "connectKeysTitle": "Claves que sirve la aplicación",
     "connectKeysHelp": "Compara cada huella con la que el contenedor de la aplicación registra al arrancar (app key fingerprint: …). Fíjalas solo si coinciden.",
     "connectKid": "ID de clave: {{kid}}",

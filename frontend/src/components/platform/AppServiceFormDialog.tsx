@@ -97,6 +97,9 @@ export const AppServiceFormDialog = ({
   // The keys Connect read, waiting for the operator to confirm them.
   const [servedKeys, setServedKeys] = useState<AppServicePublishedKey[] | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  // The key set box's text as Connect left it, to tell a pinned set from one
+  // the operator pasted.
+  const [pinnedJwks, setPinnedJwks] = useState<string | null>(null);
   const readKeys = useAppServiceKeys();
   const connect = useConnectAppService();
 
@@ -121,7 +124,13 @@ export const AppServiceFormDialog = ({
     setJwksError(null);
     setServedKeys(null);
     setConnectError(null);
+    setPinnedJwks(null);
   }, [open, editing]);
+
+  // Connect reads from the saved base URL, so it waits while the box holds
+  // another one.
+  const baseUrlEdited =
+    editing !== null && form.baseUrl.trim().replace(/\/+$/, "") !== (editing.base_url ?? "");
 
   const handleReadKeys = () => {
     if (!editing) return;
@@ -141,9 +150,11 @@ export const AppServiceFormDialog = ({
       { registrationId: editing.id, keys: servedKeys },
       {
         onSuccess: (registration) => {
+          const pinned = registration.jwks ? JSON.stringify(registration.jwks, null, 2) : "";
+          setPinnedJwks(pinned);
           setForm((prev) => ({
             ...prev,
-            jwks: registration.jwks ? JSON.stringify(registration.jwks, null, 2) : "",
+            jwks: pinned,
             // Connect clears the key set address; saving must not put it back.
             jwksUri: registration.jwks_uri ?? "",
           }));
@@ -167,7 +178,11 @@ export const AppServiceFormDialog = ({
     // which is the distinction the PATCH reads.
     const typed = form.jwks.trim();
     let jwks: Record<string, unknown> | null = null;
-    if (typed) {
+    if (baseUrlEdited && pinnedJwks !== null && form.jwks === pinnedJwks) {
+      // The pinned set is the old address's app. Clear it, so the new address
+      // is connected on its own.
+      jwks = {};
+    } else if (typed) {
       try {
         jwks = JSON.parse(typed) as Record<string, unknown>;
       } catch {
@@ -287,13 +302,18 @@ export const AppServiceFormDialog = ({
                       variant="outline"
                       size="sm"
                       onClick={handleReadKeys}
-                      disabled={readKeys.isPending || connect.isPending}
+                      disabled={baseUrlEdited || readKeys.isPending || connect.isPending}
                     >
                       {readKeys.isPending
                         ? t("appServices.connectReading")
                         : t("appServices.connect")}
                     </Button>
                   </div>
+                  {baseUrlEdited && (
+                    <p className="text-muted-foreground text-xs">
+                      {t("appServices.connectSaveFirst")}
+                    </p>
+                  )}
                   {servedKeys && (
                     <section
                       className="space-y-2 rounded-md border p-3"
@@ -327,7 +347,7 @@ export const AppServiceFormDialog = ({
                           type="button"
                           size="sm"
                           onClick={handleConnect}
-                          disabled={connect.isPending}
+                          disabled={baseUrlEdited || connect.isPending}
                         >
                           {connect.isPending
                             ? t("appServices.connectPinning")

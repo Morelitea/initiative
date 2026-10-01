@@ -356,6 +356,73 @@ describe("SettingsAppServicesPage", () => {
       ).toEqual(pinned);
     });
 
+    it("waits to connect until a new base URL is saved", async () => {
+      const user = userEvent.setup();
+      registrations = [buildRegistration()];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      const baseUrl = await screen.findByLabelText("Base URL");
+      await user.clear(baseUrl);
+      await user.type(baseUrl, "http://initiative-github-2:8080");
+
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+      expect(screen.getByText("Save the new base URL, then connect.")).toBeInTheDocument();
+
+      await user.clear(baseUrl);
+      await user.type(baseUrl, "http://initiative-github:8080/");
+
+      expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+      expect(screen.queryByText("Save the new base URL, then connect.")).toBeNull();
+    });
+
+    describe("a base URL moved after its keys were pinned", () => {
+      const pinned = { keys: [{ kty: "OKP", crv: "Ed25519", kid: "gh-1", x: "def" }] };
+
+      const pinThenMove = async () => {
+        const user = userEvent.setup();
+        registrations = [buildRegistration({ jwks: null })];
+        readKeysMutate.mockImplementation((_id, { onSuccess }) =>
+          onSuccess([{ kid: "gh-1", fingerprint: "abc" }])
+        );
+        connectMutate.mockImplementation((_vars, { onSuccess }) =>
+          onSuccess(buildRegistration({ jwks: pinned }))
+        );
+        renderAsOperator();
+
+        await user.click(screen.getByRole("button", { name: "Edit" }));
+        await user.click(await screen.findByRole("button", { name: "Connect" }));
+        await user.click(screen.getByRole("button", { name: "Pin these keys" }));
+        const baseUrl = screen.getByLabelText("Base URL");
+        await user.clear(baseUrl);
+        await user.type(baseUrl, "http://initiative-github-2:8080");
+        return user;
+      };
+
+      it("clears the pinned set, so the new address is connected on its own", async () => {
+        const user = await pinThenMove();
+
+        await user.click(screen.getByRole("button", { name: "Save" }));
+
+        const data = updateMutate.mock.calls[0][0].data;
+        expect(data.base_url).toBe("http://initiative-github-2:8080");
+        expect(data.jwks).toEqual({});
+      });
+
+      it("sends a set the operator pasted in its place", async () => {
+        const user = await pinThenMove();
+        const pasted = { keys: [{ kty: "OKP", crv: "Ed25519", kid: "gh-2", x: "ghi" }] };
+
+        const box = screen.getByLabelText("Pasted key set (JWKS)");
+        await user.clear(box);
+        await user.click(box);
+        await user.paste(JSON.stringify(pasted));
+        await user.click(screen.getByRole("button", { name: "Save" }));
+
+        expect(updateMutate.mock.calls[0][0].data.jwks).toEqual(pasted);
+      });
+    });
+
     it("says why a connect was refused and asks for a fresh look", async () => {
       const user = userEvent.setup();
       registrations = [buildRegistration()];

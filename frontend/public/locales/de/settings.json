@@ -1010,6 +1010,7 @@
     "connect": "Verbinden",
     "connectReading": "Schlüssel werden gelesen…",
     "connectHelp": "Liest den Schlüsselsatz, den die App unter ihrer gespeicherten Basis-URL bereitstellt, und hinterlegt ihn anstelle einer Schlüsselsatz-Adresse, sobald du seine Fingerabdrücke bestätigst.",
+    "connectSaveFirst": "Speichere die neue Basis-URL und verbinde dann.",
     "connectKeysTitle": "Schlüssel, die die App bereitstellt",
     "connectKeysHelp": "Vergleiche jeden Fingerabdruck mit dem, den der Container der App beim Start protokolliert (app key fingerprint: …). Hinterlege sie nur, wenn sie übereinstimmen.",
     "connectKid": "Schlüssel-ID: {{kid}}",

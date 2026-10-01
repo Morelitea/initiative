@@ -1010,6 +1010,7 @@
     "connect": "Connecter",
     "connectReading": "Lecture des clés…",
     "connectHelp": "Lit le jeu de clés que l'application sert à son URL de base enregistrée et, une fois ses empreintes confirmées, l'épingle à la place de toute adresse de jeu de clés.",
+    "connectSaveFirst": "Enregistrez la nouvelle URL de base, puis connectez.",
     "connectKeysTitle": "Clés servies par l'application",
     "connectKeysHelp": "Comparez chaque empreinte à celle que le conteneur de l'application journalise au démarrage (app key fingerprint: …). Ne les épinglez que si elles correspondent.",
     "connectKid": "Identifiant de clé : {{kid}}",

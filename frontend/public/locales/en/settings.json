@@ -1010,6 +1010,7 @@
     "connect": "Connect",
     "connectReading": "Reading keys…",
     "connectHelp": "Read the key set the app serves at its saved base URL, and pin it in place of any key set address once you confirm its fingerprints.",
+    "connectSaveFirst": "Save the new base URL, then connect.",
     "connectKeysTitle": "Keys the app serves",
     "connectKeysHelp": "Check each fingerprint against the one the app's container logs when it starts (app key fingerprint: …). Pin them only if they match.",
     "connectKid": "Key id: {{kid}}",
