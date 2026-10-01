@@ -118,8 +118,8 @@ async def test_the_standing_is_read_once_a_statement(session: AsyncSession):
     calls = (
         await session.exec(
             text(
-                "SELECT pg_stat_get_xact_function_calls(CAST(:fn AS regprocedure))"
-            ).bindparams(fn=f"{schema}.current_standing()")
+                "SELECT pg_stat_get_xact_function_calls(CAST(:proc AS regprocedure))"
+            ).bindparams(proc=f"{schema}.current_standing()")
         )
     ).one()[0]
     await session.rollback()

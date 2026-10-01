@@ -305,17 +305,19 @@ async def test_nothing_is_said_when_the_connecting_login_owns_its_objects(
                     "  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
                     " WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S') "
                     "   AND c.relowner <> CAST(:owner AS regrole) "
-                    "   AND n.nspname ~ :schemas"
+                    "   AND (n.nspname ~ :schemas "
+                    "        OR (n.nspname = 'public' AND c.relname = ANY(:tables)))"
                 ).bindparams(
                     owner=login_roles()[0].name,
                     schemas=GUILD_OR_TEMPLATE_SCHEMA_REGEX,
+                    tables=sorted(GRANTABLE_SHARED_TABLES),
                 )
             )
         ).all()
         pytest.fail(
             "the test database's objects were handed to the declared provisioner "
             "by conftest's bootstrap, so the signal must find none: "
-            f"{owners}; in guild schemas: {found}"
+            f"{owners}; owned elsewhere: {found}"
         )
 
 
