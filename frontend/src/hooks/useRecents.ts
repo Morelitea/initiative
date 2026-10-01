@@ -1,11 +1,11 @@
-import { type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
+import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { recordCalendarViewApiV1CGuildIdCalendarsCalendarIdViewPost } from "@/api/generated/calendars/calendars";
 import { recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
 import { recordDashboardViewApiV1CGuildIdDashboardsDashboardIdViewPost } from "@/api/generated/dashboards/dashboards";
 import { recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
 import { recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost } from "@/api/generated/galleries/galleries";
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import type { RecentItemRead, RecentViewWrite } from "@/api/generated/initiativeAPI.schemas";
 import { recordPostViewApiV1CGuildIdPostsPostIdViewPost } from "@/api/generated/posts/posts";
 import { recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
 import { recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost } from "@/api/generated/queues/queues";
@@ -38,7 +38,10 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
 
 import { recordWikiViewApiV1CGuildIdWikisWikiIdViewPost } from "@/api/generated/wikis/wikis";
 
-const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promise<unknown>> = {
+const recorders: Record<
+  RecentEntityType,
+  (guildId: number, id: number) => Promise<RecentViewWrite>
+> = {
   project: recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost,
   document: recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost,
   queue: recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost,
@@ -61,12 +64,29 @@ const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promi
  * when another tab is in a different guild; the URL path is per-tab.
  */
 export const useRecordRecentView = (entityType: RecentEntityType, guildId: number) => {
+  const client = useQueryClient();
   return useMutation({
-    mutationFn: async (entityId: number) => {
-      await recorders[entityType](guildId, entityId);
-    },
-    onSuccess: () => {
-      void invalidate(q.recents());
+    mutationFn: (entityId: number) => recorders[entityType](guildId, entityId),
+    onSuccess: (written) => {
+      // The bar is read across every community the reader is in, so it is
+      // read again only for a tab it does not have yet — whose name and icon
+      // nothing here knows. Reopening one already there moves it to the front.
+      const key = getListRecentsApiV1RecentsGetQueryKey();
+      const held = client.getQueryData<RecentItemRead[]>(key);
+      const opened = held?.find(
+        (item) =>
+          item.guild_id === guildId &&
+          item.entity_type === written.entity_type &&
+          item.entity_id === written.entity_id
+      );
+      if (!held || !opened) {
+        void invalidate(q.recents());
+        return;
+      }
+      client.setQueryData(key, [
+        { ...opened, last_viewed_at: written.last_viewed_at },
+        ...held.filter((item) => item !== opened),
+      ]);
     },
   });
 };

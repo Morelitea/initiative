@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { getAuthToken } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
+import { refreshNotifications } from "@/hooks/useNotifications";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { buildApiWsUrl } from "@/lib/wsUrl";
 
@@ -172,7 +173,7 @@ export const useNotificationStream = () => {
         }
       },
       onFrame: (payload) => {
-        const frame = payload as { resource?: string };
+        const frame = payload as { resource?: string; action?: string };
         // Several channels over one socket. A frame carries nothing but which
         // one it is; what it means is a refetch, and the refetch is where
         // anything is actually decided.
@@ -184,7 +185,7 @@ export const useNotificationStream = () => {
           // the same thing a reconnect does: read everything again.
           resync();
         } else if (frame.resource === "notification") {
-          void invalidate(q.notifications());
+          void refreshNotifications(frame.action);
         } else if (frame.resource === "account") {
           refreshAccount();
         } else if (frame.resource === "contacts") {

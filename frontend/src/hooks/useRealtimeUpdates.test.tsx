@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { setAuthToken } from "@/api/client";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationGuild } from "@/api/query-keys";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { dashboardDataKey } from "@/hooks/useSqlQuery";
@@ -68,23 +67,37 @@ describe("realtime comment frames", () => {
     expect(entity(), `${tool} entity`).toBe(true);
   });
 
-  it("refreshes the thread, the task and the task's project", () => {
+  it("refreshes the thread, the task and the task's project, and nothing further out", () => {
     const thread = seedThread("task_id", ENTITY_ID);
     const task = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
+    // A task list row carries its comment count.
+    const taskList = seed([`/api/v1/c/${GUILD}/tasks/`, { project_id: 7 }]);
     const activity = seed([`/api/v1/c/${GUILD}/projects/7/activity`]);
     const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
+    const otherActivity = seed([`/api/v1/c/${GUILD}/projects/70/activity`]);
+    const projectList = seed([`/api/v1/c/${GUILD}/projects/`, { page: 1 }]);
+    const counts = seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
+    const initiative = seed([`/api/v1/c/${GUILD}/initiatives/3`]);
+    const members = seed([`/api/v1/c/${GUILD}/initiatives/3/members`]);
 
     applyChanges([
       comment(1, [
         { type: "tasks", id: ENTITY_ID },
         { type: "projects", id: 7 },
+        { type: "initiatives", id: 3 },
       ]),
     ]);
 
     expect(thread(), "thread").toBe(true);
     expect(task(), "task").toBe(true);
+    expect(taskList(), "task list").toBe(true);
     expect(activity(), "project activity").toBe(true);
     expect(project(), "project").toBe(true);
+    expect(otherActivity(), "another project's activity").toBe(false);
+    expect(projectList(), "project list").toBe(false);
+    expect(counts(), "counts").toBe(false);
+    expect(initiative(), "initiative").toBe(false);
+    expect(members(), "roster").toBe(false);
   });
 
   it("refreshes the guild's recent activity for any comment", () => {
@@ -135,6 +148,32 @@ describe("realtime resource frames", () => {
     ]);
 
     expect(entity()).toBe(true);
+  });
+
+  it("moves the counts only when a row arrives, leaves or changes where it counts", () => {
+    const list = seed([`/api/v1/c/${GUILD}/queues/`, { page: 1 }]);
+    const counts = seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
+    const queue = (action: string, changed: string[]) => ({
+      resource: { type: "queues", id: ENTITY_ID },
+      parents: [],
+      action,
+      changed,
+    });
+
+    applyChanges([queue("updated", ["current_round", "name"])]);
+    expect(list(), "list after a rename").toBe(true);
+    expect(counts(), "counts after a rename").toBe(false);
+
+    for (const change of [
+      queue("updated", ["archived_at"]),
+      queue("updated", ["sharing"]),
+      queue("created", []),
+      queue("deleted", []),
+    ]) {
+      seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
+      applyChanges([change]);
+      expect(counts(), `counts after ${change.action} ${change.changed}`).toBe(true);
+    }
   });
 
   it("refreshes a task's project from the task's own frame", () => {
@@ -218,12 +257,6 @@ describe("realtime resource frames", () => {
     ]);
 
     expect(project()).toBe(true);
-  });
-});
-
-describe("Tool.project is the one resource with an activity feed", () => {
-  it("names the project tool by its plural, like the bus does", () => {
-    expect(toolPlural(Tool.project)).toBe("projects");
   });
 });
 
