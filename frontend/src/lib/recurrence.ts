@@ -499,10 +499,10 @@ const STEP_DAYS: Record<RecurrenceFrequency, number> = {
   yearly: 366,
 };
 
-/** The most times a repeat can happen: ten thousand, with its steps taking a
- * hundred years at most. */
+/** The most times a repeat can happen: ten thousand, ending within a hundred
+ * years of its first. */
 export const maxOccurrences = (rule: RecurrenceRule) =>
-  Math.min(10000, Math.floor((100 * 366) / (STEP_DAYS[rule.frequency] * rule.interval)));
+  Math.min(10000, Math.floor((100 * 366) / (STEP_DAYS[rule.frequency] * rule.interval)) + 1);
 
 /**
  * The RRULE for a rule as picked. Send it with `tz: browserTimezone()`, the
@@ -542,7 +542,7 @@ export const toRRule = (rule: RecurrenceRule, options?: { allDay?: boolean }): s
     }
   }
   if (rule.ends === "after_occurrences" && rule.end_after_occurrences) {
-    parts.push(`COUNT=${Math.min(rule.end_after_occurrences, maxOccurrences(rule))}`);
+    parts.push(`COUNT=${rule.end_after_occurrences}`);
   } else if (rule.ends === "on_date" && rule.end_date) {
     const [y, m, d] = rule.end_date.slice(0, 10).split("-").map(Number);
     if (options?.allDay) {
