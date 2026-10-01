@@ -244,6 +244,33 @@ async def test_changing_the_password_drops_a_part_way_sign_in(
     )
 
 
+async def test_revoking_sessions_drops_devices_that_name_no_sign_in(
+    session: AsyncSession,
+):
+    """A device registered under no session or device token goes with the
+    account's sign-ins rather than standing out its grace."""
+    from app.services.platform import push_tokens
+
+    user = await create_user(session)
+    bystander = await create_user(session)
+    await push_tokens.register_push_token(
+        session, user_id=user.id, push_token="mine", platform="ios"
+    )
+    await push_tokens.register_push_token(
+        session, user_id=bystander.id, push_token="theirs", platform="ios"
+    )
+
+    await user_tokens.revoke_user_sessions(session, user=user)
+
+    assert await push_tokens.get_push_tokens_for_user(session, user_id=user.id) == []
+    assert [
+        t.push_token
+        for t in await push_tokens.get_push_tokens_for_user(
+            session, user_id=bystander.id
+        )
+    ] == ["theirs"]
+
+
 async def test_the_sweep_clears_the_part_way_sign_ins_too(session: AsyncSession):
     """The hourly pass takes challenges as well as tokens: one whose time has
     run out, and one already spent. A challenge still standing is left."""

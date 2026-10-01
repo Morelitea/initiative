@@ -142,6 +142,22 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
     return live
 
 
+async def drop_unlinked(session: AsyncSession, *, user_id: int) -> None:
+    """Remove the account's devices that name no sign-in.
+
+    A row registered under a session or a device token ends with it; one that
+    names neither would otherwise stand out its :data:`UNLINKED_GRACE`. Called
+    when every sign-in is revoked. Does not commit.
+    """
+    await session.exec(
+        delete(PushToken).where(
+            PushToken.user_id == user_id,
+            PushToken.session_id.is_(None),
+            PushToken.device_token_id.is_(None),
+        )
+    )
+
+
 async def follow_session(
     session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
 ) -> None:
