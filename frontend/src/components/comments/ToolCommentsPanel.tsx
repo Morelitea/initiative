@@ -17,14 +17,11 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  ListCommentsApiV1CGuildIdCommentsGetParams,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { CommentEntity } from "@/components/comments/CommentSection";
 import { CommentSection } from "@/components/comments/CommentSection";
-import { useComments, useCommentsCache } from "@/hooks/useComments";
-import type { ToolCommentEntity } from "@/lib/tools";
+import { type CommentThreadParams, useComments, useCommentsCache } from "@/hooks/useComments";
+import { type ToolCommentEntity, toolPlural } from "@/lib/tools";
 
 interface ToolCommentsPanelProps {
   /** Which tool answers for the thread — its switch, its sharing. */
@@ -58,17 +55,18 @@ export const ToolCommentsPanel = ({
   // 0 is what the mention lookups read as "no initiative to search".
   const initiativeId = entity.initiative_id ?? 0;
 
-  const params = useMemo<ListCommentsApiV1CGuildIdCommentsGetParams>(() => {
-    const next: ListCommentsApiV1CGuildIdCommentsGetParams = {};
+  const params = useMemo<CommentThreadParams>(() => {
+    const next: CommentThreadParams = {};
     next[`${targetType}_id`] = entityId;
     return next;
   }, [targetType, entityId]);
 
   const commentsQuery = useComments(params, {
     enabled: Number.isFinite(entityId) && enabled,
+    under: target ? { type: toolPlural(tool), id: entity.id } : undefined,
   });
-  // Write the new row straight into this thread's cache as well as
-  // invalidating, so the comment appears under the box the moment it posts.
+  // Write the new row straight into this thread's cache, so the comment
+  // appears under the box the moment it posts.
   const cache = useCommentsCache(params);
 
   if (!enabled) return null;
@@ -81,17 +79,20 @@ export const ToolCommentsPanel = ({
         entityId={entityId}
         comments={commentsQuery.data ?? []}
         isLoading={commentsQuery.isLoading}
+        hasOlder={commentsQuery.hasNextPage}
+        isLoadingOlder={commentsQuery.isFetchingNextPage}
+        onLoadOlder={() => void commentsQuery.fetchNextPage()}
         canModerate={canModerate}
         initiativeId={initiativeId}
         onCommentCreated={(comment) => {
-          cache.addComment(comment);
+          cache.putComment(comment);
           onCountChange?.(1);
         }}
         onCommentDeleted={(commentId) => {
           cache.removeComment(commentId);
           onCountChange?.(-1);
         }}
-        onCommentUpdated={cache.updateComment}
+        onCommentUpdated={cache.putComment}
         {...(title !== undefined ? { title } : {})}
       />
     </div>

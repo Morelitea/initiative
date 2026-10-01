@@ -30,6 +30,7 @@ from app.api.deps import (
     SessionDep,
     UserSessionDep,
     get_current_active_user,
+    require_first_party_session,
     SystemSessionDep,
     GuildAdminContext,
 )
@@ -1162,6 +1163,7 @@ async def add_my_address(
     session: UserSessionDep,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> VerificationSendResponse:
     """Start holding another address, and write to it to prove it.
 
@@ -1218,6 +1220,7 @@ async def remove_my_address(
     address_id: int,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> Response:
     try:
         await addresses.remove_for_user(
@@ -1241,6 +1244,7 @@ async def make_my_address_primary(
     address_id: int,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> UserEmailRead:
     """Move where account mail goes."""
     try:
@@ -1580,6 +1584,7 @@ async def create_my_api_key(
     payload: ApiKeyCreateRequest,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> ApiKeyCreateResponse:
     """Create a new API key for the current user."""
     # Runs on the system engine (user_api_keys has no request-path grant, see
@@ -1622,6 +1627,7 @@ async def delete_my_api_key(
     api_key_id: int,
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    _first_party: Annotated[str, Depends(require_first_party_session)],
 ) -> None:
     """Delete an API key for the current user."""
     # System-engine session (see list_my_api_keys); the service's user_id filter

@@ -67,14 +67,11 @@ type AppConfigValue = string | number | boolean | null;
 export interface AppConnectionsPanelProps {
   appId: number;
   connections: GuildAppConnectionRead[];
-  isGuildAdmin: boolean;
+  /** Holds the seat, which sets the guild-wide connections. */
+  canManage: boolean;
 }
 
-export function AppConnectionsPanel({
-  appId,
-  connections,
-  isGuildAdmin,
-}: AppConnectionsPanelProps) {
+export function AppConnectionsPanel({ appId, connections, canManage }: AppConnectionsPanelProps) {
   const { t } = useTranslation(["apps"]);
 
   if (!connections.length) {
@@ -89,7 +86,7 @@ export function AppConnectionsPanel({
             key={connection.id}
             appId={appId}
             connection={connection}
-            canManage={isGuildAdmin}
+            canManage={canManage}
           />
         ) : (
           <PersonalConnection key={connection.id} appId={appId} connection={connection} />

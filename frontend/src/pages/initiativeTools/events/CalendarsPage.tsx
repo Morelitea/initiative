@@ -355,8 +355,8 @@ export const CalendarsView = ({
     propertyFiltersParam,
   ]);
 
-  // Same param shape the sidebar and dashboard use, so this shares their cache.
-  const projectsQuery = useProjects(undefined, { staleTime: 30_000, enabled: !guildOnly });
+  // Same param shape the sidebar and dashboard filters use, so this shares their cache.
+  const projectsQuery = useProjects({ slim: true }, { staleTime: 30_000, enabled: !guildOnly });
   const projectNamesById = useMemo(() => {
     const map = new Map<number, string>();
     for (const project of projectsQuery.data?.items ?? []) map.set(project.id, project.name);

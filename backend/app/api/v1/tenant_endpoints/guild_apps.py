@@ -48,6 +48,7 @@ from app.api.deps import (
     SeatWriteContextDep,
     SeatWriteSessionDep,
     require_first_party_session,
+    require_grant_writes,
     require_seat,
     GuildContextDep,
     CurrentUser,
@@ -421,7 +422,8 @@ async def get_guild_app(
 
     Any member may read this: the per-member connection blocks report the
     caller's own state, and a guild-scoped one reports presence rather than
-    values, so there is nothing here that belongs to somebody else.
+    values to everybody but the seat that sets them, so there is nothing here
+    that belongs to somebody else.
     """
     app = await _load(session, app_id)
     return await _detail(session, app, guild_context, current_user.id)
@@ -1089,6 +1091,7 @@ async def connect_guild_app(
     guild_wide = connection.get("scope") == "static"
     if guild_wide:
         require_seat(guild_context)
+        require_grant_writes(guild_context)
 
     registration = await handoff_service.require_live_registration(app)
 
@@ -1159,6 +1162,7 @@ async def disconnect_guild_app(
 
     if connection.get("scope") == "static":
         require_seat(guild_context)
+        require_grant_writes(guild_context)
         # Clearing rewrites both configuration maps, so it takes the row: an app
         # writing back at the same moment must not put back what was cleared.
         app = await _load(session, app_id, for_update=True)

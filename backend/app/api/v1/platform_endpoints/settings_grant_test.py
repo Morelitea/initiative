@@ -460,6 +460,13 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
     assert renamed.status_code == 403, renamed.text
     assert renamed.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
 
+    # Invites are handed out, not read: listing them takes the write too.
+    invites = await client.get(
+        f"/api/v1/communities/{guild.id}/invites", headers=headers
+    )
+    assert invites.status_code == 403, invites.text
+    assert invites.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
+
     roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
     assert roster.status_code == 200, roster.text
     assert {row["id"] for row in roster.json()["items"]} == {owner.id}
@@ -511,6 +518,20 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
 
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
+
+    # Running the roster is not joining it: the grant cannot accept an invite
+    # into the community it reaches, even one it minted.
+    minted = await client.post(
+        f"/api/v1/communities/{guild.id}/invites", headers=headers, json={}
+    )
+    assert minted.status_code == 201, minted.text
+    joined = await client.post(
+        "/api/v1/communities/invite/accept",
+        headers=headers,
+        json={"code": minted.json()["code"]},
+    )
+    assert joined.status_code == 400, joined.text
+    assert joined.json()["detail"] == "INVITE_DURING_ACCESS_GRANT"
 
 
 async def test_the_lent_seat_lifts_the_communitys_sign_in_requirement(

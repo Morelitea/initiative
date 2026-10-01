@@ -647,8 +647,9 @@ export const ProjectTasksSection = ({
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
         if (stillMatchesFilters(updatedTask)) {
-          const row = taskReadToListRow(updatedTask, guildId);
-          return base.map((task) => (task.id === row.id ? row : task));
+          return base.map((task) =>
+            task.id === updatedTask.id ? taskReadToListRow(updatedTask, guildId, task) : task
+          );
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });

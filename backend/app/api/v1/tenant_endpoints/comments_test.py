@@ -1,5 +1,7 @@
 """Endpoint tests for comments across every commentable surface."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from sqlalchemy import delete as sa_delete
 
@@ -8,6 +10,7 @@ from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
+    create_comment,
     create_resource_grant,
     guild_of,
     create_task,
@@ -73,7 +76,7 @@ class TestToolComments:
             a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
         )
         assert listed.status_code == 200, listed.text
-        assert [c["id"] for c in listed.json()] == [body["id"]]
+        assert [c["id"] for c in listed.json()["comments"]] == [body["id"]]
 
     @pytest.mark.parametrize("tool", list(Tool))
     async def test_member_without_grant_is_denied(
@@ -331,7 +334,57 @@ async def test_guild_calendar_comments_reach_every_member(client, session, actin
         params={"calendar_id": calendar.id},
     )
     assert listed.status_code == 200
-    assert [c["content"] for c in listed.json()] == ["Game night?"]
+    assert [c["content"] for c in listed.json()["comments"]] == ["Game night?"]
+
+
+async def test_a_thread_pages_by_conversation(client, session, acting_user):
+    """A page is ``limit`` conversations, newest first, each carrying every
+    reply under it however late or deep; the cursor walks the rest with
+    nothing skipped or repeated."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await create_task(session, a.project)
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    roots = [
+        await create_comment(
+            session, a.user, task=task, created_at=start + timedelta(minutes=minute)
+        )
+        for minute in range(5)
+    ]
+    # Written in the same instant as the newest: the id decides between them.
+    twin = await create_comment(
+        session, a.user, task=task, created_at=start + timedelta(minutes=4)
+    )
+    reply = await create_comment(
+        session,
+        a.user,
+        task=task,
+        parent_comment_id=roots[0].id,
+        created_at=start + timedelta(hours=1),
+    )
+    nested = await create_comment(
+        session,
+        a.user,
+        task=task,
+        parent_comment_id=reply.id,
+        created_at=start + timedelta(hours=2),
+    )
+
+    pages = []
+    params = {"task_id": task.id, "limit": 2}
+    while True:
+        listed = await client.get(a.g("/comments/"), headers=a.headers, params=params)
+        assert listed.status_code == 200, listed.text
+        body = listed.json()
+        pages.append([c["id"] for c in body["comments"]])
+        if body["next_cursor"] is None:
+            break
+        params["cursor"] = body["next_cursor"]
+
+    assert pages == [
+        [roots[4].id, twin.id],
+        [roots[2].id, roots[3].id],
+        [roots[0].id, roots[1].id, reply.id, nested.id],
+    ]
 
 
 async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_user):
@@ -432,7 +485,7 @@ class TestToolCommentSwitch:
             a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
         )
         assert listed.status_code == 200
-        assert [c["content"] for c in listed.json()] == ["Before"]
+        assert [c["content"] for c in listed.json()["comments"]] == ["Before"]
 
     async def test_a_wiki_thread_belongs_to_the_page(
         self, client, session, acting_user
@@ -457,14 +510,16 @@ class TestToolCommentSwitch:
             a.g("/comments/"), headers=a.headers, params={"wiki_page_id": rota.id}
         )
         assert listed.status_code == 200, listed.text
-        assert [c["content"] for c in listed.json()] == ["Who is on Tuesday?"]
+        assert [c["content"] for c in listed.json()["comments"]] == [
+            "Who is on Tuesday?"
+        ]
 
         # The wiki's own thread is a different thread, and empty.
         wiki_thread = await client.get(
             a.g("/comments/"), headers=a.headers, params={"wiki_id": wiki.id}
         )
         assert wiki_thread.status_code == 200
-        assert wiki_thread.json() == []
+        assert wiki_thread.json() == {"comments": [], "next_cursor": None}
 
         # The feed names the page, not the wiki it is filed in.
         recent = await client.get(a.g("/comments/recent"), headers=a.headers)
@@ -574,7 +629,7 @@ class TestToolCommentSwitch:
             a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
         )
         assert listed.status_code == 200
-        assert [c["content"] for c in listed.json()] == ["Still talking"]
+        assert [c["content"] for c in listed.json()["comments"]] == ["Still talking"]
 
         recent = await client.get(a.g("/comments/recent"), headers=a.headers)
         assert any(e["entity_type"] == "task" for e in recent.json())
@@ -639,7 +694,7 @@ class TestEditingAComment:
         listed = await client.get(
             a.g("/comments/"), headers=a.headers, params={_param(tool): entity.id}
         )
-        assert [c["content"] for c in listed.json()] == ["After"]
+        assert [c["content"] for c in listed.json()["comments"]] == ["After"]
 
     async def test_an_edit_keeps_the_reactions(self, client, session, acting_user):
         a = await acting_user(guild_role=GuildRole.member, initiative=True)
