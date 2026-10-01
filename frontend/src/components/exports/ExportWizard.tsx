@@ -94,7 +94,7 @@ const EXPORT_ONLY_FILTERS: {
 /** The templates choice, each with the value it sends: omitted exports
  *  templates and the rest alike. */
 const TEMPLATE_CHOICES = [
-  { value: "all", template: undefined, label: "common:toolArchiveFilter.all" },
+  { value: "all", template: undefined, label: "common:toolViewFilter.all" },
   { value: "without", template: false, label: "wizard.filter.withoutTemplates" },
   { value: "only", template: true, label: "wizard.filter.templatesOnly" },
 ] as const;
