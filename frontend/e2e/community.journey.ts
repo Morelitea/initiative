@@ -39,14 +39,18 @@ const community = `${owner.name}'s Guild`;
 /** Where the first journey left things, for the second to look for. */
 const made = { communityPath: "", initiativePath: "", projectId: "" };
 
-async function register(page: Page, person: typeof owner) {
-  await page.getByLabel("Full name").fill(person.name);
-  await page.getByLabel("Username").fill(person.username);
+const next = (page: Page) => page.getByRole("button", { name: "Continue" }).click();
+
+/** The start flow from "About you" on: a name, then the account. */
+async function register(page: Page, person: typeof owner, between?: () => Promise<void>) {
+  await page.getByLabel("Display name (optional)").fill(person.name);
+  await next(page);
+  await between?.();
   await page.getByLabel("Email").fill(person.email);
+  await page.getByLabel("Username").fill(person.username);
   await page.getByLabel("Password", { exact: true }).fill(person.password);
   await page.getByLabel("Confirm password").fill(person.password);
   await page.getByRole("button", { name: "Sign up" }).click();
-  await expect(page).not.toHaveURL(/\/register/);
 }
 
 async function signIn(page: Page, person: typeof owner) {
@@ -81,17 +85,20 @@ async function signedInAs(browser: Browser, person: typeof owner) {
 }
 
 test("the first owner builds a community and finds it again", async ({ page }) => {
+  // Signing up for a group makes the community, and its first initiative, with
+  // the account.
   await page.goto("/register");
-  await register(page, owner);
-  await expect(page.getByRole("heading", { name: "My Tasks", level: 1 })).toBeVisible();
-
-  // Registering made the owner a community of their own.
-  await page.getByRole("button", { name: `Switch to ${community}` }).click();
+  await page.getByRole("radio", { name: /^For a group/ }).click();
+  await next(page);
+  await register(page, owner, async () => {
+    await page.getByLabel("Community name").fill(community);
+    await page.getByLabel("First initiative").fill("Spring Fete");
+    await next(page);
+  });
+  await page.getByRole("button", { name: `Go to ${community}` }).click();
   await expect(page.getByRole("heading", { name: community, level: 1 })).toBeVisible();
   made.communityPath = new URL(page.url()).pathname;
 
-  await page.getByRole("button", { name: "Create initiative" }).click();
-  await newInitiative(page, "Spring Fete");
   await page.getByRole("main").getByRole("link", { name: "Spring Fete" }).click();
   await expect(page.getByRole("heading", { name: "Spring Fete", level: 1 })).toBeVisible();
   made.initiativePath = new URL(page.url()).pathname;
@@ -139,7 +146,10 @@ test("an invited member sees only what they are let into", async ({ browser }) =
   const page = await freshPage(browser);
   await page.goto(new URL(invite ?? "").pathname);
   await page.getByRole("link", { name: "Register using this invite" }).click();
+  await expect(page.getByText(`You're joining ${community}.`)).toBeVisible();
+  await next(page);
   await register(page, member);
+  await expect(page).not.toHaveURL(/\/start/);
 
   await page.goto(made.communityPath);
   const main = page.getByRole("main");
