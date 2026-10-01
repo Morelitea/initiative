@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-10-01
+
 ### Added
 
 - **A friendlier sign-up** that asks what you're here for: joining by invite, joining a public community, a space for your own to-dos, or a community for a group. A personal space starts with a **To do** list, and a group's community starts with its first initiative and an invite link to send.
