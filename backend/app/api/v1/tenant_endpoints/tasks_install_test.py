@@ -15,7 +15,10 @@ from typing import Any
 from sqlmodel import select
 
 from app.core.messages import AppMessages, QueryMessages
+from app.core.relationships import RelationshipType
+from app.core.search import SearchEntityType
 from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.task import Task
 from app.models.tenant.property import PropertyType
 from app.testing import (
@@ -23,6 +26,7 @@ from app.testing import (
     guild_url,
     create_project,
     create_property_definition,
+    create_relationship,
     create_task,
     route_session_to_guild,
 )
@@ -355,6 +359,60 @@ async def test_updates_moves_and_ticks_what_it_may_write(
     assert got.status_code == 200, got.text
     assert got.json()["project_id"] == second
     assert_names_nobody(got.text, [installed.seat.user.id, gid])
+
+
+async def test_makes_a_project_from_a_template_with_its_task_links(
+    client, session, acting_user, role_session
+):
+    """A template's dependency lands between the copies an app makes, with
+    the install as the one making the links."""
+    scopes = [*WRITE, "relationships:write"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    template = await create_project(
+        session, installed.placed, installed.seat.user, is_template=True
+    )
+    await create_resource_grant(session, template, all_initiative_members=True)
+    design = await create_task(session, template, title="Design")
+    build = await create_task(session, template, title="Build")
+    await create_relationship(
+        session,
+        installed.guild,
+        source=(SearchEntityType.task, build.id),
+        target=(SearchEntityType.task, design.id),
+        relationship_type=RelationshipType.depends_on,
+    )
+
+    created = await client.post(
+        guild_url(installed.guild.id, "/projects/"),
+        headers=install_headers(installed, scopes),
+        json={
+            "name": "From template",
+            "initiative_id": installed.placed.id,
+            "template_id": template.id,
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    await route_session_to_guild(session, installed.guild.id)
+    copies = {
+        task.title: task.id
+        for task in (
+            await session.exec(
+                select(Task).where(Task.project_id == created.json()["id"])
+            )
+        ).all()
+    }
+    edges = (
+        await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.source_id == copies["Build"],
+                EntityRelationship.source_type == SearchEntityType.task.value,
+            )
+        )
+    ).all()
+    assert [(e.relationship_type, e.target_id, e.created_by) for e in edges] == [
+        (RelationshipType.depends_on.value, copies["Design"], None)
+    ]
 
 
 async def test_a_task_in_a_project_it_only_reads_is_not_its_to_change(

@@ -624,17 +624,31 @@ async def test_create_from_template_copies_task_relations(
     """A dependency between two template tasks lands between their copies.
 
     Both ends are remapped to the new project's tasks; the template's own
-    tasks keep their edge and gain nothing pointing at the copies.
+    tasks keep their edge and gain nothing pointing at the copies. A copy made
+    in another initiative leaves behind a link to something that stays in the
+    template's, as the relationships surface would refuse to make it.
     """
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     template, first, second = await _template_with_dependency(session, admin)
+    elsewhere = await create_project(
+        session, admin.initiative, admin.user, name="Elsewhere"
+    )
+    outside = await create_task(session, elsewhere, title="Outside")
+    await create_relationship(
+        session,
+        admin.guild,
+        source=(SearchEntityType.task, outside.id),
+        target=(SearchEntityType.task, first.id),
+        relationship_type=RelationshipType.related_to,
+    )
+    other_initiative = await create_initiative(session, admin.guild, admin.user)
 
     response = await client.post(
         admin.g("/projects/"),
         headers=admin.headers,
         json={
             "name": "From template",
-            "initiative_id": admin.initiative.id,
+            "initiative_id": other_initiative.id,
             "template_id": template.id,
         },
     )
@@ -654,7 +668,7 @@ async def test_create_from_template_copies_task_relations(
     ]
 
     original = await _relations_of(client, admin, first.id)
-    assert [r["other"]["id"] for r in original] == [second.id]
+    assert sorted(r["other"]["id"] for r in original) == sorted([second.id, outside.id])
 
 
 async def test_duplicate_project_copies_task_relations(
