@@ -80,8 +80,7 @@
     "loadError": "Unable to load archived projects.",
     "unarchive": "Unarchive",
     "noArchived": "No archived projects",
-    "noArchivedDescription": "Active projects stay on the Active tab.",
-    "sharingUnavailable": "Sharing can't be changed on an archived project."
+    "noArchivedDescription": "Active projects stay on the Active tab."
   },
   "createDialog": {
     "title": "Create project",

@@ -15,8 +15,8 @@ DAC visible-ids subquery), so an export only ever contains calendars shared
 with its creator.
 
 Access rule: READ per calendar (exporting is a formatted read), enforced by
-the ``get_calendar_for_export`` / ``list_calendar_ids_for_export`` seams at
-both count and build time, under the caller's RLS session.
+``ToolExportAdapter.fetch`` / ``list_calendar_ids_for_export`` at both count
+and build time, under the caller's RLS session.
 """
 
 from __future__ import annotations
@@ -43,7 +43,6 @@ from app.services.export.adapters._common import (
 from app.core.user_input_validators import resolve_zone
 from app.services.export.contract import RenderItem
 from app.services.export.filters import narrow, parse_filters
-from app.services.permissions import EXPORT_ACCESS
 
 
 class EventWindow(BaseModel):
@@ -147,34 +146,22 @@ class CalendarAdapter(ToolExportAdapter):
         if _is_selection(params):
             return await super().load(session, user, guild_id, params, format)
         from app.services.permissions import Action, allows
-        from app.services.tenant.calendars import get_calendar_for_export
 
         filters = parse_filters(self.tool, params.get("filters"))
         calendars = [
-            await get_calendar_for_export(
-                session, user, guild_id, calendar_id=calendar_id, access="read"
-            )
+            await self.fetch(session, user, guild_id, calendar_id, access="read")
             for calendar_id in await self._enumerate(
                 session, user, guild_id, params, filters
             )
         ]
         return [calendar for calendar in calendars if allows(calendar, Action.export)]
 
-    async def fetch(
-        self,
-        session: AsyncSession,
-        user: User,
-        guild_id: int,
-        calendar_id: int,
-        /,
-        *,
-        access: str = EXPORT_ACCESS,
-    ) -> Calendar:
-        from app.services.tenant.calendars import get_calendar_for_export
+    async def get_row(
+        self, session: AsyncSession, calendar_id: int, /
+    ) -> Calendar | None:
+        from app.services.tenant.calendars import get_calendar
 
-        return await get_calendar_for_export(
-            session, user, guild_id, calendar_id=calendar_id, access=access
-        )
+        return await get_calendar(session, calendar_id, with_events=True)
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /

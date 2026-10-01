@@ -37,7 +37,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropOverlay } from "@/components/ui/file-drop";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import {
   useCopyDocument,
@@ -83,7 +82,6 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const { t } = useTranslation(["documents", "common", "access"]);
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
-  const { user } = useAuth();
   // Shared access helper — honors guild-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
   const gp = useGuildPath();
@@ -336,10 +334,15 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   // tree beside the view being shown. The totals are scoped to the initiative
   // only — they answer "how many exist", not "how many survive the current
   // filters".
-  const countsQuery = useToolCounts(Tool.document, {
-    ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
+  // The tag tree beside the list counts under the list's own filters.
+  const countFilters: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
+    ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
+  };
+  const countsQuery = useToolCounts(Tool.document, {
+    ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
+    ...(Object.keys(countFilters).length > 0 ? { filters: JSON.stringify(countFilters) } : {}),
     view: status,
     // Only the tags view shows the tree, so only it pays for the tag counts.
     ...(viewMode === "tags" ? { include_tags: true } : {}),
@@ -538,34 +541,15 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     onSuccess: () => setSelectedDocuments([]),
   });
 
-  // Initiatives whose documents this reader may see. Still needed on the
-  // cross-initiative tag browse, which lists documents from several at once.
-  const viewableInitiatives = useMemo(
-    () =>
-      (initiativesQuery.data ?? []).filter((initiative) =>
-        initiative.can.view.includes(Tool.document)
-      ),
-    [initiativesQuery.data]
-  );
-  // Get IDs of initiatives where user can view docs
-  const viewableInitiativeIds = useMemo(() => {
-    return new Set(viewableInitiatives.map((i) => i.id));
-  }, [viewableInitiatives]);
-
-  // Filter documents to only show those from viewable initiatives
-  const documents = useMemo(() => {
-    const allDocs = documentsQuery.data?.items ?? [];
-    if (!user) return allDocs;
-    return allDocs.filter((doc) => viewableInitiativeIds.has(doc.initiative_id));
-  }, [documentsQuery.data, user, viewableInitiativeIds]);
+  // The server answers with the documents this reader may see, so the page
+  // shows them as they come.
+  const documents = useMemo(() => documentsQuery.data?.items ?? [], [documentsQuery.data]);
 
   const totalCount = documentsQuery.data?.total_count ?? 0;
   const hasNext = documentsQuery.data?.has_next ?? false;
   const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
-  // Server handles untagged filtering via ?untagged=true param
-  const displayDocuments = documents;
-  visibleDocumentsRef.current = displayDocuments;
+  visibleDocumentsRef.current = documents;
 
   return (
     <div className="relative space-y-6" {...drop.handlers}>
@@ -680,7 +664,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
             />
           ) : null}
           <DocumentsTagsView
-            documents={displayDocuments}
+            documents={documents}
             allTags={allTags}
             tagCounts={countsQuery.data?.tag_counts ?? {}}
             untaggedCount={countsQuery.data?.untagged_count ?? 0}

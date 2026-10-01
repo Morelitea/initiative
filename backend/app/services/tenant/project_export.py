@@ -384,19 +384,26 @@ async def list_project_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every project the user may include in an aggregate export —
-    DAC-visible (a request that reaches the whole guild sees all). The aggregate
-    export includes read-accessible projects by design; the per-project seams
-    still enforce their own access level per entity."""
+    DAC-visible (a request that reaches the whole guild sees all), in
+    initiatives that have projects switched on. The aggregate export includes
+    read-accessible projects by design; the per-project seams still enforce
+    their own access level per entity."""
     from sqlmodel import select
 
+    from app.models.tenant.initiative import Initiative
     from app.models.tenant.project import Project
 
     if not initiative_ids:
         return []
-    conditions = [
-        Project.initiative_id.in_(initiative_ids),
-    ]
-    statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
+    statement = (
+        select(Project.id)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(
+            Project.initiative_id.in_(initiative_ids),
+            Initiative.projects_enabled.is_(True),
+        )
+        .order_by(Project.id.asc())
+    )
     return list(await session.exec(statement))
 
 

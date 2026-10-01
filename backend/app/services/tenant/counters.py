@@ -6,8 +6,6 @@ Initiative; Counters are independent numeric values clamped to optional
 """
 
 from datetime import datetime, timezone
-from app.db import session as db_session
-from app.core.tools import Tool
 from decimal import Decimal
 from typing import Optional
 
@@ -16,10 +14,6 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlalchemy import func, literal, update
 from sqlmodel import select
 
-from app.services.permissions import (
-    DAC_RESOURCES,
-    require_export_access,
-)
 from app.models.tenant.counter import (
     COUNTER_LIMIT,
     Counter,
@@ -27,7 +21,6 @@ from app.models.tenant.counter import (
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
-from app.models.platform.user import User
 from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
 from app.services.tenant import tags as tags_service
 
@@ -75,41 +68,6 @@ async def get_counter_group(
     group = result.one_or_none()
     if group is not None:
         await tags_service.annotate_tags(session, [group])
-    return group
-
-
-async def get_counter_group_for_export(
-    session: AsyncSession,
-    current_user: User,
-    guild_id: int,
-    *,
-    group_id: int,
-    access: str = "owner",
-) -> CounterGroup:
-    """The counter-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. It takes the owner rung,
-    or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``). The guild role is resolved here
-    rather than taken from a request context, so the seam works transport-free."""
-    from fastapi import HTTPException, status as http_status
-
-    group = await get_counter_group(session, group_id)
-    if group is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=Tool.counter_group.not_found_code,
-        )
-    if group.initiative is not None and not group.initiative.counter_groups_enabled:
-        raise HTTPException(
-            status_code=http_status.HTTP_403_FORBIDDEN,
-            detail=Tool.counter_group.feature_disabled_code,
-        )
-    require_export_access(
-        DAC_RESOURCES[Tool.counter_group],
-        group,
-        context=db_session.guild_context(session),
-        access=access,
-    )
     return group
 
 

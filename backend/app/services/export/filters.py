@@ -18,7 +18,7 @@ from functools import lru_cache
 from itertools import product
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, ValidationError, create_model
+from pydantic import BaseModel, ValidationError, create_model
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -28,24 +28,6 @@ from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.services.export.engine import ExportError
 
-#: List params that say where, in what order and in what shape a page is
-#: served, or which rows the reader may change. The export decides those for
-#: itself, so they are not filters.
-_NOT_FILTERS = frozenset(
-    {
-        "initiative_id",
-        "ids",
-        "scope",
-        "slim",
-        "writable",
-        "page",
-        "page_size",
-        "sort_by",
-        "sort_dir",
-    }
-)
-
-
 #: List params whose unset value shows one side of them (live rows) rather
 #: than both.
 _BOTH_WHEN_UNSET = ("archived",)
@@ -53,23 +35,17 @@ _BOTH_WHEN_UNSET = ("archived",)
 
 @lru_cache(maxsize=None)
 def filter_model(tool: Tool) -> type[BaseModel]:
-    """The filters one tool's export takes: its list's params, and its
+    """The filters one tool's export takes: its list's own, and its
     content's."""
-    from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
+    from app.api.v1.tenant_endpoints.tool_lists import list_filter_model
 
-    fields: dict[str, Any] = {
-        param.name: (param.annotation, param.default.default)
-        for param in TOOL_LISTS[tool].params
-        if param.name not in _NOT_FILTERS
-    }
-    fields |= {
-        name: (Optional[model], None)  # ty: ignore[invalid-type-form]
-        for name, model in _content(tool).items()
-    }
     return create_model(
         f"{tool.value}_export_filters",
-        __config__=ConfigDict(extra="forbid"),
-        **fields,
+        __base__=list_filter_model(tool),
+        **{
+            name: (Optional[model], None)  # ty: ignore[invalid-type-form]
+            for name, model in _content(tool).items()
+        },
     )
 
 

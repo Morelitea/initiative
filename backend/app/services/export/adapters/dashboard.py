@@ -13,16 +13,23 @@ not ship is not ours to put in a file, while a hand-built one — the common
 case — is ordinary content.
 
 Access rule: READ on the dashboard (exporting is a formatted read), enforced
-by the ``get_dashboard_for_export`` seam at both count and build time, under
+by the ``ToolExportAdapter.fetch`` seam at both count and build time, under
 the caller's RLS session.
+
+A dashboard built on an app this build does not ship is refused: its
+definition belongs to its publisher, and the way to have it somewhere else is
+to install the app there. ``adapters/backup`` leaves those out before they are
+fetched, so a community's backup is not failed by one of them.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import ExportMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.dashboard import Dashboard
@@ -51,11 +58,18 @@ class DashboardAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> Dashboard:
-        from app.services.tenant.dashboards import get_dashboard_for_export
+        from app.services.export.provenance import builtin_listing_uids, is_exportable
 
-        return await get_dashboard_for_export(
-            session, user, guild_id, dashboard_id=dashboard_id, access=access
+        dashboard = await super().fetch(
+            session, user, guild_id, dashboard_id, access=access
         )
+        builtin = await builtin_listing_uids(session, [dashboard.listing_uid])
+        if not is_exportable(dashboard.listing_uid, builtin):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ExportMessages.EXPORT_THIRD_PARTY_APP,
+            )
+        return dashboard
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /

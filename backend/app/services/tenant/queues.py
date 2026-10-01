@@ -15,13 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
-from app.db import session as db_session
 from app.core.messages import QueueMessages
-from app.core.tools import Tool
-from app.services.permissions import (
-    DAC_RESOURCES,
-    require_export_access,
-)
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
@@ -33,7 +27,6 @@ from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.task import Task
 from app.services.tenant import relationships
-from app.models.platform.user import User
 from app.services.tenant import tags as tags_service
 
 
@@ -84,40 +77,6 @@ async def get_queue(
     if queue is not None:
         await tags_service.annotate_tags(session, [queue])
         await tags_service.annotate_tags(session, queue.items or [])
-    return queue
-
-
-async def get_queue_for_export(
-    session: AsyncSession,
-    current_user: User,
-    guild_id: int,
-    *,
-    queue_id: int,
-    access: str = "owner",
-) -> Queue:
-    """The queue-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. It takes the owner rung,
-    or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``). The guild role is resolved here
-    rather than taken from a request context, so the seam works transport-free."""
-
-    queue = await get_queue(session, queue_id)
-    if queue is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.queue.not_found_code,
-        )
-    if queue.initiative is not None and not queue.initiative.queues_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.queue.feature_disabled_code,
-        )
-    require_export_access(
-        DAC_RESOURCES[Tool.queue],
-        queue,
-        context=db_session.guild_context(session),
-        access=access,
-    )
     return queue
 
 

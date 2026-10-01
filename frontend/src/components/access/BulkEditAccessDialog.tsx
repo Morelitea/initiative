@@ -59,6 +59,7 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
 export interface BulkAccessItem {
   id: number;
   initiative_id: number;
+  archived_at?: string | null;
   grants?: ResourceGrantSchema[] | null;
   can: ToolCan;
 }

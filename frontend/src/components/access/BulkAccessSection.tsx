@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { BulkAccessBar } from "@/components/access/BulkAccessBar";
@@ -26,18 +27,21 @@ interface BulkAccessSectionProps<T extends BulkAccessItem> {
 }
 
 /**
- * The bulk edit-access toolbar shared by the standalone tool-list pages (queues,
- * counter groups): the {@link BulkAccessBar} (with a bulk export action) shown
- * while items are selected, and the {@link BulkEditAccessDialog} it opens.
- * Entering selection mode is the toolbar's overflow menu's job, so this renders
- * nothing at all until something is selected.
+ * The bulk edit-access toolbar shared by the tool-list pages: the
+ * {@link BulkAccessBar} (with a bulk export action) shown while items are
+ * selected, and the {@link BulkEditAccessDialog} it opens. An archived item's
+ * sharing cannot change, so a selection holding one says so. Entering
+ * selection mode is the toolbar's overflow menu's job, so this renders nothing
+ * at all until something is selected.
  */
 export function BulkAccessSection<T extends BulkAccessItem>({
   selection,
   tool,
   invalidate,
 }: BulkAccessSectionProps<T>) {
+  const { t } = useTranslation("access");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const archived = selection.selectedItems.some((item) => item.archived_at);
 
   return (
     <>
@@ -45,6 +49,7 @@ export function BulkAccessSection<T extends BulkAccessItem>({
         <BulkAccessBar
           count={selection.selectedItems.length}
           canManage={everyCan(selection.selectedItems, "share")}
+          manageHint={archived ? t("bulkBar.archived") : undefined}
           onEditAccess={() => setDialogOpen(true)}
           onExit={selection.exit}
         >

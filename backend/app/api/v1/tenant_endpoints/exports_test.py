@@ -3000,18 +3000,20 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
 async def test_empty_initiative_backup_is_manifest_only_zip(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """Zero CONTENT still yields an importable zip, with never-enabled tools
-    marked disabled in the inventory.
+    """Zero CONTENT still yields an importable zip, with switched-off tools
+    marked disabled in the inventory and their rows left out.
 
     "Empty" is the content, not the initiative: it has roles and a creator
     from the moment it exists, so its ``structure.json`` rides along. An
     archive that dropped it would restore a pile of nothing with nobody in
     it."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    # The factory switches every tool on; turn two off so the inventory has
-    # deliberately disabled ones to report.
+    await create_project(session, a.initiative, a.user, name="Switched off")
+    # The factory switches every tool on; turn some off so the inventory has
+    # deliberately disabled ones to report, one of them holding a project.
     a.initiative.queues_enabled = False
     a.initiative.calendars_enabled = False
+    a.initiative.projects_enabled = False
     session.add(a.initiative)
     await session.commit()
 
@@ -3023,9 +3025,8 @@ async def test_empty_initiative_backup_is_manifest_only_zip(
     # No CONTENT, so every entry is the initiative's own shape.
     assert {e["type"] for e in manifest["entries"]} == {"initiative-structure"}
     tools = manifest["initiatives"][0]["tools"]
-    assert tools["project"] == "included"  # core tools have no off switch
-    assert tools["queue"] == "disabled"
-    assert tools["calendar"] == "disabled"
+    assert (tools["project"], tools["queue"], tools["calendar"]) == ("disabled",) * 3
+    assert tools["document"] == "included"
 
 
 async def test_guild_export_seat_vacated_fails_closed(

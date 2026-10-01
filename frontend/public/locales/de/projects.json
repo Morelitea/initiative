@@ -80,8 +80,7 @@
     "loadError": "Archivierte Projekte konnten nicht geladen werden.",
     "unarchive": "Archivierung aufheben",
     "noArchived": "Keine archivierten Projekte",
-    "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“.",
-    "sharingUnavailable": "Die Freigabe eines archivierten Projekts kann nicht geändert werden."
+    "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“."
   },
   "createDialog": {
     "title": "Projekt erstellen",

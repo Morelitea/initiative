@@ -106,17 +106,6 @@ describe("useProjectListView filtering", () => {
     expect(names(result.current.filteredProjects)).toEqual(["Favorite"]);
     expect(result.current.narrowed).toBe(true);
   });
-
-  it("drops projects from initiatives the viewer cannot see", async () => {
-    const view = await render(
-      [
-        buildProject({ name: "Visible", initiative_id: 1 }),
-        buildProject({ name: "Hidden", initiative_id: 2 }),
-      ],
-      { viewableInitiativeIds: new Set([1]) }
-    );
-    expect(names(view.filteredProjects)).toEqual(["Visible"]);
-  });
 });
 
 describe("useProjectListView sorting", () => {

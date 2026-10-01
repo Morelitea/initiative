@@ -14,7 +14,7 @@ app makes at upload and can make again, so shipping both doubles the bytes of
 a picture-heavy backup to restore something derivable.
 
 Access rule: READ on the gallery (exporting is a formatted read), enforced by
-the ``get_gallery_for_export`` seam at both count and build time, under the
+the ``ToolExportAdapter.fetch`` seam at both count and build time, under the
 caller's RLS session.
 """
 
@@ -61,11 +61,26 @@ class GalleryAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> Loaded:
-        from app.services.tenant.galleries import get_gallery_for_export
+        """The gallery and its pictures, oldest first: the order they were put
+        in, so a restore reads the same way round."""
+        from sqlmodel import select
 
-        return await get_gallery_for_export(
-            session, user, guild_id, gallery_id=gallery_id, access=access
+        from app.services.tenant import tags as tags_service
+        from app.services.tenant.galleries import image_loader_options, image_order
+
+        gallery = await super().fetch(
+            session, user, guild_id, gallery_id, access=access
         )
+        images = list(
+            await session.exec(
+                select(GalleryImage)
+                .where(GalleryImage.gallery_id == gallery.id)
+                .options(*image_loader_options())
+                .order_by(*image_order(oldest_first=True))
+            )
+        )
+        await tags_service.annotate_tags(session, images)
+        return gallery, images
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /

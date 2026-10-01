@@ -55,7 +55,6 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.tenant.document import Document
 from app.api import resource_access
-from app.core.user_display import handle_of
 from app.core.tools import Tool
 from app.db.session import require_actor_context, require_guild_context
 from app.services import email as email_service
@@ -73,7 +72,6 @@ from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
 from app.services.tenant import task_description as task_description_service
 from app.core.messages import ProjectMessages
-from app.core.config import settings as app_settings
 from app.schemas.tenant.project import (
     ProjectCan,
     ProjectCreate,
@@ -96,10 +94,6 @@ from app.schemas.tenant.document import (
     ProjectDocumentSummary,
     serialize_project_document_link,
 )
-from app.schemas.tenant.project_export import (
-    ProjectExportEnvelope,
-)
-from app.services.tenant import project_export as project_export_service
 from app.services.tenant import project_grants
 from app.schemas.tenant.tag import annotated_tags
 
@@ -1244,73 +1238,3 @@ async def read_after_write(
         project_id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
     return await _project_read_for_user(session, guild_context.user_id, project)
-
-
-# ── Export ───────────────────────────────────────────────────────
-
-
-async def _project_for_export(
-    session, current_user: User, guild_id: int, project_id: int, access: str
-) -> Project:
-    """The project, once the request may export it: its owner rung, as every
-    tool's export takes (``permissions.require_export_access``), or read for
-    an initiative/guild aggregate export passing ``access="read"``.
-
-    The standing is the session's own: an export replays on a worker, where
-    the routing it ran under is what answers.
-    """
-    project = await _get_project_or_404(
-        project_id, session, guild_id, user_id=current_user.id
-    )
-    context = require_guild_context(session)
-    resource_access.authorize(Tool.project, project, current_user, context=context)
-    permissions_service.require_export_access(
-        permissions_service.DAC_RESOURCES[Tool.project],
-        project,
-        context=context,
-        access=access,
-    )
-    return project
-
-
-async def count_project_export_rows(
-    session,
-    current_user: User,
-    guild_id: int,
-    *,
-    project_id: int,
-    access: str = permissions_service.EXPORT_ACCESS,
-) -> int:
-    """The project-export adapter's pre-render signal: the task count, as the
-    size proxy for inline-vs-job selection, behind the same gate as the build."""
-    project = await _project_for_export(
-        session, current_user, guild_id, project_id, access
-    )
-    return (
-        await session.exec(
-            select(func.count()).select_from(Task).where(Task.project_id == project.id)
-        )
-    ).one()
-
-
-async def build_project_export_for_user(
-    session,
-    current_user: User,
-    guild_id: int,
-    *,
-    project_id: int,
-    access: str = permissions_service.EXPORT_ACCESS,
-) -> ProjectExportEnvelope:
-    """The project-export adapter's build seam. Cross-row references (tags,
-    statuses, properties, assignees) are encoded by string keys (name /
-    handle) so the file imports cleanly on another instance."""
-    project = await _project_for_export(
-        session, current_user, guild_id, project_id, access
-    )
-    return await project_export_service.build_project_export(
-        session,
-        project_id=project.id,
-        exported_by_handle=handle_of(current_user),
-        source_instance_url=app_settings.APP_URL,
-        source_guild_id=guild_id,
-    )
