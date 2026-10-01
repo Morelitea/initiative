@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.authorization import GUILD_FUNCTION_SIGNATURES
+from app.db.authorization import GUILD_FUNCTION_SIGNATURES, READ_FUNCTIONS
 from app.db.schema_provisioning import guild_role_name, guild_schema_name
 from app.testing import create_guild, create_initiative, create_project, create_user
 
@@ -22,11 +22,11 @@ pytestmark = pytest.mark.budget
 
 #: Parsed policies, per community, per database connection that has served it.
 #: Postgres keeps them until the table changes, so a pooled connection holds one
-#: of these for every community it has served. 8.6 MB on 2026-10-01.
-POLICY_MEMORY_PER_COMMUNITY = 9 * 1024 * 1024
+#: of these for every community it has served. 5.6 MB on 2026-10-01.
+POLICY_MEMORY_PER_COMMUNITY = 6 * 1024 * 1024
 
-#: The same for one table. 352 KB (``task_property_values``) on 2026-10-01.
-POLICY_MEMORY_PER_TABLE = 400 * 1024
+#: The same for one table. 304 KB (``task_property_values``) on 2026-10-01.
+POLICY_MEMORY_PER_TABLE = 350 * 1024
 
 _POLICY_MEMORY = (
     "SELECT ident, total_bytes FROM pg_backend_memory_contexts "
@@ -77,7 +77,9 @@ async def test_the_gates_that_read_the_standing_keep_their_plans(
     gates = [
         f"{schema}.{name}{args}"
         for name, args in GUILD_FUNCTION_SIGNATURES.items()
-        if name == "current_standing" or "public.standing" in args
+        if name == "current_standing"
+        or name in dict(READ_FUNCTIONS)
+        or "public.standing" in args
     ]
 
     languages = dict(
@@ -97,8 +99,9 @@ async def test_the_gates_that_read_the_standing_keep_their_plans(
 
 
 async def test_the_standing_is_read_once_a_statement(session: AsyncSession):
-    """Every policy passes ``(SELECT current_standing())``, which Postgres runs
-    once for the statement. Called bare, it would run once a row."""
+    """Every policy passes ``(SELECT current_standing())`` and reads each
+    field as ``(SELECT standing_<field>())``, which Postgres runs once for the
+    statement. Called bare, either would run once a row."""
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
     initiative = await create_initiative(session, guild, owner)
@@ -115,15 +118,22 @@ async def test_the_standing_is_read_once_a_statement(session: AsyncSession):
         await session.exec(text(statement))
     await session.exec(text(f'SELECT count(*) FROM "{schema}".projects'))
     await session.exec(text("RESET ROLE"))
-    calls = (
-        await session.exec(
-            text(
-                "SELECT pg_stat_get_xact_function_calls(CAST(:proc AS regprocedure))"
-            ).bindparams(proc=f"{schema}.current_standing()")
-        )
-    ).one()[0]
+    calls = dict(
+        (
+            await session.exec(
+                text(
+                    "SELECT p.proname, pg_stat_get_xact_function_calls(p.oid)"
+                    " FROM pg_proc p WHERE p.pronamespace = CAST(:s AS regnamespace)"
+                    " AND p.proname = ANY(:names)"
+                ).bindparams(
+                    s=schema,
+                    names=["current_standing", *dict(READ_FUNCTIONS)],
+                )
+            )
+        ).all()
+    )
     await session.rollback()
 
-    assert calls is not None and 0 < calls < rows, (
-        f"current_standing() ran {calls} times reading {rows} projects"
-    )
+    ran = {name: n for name, n in calls.items() if n}
+    assert "current_standing" in ran and set(ran) - {"current_standing"}, ran
+    assert all(n < rows for n in ran.values()), f"reading {rows} projects ran {ran}"
