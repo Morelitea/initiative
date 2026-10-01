@@ -1,72 +1,302 @@
 {
   "nav": {
-    "signIn": "Iniciar sesión",
+    "home": "Inicio de Initiative",
+    "download": "Descargar",
     "pricing": "Precios",
-    "help": "Ayuda"
+    "docs": "Documentación",
+    "signIn": "Iniciar sesión",
+    "signUp": "Registrarse",
+    "menu": "Menú",
+    "mainAria": "Principal"
   },
   "hero": {
-    "eyebrow": "Código abierto. La comunidad primero.",
     "titleLine1": "Fuera del chat de grupo.",
     "titleLine2": "Todo en un solo sitio.",
     "titleAria": "Fuera del chat de grupo. Todo en un solo sitio.",
-    "subtitle": "Proyectos, tareas, documentos, el calendario, y cada conversación sobre ellos, pegada a la cosa de la que trata. La siguiente persona lo encuentra sin que nadie le diga dónde mirar.",
-    "ctaSignIn": "Iniciar sesión",
-    "ctaStart": "Crear una comunidad",
-    "invited": "¿Te han mandado un enlace de invitación? Ábrelo. Él se encarga del resto.",
-    "scroll": "Echa un vistazo",
-    "loading": "Cargando…",
-    "screenshotAlt": "Las tareas de una semana en todas tus comunidades"
+    "subtitle": "Los proyectos, tareas, documentos y planes de tu grupo, en un solo sitio. En vez de repartidos entre un chat de grupo, dos hojas de cálculo, un hilo de correos de marzo y la cabeza de quien lleva más tiempo haciendo esto.",
+    "freeTitle": "Registrarse es gratis",
+    "freeBody": "Tu cuenta es gratis, y cada comunidad que crees tiene 30 días de prueba gratis.",
+    "signUp": "Registrarse",
+    "signIn": "Iniciar sesión",
+    "download": "Descargar",
+    "haveAccount": "¿Ya tienes cuenta?",
+    "loading": "Cargando…"
   },
-  "ribbon": {
-    "aria": "Los tipos de grupos que usan Initiative",
-    "fete": "la verbena",
-    "rota": "el cuadrante de turnos",
-    "pta": "el AMPA",
-    "dnd": "el D&D de los martes",
-    "shop": "la tienda",
-    "band": "el grupo de música",
-    "festival": "el equipo del festival",
-    "committee": "la junta de voluntarios",
-    "dayJob": "el trabajo",
-    "family": "el calendario familiar",
-    "bookClub": "el club de lectura",
-    "fiveASide": "el equipo de fútbol sala"
-  },
-  "invited": {
-    "sectionLabel": "¿Nuevo por aquí?",
-    "title": "Alguien te ha añadido. ¿Y ahora qué?",
-    "description": "La mayoría llega porque su grupo ya vive aquí y alguien le ha mandado un enlace. No hay nada que configurar, y no hace falta saber qué es un tablero Kanban. Si alguna vez has escrito la lista de la compra, estás sobrecualificado.",
-    "step1Title": "Abre el enlace que te han mandado",
-    "step1Body": "Crea tu cuenta y te deja dentro de tu grupo. ¿Ya tienes una? Simplemente le añade la comunidad.",
-    "step2Title": "Echa un vistazo",
-    "step2Body": "Ya está todo ahí. Haz clic en las cosas. Abre menús. Arrastra cosas de un lado a otro.",
-    "step3Title": "No puedes romper esto",
-    "step3Body": "¿Has borrado algo? Está en la papelera, enfurruñado. ¿Has movido una tarea donde no tocaba? Devuélvela. Nadie lo ha visto.",
-    "cta": "El recorrido de cinco minutos"
+  "communities": {
+    "members_one": "{{count}} miembro",
+    "members_other": "{{count}} miembros",
+    "toolsAria": "Herramientas",
+    "dnd": {
+      "name": "D&D de los martes",
+      "activity": "Te toca traer los snacks",
+      "pill": "Te toca"
+    },
+    "band": {
+      "name": "La banda",
+      "activity": "El ensayo pasa al jueves"
+    },
+    "pta": {
+      "name": "AMPA de Hillside",
+      "activity": "Pasteles prometidos: 41 de 60"
+    },
+    "alsoGoodFor": "También sirve para",
+    "marquee": {
+      "soccer": "Liga dominical del Norte",
+      "pta": "AMPA Calle Arce",
+      "business": "Panadería Rosie",
+      "books": "Club de lectura Segundo Capítulo",
+      "dogs": "Rescate Patitas Embarradas",
+      "neighborhood": "Vecinos de Oak Hill",
+      "theater": "Teatro comunitario Riverside",
+      "faith": "Voluntarios de la capilla Grace",
+      "robotics": "Robótica del instituto Lincoln",
+      "mushrooms": "Cazadores de colmenillas",
+      "startup": "Estudio Brightline",
+      "family": "Familia Parker"
+    }
   },
   "tools": {
-    "sectionLabel": "Qué hay dentro",
-    "title": "Aprende una herramienta y conoce el resto",
-    "description": "Todo lo que hay dentro de una comunidad es una herramienta. Se comparten igual, se etiquetan igual, se comentan igual, así que la segunda te resulta familiar antes de abrirla.",
-    "projects": "Tableros, listas y un calendario con las mismas tareas. Fechas límite, subtareas, y esas tareas que en secreto son tres tareas con gabardina.",
-    "documents": "Páginas, hojas de cálculo y pizarras, editadas entre todos, con la conversación sobre ellas justo encima.",
-    "queues": "A quién le toca escribir al ayuntamiento. A nadie. Nunca le toca a nadie. Ponlo en una cola.",
-    "counterGroups": "Cuenta lo que de otro modo contarías con los dedos. Entradas vendidas, tartas prometidas, sillas que aún faltan.",
-    "calendars": "Ensayos, partidos, la asamblea anual. Con recordatorios, para que el recordatorio no seas tú.",
-    "dashboards": "Una pantalla con los números, legible desde la otra punta de un pabellón con corriente.",
-    "wikis": "Lo que el grupo sabe, en vez de lo que está haciendo. Eso que alguien explicó una vez en un mensaje, escrito donde lo encuentre la siguiente persona.",
-    "posts": "Anuncios que se quedan donde están, en vez de perderse bajo cuarenta respuestas.",
-    "galleries": "Las fotos del día, guardadas con el día, no en seis carretes distintos."
+    "title": "Aprende una herramienta, conoce las demás",
+    "description": "Todo en una comunidad es una herramienta. Se comparten, etiquetan y comentan igual, así que la segunda te resulta familiar antes de abrirla.",
+    "note": "Activa las que necesite tu grupo. Desactivar una más tarde no borra nada.",
+    "projects": "Tableros, tablas y calendarios con las mismas tareas, con confeti si quieres.",
+    "documents": "Páginas, hojas de cálculo y pizarras que editáis juntos en directo.",
+    "queues": "Lleva la cuenta de a quién le toca, porque al parecer nunca le toca a nadie.",
+    "counterGroups": "Entradas vendidas, pasteles prometidos, sillas que siguen faltando.",
+    "calendars": "Eventos con confirmaciones y recordatorios, para que no tengas que recordárselo tú a todo el mundo.",
+    "dashboards": "Tus números en una sola pantalla, y cada persona solo ve lo que puede ver.",
+    "wikis": "Escribe lo que sabe el grupo, con enlaces que siguen funcionando aunque cambies un nombre.",
+    "posts": "Anuncios que no quedan enterrados, con encuestas y confirmaciones de lectura.",
+    "galleries": "Las fotos del día juntas, en vez de repartidas en seis móviles distintos."
   },
-  "gallery": {
-    "sectionLabel": "Míralo",
-    "title": "Así es como se ve",
-    "tasksAlt": "Todo lo que tienes asignado, en todas tus comunidades",
-    "tasksCaption": "Tu semana, en todas las comunidades donde estás",
-    "projectAlt": "Un tablero de proyecto",
-    "projectCaption": "Las mismas tareas como tablero, tabla o calendario",
-    "documentAlt": "Un documento editado entre varias personas",
-    "documentCaption": "Documentos con la conversación encima"
+  "hangout": {
+    "titleStart": "Aquí es donde tu comunidad",
+    "titleHighlight": "también se junta",
+    "titleEnd": "",
+    "description": "Publica las novedades, lanza una encuesta, organiza el partido del sábado y mira quién viene, todo en el mismo sitio donde guardas lo que hay que hacer. Funciona igual para una liga amateur, un grupo de voluntarios o la gente que queda para tomar café desde 2009.",
+    "drawingAria": "Un dibujo de una comunidad en Initiative",
+    "community": {
+      "name": "Fútbol amateur del Este",
+      "tagline": "Liga de domingo, todas las edades y niveles",
+      "online": "12 conectados"
+    },
+    "online": "Conectados",
+    "away": "Ausentes",
+    "people": {
+      "maya": "Maya",
+      "mayaStatus": "preparando la encuesta",
+      "dev": "Dev",
+      "devStatus": "tiene la parrilla grande",
+      "priya": "Priya",
+      "priyaStatus": "en el trabajo, pregunta luego",
+      "luis": "Luis",
+      "sam": "Sam",
+      "hana": "Hana"
+    },
+    "post": {
+      "where": "en Anuncios",
+      "pinned": "Fijado hasta el sáb",
+      "body": "Barbacoa de inicio de temporada este sábado justo después del partido. Trae una silla y a quien viva contigo.",
+      "burgers": "Hamburguesas",
+      "hotDogs": "Perritos calientes",
+      "veggie": "Brochetas de verduras",
+      "votes": "29 votos",
+      "read": "41 lo han leído, 7 no"
+    },
+    "reply": "Puedo traer la parrilla grande si alguien me ayuda a cargarla",
+    "event": {
+      "day": "Sáb",
+      "date": "14",
+      "title": "Partidillo",
+      "where": "Riverside Park, campo 3, 10:00",
+      "going": "14 van",
+      "maybe": "3 quizá",
+      "rsvpGoing": "Voy",
+      "rsvpMaybe": "Quizá",
+      "rsvpNo": "No puedo",
+      "reminder": "Recordatorio una hora antes"
+    },
+    "rota": {
+      "title": "Turno de snacks",
+      "detail": "Ronda 6, esta semana le toca a Luis"
+    },
+    "points": {
+      "planTitle": "Organizad cosas juntos",
+      "planBody": "Crea un evento, mira quién va y deja que los recordatorios se encarguen de insistir. Un partido semanal y una recaudación anual funcionan igual.",
+      "loopTitle": "Que todo el mundo esté al tanto",
+      "loopBody": "Publicaciones que se quedan fijadas, encuestas que la gente sí contesta y una lista de quién aún no ha leído el anuncio.",
+      "aroundTitle": "Mira quién anda por aquí",
+      "aroundBody": "Conectado, ausente u ocupado de un vistazo, con mensajes privados cifrados de extremo a extremo."
+    }
+  },
+  "directory": {
+    "title": "¿Buscas gente nueva?",
+    "description": "Algunas comunidades aparecen en un directorio público. Con una cuenta puedes explorarlas por categoría, ver cuánta gente hay conectada y unirte directamente desde la tarjeta.",
+    "peek": "Echa un vistazo",
+    "deckAria": "Comunidades del directorio",
+    "signUp": "Regístrate para verlas todas",
+    "signIn": "Inicia sesión para verlas todas",
+    "age": "Necesitas tener 16 años o más para unirte a una comunidad del directorio.",
+    "join": "Unirse",
+    "dice": {
+      "name": "Dados y Dragones",
+      "description": "Partidas autoconclusivas cada semana para quien no puede comprometerse con una campaña entera.",
+      "category": "Rol de mesa",
+      "members": "212 miembros",
+      "online": "31 conectados"
+    },
+    "producers": {
+      "name": "Bedroom Producers",
+      "description": "Comparte en qué estás trabajando y tómale prestados los sonidos de batería a los demás.",
+      "category": "Música",
+      "category2": "Arte y diseño",
+      "members": "1380 miembros",
+      "online": "96 conectados"
+    },
+    "volleyball": {
+      "name": "Vóley playa de los sábados",
+      "description": "Partidos cada sábado por la mañana, todos los niveles son bienvenidos.",
+      "category": "Deporte y fitness",
+      "category2": "Comunidad y social",
+      "members": "540 miembros",
+      "online": "22 conectados"
+    }
+  },
+  "between": {
+    "title": "Y todo lo de en medio",
+    "description": "Esto funciona igual en todas las herramientas.",
+    "comments": {
+      "title": "La conversación está en la cosa",
+      "body": "Los comentarios, respuestas y reacciones viven en la tarea o el documento del que hablan, para que la próxima persona los encuentre de verdad.",
+      "author": "Sam",
+      "on": "en Lista de la carroza",
+      "mention": "@Priya",
+      "text": "¿puedes mirar si a la carroza todavía le queda una rueda?",
+      "replies": "2 respuestas"
+    },
+    "mine": {
+      "title": "Todo lo que lleva tu nombre",
+      "body": "Una cuenta para la banda, el AMPA y el trabajo, y una lista con todo lo que has dicho que harías.",
+      "task1": "Reservar el salón",
+      "where1": "AMPA",
+      "task2": "Aprenderme bien el puente",
+      "where2": "La banda",
+      "task3": "Imprimir las hojas de personaje",
+      "where3": "D&D",
+      "task4": "Informe del T3",
+      "where4": "Trabajo"
+    },
+    "search": {
+      "title": "Encuentra eso que medio recuerdas",
+      "body": "Ctrl K busca en documentos, hojas de cálculo, pizarras y comentarios, y da igual si lo escribes mal.",
+      "query": "carrosa",
+      "result1": "Lista de la carroza",
+      "result2": "Arreglar la rueda de la carroza",
+      "result3": "\"¿la carroza tiene seguro?\"",
+      "doc": "Documento",
+      "task": "Tarea",
+      "comment": "Comentario",
+      "match": "carroza"
+    },
+    "relations": {
+      "title": "Las cosas saben con qué están conectadas",
+      "body": "Enlaza lo que sea con #, marca qué bloquea qué, y los enlaces de vuelta aparecen solos.",
+      "blockedBy": "Bloqueada por",
+      "partOf": "Parte de",
+      "mentionedIn": "Mencionada en",
+      "item1": "Pagar la fianza del salón",
+      "item2": "Fiesta de verano",
+      "item3": "Acta de la reunión, mayo"
+    },
+    "notify": {
+      "title": "Notificaciones que saben cuándo callarse",
+      "body": "Campana, correo o push, por grupo, con horas de silencio, porque nadie necesita al AMPA a las 2 de la madrugada.",
+      "toastTitle": "El ensayo pasa al jueves",
+      "toastWhere": "La banda, Calendario",
+      "quiet": "Horas de silencio",
+      "quietHours": "22:00 a 8:00"
+    },
+    "messages": {
+      "title": "Mensajes que nadie más puede leer",
+      "body": "Chats individuales o de grupo, cifrados de extremo a extremo, así que ni el servidor puede leerlos.",
+      "e2e": "Cifrado de extremo a extremo",
+      "m1": "¿les contaste lo del asunto?",
+      "m2": "¿qué asunto?",
+      "m3": "sabes perfectamente qué asunto"
+    },
+    "imports": "¿Te mudas desde otro sitio?"
+  },
+  "safe": {
+    "title": "Aquí no puedes romper nada",
+    "body": "¿Has borrado algo? Va a la papelera y puedes recuperarlo. ¿Has movido una tarea a un sitio raro? Vuelve a moverla, nadie lo ha visto.",
+    "item": "Reservar el salón",
+    "deleted": "Lo borraste hace 2 minutos",
+    "restore": "Restaurar"
+  },
+  "closer": {
+    "title": "¿Tu grupo todavía no está aquí?",
+    "body": "Crear una comunidad lleva más o menos un minuto. Crea un tablero, añade unas cuantas tareas y mándale el enlace a la gente.",
+    "start": "Crear una comunidad",
+    "selfHost": "Ejecútalo en tu propio servidor",
+    "docs": "Leer la documentación"
+  },
+  "download": {
+    "title": "Descarga",
+    "titleHighlight": "Initiative",
+    "description": "Funciona en el navegador, y usarlo así para siempre es una decisión perfectamente respetable. Pero también puede tener su propio icono, su propia ventana y, en Android, notificaciones que llegan aunque no estés mirando.",
+    "detected": "Parece que usas {{platform}}",
+    "platformAndroid": "Android",
+    "platformIos": "un iPhone o iPad",
+    "platformDesktop": "un ordenador",
+    "androidTitle": "Initiative para Android",
+    "androidBody": "Se instala como cualquier otra cosa, con notificaciones push y sin tienda de apps.",
+    "iosTitle": "Initiative para iPhone y iPad",
+    "iosBody": "Toca Compartir y luego Añadir a la pantalla de inicio. Es el mismo Initiative, pero los iPhone todavía no reciben notificaciones push.",
+    "desktopTitle": "Initiative para tu ordenador",
+    "desktopBody": "Su propia ventana y su propio icono en el dock o la barra de tareas. Se instala directamente desde el navegador.",
+    "androidButton": "Descargar para Android",
+    "iosButton": "Añadir a tu iPhone",
+    "windowsButton": "Descargar para Windows",
+    "macButton": "Descargar para Mac",
+    "linuxButton": "Descargar para Linux",
+    "desktopButton": "Descargar para tu ordenador",
+    "version": "Versión {{version}}, la que usa este servidor",
+    "releases": "Ver todas las versiones",
+    "desktopMeta": "Windows, Mac y Linux",
+    "cardsAria": "Todas las formas de conseguir Initiative",
+    "android": {
+      "title": "Android",
+      "sub": "Móviles y tabletas",
+      "body": "Con notificaciones push. O deja que <1>Obtainium</1> lo mantenga actualizado por ti.",
+      "button": "Descargar APK"
+    },
+    "ios": {
+      "title": "iPhone y iPad",
+      "sub": "Desde Safari",
+      "step1": "Abre esta página en Safari",
+      "step2": "Toca el botón Compartir",
+      "step3": "Toca Añadir a la pantalla de inicio",
+      "button": "Enséñamelo"
+    },
+    "desktop": {
+      "title": "Ordenador",
+      "sub": "Windows, Mac, Linux",
+      "body": "Chrome y Edge lo instalan con un clic. En Safari es Archivo y luego Añadir al Dock.",
+      "button": "Instalar Initiative"
+    },
+    "browser": {
+      "title": "Navegador",
+      "sub": "Cualquier cosa con pantalla",
+      "body": "Nada que instalar, solo guárdalo en favoritos.",
+      "button": "Abrir en el navegador"
+    },
+    "factsAria": "Bueno saberlo",
+    "updatesTitle": "Las actualizaciones se instalan solas",
+    "updatesBody": "Initiative se mantiene al día solo, así que no tendrás que volver aquí.",
+    "accountTitle": "Una cuenta, todos los dispositivos",
+    "accountBody": "Inicia sesión en el móvil, el portátil o el ordenador de la biblioteca y todo está ahí.",
+    "passkeysTitle": "Llaves de acceso bienvenidas",
+    "passkeysBody": "Usa una llave de acceso o un código enviado a tu correo si prefieres no tener contraseña."
   },
   "pricing": {
     "sectionLabel": "Planes",
@@ -75,66 +305,34 @@
     "automations": "Automatizaciones",
     "members": "Personas",
     "support": "Soporte",
-    "loading": "Buscando la lista de precios…",
-    "tierListAria": "Planes"
-  },
-  "download": {
-    "sectionLabel": "Llévatelo",
-    "title": "Descarga la app",
-    "description": "Funciona en el navegador, y usarla así para siempre es una decisión perfectamente respetable. Pero también puede tener su propio icono, su propia ventana y, en Android, notificaciones que llegan mientras no estás mirando.",
-    "detected": "Parece que estás en {{platform}}",
-    "platformAndroid": "Android",
-    "platformIos": "iPhone y iPad",
-    "platformDesktop": "un ordenador",
-    "androidTitle": "Android",
-    "androidButton": "Descargar para Android",
-    "androidReleases": "Ver todas las versiones",
-    "androidNote": "O deja que <1>Obtainium</1> la mantenga actualizada por ti.",
-    "iosTitle": "iPhone y iPad",
-    "iosButton": "Añadir a la pantalla de inicio",
-    "iosNote": "Botón de compartir y luego «Añadir a pantalla de inicio». La misma app, sin tienda.",
-    "desktopTitle": "Ordenador",
-    "desktopButton": "Instalar desde el navegador",
-    "desktopNote": "El icono de instalar, en el extremo derecho de la barra de direcciones. O no, y usa la pestaña. También vale.",
-    "guide": "Cómo funciona la instalación"
-  },
-  "docs": {
-    "sectionLabel": "Ayuda",
-    "title": "Oriéntate",
-    "description": "Escrita para la persona a la que le ha tocado organizar algo y teme, en silencio, que sea complicado. No lo será.",
-    "gettingStartedTitle": "Primeros pasos",
-    "gettingStartedBody": "Crea una cuenta, oriéntate, únete a tu grupo.",
-    "tourTitle": "Un recorrido rápido",
-    "tourBody": "Cinco minutos sobre dónde está cada cosa.",
-    "guidesTitle": "Usar Initiative",
-    "guidesBody": "Guías paso a paso para cada herramienta.",
-    "faqTitle": "Preguntas frecuentes",
-    "faqBody": "Respuestas rápidas a lo que más pregunta la gente.",
-    "serverTitle": "Gestionar un servidor",
-    "serverBody": "Instalar, configurar y cuidar tu propio servidor.",
-    "securityTitle": "Seguridad y privacidad",
-    "securityBody": "Qué significa «seguro» para ti, y cómo lo de tu grupo sigue siendo vuestro."
-  },
-  "principles": {
-    "openSourceTitle": "Código abierto",
-    "openSourceBody": "Léelo, cámbialo, ponlo en marcha.",
-    "sameAppTitle": "Todas las funciones, de las dos formas",
-    "sameAppBody": "Nada se reserva para los clientes de pago.",
-    "oneLoginTitle": "Un solo inicio de sesión",
-    "oneLoginBody": "Todas las comunidades donde estás, desde la misma cuenta.",
-    "yourDataTitle": "Tus datos siguen siendo tuyos",
-    "yourDataBody": "Expórtalos, bórralos, llévatelos a otra parte."
-  },
-  "cta": {
-    "title": "Cuando tú quieras.",
-    "description": "Inicia sesión si tu grupo ya está aquí. Crea una comunidad si no.",
-    "signIn": "Iniciar sesión"
+    "loading": "Cargando la lista de precios…",
+    "tierListAria": "Planes",
+    "selfHostBody": "¿Prefieres ejecutarlo en tu propio servidor? Es gratis y de código abierto.",
+    "everyPlanAria": "Todos los planes",
+    "sameTitle": "El mismo Initiative en ambos casos",
+    "sameBody": "Alojado por nosotros o en tu propio servidor, usas el mismo software.",
+    "openTitle": "Código abierto",
+    "openBody": "Léelo, cámbialo, ejecútalo.",
+    "dataTitle": "Tus datos siguen siendo tuyos",
+    "dataBody": "Expórtalos, bórralos, llévatelos a otra parte.",
+    "unavailableTitle": "Los planes no están disponibles ahora mismo",
+    "unavailableBody": "La lista de precios no se ha cargado. Espera un momento y vuelve a intentarlo.",
+    "back": "Volver a la portada"
   },
   "footer": {
-    "copyright": "© {{year}} Initiative. Código abierto, y así seguirá.",
-    "docs": "Centro de ayuda",
-    "source": "Código fuente",
+    "tagline": "Código abierto, y así seguirá.",
+    "getIt": "Consíguelo",
+    "docs": "Documentación",
+    "project": "El proyecto",
+    "download": "Descargar",
+    "pricing": "Precios",
     "changelog": "Novedades",
-    "cookies": "Cookies"
+    "gettingStarted": "Primeros pasos",
+    "faq": "Preguntas frecuentes",
+    "server": "Gestionar un servidor",
+    "security": "Seguridad y privacidad",
+    "source": "Código fuente",
+    "cookies": "Cookies",
+    "copyright": "© {{year}} Initiative"
   }
 }

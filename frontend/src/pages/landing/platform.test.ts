@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { detectPlatform } from "./platform";
+import { detectDesktopOs, detectPlatform } from "./platform";
 
 const nav = (userAgent: string, maxTouchPoints = 0) => ({ userAgent, maxTouchPoints });
 
@@ -29,5 +29,18 @@ describe("detectPlatform", () => {
     expect(detectPlatform(nav("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/125"))).toBe(
       "desktop"
     );
+  });
+});
+
+describe("detectDesktopOs", () => {
+  it("names the computer the download button is for", () => {
+    expect(detectDesktopOs({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" })).toBe(
+      "windows"
+    );
+    expect(detectDesktopOs({ userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5)" })).toBe(
+      "mac"
+    );
+    expect(detectDesktopOs({ userAgent: "Mozilla/5.0 (X11; Linux x86_64)" })).toBe("linux");
+    expect(detectDesktopOs({ userAgent: "Mozilla/5.0" })).toBeNull();
   });
 });

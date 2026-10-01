@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A new front page, and a Download page of its own.** Signing up leads, the header always offers Download, Docs and signing in, and on a phone the page is much shorter. It shows the tools, a community's week (posts, polls, events and who's around), and the community directory where the server runs one. The Download page offers the Android app, installing on a computer straight from the browser where it can, and adding to an iPhone's home screen.
 - **Step-by-step dialogs fill the screen on a phone.**
 - **`public_registration_enabled` from `GET /auth/bootstrap` is false when community creation is switched off**, since signing up without an invite is refused then too (API).
 - **Every tool's list says how much sits in each view.** The Active, Templates and Archived toggle on every tool page shows its count, and the documents page calls its live view Active like every other tool. The sidebar's document count no longer includes templates, matching projects.
