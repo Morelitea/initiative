@@ -7,6 +7,7 @@
   "INVITE_DURING_ACCESS_GRANT": "Du hast vorübergehend Zugriff auf diese Community. Nimm die Einladung an, wenn dieser Zugriff endet.",
   "OIDC_EMAIL_UNVERIFIED": "Ihr Identitätsanbieter hat nicht bestätigt, dass Ihre E-Mail-Adresse verifiziert ist, daher können wir Sie nicht bei einem bestehenden Konto anmelden. Verifizieren Sie Ihre E-Mail-Adresse bei Ihrem Anbieter und versuchen Sie es erneut.",
   "REGISTRATION_REQUIRES_INVITE": "Für die Registrierung ist ein Einladungscode erforderlich",
+  "REGISTRATION_INVITE_OR_COMMUNITY": "Tritt mit der Einladung bei oder gründe eine Community, nicht beides",
   "CAPTCHA_REQUIRED": "Bitte schließe das Captcha ab und versuche es erneut.",
   "CAPTCHA_INVALID": "Captcha-Überprüfung fehlgeschlagen. Bitte versuche es erneut.",
   "SETTINGS_EMAIL_SEND_FAILED": "Die Test-E-Mail konnte nicht gesendet werden. Details stehen im Serverprotokoll.",

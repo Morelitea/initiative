@@ -6,11 +6,11 @@ import {
   useLocation,
   useMatches,
 } from "@tanstack/react-router";
-import { Loader2, LogOut, Plus, Settings, Ticket, UserCog } from "lucide-react";
+import { Loader2, LogOut, Settings, UserCog } from "lucide-react";
 import { Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildRead, RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AcceptTerms } from "@/components/AcceptTerms";
 import { AccountTimeOut } from "@/components/AccountTimeOut";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -21,7 +21,6 @@ import { CommandCenter } from "@/components/CommandCenter";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { DocumentOutlineScope } from "@/components/documents/DocumentOutline";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
-import { Galaxy } from "@/components/icons/Galaxy";
 import { DeviceVerificationDialog } from "@/components/messages/DeviceVerificationDialog";
 import { BottomNav } from "@/components/navigation/BottomNav";
 import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
@@ -30,14 +29,13 @@ import { OfflineBanner } from "@/components/offline/OfflineBanner";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { PageSkeleton } from "@/components/skeletons/PageSkeletons";
+import { StartFlow } from "@/components/start/StartFlow";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { SidebarProvider } from "@/components/ui/sidebar";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
-import { useBillingPortal } from "@/hooks/useBillingPortal";
+import { useFinishPendingStart } from "@/hooks/useFinishPendingStart";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useCollectMessagesWhereRegistered } from "@/hooks/useMyMessages";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
@@ -113,7 +111,11 @@ function AuthenticatedLayout() {
 function AppLayout() {
   // ALL hooks must be called before any conditional returns
   const { user, loading, logout } = useAuth();
-  const { guilds, loading: guildsLoading, canCreateGuilds, createGuild } = useGuilds();
+  const { guilds, loading: guildsLoading } = useGuilds();
+  // Set while the start flow is making a community, so it stays on screen
+  // once the account has one rather than giving way to the app shell.
+  const [startFlowBusy, setStartFlowBusy] = useState(false);
+  useFinishPendingStart();
   const location = useLocation();
   // Whether the route on screen lays itself out against the window. Read off
   // the matched routes rather than the path, so a route says it once where it
@@ -193,18 +195,17 @@ function AppLayout() {
       pathname: location.pathname,
       canAccessPlatformAreas: reachesPlatformAreas,
     });
-    if (layout === "shell") {
-      return <NoGuildSettingsShell logout={logout} />;
-    }
-    if (layout === "empty") {
+    if (layout === "empty" || startFlowBusy) {
       return (
         <NoGuildState
-          canCreateGuilds={canCreateGuilds}
-          createGuild={createGuild}
           logout={logout}
           reachesPlatformAreas={reachesPlatformAreas}
+          onBusy={setStartFlowBusy}
         />
       );
+    }
+    if (layout === "shell") {
+      return <NoGuildSettingsShell logout={logout} />;
     }
     // layout === "main" → fall through to the standard sidebar layout.
   }
@@ -445,16 +446,18 @@ function AppLayout() {
   );
 }
 
+/**
+ * Signed in with no community: the start flow without the account steps, and
+ * the ways to the account's own settings underneath.
+ */
 function NoGuildState({
-  canCreateGuilds,
-  createGuild,
   logout,
   reachesPlatformAreas,
+  onBusy,
 }: {
-  canCreateGuilds: boolean;
-  createGuild: (input: { name: string; description?: string }) => Promise<GuildRead>;
   logout: () => void;
   reachesPlatformAreas: boolean;
+  onBusy: (busy: boolean) => void;
 }) {
   const { t } = useTranslation("guilds");
   const { canSell, openPortal, reserveTab } = useBillingPortal();
@@ -490,88 +493,35 @@ function NoGuildState({
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="mx-auto w-full max-w-md space-y-6 text-center">
-        <h1 className="font-bold text-2xl">{t("noGuild.title")}</h1>
-        <p className="text-muted-foreground">{t("noGuild.description")}</p>
-
-        {canCreateGuilds && (
-          <div className="flex gap-2">
-            <Input
-              placeholder={t("noGuild.guildNamePlaceholder")}
-              value={guildName}
-              onChange={(e) => setGuildName(e.target.value)}
-              maxLength={255}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreate();
-              }}
-            />
-            <Button onClick={() => void handleCreate()} disabled={creating || !guildName.trim()}>
-              <Plus className="h-4 w-4" />
-              {t("noGuild.create")}
-            </Button>
-          </div>
-        )}
-
-        <div className="flex gap-2">
-          <Input
-            placeholder={t("noGuild.inviteCodePlaceholder")}
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value)}
-          />
-          <Button variant="outline" asChild disabled={!inviteCode.trim()}>
-            <Link
-              to="/invite/$code"
-              params={{ code: inviteCode.trim() }}
-              disabled={!inviteCode.trim()}
-            >
-              <Ticket className="h-4 w-4" />
-              {t("noGuild.redeem")}
-            </Link>
-          </Button>
-        </div>
-
-        {/* The other way out of this screen: a guild that opened itself to
-            the directory can be joined here and now, with no invite to wait
-            for and nobody to ask. Only where the platform owner runs a
-            directory — otherwise an invite is the only way in. */}
-        {communityDirectoryEnabled && (
-          <Button variant="outline" asChild className="w-full">
-            <Link to="/communities">
-              <Galaxy className="h-4 w-4" />
-              {t("noGuild.browseCommunities")}
-            </Link>
-          </Button>
-        )}
-
-        {/* Direct entry points to the user/platform settings pages so a
-            user with no memberships can still manage their account
-            (e.g. delete it) or, for platform staff, system-wide
-            configuration. Without these the only paths off this screen
-            are create/join/logout. */}
-        <div className="flex flex-col gap-2">
-          <Button variant="outline" asChild>
+    <StartFlow
+      signedIn
+      onBusy={onBusy}
+      footer={
+        // The ways off this screen that are not joining or making a
+        // community: the account's own settings (to delete it, say), the
+        // platform's for staff, and signing out.
+        <div className="flex flex-wrap justify-center gap-2 border-t pt-4">
+          <Button variant="ghost" size="sm" asChild>
             <Link to="/profile">
               <UserCog className="h-4 w-4" />
               {t("noGuild.accountSettings")}
             </Link>
           </Button>
           {reachesPlatformAreas && (
-            <Button variant="outline" asChild>
+            <Button variant="ghost" size="sm" asChild>
               <Link to="/settings/operator">
                 <Settings className="h-4 w-4" />
                 {t("noGuild.platformSettings")}
               </Link>
             </Button>
           )}
+          <Button variant="ghost" size="sm" onClick={logout}>
+            <LogOut className="h-4 w-4" />
+            {t("noGuild.logOut")}
+          </Button>
         </div>
-
-        <Button variant="ghost" onClick={logout}>
-          <LogOut className="h-4 w-4" />
-          {t("noGuild.logOut")}
-        </Button>
-      </div>
-    </div>
+      }
+    />
   );
 }
 

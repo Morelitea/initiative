@@ -36,6 +36,7 @@ from sqlmodel import select
 from app.core.relationships import RelationshipType, decode_node_id, node_id
 from app.core.search import SearchEntityType
 from app.core.user_display import display_name, handle_of
+from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
 from app.schemas.tenant.property import annotated_properties
 from app.services.export.property_values import exported_properties
 from app.core.version import get_version
@@ -51,7 +52,6 @@ from app.schemas.tenant.project_export import (
     ProjectExportEnvelope,
     ProjectExportProject,
     ProjectExportPropertyDefinition,
-    ProjectExportPropertyValue,
     ProjectExportChecklistItem,
     ProjectExportTag,
     ProjectExportTask,
@@ -152,8 +152,8 @@ async def build_project_export(
         referenced_property_ids.update(
             summary.property_id for summary in annotated_properties(task)
         )
-        property_values = [
-            ProjectExportPropertyValue(**value) for value in exported_properties(task)
+        properties = [
+            EnvelopePropertyValue(**value) for value in exported_properties(task)
         ]
 
         checklist = [
@@ -205,7 +205,7 @@ async def build_project_export(
                 tags=task_tags,
                 assignee_handles=assignee_handles,
                 checklist=checklist,
-                property_values=property_values,
+                properties=properties,
                 created_at=task.created_at,
                 updated_at=task.updated_at,
                 external_ref=task_ref(task.id),
@@ -244,9 +244,8 @@ async def build_project_export(
             archived_at=project.archived_at,
             start_date=project.start_date,
             end_date=project.end_date,
-            property_values=[
-                ProjectExportPropertyValue(**value)
-                for value in exported_properties(project)
+            properties=[
+                EnvelopePropertyValue(**value) for value in exported_properties(project)
             ],
         ),
         tags=project_tags,

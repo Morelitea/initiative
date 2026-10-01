@@ -267,7 +267,7 @@ def build_project_envelope(
                 {"text": item["content"], "done": item["is_completed"]}
                 for item in checklist
             ],
-            "property_values": [],
+            "properties": [],
             "links": [],
             "comments": [],
         }

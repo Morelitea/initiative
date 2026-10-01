@@ -235,17 +235,10 @@
     "contactSupport": "Support kontaktieren"
   },
   "noGuild": {
-    "title": "Keine Community-Mitgliedschaft",
-    "description": "Du bist noch kein Mitglied einer Community. Bitte einen Community-Administrator um einen Einladungslink oder erstelle eine neue Community, um loszulegen.",
-    "guildNamePlaceholder": "Community-Name",
-    "create": "Erstellen",
-    "inviteCodePlaceholder": "Einladungscode",
-    "redeem": "Einlösen",
     "accountSettings": "Kontoeinstellungen",
     "platformSettings": "Plattformeinstellungen",
     "shellBackToStart": "Zurück zum Start",
-    "logOut": "Abmelden",
-    "browseCommunities": "Communitys durchsuchen"
+    "logOut": "Abmelden"
   },
   "notifications": {
     "title": "Benachrichtigungen",

@@ -1,8 +1,13 @@
 import { act, fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildPropertyOption, buildPropertySummary } from "@/__tests__/factories/properties";
+import {
+  buildPropertyDefinition,
+  buildPropertyOption,
+  buildPropertySummary,
+} from "@/__tests__/factories/properties";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -12,10 +17,9 @@ import {
   PropertyType,
 } from "@/api/generated/initiativeAPI.schemas";
 
-import { PropertyList } from "./PropertyList";
 import { PropertyPanel } from "./PropertyPanel";
 
-describe("PropertyList", () => {
+describe("PropertyPanel", () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
   });
@@ -36,7 +40,12 @@ describe("PropertyList", () => {
       buildPropertySummary({ property_id: 2, name: "Owner", type: PropertyType.text }),
     ];
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={10} properties={properties} />
+      <PropertyPanel
+        target={PropertyTarget.document}
+        entityId={10}
+        initiativeId={1}
+        saved={properties}
+      />
     );
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("Owner")).toBeInTheDocument();
@@ -45,52 +54,44 @@ describe("PropertyList", () => {
   it("attaches an added property without writing over a value just entered", async () => {
     const bodies: unknown[] = [];
     server.use(
+      guildHttp.get("/property-definitions/", () =>
+        HttpResponse.json([buildPropertyDefinition({ id: 2, name: "Owner" })])
+      ),
       guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
         bodies.push(await request.json());
         return HttpResponse.json([]);
       })
     );
-    const first = buildPropertySummary({
+    const status = buildPropertySummary({
       property_id: 1,
       name: "Status",
       type: PropertyType.text,
       value: null,
     });
-    const second = buildPropertySummary({
-      property_id: 2,
-      name: "Owner",
-      type: PropertyType.text,
-      value: null,
-    });
-    const { rerender } = renderWithProviders(
-      <PropertyList
+    renderWithProviders(
+      <PropertyPanel
         target={PropertyTarget.calendar_event}
         entityId={9}
-        properties={[first]}
-        unsaved={[1]}
+        initiativeId={1}
+        saved={[status]}
       />
     );
-    await advanceDebounce();
-    expect(bodies).toEqual([{ values: [{ property_id: 1, value: null }] }]);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 
     // Filled in, then another added before the row comes back from the server.
     fireEvent.change(screen.getByPlaceholderText("Empty"), { target: { value: "Ready" } });
-    rerender(
-      <PropertyList
-        target={PropertyTarget.calendar_event}
-        entityId={9}
-        properties={[first, second]}
-        unsaved={[1, 2]}
-      />
-    );
+    await user.click(screen.getByRole("button", { name: /Add property/i }));
+    await user.click(await screen.findByText("Owner"));
     await advanceDebounce();
 
-    expect(bodies).toHaveLength(2);
-    expect(bodies[1]).toEqual({
+    expect(bodies.at(-1)).toEqual({
       values: [
         { property_id: 1, value: "Ready" },
         { property_id: 2, value: null },
       ],
+    });
+    expect(bodies).not.toContainEqual({
+      values: expect.arrayContaining([{ property_id: 1, value: null }]),
     });
   });
 
@@ -115,7 +116,7 @@ describe("PropertyList", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={7} properties={props} />
+      <PropertyPanel target={PropertyTarget.document} entityId={7} initiativeId={1} saved={props} />
     );
 
     const input = screen.getByPlaceholderText("Empty") as HTMLInputElement;
@@ -150,7 +151,7 @@ describe("PropertyList", () => {
       buildPropertySummary({ property_id: 2, name: "Owner", type: PropertyType.text, value: "" }),
     ];
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} />
+      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={props} />
     );
 
     expect(screen.getByText("Grace")).toBeInTheDocument();
@@ -181,7 +182,7 @@ describe("PropertyList", () => {
       buildPropertySummary({ property_id: 5, name: "Hours", type: PropertyType.number, value: 1 }),
     ];
     renderWithProviders(
-      <PropertyList target={PropertyTarget.task} entityId={99} properties={props} />
+      <PropertyPanel target={PropertyTarget.task} entityId={99} initiativeId={1} saved={props} />
     );
 
     const input = screen.getByPlaceholderText("0") as HTMLInputElement;
@@ -216,7 +217,7 @@ describe("PropertyList", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} />
+      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={props} />
     );
 
     // The remove buttons carry the "Remove property" aria-label.
@@ -242,7 +243,13 @@ describe("PropertyList", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} disabled />
+      <PropertyPanel
+        target={PropertyTarget.document}
+        entityId={1}
+        initiativeId={1}
+        saved={props}
+        disabled
+      />
     );
     expect(screen.getByPlaceholderText("Empty")).toBeDisabled();
     expect(screen.getByRole("button", { name: /Remove property/i })).toBeDisabled();
@@ -258,7 +265,12 @@ describe("PropertyList", () => {
       }),
     ];
     const { rerender } = renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={initialProps} />
+      <PropertyPanel
+        target={PropertyTarget.document}
+        entityId={1}
+        initiativeId={1}
+        saved={initialProps}
+      />
     );
     expect((screen.getByPlaceholderText("Empty") as HTMLInputElement).value).toBe("Initial");
 
@@ -269,7 +281,14 @@ describe("PropertyList", () => {
         value: "Updated",
       },
     ];
-    rerender(<PropertyList target={PropertyTarget.document} entityId={1} properties={updated} />);
+    rerender(
+      <PropertyPanel
+        target={PropertyTarget.document}
+        entityId={1}
+        initiativeId={1}
+        saved={updated}
+      />
+    );
 
     expect((screen.getByPlaceholderText("Empty") as HTMLInputElement).value).toBe("Updated");
   });
@@ -290,19 +309,26 @@ describe("PropertyList", () => {
       }),
     ];
     const { rerender } = renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={full} />
+      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={full} />
     );
     expect(screen.getByText("Owner")).toBeInTheDocument();
     expect(screen.getByText("Zeta")).toBeInTheDocument();
 
-    rerender(<PropertyList target={PropertyTarget.document} entityId={1} properties={[full[0]]} />);
+    rerender(
+      <PropertyPanel
+        target={PropertyTarget.document}
+        entityId={1}
+        initiativeId={1}
+        saved={[full[0]]}
+      />
+    );
     expect(screen.queryByText("Zeta")).not.toBeInTheDocument();
     expect(screen.getByText("Owner")).toBeInTheDocument();
   });
 
   it("shows the 'no properties' empty state", () => {
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={[]} />
+      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={[]} />
     );
     expect(screen.getByText(/No properties/i)).toBeInTheDocument();
   });
@@ -322,7 +348,12 @@ describe("PropertyList", () => {
       value: null,
     });
     const { unmount } = renderWithProviders(
-      <PropertyList target={PropertyTarget.queue_item} entityId={4} properties={[property]} />
+      <PropertyPanel
+        target={PropertyTarget.queue_item}
+        entityId={4}
+        initiativeId={1}
+        saved={[property]}
+      />
     );
 
     fireEvent.change(screen.getByPlaceholderText("Empty"), { target: { value: "Ready" } });
@@ -393,7 +424,7 @@ describe("PropertyList", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} />
+      <PropertyPanel target={PropertyTarget.document} entityId={1} initiativeId={1} saved={props} />
     );
     const input = screen.getByPlaceholderText("Empty") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "A" } });
@@ -418,7 +449,12 @@ describe("PropertyList", () => {
       value: "live",
     });
     renderWithProviders(
-      <PropertyList target={PropertyTarget.document} entityId={1} properties={[selectDef]} />
+      <PropertyPanel
+        target={PropertyTarget.document}
+        entityId={1}
+        initiativeId={1}
+        saved={[selectDef]}
+      />
     );
     // Radix Select renders the selected option's label inside the trigger.
     expect(screen.getByText("Live")).toBeInTheDocument();

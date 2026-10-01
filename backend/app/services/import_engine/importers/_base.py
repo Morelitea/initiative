@@ -22,10 +22,12 @@ from app.schemas.tenant.import_envelopes import (
     MIN_SUPPORTED_IMPORT_VERSION,
     EnvelopePropertyValue,
 )
+from app.schemas.tenant.project_export import ProjectExportPropertyDefinition
 from app.services.import_engine.common import (
     decode_property_value,
     load_initiative_member_handles,
     load_initiative_properties,
+    options_compatible,
     unique_property_name,
 )
 from app.services.import_engine.contract import ImportEngineError
@@ -154,16 +156,21 @@ def _options_for_value(pv: EnvelopePropertyValue) -> list[dict] | None:
 
 
 class PropertyRestore:
-    """Writes the flat by-name property values an envelope carries onto the
-    rows one import creates, and counts what that took across all of them.
+    """Binds the properties an envelope carries to the target initiative's
+    definitions, writes their values onto the rows one import creates, and
+    counts what that took across all of them. Every importer restores
+    properties through it.
 
-    A value binds to the target initiative's definition of the same name and
-    type; a missing one is recreated minimally (select options synthesized
-    from the value so it stays valid), and a name already taken by another
-    type gets a renamed definition rather than changing the target's. A
+    A property binds to the target's definition of the same name and type. An
+    envelope that declares its definitions (``declare``) has a select's options
+    checked as well, and a missing one created whole; one known only from its
+    values is created minimally (select options synthesized from the value so
+    it stays valid). A name already taken by another type, or by a select with
+    other options, goes to ``<name>_<type>`` rather than changing the target's,
+    and reuses one already there, so a later import lands on the same one. A
     property unticked on the review is left out with its values. A person
     value is placed through the people step's answer; one that lands on
-    nobody is dropped and its handle collected, as the project importer does.
+    nobody is dropped and its handle collected.
     """
 
     def __init__(
@@ -182,8 +189,11 @@ class PropertyRestore:
         )
         #: Read on the first value that needs it, when not handed in.
         self._member_handles = member_handles
+        #: Definitions made, and matched, once each however many rows name them.
         self.created = 0
         self.matched = 0
+        #: The names a definition was made under in place of its own.
+        self.renamed: list[str] = []
         #: Person values placed, by account, with the handle that named them.
         self.named: dict[int, str] = {}
         #: Person values whose handle landed on nobody.
@@ -193,43 +203,81 @@ class PropertyRestore:
         #: What each envelope property became in the target, so every row
         #: naming it shares one definition — a renamed one included.
         self._resolved: dict[tuple[str, PropertyType], PropertyDefinition] = {}
+        #: The target definitions already standing for one envelope property.
+        #: One definition holds one value a row, so no second property may
+        #: bind to it — a ``Priority`` renamed onto ``Priority_select`` beside
+        #: a ``Priority_select`` of the envelope's own.
+        self._bound: set[int] = set()
 
-    async def _definition_for(self, pv: EnvelopePropertyValue) -> PropertyDefinition:
-        """The target's definition for ``pv``'s name and type, matched or made
-        once for the whole import."""
-        key = (pv.property_name, pv.property_type)
+    async def declare(self, definitions: list[ProjectExportPropertyDefinition]) -> None:
+        """Bind the definitions an envelope declares, before any value names
+        them, so each is matched with its options or created whole."""
+        for declared in definitions:
+            if declared.name not in self._excluded:
+                await self._definition(declared.name, declared.type, declared=declared)
+
+    async def _definition(
+        self,
+        name: str,
+        prop_type: PropertyType,
+        *,
+        declared: ProjectExportPropertyDefinition | None = None,
+        value: EnvelopePropertyValue | None = None,
+    ) -> PropertyDefinition:
+        """The target's definition for ``name`` and ``prop_type``, matched or
+        made once for the whole import."""
+        key = (name, prop_type)
         if (known := self._resolved.get(key)) is not None:
-            self.matched += 1
             return known
         if self._existing is None:
             self._existing = await load_initiative_properties(
                 self._session, initiative_id=self._initiative_id
             )
-        definition = self._existing.get(pv.property_name)
-        if definition is not None and definition.type != pv.property_type:
-            name = await unique_property_name(
+        for candidate in (name, f"{name}_{prop_type.value}"):
+            found = self._existing.get(candidate)
+            if (
+                found is not None
+                and found.id not in self._bound
+                and found.type == prop_type
+                and (
+                    declared is None
+                    or options_compatible(prop_type, found.options, declared.options)
+                )
+            ):
+                self.matched += 1
+                self._resolved[key] = found
+                self._bound.add(found.id)
+                return found
+        target_name = name
+        if name in self._existing:
+            target_name = await unique_property_name(
                 self._session,
                 initiative_id=self._initiative_id,
-                desired_name=f"{pv.property_name}_{pv.property_type.value}",
+                desired_name=f"{name}_{prop_type.value}",
             )
-            definition = None
-        else:
-            name = pv.property_name
-        if definition is None:
-            definition = PropertyDefinition(
-                initiative_id=self._initiative_id,
-                name=name,
-                type=pv.property_type,
-                position=len(self._existing),
-                options=_options_for_value(pv),
-            )
-            self._session.add(definition)
-            await self._session.flush()
-            self._existing[name] = definition
-            self.created += 1
-        else:
-            self.matched += 1
+            self.renamed.append(target_name)
+        definition = PropertyDefinition(
+            initiative_id=self._initiative_id,
+            name=target_name,
+            type=prop_type,
+            position=(
+                declared.position if declared is not None else len(self._existing)
+            ),
+            color=declared.color if declared is not None else None,
+            options=(
+                declared.options
+                if declared is not None
+                else _options_for_value(value)
+                if value is not None
+                else None
+            ),
+        )
+        self._session.add(definition)
+        await self._session.flush()
+        self._existing[target_name] = definition
+        self.created += 1
         self._resolved[key] = definition
+        self._bound.add(definition.id)
         return definition
 
     async def attach(self, row: Any, values: list[EnvelopePropertyValue]) -> None:
@@ -244,7 +292,9 @@ class PropertyRestore:
         # One value per definition: the last one named wins.
         column_kwargs_by_id: dict[int, dict[str, Any]] = {}
         for pv in values:
-            definition = await self._definition_for(pv)
+            definition = await self._definition(
+                pv.property_name, pv.property_type, value=pv
+            )
             column_kwargs = decode_property_value(
                 pv, self._member_handles, people=self._people
             )

@@ -10,7 +10,7 @@ Tests the auth API endpoints including:
 """
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -71,27 +71,27 @@ async def test_bootstrap_status_no_users(client: AsyncClient):
     assert "public_registration_enabled" in data
 
 
-async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSession):
-    """Test bootstrap status when users exist."""
+async def test_bootstrap_status_with_users(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Registration reads as open only where somebody may register without an
+    invite, which turning community creation off closes too."""
+    from app.core.config import settings
+
     await create_user(session)
 
     response = await client.get("/api/v1/auth/bootstrap")
+    assert response.json() == {"has_users": True, "public_registration_enabled": True}
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["has_users"] is True
-    assert "public_registration_enabled" in data
+    monkeypatch.setattr(settings, "DISABLE_GUILD_CREATION", True)
+    response = await client.get("/api/v1/auth/bootstrap")
+    assert response.json()["public_registration_enabled"] is False
 
 
-async def test_register_first_user(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """The first registered user becomes owner, and with
-    ``REGISTRATION_CREATES_GUILD`` off registering creates no guild."""
-    from app.core.config import settings
+async def test_register_first_user(client: AsyncClient, session: AsyncSession):
+    """The first registered user becomes owner, and a registration that names
+    no community creates none."""
     from app.models.platform.guild import GuildMembership
-
-    monkeypatch.setattr(settings, "REGISTRATION_CREATES_GUILD", False)
 
     user_data = {
         "email": "first@example.com",
@@ -112,6 +112,79 @@ async def test_register_first_user(
         select(GuildMembership).where(GuildMembership.user_id == data["id"])
     )
     assert held.all() == []
+
+
+async def test_register_with_a_community_makes_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """A registration that names a community makes it, with the new account as
+    its superadmin; one that also carries an invite is refused."""
+    from app.models.platform.guild import Guild, GuildMembership, GuildRole
+
+    await create_user(session)
+    community = {"name": "Book Club", "description": "Monthly reads"}
+    response = await client.post(
+        "/api/v1/auth/register?invite_code=anything",
+        json={
+            "email": "both@example.com",
+            "username": "both",
+            "password": "securepassword123",
+            "community": community,
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "REGISTRATION_INVITE_OR_COMMUNITY"
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "founder@example.com",
+            "username": "founder",
+            "password": "securepassword123",
+            "community": community,
+        },
+    )
+    assert response.status_code == 201
+    held = (
+        await session.exec(
+            select(Guild, GuildMembership.role)
+            .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+            .where(GuildMembership.user_id == response.json()["id"])
+        )
+    ).all()
+    assert [(g.name, g.description, role) for g, role in held] == [
+        ("Book Club", "Monthly reads", GuildRole.superadmin)
+    ]
+
+
+async def test_register_answers_the_age_question(client: AsyncClient):
+    """A birthdate given at sign-up answers the directory's age question; under
+    age is recorded on the account rather than refusing it."""
+    today = date.today()
+
+    def register(name: str, birthdate: date):
+        return client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": f"{name}@example.com",
+                "username": name,
+                "password": "securepassword123",
+                "birthdate": birthdate.isoformat(),
+            },
+        )
+
+    adult = await register("adult", date(today.year - 30, 1, 1))
+    assert adult.status_code == 201
+    assert adult.json()["age_confirmed_at"] is not None
+
+    minor = await register("minor", date(today.year - 10, 1, 1))
+    assert minor.status_code == 201
+    assert minor.json()["age_confirmed_at"] is None
+    assert minor.json()["age_below_minimum_at"] is not None
+
+    unborn = await register("unborn", today + timedelta(days=1))
+    assert unborn.status_code == 422
+    assert unborn.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
 
 
 async def test_register_with_invite_blocked_when_guild_full(
@@ -2456,6 +2529,7 @@ async def test_register_rolls_back_when_guild_seed_fails(
             "username": "seedfail",
             "full_name": "Seed Fail",
             "password": "securepassword123",
+            "community": {"name": "Seed Fail"},
         },
     )
 

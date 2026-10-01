@@ -500,7 +500,7 @@ async def any_account_exists(session: AsyncSession) -> bool:
 async def _registration_open(session: AsyncSession) -> bool:
     """Mirrors the existing OIDC flow's gate: a closed instance still admits
     the very first user (fresh-install bootstrap)."""
-    if settings.ENABLE_PUBLIC_REGISTRATION and not settings.DISABLE_GUILD_CREATION:
+    if settings.registration_open:
         return True
     return not await any_account_exists(session)
 

@@ -98,7 +98,6 @@ from app.core.guild_auth_options import effective_options
 from app.services.platform import auth_posture
 from app.services.platform import notification_policy
 from app.services.platform import billing as billing_service
-from app.services.platform import billing_claim
 from app.services.platform import billing_ping
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
@@ -586,18 +585,10 @@ async def create_guild(
             owner.id,
         )
     # Committed and seeded. Claimed for the owner — who holds the admin
-    # membership — rather than the caller. Fire-and-forget.
-    billing_claim.claim_new_guild(user_id=owner.id, guild_id=guild.id)
-    if settings.BILLING_URL:
-        # Where billing sets plans, the owner is invited to set one up. On a
-        # session of its own, and never allowed to fail the creation.
-        try:
-            async with cohorts.system_session(guild.id) as notice_session:
-                await guilds_service.queue_welcome_notice(
-                    notice_session, guild.id, owner_user_id=owner.id
-                )
-        except Exception:
-            logger.exception("could not welcome the owner of guild %s", guild.id)
+    # membership — rather than the caller.
+    await guilds_service.welcome_new_guild(
+        guild.id, owner_user_id=owner.id, plan=guild_in.plan
+    )
 
     # The owner's membership — the caller's own in the ordinary case. When the
     # guild was created for another account the caller holds none, so the

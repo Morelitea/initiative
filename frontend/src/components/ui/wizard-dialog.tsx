@@ -80,9 +80,7 @@ const WizardProgressDots = ({ current, total }: WizardProgress) => {
   );
 };
 
-export interface WizardDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+export interface WizardFrameProps {
   title: ReactNode;
   /** The per-step orientation line. Falsy renders no description at all. */
   description?: ReactNode;
@@ -94,39 +92,74 @@ export interface WizardDialogProps {
   onBack?: () => void;
   backLabel?: string;
   backDisabled?: boolean;
-  /** Straight onto `DialogContent`. */
-  className?: string;
+  /** Inside a dialog the heading is the dialog's own title and description;
+   *  on a page it is the page's heading. */
+  inDialog?: boolean;
   children: ReactNode;
 }
 
-export const WizardDialog = ({
-  open,
-  onOpenChange,
+/**
+ * The heading, the dots and the way back, without the dialog around them, for
+ * a wizard that is a page of its own. Rendered as siblings, so the container
+ * decides the spacing between them.
+ */
+export const WizardFrame = ({
   title,
   description,
   progress,
   onBack,
   backLabel,
   backDisabled,
-  className,
+  inDialog = false,
   children,
-}: WizardDialogProps) => (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className={className}>
-      <DialogHeader>
+}: WizardFrameProps) => (
+  <>
+    <DialogHeader>
+      {inDialog ? (
         <DialogTitle>{title}</DialogTitle>
-        {description ? <DialogDescription>{description}</DialogDescription> : null}
-      </DialogHeader>
-      {progress ? <WizardProgressDots {...progress} /> : null}
-      {onBack ? (
-        <WizardBackButton
-          className="w-fit"
-          onClick={onBack}
-          disabled={backDisabled}
-          label={backLabel ?? ""}
-        />
+      ) : (
+        <h1 className="font-semibold text-lg leading-none">{title}</h1>
+      )}
+      {description ? (
+        inDialog ? (
+          <DialogDescription>{description}</DialogDescription>
+        ) : (
+          <p className="text-muted-foreground text-sm">{description}</p>
+        )
       ) : null}
-      {children}
+    </DialogHeader>
+    {progress ? <WizardProgressDots {...progress} /> : null}
+    {onBack ? (
+      <WizardBackButton
+        className="w-fit"
+        onClick={onBack}
+        disabled={backDisabled}
+        label={backLabel ?? ""}
+      />
+    ) : null}
+    {children}
+  </>
+);
+
+/**
+ * Below `sm` a wizard takes the whole screen: a centred box with a margin
+ * round it leaves a phone's keyboard covering the field being typed in. The
+ * caller's own classes still decide the size above it.
+ */
+const FULL_SCREEN_BELOW_SM =
+  "max-sm:inset-0 max-sm:h-dvh max-sm:max-h-none max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:content-start max-sm:overflow-y-auto max-sm:rounded-none max-sm:border-0 max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]";
+
+export interface WizardDialogProps extends Omit<WizardFrameProps, "inDialog"> {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Straight onto `DialogContent`. */
+  className?: string;
+}
+
+export const WizardDialog = ({ open, onOpenChange, className, ...frame }: WizardDialogProps) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className={cn(FULL_SCREEN_BELOW_SM, className)}>
+      <WizardFrame inDialog {...frame} />
     </DialogContent>
   </Dialog>
 );

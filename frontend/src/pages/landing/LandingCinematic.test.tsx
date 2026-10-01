@@ -144,7 +144,7 @@ describe("LandingCinematic", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("link", { name: landing.hero.ctaStart })[0]).toHaveAttribute(
         "href",
-        "/register"
+        "/start"
       );
     });
   });
@@ -248,7 +248,7 @@ describe("LandingCinematic", () => {
       // it yourself goes to the install guide.
       expect(within(plans).getByRole("link", { name: "Make your free community" })).toHaveAttribute(
         "href",
-        "/register"
+        "/start"
       );
       expect(within(plans).getByRole("link", { name: /Choose Brass/ })).toHaveAttribute(
         "href",

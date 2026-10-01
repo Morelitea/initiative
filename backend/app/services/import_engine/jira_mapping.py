@@ -256,7 +256,7 @@ def map_issue(
         "checklist": [
             {"text": line.text, "done": line.done} for line in rendered.checklist
         ],
-        "property_values": [],
+        "properties": [],
         "links": map_links(fields),
         "comments": [],
         "external_ref": _external_ref(issue),
@@ -660,7 +660,7 @@ class ProjectMapper:
         fields = self._fields.finish()
         for task in self._tasks:
             key = task["external_ref"].removeprefix("jira:")
-            task["property_values"] = fields.values_by_issue.get(key, [])
+            task["properties"] = fields.values_by_issue.get(key, [])
             if key in fields.start_dates:
                 task["start_date"] = fields.start_dates[key]
 

@@ -60,7 +60,7 @@ class MappedFields:
 
     #: The envelope's ``property_definitions``, one per field somebody filled.
     definitions: list[dict[str, Any]] = field(default_factory=list)
-    #: Each issue's ``property_values``, keyed by issue key.
+    #: Each issue's ``properties``, keyed by issue key.
     values_by_issue: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     #: Each issue's start date, from a "Start date" field, keyed by issue key.
     start_dates: dict[str, str] = field(default_factory=dict)

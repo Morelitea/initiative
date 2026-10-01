@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import hmac
 import logging
@@ -49,6 +49,7 @@ from app.core.messages import (
     AuthMessages,
     NativeMessages,
     OidcMessages,
+    UserMessages,
 )
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
@@ -123,6 +124,7 @@ from app.schemas.platform.passkey import (
     PasskeySignUpResult,
     PasskeySignUpStart,
 )
+from app.schemas.platform.guild import NewCommunity
 from app.schemas.platform.user import UserCreate, UserRead
 from app.services import audit as audit_service
 import webauthn
@@ -146,7 +148,6 @@ from app.services.auth.assurance import (
     record_for_provider,
     session_amr,
 )
-from app.services.platform import billing_claim
 from app.services.platform import legal as legal_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
@@ -228,6 +229,8 @@ class RegistrationDetails:
     full_name: str | None = None
     timezone: str | None = None
     captcha_token: str | None = None
+    community: NewCommunity | None = None
+    birthdate: date | None = None
 
 
 @dataclass(frozen=True)
@@ -271,11 +274,25 @@ async def register_user(
             full_name=user_in.full_name,
             timezone=user_in.timezone,
             captcha_token=user_in.captcha_token,
+            community=user_in.community,
+            birthdate=user_in.birthdate,
         ),
         invite_code=invite_code,
         hashed_password=get_password_hash(user_in.password),
     )
     return await users_service.to_self_read(registered.user)
+
+
+def _refuse_impossible_birthdate(birthdate: date | None) -> None:
+    if birthdate is None:
+        return
+    try:
+        users_service.check_birthdate(birthdate)
+    except users_service.InvalidBirthdateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.AGE_INVALID_BIRTHDATE,
+        ) from exc
 
 
 async def _registration_gate(
@@ -303,11 +320,7 @@ async def _registration_gate(
     # Registration is closed without an invite when public registration or
     # guild creation is off. The very first account bootstraps the deployment
     # and is always allowed.
-    if (
-        (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION)
-        and not invite
-        and not is_first_user
-    ):
+    if not settings.registration_open and not invite and not is_first_user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.REGISTRATION_REQUIRES_INVITE,
@@ -365,9 +378,9 @@ async def _register_account(
     captcha gates, the same handle and the same verification letter.
 
     What differs is the way in, and it is settled *here* rather than by the
-    caller afterwards: this commits — and, where ``REGISTRATION_CREATES_GUILD``
-    is on, provisions the account a guild of its own — so a credential written
-    after the fact could fail and leave an account nobody can sign in to.
+    caller afterwards: this commits — and, where the registration names a
+    community, provisions it — so a credential written after the fact could
+    fail and leave an account nobody can sign in to.
     Written in the same breath as the account, it is covered by the same undo.
 
     The caller has already refused a method this deployment does not permit and
@@ -378,6 +391,11 @@ async def _register_account(
     verification letter, because the thing the letter asks for has happened.
     """
     normalized_invite = (invite_code or "").strip() or None
+    if normalized_invite and details.community is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=AuthMessages.REGISTRATION_INVITE_OR_COMMUNITY,
+        )
 
     smtp_configured = False
     try:
@@ -445,6 +463,11 @@ async def _register_account(
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
         user = User(**user_kwargs)
+        # Under age is recorded rather than refused: it closes the directory,
+        # not the account.
+        _refuse_impossible_birthdate(details.birthdate)
+        if details.birthdate is not None:
+            users_service.record_age_answer(user, details.birthdate)
         # The handle: the name part as typed, the number drawn here. Registering
         # is where an account picks one, so it counts as chosen and its owner
         # never meets the pick screen.
@@ -532,21 +555,18 @@ async def _register_account(
             )
             await session.commit()
             await cohorts.settle(session)
-        elif not settings.REGISTRATION_CREATES_GUILD:
+        elif details.community is None:
             await session.commit()
         else:
-            guild_name_source = (user.full_name or "").strip() or user.username
-            guild_name = (
-                guild_name_source
-                if guild_name_source.lower().endswith("guild")
-                else f"{guild_name_source}'s Guild"
-            )
             # The account is committed with the guild; if the guild cannot be
             # set up, the account goes too.
             user_id = user.id
             try:
                 guild = await guilds_service.provision_new_guild(
-                    session, name=guild_name, creator=user
+                    session,
+                    name=details.community.name,
+                    description=details.community.description,
+                    creator=user,
                 )
             except guilds_service.GuildProvisionError:
                 await session.exec(sql_delete(User).where(User.id == user_id))
@@ -556,9 +576,10 @@ async def _register_account(
                     detail=AuthMessages.UNABLE_TO_CREATE_USER,
                 )
             guild_id = guild.id
-            # Registration seeds the new account a guild of its own; claim it
-            # for them. Fire-and-forget, once the seed has committed.
-            billing_claim.claim_new_guild(user_id=user_id, guild_id=guild_id)
+            # The account was made with a guild of its own; claim it for them.
+            await guilds_service.welcome_new_guild(
+                guild_id, owner_user_id=user_id, plan=details.community.plan
+            )
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         logger.exception("Failed to register user due to integrity error")
@@ -633,6 +654,7 @@ async def begin_passkey_sign_up(
     under.
     """
     await _passkey_sign_up_allowed(session)
+    _refuse_impossible_birthdate(payload.birthdate)
     await _registration_gate(
         request,
         session,
@@ -729,6 +751,8 @@ async def finish_passkey_sign_up(
             full_name=payload.full_name,
             timezone=payload.timezone,
             captcha_token=payload.captcha_token,
+            community=payload.community,
+            birthdate=payload.birthdate,
         ),
         invite_code=invite_code,
         hashed_password=None,
@@ -753,7 +777,7 @@ async def finish_passkey_sign_up(
 async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     return {
         "has_users": await any_account_exists(session),
-        "public_registration_enabled": settings.ENABLE_PUBLIC_REGISTRATION,
+        "public_registration_enabled": settings.registration_open,
     }
 
 

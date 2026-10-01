@@ -158,7 +158,7 @@ def build_project_envelope(
             ],
             "assignee_handles": [],
             "checklist": [],
-            "property_values": [],
+            "properties": [],
             "links": [],
             "comments": [],
         }

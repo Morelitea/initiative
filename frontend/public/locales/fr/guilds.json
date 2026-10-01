@@ -235,17 +235,10 @@
     "contactSupport": "Contacter le support"
   },
   "noGuild": {
-    "title": "Aucune appartenance à une communauté",
-    "description": "Vous n'êtes encore membre d'aucune communauté. Demandez à un administrateur un lien d'invitation, ou créez un nouvelle communauté pour commencer.",
-    "guildNamePlaceholder": "Nom de la communauté",
-    "create": "Créer",
-    "inviteCodePlaceholder": "Code d'invitation",
-    "redeem": "Utiliser",
     "accountSettings": "Paramètres du compte",
     "platformSettings": "Paramètres de la plateforme",
     "shellBackToStart": "Retour à l'accueil",
-    "logOut": "Se déconnecter",
-    "browseCommunities": "Parcourir les communautés"
+    "logOut": "Se déconnecter"
   },
   "notifications": {
     "title": "Notifications",

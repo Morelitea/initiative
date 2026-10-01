@@ -72,7 +72,7 @@ describe("EmailOtpCard", () => {
     await user.type(screen.getByLabelText(/^code$/i), "123456");
     await user.click(screen.getByRole("button", { name: /^sign in$/i }));
 
-    await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(false));
     expect(applyEmailOtpSignIn).toHaveBeenCalledWith(
       expect.objectContaining({ access_token: "a-token" })
     );
@@ -80,6 +80,7 @@ describe("EmailOtpCard", () => {
   });
 
   it("asks for a username when the address belongs to nobody yet", async () => {
+    const registered: Record<string, unknown>[] = [];
     server.use(
       http.post("/api/v1/auth/email-otp/send", () =>
         HttpResponse.json({ status: "sent", challenge: "handle-2" })
@@ -87,11 +88,18 @@ describe("EmailOtpCard", () => {
       http.post("/api/v1/auth/email-otp/verify", () =>
         HttpResponse.json({ registration_ticket: "ticket-2" }, { status: 202 })
       ),
-      http.post("/api/v1/auth/email-otp/register", () =>
-        HttpResponse.json({ access_token: "new-token", token_type: "bearer" }, { status: 201 })
-      )
+      http.post("/api/v1/auth/email-otp/register", async ({ request }) => {
+        registered.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(
+          { access_token: "new-token", token_type: "bearer" },
+          { status: 201 }
+        );
+      })
     );
-    const { onSignedIn, applyEmailOtpSignIn } = await mount();
+    // What the start flow already asked goes out with the account.
+    const { onSignedIn, applyEmailOtpSignIn } = await mount({
+      registration: { community: { name: "Riverside Players" } },
+    });
 
     const user = await askAt("newcomer@example.com");
     await user.type(screen.getByLabelText(/^code$/i), "654321");
@@ -101,10 +109,15 @@ describe("EmailOtpCard", () => {
     await user.type(username, "newcomer");
     await user.click(screen.getByRole("button", { name: /create account/i }));
 
-    await waitFor(() => expect(onSignedIn).toHaveBeenCalled());
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith(true));
     expect(applyEmailOtpSignIn).toHaveBeenCalledWith(
       expect.objectContaining({ access_token: "new-token" })
     );
+    expect(registered[0]).toMatchObject({
+      registration_ticket: "ticket-2",
+      username: "newcomer",
+      community: { name: "Riverside Players" },
+    });
   });
 
   it("keeps the code step when the code is refused", async () => {

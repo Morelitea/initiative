@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Iterable
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, List
 
 
@@ -1172,3 +1172,51 @@ def _erase_at(user: User, retention: int | None) -> datetime | None:
 async def to_operator_read_one(user: User) -> "OperatorUserRead":
     """``to_operator_read`` for the routes that return one account."""
     return (await to_operator_read([user]))[0]
+
+
+#: The age below which somebody may not take part in the parts of the platform
+#: that are open to people they have not met.
+MINIMUM_AGE_YEARS = 16
+
+#: A bound on what counts as a date somebody could have been born on. Not a
+#: judgement about anyone — it is what separates a real answer from a typo.
+MAX_PLAUSIBLE_AGE_YEARS = 120
+
+
+def _years_since(birthdate: date, today: date) -> int:
+    """Whole years between two dates — an age, counted the way people count it.
+
+    A birthday that has not come round yet this year does not count, which is
+    the whole of the arithmetic.
+    """
+    had_birthday = (today.month, today.day) >= (birthdate.month, birthdate.day)
+    return today.year - birthdate.year - (0 if had_birthday else 1)
+
+
+class InvalidBirthdateError(ValueError):
+    """A date nobody could have been born on."""
+
+
+def check_birthdate(birthdate: date) -> None:
+    """Raise :class:`InvalidBirthdateError` for a date nobody was born on."""
+    today = datetime.now(timezone.utc).date()
+    if birthdate > today or birthdate < today.replace(
+        year=today.year - MAX_PLAUSIBLE_AGE_YEARS
+    ):
+        raise InvalidBirthdateError(birthdate)
+
+
+def record_age_answer(user: User, birthdate: date) -> bool:
+    """Write onto the account what a birthdate says about it, and whether it
+    is old enough.
+
+    The date itself is not kept: only when the question was first answered,
+    or that it was answered under age.
+    """
+    check_birthdate(birthdate)
+    if _years_since(birthdate, datetime.now(timezone.utc).date()) < MINIMUM_AGE_YEARS:
+        user.age_below_minimum_at = datetime.now(timezone.utc)
+        return False
+    if user.age_confirmed_at is None:
+        user.age_confirmed_at = datetime.now(timezone.utc)
+    return True

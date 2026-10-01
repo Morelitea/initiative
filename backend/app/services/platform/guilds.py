@@ -1604,6 +1604,25 @@ async def queue_trial_notice(
     return True
 
 
+async def welcome_new_guild(
+    guild_id: int, *, owner_user_id: int, plan: str | None = None
+) -> None:
+    """Once a new community is committed: claim it for its owner and, where
+    billing sets plans, welcome them to set one up. Never fails the creation."""
+    from app.services.platform import billing_claim
+
+    billing_claim.claim_new_guild(user_id=owner_user_id, guild_id=guild_id, plan=plan)
+    if not settings.BILLING_URL:
+        return
+    try:
+        async with cohorts.system_session(guild_id) as notice_session:
+            await queue_welcome_notice(
+                notice_session, guild_id, owner_user_id=owner_user_id
+            )
+    except Exception:
+        logger.exception("could not welcome the owner of guild %s", guild_id)
+
+
 async def queue_welcome_notice(
     session: AsyncSession, guild_id: int, *, owner_user_id: int
 ) -> None:
