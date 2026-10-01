@@ -6,7 +6,11 @@ import { buildPropertyOption, buildPropertySummary } from "@/__tests__/factories
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import { type PropertySummary, PropertyType } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type PropertySummary,
+  PropertyTarget,
+  PropertyType,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import { PropertyList } from "./PropertyList";
 
@@ -31,21 +35,21 @@ describe("PropertyList", () => {
       buildPropertySummary({ property_id: 2, name: "Owner", type: PropertyType.text }),
     ];
     renderWithProviders(
-      <PropertyList entityKind="document" entityId={10} properties={properties} />
+      <PropertyList target={PropertyTarget.document} entityId={10} properties={properties} />
     );
     expect(screen.getByText("Status")).toBeInTheDocument();
     expect(screen.getByText("Owner")).toBeInTheDocument();
   });
 
-  it("calls the document set-values mutation after the debounce when a value changes", async () => {
+  it("writes the values through the one route after the debounce when a value changes", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     server.use(
-      guildHttp.put("/documents/:documentId/properties", async ({ request, params }) => {
+      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
         requests.push({
-          url: `/api/v1/documents/${params.documentId}/properties`,
+          url: `/api/v1/properties/${params.target}/${params.entityId}`,
           body: await request.json(),
         });
-        return HttpResponse.json({ id: Number(params.documentId), properties: [] });
+        return HttpResponse.json([]);
       })
     );
 
@@ -57,7 +61,9 @@ describe("PropertyList", () => {
         value: "",
       }),
     ];
-    renderWithProviders(<PropertyList entityKind="document" entityId={7} properties={props} />);
+    renderWithProviders(
+      <PropertyList target={PropertyTarget.document} entityId={7} properties={props} />
+    );
 
     const input = screen.getByPlaceholderText("Empty") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "Ada" } });
@@ -68,16 +74,16 @@ describe("PropertyList", () => {
 
     // One PUT with the changed value.
     expect(requests).toHaveLength(1);
-    expect(requests[0].url).toBe("/api/v1/documents/7/properties");
+    expect(requests[0].url).toBe("/api/v1/properties/document/7");
     expect(requests[0].body).toEqual({ values: [{ property_id: 42, value: "Ada" }] });
   });
 
   it("sends an untouched user_reference property back as the user's id", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      guildHttp.put("/documents/:documentId/properties", async ({ request }) => {
+      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
         requests.push({ body: await request.json() });
-        return HttpResponse.json({ properties: [] });
+        return HttpResponse.json([]);
       })
     );
 
@@ -90,7 +96,9 @@ describe("PropertyList", () => {
       }),
       buildPropertySummary({ property_id: 2, name: "Owner", type: PropertyType.text, value: "" }),
     ];
-    renderWithProviders(<PropertyList entityKind="document" entityId={1} properties={props} />);
+    renderWithProviders(
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} />
+    );
 
     expect(screen.getByText("Grace")).toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText("Empty"), { target: { value: "Ada" } });
@@ -104,32 +112,39 @@ describe("PropertyList", () => {
     });
   });
 
-  it("fires the task mutation when entityKind is 'task'", async () => {
-    const requests: Array<{ url: string }> = [];
+  it("addresses a task by its target, not by the task's own update", async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
     server.use(
-      guildHttp.patch("/tasks/:taskId", async ({ params }) => {
-        requests.push({ url: `/api/v1/tasks/${params.taskId}` });
-        return HttpResponse.json({ id: Number(params.taskId), properties: [] });
+      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+        requests.push({
+          url: `/api/v1/properties/${params.target}/${params.entityId}`,
+          body: await request.json(),
+        });
+        return HttpResponse.json([]);
       })
     );
 
     const props: PropertySummary[] = [
       buildPropertySummary({ property_id: 5, name: "Hours", type: PropertyType.number, value: 1 }),
     ];
-    renderWithProviders(<PropertyList entityKind="task" entityId={99} properties={props} />);
+    renderWithProviders(
+      <PropertyList target={PropertyTarget.task} entityId={99} properties={props} />
+    );
 
     const input = screen.getByPlaceholderText("0") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "8" } });
     await advanceDebounce();
-    expect(requests).toEqual([{ url: "/api/v1/tasks/99" }]);
+    expect(requests).toEqual([
+      { url: "/api/v1/properties/task/99", body: { values: [{ property_id: 5, value: 8 }] } },
+    ]);
   });
 
   it("omits the property from the payload when removed (remove button)", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      guildHttp.put("/documents/:documentId/properties", async ({ request }) => {
+      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
         requests.push({ body: await request.json() });
-        return HttpResponse.json({ properties: [] });
+        return HttpResponse.json([]);
       })
     );
 
@@ -147,7 +162,9 @@ describe("PropertyList", () => {
         value: "Live",
       }),
     ];
-    renderWithProviders(<PropertyList entityKind="document" entityId={1} properties={props} />);
+    renderWithProviders(
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} />
+    );
 
     // The remove buttons carry the "Remove property" aria-label.
     const removeButtons = screen.getAllByRole("button", { name: /Remove property/i });
@@ -172,7 +189,7 @@ describe("PropertyList", () => {
       }),
     ];
     renderWithProviders(
-      <PropertyList entityKind="document" entityId={1} properties={props} disabled />
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} disabled />
     );
     expect(screen.getByPlaceholderText("Empty")).toBeDisabled();
     expect(screen.getByRole("button", { name: /Remove property/i })).toBeDisabled();
@@ -188,7 +205,7 @@ describe("PropertyList", () => {
       }),
     ];
     const { rerender } = renderWithProviders(
-      <PropertyList entityKind="document" entityId={1} properties={initialProps} />
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={initialProps} />
     );
     expect((screen.getByPlaceholderText("Empty") as HTMLInputElement).value).toBe("Initial");
 
@@ -199,7 +216,7 @@ describe("PropertyList", () => {
         value: "Updated",
       },
     ];
-    rerender(<PropertyList entityKind="document" entityId={1} properties={updated} />);
+    rerender(<PropertyList target={PropertyTarget.document} entityId={1} properties={updated} />);
 
     expect((screen.getByPlaceholderText("Empty") as HTMLInputElement).value).toBe("Updated");
   });
@@ -220,27 +237,29 @@ describe("PropertyList", () => {
       }),
     ];
     const { rerender } = renderWithProviders(
-      <PropertyList entityKind="document" entityId={1} properties={full} />
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={full} />
     );
     expect(screen.getByText("Owner")).toBeInTheDocument();
     expect(screen.getByText("Zeta")).toBeInTheDocument();
 
-    rerender(<PropertyList entityKind="document" entityId={1} properties={[full[0]]} />);
+    rerender(<PropertyList target={PropertyTarget.document} entityId={1} properties={[full[0]]} />);
     expect(screen.queryByText("Zeta")).not.toBeInTheDocument();
     expect(screen.getByText("Owner")).toBeInTheDocument();
   });
 
   it("shows the 'no properties' empty state", () => {
-    renderWithProviders(<PropertyList entityKind="document" entityId={1} properties={[]} />);
+    renderWithProviders(
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={[]} />
+    );
     expect(screen.getByText(/No properties/i)).toBeInTheDocument();
   });
 
   it("coalesces rapid edits into a single PUT after the debounce", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      guildHttp.put("/documents/:documentId/properties", async ({ request }) => {
+      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
         requests.push({ body: await request.json() });
-        return HttpResponse.json({ properties: [] });
+        return HttpResponse.json([]);
       })
     );
     const props: PropertySummary[] = [
@@ -251,7 +270,9 @@ describe("PropertyList", () => {
         value: "",
       }),
     ];
-    renderWithProviders(<PropertyList entityKind="document" entityId={1} properties={props} />);
+    renderWithProviders(
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={props} />
+    );
     const input = screen.getByPlaceholderText("Empty") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "A" } });
     await act(async () => {
@@ -275,7 +296,7 @@ describe("PropertyList", () => {
       value: "live",
     });
     renderWithProviders(
-      <PropertyList entityKind="document" entityId={1} properties={[selectDef]} />
+      <PropertyList target={PropertyTarget.document} entityId={1} properties={[selectDef]} />
     );
     // Radix Select renders the selected option's label inside the trigger.
     expect(screen.getByText("Live")).toBeInTheDocument();

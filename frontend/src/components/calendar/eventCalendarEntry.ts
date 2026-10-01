@@ -44,7 +44,7 @@ export const buildEventCalendarEntry = (
     avatarUrl: att.avatar_url,
     userId: att.user_id,
   })),
-  properties: event.property_values,
+  properties: event.properties,
   tags: event.tags,
   draggable: event.can.edit,
   unread,

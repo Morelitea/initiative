@@ -18,7 +18,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
   readTaskApiV1CGuildIdTasksTaskIdGet,
@@ -40,6 +40,7 @@ import {
   serializeTaskFormValue,
   TaskForm,
   type TaskFormValue,
+  taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -66,6 +67,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
+import { useSetProperties } from "@/hooks/useProperties";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
 import {
@@ -242,24 +244,19 @@ export const TaskEditPage = () => {
     startDate,
     dueDate,
     tags,
-    propertyValues,
     statusId: effectiveStatusId,
     priority: effectivePriority,
     recurrence: effectiveRecurrence,
     recurrenceStrategy: effectiveRecurrenceStrategy,
   } = form.values;
-  const attachedProperties = form.values.properties;
   const setDescription = (next: string) => form.set({ description: next });
 
   const isProjectContextLoading =
     Number.isFinite(projectId) && projectQuery.isLoading && !projectQuery.data;
 
-  const updateTask = useUpdateTask({
-    onSuccess: (updatedTask) => {
-      form.settle(formValueFromTask(updatedTask));
-      toast.success(t("edit.taskUpdated"));
-    },
-  });
+  const updateTask = useUpdateTask();
+  const setTaskProperties = useSetProperties();
+  const isSaving = updateTask.isPending || setTaskProperties.isPending;
 
   const duplicateTask = useDuplicateTask({
     onSuccess: (newTask) => {
@@ -381,11 +378,12 @@ export const TaskEditPage = () => {
       ...rulePayload(effectiveRecurrence),
       recurrence_strategy: effectiveRecurrence ? effectiveRecurrenceStrategy : "fixed",
       tag_ids: tags.map((tag) => tag.id),
-      property_values: attachedProperties.map((property) => ({
-        property_id: property.property_id,
-        value: propertyValues[property.property_id] ?? null,
-      })),
     };
+    const properties = taskFormPropertyValues(form.values);
+    const propertiesChanged =
+      !task ||
+      JSON.stringify(properties) !==
+        JSON.stringify(taskFormPropertyValues(formValueFromTask(task)));
     if (task && repeating && seriesFields(form.values) !== seriesFields(formValueFromTask(task))) {
       const scope = await scopePrompt.ask("edit", { tool: "tasks", count: task.series_size });
       if (scope === null) {
@@ -393,7 +391,22 @@ export const TaskEditPage = () => {
       }
       payload.scope = scope;
     }
-    updateTask.mutate({ taskId: parsedTaskId, data: payload as never });
+    const settle = (saved: TaskRead) => {
+      form.settle(formValueFromTask(saved));
+      toast.success(t("edit.taskUpdated"));
+    };
+    updateTask.mutate(
+      { taskId: parsedTaskId, data: payload as never },
+      {
+        onSuccess: (updatedTask) => {
+          if (!propertiesChanged) return settle(updatedTask);
+          setTaskProperties.mutate(
+            { target: PropertyTarget.task, id: parsedTaskId, values: properties },
+            { onSuccess: (saved) => settle({ ...updatedTask, properties: saved }) }
+          );
+        },
+      }
+    );
   };
 
   const handleDelete = async () => {
@@ -707,12 +720,9 @@ export const TaskEditPage = () => {
                   everything else a task supports lives behind the overflow
                   menu so the row stays readable at any width. */}
               <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  type="submit"
-                  disabled={updateTask.isPending || isReadOnly || datesInverted}
-                >
+                <Button type="submit" disabled={isSaving || isReadOnly || datesInverted}>
                   <Save className="h-4 w-4" />
-                  {updateTask.isPending ? t("edit.saving") : t("edit.saveTask")}
+                  {isSaving ? t("edit.saving") : t("edit.saveTask")}
                 </Button>
                 <Button
                   type="button"

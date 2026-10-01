@@ -11,10 +11,11 @@ import userEvent from "@testing-library/user-event";
 import { delay, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildProject, buildTask } from "@/__tests__/factories";
+import { buildProject, buildPropertySummary, buildTask } from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
+import { type PropertySummary, PropertyType } from "@/api/generated/initiativeAPI.schemas";
 
 import { TaskEditPage } from "./TaskEditPage";
 
@@ -35,8 +36,10 @@ const renderTaskPage = ({
   statuses,
   recurrence = null,
   lastOccurrence = false,
+  properties = [],
 }: {
   taskProjectId?: number;
+  properties?: PropertySummary[];
   statuses?: unknown[];
   recurrence?: string | null;
   /** Deleting just this task trashes it, as nothing comes after it. */
@@ -49,6 +52,7 @@ const renderTaskPage = ({
       project_id: taskProjectId,
       title: "Wire the doorbell",
       recurrence,
+      properties,
     }),
     series_size: 3,
   };
@@ -92,7 +96,7 @@ const renderTaskPage = ({
     },
   });
 
-  return { router, deleted };
+  return { router, deleted, task };
 };
 
 describe("TaskEditPage", () => {
@@ -123,6 +127,46 @@ describe("TaskEditPage", () => {
     for (const name of [/move to project/i, /duplicate task/i, /archive/i, /delete task/i]) {
       expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     }
+  });
+
+  it("saves the task, then its property values through the property route", async () => {
+    const { task } = renderTaskPage({
+      properties: [
+        buildPropertySummary({
+          property_id: 4,
+          name: "Hours",
+          type: PropertyType.number,
+          value: 1,
+        }),
+      ],
+    });
+    const sent: Array<{ route: string; body: Record<string, unknown> }> = [];
+    server.use(
+      guildHttp.patch("/tasks/:taskId", async ({ request }) => {
+        sent.push({ route: "task", body: (await request.json()) as Record<string, unknown> });
+        return HttpResponse.json(task);
+      }),
+      guildHttp.put("/properties/:target/:entityId", async ({ request, params }) => {
+        sent.push({
+          route: `${params.target}/${params.entityId}`,
+          body: (await request.json()) as Record<string, unknown>,
+        });
+        return HttpResponse.json([]);
+      })
+    );
+
+    const hours = await screen.findByPlaceholderText("0");
+    await userEvent.clear(hours);
+    await userEvent.type(hours, "8");
+    await userEvent.click(screen.getByRole("button", { name: /save task/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[0].route).toBe("task");
+    expect(sent[0].body).not.toHaveProperty("property_values");
+    expect(sent[1]).toEqual({
+      route: `task/${TASK_ID}`,
+      body: { values: [{ property_id: 4, value: 8 }] },
+    });
   });
 
   it("reports duplicate progress on the trigger once the menu closes", async () => {

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type {
   PropertyDefinitionRead,
   PropertySummary,
+  PropertyValueInput,
   TagSummary,
   TaskListReadRecurrenceStrategy,
   TaskPriority,
@@ -83,6 +84,13 @@ export const serializeTaskFormValue = (value: TaskFormValue): string =>
       .sort((a, b) => a - b)
       .map((id) => [id, value.propertyValues[id] ?? null]),
   });
+
+/** The form's properties as the replace-all body of a property write. */
+export const taskFormPropertyValues = (value: TaskFormValue): PropertyValueInput[] =>
+  value.properties.map((property) => ({
+    property_id: property.property_id,
+    value: value.propertyValues[property.property_id] ?? null,
+  }));
 
 /** A blank value for a fresh task form. */
 export const emptyTaskFormValue = (overrides: Partial<TaskFormValue> = {}): TaskFormValue => ({

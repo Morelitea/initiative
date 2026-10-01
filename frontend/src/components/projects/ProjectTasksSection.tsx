@@ -30,7 +30,7 @@ import type {
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
@@ -68,6 +68,7 @@ import {
   emptyTaskFormValue,
   serializeTaskFormValue,
   type TaskFormValue,
+  taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,7 @@ import {
   useFilterPresets,
   useUpdateFilterPreset,
 } from "@/hooks/useFilterPresets";
+import { useSetProperties } from "@/hooks/useProperties";
 import { useTags } from "@/hooks/useTags";
 import {
   type UpdateTaskVariables,
@@ -248,8 +250,8 @@ export const ProjectTasksSection = ({
   }, [taskStatuses]);
   // Single source of truth for the aligned create dialog's fields (title,
   // description, status, priority, assignees, dates, recurrence, tags, and
-  // custom properties). TaskForm mutates it via onChange; submit batches it
-  // all into one create POST.
+  // custom properties). TaskForm mutates it via onChange; submit creates the
+  // task, then writes its property values.
   const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const filterStorageKey = `project:${projectId}:view-filters`;
   // `null` fallback on purpose: "nothing saved yet" has to stay distinguishable
@@ -574,6 +576,7 @@ export const ProjectTasksSection = ({
     [persistCollapsedStatuses]
   );
 
+  const setTaskProperties = useSetProperties();
   const createTask = useCreateTask({
     onSuccess: (newTask) => {
       setComposerValue(emptyTaskFormValue({ statusId: defaultStatusId }));
@@ -1343,16 +1346,23 @@ export const ProjectTasksSection = ({
                     : null,
                   task_status_id: selectedStatusId,
                   tag_ids: composerValue.tags.map((tg) => tg.id),
-                  property_values: composerValue.properties.map((property) => ({
-                    property_id: property.property_id,
-                    value: composerValue.propertyValues[property.property_id] ?? null,
-                  })),
                 };
                 Object.assign(payload, rulePayload(composerValue.recurrence));
                 payload.recurrence_strategy = composerValue.recurrence
                   ? composerValue.recurrenceStrategy
                   : "fixed";
-                createTask.mutate(payload as never);
+                const properties = taskFormPropertyValues(composerValue);
+                createTask.mutate(payload as never, {
+                  // The task is kept if this fails; the write says why.
+                  onSuccess: (newTask) => {
+                    if (properties.length === 0) return;
+                    setTaskProperties.mutate({
+                      target: PropertyTarget.task,
+                      id: newTask.id,
+                      values: properties,
+                    });
+                  },
+                });
               }}
               onCancel={closeComposer}
             />

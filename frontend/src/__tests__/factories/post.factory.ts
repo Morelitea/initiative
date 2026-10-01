@@ -94,6 +94,7 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     comment_count: 0,
     reactions: [],
     tags: [],
+    properties: [],
     grants: [],
     // Most notices ask nothing, which is what makes a poll worth noticing.
     poll: null,

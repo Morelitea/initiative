@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
 import {
   invalidate,
   patchCachedPost,
@@ -58,6 +59,25 @@ describe("query-keys guild scoping", () => {
 
     expect(guildList()).toBe(true);
     expect(meList()).toBe(true);
+  });
+
+  it("a property write reaches the row's own reads and the tool it sits in", async () => {
+    const page = seed(["/api/v1/c/5/wiki-pages/9"]);
+    const tree = seed(["/api/v1/c/5/wikis/3/pages"]);
+    const unrelated = seed(["/api/v1/c/5/documents/"]);
+    const calendarEntries = seed(["/api/v1/c/5/calendar-entries/"]);
+
+    setInvalidationGuild(5);
+    await invalidate(q.propertyHolder(PropertyTarget.wiki_page));
+
+    expect(page()).toBe(true);
+    expect(tree()).toBe(true);
+    expect(unrelated()).toBe(false);
+    expect(calendarEntries()).toBe(false);
+
+    // A task's values also show on the calendar's entries.
+    await invalidate(q.propertyHolder(PropertyTarget.task));
+    expect(calendarEntries()).toBe(true);
   });
 
   it("falls back to plain matching when no active guild is set", async () => {

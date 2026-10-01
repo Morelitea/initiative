@@ -48,7 +48,7 @@
   },
   "manager": {
     "title": "Custom properties",
-    "description": "Define reusable metadata for documents, tasks, and events in this initiative.",
+    "description": "Define reusable metadata for anything in this initiative.",
     "newDefinition": "New property",
     "editDefinition": "Edit property",
     "nameLabel": "Name",
@@ -60,7 +60,7 @@
     "colorLabel": "Color",
     "delete": "Delete property",
     "deleteConfirmTitle": "Delete this property?",
-    "deleteConfirmBody": "This will remove the property and all values attached to documents, tasks, and events.",
+    "deleteConfirmBody": "This will remove the property and every value set for it in this initiative.",
     "orphanedWarning": "{{count}} existing values reference removed options. They'll show as 'Unknown option' until updated.",
     "createError": "Failed to create property",
     "updateError": "Failed to update property",
