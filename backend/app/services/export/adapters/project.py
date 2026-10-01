@@ -13,8 +13,8 @@ the ones archived along with the project, which the list shows too.
 answers with the same filters (``TaskFilters``); without it, every task rides.
 
 Access rule for every format: the owner rung on the project, or read from an
-initiative or community backup, enforced by ``get_project_for_export`` at both
-count and build time, under the caller's RLS session.
+initiative or community backup, enforced by ``ToolExportAdapter.fetch`` at
+both count and build time, under the caller's RLS session.
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ from app.services.export.adapters._common import (
     ToolExportAdapter,
     envelope_key,
     export_stem,
+    get_for_export,
 )
 from app.services.export.contract import RenderItem
 from app.services.export.filters import narrow, parse_filters
@@ -101,13 +102,14 @@ class ProjectAdapter(ToolExportAdapter):
         # task list, which the backup envelope is built from but does not
         # have to be built to know.
         from app.models.tenant.task import Task
-        from app.services.tenant.project_export import get_project_for_export
 
         # Every selected project is authorized, as the build fetches each; the
         # size is what the filters leave of them.
         selection = self.selection(params)
         for project_id in selection:
-            await get_project_for_export(session, user, guild_id, project_id=project_id)
+            await get_for_export(
+                session, user, guild_id, self.tool, project_id, self.get_row
+            )
         filters = parse_filters(self.tool, params.get("filters"))
         kept = await narrow(session, user, self.tool, filters, selection)
         tasks = getattr(filters, "tasks", None)
@@ -135,17 +137,14 @@ class ProjectAdapter(ToolExportAdapter):
     ) -> ProjectExportEnvelope:
         from app.core.config import settings
         from app.core.user_display import handle_of
-        from app.services.tenant.project_export import (
-            build_project_export,
-            get_project_for_export,
-        )
+        from app.services.tenant.project_export import build_project_export
 
         # The seam enforces the rung per project — one project short of it in
         # the selection fails the whole export, never a silent gap. Cross-row
         # references (tags, statuses, properties, assignees) travel by name or
         # handle, so the file imports cleanly on another instance.
-        project = await get_project_for_export(
-            session, user, guild_id, project_id=project_id, access=access
+        project = await super().fetch(
+            session, user, guild_id, project_id, access=access
         )
         return await build_project_export(
             session,

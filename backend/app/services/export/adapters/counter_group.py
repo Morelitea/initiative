@@ -12,8 +12,8 @@ json envelope stays plain-JSON serializable (the render path's ``json.dumps``
 does not accept ``Decimal``).
 
 Access rule for every format: READ on the group (exporting is a formatted
-read), enforced by the ``get_counter_group_for_export`` seam at both count
-and build time, under the caller's RLS session.
+read), enforced by ``ToolExportAdapter.fetch`` at both count and build time,
+under the caller's RLS session.
 """
 
 from __future__ import annotations
@@ -35,7 +35,6 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
-from app.services.permissions import EXPORT_ACCESS
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
 # creator's locale at build time.
@@ -58,22 +57,6 @@ def _columns(locale: str) -> list[dict]:
 class CounterGroupAdapter(ToolExportAdapter):
     tool = Tool.counter_group
     formats = ("json", "pdf", "csv", "xlsx", "md")
-
-    async def fetch(
-        self,
-        session: AsyncSession,
-        user: User,
-        guild_id: int,
-        group_id: int,
-        /,
-        *,
-        access: str = EXPORT_ACCESS,
-    ) -> CounterGroup:
-        from app.services.tenant.counters import get_counter_group_for_export
-
-        return await get_counter_group_for_export(
-            session, user, guild_id, group_id=group_id, access=access
-        )
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /

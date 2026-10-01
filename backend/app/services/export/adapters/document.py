@@ -30,7 +30,7 @@ name) and custom ``properties`` (flat, by name — the shared encoding in
 ``export/property_values.py``), so backups don't shed metadata.
 
 Access: READ suffices (exporting is a formatted read), enforced by the
-``get_document_for_export`` seam at both count and build time under the
+``ToolExportAdapter.fetch`` seam at both count and build time under the
 caller's RLS session.
 """
 
@@ -49,7 +49,6 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.engine import ExportError
-from app.services.permissions import EXPORT_ACCESS
 
 # Ordered, so the union the route publishes reads in one stable order.
 _TYPE_FORMATS: dict[str, tuple[str, ...]] = {
@@ -71,22 +70,6 @@ class DocumentAdapter(ToolExportAdapter):
     formats = tuple(
         dict.fromkeys(fmt for fmts in _TYPE_FORMATS.values() for fmt in fmts)
     )
-
-    async def fetch(
-        self,
-        session: AsyncSession,
-        user: User,
-        guild_id: int,
-        document_id: int,
-        /,
-        *,
-        access: str = EXPORT_ACCESS,
-    ) -> Document:
-        from app.services.tenant.documents import get_document_for_export
-
-        return await get_document_for_export(
-            session, document_id=document_id, access=access
-        )
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /

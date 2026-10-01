@@ -13,8 +13,8 @@ column, so the printout is the full queue, not just the visible rotation.
 Markdown renders as a numbered turn-order list rather than a table.
 
 Access rule for every format: READ on the queue (exporting is a formatted
-read), enforced by the ``get_queue_for_export`` seam at both count and build
-time, under the caller's RLS session.
+read), enforced by ``ToolExportAdapter.fetch`` at both count and build time,
+under the caller's RLS session.
 """
 
 from __future__ import annotations
@@ -42,7 +42,6 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.i18n import et, export_locale
-from app.services.permissions import EXPORT_ACCESS
 from app.core.user_display import display_name
 
 # (row key, ``exports`` label key, Typst width hint) — labels resolve to the
@@ -67,22 +66,6 @@ def _columns(locale: str) -> list[dict]:
 class QueueAdapter(ToolExportAdapter):
     tool = Tool.queue
     formats = ("json", "pdf", "csv", "xlsx", "md")
-
-    async def fetch(
-        self,
-        session: AsyncSession,
-        user: User,
-        guild_id: int,
-        queue_id: int,
-        /,
-        *,
-        access: str = EXPORT_ACCESS,
-    ) -> Queue:
-        from app.services.tenant.queues import get_queue_for_export
-
-        return await get_queue_for_export(
-            session, user, guild_id, queue_id=queue_id, access=access
-        )
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /

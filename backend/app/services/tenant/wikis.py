@@ -36,9 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlalchemy.orm import defer, selectinload, undefer
 
-from app.db import session as db_session
 from app.core.messages import WikiMessages
-from app.core.tools import Tool
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
@@ -584,46 +582,6 @@ async def list_wiki_ids_for_export(
         .order_by(Wiki.id.asc())
     )
     return list(await session.exec(statement))
-
-
-async def get_wiki_for_export(
-    session: AsyncSession,
-    current_user: Any,
-    guild_id: int,
-    *,
-    wiki_id: int,
-    access: str = "owner",
-) -> tuple[Wiki, list[WikiPage]]:
-    """The wiki-export adapter's seam: fetch + authorize in one place so the
-    rule holds on the worker's render-time replay too. It takes the owner rung,
-    or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``).
-
-    The pages come back with it, in reading order, because a wiki without its
-    pages is not a thing anyone wanted a copy of.
-    """
-    from app.services import permissions as permissions_service
-
-    wiki = await get_wiki(session, wiki_id)
-    if wiki is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.wiki.not_found_code,
-        )
-    if wiki.initiative is not None and not wiki.initiative.wikis_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.wiki.feature_disabled_code,
-        )
-    permissions_service.require_export_access(
-        permissions_service.DAC_RESOURCES[Tool.wiki],
-        wiki,
-        context=db_session.guild_context(session),
-        access=access,
-    )
-    pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
-    await tags_service.annotate_tags(session, pages)
-    return wiki, pages
 
 
 async def linked_documents(session: AsyncSession, wiki_id: int) -> list[Any]:

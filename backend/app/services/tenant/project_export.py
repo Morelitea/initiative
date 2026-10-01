@@ -376,50 +376,6 @@ async def _load_links(
     return by_task
 
 
-async def get_project_for_export(
-    session,
-    current_user,
-    guild_id: int,
-    *,
-    project_id: int,
-    access: str = "owner",
-):
-    """The project-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. It takes the owner
-    rung, or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``)."""
-    from fastapi import HTTPException, status
-
-    from app.core.tools import Tool
-    from app.db import session as db_session
-    from app.services import reachability
-    from app.services.permissions import DAC_RESOURCES, require_export_access
-    from app.services.tenant import project_grants
-
-    project = await project_grants.get_project_hydrated(session, project_id)
-    if project is None:
-        raise await reachability.missing_or_denied(
-            "projects",
-            project_id,
-            current_user.id,
-            guild_id,
-            not_found=Tool.project.not_found_code,
-            denied=Tool.project.no_access_code,
-        )
-    if project.initiative is not None and not project.initiative.projects_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.project.feature_disabled_code,
-        )
-    require_export_access(
-        DAC_RESOURCES[Tool.project],
-        project,
-        context=db_session.guild_context(session),
-        access=access,
-    )
-    return project
-
-
 async def list_project_ids_for_export(
     session,
     current_user,
