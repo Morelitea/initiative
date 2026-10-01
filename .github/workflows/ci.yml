@@ -361,19 +361,21 @@ jobs:
           echo "PgBouncer up on :6432 (transaction mode)"
 
       - name: Fetch the test selection data dev last recorded
-        # Which code each test ran, recorded by the newest dev run that passed.
-        # Without it, every test runs.
+        # Which code each test ran, as dev's newest run recorded it. Every file
+        # dev changed since then counts as changed, so the newest recording
+        # selects the fewest tests. Without one, every test runs.
         if: needs.changes.outputs.backend_mode == 'select'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_id=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --branch dev \
-            --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=test-selection-data&per_page=20" \
+            --jq '[.artifacts[] | select(.workflow_run.head_branch == "dev" and (.expired | not))][0].workflow_run.id')
           gh run download "$run_id" -R "$GITHUB_REPOSITORY" -n test-selection-data -D backend
           echo "Selecting from dev run $run_id"
 
       - name: Run tests (through the pooler)
+        id: tests
         env:
           MODE: ${{ needs.changes.outputs.backend_mode || 'full' }}
           # Per-test recording needs the tracer that reports every line each
@@ -390,9 +392,13 @@ jobs:
           if [[ "$MODE" == "full" ]]; then
             # Every test, recording which code each ran. dev's recording is
             # the one published for pull requests to select from.
+            status=0
             uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 --testmon-noselect \
-              | tee "$RUNNER_TEMP/pytest.log"
-            exit
+              | tee "$RUNNER_TEMP/pytest.log" || status=$?
+            # 0 every test passed, 1 some failed: either way each one ran, so
+            # the recording is complete.
+            if (( status <= 1 )); then echo "recorded=true" >> "$GITHUB_OUTPUT"; fi
+            exit $status
           fi
           # The core runs on every pull request; then the tests the change
           # reaches, by the code each ran on dev. Both run even if one fails.
@@ -406,7 +412,11 @@ jobs:
           exit $status
 
       - name: Publish the test selection data
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+        # A run with failures records too: a test that failed is selected
+        # again until it passes. A run that stopped part way does not.
+        if: >-
+          ${{ !cancelled() && steps.tests.outputs.recorded == 'true'
+          && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-selection-data
