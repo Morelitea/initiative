@@ -125,13 +125,13 @@ async def test_each_list_is_its_tools_live_view_in_every_guild(
         response = await client.get(
             actor.g(f"/{tool.route_segment}/"),
             headers=a.headers,
-            params={**TOOL_LISTS[tool].views["active"], "page_size": 100},
+            params={**TOOL_LISTS[tool].views["active"], "page_size": 50},
         )
         assert response.status_code == 200, response.text
         for item in response.json()["items"]:
-            in_guilds[(actor.guild.id, item["id"])] = item
+            in_guilds[(item["guild_id"], item["id"])] = item
 
-    mine = await client.get(_path(tool), headers=a.headers, params={"page_size": 100})
+    mine = await client.get(_path(tool), headers=a.headers, params={"page_size": 50})
     assert mine.status_code == 200, mine.text
     assert {(i["guild_id"], i["id"]): i for i in mine.json()["items"]} == in_guilds
     assert mine.json()["total_count"] == len(in_guilds) == 2

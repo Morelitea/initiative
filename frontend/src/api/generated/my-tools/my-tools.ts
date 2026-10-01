@@ -65,7 +65,9 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * How much of each tool reaches the caller, across their communities.
  *
  * The My Tools page's tabs: a tool with nothing behind it gets none, so the
- * page never offers a table of nothing.
+ * page never offers a table of nothing. Each tool's figure is its list's
+ * total, summed over the caller's communities, and each community answers
+ * for every tool in one statement.
  * @summary Get My Tool Counts
  */
 export const getMyToolCountsApiV1MeToolsCountsGet = (
@@ -789,10 +791,8 @@ export function useListMyCounterGroupsApiV1MeCounterGroupsGet<
  *
  * Visits each member guild schema under the user's own RLS context (guild
  * isolation + DAC hold); each orders and limits its own rows in SQL, and the
- * page is cut from their merge. The WHERE
- * legs are ``my_tools.scope_conditions`` — the same rules every cross-guild
- * tool list reads; a guild calendar answers to no initiative switch and so
- * belongs in this view like any other.
+ * page is cut from their merge. Inside each guild this is the calendar list's
+ * own live view, so a guild calendar belongs in it like any other.
  * @summary List My Calendars
  */
 export const listMyCalendarsApiV1MeCalendarsGet = (
@@ -1219,11 +1219,6 @@ export function useListMyPostsApiV1MePostsGet<
 
 /**
  * Galleries that reach the caller across every guild they belong to.
- *
- * Counts and covers are not carried here: a cross-guild list is merged in
- * Python from one query per guild, and those annotations are per-guild
- * grouped queries the merge has no session for. The card falls back to no
- * picture, which is what a gallery looks like from outside its community.
  * @summary List My Galleries
  */
 export const listMyGalleriesApiV1MeGalleriesGet = (
@@ -1358,11 +1353,6 @@ export function useListMyGalleriesApiV1MeGalleriesGet<
 
 /**
  * Wikis that reach the caller across every guild they belong to.
- *
- * The page count each row carries is the one this merge cannot fill: it is a
- * grouped query per guild, and the merge holds no session for the guilds it
- * did not read. A card then shows no count, which is what a wiki looks like
- * from outside its community.
  * @summary List My Wikis
  */
 export const listMyWikisApiV1MeWikisGet = (
