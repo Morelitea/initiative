@@ -389,6 +389,31 @@ async def _install_guild_pool() -> None:
         await engine.dispose()
 
 
+async def _create_runtime_tables() -> None:
+    """Create, as a deployment does, the tables a service makes on first use.
+
+    A deployment creates them on the provisioning login, which owns them. The
+    suite points the provisioning engine at its superuser, so whichever test got
+    there first would leave one owned by a login the app never connects as.
+    Made here, before any test, each belongs to the provisioner.
+    """
+    import app.db.session as db_session
+    from app.services import storage_backfill
+
+    engine = create_async_engine(
+        settings.DATABASE_URL.rsplit("/", 1)[0] + "/" + TEST_DB_NAME
+    )
+    bound = db_session.provisioning_engine
+    db_session.provisioning_engine = engine
+    try:
+        storage_backfill.reset_for_tests()
+        await storage_backfill._ensure_table()
+    finally:
+        db_session.provisioning_engine = bound
+        storage_backfill.reset_for_tests()
+        await engine.dispose()
+
+
 async def _test_db_is_at_head() -> bool:
     """True when this worker's database already exists and is stamped at head.
 
@@ -446,6 +471,7 @@ def _run_test_migrations() -> None:
         # unlike any real one, with the app's tables owned by a login the app
         # never connects as.
         asyncio.run(_bootstrap_under_lock())
+    asyncio.run(_create_runtime_tables())
     asyncio.run(_apply_public_rls())
     asyncio.run(_narrow_set_config())
     asyncio.run(_retire_public_authorization_copies())
