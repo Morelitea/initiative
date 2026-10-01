@@ -2,8 +2,7 @@
 
 Inside, a person is a row id and so is a community. An installed app is never
 handed either: it knows each person by a reference minted for its own install,
-and its community by one more (``history/opaque-identity-design.md``,
-``history/app-principal-design.md`` §D7). A request and a response carry the
+and its community by one more. A request and a response carry the
 two in fields typed :data:`PersonId` and :data:`GuildId`, and those two types
 are where the translation happens.
 

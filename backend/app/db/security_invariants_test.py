@@ -1,6 +1,6 @@
 """The database privilege posture, asserted as CI invariants.
 
-The actor model (see ``history/remove-superadmin-bypassrls-design.md``) is only
+The actor model is only
 as durable as the catalog state that implements it — a hotfix migration adding
 a broad ``GRANT``, a manually flipped role attribute, or a new RLS table
 without a decision would all land silently. These tests re-derive the posture

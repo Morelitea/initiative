@@ -4,7 +4,7 @@ Guild-scoped like any other content endpoint: the guild comes from the path and
 ``RLSSessionDep`` routes into its schema, so the index answers under the same
 gates as the content it mirrors.
 
-An installed app may call ``/suggest`` (``history/app-principal-design.md``).
+An installed app may call ``/suggest``.
 The scope it needs depends on the ``types`` it asks for, so the route takes
 :func:`app.api.deps.app_scope_checked` and the service narrows ``types`` to the
 kinds the install may read.

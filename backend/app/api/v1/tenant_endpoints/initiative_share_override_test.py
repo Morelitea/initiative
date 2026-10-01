@@ -5,8 +5,7 @@ Every initiative has a built-in ``moderator`` role carrying
 initiative regardless of per-item sharing, and may manage sharing — the gate-4
 (DAC) override, scoped to one initiative (the initiative-scoped sibling of the
 guild-admin override). A guild admin is the one who puts somebody on it, and a
-guild admin joining an initiative lands on it. See
-history/initiative-admin-override-design.md.
+guild admin joining an initiative lands on it.
 """
 
 from httpx import AsyncClient

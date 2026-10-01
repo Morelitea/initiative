@@ -2,8 +2,7 @@
  * What a phone with no signal still shows: the read-only content it last
  * loaded, kept for a day.
  *
- * How the cache behaves, in four rules. The reasoning behind each is in
- * `history/offline-reading-design.md`.
+ * How the cache behaves, in four rules.
  *
  *   1. It is only ever read when the device cannot reach the server. Online,
  *      every query still goes out and the server's answer is the one used;
@@ -203,8 +202,8 @@ export const shouldPersistQuery = (query: Query): boolean => {
 };
 
 /**
- * Native only, for now. Extending this to installed PWAs is a separate decision
- * — see `history/offline-reading-design.md`.
+ * Native only, for now. Extending this to installed PWAs is a separate
+ * decision.
  */
 export const isOfflineCacheEnabled = (): boolean => Capacitor.isNativePlatform();
 

@@ -14,8 +14,7 @@ read on every call.
 
 So a subscription is the community's integration configuration rather than the
 personal property of whoever registered it, and it outlives their membership,
-their role and their account. See
-``history/webhook-scope-not-principal-design.md``.
+their role and their account.
 
   POST   /api/v1/c/{guild_id}/webhooks/subscriptions
     body: {target_url, event_types, fields?, initiative_id?}
@@ -35,8 +34,8 @@ the content it watches: initiative write access for an initiative-scoped
 subscription, guild admin for a community-wide one. Authorship is not a gate in
 this app.
 
-An installed app registers and removes subscriptions on its installation token
-(``history/app-principal-design.md`` §D9). What it may register depends on the
+An installed app registers and removes subscriptions on its installation token.
+What it may register depends on the
 event types it names — each needs the read scope of its tool — so the two
 routes take :func:`app.api.deps.app_scope_checked` and the service asks those
 scopes of the install's standing. An install sees and removes only the

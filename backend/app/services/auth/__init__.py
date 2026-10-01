@@ -1,4 +1,4 @@
-"""Auth service package for the login rewrite (history/auth-detailed-design.md).
+"""Auth service package for the login rewrite.
 
 Phase 0 lands the session lifecycle here; the ``IdentityProvider`` seam and the
 per-provider implementations slot in alongside it in later slices.

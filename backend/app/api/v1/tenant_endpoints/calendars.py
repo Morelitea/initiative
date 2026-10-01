@@ -8,7 +8,7 @@ the calendar flows from its resource-grant DAC (``resource_grants`` +
 A calendar with no initiative is a **guild calendar** — it belongs to the guild
 itself, and lives inside the calendar app, whose install owns it. Guild admins
 make one and decide its sharing; a member with a write grant on it writes its
-events. See ``history/guild-calendars-design.md``.
+events.
 """
 
 from datetime import datetime, timezone

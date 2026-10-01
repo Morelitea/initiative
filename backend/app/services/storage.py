@@ -1,6 +1,6 @@
 """Pluggable blob storage backend.
 
-Storage rebuild (see ``history/blob-storage-tenancy-design.md``): a single seam
+Storage rebuild: a single seam
 over blob I/O so the local filesystem (FOSS / self-host / dev) and an
 S3-compatible object store (cloud, or a self-hosted Garage) become interchangeable
 behind one config flag — ``STORAGE_BACKEND=local|s3``.

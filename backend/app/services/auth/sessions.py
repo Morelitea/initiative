@@ -1,7 +1,7 @@
 """Server-side session lifecycle for the new login model (auth rewrite, Phase 0).
 
-This is the substrate that makes the stateless access token revocable
-(history/auth-detailed-design.md §3.2–§3.3). One ``auth_sessions`` row = one
+This is the substrate that makes the stateless access token revocable.
+One ``auth_sessions`` row = one
 login; each ``/auth/refresh`` **rotates** it — mints a fresh row pointing at the
 one it replaces (``parent_id`` chain) and single-use-revokes the old one. Reuse
 of an already-spent refresh token is treated as **theft** and kills the whole

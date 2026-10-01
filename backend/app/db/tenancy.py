@@ -32,7 +32,7 @@ Every ``table=True`` model MUST land in ``SHARED_TABLES`` or (via level 2)
 ``GUILD_SCOPED_TABLES``. ``tenancy_test.py`` enforces this against
 ``SQLModel.metadata`` so a new table can't be added without a placement
 decision — an unclassified guild-scoped table would silently leak across
-tenants. See ``history/schema-per-guild-design.md`` (§2 Table classification).
+tenants.
 """
 
 from __future__ import annotations

@@ -337,7 +337,7 @@ class Settings(BaseSettings):
     # JWT algorithm is an alg-confusion hazard, and the cookie names are part
     # of the auth contract, not deployment configuration.
 
-    # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
+    # New login model (auth rewrite, Phase 0).
     # The access token is short-lived + stateless: verified locally with no
     # per-request DB read (the 10k+ win), so a leak is stale within one TTL. The
     # refresh token is long, opaque, rotating, and revocable via ``auth_sessions``.

@@ -4,8 +4,8 @@ Delivery used to read the change log as the account that registered the
 subscription, which made ``created_by`` an authorization principal and made a
 subscription stop working when that person's standing changed — silently, since
 the poller stood down before attempting a delivery and so never counted a
-failure. ``history/webhook-scope-not-principal-design.md`` has the argument for
-why that principal decided nothing the declared scope had not already decided.
+failure. That principal decided nothing the declared scope had not already
+decided.
 
 What the tests below hold is the replacement: the scope decides, the scope is
 all that decides, and an account going away does not end a community's

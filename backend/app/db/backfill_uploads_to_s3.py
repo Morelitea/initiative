@@ -1,7 +1,6 @@
 """Backfill: copy existing local uploads into the configured S3 bucket.
 
-The final step of the local→S3 migration (see
-``history/blob-storage-tenancy-design.md`` §11). Run it with the ``S3_*`` settings
+The final step of the local→S3 migration. Run it with the ``S3_*`` settings
 pointed at your object store **while the app is still on
 ``STORAGE_BACKEND=local``**: it copies every blob under
 ``UPLOADS_DIR/guild_<id>/`` to the S3 key ``guild_<id>/<file>``, setting the

@@ -1,7 +1,7 @@
 """RLS / role-security tests for the auth identity foundation.
 
 Locks in two deliberate least-privilege decisions (see the migration
-20260705_0131 and history/auth-detailed-design.md §6):
+20260705_0131):
 
 * ``federated_identities`` is **own-row** on the request path — a platform tier
   sees only its own links, and there is NO admin-read-all policy (platform user

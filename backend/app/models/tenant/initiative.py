@@ -177,8 +177,7 @@ class InitiativeRoleModel(CreatedByMixin, table=True):
     # initiative regardless of how each item is shared, and may manage sharing
     # (the gate-4 / DAC override, scoped to this one initiative). Off by
     # default; the built-in moderator role is the one that carries it, and a
-    # guild admin joining an initiative lands on that role. See
-    # history/initiative-admin-override-design.md.
+    # guild admin joining an initiative lands on that role.
     override_share_restrictions: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),

@@ -13,7 +13,6 @@
  *
  * The snapshot behind the second case is thin, belongs to one server, expires
  * on the same clock as the cache it accompanies, and is erased on sign-out.
- * See `history/offline-reading-design.md`.
  */
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";

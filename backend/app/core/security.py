@@ -238,7 +238,7 @@ def mint_access_token(
 ) -> tuple[str, int]:
     """Mint a short-lived, stateless access token for one session.
 
-    Claims (history/auth-detailed-design.md §3.1): ``sub`` (the account, named
+    Claims: ``sub`` (the account, named
     by its ``client``-sector reference — ``services.auth.subject``), ``sid``
     (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
     out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
@@ -271,7 +271,7 @@ def mint_access_token(
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Decode a session credential (history/auth-detailed-design.md §3.1).
+    """Decode a session credential.
 
     One shape: the access token ``mint_access_token`` issues —
     ``aud=initiative:access`` / ``iss=initiative``, carrying ``sub``, ``ver``

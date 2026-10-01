@@ -1086,7 +1086,7 @@ async def logout(
 
     What is revoked here is the refresh side — the rotation chain behind this
     login. The access token it came in on is short-lived and the client drops
-    it (history/auth-detailed-design.md §3.3).
+    it.
 
     A native client authenticating with a device token consumes that row too —
     the token is one installed client's, so consuming it is the same per-device

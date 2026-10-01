@@ -4,9 +4,8 @@ Each test installs an app the way a community does (``install_app``: placed in
 initiative A and not in B, granted scopes by the seat, registered by the
 operator), seals an installation token for it, and calls ordinary
 ``/c/{guild_id}/…`` routes with that token. Postgres decides what the install
-reaches; these tests hold the routes to the acceptance list of
-``history/app-principal-design.md`` §6: reach, narrowing, live revocation,
-authorship, the identity boundary, route opt-in and round trips.
+reaches; these tests hold the routes' side of it: reach, narrowing, live
+revocation, authorship, the identity boundary, route opt-in and round trips.
 """
 
 from __future__ import annotations

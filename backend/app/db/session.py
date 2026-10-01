@@ -277,7 +277,6 @@ def clear_rls_context(session: AsyncSession) -> None:
 # The parameters live in session.info; the _replay_rls_context after_begin
 # hook re-applies them at the start of EVERY transaction (autobegin after a
 # commit() included), on whatever pooled connection the transaction landed on.
-# See history/transaction-scoped-context-design.md.
 
 # Maximum age of a *user-derived* authorization snapshot. The stored context
 # capture membership / guild role / PAM state as validated by

@@ -1,6 +1,6 @@
 """Access-matrix tests for guild lifecycle status (suspension).
 
-The matrix under test (see history/guild-suspension-design.md):
+The matrix under test:
 
 - ``read_only``: members keep content READS but writes are denied at the
   Postgres role level (routed into ``guild_<id>_ro``); initiative isolation
