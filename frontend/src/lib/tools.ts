@@ -43,11 +43,7 @@ import {
   ScrollText,
 } from "lucide-react";
 
-import type {
-  InitiativeListRead,
-  InitiativeMemberRead,
-  PermissionKey,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, PermissionKey } from "@/api/generated/initiativeAPI.schemas";
 import { ListingKind, Tool } from "@/api/generated/initiativeAPI.schemas";
 
 /**
@@ -373,14 +369,6 @@ export const toolViewPermission = (tool: Tool): PermissionKey =>
 export const toolCreatePermission = (tool: Tool): PermissionKey =>
   `create_${toolPlural(tool)}` as PermissionKey;
 
-/** Membership view flag, e.g. "can_view_counter_groups". */
-export const toolMemberViewFlag = (tool: Tool): keyof InitiativeMemberRead =>
-  `can_view_${toolPlural(tool)}` as keyof InitiativeMemberRead;
-
-/** Membership create flag, e.g. "can_create_counter_groups". */
-export const toolMemberCreateFlag = (tool: Tool): keyof InitiativeMemberRead =>
-  `can_create_${toolPlural(tool)}` as keyof InitiativeMemberRead;
-
 /**
  * The shape every tool's read schema shares where comments are concerned: the
  * row's id, the initiative it lives in (null for a guild-level entity), and its
@@ -443,8 +431,8 @@ export const showsRelations = (tool: Tool): boolean => !NO_RELATIONS_PANEL.has(t
  * The initiative master-switch field for a tool (same spelling as the view
  * permission). Every tool has one.
  */
-export const isToolEnabled = (tool: Tool, initiative: InitiativeListRead): boolean =>
-  Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeListRead]);
+export const isToolEnabled = (tool: Tool, initiative: InitiativeRead): boolean =>
+  Boolean(initiative[`${toolPlural(tool)}_enabled` as keyof InitiativeRead]);
 
 /** Guild-relative create target for a tool inside an initiative: the tool's
  *  own tab, with its create dialog open (`?create=true`). Callers prepend the

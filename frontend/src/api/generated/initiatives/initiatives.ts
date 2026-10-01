@@ -22,13 +22,14 @@ import type {
 
 import type {
   GetInitiativeApiV1CGuildIdInitiativesInitiativeIdGetParams,
+  GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   HTTPValidationError,
   InitiativeCreate,
   InitiativeDirectoryEntry,
   InitiativeJoinRequestCreate,
   InitiativeJoinRequestRead,
-  InitiativeListRead,
   InitiativeMemberAdd,
+  InitiativeMemberListResponse,
   InitiativeMemberUpdate,
   InitiativeRead,
   InitiativeRoleCreate,
@@ -38,7 +39,6 @@ import type {
   ListInitiativesApiV1CGuildIdInitiativesGetParams,
   ListJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGetParams,
   SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams,
-  UserPublic,
   UserSummaryListResponse,
 } from "../initiativeAPI.schemas";
 
@@ -79,7 +79,7 @@ export const listInitiativesApiV1CGuildIdInitiativesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<InitiativeListRead[]>(
+  return apiMutator<InitiativeRead[]>(
     { url: `/api/v1/c/${guildId}/initiatives/`, method: "GET", params, signal },
     options
   );
@@ -2208,26 +2208,38 @@ export const useDeleteInitiativeRoleApiV1CGuildIdInitiativesInitiativeIdRolesRol
   );
 };
 /**
- * Get all members of an initiative.
+ * One page of an initiative's roster, each member with their role — the
+ * initiative's members settings and the moderation view. A picker wants
+ * :func:`search_initiative_members` instead.
  * @summary Get Initiative Members
  */
 export const getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet = (
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<UserPublic[]>(
-    { url: `/api/v1/c/${guildId}/initiatives/${initiativeId}/members`, method: "GET", signal },
+  return apiMutator<InitiativeMemberListResponse>(
+    {
+      url: `/api/v1/c/${guildId}/initiatives/${initiativeId}/members`,
+      method: "GET",
+      params,
+      signal,
+    },
     options
   );
 };
 
 export const getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey = (
   guildId: number,
-  initiativeId: number
+  initiativeId: number,
+  params?: GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams
 ) => {
-  return [`/api/v1/c/${guildId}/initiatives/${initiativeId}/members`] as const;
+  return [
+    `/api/v1/c/${guildId}/initiatives/${initiativeId}/members`,
+    ...(params ? [params] : []),
+  ] as const;
 };
 
 export const getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryOptions = <
@@ -2238,6 +2250,7 @@ export const getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersG
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2257,7 +2270,8 @@ export const getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersG
     queryOptions?.queryKey ??
     getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey(
       guildId,
-      initiativeId
+      initiativeId,
+      params
     );
 
   const queryFn: QueryFunction<
@@ -2266,6 +2280,7 @@ export const getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersG
     getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet(
       guildId,
       initiativeId,
+      params,
       requestOptions,
       signal
     );
@@ -2301,6 +2316,7 @@ export function useGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembe
 >(
   guildId: number,
   initiativeId: number,
+  params: undefined | GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
@@ -2335,6 +2351,7 @@ export function useGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembe
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2369,6 +2386,7 @@ export function useGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembe
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2395,6 +2413,7 @@ export function useGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembe
 >(
   guildId: number,
   initiativeId: number,
+  params?: GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
@@ -2413,6 +2432,7 @@ export function useGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembe
     getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryOptions(
       guildId,
       initiativeId,
+      params,
       options
     );
 
@@ -2547,8 +2567,8 @@ export const useAddInitiativeMemberApiV1CGuildIdInitiativesInitiativeIdMembersPo
  * Same authorization as :func:`get_initiative_members` (member, guild
  * admin, or PAM/break-glass grantee); the search/id/pagination params are
  * additive filters on the already-RLS-gated query. Returns
- * :class:`UserSummary` for typeahead/picker surfaces instead of the full
- * ``UserPublic`` roster.
+ * :class:`UserSummary` for typeahead/picker surfaces instead of the roster's
+ * member-and-role rows.
  *
  * Pass ``user_id`` one or more times to resolve a known selection (a picker
  * rehydrating stored ids into names/avatars) rather than searching.

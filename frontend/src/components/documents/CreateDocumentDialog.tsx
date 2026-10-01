@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   DocumentRead,
-  InitiativeListRead,
+  InitiativeRead,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
@@ -67,7 +67,7 @@ type CreateDocumentDialogProps = DialogProps & {
   /** Called after successful creation/upload */
   onSuccess?: (document: DocumentRead) => void;
   /** List of initiatives user can create documents in (required if initiativeId not provided) */
-  initiatives?: InitiativeListRead[];
+  initiatives?: InitiativeRead[];
   /** A file dropped on the page to open this; the dialog opens on Upload holding it. */
   initialFile?: File | null;
 };

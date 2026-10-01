@@ -60,16 +60,6 @@ class Tool(str, Enum):
         return f"create_{self.plural}"
 
     @property
-    def member_view_field(self) -> str:
-        """``InitiativeMemberRead`` computed view flag for this tool."""
-        return f"can_view_{self.plural}"
-
-    @property
-    def member_create_field(self) -> str:
-        """``InitiativeMemberRead`` computed create flag for this tool."""
-        return f"can_create_{self.plural}"
-
-    @property
     def code_prefix(self) -> str:
         """The SCREAMING_SNAKE stem every error code for this tool derives from
         (``counter_group`` -> ``COUNTER_GROUP``)."""

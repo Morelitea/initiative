@@ -15,6 +15,7 @@ from app.models.tenant.initiative import (
     PermissionKey,
 )
 from app.schemas.platform.user import UserPublic, UserSummary
+from app.schemas.query import PageMeta
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
@@ -152,18 +153,7 @@ class InitiativeMemberUpdate(SanitizedBaseModel):
     role_id: int
 
 
-# Derived: one `can_view_{tool.plural}` / `can_create_{tool.plural}` pair per
-# Tool, for UI filtering. View defaults True only for the tools an initiative
-# starts with.
-_MemberToolFlags = create_model(
-    "_MemberToolFlags",
-    __base__=SanitizedBaseModel,
-    **{t.member_view_field: (bool, t in DEFAULT_ENABLED_TOOLS) for t in Tool},
-    **{t.member_create_field: (bool, False) for t in Tool},
-)
-
-
-class InitiativeMemberRead(_MemberToolFlags):
+class InitiativeMemberRead(SanitizedBaseModel):
     """Member info including their role."""
 
     model_config = ConfigDict(
@@ -184,6 +174,12 @@ class InitiativeMemberRead(_MemberToolFlags):
     oidc_managed: bool = False
 
 
+class InitiativeMemberListResponse(PageMeta):
+    """One page of an initiative's roster, each member with their role."""
+
+    items: List[InitiativeMemberRead]
+
+
 class InitiativeCan(SanitizedBaseModel):
     """What the caller may do in an initiative (:func:`initiative_can`)."""
 
@@ -199,9 +195,10 @@ class InitiativeCan(SanitizedBaseModel):
     create: List[Tool] = Field(default_factory=list)
 
 
-class InitiativeListRead(InitiativeBase):
-    """An initiative as a list names it: the row and what the caller may do in
-    it, without its roster. :class:`InitiativeRead` adds the roster."""
+class InitiativeRead(InitiativeBase):
+    """An initiative: the row, its headcount, what the caller may do in it and
+    the role they hold there. Its roster is read a page at a time from
+    ``GET /initiatives/{id}/members``."""
 
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -222,10 +219,9 @@ class InitiativeListRead(InitiativeBase):
     created_at: datetime
     updated_at: datetime
     can: InitiativeCan = Field(default_factory=InitiativeCan)
-
-
-class InitiativeRead(InitiativeListRead):
-    members: List[InitiativeMemberRead] = Field(default_factory=list)
+    member_count: int = 0
+    #: The caller's role here, when they are a member.
+    role_display_name: Optional[str] = None
 
 
 class InitiativeDirectoryEntry(SanitizedBaseModel):
@@ -324,47 +320,11 @@ def serialize_role(
     )
 
 
-def member_tool_flags(
-    initiative: "Initiative", membership: "InitiativeMember"
-) -> dict[str, bool]:
-    """Effective per-tool view/create flags for one membership.
-
-    Derived per Tool from one rule instead of a hand-rolled branch per tool:
-    defaults (view the tools an initiative starts with) → manager gets
-    everything → otherwise the role's `{plural}_enabled` / `create_{plural}`
-    permissions → the initiative's master switch force-disables every tool it
-    turned off, projects and documents included.
-    """
-    role_ref = getattr(membership, "role_ref", None)
-    is_manager = role_ref.is_manager if role_ref else False
-    flags = {
-        **{t.member_view_field: t in DEFAULT_ENABLED_TOOLS for t in Tool},
-        **{t.member_create_field: False for t in Tool},
-    }
-    if is_manager:
-        flags = {name: True for name in flags}
-    elif role_ref:
-        # getattr to avoid lazy loading
-        role_permissions = getattr(role_ref, "permissions", None) or []
-        enabled_by_key = {p.permission_key: p.enabled for p in role_permissions}
-        for t in Tool:
-            view = enabled_by_key.get(PermissionKey(t.view_permission))
-            if view is not None:
-                flags[t.member_view_field] = view
-            if enabled_by_key.get(PermissionKey(t.create_permission)):
-                flags[t.member_create_field] = True
-    for t in Tool:
-        if not getattr(initiative, t.view_permission, False):
-            flags[t.member_view_field] = False
-            flags[t.member_create_field] = False
-    return flags
-
-
 class InitiativeSummary(SanitizedBaseModel):
     """An initiative as something else names it: enough to label and link it.
 
     What a project, a document or a task carries about the initiative it is in.
-    The initiative's own read is :class:`InitiativeRead`, roster and all.
+    The initiative's own read is :class:`InitiativeRead`.
     """
 
     model_config = ConfigDict(
@@ -388,8 +348,13 @@ def initiative_can(initiative: "Initiative") -> InitiativeCan:
     )
 
 
-def _initiative_fields(initiative: "Initiative", context: "ActorContext") -> dict:
-    return dict(
+def serialize_initiative(
+    initiative: "Initiative", *, context: "ActorContext"
+) -> InitiativeRead:
+    """The initiative as a route answers with it. ``actions``, ``member_count``
+    and ``role_display_name`` are deferred on the model, so whoever loads the
+    row undefers them."""
+    return InitiativeRead(
         id=initiative.id,
         guild_id=context.guild_id,
         name=initiative.name,
@@ -404,6 +369,8 @@ def _initiative_fields(initiative: "Initiative", context: "ActorContext") -> dic
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         can=initiative_can(initiative),
+        member_count=initiative.member_count,
+        role_display_name=initiative.role_display_name,
         **{
             t.view_permission: getattr(initiative, t.view_permission, False)
             for t in Tool
@@ -411,36 +378,19 @@ def _initiative_fields(initiative: "Initiative", context: "ActorContext") -> dic
     )
 
 
-def serialize_initiative_listing(
-    initiative: "Initiative", *, context: "ActorContext"
-) -> InitiativeListRead:
-    return InitiativeListRead(**_initiative_fields(initiative, context))
-
-
-def serialize_initiative(
-    initiative: "Initiative", *, context: "ActorContext"
-) -> InitiativeRead:
-    members: List[InitiativeMemberRead] = []
-    for membership in getattr(initiative, "memberships", []) or []:
-        if membership.user is None:
-            continue
-        # Get role info from role_ref if available
-        role_ref = getattr(membership, "role_ref", None)
-        role_name = role_ref.name if role_ref else None
-
-        members.append(
-            InitiativeMemberRead(
-                user=UserPublic.model_validate(membership.user),
-                role_id=membership.role_id,
-                role_name=role_name,
-                role_display_name=role_ref.display_name if role_ref else None,
-                is_manager=role_ref.is_manager if role_ref else False,
-                override_share_restrictions=(
-                    role_ref.override_share_restrictions if role_ref else False
-                ),
-                joined_at=membership.joined_at,
-                oidc_managed=membership.oidc_provider_id is not None,
-                **member_tool_flags(initiative, membership),
-            )
-        )
-    return InitiativeRead(**_initiative_fields(initiative, context), members=members)
+def serialize_initiative_member(membership: "InitiativeMember") -> InitiativeMemberRead:
+    """One roster row: the member, and the role they hold. Reads
+    ``membership.user`` and ``membership.role_ref``, so the loader brings both."""
+    role = membership.role_ref
+    return InitiativeMemberRead(
+        user=UserPublic.model_validate(membership.user),
+        role_id=membership.role_id,
+        role_name=role.name if role else None,
+        role_display_name=role.display_name if role else None,
+        is_manager=role.is_manager if role else False,
+        override_share_restrictions=(
+            role.override_share_restrictions if role else False
+        ),
+        joined_at=membership.joined_at,
+        oidc_managed=membership.oidc_provider_id is not None,
+    )

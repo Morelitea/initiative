@@ -3,10 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { ownerCan } from "@/__tests__/factories";
+import { buildPage, buildUserSummary, ownerCan } from "@/__tests__/factories";
 import { buildDocumentSummary } from "@/__tests__/factories/document.factory";
 import { buildInitiative } from "@/__tests__/factories/initiative.factory";
-import { buildUser, buildUserPublic } from "@/__tests__/factories/user.factory";
+import { buildUser } from "@/__tests__/factories/user.factory";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -28,7 +28,7 @@ const INITIATIVE_ID = 50;
 const BOB_ID = 101;
 const EDITOR_ROLE_ID = 200;
 
-const bob = buildUserPublic({ id: BOB_ID, full_name: "Bob Builder" });
+const bob = buildUserSummary({ id: BOB_ID, full_name: "Bob Builder" });
 
 const initiative = buildInitiative({ id: INITIATIVE_ID, name: "Init" });
 
@@ -80,6 +80,9 @@ function restrictedDoc(id: number): DocumentSummary {
   });
 }
 
+/** The query each member search was asked with. */
+const memberSearches: URLSearchParams[] = [];
+
 /**
  * Capture the grant lists crossing the network boundary. The dialog persists via
  * the bulk endpoint (one request, many items); we flatten to one entry per item's
@@ -87,10 +90,15 @@ function restrictedDoc(id: number): DocumentSummary {
  */
 function captureGrantPuts() {
   const captured: ResourceGrantSchema[][] = [];
+  memberSearches.length = 0;
   server.use(
     guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
     guildHttp.get("/initiatives/:initiativeId/roles", () => HttpResponse.json(roles)),
-    guildHttp.get("/initiatives/:initiativeId/members", () => HttpResponse.json([bob])),
+    // The initiative's member search: what was typed, or the ids asked for.
+    guildHttp.get("/initiatives/:initiativeId/members/search", ({ request }) => {
+      memberSearches.push(new URL(request.url).searchParams);
+      return HttpResponse.json(buildPage([bob]));
+    }),
     guildHttp.put("/resource-grants/bulk", async ({ request }) => {
       const body = (await request.json()) as {
         items: { resource_type: string; resource_id: number; grants: ResourceGrantSchema[] }[];
@@ -178,10 +186,13 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     await user.click(screen.getByLabelText("Action"));
     await user.click(await screen.findByRole("option", { name: "Revoke access" }));
     await user.click(screen.getByText("Select people to revoke…"));
-    // Names resolve from the fetched initiative members (not the resource row), so
-    // Bob shows by name even in revoke mode.
+    // Names resolve by looking the grantees up among the initiative's members
+    // (not from the resource row), so Bob shows by name even in revoke mode.
     await user.click(await screen.findByText("Bob Builder"));
     await user.click(screen.getByRole("button", { name: /Revoke 1 person/i }));
+    expect(memberSearches.some((params) => params.getAll("user_id").includes(String(BOB_ID)))).toBe(
+      true
+    );
 
     await waitFor(() => expect(captured).toHaveLength(1));
     const payload = captured[0];

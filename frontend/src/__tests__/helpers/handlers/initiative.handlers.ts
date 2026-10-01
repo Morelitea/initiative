@@ -1,6 +1,6 @@
 import { HttpResponse } from "msw";
 
-import { buildInitiative, buildInitiativeJoinRequest } from "@/__tests__/factories";
+import { buildInitiative, buildInitiativeJoinRequest, buildPage } from "@/__tests__/factories";
 
 import { guildHttp } from "../guildHttp";
 
@@ -28,6 +28,11 @@ export const initiativeHandlers = [
     }
     return HttpResponse.json(buildInitiative({ id }));
   }),
+
+  // An empty roster, and nobody matching a member search, unless a test says
+  // otherwise.
+  guildHttp.get("/initiatives/:id/members", () => HttpResponse.json(buildPage([]))),
+  guildHttp.get("/initiatives/:id/members/search", () => HttpResponse.json(buildPage([]))),
 
   guildHttp.post("/initiatives/:id/join", ({ params }) => {
     return HttpResponse.json(buildInitiative({ id: Number(params.id), join_policy: "open" }));

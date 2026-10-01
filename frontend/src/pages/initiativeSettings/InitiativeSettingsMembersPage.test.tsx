@@ -23,7 +23,7 @@ import {
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeMemberRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -40,10 +40,18 @@ const MANAGER_ID = 42;
 const AUTO_JOIN_LABEL = "Add every new community member automatically";
 const autoJoinSwitch = () => screen.queryByLabelText(AUTO_JOIN_LABEL);
 
-/** Records what each PATCH actually sent, so a save can be read field by field. */
-function stubInitiative(overrides: Partial<InitiativeRead> = {}, patchFails?: [number, string]) {
+/** Records what each PATCH actually sent, so a save can be read field by field.
+ *  `members` is the roster page the table reads beside the row. */
+function stubInitiative(
+  {
+    members = [],
+    ...overrides
+  }: Partial<InitiativeRead> & { members?: InitiativeMemberRead[] } = {},
+  patchFails?: [number, string]
+) {
   const patches: unknown[] = [];
   server.use(
+    guildHttp.get("/initiatives/:id/members", () => HttpResponse.json(buildPage(members))),
     guildHttp.get("/initiatives/:id", () =>
       HttpResponse.json(
         buildInitiative({
@@ -143,7 +151,19 @@ describe("InitiativeSettingsMembersPage", () => {
     stubInitiative({ members: [managerMembership()] });
     const searches: (string | null)[] = [];
     const added: unknown[] = [];
+    // Bo is in the community and already in the initiative, which the picker
+    // asks of the initiative by id rather than reading its whole roster.
+    const lookedUp: string[][] = [];
     server.use(
+      guildHttp.get("/initiatives/:id/members/search", ({ request }) => {
+        const ids = new URL(request.url).searchParams.getAll("user_id");
+        lookedUp.push(ids);
+        return HttpResponse.json(
+          buildPage(
+            ids.includes("56") ? [buildUserSummary({ id: 56, full_name: "Bo Member" })] : []
+          )
+        );
+      }),
       guildHttp.get("/initiatives/:id/roles", () =>
         HttpResponse.json([
           buildInitiativeRole({ id: 20, name: "member", display_name: "Member" }),
@@ -158,7 +178,10 @@ describe("InitiativeSettingsMembersPage", () => {
       guildHttp.get("/users/search", ({ request }) => {
         searches.push(new URL(request.url).searchParams.get("search"));
         return HttpResponse.json(
-          buildPage([buildUserSummary({ id: 55, full_name: "Ada Admin", guild_role: "admin" })])
+          buildPage([
+            buildUserSummary({ id: 55, full_name: "Ada Admin", guild_role: "admin" }),
+            buildUserSummary({ id: 56, full_name: "Bo Member" }),
+          ])
         );
       }),
       guildHttp.post("/initiatives/:id/members", async ({ request }) => {
@@ -174,6 +197,10 @@ describe("InitiativeSettingsMembersPage", () => {
     // The community is asked for what was typed, once the picker's debounce
     // has let it through.
     await waitFor(() => expect(searches).toContain("ada"));
+    await waitFor(() => expect(lookedUp).toContainEqual(["55", "56"]));
+    await waitFor(() =>
+      expect(screen.queryByRole("option", { name: "Bo Member" })).not.toBeInTheDocument()
+    );
     await userEvent.click(await screen.findByRole("option", { name: "Ada Admin" }));
     await userEvent.click(screen.getByRole("button", { name: "Add member" }));
 

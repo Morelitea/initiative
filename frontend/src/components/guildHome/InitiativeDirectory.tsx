@@ -35,7 +35,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   InitiativeDirectoryEntry,
-  InitiativeListRead,
+  InitiativeRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeJoinPolicy } from "@/api/generated/initiativeAPI.schemas";
 import { RequestToJoinDialog } from "@/components/initiatives/RequestToJoinDialog";
@@ -110,7 +110,7 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
   const initiativesQuery = useInitiatives({ enabled: hasEnterable });
   const toolCounts = useToolCountsByInitiative({ enabled: hasEnterable });
 
-  const membershipById = new Map<number, InitiativeListRead>(
+  const membershipById = new Map<number, InitiativeRead>(
     (initiativesQuery.data ?? []).map((initiative) => [initiative.id, initiative])
   );
 

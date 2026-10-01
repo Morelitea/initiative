@@ -25,10 +25,11 @@
 
 import type { TFunction } from "i18next";
 import { Plus, X } from "lucide-react";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DatasetName } from "@/api/generated/initiativeAPI.schemas";
+import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,10 +43,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useFieldCatalog } from "@/hooks/useFieldCatalog";
-import { useInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
-import { getUserDisplayName } from "@/lib/userDisplay";
+import type { MemberSearchScope } from "@/hooks/useUsers";
 import {
   type ConditionValue,
   type FilterFieldSpec,
@@ -100,7 +100,6 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
   // something they could not have found in the app anyway.
   const projects = useProjects({ slim: true });
   const tags = useTags();
-  const initiative = useInitiative(initiativeId);
 
   // What may be filtered on, from the server's field registry — one
   // declaration, so a control cannot offer an operator the engine refuses.
@@ -112,15 +111,10 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
         .filter((project) => project.initiative_id === initiativeId)
         .map((project) => ({ value: String(project.id), label: project.name })),
       tag: (tags.data ?? []).map((tag) => ({ value: String(tag.id), label: tag.name })),
-      member: [
-        { value: "me", label: t("dashboards:provenance.me") },
-        ...(initiative.data?.members ?? []).map((member) => ({
-          value: String(member.user.id),
-          label: getUserDisplayName(member.user, String(member.user.id)),
-        })),
-      ],
+      // People are searched on the server, among the initiative's members.
+      members: { type: "initiative", initiativeId } satisfies MemberSearchScope,
     }),
-    [projects.data, tags.data, initiative.data, initiativeId, t]
+    [projects.data, tags.data, initiativeId]
   );
 
   const replaceAt = (index: number, node: FilterNode | null) => {
@@ -242,7 +236,7 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
 type Options = {
   project: { value: string; label: string }[];
   tag: { value: string; label: string }[];
-  member: { value: string; label: string }[];
+  members: MemberSearchScope;
 };
 
 function LeafRow({
@@ -331,9 +325,59 @@ function ValueControl({
 }) {
   const { t } = useTranslation(["dashboards", "tasks", "common"]);
   const spec = fieldSpec(fields, leaf.field);
+  const memberFieldId = useId();
 
   // "Is empty" compares against nothing, so there is nothing to choose.
   if (leaf.op === "is_null") return null;
+
+  if (spec?.kind === "member") {
+    // "me" is the language's own word for the reader and stays a string, so
+    // the tile answers per person; people travel as numeric ids. A single-value
+    // field keeps the one chosen last.
+    const multiple = Boolean(spec.multiple);
+    const values = multiple
+      ? Array.isArray(leaf.value)
+        ? leaf.value
+        : []
+      : leaf.value != null && leaf.value !== ""
+        ? [leaf.value as string | number]
+        : [];
+    const ids = values.filter((value): value is number => typeof value === "number");
+    const me = values.includes("me");
+    const emit = (nextMe: boolean, nextIds: number[]) =>
+      onChange(
+        multiple
+          ? [...(nextMe ? ["me"] : []), ...nextIds]
+          : nextMe
+            ? "me"
+            : (nextIds[nextIds.length - 1] ?? "")
+      );
+    return (
+      <>
+        <Label htmlFor={memberFieldId} className="sr-only">
+          {t("dashboards:filterBuilder.value")}
+        </Label>
+        <MemberMultiSelect
+          id={memberFieldId}
+          scope={options.members}
+          variant="filter"
+          selectedIds={ids}
+          tokens={[
+            {
+              value: "me",
+              label: t("dashboards:provenance.me"),
+              selected: me,
+              onToggle: (selected) => emit(selected, multiple ? ids : []),
+            },
+          ]}
+          onChange={(next) =>
+            emit(multiple && me, multiple ? next : next.filter((id) => !ids.includes(id)))
+          }
+          placeholder={t("dashboards:filterBuilder.chooseValue")}
+        />
+      </>
+    );
+  }
 
   if (spec?.multiple) {
     const list = Array.isArray(leaf.value) ? leaf.value.map(String) : [];
@@ -345,11 +389,9 @@ function ValueControl({
             value,
             label: t(optionLabelKey(leaf.field, value), { defaultValue: value }),
           }))
-        : spec.kind === "member"
-          ? options.member
-          : spec.kind === "tag"
-            ? options.tag
-            : [];
+        : spec.kind === "tag"
+          ? options.tag
+          : [];
     return (
       <MultiSelect
         selectedValues={list}
@@ -360,28 +402,6 @@ function ValueControl({
           onChange(values.map((value) => (value === "me" ? value : Number(value))))
         }
       />
-    );
-  }
-
-  if (spec?.kind === "member") {
-    return (
-      <Select
-        value={leaf.value != null && leaf.value !== "" ? String(leaf.value) : ""}
-        // Ids travel as numbers; "me" is the language's own word for the
-        // reader and stays a string, so the tile answers per person.
-        onValueChange={(value) => onChange(value === "me" ? value : Number(value))}
-      >
-        <SelectTrigger className="h-8" aria-label={t("dashboards:filterBuilder.value")}>
-          <SelectValue placeholder={t("dashboards:filterBuilder.chooseValue")} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.member.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
     );
   }
 
