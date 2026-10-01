@@ -8,6 +8,7 @@
  */
 
 import { renderHook, waitFor } from "@testing-library/react";
+import { AxiosError, type AxiosResponse } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const post = vi.fn();
@@ -64,6 +65,24 @@ describe("confirming an age", () => {
     await waitFor(() => expect(result.current.birthdate).toBe("2020-01-01"));
     await result.current.confirm();
 
+    expect(invalidations).not.toHaveBeenCalled();
+    expect(refreshUser).not.toHaveBeenCalled();
+  });
+
+  it("re-reads the account when the answer was under age, which it records", async () => {
+    post.mockRejectedValue(
+      new AxiosError("refused", "ERR_BAD_REQUEST", undefined, undefined, {
+        status: 422,
+        data: { detail: "USER_AGE_BELOW_MINIMUM" },
+      } as AxiosResponse)
+    );
+    const { result } = renderHook(() => useAgeConfirmation());
+
+    result.current.setBirthdate("2020-01-01");
+    await waitFor(() => expect(result.current.birthdate).toBe("2020-01-01"));
+    await result.current.confirm();
+
+    expect(refreshUser).toHaveBeenCalled();
     expect(invalidations).not.toHaveBeenCalled();
   });
 });

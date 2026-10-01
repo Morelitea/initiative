@@ -155,9 +155,10 @@ const StartSteps = ({
   } = useAppConfig();
   const { isNativePlatform, getServerOrigin } = useServer();
   const { billing, openPortal, reserveTab } = useBillingPortal();
-  // Plans are chosen on the web only: the native app shows no price, plan or
-  // portal anywhere in this flow.
-  const plansShown = Boolean(billing) && !isNativePlatform;
+  // A plan is picked in both; only the web goes on to the portal. The native
+  // app's pick travels with the new community, and the owner is emailed.
+  const plansShown = Boolean(billing);
+  const portalOpens = !isNativePlatform;
   const catalog = useBillingCatalog(plansShown ? billing?.url : null);
   const seed = useSeedStarter();
   const landOn = useLandOnStarter();
@@ -207,10 +208,11 @@ const StartSteps = ({
     plansShown && answers.path === "shared" && Boolean(chosenTier) && chosenTier !== entryTier;
   // Opened inside the click that makes the account or community, so the
   // browser lets it through; pointed at the portal once there is a session.
+  const pickedPlan = wantsPlan ? chosenTier?.id : undefined;
   const planTab = useRef<Window | null>(null);
   const reservePlanTab = () => {
     planTab.current?.close();
-    planTab.current = wantsPlan ? reserveTab() : null;
+    planTab.current = wantsPlan && portalOpens ? reserveTab() : null;
   };
   const dropPlanTab = () => {
     planTab.current?.close();
@@ -237,6 +239,10 @@ const StartSteps = ({
   ];
   const { step, go, back, commit, canGoBack, reset } = useWizard<Step>(flow[0]);
   const position = flow.indexOf(step);
+  // An under-age answer is recorded and refused; the refreshed account says so.
+  useEffect(() => {
+    if (signedIn && step === "you" && user?.age_below_minimum_at) commit("underAge");
+  }, [signedIn, step, user?.age_below_minimum_at, commit]);
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -321,6 +327,7 @@ const StartSteps = ({
       madeGuild.current = await createGuild({
         name: final.communityName.trim(),
         description: final.description.trim() || undefined,
+        plan: pickedPlan,
       });
       commit("finishing");
     } catch (err) {
@@ -377,7 +384,7 @@ const StartSteps = ({
         toast.info(t("guilds:billingSetup.opening", { guild: guild.name }));
         void openPortal(guild.id, "upgrade", planTab.current);
         planTab.current = null;
-      } else if (wantsPlan) {
+      } else if (wantsPlan && portalOpens) {
         setPlanByButton(true);
       }
       setMade({ id: guild.id, name: guild.name });
@@ -411,7 +418,7 @@ const StartSteps = ({
       full_name: final.fullName.trim() || undefined,
       timezone: final.timezone,
       captcha_token: captcha ? captchaToken : undefined,
-      community: newCommunity(final),
+      community: newCommunity(final, pickedPlan),
       birthdate: age.birthdate || undefined,
     };
   };
@@ -941,7 +948,11 @@ const StartSteps = ({
       body = (
         <>
           {held?.underAge ? <p className="text-sm">{t("start.underAge")}</p> : null}
-          {wantsPlan ? <p className="text-sm">{t("start.checkEmail.planLater")}</p> : null}
+          {wantsPlan ? (
+            <p className="text-sm">
+              {t(portalOpens ? "start.checkEmail.planLater" : "start.planEmailed")}
+            </p>
+          ) : null}
           <Button asChild className="w-full">
             <Link to="/login">{t("start.checkEmail.signIn")}</Link>
           </Button>
@@ -962,13 +973,16 @@ const StartSteps = ({
       title = t("start.people.title");
       description = t("start.people.description", { community: made?.name ?? finalName });
       body = made ? (
-        <InviteYourPeople
-          guildId={made.id}
-          origin={getServerOrigin() ?? window.location.origin}
-          planButton={planByButton ? () => void openPortal(made.id, "upgrade") : undefined}
-          onDone={() => void leave(() => landOn(made.id, null))}
-          doneLabel={t("start.people.goToCommunity", { community: made.name })}
-        />
+        <>
+          {wantsPlan && !portalOpens ? <p className="text-sm">{t("start.planEmailed")}</p> : null}
+          <InviteYourPeople
+            guildId={made.id}
+            origin={getServerOrigin() ?? window.location.origin}
+            planButton={planByButton ? () => void openPortal(made.id, "upgrade") : undefined}
+            onDone={() => void leave(() => landOn(made.id, null))}
+            doneLabel={t("start.people.goToCommunity", { community: made.name })}
+          />
+        </>
       ) : null;
       break;
   }
@@ -1023,7 +1037,8 @@ const InviteYourPeople = ({
   useEffect(() => {
     if (asked.current) return;
     asked.current = true;
-    createGuildInviteApiV1CommunitiesGuildIdInvitesPost(guildId, {})
+    // One link for the whole group, so it takes any number of people.
+    createGuildInviteApiV1CommunitiesGuildIdInvitesPost(guildId, { max_uses: null })
       .then((invite) => setLink(`${origin}/invite/${encodeURIComponent(invite.code)}`))
       .catch(() => setFailed(true));
   }, [guildId, origin]);

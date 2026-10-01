@@ -78,15 +78,22 @@ export const useFinishPendingStart = (): void => {
     if (done.current || !user?.email || loading) return;
     const answers = readPendingStart(user.email);
     if (!answers) return;
+    if (answers.path === "join" || answers.path === "invite") {
+      done.current = true;
+      void (async () => {
+        await clearStart();
+        if (answers.path === "join" && !user.age_below_minimum_at) {
+          await openDirectory(answers.category);
+        }
+      })();
+      return;
+    }
+    // Kept until the new community is in the list, which may arrive later.
+    const guild = findStartedCommunity(guilds, answers);
+    if (!guild) return;
     done.current = true;
     void (async () => {
       await clearStart();
-      if (answers.path === "join") {
-        if (!user.age_below_minimum_at) await openDirectory(answers.category);
-        return;
-      }
-      const guild = findStartedCommunity(guilds, answers);
-      if (!guild) return;
       await landOn(guild.id, await seed(guild.id, answers));
     })();
   }, [user, loading, guilds, seed, landOn, openDirectory]);

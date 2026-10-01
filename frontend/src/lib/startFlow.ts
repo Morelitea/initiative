@@ -89,10 +89,14 @@ export const clearStart = async (): Promise<void> => {
 };
 
 /** The community a sign-up sends for these answers, or none. */
-export const newCommunity = (answers: StartAnswers): NewCommunity | undefined => {
+export const newCommunity = (answers: StartAnswers, plan?: string): NewCommunity | undefined => {
   if (answers.path !== "personal" && answers.path !== "shared") return undefined;
   const description = answers.description.trim();
-  return { name: answers.communityName.trim(), ...(description ? { description } : {}) };
+  return {
+    name: answers.communityName.trim(),
+    ...(description ? { description } : {}),
+    ...(plan ? { plan } : {}),
+  };
 };
 
 /** The community a registration made from these answers: the newest one of
