@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **All-day events are the same days for everyone**, whatever their timezone.
 - **Comments open on the newest conversations**, with **Load older comments** for the rest.
 - **If your server doesn't use passwords, nothing asks for one.** Deleting your account, setting up two-factor or changing passkeys asks for a recent sign-in instead, or emails you a code.
+- **Initiatives have their own icon**: the figure from the Initiative logo, in place of the members icon.
 - **App and API integrations may need updating.** Repeats are now standard `RRULE` text, counters are changed through `/counters/{id}`, and many routes were merged into others.
 
 ### Removed
