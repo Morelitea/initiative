@@ -12,7 +12,8 @@ from dataclasses import replace
 from datetime import date, datetime, timezone
 
 from httpx import AsyncClient
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.engine import Engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -1142,8 +1143,27 @@ async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     added = await client.post(url, headers=user.headers)
     assert added.status_code == 200
     assert added.json()["is_favorited"] is True
-    listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
-    assert [(p["id"], p["is_favorited"]) for p in listed.json()] == [(project.id, True)]
+
+    sent: list[str] = []
+
+    def record(_conn, _cursor, statement, _params, _context, _many) -> None:
+        sent.append(statement)
+
+    event.listen(Engine, "before_cursor_execute", record)
+    try:
+        listed = await client.get(user.g("/projects/favorites"), headers=user.headers)
+    finally:
+        event.remove(Engine, "before_cursor_execute", record)
+    (item,) = listed.json()
+    assert (item["id"], item["is_favorited"]) == (project.id, True)
+    # The slim projection: what the sidebar reads, without the task summary
+    # pass or the heavy relationships.
+    assert item["initiative_id"] == user.initiative.id
+    assert item["can"]["edit"] is True
+    assert (item["documents"], item["grants"], item["tags"]) == ([], [], [])
+    assert item["initiative"] is None
+    assert sent
+    assert not [statement for statement in sent if "FROM tasks" in statement], sent
 
     removed = await client.delete(url, headers=user.headers)
     assert removed.status_code == 200

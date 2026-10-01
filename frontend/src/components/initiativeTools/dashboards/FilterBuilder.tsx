@@ -98,7 +98,7 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
   // The option lists. Each is a query the canvas or dialog already makes, and
   // each returns only what this viewer can see — so an author cannot filter by
   // something they could not have found in the app anyway.
-  const projects = useProjects();
+  const projects = useProjects({ slim: true });
   const tags = useTags();
   const initiative = useInitiative(initiativeId);
 

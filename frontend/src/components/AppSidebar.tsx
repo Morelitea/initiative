@@ -141,10 +141,15 @@ export const AppSidebar = () => {
     staleTime: 60_000,
   });
 
-  const projectsQuery = useProjects(undefined, {
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
+  // The slim projection carries everything a row reads (id, name, icon,
+  // initiative, archived state, `can`) without the per-project summaries.
+  const projectsQuery = useProjects(
+    { slim: true },
+    {
+      enabled: guildTreeEnabled,
+      staleTime: 60_000,
+    }
+  );
 
   const favoritesQuery = useFavoriteProjects({
     enabled: guildTreeEnabled,
