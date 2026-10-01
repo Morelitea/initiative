@@ -75,10 +75,7 @@ const SecondFactorRequirementForm = ({
       toast.success(t("auth.secondFactorRequirement.saved"));
     },
     onError: (err) => {
-      if (
-        isAxiosError(err) &&
-        getErrorCode(err) === "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
-      ) {
+      if (isAxiosError(err) && getErrorCode(err) === "AUTH_RULE_SELF_UNSATISFIED") {
         setUnmet(true);
         return;
       }

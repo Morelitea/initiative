@@ -58,7 +58,7 @@ const selfUnsatisfied = (): AxiosError => {
   error.response = {
     status: 400,
     statusText: "Bad Request",
-    data: { detail: "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED" },
+    data: { detail: "AUTH_RULE_SELF_UNSATISFIED" },
     headers: new AxiosHeaders(),
     config: { headers: new AxiosHeaders() },
   };

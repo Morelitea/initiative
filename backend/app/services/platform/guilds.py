@@ -190,6 +190,30 @@ async def get_primary_guild_id(session: AsyncSession) -> int:
     return guild.id  # ty: ignore[invalid-return-type]
 
 
+async def record_settings_change(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    actor_user_id: int | None,
+    area: str,
+    before: dict[str, object],
+    after: dict[str, object],
+) -> None:
+    """Record one area of a guild's settings, when that area moved."""
+    changes = audit_service.changed_fields(before, after)
+    if not changes["changed"]:
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"area": area, **changes},
+    )
+
+
 async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
     stmt = select(Guild).where(Guild.id == guild_id)
     result = await session.exec(stmt)

@@ -321,7 +321,7 @@ export const SettingsGuildSecurityPage = () => {
           const detail = (err as { response?: { data?: { detail?: string } } }).response?.data
             ?.detail;
           const method = unmetMethod(err);
-          if (detail === "GUILD_AUTH_POLICY_SELF_UNSATISFIED") {
+          if (detail === "AUTH_RULE_SELF_UNSATISFIED") {
             // A factor of the account's own is presented against the session
             // already open, so the prompt for it belongs here rather than at
             // a provider's sign-in page.

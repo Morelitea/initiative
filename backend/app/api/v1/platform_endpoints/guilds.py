@@ -36,16 +36,13 @@ from app.api.deps import (
 from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
-from app.core import auth_context
 from app.core.intake import IntakeStream
-from app.core.auth_context import satisfied_providers
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
-from app.core.login_methods import LoginMethod, SecondFactorRequirement
+from app.core.login_methods import SecondFactorRequirement
 from app.core.messages import BillingMessages, GuildMessages
 from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.security import (
-    AUTH_POLICY_UNMET_HEADER,
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
 )
@@ -103,13 +100,7 @@ from app.schemas.platform.guild import (
 )
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.services.auth import session_lifetime
-from app.services.auth import (
-    guild_provider_connections as guild_connections,
-)
-from app.services.auth.platform_provider import is_login_ready
 from app.core.guild_auth_options import GuildAuthOption, effective_options
-from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
 from app.services.platform import notification_policy
@@ -284,38 +275,6 @@ _GUILD_PROFILE_FIELDS = (
     "has_adult_content",
     "show_member_names",
 )
-
-#: What this community's notifications may leave the app carrying, for the
-#: record.
-_GUILD_NOTIFICATION_FIELDS = (
-    "allow_push_notifications",
-    "allow_email_notifications",
-    "redact_notification_content",
-)
-
-
-async def _record_guild_settings_change(
-    session: AsyncSession,
-    *,
-    guild_id: int,
-    actor_user_id: int,
-    area: str,
-    before: dict[str, object],
-    after: dict[str, object],
-) -> None:
-    """Record one area of a guild's settings, when that area moved."""
-    changes = audit_service.changed_fields(before, after)
-    if not changes["changed"]:
-        return
-    await audit_service.record(
-        session,
-        event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
-        actor_user_id=actor_user_id,
-        guild_id=guild_id,
-        target_type="guild",
-        target_id=guild_id,
-        detail={"area": area, **changes},
-    )
 
 
 @router.get("/", response_model=List[GuildRead])
@@ -779,7 +738,7 @@ async def update_guild(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
-    await _record_guild_settings_change(
+    await guilds_service.record_settings_change(
         session,
         guild_id=guild_id,
         actor_user_id=current_user.id,
@@ -788,7 +747,7 @@ async def update_guild(
         after=audit_service.snapshot(guild, _GUILD_PROFILE_FIELDS),
     )
     if retention_days_provided:
-        await _record_guild_settings_change(
+        await guilds_service.record_settings_change(
             session,
             guild_id=guild_id,
             actor_user_id=current_user.id,
@@ -1125,31 +1084,6 @@ async def read_guild_payment_issue(
     )
 
 
-async def _require_guild_auth_option(
-    system_session: AsyncSession, guild_id: int, option: GuildAuthOption
-) -> None:
-    """One operator-granted sign-in option, or 404.
-
-    This bounds *management* only. Withdrawing an option closes the surface
-    that sets it up; it never deletes providers, keeps existing members signing
-    in through them, and leaves any requirement already set enforced.
-    """
-    if not await guild_entitlements.has_auth_option(system_session, guild_id, option):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
-        )
-
-
-def _auth_policy_refusal(detail: str, unmet: str) -> HTTPException:
-    """A refused requirement, naming the part of it that was refused."""
-    return HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=detail,
-        headers={AUTH_POLICY_UNMET_HEADER: unmet},
-    )
-
-
 def _auth_policy_read(
     policy_row,
     provider_display_name: str | None = None,
@@ -1229,7 +1163,7 @@ async def get_guild_notification_policy(
     seat_session: SeatSessionDep,
 ) -> GuildNotificationPolicyRead:
     """What this community's notifications may leave the app carrying."""
-    await _require_guild_auth_option(
+    await guild_entitlements.require_auth_option(
         seat_session, guild_id, GuildAuthOption.restrictions
     )
     guild = await seat_session.get(Guild, guild_id)
@@ -1249,6 +1183,7 @@ async def set_guild_notification_policy(
     guild_id: int,
     payload: GuildNotificationPolicyUpdate,
     seat_session: SeatWriteSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildNotificationPolicyRead:
     """Decide what this community's notifications may leave the app carrying.
@@ -1260,32 +1195,22 @@ async def set_guild_notification_policy(
     a channel leaves nothing here to decline.
 
     The same seat as the three beside it, and for the same reason: it says what
-    is done on this community's behalf rather than how it is run. The bell
+    is done on this community's behalf rather than how it is run. Narrowing
+    needs the ``restrictions`` entitlement; widening never does. The bell
     inside the app is unaffected, and so is what an account is sent about
     itself — a sign-in code and a password reset are not notifications.
     """
-    await _require_guild_auth_option(
-        seat_session, guild_id, GuildAuthOption.restrictions
+    await auth_posture.change(
+        auth_posture.RuleContext.community(
+            seat_session, system_session, current_user, guild_id
+        ),
+        {
+            "allow_push_notifications": payload.allow_push_notifications,
+            "allow_email_notifications": payload.allow_email_notifications,
+            "redact_notification_content": payload.redact_notification_content,
+        },
     )
     guild = await seat_session.get(Guild, guild_id)
-    if guild is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
-        )
-    before = audit_service.snapshot(guild, _GUILD_NOTIFICATION_FIELDS)
-    guild.allow_push_notifications = payload.allow_push_notifications
-    guild.allow_email_notifications = payload.allow_email_notifications
-    guild.redact_notification_content = payload.redact_notification_content
-    seat_session.add(guild)
-    await _record_guild_settings_change(
-        seat_session,
-        guild_id=guild_id,
-        actor_user_id=current_user.id,
-        area="notifications",
-        before=before,
-        after=audit_service.snapshot(guild, _GUILD_NOTIFICATION_FIELDS),
-    )
-    await seat_session.commit()
     return _notification_policy_read(
         guild, await notification_policy.resolve(seat_session, None)
     )
@@ -1305,6 +1230,12 @@ async def get_guild_auth_policy(
     enforced through changes to it (the gate in ``deps.py`` and
     ``public.guild_auth_satisfied()`` read the policy row and nothing else).
     An admin who cannot see what is set cannot clear it."""
+    return await _auth_policy_response(system_session, guild_id)
+
+
+async def _auth_policy_response(
+    system_session: AsyncSession, guild_id: int
+) -> GuildAuthPolicyRead:
     policy_row = await system_session.get(GuildAuthPolicy, guild_id)
     display_name = None
     if policy_row is not None and policy_row.provider_id is not None:
@@ -1333,173 +1264,25 @@ async def set_guild_auth_policy(
     end-to-end and keeps an admin from locking their guild (and themselves)
     behind a sign-in they haven't completed.
 
-    The two verbs are gated differently, and deliberately. Setting a
-    requirement needs the guild's entitlement, as before. **Clearing one is
-    always reachable**: enforcement reads the policy row alone, so a
-    requirement outlives the entitlement and the way to lift one outlives it
-    too. Lifting only ever admits more, so it carries none of the conditions
-    imposing it does."""
-    if payload.policy == "open":
-        policy_row = await session.get(GuildAuthPolicy, guild_id)
-        if policy_row is not None:
-            await audit_service.record(
-                session,
-                event_type=AuditEventType.GUILD_AUTH_POLICY_CHANGED,
-                actor_user_id=current_user.id,
-                guild_id=guild_id,
-                target_type="guild",
-                target_id=guild_id,
-                detail={
-                    "from": policy_row.policy,
-                    "to": "open",
-                    "provider_id": None,
-                    "require_methods": [],
-                },
-            )
-            await session.delete(policy_row)
-            await session.commit()
-        return GuildAuthPolicyRead(
-            policy="open",
-            factor_required_by_platform=await _platform_asks_everyone(system_session),
+    Tightening a requirement needs the guild's ``providers`` entitlement;
+    loosening or clearing one never does. Enforcement reads the policy row
+    alone, so a requirement outlives the entitlement, apart from its second
+    factor, which applies only while the guild holds ``providers``. See
+    ``auth_posture.change`` for the steps every rule's write takes."""
+    requirement = (
+        auth_posture.SignInRequirement(
+            "required", payload.provider_id, frozenset(payload.require_methods)
         )
-
-    await _require_guild_auth_option(
-        system_session, guild_id, GuildAuthOption.providers
+        if payload.policy == "required"
+        else auth_posture.SignInRequirement()
     )
-    # Hold the settings row for the rest of this transaction. An operator
-    # withdrawing single sign-on takes the same row exclusively, so the two
-    # order rather than interleave: either they see this requirement and are
-    # told, or this sees single sign-on already gone and its provider is no
-    # longer login-ready.
-    await auth_posture.hold_settings_for_read(system_session)
-    # And order against the seat: a requirement must not commit while the only
-    # member who could lift it is being demoted, removed, or leaving. Taken on
-    # the session that performs the write, which is what the lock has to
-    # outlive.
-    await guilds_service.lock_guild_seats(session, guild_id)
-
-    require_methods: list[str] = sorted({m.value for m in payload.require_methods})
-    if payload.provider_id is None and not require_methods:
-        # ``required`` has to require something.
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
-        )
-
-    provider = None
-    if payload.provider_id is not None:
-        # Read, not held. The write below carries a foreign key to this row,
-        # and that is what keeps it still: the insert takes its own lock on the
-        # provider through the key, so a delete racing it waits rather than
-        # winning. An explicit lock here could not do that job any more — it
-        # would be taken on the system engine while the write happens on the
-        # request path, which is two connections contending for one row.
-        provider = await system_session.get(AuthProvider, payload.provider_id)
-        # Theirs because they connect to it. Every provider is the operator's,
-        # so a connection is what makes one this community's to require.
-        connection = (
-            None
-            if provider is None
-            else await guild_connections.connection_for(
-                system_session, guild_id=guild_id, provider_id=provider.id
-            )
-        )
-        if provider is None or connection is None or not is_login_ready(provider):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
-            )
-        if provider.id not in satisfied_providers():
-            raise _auth_policy_refusal(
-                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, "provider"
-            )
-
-    # The same rule the provider check makes, for "any of ours": the caller's
-    # own session must have come in that way. Meeting it is also proof the
-    # community has a provider that works, so there is nothing else to ask.
-    # One check per method the list may hold; ``sso`` is the only one it can
-    # hold today, and a method added to the vocabulary brings its own.
-    if LoginMethod.sso in require_methods and not (
-        await guild_connections.admits_this_session(system_session, guild_id=guild_id)
-    ):
-        raise _auth_policy_refusal(
-            GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.sso.value
-        )
-
-    # And the one a second factor brings. Two things before a community may ask
-    # for it: the deployment offers it at all, and the person writing the rule
-    # has presented one. The second is the same "prove it before it binds
-    # anybody" the provider check makes, so a rule is only ever written by
-    # somebody it already applies to.
-    if LoginMethod.totp in require_methods:
-        if not await auth_posture.login_method_allowed(
-            system_session, LoginMethod.totp
-        ):
-            raise _auth_policy_refusal(
-                GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
-                LoginMethod.totp.value,
-            )
-        if SECOND_FACTOR_AMR not in auth_context.session_amr():
-            raise _auth_policy_refusal(
-                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED, LoginMethod.totp.value
-            )
-
-    # And the one a passkey brings, on the same two conditions. Read from the
-    # passkey markers rather than the factor's, so holding a second factor is
-    # not taken for holding a key.
-    if LoginMethod.passkey in require_methods:
-        if not await auth_posture.login_method_allowed(
-            system_session, LoginMethod.passkey
-        ):
-            raise _auth_policy_refusal(
-                GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
-                LoginMethod.passkey.value,
-            )
-        if not carries_passkey(auth_context.session_amr()):
-            raise _auth_policy_refusal(
-                GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
-                LoginMethod.passkey.value,
-            )
-
-    policy_row = await session.get(GuildAuthPolicy, guild_id)
-    # No row is "open", so a guild that had none is moving from there.
-    was = (
-        ("open", None, [])
-        if policy_row is None
-        else (
-            policy_row.policy,
-            policy_row.provider_id,
-            list(policy_row.require_methods or ()),
-        )
+    await auth_posture.change(
+        auth_posture.RuleContext.community(
+            session, system_session, current_user, guild_id
+        ),
+        {"auth_policy": requirement},
     )
-    if policy_row is None:
-        policy_row = GuildAuthPolicy(guild_id=guild_id, policy="required")
-    policy_row.policy = "required"
-    policy_row.provider_id = provider.id if provider else None
-    policy_row.provider_slug = provider.slug if provider else None
-    policy_row.require_methods = require_methods
-    session.add(policy_row)
-    if was != ("required", policy_row.provider_id, require_methods):
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.GUILD_AUTH_POLICY_CHANGED,
-            actor_user_id=current_user.id,
-            guild_id=guild_id,
-            target_type="guild",
-            target_id=guild_id,
-            detail={
-                "from": was[0],
-                "to": "required",
-                "provider_id": policy_row.provider_id,
-                "require_methods": require_methods,
-            },
-        )
-    await session.commit()
-    return _auth_policy_read(
-        policy_row,
-        provider.display_name if provider else None,
-        factor_required_by_platform=await _platform_asks_everyone(system_session),
-    )
+    return await _auth_policy_response(system_session, guild_id)
 
 
 @router.put("/{guild_id}/api-access", response_model=GuildApiAccessRead)
@@ -1507,40 +1290,27 @@ async def set_guild_api_access(
     guild_id: int,
     payload: GuildApiAccessUpdate,
     seat_session: SeatWriteSessionDep,
+    system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> GuildApiAccessRead:
     """Decide whether this guild accepts personal API keys.
 
     The same seat as the sign-in requirement, and for the same reason: it says
     what may be used to reach the community, which is not the job of running
-    one. Like everything else on that surface it needs the master entitlement,
-    which most guilds never hold — a community that configures no part of its
-    own sign-in is not asked about API keys either.
+    one. Refusing keys needs the ``restrictions`` entitlement, which most guilds
+    never hold; accepting them never does.
 
     Existing keys are left alone. What they may reach is decided when they are
     used, so switching this back on restores them rather than leaving somebody
     to mint replacements.
     """
-    await _require_guild_auth_option(
-        seat_session, guild_id, GuildAuthOption.restrictions
+    await auth_posture.change(
+        auth_posture.RuleContext.community(
+            seat_session, system_session, current_user, guild_id
+        ),
+        {"allow_api_keys": payload.allow_api_keys},
     )
     guild = await seat_session.get(Guild, guild_id)
-    if guild is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
-        )
-    before = {"allow_api_keys": guild.allow_api_keys}
-    guild.allow_api_keys = payload.allow_api_keys
-    seat_session.add(guild)
-    await _record_guild_settings_change(
-        seat_session,
-        guild_id=guild_id,
-        actor_user_id=current_user.id,
-        area="api_access",
-        before=before,
-        after={"allow_api_keys": guild.allow_api_keys},
-    )
-    await seat_session.commit()
     return GuildApiAccessRead(allow_api_keys=guild.allow_api_keys)
 
 
@@ -1563,45 +1333,16 @@ async def set_guild_second_factor(
     providers' own account of one counts. The community asks; it does not say
     how the question is answered.
     """
-    await _require_guild_auth_option(
-        seat_session, guild_id, GuildAuthOption.restrictions
+    await auth_posture.change(
+        auth_posture.RuleContext.community(
+            seat_session, system_session, current_user, guild_id
+        ),
+        {"require_second_factor": payload.require_second_factor},
     )
     guild = await seat_session.get(Guild, guild_id)
-    if guild is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
-        )
-    available = await auth_posture.second_factor_available(system_session)
-    if payload.require_second_factor and not available:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_AUTH_POLICY_METHOD_UNAVAILABLE,
-        )
-    # The seat answers its own requirement before raising it — the same
-    # question the deployment's own setting asks, and the same answer: a
-    # factor held, or one this session presented.
-    if payload.require_second_factor and not await auth_posture.answers_the_rule(
-        system_session, user=current_user
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GuildMessages.GUILD_AUTH_POLICY_SELF_UNSATISFIED,
-            headers={AUTH_POLICY_UNMET_HEADER: LoginMethod.totp.value},
-        )
-    before = {"require_second_factor": guild.require_second_factor}
-    guild.require_second_factor = payload.require_second_factor
-    seat_session.add(guild)
-    await _record_guild_settings_change(
-        seat_session,
-        guild_id=guild_id,
-        actor_user_id=current_user.id,
-        area="second_factor",
-        before=before,
-        after={"require_second_factor": guild.require_second_factor},
-    )
-    await seat_session.commit()
     return GuildSecondFactorRead(
-        require_second_factor=guild.require_second_factor, available=available
+        require_second_factor=guild.require_second_factor,
+        available=await auth_posture.second_factor_available(system_session),
     )
 
 
@@ -1619,41 +1360,20 @@ async def set_guild_session_limit(
     signs in again is part of what the community asks of a session, not part of
     running it. One standard rather than a figure of the guild's own, so
     somebody in two communities that ask for it has an answer and not a
-    comparison. It needs the master entitlement, like the rest of the surface.
+    comparison. Turning it on needs the ``restrictions`` entitlement.
 
     It reaches members' sessions at their next sign-in. Phones are the
     exception: a device token carries its deadline in its own expiry, so the
     ones already issued are brought under the standard here — which can sign a
     phone out at once, where it signed in longer ago than the standard allows.
     """
-    await _require_guild_auth_option(
-        seat_session, guild_id, GuildAuthOption.restrictions
+    await auth_posture.change(
+        auth_posture.RuleContext.community(
+            seat_session, system_session, current_user, guild_id
+        ),
+        {"enforce_compliance_session": payload.enforce_compliance_session},
     )
     guild = await seat_session.get(Guild, guild_id)
-    if guild is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.GUILD_NOT_FOUND
-        )
-    changed = guild.enforce_compliance_session != payload.enforce_compliance_session
-    before = {"enforce_compliance_session": guild.enforce_compliance_session}
-    guild.enforce_compliance_session = payload.enforce_compliance_session
-    seat_session.add(guild)
-    await _record_guild_settings_change(
-        seat_session,
-        guild_id=guild_id,
-        actor_user_id=current_user.id,
-        area="session_limit",
-        before=before,
-        after={"enforce_compliance_session": guild.enforce_compliance_session},
-    )
-    # Committed before the sweep below, which reads the standard back off the
-    # guild row to find whose phones it applies to — and runs on the system
-    # engine, because a device token belongs to an account rather than to this
-    # community.
-    await seat_session.commit()
-    if changed:
-        await session_lifetime.apply_to_device_tokens(system_session)
-        await system_session.commit()
     return GuildSessionLimitRead(
         enforce_compliance_session=guild.enforce_compliance_session
     )

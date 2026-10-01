@@ -18,6 +18,7 @@ from app.testing.factories import (
     create_project,
     create_user,
     get_auth_headers,
+    guild_administration,
 )
 
 
@@ -130,7 +131,8 @@ async def test_no_key_is_minted_into_a_guild_that_declines_them(
 async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     client: AsyncClient, session: AsyncSession
 ):
-    """The answer is decided when the key is used, not when it was made."""
+    """The answer is decided when the key is used, not when it was made, and
+    applies while the guild holds the ``restrictions`` option it needs."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -151,6 +153,11 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     after = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
     assert after.status_code == 403
     assert after.json()["detail"] == "GUILD_API_KEYS_REFUSED"
+
+    await guild_administration(session, guild, auth_options=[])
+    lapsed = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
+    assert lapsed.status_code == 200
+    await guild_administration(session, guild, auth_options=["restrictions"])
 
     # The same account's own sign-in still reaches it, so what was refused was
     # the credential rather than the membership.
@@ -257,6 +264,11 @@ async def test_the_cross_guild_aggregate_leaves_out_a_guild_that_declines_keys(
 
     by_key = await client.get("/api/v1/me/projects", headers=key_headers)
     assert {p["name"] for p in by_key.json()["items"]} == {names[open_guild.id]}
+
+    # Without the ``restrictions`` option the switch needs, it declines nothing.
+    await guild_administration(session, closed, auth_options=[])
+    by_key = await client.get("/api/v1/me/projects", headers=key_headers)
+    assert {p["name"] for p in by_key.json()["items"]} == set(names.values())
 
 
 async def test_a_key_limited_to_one_guild_reads_only_that_guild_across_guilds(

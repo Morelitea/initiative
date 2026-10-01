@@ -311,6 +311,12 @@ async def get_device_token(
     the cap. The write is throttled (only once the remaining lifetime falls below
     ``DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD``, i.e. at most ~once/day) to avoid
     a DB write on every call.
+
+    The absolute limit is read at the same rate, and it moves the window in as
+    well as out: a limit that applies now and did not when the token was
+    issued (a community's standard, or its option granted back) reaches the
+    token within a day of its last slide, and a token already past it is
+    refused.
     """
     record = await get_valid_token(
         session, token=token, purpose=UserTokenPurpose.device_auth
@@ -326,7 +332,7 @@ async def get_device_token(
             await session_lifetime.resolve_max_hours(session, user_id=record.user_id),
             created_at=record.created_at,
         )
-        if slid <= record.expires_at:
+        if slid == record.expires_at:
             # The limit has been reached: the window stops moving and the token
             # expires where it stands.
             return record
@@ -341,6 +347,10 @@ async def get_device_token(
         )
         await session.commit()
         await session.refresh(record)
+        # Moved in past now, the token is spent: stored, so everything that
+        # reads its expiry (push delivery, the content sockets) agrees.
+        if slid <= now:
+            return None
         if result.rowcount:
             await _record_device_token_use(user_id=record.user_id)
     return record

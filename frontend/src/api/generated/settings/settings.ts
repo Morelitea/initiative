@@ -478,8 +478,7 @@ export const useUpdateLoginMethodsApiV1SettingsAuthMethodsPut = <
  * Two refusals on the way up, and none coming down. Asking for one while the
  * deployment permits nothing that presents one is refused (409); so is
  * asking while the account writing it does not meet the rule itself (400,
- * naming the unmet method), which is the same "prove it before it binds
- * anybody" a community's requirement makes.
+ * naming the unmet method).
  *
  * Nobody is signed out. An account the rule covers is asked at its next
  * request and can answer it where it stands; a credential that cannot

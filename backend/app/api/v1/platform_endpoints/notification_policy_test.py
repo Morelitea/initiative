@@ -15,7 +15,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.push_token import PushToken
 from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
-from app.services.platform import push_tokens
+from app.services.platform import notification_policy, push_tokens
 from app.testing import (
     create_guild,
     create_user,
@@ -179,6 +179,13 @@ async def test_the_seat_sets_its_communitys_answers(
     await session.refresh(seat.guild)
     assert seat.guild.allow_push_notifications is False
     assert seat.guild.redact_notification_content is True
+    assert not (await notification_policy.resolve(session, seat.guild.id)).push
+
+    # They apply while it holds the ``restrictions`` option they need.
+    await guild_administration(session, seat.guild, auth_options=[])
+    assert await notification_policy.resolve(
+        session, seat.guild.id
+    ) == await notification_policy.resolve(session, None)
 
 
 async def test_an_admin_below_the_seat_is_refused(client, session, acting_user) -> None:

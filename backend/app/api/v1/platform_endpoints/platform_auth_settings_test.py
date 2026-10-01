@@ -741,7 +741,7 @@ async def test_a_requirement_is_written_by_somebody_it_already_applies_to(
     )
 
     assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"] == "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
+    assert refused.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
     assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
 
 
@@ -762,7 +762,7 @@ async def test_asking_needs_something_that_can_answer(
     )
 
     assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"
+    assert refused.json()["detail"] == "AUTH_RULE_NOT_OFFERED"
 
 
 async def test_the_last_way_to_answer_is_not_withdrawn_from_under_it(

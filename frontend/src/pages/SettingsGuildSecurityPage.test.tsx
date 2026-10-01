@@ -441,7 +441,7 @@ describe("SettingsGuildSecurityPage", () => {
 
   describe("when the admin's own session does not meet the rule", () => {
     /** The save's refusal, as the server names what is missing. */
-    const refuse = (unmet?: string, detail = "GUILD_AUTH_POLICY_SELF_UNSATISFIED") => {
+    const refuse = (unmet?: string, detail = "AUTH_RULE_SELF_UNSATISFIED") => {
       // Lower-cased, as axios hands a response's headers back.
       const headers = new AxiosHeaders(unmet ? { "x-auth-policy-unmet": unmet } : {});
       const error = new AxiosError("refused", "ERR_BAD_REQUEST");
@@ -512,7 +512,7 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("still says something when the server names nothing", async () => {
-      // An older server answers the same refusal with no header on it.
+      // A refusal that names nothing still gets its own line.
       const user = mounted();
 
       await user.click(requirementRadio());
@@ -521,7 +521,7 @@ describe("SettingsGuildSecurityPage", () => {
       refuse();
 
       expect(
-        screen.getByText(/sign in with that provider yourself before requiring it/i)
+        screen.getByText(/meet this requirement yourself before asking it of others/i)
       ).toBeInTheDocument();
       expect(screen.getByLabelText(/require a passkey/i)).toBeChecked();
       expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();

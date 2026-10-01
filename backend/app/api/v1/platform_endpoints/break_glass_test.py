@@ -413,13 +413,10 @@ async def test_withdrawing_the_authenticator_stops_it_being_asked_for(
     asked = await _break_glass(client, a, guild, reason="incident")
     assert asked.status_code == 401, asked.text
 
-    await auth_posture.set_login_methods(
-        session,
-        methods=[LoginMethod.password, LoginMethod.sso],
-        acknowledge_stranded=None,
-        actor_user_id=owner.user.id,
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(session, owner.user),
+        {"login_methods": frozenset([LoginMethod.password, LoginMethod.sso])},
     )
-    await session.commit()
 
     resp = await _break_glass(client, a, guild, reason="incident")
     assert resp.status_code == 201, resp.text
