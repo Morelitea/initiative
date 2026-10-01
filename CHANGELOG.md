@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **You can see which formatting is on in the document toolbar.** Bold, italic, alignment and the rest now light up when the text under the cursor has them; the toolbar was the same colour as a pressed button. The right-click menu in a document also opens above the bar along the bottom instead of behind it.
 - **Moving an event to another initiative clears its properties.** Its property values belong to the old initiative, so they now go with the move, as they already did for tasks, and so do those on the series' changed occurrences. Before, they stayed hidden on the event where nobody could see or clear them.
 - **A person field keeps its place when that person leaves the initiative.** The field now shows empty on the task, document or event, as it already did when the person lost access through sharing or deleted their account, instead of disappearing from the item.
 - **Two counter steps at the same moment both count.** A step sent through the API or an automation is now one database write, so two landing together no longer lose one.

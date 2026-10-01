@@ -224,13 +224,18 @@ function DocumentToolbar({
     });
   }
 
+  // The spreadsheet toolbar's tint (`muted` at 20%), mixed onto the page rather
+  // than laid over it: this bar and the actions bar below stick over scrolled
+  // text, so both have to be opaque. A full `bg-muted` bar is the same colour as
+  // a pressed button's `bg-accent`, which left bold, italic and the rest with no
+  // visible on state.
   return (
     <OverflowToolbar
       data-editor-toolbar
       items={items}
       label={t("editor.format")}
       moreLabel={t("editor.moreFormatting")}
-      className="vertical-align-middle sticky top-0 z-10 gap-2 border-b bg-muted p-1"
+      className="vertical-align-middle sticky top-0 z-10 gap-2 border-b bg-[color-mix(in_oklab,var(--muted)_20%,var(--background))] p-1"
       rowClassName="gap-2"
     />
   );
@@ -452,7 +457,8 @@ export function Plugins({
       </div>
       {showToolbar && (
         <ActionsPlugin>
-          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-muted p-1">
+          {/* The same fill as the toolbar above, for the same reasons. */}
+          <div className="sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t bg-[color-mix(in_oklab,var(--muted)_20%,var(--background))] p-1">
             <div className="flex flex-1 justify-start"></div>
             <div>
               {/* With a limit, what matters is how much is left; without one,
