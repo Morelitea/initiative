@@ -4,6 +4,7 @@
     .sparkles { animation: sparkle 1.2s ease-in-out infinite; }
     @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
     @keyframes sparkle { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @media (prefers-reduced-motion: reduce) { [class] { animation: none; } }
   </style>
   <g class="body">
     <rect x="3" y="16" width="26" height="12" fill="#8B5E3C"/>

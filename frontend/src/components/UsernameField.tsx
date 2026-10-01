@@ -13,6 +13,9 @@ interface UsernameFieldProps {
   suggestion?: string;
   disabled?: boolean;
   id?: string;
+  /** Told whether the name may go ahead: false while it is being checked or
+   *  after the server refused it. */
+  onUsableChange?: (usable: boolean) => void;
 }
 
 type Availability =
@@ -34,6 +37,7 @@ export const UsernameField = ({
   suggestion,
   disabled,
   id = "username",
+  onUsableChange,
 }: UsernameFieldProps) => {
   const { t } = useTranslation("auth");
   const [availability, setAvailability] = useState<Availability>({ state: "idle" });
@@ -75,6 +79,10 @@ export const UsernameField = ({
     }, 350);
     return () => clearTimeout(timer);
   }, [value]);
+
+  useEffect(() => {
+    onUsableChange?.(availability.state !== "checking" && availability.state !== "taken");
+  }, [availability.state, onUsableChange]);
 
   return (
     <div className="space-y-2">

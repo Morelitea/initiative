@@ -14,6 +14,7 @@ import { createProjectApiV1CGuildIdProjectsPost } from "@/api/generated/projects
 import { invalidate, q } from "@/api/query-keys";
 import { DEFAULT_GRANTS } from "@/components/access/grants";
 import type { GuildEntry } from "@/hooks/useGuilds";
+import { asGuildCategories } from "@/lib/guildCategories";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 export type StartPath = "invite" | "join" | "personal" | "shared";
@@ -21,8 +22,8 @@ export type StartPath = "invite" | "join" | "personal" | "shared";
 export interface StartAnswers {
   path: StartPath;
   inviteCode: string;
-  /** Join: the directory shelf to open on. */
-  category: GuildCategory | null;
+  /** Join: the directory shelves to open on; none opens all of them. */
+  categories: GuildCategory[];
   communityName: string;
   description: string;
   initiativeName: string;
@@ -30,7 +31,8 @@ export interface StartAnswers {
   listName: string;
   /** Shared, where plans are offered: the catalog tier picked. */
   planId: string | null;
-  fullName: string;
+  /** The name part of their handle. */
+  username: string;
   timezone: string;
 }
 
@@ -43,13 +45,13 @@ export const detectedTimezone = (): string =>
 export const freshAnswers = (path: StartPath, inviteCode = ""): StartAnswers => ({
   path,
   inviteCode,
-  category: null,
+  categories: [],
   communityName: "",
   description: "",
   initiativeName: "",
   listName: "",
   planId: null,
-  fullName: "",
+  username: "",
   timezone: detectedTimezone(),
 });
 
@@ -62,7 +64,21 @@ const parse = <T>(raw: string | null): T | null => {
   }
 };
 
-export const readStartDraft = (): StartAnswers | null => parse<StartAnswers>(getItem(DRAFT_KEY));
+/** Answers as saved, on today's shape: anything a saved copy lacks or holds
+ *  in an older form starts empty. */
+const current = (saved: StartAnswers | null): StartAnswers | null => {
+  if (!saved?.path) return null;
+  return {
+    ...freshAnswers(saved.path),
+    ...saved,
+    // A copy saved with a single interest named it `category`.
+    categories: asGuildCategories(saved.categories ?? (saved as { category?: unknown }).category),
+    username: typeof saved.username === "string" ? saved.username : "",
+  };
+};
+
+export const readStartDraft = (): StartAnswers | null =>
+  current(parse<StartAnswers>(getItem(DRAFT_KEY)));
 
 export const saveStartDraft = (answers: StartAnswers): void => {
   void setItem(DRAFT_KEY, JSON.stringify(answers));
@@ -81,7 +97,7 @@ export const savePendingStart = async (email: string, answers: StartAnswers): Pr
 /** The answers left for this account, if any were. */
 export const readPendingStart = (email: string): StartAnswers | null => {
   const pending = parse<PendingStart>(getItem(PENDING_KEY));
-  return pending && pending.email === email.toLowerCase() ? pending.answers : null;
+  return pending && pending.email === email.toLowerCase() ? current(pending.answers) : null;
 };
 
 export const clearStart = async (): Promise<void> => {

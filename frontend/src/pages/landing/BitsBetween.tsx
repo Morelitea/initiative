@@ -85,131 +85,160 @@ export const BitsBetween = () => {
           </h2>
           <p className="mt-3 text-lg text-muted-foreground">{t("between.description")}</p>
         </div>
-        <ul className="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1.5 md:mx-0 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:px-0">
-          <Card title={t("between.comments.title")} body={t("between.comments.body")}>
-            <div className="flex items-start gap-2.5 rounded-xl border bg-card p-3">
-              <span className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-teal-500 font-bold text-[10px] text-white">
-                SM
-              </span>
-              <div className="min-w-0">
-                <p>
-                  <b>{t("between.comments.author")}</b>{" "}
-                  <span className="text-muted-foreground text-xs">{t("between.comments.on")}</span>
-                </p>
-                <p className="mt-0.5">
-                  <span className="rounded bg-primary/15 px-1 font-semibold text-primary">
-                    {t("between.comments.mention")}
-                  </span>{" "}
-                  {t("between.comments.text")}
-                </p>
-                <div className="mt-2 flex gap-1.5 text-xs">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-semibold">
-                    <ThumbsUp className="h-3 w-3" /> 3
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold">
-                    <Heart className="h-3 w-3" /> 1
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold">
-                    <MessageCircle className="h-3 w-3" /> {t("between.comments.replies")}
-                  </span>
+        {/* On a phone the cards are one row that scrolls sideways; the row
+            takes focus so it can be scrolled from a keyboard too. */}
+        <section
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region has to be reachable by keyboard
+          tabIndex={0}
+          aria-label={t("between.cardsAria")}
+          className="-mx-4 snap-x snap-mandatory overflow-x-auto px-4 pb-1.5 focus-visible:outline-2 focus-visible:outline-ring md:mx-0 md:overflow-visible md:px-0"
+        >
+          <ul className="flex w-max gap-2.5 md:grid md:w-auto md:grid-cols-3 md:gap-4">
+            <Card title={t("between.comments.title")} body={t("between.comments.body")}>
+              <div className="flex items-start gap-2.5 rounded-xl border bg-card p-3">
+                <span className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-teal-700 font-bold text-[10px] text-white">
+                  SM
+                </span>
+                <div className="min-w-0">
+                  <p>
+                    <b>{t("between.comments.author")}</b>{" "}
+                    <span className="text-muted-foreground text-xs">
+                      {t("between.comments.on")}
+                    </span>
+                  </p>
+                  <p className="mt-0.5">
+                    <span className="rounded bg-primary/15 px-1 font-semibold text-primary">
+                      {t("between.comments.mention")}
+                    </span>{" "}
+                    {t("between.comments.text")}
+                  </p>
+                  <div className="mt-2 flex gap-1.5 text-xs">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-semibold">
+                      <ThumbsUp className="h-3 w-3" /> 3
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold">
+                      <Heart className="h-3 w-3" /> 1
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold">
+                      <MessageCircle className="h-3 w-3" /> {t("between.comments.replies")}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
 
-          <Card title={t("between.mine.title")} body={t("between.mine.body")}>
-            <Task name={t("between.mine.task1")} where={t("between.mine.where1")} color="#ef4444" />
-            <Task name={t("between.mine.task2")} where={t("between.mine.where2")} color="#14b8a6" />
-            <Task name={t("between.mine.task3")} where={t("between.mine.where3")} color="#8b5cf6" />
-            <Task name={t("between.mine.task4")} where={t("between.mine.where4")} color="#2563eb" />
-          </Card>
+            <Card title={t("between.mine.title")} body={t("between.mine.body")}>
+              <Task
+                name={t("between.mine.task1")}
+                where={t("between.mine.where1")}
+                color="#ef4444"
+              />
+              <Task
+                name={t("between.mine.task2")}
+                where={t("between.mine.where2")}
+                color="#14b8a6"
+              />
+              <Task
+                name={t("between.mine.task3")}
+                where={t("between.mine.where3")}
+                color="#8b5cf6"
+              />
+              <Task
+                name={t("between.mine.task4")}
+                where={t("between.mine.where4")}
+                color="#2563eb"
+              />
+            </Card>
 
-          <Card title={t("between.search.title")} body={t("between.search.body")}>
-            <div className="rounded-xl border bg-card p-2">
-              <div className="flex items-center gap-2 border-b px-1.5 pb-2">
-                <Search className="h-4 w-4" />
-                <span className="flex-1 font-semibold">{t("between.search.query")}</span>
-                <kbd className="rounded border bg-muted px-1.5 font-semibold text-[11px] text-muted-foreground">
-                  Ctrl K
-                </kbd>
+            <Card title={t("between.search.title")} body={t("between.search.body")}>
+              <div className="rounded-xl border bg-card p-2">
+                <div className="flex items-center gap-2 border-b px-1.5 pb-2">
+                  <Search className="h-4 w-4" />
+                  <span className="flex-1 font-semibold">{t("between.search.query")}</span>
+                  <kbd className="rounded border bg-muted px-1.5 font-semibold text-[11px] text-foreground">
+                    Ctrl K
+                  </kbd>
+                </div>
+                <div className="mt-1 flex items-center gap-2 rounded-md bg-primary/10 px-2 py-1">
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="flex-1 truncate">
+                    {highlight(t("between.search.result1"), match)}
+                  </span>
+                  <small className="text-foreground/80 text-xs">{t("between.search.doc")}</small>
+                </div>
+                <div className="flex items-center gap-2 px-2 py-1">
+                  <ListTodo className="h-3.5 w-3.5" />
+                  <span className="flex-1 truncate">
+                    {highlight(t("between.search.result2"), match)}
+                  </span>
+                  <small className="text-muted-foreground text-xs">
+                    {t("between.search.task")}
+                  </small>
+                </div>
+                <div className="flex items-center gap-2 px-2 py-1">
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  <span className="flex-1 truncate">
+                    {highlight(t("between.search.result3"), match)}
+                  </span>
+                  <small className="text-muted-foreground text-xs">
+                    {t("between.search.comment")}
+                  </small>
+                </div>
               </div>
-              <div className="mt-1 flex items-center gap-2 rounded-md bg-primary/10 px-2 py-1">
-                <FileText className="h-3.5 w-3.5" />
-                <span className="flex-1 truncate">
-                  {highlight(t("between.search.result1"), match)}
+            </Card>
+
+            <Card title={t("between.relations.title")} body={t("between.relations.body")}>
+              <Relation
+                label={t("between.relations.blockedBy")}
+                item={t("between.relations.item1")}
+              />
+              <Relation label={t("between.relations.partOf")} item={t("between.relations.item2")} />
+              <Relation
+                label={t("between.relations.mentionedIn")}
+                item={t("between.relations.item3")}
+                doc
+              />
+            </Card>
+
+            <Card title={t("between.notify.title")} body={t("between.notify.body")}>
+              <div className="flex items-start gap-2.5 rounded-xl bg-[#0b1224] px-3.5 py-3 text-slate-200">
+                <Bell className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                <div>
+                  <b className="text-white">{t("between.notify.toastTitle")}</b>
+                  <span className="block text-xs">{t("between.notify.toastWhere")}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2">
+                <span className="flex items-center gap-2 font-semibold">
+                  <Moon className="h-4 w-4" />
+                  {t("between.notify.quiet")}
                 </span>
-                <small className="text-muted-foreground text-xs">{t("between.search.doc")}</small>
-              </div>
-              <div className="flex items-center gap-2 px-2 py-1">
-                <ListTodo className="h-3.5 w-3.5" />
-                <span className="flex-1 truncate">
-                  {highlight(t("between.search.result2"), match)}
+                <span className="text-muted-foreground text-xs">
+                  {t("between.notify.quietHours")}
                 </span>
-                <small className="text-muted-foreground text-xs">{t("between.search.task")}</small>
-              </div>
-              <div className="flex items-center gap-2 px-2 py-1">
-                <MessageCircle className="h-3.5 w-3.5" />
-                <span className="flex-1 truncate">
-                  {highlight(t("between.search.result3"), match)}
+                <span className="relative h-5 w-8.5 shrink-0 rounded-full bg-primary">
+                  <span className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-primary-foreground" />
                 </span>
-                <small className="text-muted-foreground text-xs">
-                  {t("between.search.comment")}
-                </small>
               </div>
-            </div>
-          </Card>
+            </Card>
 
-          <Card title={t("between.relations.title")} body={t("between.relations.body")}>
-            <Relation
-              label={t("between.relations.blockedBy")}
-              item={t("between.relations.item1")}
-            />
-            <Relation label={t("between.relations.partOf")} item={t("between.relations.item2")} />
-            <Relation
-              label={t("between.relations.mentionedIn")}
-              item={t("between.relations.item3")}
-              doc
-            />
-          </Card>
-
-          <Card title={t("between.notify.title")} body={t("between.notify.body")}>
-            <div className="flex items-start gap-2.5 rounded-xl bg-[#0b1224] px-3.5 py-3 text-slate-200">
-              <Bell className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-              <div>
-                <b className="text-white">{t("between.notify.toastTitle")}</b>
-                <span className="block text-xs">{t("between.notify.toastWhere")}</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-2 rounded-xl border bg-card px-3 py-2">
-              <span className="flex items-center gap-2 font-semibold">
-                <Moon className="h-4 w-4" />
-                {t("between.notify.quiet")}
+            <Card title={t("between.messages.title")} body={t("between.messages.body")}>
+              <span className="inline-flex items-center gap-1.5 self-center rounded-full bg-green-100 px-2.5 py-0.5 font-semibold text-green-800 text-xs dark:bg-green-900/40 dark:text-green-200">
+                <Lock className="h-3 w-3" />
+                {t("between.messages.e2e")}
               </span>
-              <span className="text-muted-foreground text-xs">
-                {t("between.notify.quietHours")}
-              </span>
-              <span className="relative h-5 w-8.5 shrink-0 rounded-full bg-primary">
-                <span className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-primary-foreground" />
-              </span>
-            </div>
-          </Card>
-
-          <Card title={t("between.messages.title")} body={t("between.messages.body")}>
-            <span className="inline-flex items-center gap-1.5 self-center rounded-full bg-green-100 px-2.5 py-0.5 font-semibold text-green-800 text-xs dark:bg-green-900/40 dark:text-green-200">
-              <Lock className="h-3 w-3" />
-              {t("between.messages.e2e")}
-            </span>
-            <p className="max-w-[80%] self-start rounded-2xl rounded-bl-sm border bg-card px-3 py-1.5">
-              {t("between.messages.m1")}
-            </p>
-            <p className="max-w-[80%] self-end rounded-2xl rounded-br-sm bg-primary px-3 py-1.5 text-primary-foreground">
-              {t("between.messages.m2")}
-            </p>
-            <p className="max-w-[80%] self-start rounded-2xl rounded-bl-sm border bg-card px-3 py-1.5">
-              {t("between.messages.m3")}
-            </p>
-          </Card>
-        </ul>
+              <p className="max-w-[80%] self-start rounded-2xl rounded-bl-sm border bg-card px-3 py-1.5">
+                {t("between.messages.m1")}
+              </p>
+              <p className="max-w-[80%] self-end rounded-2xl rounded-br-sm bg-primary px-3 py-1.5 text-primary-foreground">
+                {t("between.messages.m2")}
+              </p>
+              <p className="max-w-[80%] self-start rounded-2xl rounded-bl-sm border bg-card px-3 py-1.5">
+                {t("between.messages.m3")}
+              </p>
+            </Card>
+          </ul>
+        </section>
         <p className="mt-6 hidden flex-wrap items-center gap-2.5 rounded-2xl bg-[#0b1224] px-6 py-5 text-slate-200 md:flex">
           <b className="mr-1.5 text-white">{t("between.imports")}</b>
           {IMPORT_SOURCES.map((source) => (

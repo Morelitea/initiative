@@ -37,13 +37,15 @@ Each path asks one or two things — a name for your space, what you're into, wh
 
 **About you** asks for:
 
-- **Your name.** How other people see you. Optional, and changeable later.
+- **Your handle.** The name people find you by, with a number on the end that Initiative picks so nobody has to settle for `jordan7`. Stuck? Tap one of the suggestions under the box. Nobody here has those yet.
 - **Your timezone.** Guessed from your browser, and usually right.
-- **Your date of birth**, on servers that ask for one. Communities anyone can find and join are for people 16 and over, so it's required if you picked **Join a community** and optional otherwise. Initiative works out whether you're old enough and **doesn't keep the date**.
+- **Your date of birth**, on servers that ask for one. Communities anyone can find and join are for people 16 and over, so it's required if you picked **Join a community** and optional otherwise. It's only used to check your age, and it isn't shared with anyone.
+
+Picked **Join a community**? Choose as many interests as you like, and the directory opens on all of them.
 
 ## Step 4: Create your account
 
-Last step. Pick your **handle** — the name people find you by — and give your **email**. Then choose how you'll sign in:
+Last step. Give your **email**, then choose how you'll sign in:
 
 - **Password.** At least **12 characters**. Longer is better.
 - **Passkey.** Your phone or computer unlocks it with a fingerprint, face or PIN, and there's no password to remember.

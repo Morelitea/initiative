@@ -70,11 +70,13 @@ import type {
   SecondFactorStatus,
   SecondFactorStepUpAnswer,
   SignedInSessionInfo,
+  SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams,
   Token,
   UploadTokenResponse,
   UserCreate,
   UserRead,
   UsernameAvailabilityResponse,
+  UsernameSuggestionsResponse,
   VerificationConfirmRequest,
   VerificationSendResponse,
 } from "../initiativeAPI.schemas";
@@ -887,6 +889,169 @@ export const useRefreshAccessTokenApiV1AuthRefreshPost = <
     queryClient
   );
 };
+/**
+ * Name parts nobody holds yet, offered while somebody picks one.
+ *
+ * Unauthenticated for the reason the availability check is. ``seed`` is what
+ * they have typed so far; the suggestions start from it where it is usable.
+ * @summary Suggest Usernames
+ */
+export const suggestUsernamesApiV1AuthUsernameSuggestionsGet = (
+  params?: SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UsernameSuggestionsResponse>(
+    { url: `/api/v1/auth/username-suggestions`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getSuggestUsernamesApiV1AuthUsernameSuggestionsGetQueryKey = (
+  params?: SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams
+) => {
+  return [`/api/v1/auth/username-suggestions`, ...(params ? [params] : [])] as const;
+};
+
+export const getSuggestUsernamesApiV1AuthUsernameSuggestionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getSuggestUsernamesApiV1AuthUsernameSuggestionsGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>
+  > = ({ signal }) =>
+    suggestUsernamesApiV1AuthUsernameSuggestionsGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type SuggestUsernamesApiV1AuthUsernameSuggestionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>
+>;
+export type SuggestUsernamesApiV1AuthUsernameSuggestionsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useSuggestUsernamesApiV1AuthUsernameSuggestionsGet<
+  TData = Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSuggestUsernamesApiV1AuthUsernameSuggestionsGet<
+  TData = Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useSuggestUsernamesApiV1AuthUsernameSuggestionsGet<
+  TData = Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Suggest Usernames
+ */
+
+export function useSuggestUsernamesApiV1AuthUsernameSuggestionsGet<
+  TData = Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof suggestUsernamesApiV1AuthUsernameSuggestionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getSuggestUsernamesApiV1AuthUsernameSuggestionsGetQueryOptions(
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Whether a name part can still be handed out.
  *

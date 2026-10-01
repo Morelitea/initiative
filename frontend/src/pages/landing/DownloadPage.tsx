@@ -31,6 +31,7 @@ import { DarkBand } from "./DarkBand";
 import { LandingShell } from "./LandingShell";
 import { type DesktopOs, detectDesktopOs, detectPlatform, type VisitorPlatform } from "./platform";
 import { useFrontDoor } from "./useFrontDoor";
+import { usePageMeta } from "./usePageMeta";
 
 const INSTALL_GUIDE = docsUrl("getting-started/install-the-app/");
 const BROWSER_INSTALL = `${INSTALL_GUIDE}#install-it-from-the-browser`;
@@ -171,6 +172,7 @@ const PLATFORM_NAME: Record<
 export const DownloadPage = () => {
   const { t } = useTranslation("landing");
   const { config, passkeyLoginEnabled } = useFrontDoor();
+  usePageMeta(t("meta.downloadTitle"), t("meta.downloadDescription"));
   // The Android app only gets push where this server has it switched on.
   const fcm = useGetFcmConfigApiV1SettingsFcmConfigGet({ query: { staleTime: 300_000 } });
   const push = fcm.data?.enabled === true;
