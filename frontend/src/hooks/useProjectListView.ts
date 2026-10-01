@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { useTags } from "@/hooks/useTags";
+import type { ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
 export type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
@@ -92,18 +92,17 @@ export const useProjectListView = ({
     [setPersistedTagFilters]
   );
 
-  const { data: allTags = [] } = useTags();
-  const selectedTagsForFilter = useMemo(() => {
-    const tagMap = new Map(allTags.map((tag) => [tag.id, tag]));
-    return tagFilters
-      .map((id) => tagMap.get(id))
-      .filter((tag): tag is TagRead => tag !== undefined);
-  }, [allTags, tagFilters]);
-
-  const handleTagFiltersChange = useCallback(
-    (nextTags: TagSummary[]) => setTagFilters(nextTags.map((tag) => tag.id)),
-    [setTagFilters]
-  );
+  // The search and the tags are both saved preferences, so the filter fields'
+  // answer writes back only what changed (the fields hand back this render's
+  // values for everything they didn't touch).
+  const filterValue: ToolListFilters<typeof Tool.project> = {
+    search: searchQuery,
+    tag_ids: tagFilters,
+  };
+  const handleFilterChange = (next: ToolListFilters<typeof Tool.project>) => {
+    if (next.search !== filterValue.search) setSearchQuery(next.search ?? "");
+    if (next.tag_ids !== filterValue.tag_ids) setTagFilters(next.tag_ids ?? []);
+  };
 
   // What the filter button reports while the panel is closed. Sort order is
   // deliberately excluded — it reorders the list, it doesn't narrow it, so
@@ -223,16 +222,14 @@ export const useProjectListView = ({
     activeFilterCount,
     /** Spread straight into `<ProjectsFilterBar />`. */
     filterBarProps: {
-      searchQuery,
-      onSearchQueryChange: setSearchQuery,
+      value: filterValue,
+      onChange: handleFilterChange,
       filtersOpen,
       onFiltersOpenChange: setFiltersOpen,
       sortMode,
       onSortModeChange: setSortMode,
       favoritesOnly,
       onFavoritesOnlyChange: setFavoritesOnly,
-      tagFilters: selectedTagsForFilter,
-      onTagFiltersChange: handleTagFiltersChange,
       allowCustomSort,
       onClear: clearFilters,
       activeCount: activeFilterCount,

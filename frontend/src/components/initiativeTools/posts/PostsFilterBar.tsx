@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
-import { Input } from "@/components/ui/input";
+import { ToolFilterFields, type ToolFilterFieldsProps } from "@/components/tools/ToolFilterFields";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -14,9 +15,7 @@ import {
 /** What a board is showing: everything, or only what is still waiting. */
 export type ReadFilter = "all" | "unread";
 
-type PostsFilterBarProps = {
-  searchQuery: string;
-  onSearchQueryChange: (value: string) => void;
+type PostsFilterBarProps = ToolFilterFieldsProps<typeof Tool.post> & {
   readFilter: ReadFilter;
   onReadFilterChange: (value: ReadFilter) => void;
   filtersOpen: boolean;
@@ -29,14 +28,12 @@ type PostsFilterBarProps = {
 };
 
 /**
- * The board's filters, in the panel every other tool list uses.
- *
- * The board had a bare search box beside the toolbar, which is not what the
- * rest of the app does with filters — and it had nowhere to put a second one.
+ * The board's filters, in the panel every other tool list uses: the board's
+ * shared fields, and the read state, which is the reader's own.
  */
 export const PostsFilterBar = ({
-  searchQuery,
-  onSearchQueryChange,
+  value,
+  onChange,
   readFilter,
   onReadFilterChange,
   filtersOpen,
@@ -54,22 +51,7 @@ export const PostsFilterBar = ({
       onClear={onClear}
       activeCount={activeCount}
     >
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="w-full space-y-2 lg:flex-1">
-          {/* Not "by headline": this box is backed by the search index, which
-              holds a notice's body as well as its title, so typing a word from
-              the middle of a post finds it. */}
-          <Label htmlFor="post-search" className="block font-medium text-muted-foreground text-xs">
-            {t("filters.searchLabel")}
-          </Label>
-          <Input
-            id="post-search"
-            placeholder={t("filters.searchPosts")}
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-            className="min-w-60"
-          />
-        </div>
+      <ToolFilterFields tool={Tool.post} value={value} onChange={onChange}>
         <div className="w-full space-y-2 sm:w-48">
           <Label
             htmlFor="post-read-filter"
@@ -79,7 +61,7 @@ export const PostsFilterBar = ({
           </Label>
           <Select
             value={readFilter}
-            onValueChange={(value) => onReadFilterChange(value as ReadFilter)}
+            onValueChange={(next) => onReadFilterChange(next as ReadFilter)}
           >
             <SelectTrigger id="post-read-filter">
               <SelectValue />
@@ -90,7 +72,7 @@ export const PostsFilterBar = ({
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </ToolFilterFields>
     </ToolFilterPanel>
   );
 };

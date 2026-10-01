@@ -19,8 +19,24 @@
   "done": "Done",
   "toolArchiveFilter": {
     "label": "Show",
+    "all": "All",
     "active": "Active",
     "archived": "Archived"
+  },
+  "dateRange": {
+    "any": "Any date",
+    "fromOnly": "From {{date}}",
+    "untilOnly": "Until {{date}}",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "thisQuarter": "This quarter",
+    "thisYear": "This year",
+    "fromLabel": "From",
+    "untilLabel": "Until",
+    "open": "Open",
+    "fromRemove": "Remove the start date",
+    "untilRemove": "Remove the end date",
+    "clear": "Clear dates"
   },
   "yes": "Yes",
   "no": "No",
@@ -109,8 +125,7 @@
     },
     "export": {
       "title": "Export",
-      "description": "Download a copy — a file you can import here or on another server, or a report to read. Only whoever can delete this can export it.",
-      "button": "Export"
+      "description": "Download a copy — a file you can import here or on another server, or a report to read. Only whoever can delete this can export it."
     },
     "title": "Settings",
     "description": "Manage details, access, and advanced options.",

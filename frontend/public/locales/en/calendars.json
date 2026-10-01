@@ -40,7 +40,10 @@
   "dangerZone": "Danger Zone",
   "detailsUpdated": "Details updated",
   "filters": {
-    "heading": "Filters"
+    "heading": "Filters",
+    "dates": "Dates",
+    "searchLabel": "Name or description",
+    "searchCalendars": "Search calendars..."
   },
   "loading": "Loading...",
   "loadError": "Failed to load events",

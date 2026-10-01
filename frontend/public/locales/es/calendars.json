@@ -40,7 +40,10 @@
   "dangerZone": "Zona de peligro",
   "detailsUpdated": "Detalles actualizados",
   "filters": {
-    "heading": "Filtros"
+    "heading": "Filtros",
+    "dates": "Fechas",
+    "searchLabel": "Nombre o descripción",
+    "searchCalendars": "Buscar calendarios..."
   },
   "loading": "Cargando...",
   "loadError": "Error al cargar eventos",

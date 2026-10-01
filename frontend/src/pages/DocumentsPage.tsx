@@ -7,8 +7,6 @@ import { useTranslation } from "react-i18next";
 import type {
   DocumentSummary,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
-  TagRead,
-  TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
@@ -19,9 +17,8 @@ import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialo
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
 import {
-  ALL_DOCUMENT_TYPES,
   DocumentsFilterBar,
-  type DocumentTypeFilter,
+  parsePropertyFilters,
 } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
 import {
@@ -37,9 +34,9 @@ import {
 } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PaginationBar } from "@/components/PaginationBar";
-import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
+import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropOverlay } from "@/components/ui/file-drop";
@@ -104,7 +101,13 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const [searchQuery, setSearchQuery] = useState("");
+  // Search, type and property conditions are session-scoped: a persisted type
+  // or property filter would hide most of the list on the next visit with no
+  // obvious cause. Tags are the one filter kept as a preference (below).
+  const [filters, setFilters] = useState<Omit<ToolListFilters<typeof Tool.document>, "tag_ids">>(
+    {}
+  );
+  const searchQuery = filters.search ?? "";
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
@@ -145,14 +148,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
 
-  const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>([]);
-
-  // Session-scoped like the property conditions above: a persisted type filter
-  // would hide most of the list on the next visit with no obvious cause.
-  const [documentTypeFilter, setDocumentTypeFilter] =
-    useState<DocumentTypeFilter>(ALL_DOCUMENT_TYPES);
-  const queryDocumentType =
-    documentTypeFilter === ALL_DOCUMENT_TYPES ? undefined : documentTypeFilter;
+  const queryDocumentType = filters.document_type ?? undefined;
 
   // Documents and templates are two states of one list, the way the projects
   // list splits its own templates out. It lives in the URL so a templates view
@@ -248,16 +244,6 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const { data: allTags = [] } = useTags();
 
-  // Convert tag IDs to Tag objects for TagPicker
-  const selectedTagsForFilter = useMemo(() => {
-    const tagMap = new Map(allTags.map((tg) => [tg.id, tg]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((tg): tg is TagRead => tg !== undefined);
-  }, [allTags, tagFilters]);
-
-  const handleTagFiltersChange = (newTags: TagSummary[]) => {
-    setTagFilters(newTags.map((tg) => tg.id));
-  };
-
   const handleTreeTagToggle = (fullPath: string, ctrlKey: boolean) => {
     setTreeSelectedPaths((prev) => {
       const next = new Set(prev);
@@ -319,24 +305,21 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   // Reset to page 1 when filters or view mode change — a narrower list can
   // have fewer pages than the one currently shown.
   const queryTagIdsKey = JSON.stringify(queryTagIds);
-  const propertyFiltersKey = JSON.stringify(propertyFilters);
+  // Serialized by the filter fields, the way the backend expects it on
+  // ``property_filters``: a primitive string, so the react-query key stays
+  // stable (same serialization => same cache key).
+  const encodedPropertyFilters = filters.property_filters ?? null;
   useEffect(() => {
     setPage(1);
   }, [
     setPage,
     searchQuery,
     queryTagIdsKey,
-    propertyFiltersKey,
+    encodedPropertyFilters,
     treeWantsUntagged,
-    documentTypeFilter,
+    queryDocumentType,
     viewMode,
   ]);
-
-  // Serialize property filters for the backend query string. The backend
-  // expects a JSON-encoded array on ``property_filters`` and we pre-encode
-  // it just before passing to the hook so the react-query key stays a
-  // primitive string (same serialization => same cache key).
-  const encodedPropertyFilters = propertyFilters.length > 0 ? propertyFiltersKey : null;
 
   const documentsQueryParams: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
@@ -522,13 +505,11 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     (searchQuery.trim() ? 1 : 0) +
     (viewMode === "tags" ? 0 : tagFilters.length) +
     (queryDocumentType ? 1 : 0) +
-    propertyFilters.length;
+    parsePropertyFilters(encodedPropertyFilters).length;
 
   const clearFilters = useCallback(() => {
-    setSearchQuery("");
+    setFilters({});
     setTagFilters([]);
-    setPropertyFilters([]);
-    setDocumentTypeFilter(ALL_DOCUMENT_TYPES);
   }, [setTagFilters]);
 
   // A file dragged in from the desktop lands wherever the cursor is, in any
@@ -661,17 +642,17 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       {documentImport.dialog}
 
       <DocumentsFilterBar
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
+        value={{ ...filters, tag_ids: tagFilters }}
+        onChange={({ tag_ids, ...rest }) => {
+          setFilters(rest);
+          // Tags are a saved preference; write them only when they changed
+          // (the fields hand back this render's array when they didn't).
+          if (tag_ids !== tagFilters) setTagFilters(tag_ids ?? []);
+        }}
+        // The tag view browses by tag through its own tree.
+        tags={viewMode !== "tags"}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
-        viewMode={viewMode}
-        tagFilters={selectedTagsForFilter}
-        onTagFiltersChange={handleTagFiltersChange}
-        documentTypeFilter={documentTypeFilter}
-        onDocumentTypeFilterChange={setDocumentTypeFilter}
-        propertyFilters={propertyFilters}
-        onPropertyFiltersChange={setPropertyFilters}
         onClear={clearFilters}
         activeCount={activeFilterCount}
       />

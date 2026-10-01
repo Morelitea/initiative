@@ -32,6 +32,8 @@
   "wizard": {
     "titleInitiative": "Exporter l’initiative",
     "titleGuild": "Exporter la communauté",
+    "titleEntities_one": "Exporter {{count}} élément",
+    "titleEntities_other": "Exporter {{count}} éléments",
     "back": "Retour",
     "next": "Suivant",
     "start": "Lancer l’export",
@@ -61,12 +63,36 @@
       "documentSpreadsheet": "Tableurs",
       "documentOthersNote": "Les tableaux blancs et les liens s’exportent en JSON ; les fichiers téléversés restent inchangés."
     },
+    "format": {
+      "prompt": "Choisissez un format"
+    },
+    "content": {
+      "prompt": "Choisissez les événements à exporter",
+      "allDatesNote": "Laissez les dates vides pour exporter tous les événements."
+    },
+    "filter": {
+      "toggle": "Filtrer",
+      "toggleFor": "Filtrer : {{tool}}",
+      "eventDates": "Dates des événements"
+    },
+    "filterSummary": {
+      "search": "« {{search}} »",
+      "tags_one": "{{count}} étiquette",
+      "tags_other": "{{count}} étiquettes",
+      "activeOnly": "Actifs uniquement",
+      "archivedOnly": "Archivés uniquement",
+      "more_one": "{{count}} autre filtre",
+      "more_other": "{{count}} autres filtres"
+    },
     "confirm": {
       "prompt": "Prêt à exporter",
       "modeBackup": "Sauvegarde importable",
       "modeReport": "Rapport",
       "uploadsIncluded": "Fichiers téléversés inclus",
       "uploadsExcluded": "Fichiers téléversés exclus",
+      "toolFilters": "{{tool}} : {{filters}}",
+      "selected_one": "{{count}} sélectionné",
+      "selected_other": "{{count}} sélectionnés",
       "note": "L’export s’exécute en arrière-plan — vous pouvez continuer à travailler, nous vous préviendrons quand il sera prêt."
     },
     "progress": {
@@ -75,7 +101,8 @@
     },
     "done": {
       "title": "Export prêt",
-      "note": "Votre téléchargement a commencé. Vous pouvez le retélécharger depuis les paramètres de la communauté jusqu’à son expiration."
+      "note": "Votre téléchargement a commencé. Vous pouvez le retélécharger depuis les paramètres de la communauté jusqu’à son expiration.",
+      "noteInline": "Votre téléchargement a commencé."
     },
     "failed": {
       "title": "Échec de l’export",

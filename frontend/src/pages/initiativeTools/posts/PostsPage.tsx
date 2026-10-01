@@ -18,6 +18,7 @@ import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToo
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { TimelineRail } from "@/components/timeline/TimelineRail";
+import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
@@ -88,7 +89,8 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const router = useRouter();
   const gp = useGuildPath();
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [listFilters, setListFilters] = useState<ToolListFilters<typeof Tool.post>>({});
+  const searchQuery = listFilters.search ?? "";
   const [readFilter, setReadFilter] = useState<ReadFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
   // Which of the board's two states it is showing. An archived notice is off
@@ -153,7 +155,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
 
   const activeFilterCount = (search.trim() ? 1 : 0) + (readFilter === "unread" ? 1 : 0);
   const clearFilters = useCallback(() => {
-    setSearchQuery("");
+    setListFilters({});
     setReadFilter("all");
     setAnchor(null);
   }, []);
@@ -301,8 +303,8 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
         {postImport.dialog}
 
         <PostsFilterBar
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
+          value={listFilters}
+          onChange={setListFilters}
           readFilter={readFilter}
           onReadFilterChange={setReadFilter}
           filtersOpen={filtersOpen}
