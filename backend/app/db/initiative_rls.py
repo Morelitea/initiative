@@ -1014,21 +1014,38 @@ $entity_initiative$;
 """
 
 
+def _property_value_readable(t: str) -> str:
+    """A value is read by whoever can see the thing it is on: one ``EXISTS``
+    into that thing's own table, whose SELECT policies decide it.
+
+    The same lookup :data:`ENTITY_ACCESS_FN` makes for a read, written inline
+    so the planner sees it. A filter reads thousands of values; inline, a scan
+    builds the readable set once, where a call would run once per value.
+    """
+    tables = entity_tables()
+    arms = " ".join(
+        f"WHEN '{kind}' THEN EXISTS (SELECT 1 FROM {tables[kind]} re "  # noqa: S608
+        f"WHERE re.id = {t}.entity_id)"
+        for kind in PROPERTY_TARGETS
+    )
+    return f"(CASE {t}.entity_type {arms} ELSE false END)"
+
+
 def property_values_path() -> InitiativePath:
     """A property value is read by whoever can read the thing it is on, and
     written by whoever can edit that thing.
 
-    Polymorphic over ``(entity_type, entity_id)``, the pair
-    :data:`ENTITY_ACCESS_FN` takes, so every tool and sub-tool is one arm of the
-    same call. A write also asks that the definition belongs to the thing's own
+    Polymorphic over ``(entity_type, entity_id)``. A read is one ``EXISTS`` per
+    kind (:func:`_property_value_readable`); a write is one
+    :data:`ENTITY_ACCESS_FN` call, since a write touches a row at a time. A write also asks that the definition belongs to the thing's own
     initiative: definitions are initiative-level, so a value from another
     initiative's definition — or on a thing that belongs to none — is refused.
     """
 
     def build(t: str, w: bool) -> str:
-        reach = _entity_call(f"{t}.entity_type", f"{t}.entity_id", w, w)
         if not w:
-            return reach
+            return _property_value_readable(t)
+        reach = _entity_call(f"{t}.entity_type", f"{t}.entity_id", w, w)
         return (
             f"({_P.system} OR ({reach} AND EXISTS (SELECT 1 FROM property_definitions pd "  # noqa: S608
             f"WHERE pd.id = {t}.property_id AND pd.initiative_id = "

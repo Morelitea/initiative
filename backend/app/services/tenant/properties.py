@@ -39,7 +39,7 @@ from typing import (
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 from pydantic_core import PydanticCustomError
-from sqlalchemy import func, insert, literal, true
+from sqlalchemy import exists, func, insert, literal, true
 from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -878,6 +878,22 @@ def build_property_value_predicate(
     return None
 
 
+def _value_on(target: str, parent_id: Any, property_id: int, predicate: Any) -> Any:
+    """Whether the row ``parent_id`` names holds a value for ``property_id``
+    that ``predicate`` accepts.
+
+    Correlated to the row rather than ``parent.id IN (…)``: the planner can
+    start from the rows the list has already narrowed to, and the negation is
+    an anti-join, where ``NOT IN`` would read every value of the property.
+    """
+    return exists().where(
+        PropertyValue.entity_type == target,
+        PropertyValue.entity_id == parent_id,
+        PropertyValue.property_id == property_id,
+        predicate,
+    )
+
+
 def property_value_presence_predicate(
     target: str,
     parent_id_column: Any,
@@ -885,7 +901,7 @@ def property_value_presence_predicate(
     property_type: PropertyType,
     is_empty: bool,
 ) -> Any:
-    """Build an IN / NOT IN subquery matching presence of a property value.
+    """Match rows by whether they hold a value for the property.
 
     - ``is_empty=True`` → match rows that either have no value row OR have one
       whose typed column is NULL (multi_select: empty / null JSON array).
@@ -900,14 +916,8 @@ def property_value_presence_predicate(
         # behaves the same way as the UI does for multi-selects.
         non_empty = typed.is_not(None) & (func.jsonb_array_length(typed) > 0)
 
-    subq = select(PropertyValue.entity_id).where(
-        PropertyValue.entity_type == target,
-        PropertyValue.property_id == property_id,
-        non_empty,
-    )
-    if is_empty:
-        return parent_id_column.not_in(subq)
-    return parent_id_column.in_(subq)
+    held = _value_on(target, parent_id_column, property_id, non_empty)
+    return ~held if is_empty else held
 
 
 def build_single_property_clause(
@@ -918,7 +928,7 @@ def build_single_property_clause(
     defn: PropertyDefinition,
 ) -> Any:
     """Compile one property filter condition on ``target`` rows into a single
-    WHERE clause: ``<target>.id IN (SELECT entity_id FROM property_values …)``.
+    WHERE clause: ``EXISTS (SELECT 1 FROM property_values …)`` on the row.
 
     Returns ``None`` when the condition is unsupported (unknown type,
     malformed value) — callers skip it.
@@ -948,12 +958,7 @@ def build_single_property_clause(
     predicate = build_property_value_predicate(column, defn.type, op, value)
     if predicate is None:
         return None
-    subq = select(PropertyValue.entity_id).where(
-        PropertyValue.entity_type == target,
-        PropertyValue.property_id == property_id,
-        predicate,
-    )
-    return parent_id.in_(subq)
+    return _value_on(target, parent_id, property_id, predicate)
 
 
 def build_property_filter_clauses(
