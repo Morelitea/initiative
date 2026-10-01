@@ -37,7 +37,6 @@ import type {
   PostReaders,
   PostUpdate,
   ReadPostApiV1CGuildIdPostsPostIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
   TimelineResponse,
 } from "../initiativeAPI.schemas";
@@ -2123,103 +2122,6 @@ export function useListPostPollVotersApiV1CGuildIdPostsPostIdPollVotersGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Post View
- */
-export const recordPostViewApiV1CGuildIdPostsPostIdViewPost = (
-  guildId: number,
-  postId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/posts/${postId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationKey = () =>
-  ["recordPostViewApiV1CGuildIdPostsPostIdViewPost"] as const;
-
-export const getRecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordPostViewApiV1CGuildIdPostsPostIdViewPost>>,
-    TError,
-    RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordPostViewApiV1CGuildIdPostsPostIdViewPost>>,
-  TError,
-  RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordPostViewApiV1CGuildIdPostsPostIdViewPost>>,
-    RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, postId } = props ?? {};
-
-    return recordPostViewApiV1CGuildIdPostsPostIdViewPost(guildId, postId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordPostViewApiV1CGuildIdPostsPostIdViewPost>>
->;
-
-export type RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationVariables = {
-  guildId: number;
-  postId: number;
-};
-
-/**
- * @summary Record Post View
- */
-export const useRecordPostViewApiV1CGuildIdPostsPostIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordPostViewApiV1CGuildIdPostsPostIdViewPost>>,
-      TError,
-      RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordPostViewApiV1CGuildIdPostsPostIdViewPost>>,
-  TError,
-  RecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordPostViewApiV1CGuildIdPostsPostIdViewPostMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * Replace the post's entire sharing state in one call — the body is the
  * full list of grants (all-initiative-members / per-user / per-role). Every

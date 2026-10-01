@@ -7,7 +7,7 @@ import { TOOL_EXPORT_FORMATS } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { everyCan } from "@/lib/permissions";
-import { toolExportEndpoint, toolExportIdsParam, toolRouteSegment } from "@/lib/tools";
+import { toolExportEndpoint, toolRouteSegment } from "@/lib/tools";
 
 interface BulkExportButtonProps {
   /** The canonical tool — endpoint, selector param, and formats all derive
@@ -35,7 +35,7 @@ export function BulkExportButton({ tool, items }: BulkExportButtonProps) {
   return (
     <ExportButton
       endpoint={toolExportEndpoint(tool)}
-      params={{ [toolExportIdsParam(tool)]: items.map((item) => item.id) }}
+      params={{ ids: items.map((item) => item.id) }}
       formats={formats}
       filenameStem={exportFilenameStem(toolRouteSegment(tool), toolRouteSegment(tool))}
     />

@@ -498,9 +498,10 @@ const galleryImages = (galleryId: number): Spec => ({
 // ── Wikis (guild) ────────────────────────────────────────────────────────────
 
 /** A wiki's pages — the tree, each page's own read, and its connections —
- *  without the wiki row itself. */
+ *  without the wiki row itself. A page is read by its own id
+ *  (`/wiki-pages/{id}`), which names no wiki, so every page read goes too. */
 const wikiPages = (wikiId: number): Spec => ({
-  guildPrefix: [`/api/v1/wikis/${wikiId}/pages`],
+  guildPrefix: [`/api/v1/wikis/${wikiId}/pages`, "/api/v1/wiki-pages"],
 });
 
 // ── Version (personal) ───────────────────────────────────────────────────────

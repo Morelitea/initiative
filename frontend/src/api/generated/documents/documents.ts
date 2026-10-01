@@ -38,7 +38,6 @@ import type {
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
   PropertyValuesSetRequest,
   ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
   SpreadsheetImportRead,
 } from "../initiativeAPI.schemas";
@@ -2047,107 +2046,6 @@ export const useImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheet
     getImportSpreadsheetFileApiV1CGuildIdDocumentsDocumentIdSpreadsheetImportPostMutationOptions(
       options
     ),
-    queryClient
-  );
-};
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Document View
- */
-export const recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost = (
-  guildId: number,
-  documentId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/documents/${documentId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationKey = () =>
-  ["recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost"] as const;
-
-export const getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
-    TError,
-    RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
-  TError,
-  RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
-    RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, documentId } = props ?? {};
-
-    return recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost(
-      guildId,
-      documentId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>
->;
-
-export type RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables = {
-  guildId: number;
-  documentId: number;
-};
-
-/**
- * @summary Record Document View
- */
-export const useRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
-      TError,
-      RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPost>>,
-  TError,
-  RecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordDocumentViewApiV1CGuildIdDocumentsDocumentIdViewPostMutationOptions(options),
     queryClient
   );
 };

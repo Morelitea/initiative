@@ -34,10 +34,10 @@ describe("useRecordRecentView", () => {
     ];
     queryClient.setQueryData<RecentItemRead[]>(key, [first, reopened]);
     server.use(
-      guildHttp.post("/projects/:projectId/view", ({ params }) =>
+      guildHttp.post("/recents/:entityType/:entityId", ({ params }) =>
         HttpResponse.json({
           entity_type: "project",
-          entity_id: Number(params.projectId),
+          entity_id: Number(params.entityId),
           last_viewed_at: VIEWED_AT,
         })
       )
@@ -58,10 +58,10 @@ describe("useRecordRecentView", () => {
 
     // An answer for an earlier view, arriving last, does not jump the queue.
     server.use(
-      guildHttp.post("/projects/:projectId/view", ({ params }) =>
+      guildHttp.post("/recents/:entityType/:entityId", ({ params }) =>
         HttpResponse.json({
           entity_type: "project",
-          entity_id: Number(params.projectId),
+          entity_id: Number(params.entityId),
           last_viewed_at: "2026-09-30T11:30:00.000Z",
         })
       )

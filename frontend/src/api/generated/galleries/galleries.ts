@@ -38,7 +38,6 @@ import type {
   ListGalleriesApiV1CGuildIdGalleriesGetParams,
   ListGalleryImagesApiV1CGuildIdGalleriesGalleryIdImagesGetParams,
   ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
   TimelineResponse,
 } from "../initiativeAPI.schemas";
@@ -2427,107 +2426,6 @@ export const useDeleteGalleryImageVersionApiV1CGuildIdGalleriesGalleryIdImagesIm
       queryClient
     );
   };
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Gallery View
- */
-export const recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost = (
-  guildId: number,
-  galleryId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/galleries/${galleryId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationKey = () =>
-  ["recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost"] as const;
-
-export const getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
-    TError,
-    RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
-  TError,
-  RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
-    RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, galleryId } = props ?? {};
-
-    return recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost(
-      guildId,
-      galleryId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>
->;
-
-export type RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables = {
-  guildId: number;
-  galleryId: number;
-};
-
-/**
- * @summary Record Gallery View
- */
-export const useRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
-      TError,
-      RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPost>>,
-  TError,
-  RecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordGalleryViewApiV1CGuildIdGalleriesGalleryIdViewPostMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * Replace the gallery's entire sharing state in one call — the body is
  * the full list of grants. Every non-owner grant is rebuilt from it; the

@@ -196,15 +196,15 @@ describe("ToolSettingsAdvancedPage", () => {
 
     expect(await screen.findByRole("button", { name: "Archive" })).toBeInTheDocument();
   });
-  it("offers the owner an export of the tool, by the tool's own id", async () => {
+  it("offers the owner an export of the tool", async () => {
     resetFactories();
-    let sent: { format: string | null; queue_id: string | null } | null = null;
+    let sent: { format: string | null; ids: string | null } | null = null;
     server.use(
       guildHttp.get("/exports/queue", ({ request }) => {
         const url = new URL(request.url);
         sent = {
           format: url.searchParams.get("format"),
-          queue_id: url.searchParams.get("queue_id"),
+          ids: url.searchParams.get("ids"),
         };
         return new HttpResponse("a,b", { status: 200, headers: { "Content-Type": "text/csv" } });
       })
@@ -215,7 +215,7 @@ describe("ToolSettingsAdvancedPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Export" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
 
-    await waitFor(() => expect(sent).toEqual({ format: "csv", queue_id: "7" }));
+    await waitFor(() => expect(sent).toEqual({ format: "csv", ids: "7" }));
   });
 
   it("offers no export to someone who may edit it but not delete it", async () => {

@@ -321,21 +321,21 @@ export const entityRefRoute = (refType: string, id: number): string => `/go/${re
  *  settings page reads the id without a per-tool lookup. */
 export const toolParamName = (tool: Tool): string => `${toolCamelSingular(tool)}Id`;
 
-/** "counter_group" → "counter-group". The KEBAB SINGULAR: export-engine source
- * name, envelope discriminator, and entity-ref segment. */
+/** "counter_group" → "counter-group". The KEBAB SINGULAR: envelope
+ * discriminator and entity-ref segment. */
 export const toolKebabSingular = (tool: Tool): string => tool.replaceAll("_", "-");
 
-/** Export-engine endpoint (relative to /c/{guildId}), e.g. "/exports/counter-group"
- * — the engine's source name is the KEBAB SINGULAR of the tool. */
-export const toolExportEndpoint = (tool: Tool): string => `/exports/${toolKebabSingular(tool)}`;
+/** Export endpoint (relative to /c/{guildId}), e.g. "/exports/counter_group".
+ * It takes the selection as `ids`. */
+export const toolExportEndpoint = (tool: Tool): string => `/exports/${tool}`;
 
 /**
  * The `{tool}_id` field that names one tool entity in a payload, e.g.
  * "counter_group_id".
  *
- * One spelling, three uses: the comment column a thread hangs off (backend
- * `_COMMENT_PARENTS`), the id the realtime bus puts in a comment envelope, and
- * the single-entity export selector. They agree because they are this rule.
+ * One spelling, two uses: the comment column a thread hangs off (backend
+ * `_COMMENT_PARENTS`) and the id the realtime bus puts in a comment envelope.
+ * They agree because they are this rule.
  */
 export const toolIdParam = (tool: Tool): string => `${tool}_id`;
 
@@ -347,9 +347,6 @@ export const toolEnvelopeType = (tool: Tool): string => `initiative-${toolKebabS
  * or null for an unknown/backup type. */
 export const toolForEnvelopeType = (type: string): Tool | null =>
   BULK_EXPORT_TOOLS.find((tool) => toolEnvelopeType(tool) === type) ?? null;
-
-/** Bulk-selection export selector param, e.g. "counter_group_ids". */
-export const toolExportIdsParam = (tool: Tool): string => `${tool}_ids`;
 
 /** nav.json label key, e.g. "counterGroups". Typed against the nav namespace
  * so `t(toolNavLabelKey(tool))` satisfies typed i18next — the drift test

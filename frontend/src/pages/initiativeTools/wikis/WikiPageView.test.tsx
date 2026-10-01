@@ -70,7 +70,7 @@ beforeEach(() => {
   server.use(
     guildHttp.get("/wikis/:wikiId", () => HttpResponse.json(wiki)),
     guildHttp.get("/wikis/:wikiId/pages", () => HttpResponse.json({ items: Object.values(pages) })),
-    guildHttp.get("/wikis/:wikiId/pages/:pageId", ({ params }) =>
+    guildHttp.get("/wiki-pages/:pageId", ({ params }) =>
       HttpResponse.json(pages[params.pageId as string])
     ),
     guildHttp.get("/wikis/:wikiId/pages/:pageId/links", () =>

@@ -33,7 +33,6 @@ import type {
   ProjectReorderRequest,
   ProjectUpdate,
   ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
 
@@ -1472,107 +1471,6 @@ export const useReorderProjectsApiV1CGuildIdProjectsReorderPost = <
 > => {
   return useMutation(
     getReorderProjectsApiV1CGuildIdProjectsReorderPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Project View
- */
-export const recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost = (
-  guildId: number,
-  projectId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/projects/${projectId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationKey = () =>
-  ["recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost"] as const;
-
-export const getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
-    TError,
-    RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
-  TError,
-  RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
-    RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, projectId } = props ?? {};
-
-    return recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost(
-      guildId,
-      projectId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>
->;
-
-export type RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables = {
-  guildId: number;
-  projectId: number;
-};
-
-/**
- * @summary Record Project View
- */
-export const useRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
-      TError,
-      RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordProjectViewApiV1CGuildIdProjectsProjectIdViewPost>>,
-  TError,
-  RecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordProjectViewApiV1CGuildIdProjectsProjectIdViewPostMutationOptions(options),
     queryClient
   );
 };

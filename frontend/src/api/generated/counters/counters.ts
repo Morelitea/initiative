@@ -35,7 +35,6 @@ import type {
   ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
   ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
 
@@ -2062,109 +2061,6 @@ export function useReadCounterApiV1CGuildIdCountersCounterIdGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Counter Group View
- */
-export const recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost = (
-  guildId: number,
-  groupId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/counter-groups/${groupId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationKey = () =>
-  ["recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost"] as const;
-
-export const getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
-    TError,
-    RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
-  TError,
-  RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey =
-    getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
-    RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, groupId } = props ?? {};
-
-    return recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost(
-      guildId,
-      groupId,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>
-  >;
-
-export type RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables = {
-  guildId: number;
-  groupId: number;
-};
-
-/**
- * @summary Record Counter Group View
- */
-export const useRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
-      TError,
-      RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPost>>,
-  TError,
-  RecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordCounterGroupViewApiV1CGuildIdCounterGroupsGroupIdViewPostMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * Replace the counter group's entire sharing state in one call — the body
  * is the full list of grants (all-initiative-members / per-user / per-role).

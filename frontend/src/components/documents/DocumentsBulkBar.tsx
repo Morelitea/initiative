@@ -10,7 +10,7 @@ import { documentSelectionFormats } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { everyCan } from "@/lib/permissions";
-import { toolExportEndpoint, toolExportIdsParam } from "@/lib/tools";
+import { toolExportEndpoint } from "@/lib/tools";
 
 interface DocumentsBulkBarProps {
   selectedDocuments: DocumentSummary[];
@@ -64,9 +64,7 @@ export function DocumentsBulkBar({
           ) : exportFormats.length > 0 ? (
             <ExportButton
               endpoint={toolExportEndpoint(Tool.document)}
-              params={{
-                [toolExportIdsParam(Tool.document)]: selectedDocuments.map((d) => d.id),
-              }}
+              params={{ ids: selectedDocuments.map((d) => d.id) }}
               formats={exportFormats}
               filenameStem={exportFilenameStem("documents", "documents")}
             />

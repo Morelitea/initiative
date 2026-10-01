@@ -24,6 +24,7 @@ import type {
   HTTPValidationError,
   RecentEntityType,
   RecentItemRead,
+  RecentViewWrite,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -170,6 +171,111 @@ export function useListRecentsApiV1RecentsGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * Open a tab: record that the caller opened this entity.
+ *
+ * Takes read access, the same the entity's own page takes, and refuses in
+ * the tool's own words. A PAM grantee's browsing is transient by design and
+ * is not stored.
+ * @summary Record Recent
+ */
+export const recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost = (
+  guildId: number,
+  entityType: RecentEntityType,
+  entityId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<RecentViewWrite>(
+    { url: `/api/v1/c/${guildId}/recents/${entityType}/${entityId}`, method: "POST", signal },
+    options
+  );
+};
+
+export const getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationKey = () =>
+  ["recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost"] as const;
+
+export const getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+    TError,
+    RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+  TError,
+  RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+    RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables
+  > = (props) => {
+    const { guildId, entityType, entityId } = props ?? {};
+
+    return recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost(
+      guildId,
+      entityType,
+      entityId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>
+>;
+
+export type RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables = {
+  guildId: number;
+  entityType: RecentEntityType;
+  entityId: number;
+};
+
+/**
+ * @summary Record Recent
+ */
+export const useRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+      TError,
+      RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof recordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPost>>,
+  TError,
+  RecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRecordRecentApiV1CGuildIdRecentsEntityTypeEntityIdPostMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * Close a tab: delete the caller's own recent-view row.
  *

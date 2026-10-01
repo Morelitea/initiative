@@ -10458,190 +10458,6 @@ export type ExportEventsApiV1CGuildIdExportsEventsGetParams = {
   tz?: string | null;
 };
 
-export type ExportProjectApiV1CGuildIdExportsProjectGetParams = {
-  project_id?: number | null;
-  /**
-   * Bulk selection: one artifact per project, zipped
-   */
-  project_ids?: number[] | null;
-  format?: ExportProjectApiV1CGuildIdExportsProjectGetFormat;
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportProjectApiV1CGuildIdExportsProjectGetFormat =
-  (typeof ExportProjectApiV1CGuildIdExportsProjectGetFormat)[keyof typeof ExportProjectApiV1CGuildIdExportsProjectGetFormat];
-
-export const ExportProjectApiV1CGuildIdExportsProjectGetFormat = {
-  json: "json",
-  pdf: "pdf",
-  csv: "csv",
-  xlsx: "xlsx",
-} as const;
-
-export type ExportDocumentApiV1CGuildIdExportsDocumentGetParams = {
-  document_id?: number | null;
-  /**
-   * Bulk selection: one artifact per document, zipped. The format must be valid for every selected document's type.
-   */
-  document_ids?: number[] | null;
-  format: ExportDocumentApiV1CGuildIdExportsDocumentGetFormat;
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportDocumentApiV1CGuildIdExportsDocumentGetFormat =
-  (typeof ExportDocumentApiV1CGuildIdExportsDocumentGetFormat)[keyof typeof ExportDocumentApiV1CGuildIdExportsDocumentGetFormat];
-
-export const ExportDocumentApiV1CGuildIdExportsDocumentGetFormat = {
-  json: "json",
-  md: "md",
-  pdf: "pdf",
-  docx: "docx",
-  csv: "csv",
-  xlsx: "xlsx",
-  file: "file",
-} as const;
-
-export type ExportQueueApiV1CGuildIdExportsQueueGetParams = {
-  queue_id?: number | null;
-  /**
-   * Bulk selection: one artifact per queue, zipped
-   */
-  queue_ids?: number[] | null;
-  format?: ExportQueueApiV1CGuildIdExportsQueueGetFormat;
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportQueueApiV1CGuildIdExportsQueueGetFormat =
-  (typeof ExportQueueApiV1CGuildIdExportsQueueGetFormat)[keyof typeof ExportQueueApiV1CGuildIdExportsQueueGetFormat];
-
-export const ExportQueueApiV1CGuildIdExportsQueueGetFormat = {
-  json: "json",
-  pdf: "pdf",
-  csv: "csv",
-  xlsx: "xlsx",
-  md: "md",
-} as const;
-
-export type ExportCounterGroupApiV1CGuildIdExportsCounterGroupGetParams = {
-  counter_group_id?: number | null;
-  /**
-   * Bulk selection: one artifact per group, zipped
-   */
-  counter_group_ids?: number[] | null;
-  format?: ExportCounterGroupApiV1CGuildIdExportsCounterGroupGetFormat;
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportCounterGroupApiV1CGuildIdExportsCounterGroupGetFormat =
-  (typeof ExportCounterGroupApiV1CGuildIdExportsCounterGroupGetFormat)[keyof typeof ExportCounterGroupApiV1CGuildIdExportsCounterGroupGetFormat];
-
-export const ExportCounterGroupApiV1CGuildIdExportsCounterGroupGetFormat = {
-  json: "json",
-  pdf: "pdf",
-  csv: "csv",
-  xlsx: "xlsx",
-  md: "md",
-} as const;
-
-export type ExportDashboardApiV1CGuildIdExportsDashboardGetParams = {
-  dashboard_id?: number | null;
-  /**
-   * Bulk selection: one artifact per dashboard, zipped
-   */
-  dashboard_ids?: number[] | null;
-  format?: "json";
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportPostApiV1CGuildIdExportsPostGetParams = {
-  post_id?: number | null;
-  /**
-   * Bulk selection: one artifact per post, zipped
-   */
-  post_ids?: number[] | null;
-  format?: "json";
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportWikiApiV1CGuildIdExportsWikiGetParams = {
-  wiki_id?: number | null;
-  /**
-   * Bulk selection: one artifact per wiki, zipped
-   */
-  wiki_ids?: number[] | null;
-  format?: ExportWikiApiV1CGuildIdExportsWikiGetFormat;
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportWikiApiV1CGuildIdExportsWikiGetFormat =
-  (typeof ExportWikiApiV1CGuildIdExportsWikiGetFormat)[keyof typeof ExportWikiApiV1CGuildIdExportsWikiGetFormat];
-
-export const ExportWikiApiV1CGuildIdExportsWikiGetFormat = {
-  json: "json",
-  pdf: "pdf",
-  md: "md",
-  docx: "docx",
-} as const;
-
-export type ExportGalleryApiV1CGuildIdExportsGalleryGetParams = {
-  gallery_id?: number | null;
-  /**
-   * Bulk selection: one artifact per gallery, zipped
-   */
-  gallery_ids?: number[] | null;
-  format?: "json";
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportCalendarsApiV1CGuildIdExportsCalendarGetParams = {
-  calendar_id?: number | null;
-  /**
-   * Bulk selection of calendars
-   */
-  calendar_ids?: number[] | null;
-  /**
-   * All exportable calendars in this initiative (ignored when ids given)
-   */
-  initiative_id?: number | null;
-  format?: ExportCalendarsApiV1CGuildIdExportsCalendarGetFormat;
-  /**
-   * IANA timezone for report timestamps
-   */
-  tz?: string | null;
-};
-
-export type ExportCalendarsApiV1CGuildIdExportsCalendarGetFormat =
-  (typeof ExportCalendarsApiV1CGuildIdExportsCalendarGetFormat)[keyof typeof ExportCalendarsApiV1CGuildIdExportsCalendarGetFormat];
-
-export const ExportCalendarsApiV1CGuildIdExportsCalendarGetFormat = {
-  ics: "ics",
-  json: "json",
-} as const;
-
 export type EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams = {
   scope: EstimateAggregateExportApiV1CGuildIdExportsEstimateGetScope;
   /**
@@ -10715,6 +10531,25 @@ export const ExportGuildApiV1CGuildIdExportsCommunityGetMode = {
   backup: "backup",
   report: "report",
 } as const;
+
+export type ExportToolApiV1CGuildIdExportsToolGetParams = {
+  /**
+   * What to export: one artifact per id, zipped when there is more than one
+   */
+  ids?: number[] | null;
+  /**
+   * One of the tool's export formats: ``json`` (the importable envelope) for every tool, plus the tool's report formats. A document's formats depend on its type, so it has no default; a calendar defaults to ``ics``
+   */
+  format?: string | null;
+  /**
+   * Calendars only: with no ids, every calendar the caller may export in this initiative
+   */
+  initiative_id?: number | null;
+  /**
+   * IANA timezone for report timestamps
+   */
+  tz?: string | null;
+};
 
 export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody = {
   [key: string]: unknown;
@@ -11149,24 +10984,9 @@ export type ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams = {
 export type ListMyTasksApiV1MeTasksGetParams = {
   conditions?: (FilterCondition | FilterGroup)[];
   /**
-   * Include archived tasks
+   * The tasks you created instead of the ones assigned to you
    */
-  include_archived?: boolean;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  page_size?: number;
-  sorting?: SortField[];
-  tz?: string | null;
-};
-
-export type ListMyCreatedTasksApiV1MeTasksCreatedGetParams = {
-  conditions?: (FilterCondition | FilterGroup)[];
+  created?: boolean;
   /**
    * Include archived tasks
    */

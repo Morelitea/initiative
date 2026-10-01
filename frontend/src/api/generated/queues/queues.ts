@@ -32,7 +32,6 @@ import type {
   QueueReleaseRequest,
   QueueUpdate,
   ReadQueueApiV1CGuildIdQueuesQueueIdGetParams,
-  RecentViewWrite,
   ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
 
@@ -1786,103 +1785,6 @@ export const useReleaseHeldItemApiV1CGuildIdQueuesQueueIdReleaseItemIdPost = <
 > => {
   return useMutation(
     getReleaseHeldItemApiV1CGuildIdQueuesQueueIdReleaseItemIdPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Record that the caller opened this entity, for the tabs bar.
- *
- * Takes read access, the same the entity's own page takes. A PAM
- * grantee's browsing is transient by design and is not stored.
- * @summary Record Queue View
- */
-export const recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost = (
-  guildId: number,
-  queueId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${guildId}/queues/${queueId}/view`, method: "POST", signal },
-    options
-  );
-};
-
-export const getRecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationKey = () =>
-  ["recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost"] as const;
-
-export const getRecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost>>,
-    TError,
-    RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost>>,
-  TError,
-  RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getRecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost>>,
-    RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationVariables
-  > = (props) => {
-    const { guildId, queueId } = props ?? {};
-
-    return recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost(guildId, queueId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost>>
->;
-
-export type RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationVariables = {
-  guildId: number;
-  queueId: number;
-};
-
-/**
- * @summary Record Queue View
- */
-export const useRecordQueueViewApiV1CGuildIdQueuesQueueIdViewPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost>>,
-      TError,
-      RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof recordQueueViewApiV1CGuildIdQueuesQueueIdViewPost>>,
-  TError,
-  RecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getRecordQueueViewApiV1CGuildIdQueuesQueueIdViewPostMutationOptions(options),
     queryClient
   );
 };
