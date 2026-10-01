@@ -21,7 +21,7 @@ from app.main import (
     SecurityHeadersMiddleware,
     validation_exception_handler,
 )
-from app.testing import create_app_service_registration
+from app.testing import captcha_switched_on, create_app_service_registration
 
 
 async def test_validation_handler_strips_input_and_url() -> None:
@@ -72,20 +72,10 @@ async def test_csp_admits_the_stored_captcha_provider(
 ) -> None:
     # The provider is a setting, so the header follows the stored value rather
     # than the env the process started with.
-    from app.services import captcha_config
-
     monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", None)
-    monkeypatch.setattr(
-        captcha_config,
-        "_resolved",
-        captcha_config.ResolvedCaptchaConfig(
-            provider="turnstile", site_key="site", secret_key="secret"
-        ),
-    )
-    resp = await client.get("/api/v1/config")
-    assert "https://challenges.cloudflare.com" in resp.headers.get(
-        "content-security-policy", ""
-    )
+    with captcha_switched_on():
+        resp = await client.get("/api/v1/config")
+    assert "https://*.hcaptcha.com" in resp.headers.get("content-security-policy", "")
 
 
 # --- WebAssembly worker assets (WebAssembly is named on these responses only) ---
