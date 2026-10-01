@@ -125,8 +125,6 @@ export type ToolIndexEntry = {
     emptyTitle: string;
     emptyBody: string;
   };
-  /** Its list arrives a page at a time, and the page is carried in the URL. */
-  paginated?: boolean;
 };
 
 /** A tool that is not browsed as a grid of cards, and what it is instead. */
@@ -150,6 +148,8 @@ const useWikiRows = (initiativeId: number, filters: ToolIndexFilters): ToolIndex
     ...filters.list,
     initiative_id: initiativeId,
     archived: filters.archived,
+    page: filters.page,
+    page_size: filters.pageSize,
   });
 
   const rows = useMemo(
@@ -171,6 +171,8 @@ const useGalleryRows = (initiativeId: number, filters: ToolIndexFilters): ToolIn
     ...filters.list,
     initiative_id: initiativeId,
     archived: filters.archived,
+    page: filters.page,
+    page_size: filters.pageSize,
   });
 
   const rows = useMemo(
@@ -294,7 +296,6 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
       emptyTitle: "noQueues",
       emptyBody: "noQueuesDescription",
     },
-    paginated: true,
   },
 
   [Tool.counter_group]: {
@@ -307,7 +308,6 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
       emptyTitle: "noGroups",
       emptyBody: "noGroupsDescription",
     },
-    paginated: true,
   },
 
   [Tool.dashboard]: {
@@ -320,7 +320,6 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
       emptyTitle: "noDashboards",
       emptyBody: "noDashboardsDescription",
     },
-    paginated: true,
   },
 
   [Tool.gallery]: {
@@ -354,10 +353,9 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
 /**
  * Which page of the list is showing, kept in the URL so a deep link lands on it
- * and the back button walks through the pages that were read. Inert for a tool
- * whose whole shelf arrives at once — the URL keeps no page it cannot turn.
+ * and the back button walks through the pages that were read.
  */
-const useListPage = (paginated: boolean) => {
+const useListPage = () => {
   const router = useRouter();
   const search = useSearch({ strict: false }) as { create?: string; page?: number };
 
@@ -370,7 +368,6 @@ const useListPage = (paginated: boolean) => {
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
-      if (!paginated) return;
       setPageState((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
         void router.navigate({
@@ -381,7 +378,7 @@ const useListPage = (paginated: boolean) => {
         return next;
       });
     },
-    [router, paginated]
+    [router]
   );
 
   return { page, pageSize, setPage, setPageSize };
@@ -418,7 +415,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   // the live list, so this is the only place they can be reached.
   const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
 
-  const { page, pageSize, setPage, setPageSize } = useListPage(Boolean(entry.paginated));
+  const { page, pageSize, setPage, setPageSize } = useListPage();
 
   const list = entry.useList(fixedInitiativeId, {
     list: {
@@ -549,19 +546,17 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
             ))}
           </div>
 
-          {entry.paginated ? (
-            <PaginationBar
-              page={page}
-              pageSize={pageSize}
-              totalCount={list.totalCount}
-              hasNext={list.hasNext}
-              onPageChange={setPage}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
-              }}
-            />
-          ) : null}
+          <PaginationBar
+            page={page}
+            pageSize={pageSize}
+            totalCount={list.totalCount}
+            hasNext={list.hasNext}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </>
       ) : activeFilterCount > 0 ? (
         <p className="text-muted-foreground text-sm">{t(entry.text.noMatches)}</p>

@@ -76,7 +76,11 @@
       "toggle": "Filter",
       "toggleFor": "Filter {{tool}}",
       "eventDates": "Event dates",
-      "tasks": "Tasks in each project"
+      "tasks": "Tasks in each project",
+      "templates": "Templates",
+      "withoutTemplates": "Without templates",
+      "templatesOnly": "Templates only",
+      "untaggedOnly": "Untagged only"
     },
     "filterSummary": {
       "search": "“{{search}}”",

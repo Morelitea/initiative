@@ -319,6 +319,61 @@ describe("ExportWizard", () => {
     expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
   });
 
+  it("narrows projects and documents by templates, and documents to untagged ones", async () => {
+    const estimates: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/estimate", ({ request }) => {
+        estimates.push(new URL(request.url).searchParams);
+        return HttpResponse.json(ESTIMATE);
+      })
+    );
+    let sent: URL | null = null;
+    stubJobLifecycle((url) => {
+      sent = url;
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    await user.click(screen.getByRole("button", { name: /importable backup/i }));
+    await screen.findByText("3 items");
+
+    const projects = screen.getByRole("group", { name: "Projects" });
+    await user.click(within(projects).getByRole("button", { name: "Filter Projects" }));
+    await user.click(
+      within(within(projects).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
+        name: "Templates only",
+      })
+    );
+
+    const documents = screen.getByRole("group", { name: "Documents" });
+    await user.click(within(documents).getByRole("button", { name: "Filter Documents" }));
+    await user.click(
+      within(within(documents).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
+        name: "Without templates",
+      })
+    );
+    await user.click(within(documents).getByRole("switch", { name: "Untagged only" }));
+
+    const expected = {
+      project: { template: true },
+      document: { is_template: false, untagged: true },
+    };
+    await waitFor(() =>
+      expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
+    );
+    expect(within(documents).getByRole("button", { name: "Filter Documents" })).toHaveTextContent(
+      "2"
+    );
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Projects: Templates only")).toBeInTheDocument();
+    expect(screen.getByText("Documents: Without templates · Untagged only")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
+  });
+
   it("narrows each project's tasks by the task list's filters", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(

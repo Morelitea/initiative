@@ -8,12 +8,7 @@ type QueuesViewProps = {
   canCreate?: boolean;
 };
 
-/**
- * An initiative's queues, as cards.
- *
- * The only tool list that pages: a queue carries its items with it, so a shelf
- * of them is worth asking for twenty at a time rather than fifty.
- */
+/** An initiative's queues, as cards. */
 export const QueuesView = (props: QueuesViewProps) => (
   <ToolIndexPage tool={Tool.queue} {...props} />
 );

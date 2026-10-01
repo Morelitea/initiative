@@ -199,6 +199,21 @@ describe("the tool index page", () => {
     );
   });
 
+  it.each(CASES)("$tool asks for its list a page at a time", async ({ tool }) => {
+    const requests = stubList(tool, [row(tool, { id: 1, name: "Paged" })]);
+
+    renderIndex(tool);
+
+    expect(await screen.findByText("Paged")).toBeInTheDocument();
+    expect(requests.at(-1)?.get("page")).toBe("1");
+    expect(requests.at(-1)?.get("page_size")).toBe("20");
+    expect(
+      screen.getByText(
+        translate("pagination.rangeOf", { ns: "common", start: 1, end: 1, total: 1 })
+      )
+    ).toBeInTheDocument();
+  });
+
   it.each(CASES)("$tool opens a row at its own address", async ({ tool }) => {
     stubList(tool, [row(tool, { id: 7, name: "Openable" })]);
 
