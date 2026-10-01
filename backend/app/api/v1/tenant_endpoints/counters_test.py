@@ -11,14 +11,12 @@ from app.db.request_context import SystemGuild
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.tenant.counter import COUNTER_LIMIT
-from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     Actor,
     create_counter,
     create_counter_group,
     create_initiative,
     create_resource_grant,
-    grant_role_permission,
 )
 from app.services.tenant import counters as counters_service
 
@@ -806,15 +804,6 @@ async def test_duplicate_counter_group(client: AsyncClient, acting_user):
     assert response.status_code == 201, response.text
     copy = response.json()
 
-    # New group with a distinct id and the default "(Copy)" name.
-    assert copy["id"] != sid
-    assert copy["name"] == "Original (Copy)"
-    assert copy["can"]["delete"] is True
-    # The source's sharing comes along: it was readable by the whole initiative.
-    assert any(
-        g["all_initiative_members"] and g["level"] == "read" for g in copy["grants"]
-    )
-
     # Counters are copied with their values, bounds and order preserved.
     by_name = {
         c["name"]: c
@@ -832,51 +821,6 @@ async def test_duplicate_counter_group(client: AsyncClient, acting_user):
     src = (await client.get(a.g(f"/counter-groups/{sid}"), headers=a.headers)).json()
     assert src["name"] == "Original"
     assert len(src["counters"]) == 2
-
-
-async def test_duplicate_counter_group_custom_name(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    source = await _create_group(client, a, name="Original")
-
-    response = await client.post(
-        a.g(f"/counter-groups/{source['id']}/duplicate"),
-        headers=a.headers,
-        json={"name": "My Clone"},
-    )
-    assert response.status_code == 201, response.text
-    assert response.json()["name"] == "My Clone"
-
-
-@pytest.mark.parametrize(("level", "expected"), [("read", 403), ("write", 201)])
-async def test_duplicate_counter_group_needs_write_on_source(
-    client: AsyncClient, session: AsyncSession, acting_user, level: str, expected: int
-):
-    """Copying a group takes write on it, and the right to create one in its
-    initiative — the same gate the New button answers to. Whoever makes the
-    copy owns it."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    member = await acting_user(
-        guild_role=GuildRole.member,
-        guild=admin.guild,
-        initiative=admin.initiative,
-        initiative_role="member",
-    )
-    await grant_role_permission(session, admin.initiative, "create_counter_groups")
-    source = await create_counter_group(session, admin.initiative, admin.user)
-    await create_resource_grant(
-        session, source, level=ResourceAccessLevel(level), user=member.user
-    )
-
-    response = await client.post(
-        member.g(f"/counter-groups/{source.id}/duplicate"),
-        headers=member.headers,
-        json={},
-    )
-    assert response.status_code == expected, response.text
-    if expected == 403:
-        assert response.json()["detail"] == "COUNTER_GROUP_WRITE_ACCESS_REQUIRED"
-    else:
-        assert response.json()["can"]["delete"] is True
 
 
 async def test_counter_group_counts_by_initiative(

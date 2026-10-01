@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost,
   deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
-  duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost,
   getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
   resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost,
   resetCounterApiV1CGuildIdCountersCounterIdResetPost,
@@ -14,7 +13,6 @@ import {
 } from "@/api/generated/counters/counters";
 import type {
   CounterCreate,
-  CounterGroupDuplicateRequest,
   CounterGroupRead,
   CounterRead,
   CounterSetCountRequest,
@@ -93,20 +91,6 @@ export const useSetCounterGroupGrants = counterGroups.useSetGrants;
 
 const invalidateGroupAndList = (groupId: number) =>
   invalidate(q.counterGroup(groupId), q.allCounterGroups());
-
-export const useDuplicateCounterGroup = (
-  groupId: number,
-  options?: MutationOpts<CounterGroupRead, CounterGroupDuplicateRequest>
-) =>
-  useGuildMutation<CounterGroupRead, CounterGroupDuplicateRequest>(
-    {
-      mutationFn: (guildId, data) =>
-        duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost(guildId, groupId, data),
-      invalidate: () => invalidate(q.allCounterGroups()),
-      errorKey: "counterGroups:error",
-    },
-    options
-  );
 
 // ── Counter mutations ───────────────────────────────────────────────────────
 

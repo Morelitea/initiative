@@ -25,7 +25,6 @@ import type {
   BodyNotifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost,
   BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost,
   BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost,
-  DocumentCopyRequest,
   DocumentCreate,
   DocumentFileVersionRead,
   DocumentListResponse,
@@ -37,6 +36,7 @@ import type {
   ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams,
   ResourceGrantSchema,
   SpreadsheetImportRead,
+  ToolDuplicateRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1284,118 +1284,6 @@ export const useDeleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete = <
   );
 };
 /**
- * Copy a document into an initiative — its own, unless another is named.
- *
- * A copy beside its original is named "<name> (Copy)" unless the body names
- * it; one in another initiative keeps the original's name.
- * @summary Copy Document
- */
-export const copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost = (
-  guildId: number,
-  documentId: number,
-  documentCopyRequestNull?: BodyType<DocumentCopyRequest | null> | null,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentRead>(
-    {
-      url: `/api/v1/c/${guildId}/documents/${documentId}/copy`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: documentCopyRequestNull,
-      signal,
-    },
-    options
-  );
-};
-
-export const getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationKey = () =>
-  ["copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost"] as const;
-
-export const getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
-    TError,
-    CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
-  TError,
-  CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
-    CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables
-  > = (props) => {
-    const { guildId, documentId, data } = props ?? {};
-
-    return copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(
-      guildId,
-      documentId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>
->;
-export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationBody =
-  | BodyType<DocumentCopyRequest | null>
-  | undefined;
-export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationError =
-  ErrorType<HTTPValidationError>;
-export type CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables = {
-  guildId: number;
-  documentId: number;
-  data?: BodyType<DocumentCopyRequest | null>;
-};
-
-/**
- * @summary Copy Document
- */
-export const useCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
-      TError,
-      CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost>>,
-  TError,
-  CopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getCopyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
  * Notify users that they were mentioned in a document.
  * @summary Notify Mentions
  */
@@ -1858,6 +1746,117 @@ export const useSetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPut = <
 > => {
   return useMutation(
     getSetDocumentGrantsApiV1CGuildIdDocumentsDocumentIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative.
+ * @summary Duplicate Document
+ */
+export const duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost = (
+  guildId: number,
+  documentId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentRead>(
+    {
+      url: `/api/v1/c/${guildId}/documents/${documentId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationKey = () =>
+  ["duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost"] as const;
+
+export const getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
+    TError,
+    DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
+  TError,
+  DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
+    DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, documentId, data } = props ?? {};
+
+    return duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(
+      guildId,
+      documentId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>
+  >;
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables = {
+  guildId: number;
+  documentId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Document
+ */
+export const useDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
+      TError,
+      DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost>>,
+  TError,
+  DuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };

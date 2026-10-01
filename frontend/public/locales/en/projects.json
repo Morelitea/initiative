@@ -249,15 +249,6 @@
       "markedAsTemplate": "Project marked as template",
       "removedFromTemplates": "Project removed from templates"
     },
-    "duplicate": {
-      "title": "Duplicate project",
-      "description": "Clone this project, including its initiative and tasks, to jumpstart new work.",
-      "duplicated": "Project duplicated",
-      "promptName": "Name for duplicated project",
-      "duplicating": "Duplicating...",
-      "duplicateButton": "Duplicate project",
-      "noWriteAccess": "You need write access to duplicate this project."
-    },
     "tabFilterPresets": "Views",
     "filterPresetsHeading": "Filter presets",
     "filterPresetsDescription": "Saved filter sets everyone in this project can pick from. The default is what the project opens on.",

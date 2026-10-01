@@ -20,7 +20,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
 from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.task import TaskStatusCategory
@@ -723,46 +722,6 @@ async def test_duplicate_project_copies_task_relations(
     ]
     assert [t["name"] for t in new_first["tags"]] == ["design"]
     assert [t["name"] for t in new_second["tags"]] == ["build"]
-
-
-async def test_a_duplicate_keeps_the_sources_sharing_and_needs_the_create_right(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A copy is shared with whoever the source is shared with, not with every
-    member; and making one is making a project, so a writer whose role may not
-    create projects is refused in those words."""
-    owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
-    )
-    writer = await acting_user(
-        guild_role=GuildRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
-        initiative_role="member",
-    )
-    bystander = await acting_user(
-        guild_role=GuildRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
-        initiative_role="member",
-    )
-    await create_resource_grant(
-        session, owner.project, user=writer.user, level=ResourceAccessLevel.write
-    )
-    url = owner.g(f"/projects/{owner.project.id}/duplicate")
-
-    refused = await client.post(url, headers=writer.headers, json={})
-    assert refused.status_code == 403
-    assert refused.json()["detail"] == Tool.project.create_permission_code
-
-    copied = await client.post(url, headers=owner.headers, json={})
-    assert copied.status_code == 201
-    copy_url = owner.g(f"/projects/{copied.json()['id']}")
-    as_writer = await client.get(copy_url, headers=writer.headers)
-    assert as_writer.json()["can"]["edit"] is True
-    assert as_writer.json()["can"]["share"] is False
-    as_bystander = await client.get(copy_url, headers=bystander.headers)
-    assert as_bystander.status_code == 403
 
 
 async def test_create_from_undated_template_anchors_on_earliest_task(

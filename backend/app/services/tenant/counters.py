@@ -194,34 +194,29 @@ async def reset_all_counters(
 
 async def copy_counters(
     session: AsyncSession, source: CounterGroup, target: CounterGroup
-) -> None:
+) -> list[Counter]:
     """Copy every live counter of ``source`` (values, bounds, view mode,
     position) into ``target``, a duplicate whose sharing is already in the
-    session. Adds the rows; the caller commits.
+    database. Adds the rows and returns them; the caller commits.
     """
-    # The sharing has to be IN the database before the counters are, because a
-    # counter is reached through its group: adding it to the session is not
-    # enough, since a flush orders its statements by table rather than by the
-    # order things were added.
-    await session.flush()
-
-    for counter in source.counters:
-        if counter.deleted_at is not None:
-            continue
-        session.add(
-            Counter(
-                counter_group_id=target.id,
-                name=counter.name,
-                color=counter.color,
-                count=counter.count,
-                min=counter.min,
-                max=counter.max,
-                step=counter.step,
-                initial_count=counter.initial_count,
-                view_mode=counter.view_mode,
-                position=counter.position,
-            )
+    copies = [
+        Counter(
+            counter_group_id=target.id,
+            name=counter.name,
+            color=counter.color,
+            count=counter.count,
+            min=counter.min,
+            max=counter.max,
+            step=counter.step,
+            initial_count=counter.initial_count,
+            view_mode=counter.view_mode,
+            position=counter.position,
         )
+        for counter in source.counters
+        if counter.deleted_at is None
+    ]
+    session.add_all(copies)
+    return copies
 
 
 async def sort_counters(

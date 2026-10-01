@@ -4,17 +4,18 @@ Creating a task has an endpoint-shaped half (who is allowed to, which
 assignees to notify, which tags and properties to attach) and a row-shaped
 half: find the end of the list, make sure the project has its statuses, decide
 which status the task starts in, and build the row. This module is the second
-half, shared by the task endpoint and the intake writer, together with the two
-pieces every task change reaches for: replacing a task's assignees, and rolling
-a recurring task forward to its next occurrence when it is completed (from the
-task routes and from a status change that moves tasks between columns).
+half, shared by the task endpoint and the intake writer, together with the
+pieces every task change reaches for: replacing a task's assignees, rolling a
+recurring task forward to its next occurrence when it is completed (from the
+task routes and from a status change that moves tasks between columns), and
+copying a project's tasks into a copy of it (``copy_tasks``).
 
 Nothing here commits, so a caller can compose it into a larger transaction.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import HTTPException, status as http_status
@@ -23,16 +24,28 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core import recurrence
 from app.core.messages import TaskMessages
+from app.core.relationships import (
+    DERIVED_TYPES,
+    Provenance,
+    RelationshipType,
+    node_id,
+)
+from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.db.session import require_actor_context
 from app.models.tenant.project import Project
+from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.services import notifications as notifications_service
+from app.services.tenant import content_references, relationships
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
+from app.services.tenant import task_completion
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_series
 from app.services.tenant import task_statuses as task_statuses_service
@@ -258,3 +271,199 @@ async def advance_recurrence_if_needed(
     task.updated_at = now
     session.add(task)
     return True
+
+
+def _date_shift(
+    template: Project,
+    new_project: Project,
+    template_tasks: list[Task],
+) -> timedelta | None:
+    """Offset to move template task dates onto the new project's schedule.
+
+    Task dates in a template are relative: a task due three weeks after the
+    template's start should land three weeks after the new project's start.
+    Anchors on the projects' start dates when the new project has one,
+    otherwise on their end dates. A template without an explicit start/end
+    falls back to its earliest/latest task date. Returns None when there is
+    nothing to anchor on, in which case dates are copied as-is.
+    """
+    task_dates = [
+        value.date()
+        for task in template_tasks
+        for value in (task.start_date, task.due_date)
+        if value is not None
+    ]
+    if new_project.start_date is not None:
+        anchor = template.start_date or (min(task_dates) if task_dates else None)
+        if anchor is not None:
+            return new_project.start_date - anchor
+    if new_project.end_date is not None:
+        anchor = template.end_date or (max(task_dates) if task_dates else None)
+        if anchor is not None:
+            return new_project.end_date - anchor
+    return None
+
+
+async def copy_tasks(
+    session: AsyncSession,
+    template: Project,
+    new_project: Project,
+    *,
+    status_mapping: dict[int, int],
+    fallback_status_ids: dict[TaskStatusCategory, int],
+) -> list[Task]:
+    """Copy ``template``'s tasks into ``new_project``, a copy of it whose
+    statuses ``status_mapping`` maps; returns the copies. Dates move onto the
+    new project's schedule (:func:`_date_shift`)."""
+    task_stmt = (
+        select(Task)
+        .options(
+            selectinload(Task.assignees),
+            selectinload(Task.task_status),
+        )
+        .where(Task.project_id == template.id)
+        .order_by(Task.position.asc(), Task.id.asc())
+    )
+    task_result = await session.exec(task_stmt)
+    template_tasks = task_result.all()
+    if not template_tasks:
+        return []
+
+    now = datetime.now(timezone.utc)
+    categories = await task_completion.status_categories(session, new_project.id)
+    date_shift = _date_shift(template, new_project, list(template_tasks))
+    copies: list[tuple[Task, Task]] = []
+    for template_task in template_tasks:
+        template_status_id = getattr(template_task, "task_status_id", None)
+        mapped_status_id = None
+        if template_status_id is not None:
+            mapped_status_id = status_mapping.get(template_status_id)
+        if mapped_status_id is None:
+            category = getattr(
+                getattr(template_task, "task_status", None), "category", None
+            )
+            if category is not None:
+                mapped_status_id = fallback_status_ids.get(category)
+        if mapped_status_id is None and fallback_status_ids:
+            mapped_status_id = next(iter(fallback_status_ids.values()))
+        start_date = template_task.start_date
+        due_date = template_task.due_date
+        repeat = template_task.recurrence
+        if date_shift is not None:
+            if start_date is not None:
+                start_date = start_date + date_shift
+            if due_date is not None:
+                due_date = due_date + date_shift
+            if repeat is not None:
+                repeat = recurrence.moved(repeat, date_shift)
+        new_task = Task(
+            project_id=new_project.id,
+            title=template_task.title,
+            description=template_task.description,
+            task_status_id=mapped_status_id,
+            priority=template_task.priority,
+            start_date=start_date,
+            due_date=due_date,
+            recurrence=repeat,
+            recurrence_shift=template_task.recurrence_shift,
+            recurrence_strategy=template_task.recurrence_strategy,
+            position=template_task.position,
+            checklist=checklist_service.cloned(template_task.checklist, keep_done=True),
+        )
+        task_completion.sync_completed_at(
+            new_task, categories.get(mapped_status_id), now=now
+        )
+        session.add(new_task)
+        copies.append((template_task, new_task))
+    await session.flush()
+
+    # Assignees come along only where they can open the new project.
+    can_open = await named_people.readers(
+        session,
+        named_people.Governing.of(Tool.project, new_project),
+        {assignee.id for task, _ in copies for assignee in task.assignees},
+    )
+    for template_task, new_task in copies:
+        session.add_all(
+            TaskAssignee(task_id=new_task.id, user_id=assignee.id)
+            for assignee in template_task.assignees
+            if assignee.id in can_open
+        )
+        if new_task.description:
+            await task_description_service.record_references(
+                session, new_task, author_id=None
+            )
+    copied_ids = {
+        s.id: c.id for s, c in copies if s.id is not None and c.id is not None
+    }
+    await tags_service.copy_entity_tags(
+        session, tags_service.TAG_LINKS["task"], copied_ids
+    )
+    await _copy_relationships(session, copied_ids)
+    return [task for _, task in copies]
+
+
+#: Edge types a task copy does not carry. Tags travel through
+#: ``copy_entity_tags``, and a derived edge is read out of a body on save
+#: rather than asserted, so neither is copied here.
+_UNCOPIED_RELATIONSHIP_TYPES = frozenset({RelationshipType.tagged_with}) | DERIVED_TYPES
+
+
+async def _copy_relationships(
+    session: AsyncSession, task_mapping: dict[int, int]
+) -> None:
+    """Carry the source tasks' relations onto their copies.
+
+    Every live edge touching a source task is re-created on the copy. An end
+    that is itself a source task is remapped to its copy, so a dependency
+    between two template tasks becomes a dependency between the two new tasks;
+    any other end (a document, a task outside the template) is kept as-is.
+
+    Each copy is a link made on the creator's behalf, so it goes through
+    ``relationships.link_many`` like any other, and one it refuses is left behind:
+    a far end the creator cannot open, one in another initiative than the new
+    project, an archived one, or a source they cannot edit.
+    """
+    if not task_mapping or not content_references.records_edges(session):
+        return
+    source_nodes = [node_id(SearchEntityType.task, task_id) for task_id in task_mapping]
+    live = EntityRelationship.removed_at.is_(None)  # type: ignore[union-attr]
+    outbound = await session.exec(
+        select(EntityRelationship).where(
+            EntityRelationship.source_node.in_(source_nodes),  # type: ignore[union-attr]
+            live,
+        )
+    )
+    inbound = await session.exec(
+        select(EntityRelationship).where(
+            EntityRelationship.target_node.in_(source_nodes),  # type: ignore[union-attr]
+            live,
+        )
+    )
+    edges: dict[int, EntityRelationship] = {}
+    for row in [*outbound.all(), *inbound.all()]:
+        if row.id is not None:
+            edges[row.id] = row
+
+    def remapped(kind: str, entity_id: int) -> relationships.Endpoint:
+        entity_kind = SearchEntityType(kind)
+        if entity_kind is SearchEntityType.task:
+            entity_id = task_mapping.get(entity_id, entity_id)
+        return relationships.Endpoint(entity_kind, entity_id)
+
+    await relationships.link_many(
+        session,
+        [
+            relationships.Link(
+                source=remapped(row.source_type, row.source_id),
+                relationship_type=RelationshipType(row.relationship_type),
+                target=remapped(row.target_type, row.target_id),
+                provenance=Provenance(row.provenance),
+                confidence=row.confidence,
+            )
+            for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0))
+            if RelationshipType(row.relationship_type)
+            not in _UNCOPIED_RELATIONSHIP_TYPES
+        ],
+        user_id=require_actor_context(session).user_id,
+    )

@@ -37,9 +37,9 @@ import { DropOverlay } from "@/components/ui/file-drop";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import {
-  useCopyDocument,
   useDeleteDocuments,
   useDocumentsList,
+  useDuplicateDocuments,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
 import { useFileDrop } from "@/hooks/useFileDrop";
@@ -535,7 +535,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     onSuccess: () => setSelectedDocuments([]),
   });
 
-  const duplicateDocuments = useCopyDocument({
+  const duplicateDocuments = useDuplicateDocuments({
     onSuccess: () => setSelectedDocuments([]),
   });
 

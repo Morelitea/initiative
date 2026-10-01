@@ -28,6 +28,7 @@ import type { ResourceGrantSchema, Tool } from "@/api/generated/initiativeAPI.sc
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { canUseArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
+import { canUseDuplicateCard } from "@/components/tools/settings/ToolDuplicateCard";
 import {
   type ToolExportOptions,
   type ToolMutation,
@@ -130,10 +131,14 @@ export const ToolSettingsLayout = ({
       label: tab.label,
       path: sectionPath(tab.value),
     })),
-    // Advanced holds a tool's own extra operations, archiving, exporting and
-    // deletion, so it is offered only when this entity has one of them to
-    // offer.
-    ...(advancedExtra || entity.can.export || entity.can.delete || canUseArchiveCard(entity)
+    // Advanced holds a tool's own extra operations, duplicating, archiving,
+    // exporting and deletion, so it is offered only when this entity has one
+    // of them to offer.
+    ...(advancedExtra ||
+    entity.can.export ||
+    entity.can.delete ||
+    canUseArchiveCard(entity) ||
+    canUseDuplicateCard(tool, entity)
       ? [
           {
             value: "advanced",

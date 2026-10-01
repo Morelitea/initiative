@@ -186,7 +186,7 @@ A document can be **attached** to a project so the relevant reference sits right
 
 - **Details** — tags and metadata.
 - **Access** — who can view, edit or own it. Levels are **Viewer**, **Editor**, **Owner**. See [Sharing](../sharing/sharing-projects-and-documents.md).
-- **Advanced** — save as a template, duplicate, copy to another initiative, delete.
+- **Advanced** — save as a template, duplicate it here or into another initiative, delete.
 
 ## Templates
 

@@ -784,6 +784,30 @@ ASSIGNMENT_QUIET_PERIOD = timedelta(minutes=5)
 ASSIGNMENT_MAX_WINDOW = timedelta(minutes=30)
 
 
+async def notify_project_added(
+    session: AsyncSession, project: Project, actor: "User"
+) -> None:
+    """Tell everyone ``project`` is shared with that it now exists, whether it
+    was made from nothing, from a template or as a copy. ``project.initiative``
+    is loaded."""
+    await notify(
+        session,
+        NotificationType.project_added,
+        SHARED_WITH,
+        about=(Tool.project.value, project.id),
+        key="project.added",
+        values={"project": project.name, "initiative": project.initiative.name},
+        data={"project_id": project.id},
+        actor=actor,
+        email=lambda reader: email_service.project_added_pieces(
+            reader,
+            initiative_name=project.initiative.name,
+            project_name=project.name,
+            project_id=project.id,
+        ),
+    )
+
+
 # How long a sent digest's items are kept before the GC sweep drops them. They
 # are only bookkeeping once delivered; the notification itself lives in the
 # bell. Unsent items are dropped at the same age — anything that old is either

@@ -2,10 +2,10 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useTranslation } from "react-i18next";
 
 import {
-  copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost,
   createDocumentApiV1CGuildIdDocumentsPost,
   deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
   deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete,
+  duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost,
   generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost,
   getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryKey,
   getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
@@ -155,7 +155,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
 
       if (template_id) {
         // Copy from template
-        newDocument = await copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(
+        newDocument = await duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(
           guildId,
           template_id,
           {
@@ -424,26 +424,20 @@ export const useDeleteDocuments = (
   });
 };
 
-export const useCopyDocument = (
-  options?: MutationOpts<DocumentRead[], { id: number; initiative_id: number; name: string }[]>
-) => {
+/** A copy of each beside its original, named as the server names one. */
+export const useDuplicateDocuments = (options?: MutationOpts<DocumentRead[], { id: number }[]>) => {
   const { t } = useTranslation("documents");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (documents: { id: number; initiative_id: number; name: string }[]) => {
-      const results = await Promise.all(
+    mutationFn: (documents: { id: number }[]) =>
+      Promise.all(
         documents.map((doc) =>
-          copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(guildId, doc.id, {
-            target_initiative_id: doc.initiative_id,
-            name: `${doc.name} (copy)`,
-          })
+          duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(guildId, doc.id, {})
         )
-      );
-      return results;
-    },
+      ),
     onSuccess: (...args) => {
       toast.success(t("bulk.duplicated", { count: args[0].length }));
       void invalidate(q.allDocuments());
@@ -458,33 +452,6 @@ export const useCopyDocument = (
 };
 
 // ── Document-scoped mutations ───────────────────────────────────────────────
-
-/** A copy beside the original, in its own initiative. */
-export const useDuplicateDocument = (
-  documentId: number,
-  options?: MutationOpts<DocumentRead, { name: string }>
-) =>
-  useGuildMutation<DocumentRead, { name: string }>(
-    {
-      mutationFn: (guildId, { name }) =>
-        copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(guildId, documentId, { name }),
-      invalidate: () => invalidate(q.allDocuments()),
-    },
-    options
-  );
-
-export const useCopyDocumentToInitiative = (
-  documentId: number,
-  options?: MutationOpts<DocumentRead, { target_initiative_id: number; name: string }>
-) =>
-  useGuildMutation<DocumentRead, { target_initiative_id: number; name: string }>(
-    {
-      mutationFn: (guildId, data) =>
-        copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(guildId, documentId, data),
-      invalidate: () => invalidate(q.allDocuments()),
-    },
-    options
-  );
 
 export const useGenerateDocumentSummary = (
   documentId: number,

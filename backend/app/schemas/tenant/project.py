@@ -64,10 +64,6 @@ class ProjectUpdate(SanitizedBaseModel):
     end_date: Optional[date] = None
 
 
-class ProjectDuplicateRequest(SanitizedBaseModel):
-    name: Optional[TitleStr] = None
-
-
 class ProjectTaskSummary(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

@@ -59,7 +59,7 @@ async def test_upload_and_duplicate_each_start_at_version_one(
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     duplicate = await client.post(
-        owner.g(f"/documents/{doc['id']}/copy"), headers=owner.headers
+        owner.g(f"/documents/{doc['id']}/duplicate"), headers=owner.headers
     )
     assert duplicate.status_code == 201, duplicate.text
     copy = duplicate.json()

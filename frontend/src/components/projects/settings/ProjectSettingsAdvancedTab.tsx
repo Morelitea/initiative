@@ -1,4 +1,4 @@
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,9 +12,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useDuplicateProject, useUpdateProject } from "@/hooks/useProjects";
+import { useUpdateProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolDetailRoute, toolListRoute } from "@/lib/tools";
+import { toolListRoute } from "@/lib/tools";
 
 interface ProjectSettingsAdvancedTabProps {
   project: ProjectRead;
@@ -28,11 +28,9 @@ export const ProjectSettingsAdvancedTab = ({
   canWriteProject,
 }: ProjectSettingsAdvancedTabProps) => {
   const { t } = useTranslation("projects");
-  const router = useRouter();
   const gp = useGuildPath();
 
   const [templateMessage, setTemplateMessage] = useState<string | null>(null);
-  const [duplicateMessage, setDuplicateMessage] = useState<string | null>(null);
 
   const toggleTemplateStatus = useUpdateProject(projectId, {
     onSuccess: (_data, vars) => {
@@ -44,97 +42,48 @@ export const ProjectSettingsAdvancedTab = ({
     },
   });
 
-  const duplicateProject = useDuplicateProject({
-    onSuccess: (data) => {
-      setDuplicateMessage(t("settings.duplicate.duplicated"));
-      router.navigate({ to: gp(toolDetailRoute(Tool.project, data.initiative_id, data.id)) });
-    },
-  });
-
   return (
-    <>
-      <>
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>{t("settings.templateStatus.title")}</CardTitle>
-            <CardDescription>{t("settings.templateStatus.description")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-muted-foreground text-sm">
-              {project.is_template
-                ? t("settings.templateStatus.isTemplate")
-                : t("settings.templateStatus.isStandard")}
-            </p>
-            {templateMessage ? <p className="text-primary text-sm">{templateMessage}</p> : null}
-          </CardContent>
-          <CardFooter className="flex flex-wrap gap-3">
-            {canWriteProject ? (
-              <Button
-                type="button"
-                variant={project.is_template ? "outline" : "default"}
-                onClick={() => {
-                  setTemplateMessage(null);
-                  toggleTemplateStatus.mutate({ is_template: !project.is_template });
-                }}
-                disabled={toggleTemplateStatus.isPending}
-              >
-                {project.is_template
-                  ? t("settings.templateStatus.convertToStandard")
-                  : t("settings.templateStatus.markAsTemplate")}
-              </Button>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {t("settings.templateStatus.noWriteAccess")}
-              </p>
-            )}
-            {project.is_template ? (
-              <Button asChild variant="link" className="px-0">
-                <Link to={gp(toolListRoute(Tool.project, project.initiative_id))}>
-                  {t("settings.templateStatus.viewAllTemplates")}
-                </Link>
-              </Button>
-            ) : null}
-          </CardFooter>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>{t("settings.duplicate.title")}</CardTitle>
-            <CardDescription>{t("settings.duplicate.description")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {duplicateMessage ? <p className="text-primary text-sm">{duplicateMessage}</p> : null}
-          </CardContent>
-          <CardFooter>
-            {canWriteProject ? (
-              <Button
-                type="button"
-                onClick={() => {
-                  const defaultName = `${project.name} copy`;
-                  const newName = window.prompt(t("settings.duplicate.promptName"), defaultName);
-                  if (newName === null) {
-                    return;
-                  }
-                  setDuplicateMessage(null);
-                  duplicateProject.mutate({
-                    projectId: projectId,
-                    data: { name: newName.trim() || undefined },
-                  });
-                }}
-                disabled={duplicateProject.isPending}
-              >
-                {duplicateProject.isPending
-                  ? t("settings.duplicate.duplicating")
-                  : t("settings.duplicate.duplicateButton")}
-              </Button>
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {t("settings.duplicate.noWriteAccess")}
-              </p>
-            )}
-          </CardFooter>
-        </Card>
-      </>
-    </>
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle>{t("settings.templateStatus.title")}</CardTitle>
+        <CardDescription>{t("settings.templateStatus.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-muted-foreground text-sm">
+          {project.is_template
+            ? t("settings.templateStatus.isTemplate")
+            : t("settings.templateStatus.isStandard")}
+        </p>
+        {templateMessage ? <p className="text-primary text-sm">{templateMessage}</p> : null}
+      </CardContent>
+      <CardFooter className="flex flex-wrap gap-3">
+        {canWriteProject ? (
+          <Button
+            type="button"
+            variant={project.is_template ? "outline" : "default"}
+            onClick={() => {
+              setTemplateMessage(null);
+              toggleTemplateStatus.mutate({ is_template: !project.is_template });
+            }}
+            disabled={toggleTemplateStatus.isPending}
+          >
+            {project.is_template
+              ? t("settings.templateStatus.convertToStandard")
+              : t("settings.templateStatus.markAsTemplate")}
+          </Button>
+        ) : (
+          <p className="text-muted-foreground text-sm">
+            {t("settings.templateStatus.noWriteAccess")}
+          </p>
+        )}
+        {project.is_template ? (
+          <Button asChild variant="link" className="px-0">
+            <Link to={gp(toolListRoute(Tool.project, project.initiative_id))}>
+              {t("settings.templateStatus.viewAllTemplates")}
+            </Link>
+          </Button>
+        ) : null}
+      </CardFooter>
+    </Card>
   );
 };

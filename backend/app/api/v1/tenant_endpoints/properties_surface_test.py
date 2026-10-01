@@ -785,7 +785,7 @@ async def test_duplicating_a_document_in_place_carries_its_values(
     )
 
     duplicated = await client.post(
-        a.g(f"/documents/{doc}/copy"), headers=a.headers, json={"name": "Dup"}
+        a.g(f"/documents/{doc}/duplicate"), headers=a.headers, json={"name": "Dup"}
     )
 
     assert duplicated.status_code == 201
@@ -808,7 +808,7 @@ async def test_copying_a_document_to_another_initiative_drops_its_values(
     )
 
     copied = await client.post(
-        a.g(f"/documents/{doc}/copy"),
+        a.g(f"/documents/{doc}/duplicate"),
         headers=a.headers,
         json={"name": "Copied", "target_initiative_id": init_b.id},
     )

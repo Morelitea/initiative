@@ -1,44 +1,28 @@
-import { useParams, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useParams } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { DocumentSettingsAdvancedTab } from "@/components/documents/settings/DocumentSettingsAdvancedTab";
 import { DocumentSettingsDetailsTab } from "@/components/documents/settings/DocumentSettingsDetailsTab";
-import { DocumentSettingsDialogs } from "@/components/documents/settings/DocumentSettingsDialogs";
 import { useDocumentExportOptions } from "@/components/documents/useDocumentExportOptions";
 import { loadWhiteboardSceneFromContent } from "@/components/documents/whiteboardSceneCache";
 import { ToolSettingsLayout } from "@/components/tools/settings/ToolSettingsLayout";
 import {
-  useCopyDocumentToInitiative,
   useDeleteDocument,
   useDocument,
-  useDuplicateDocument,
   useSetDocumentCache,
   useSetDocumentGrants,
   useUpdateDocument,
 } from "@/hooks/useDocuments";
-import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { useInitiatives } from "@/hooks/useInitiatives";
-import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
-import { useGuildPath } from "@/lib/guildUrl";
-import { toolDetailRoute } from "@/lib/tools";
 
 export const DocumentSettingsPage = () => {
   const { t } = useTranslation(["documents", "common"]);
   const { documentId } = useParams({ strict: false }) as { documentId?: string };
   const parsedId = documentId ? Number(documentId) : Number.NaN;
   const isValidId = Number.isFinite(parsedId);
-  const router = useRouter();
-  const gp = useGuildPath();
   const setDocumentCache = useSetDocumentCache();
 
-  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
-  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
-
-  const [copyInitiativeId, setCopyInitiativeId] = useState("");
   const [isTemplate, setIsTemplate] = useState(false);
 
   const documentQuery = useDocument(isValidId ? parsedId : null);
@@ -59,83 +43,10 @@ export const DocumentSettingsPage = () => {
       : undefined
   );
 
-  const initiativesQuery = useInitiatives({ enabled: Boolean(document) });
-
-  // Copying creates a document in the target initiative, so the target list is
-  // the initiatives whose server-computed create flag is on — minus the one the
-  // document is already in.
-  const { creatableInitiatives } = useToolCreateAccess(Tool.document, {
-    enabled: Boolean(document),
-  });
-
-  const copyableInitiatives = useMemo(() => {
-    if (!document) return [];
-    return creatableInitiatives.filter((initiative) => initiative.id !== document.initiative_id);
-  }, [document, creatableInitiatives]);
-
-  // Names for the two copy dialogs, suggested from the document but typed
-  // over. The template switch below is written the moment it changes, so it
-  // keeps following the server instead.
-  const titles = useServerForm(
-    document,
-    (loaded) => ({
-      duplicate: loaded ? t("settings.duplicateTitlePlaceholder", { title: loaded.name }) : "",
-      copy: loaded?.name ?? "",
-    }),
-    document?.id
-  );
-  const duplicateTitle = titles.values.duplicate;
-  const copyTitle = titles.values.copy;
-  const setDuplicateTitle = (next: string) => titles.set({ duplicate: next });
-  const setCopyTitle = (next: string) => titles.set({ copy: next });
-
   useEffect(() => {
     if (!document) return;
     setIsTemplate(document.is_template);
   }, [document]);
-
-  useEffect(() => {
-    if (!copyDialogOpen) return;
-    if (copyableInitiatives.length === 0) {
-      setCopyInitiativeId("");
-      return;
-    }
-    const currentIsValid = copyableInitiatives.some(
-      (initiative) => String(initiative.id) === copyInitiativeId
-    );
-    if (!currentIsValid) {
-      setCopyInitiativeId(String(copyableInitiatives[0].id));
-    }
-  }, [copyDialogOpen, copyableInitiatives, copyInitiativeId]);
-
-  const duplicateDocumentMutation = useDuplicateDocument(parsedId, {
-    onSuccess: (duplicated) => {
-      toast.success(t("settings.documentDuplicated"));
-      setDuplicateDialogOpen(false);
-      router.navigate({
-        to: gp(toolDetailRoute(Tool.document, duplicated.initiative_id, duplicated.id)),
-      });
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "documents:settings.duplicateError"));
-    },
-  });
-
-  const copyDocumentMutation = useCopyDocumentToInitiative(parsedId, {
-    onSuccess: (copied) => {
-      toast.success(
-        t("settings.documentCopied", {
-          initiative:
-            copyableInitiatives.find((i) => String(i.id) === copyInitiativeId)?.name ?? "",
-        })
-      );
-      setCopyDialogOpen(false);
-      router.navigate({ to: gp(toolDetailRoute(Tool.document, copied.initiative_id, copied.id)) });
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error, "documents:settings.copyError"));
-    },
-  });
 
   const updateTemplate = useUpdateDocument(parsedId, {
     onSuccess: (updated) => {
@@ -171,48 +82,6 @@ export const DocumentSettingsPage = () => {
         />
       }
       exportOptions={exportOptions}
-      advancedExtra={
-        document ? (
-          <DocumentSettingsAdvancedTab
-            canManageDocument={canManageDocument}
-            onDuplicateClick={() => {
-              setDuplicateDialogOpen(true);
-              setDuplicateTitle(t("settings.duplicateTitlePlaceholder", { title: document.name }));
-            }}
-            onCopyClick={() => {
-              setCopyDialogOpen(true);
-              setCopyTitle(document.name);
-            }}
-          />
-        ) : null
-      }
-    >
-      {document && (
-        <DocumentSettingsDialogs
-          documentTitle={document.name}
-          duplicateDialogOpen={duplicateDialogOpen}
-          onDuplicateDialogOpenChange={setDuplicateDialogOpen}
-          duplicateTitle={duplicateTitle}
-          onDuplicateTitleChange={setDuplicateTitle}
-          onDuplicate={(title) => duplicateDocumentMutation.mutate({ name: title })}
-          isDuplicating={duplicateDocumentMutation.isPending}
-          copyDialogOpen={copyDialogOpen}
-          onCopyDialogOpenChange={setCopyDialogOpen}
-          copyTitle={copyTitle}
-          onCopyTitleChange={setCopyTitle}
-          copyInitiativeId={copyInitiativeId}
-          onCopyInitiativeIdChange={setCopyInitiativeId}
-          onCopy={(initiativeId, title) =>
-            copyDocumentMutation.mutate({
-              target_initiative_id: Number(initiativeId),
-              name: title,
-            })
-          }
-          isCopying={copyDocumentMutation.isPending}
-          copyableInitiatives={copyableInitiatives}
-          isLoadingInitiatives={initiativesQuery.isLoading}
-        />
-      )}
-    </ToolSettingsLayout>
+    />
   );
 };

@@ -249,15 +249,6 @@
       "markedAsTemplate": "Projet marqué comme modèle",
       "removedFromTemplates": "Projet retiré des modèles"
     },
-    "duplicate": {
-      "title": "Dupliquer le projet",
-      "description": "Clonez ce projet, y compris son initiative et ses tâches, pour démarrer rapidement de nouveaux travaux.",
-      "duplicated": "Projet dupliqué",
-      "promptName": "Nom pour le projet dupliqué",
-      "duplicating": "Duplication en cours...",
-      "duplicateButton": "Dupliquer le projet",
-      "noWriteAccess": "Vous avez besoin d'un accès en écriture pour dupliquer ce projet."
-    },
     "tabFilterPresets": "Vues",
     "filterPresetsHeading": "Préréglages de filtre",
     "filterPresetsDescription": "Jeux de filtres enregistrés que tout le monde dans ce projet peut choisir. Le préréglage par défaut est celui avec lequel le projet s'ouvre.",

@@ -39,15 +39,6 @@
   "sortNameDesc": "Name (Z→A)",
   "sortCountAsc": "Count (low→high)",
   "sortCountDesc": "Count (high→low)",
-  "duplicate": {
-    "title": "Duplicate group",
-    "description": "Create a copy of this group with all of its counters and their current values.",
-    "action": "Duplicate",
-    "dialogDescription": "Name the new copy. All counters and their values are copied.",
-    "defaultName": "{{name}} (Copy)",
-    "duplicating": "Duplicating…",
-    "success": "Group duplicated"
-  },
   "noCounters": "No counters in this group",
   "noCountersDescription": "Add counters to start tracking values.",
   "reorder": "Reorder",

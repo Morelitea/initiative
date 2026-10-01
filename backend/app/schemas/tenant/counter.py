@@ -172,10 +172,6 @@ class CounterGroupUpdate(SanitizedBaseModel):
     description: Optional[str] = None
 
 
-class CounterGroupDuplicateRequest(SanitizedBaseModel):
-    name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-
-
 class CounterGroupSummary(CounterGroupBase, ToolSummaryBase):
     counter_count: int = 0
 
