@@ -74,7 +74,7 @@ async def test_envelope_import_roundtrips_queue(client, acting_user, session):
         session.add(QI(queue_id=queue.id, label=label, position=float(i)))
     await session.commit()
 
-    envelope = await _export_json(client, a, "/exports/queue", {"queue_id": queue.id})
+    envelope = await _export_json(client, a, "/exports/queue", {"ids": [queue.id]})
     assert envelope["type"] == "initiative-queue"
 
     target = await _second_initiative(session, a, queues_enabled=True)
@@ -130,7 +130,7 @@ async def test_envelope_import_roundtrips_counter_group(client, acting_user, ses
     await session.commit()
 
     envelope = await _export_json(
-        client, a, "/exports/counter-group", {"counter_group_id": group.id}
+        client, a, "/exports/counter_group", {"ids": [group.id]}
     )
     target = await _second_initiative(session, a, counter_groups_enabled=True)
     resp = await _import_envelope(client, a, envelope, target.id)
@@ -193,9 +193,7 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
         (board, "whiteboard"),
         (link, "smart_link"),
     ):
-        envelope = await _export_json(
-            client, a, "/exports/document", {"document_id": doc.id}
-        )
+        envelope = await _export_json(client, a, "/exports/document", {"ids": [doc.id]})
         resp = await _import_envelope(client, a, envelope, target.id)
         assert resp.status_code == 201, (doc_type, resp.text)
 
@@ -302,7 +300,7 @@ async def test_envelope_import_project_replaces_legacy_route(
     await create_task(session, a.project, title="Fell the tower")
 
     envelope = await _export_json(
-        client, a, "/exports/project", {"project_id": a.project.id}
+        client, a, "/exports/project", {"ids": [a.project.id]}
     )
     assert envelope["type"] == "initiative-project"
 
@@ -1657,7 +1655,7 @@ async def test_project_envelope_carries_comments_dates_and_links(
     await session.commit()
 
     envelope = await _export_json(
-        client, a, "/exports/project", {"project_id": a.project.id}
+        client, a, "/exports/project", {"ids": [a.project.id]}
     )
     by_title = {task["title"]: task for task in envelope["tasks"]}
     assert by_title["Pour the footings"]["created_at"].startswith("2024-03-04")
@@ -2793,9 +2791,7 @@ async def test_a_documents_own_export_names_its_mentions_by_handle(
         session, a.initiative, a.user, name="Notes", content=said
     )
 
-    envelope = await _export_json(
-        client, a, "/exports/document", {"document_id": source.id}
-    )
+    envelope = await _export_json(client, a, "/exports/document", {"ids": [source.id]})
     assert envelope["mention_handles"] == [handle_of(a.user)]
     [exported] = _mentions_in(envelope["content"])
     assert exported["mentionUserId"] is None
@@ -3202,7 +3198,7 @@ async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
     exported = await client.get(
         a.g("/exports/gallery"),
         headers=a.headers,
-        params={"gallery_id": gallery.id, "format": "json"},
+        params={"ids": [gallery.id], "format": "json"},
     )
     assert exported.status_code == 200, exported.text
 
@@ -3249,7 +3245,7 @@ async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, s
     exported = await client.get(
         a.g("/exports/wiki"),
         headers=a.headers,
-        params={"wiki_id": wiki.id, "format": "json"},
+        params={"ids": [wiki.id], "format": "json"},
     )
     assert exported.status_code == 200, exported.text
     assert exported.headers["content-type"] == "application/zip"
@@ -3290,7 +3286,7 @@ async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
     exported = await client.get(
         a.g("/exports/wiki"),
         headers=a.headers,
-        params={"wiki_id": wiki.id, "format": "json"},
+        params={"ids": [wiki.id], "format": "json"},
     )
     assert exported.status_code == 200, exported.text
 
@@ -3414,7 +3410,7 @@ async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, ses
     )
 
     envelope = await _export_json(
-        client, a, "/exports/project", {"project_id": a.project.id}
+        client, a, "/exports/project", {"ids": [a.project.id]}
     )
     elsewhere = {**envelope, "source_guild_id": a.guild.id + 1000}
 

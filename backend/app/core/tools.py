@@ -135,11 +135,10 @@ DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
 # hand-built here and are ordinary content.
 NON_EXPORTABLE_TOOLS: frozenset[Tool] = frozenset()
 
-# Tools with an export-engine source (single-entity + bulk selection export).
-# The engine's source name / endpoint segment is the KEBAB SINGULAR of the
-# tool ("counter_group" -> "counter-group"); the bulk selector param is
-# ``{tool}_ids``. The frontend mirrors this as TOOL_REGISTRY's ``bulkExport``
-# flag.
+# Tools with an export-engine source (single-entity + bulk selection export),
+# all served by ``GET /exports/{tool}``. The engine's source name is the KEBAB
+# SINGULAR of the tool ("counter_group" -> "counter-group"). The frontend
+# mirrors this as TOOL_REGISTRY's ``bulkExport`` flag.
 BULK_EXPORT_TOOLS = tuple(t for t in Tool if t not in NON_EXPORTABLE_TOOLS)
 
 
@@ -204,7 +203,7 @@ ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXT
 
 
 def tool_export_source(tool: Tool) -> str:
-    """The export adapter registry key / endpoint segment for a tool."""
+    """The export adapter registry key for a tool."""
     return tool.value.replace("_", "-")
 
 

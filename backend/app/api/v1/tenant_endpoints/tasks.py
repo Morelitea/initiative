@@ -204,13 +204,18 @@ async def list_my_tasks(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     conditions: Optional[str] = Query(default=None),
+    created: bool = Query(
+        default=False,
+        description="The tasks you created instead of the ones assigned to you",
+    ),
     include_archived: bool = Query(default=False, description="Include archived tasks"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
     sorting: Optional[str] = Query(default=None),
     tz: Optional[str] = Query(default=None),
 ) -> TaskListResponse:
-    """Tasks assigned to the current user across every guild they belong to.
+    """Tasks assigned to the current user across every guild they belong to,
+    or with ``created`` the tasks they created.
 
     An optional ``guild_ids`` conditions entry narrows to a subset of guilds.
     """
@@ -221,41 +226,7 @@ async def list_my_tasks(
         session,
         current_user,
         q,
-        include_archived=include_archived,
-        page=page,
-        page_size=page_size,
-    )
-    return TaskListResponse(
-        **build_paginated_response(
-            items=items,
-            total_count=total_count,
-            page=actual_page,
-            page_size=page_size,
-            sorting=sorting,
-        )
-    )
-
-
-@me_router.get("/tasks/created", response_model=TaskListResponse)
-async def list_my_created_tasks(
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    conditions: Optional[str] = Query(default=None),
-    include_archived: bool = Query(default=False, description="Include archived tasks"),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=0, le=100),
-    sorting: Optional[str] = Query(default=None),
-    tz: Optional[str] = Query(default=None),
-) -> TaskListResponse:
-    """Tasks created by the current user across every guild they belong to."""
-    q = await task_queries.parse_task_list_query(
-        session, conditions, sorting, tz, across_guilds_for=current_user
-    )
-    items, total_count, actual_page = await task_queries.list_global_tasks(
-        session,
-        current_user,
-        q,
-        created=True,
+        created=created,
         include_archived=include_archived,
         page=page,
         page_size=page_size,
@@ -304,7 +275,7 @@ async def list_tasks(
         task_queries.refuse_person_filters(q)
 
     # Guild-scoped list. Cross-guild "my tasks" aggregates live under
-    # /me/tasks and /me/tasks/created (see list_my_tasks above).
+    # /me/tasks (see list_my_tasks above).
     build = await task_queries.guild_task_query_builder(
         session,
         current_user,

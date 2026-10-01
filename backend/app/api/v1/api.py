@@ -55,7 +55,6 @@ from app.api.v1.tenant_endpoints import (
     tool_grants,
     tool_lifecycle,
     tool_lists,
-    tool_views,
     tools,
     trash,
     wikis,
@@ -328,10 +327,6 @@ guild_router.include_router(
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
-# Recent views: POST /{tool}/{id}/view, mounted once per Tool at each
-# tool's own path. The routes carry their own tags (see tenant_endpoints/
-# tool_views.py), so none is added here.
-guild_router.include_router(tool_views.router)
 # Sharing: PUT /{tool}/{id}/grants, mounted once per Tool at each tool's own
 # path. The routes carry their own tags (see tenant_endpoints/tool_grants.py),
 # so none is added here.

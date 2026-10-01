@@ -515,31 +515,15 @@ async def create_wiki_page(
     return serialize_wiki_page(page, context=guild_context)
 
 
-@router.get("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)
-async def read_wiki_page(
-    wiki_id: int,
-    page_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> WikiPageRead:
-    _wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context
-    )
-    await tags_service.annotate_tags(session, [page])
-    return serialize_wiki_page(page, context=guild_context)
-
-
 @pages_router.get("/wiki-pages/{page_id}", response_model=WikiPageRead)
-async def read_wiki_page_by_id(
+async def read_wiki_page(
     page_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
-    """One page by its own id — the read-back for a link that names only the
-    page, such as a mention in a document or a stored notification. Answered
-    exactly as the page's address inside its wiki is."""
+    """One page by its own id, which is all a link to it, a mention or a
+    stored notification names."""
     wiki_id = (
         await session.exec(select(WikiPage.wiki_id).where(WikiPage.id == page_id))
     ).first()
@@ -548,7 +532,11 @@ async def read_wiki_page_by_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WikiMessages.PAGE_NOT_FOUND,
         )
-    return await read_wiki_page(wiki_id, page_id, session, current_user, guild_context)
+    _wiki, page = await _load_page(
+        session, wiki_id, page_id, current_user, guild_context
+    )
+    await tags_service.annotate_tags(session, [page])
+    return serialize_wiki_page(page, context=guild_context)
 
 
 @router.patch("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)

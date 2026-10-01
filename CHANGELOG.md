@@ -51,10 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /users/{id}/dm-permission` → `POST /me/dm-permissions` with that one id.
   - `PUT /calendar-events/{id}/tags` and `PUT /queues/{id}/items/{item_id}/tags` → `tag_ids` on each one's `PATCH`.
   - `PUT /tasks/{id}/properties` → `property_values` on `PATCH /tasks/{id}`.
+  - The nine `POST /c/{guild_id}/<tool>/{id}/view` routes → `POST /c/{guild_id}/recents/{entity_type}/{entity_id}`, beside the `DELETE` that closes a tab.
+  - `GET /me/tasks/created` → `GET /me/tasks?created=true`.
+  - The nine `GET /c/{guild_id}/exports/<tool>` routes → `GET /c/{guild_id}/exports/{tool}`, named by the tool's own value (`counter_group`), with the selection as `ids` in place of `<tool>_id` and `<tool>_ids`.
+  - `GET /wikis/{wiki_id}/pages/{page_id}` → `GET /wiki-pages/{page_id}`.
 
 ### Fixed
 
 - **Deleting a sign-in provider a community requires says so on PostgreSQL 18.** It's refused as in use, as on earlier versions, instead of failing with a server error.
+- **Wikis show in the recent tabs bar.** Opening a wiki now puts it beside the other tools you've opened.
 - **Invite links are for whoever can change the member list.** Someone with temporary read-only access to a community's settings no longer sees its invite links, and an account with temporary access to a community can't accept an invite into it until that access ends.
 - **Ending app connections answers right away.** Revoking every member's connection, uninstalling an app, removing a member, leaving or deleting a community no longer waits for each connected service to confirm, one at a time. The services are told in the background, several at once.
 - **A service's webhook reaches every connected community faster.** One delivery is passed to several communities at once instead of one after another, so a service that connected many of them no longer times out waiting.

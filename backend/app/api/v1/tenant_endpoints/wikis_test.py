@@ -260,7 +260,7 @@ async def test_a_restored_page_takes_its_name_back(
     )
 
     assert restored.status_code == 200, restored.text
-    back = await client.get(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    back = await client.get(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
     assert back.status_code == 200, back.text
     assert back.json()["slug"] == "step-1"
 
@@ -290,12 +290,12 @@ async def test_a_restored_page_comes_back_beside_the_one_that_took_its_name(
     )
 
     assert restored.status_code == 200, restored.text
-    back = await client.get(a.g(f"/wikis/{wiki.id}/pages/{page_id}"), headers=a.headers)
+    back = await client.get(a.g(f"/wiki-pages/{page_id}"), headers=a.headers)
     assert back.status_code == 200, back.text
     assert back.json()["slug"] == "step-1-2"
     # And the page that took the name in the meantime keeps it.
     held = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{replacement.json()['id']}"), headers=a.headers
+        a.g(f"/wiki-pages/{replacement.json()['id']}"), headers=a.headers
     )
     assert held.json()["slug"] == "step-1"
 
@@ -372,7 +372,7 @@ async def test_moving_a_page_renumbers_its_new_siblings(
 async def test_a_page_from_another_wiki_reads_as_missing(
     client: AsyncClient, acting_user, session
 ):
-    """A page is addressed through its wiki, so an id from a different one is
+    """A page is written through its wiki, so an id from a different one is
     not found rather than somebody else's page."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _wikis_enabled(session, a.initiative)
@@ -380,8 +380,10 @@ async def test_a_page_from_another_wiki_reads_as_missing(
     theirs = await create_wiki(session, a.initiative, a.user)
     stray = await create_wiki_page(session, theirs, a.user, title="Elsewhere")
 
-    response = await client.get(
-        a.g(f"/wikis/{mine.id}/pages/{stray.id}"), headers=a.headers
+    response = await client.patch(
+        a.g(f"/wikis/{mine.id}/pages/{stray.id}"),
+        headers=a.headers,
+        json={"title": "Moved in"},
     )
 
     assert response.status_code == 404
@@ -934,19 +936,12 @@ async def test_a_draft_page_reads_as_missing_to_a_reader(
         initiative=a.initiative,
         initiative_role="member",
     )
-    response = await client.get(
-        a.g(f"/wikis/{wiki.id}/pages/{page.id}"), headers=b.headers
-    )
-
-    assert response.status_code == 404
-
-    # The page's own address answers the same way: its writer reads it, and a
-    # reader is told nothing.
-    by_id = a.g(f"/wiki-pages/{page.id}")
-    written = await client.get(by_id, headers=a.headers)
+    # Its writer reads it, and a reader is told nothing.
+    url = a.g(f"/wiki-pages/{page.id}")
+    written = await client.get(url, headers=a.headers)
     assert written.status_code == 200, written.text
     assert written.json()["wiki_id"] == wiki.id
-    assert (await client.get(by_id, headers=b.headers)).status_code == 404
+    assert (await client.get(url, headers=b.headers)).status_code == 404
 
 
 # ---------------------------------------------------------------------------
