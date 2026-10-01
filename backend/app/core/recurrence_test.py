@@ -43,7 +43,8 @@ def test_normalize_writes_canonical_lines(text, kind, stored):
         ("FREQ=DAILY;UNTIL=20261201T000000", "event"),
         ("FREQ=DAILY;INTERVAL=0", "event"),
         ("FREQ=DAILY;COUNT=10001", "event"),
-        ("FREQ=YEARLY;COUNT=101", "event"),
+        ("FREQ=YEARLY;COUNT=102", "event"),
+        ("FREQ=YEARLY;INTERVAL=366;COUNT=10000", "event"),
         ("FREQ=BOGUS", "event"),
         ("DTSTART:20261001T000000Z\nRRULE:FREQ=DAILY", "event"),
         ("", "event"),
@@ -223,7 +224,8 @@ def test_a_series_splits_skips_and_takes_extra_starts():
 def test_a_walk_starts_near_its_window_and_ends_past_it():
     """An hourly series from the year 1 lists a day of 2026 from its own
     steps; a rule with no starts has none in any window; an open lookup finds
-    a start within fifty years, and a counted series ends within them."""
+    a start within fifty years or four hundred steps, a counted series runs to
+    its count, and an extra start is a date of its own."""
     day = datetime(2026, 9, 30, tzinfo=UTC)
     assert recurrence.between(
         "RRULE:FREQ=HOURLY;INTERVAL=5",
@@ -252,8 +254,17 @@ def test_a_walk_starts_near_its_window_and_ends_past_it():
     assert recurrence.first(never, day, 0, 5) == []
     assert recurrence.next_start(never, day) is None
     assert recurrence.upcoming(never, day, 0, day) == day
-    leap = "RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=29"
-    assert recurrence.first(leap, day, 0, 20)[-1] == datetime(2076, 2, 29, tzinfo=UTC)
-    assert recurrence.last_start(f"{leap};COUNT=20", day) == datetime(
-        2076, 2, 29, tzinfo=UTC
+    # Leap days a century apart: 2000, then 2400.
+    leap = "RRULE:FREQ=YEARLY;INTERVAL=100;BYMONTH=2;BYMONTHDAY=29"
+    leap_day = datetime(2000, 2, 29, tzinfo=UTC)
+    after = datetime(2400, 2, 29, tzinfo=UTC)
+    assert recurrence.next_start(leap, leap_day) == after
+    assert recurrence.upcoming(f"{leap};UNTIL=27000101", leap_day, 0, late) == after
+    assert recurrence.last_start("RRULE:FREQ=YEARLY;COUNT=101", day) == datetime(
+        2126, 9, 30, tzinfo=UTC
     )
+    assert recurrence.normalize("FREQ=YEARLY;INTERVAL=366;COUNT=1", kind="event")
+    extra = "RRULE:FREQ=DAILY;COUNT=3\nRDATE:20800101T000000Z"
+    in_2080 = datetime(2080, 1, 1, tzinfo=UTC)
+    assert recurrence.last_start(extra, day) == in_2080
+    assert recurrence.between(extra, day, 0, in_2080, in_2080) == [in_2080]

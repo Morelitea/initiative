@@ -25,11 +25,12 @@ import calendar
 from dataclasses import dataclass, field
 from datetime import MAXYEAR, date, datetime, time, timedelta, timezone, tzinfo
 from functools import lru_cache
-from itertools import islice, takewhile
+from heapq import merge
+from itertools import groupby, islice, takewhile
 from typing import Iterable, Iterator, Literal
 
 import icalendar
-from dateutil.rrule import rrulestr, rruleset
+from dateutil.rrule import rrulestr
 
 from app.core.user_input_validators import resolve_zone
 
@@ -84,12 +85,14 @@ _STEP = {
 #: The frequencies whose steps are all one length, so a walk can begin any
 #: whole number of them along.
 _EVEN_STEPS = frozenset({"WEEKLY", "DAILY", "HOURLY"})
-#: How far a walk looks past where it begins for a series' next start.
+#: How far a walk looks past where it begins for a series' next start, at
+#: the least (``_reach``).
 _REACH = timedelta(days=50 * 365)
 #: How long a counted series' steps may take.
 _MAX_COUNTED = 100 * _STEP["YEARLY"]
-#: The last second dateutil's calendar holds.
+#: The last second dateutil's calendar holds, and how long the calendar is.
 _LAST = datetime(MAXYEAR, 12, 31, 23, 59, 59)
+_CALENDAR = _LAST - datetime(1, 1, 1)
 
 
 @dataclass(frozen=True)
@@ -170,8 +173,8 @@ def normalize(text: str, *, kind: RecurrenceKind) -> str:
         raise ValueError(f"A repeat's interval is 1 to {_MAX_INTERVAL}.")
     if not 1 <= rule.get("COUNT", [1])[0] <= _MAX_COUNT:
         raise ValueError(f"A repeat happens 1 to {_MAX_COUNT} times.")
-    if "COUNT" in rule and _steps(rule, rule["COUNT"][0]) > _MAX_COUNTED:
-        raise ValueError("A counted repeat's steps take a hundred years at most.")
+    if "COUNT" in rule and _steps(rule, rule["COUNT"][0] - 1) > _MAX_COUNTED:
+        raise ValueError("A counted repeat ends within a hundred years.")
     for value in [*rule.get("UNTIL", []), *recurrence.exdates, *recurrence.rdates]:
         if isinstance(value, datetime) and value.utcoffset() != timedelta(0):
             raise ValueError("A repeat's dates and times are UTC.")
@@ -202,8 +205,16 @@ def stored(
 
 
 def _steps(rule: dict[str, list], n: int) -> timedelta:
-    """The longest ``n`` of the rule's steps take."""
-    return _STEP[rule["FREQ"][0]] * rule.get("INTERVAL", [1])[0] * n
+    """The longest ``n`` of the rule's steps take, or the calendar's length."""
+    step = _STEP[rule["FREQ"][0]] * rule.get("INTERVAL", [1])[0]
+    return step * min(n, _CALENDAR // step)
+
+
+def _reach(rule: dict[str, list]) -> timedelta:
+    """How far past where it begins a walk looks for a series' starts:
+    ``_REACH``, or four hundred of its steps, in which a year's rule runs
+    through every pattern it has."""
+    return max(_REACH, _steps(rule, 400))
 
 
 def _past(value: datetime, span: timedelta) -> datetime:
@@ -242,16 +253,16 @@ def _walk(
     *,
     count: bool = True,
 ) -> Iterator[datetime]:
-    """The series' starts from ``since`` through ``through``, in order: without
-    ``through``, as far as a series reaches from ``since`` (``_REACH``, or two
-    of its steps), and a counted series stops where its count reaches from its
-    start.
+    """The series' starts from ``since`` through ``through``, in order. The
+    rule's own starts go as far as ``_reach`` from ``since``, or for a counted
+    series as far as its count reaches from its start; extra starts are dates
+    of their own, with no reach.
 
     dateutil runs the rule from the start moved by ``shift``, where the picked
-    days are, and every start is moved back. A series of even steps without a
-    count runs from its last step at or before ``since``. The years the walk
-    covers run where dateutil's calendar ends, on years with the same weekdays
-    and leap days, so it ends there."""
+    days are, and every start is moved back. A series without a count runs
+    from its last step at or before ``since``. The years the walk covers run
+    where dateutil's calendar ends, on years with the same weekdays and leap
+    days, so it ends there."""
     offset = timedelta(minutes=shift)
 
     def here(value: date | datetime, at: time) -> datetime:
@@ -265,14 +276,12 @@ def _walk(
     origin = here(start, time())
     at = origin.time()
     lower = here(since, at)
-    counted = parts.get("COUNT")
-    upper = (
-        here(through, at)
-        if through is not None
-        else _past(lower, max(_REACH, _steps(parts, 2)))
-    )
-    if counted:
-        upper = min(upper, _past(origin, max(_REACH, _steps(parts, counted[0]))))
+    upper = _LAST if through is None else here(through, at)
+    if counted := parts.get("COUNT"):
+        reach = max(_reach(parts), _steps(parts, counted[0]))
+        limit = min(upper, _past(origin, reach))
+    else:
+        limit = min(upper, _past(lower, _reach(parts)))
     first = origin
     freq = parts["FREQ"][0]
     if not counted and lower > first and freq in _EVEN_STEPS:
@@ -292,34 +301,39 @@ def _walk(
             parts.setdefault("BYHOUR", [first.hour])
             parts["BYMINUTE"], parts["BYSECOND"] = [first.minute], [first.second]
             first = datetime((month + ahead) // 12, (month + ahead) % 12 + 1, 1)
-    if upper < lower:
-        return
-    begin = min(first, lower)
-    years = _years_on(begin.year, upper.year)
 
-    def on(value: datetime, years: int = years) -> datetime:
-        return value.replace(year=value.year + years)
+    def own() -> Iterator[datetime]:
+        if limit < lower:
+            return
+        years = _years_on(min(first, lower).year, limit.year)
 
-    series = rruleset()
-    until = parts.pop("UNTIL", None)
-    end = here(until[0], _END_OF_DAY) if until else upper
-    if until and end >= first:
-        parts["UNTIL"] = [on(min(end, upper))]
-    rule = rrulestr(icalendar.vRecur(parts).to_ical().decode(), dtstart=on(first))
-    if end >= first:
-        series.rrule(rule)
-    for values, add in (
-        (recurrence.rdates, series.rdate),
-        (recurrence.exdates, series.exdate),
-    ):
-        for value in values:
-            if begin <= (moved := here(value, at)) <= upper:
-                add(on(moved))
-    last = on(upper)
-    for value in takewhile(
-        lambda value: value <= last, series.xafter(on(lower), inc=True)
-    ):
-        yield (on(value, -years) - offset).replace(tzinfo=timezone.utc)
+        def on(value: datetime, years: int = years) -> datetime:
+            return value.replace(year=value.year + years)
+
+        until = parts.pop("UNTIL", None)
+        end = here(until[0], _END_OF_DAY) if until else limit
+        if until and end >= first:
+            parts["UNTIL"] = [on(min(end, limit))]
+        rule = rrulestr(icalendar.vRecur(parts).to_ical().decode(), dtstart=on(first))
+        if end < first:
+            return
+        last = on(limit)
+        for value in takewhile(
+            lambda value: value <= last, rule.xafter(on(lower), inc=True)
+        ):
+            yield on(value, -years)
+
+    skipped = {here(value, at) for value in recurrence.exdates}
+    extra = sorted(
+        {
+            moved
+            for value in recurrence.rdates
+            if lower <= (moved := here(value, at)) <= upper
+        }
+    )
+    for value, _ in groupby(merge(own(), extra)):
+        if value not in skipped:
+            yield (value - offset).replace(tzinfo=timezone.utc)
 
 
 def first(text: str, start: datetime, shift: int, n: int) -> list[datetime]:
@@ -396,14 +410,14 @@ def starting(
 def upcoming(text: str, start: datetime, shift: int, now: datetime) -> datetime:
     """The first occurrence starting at or after ``now``, or, once the series
     has ended, its last: looked for within a year or two steps of its end,
-    then within ``_REACH``."""
+    then within ``_reach``."""
     repeat = parse(text)
     following = next(_walk(repeat, start, shift, now), None)
     if following is not None:
         return following
     end = min(now, last_start(text, start, shift) or now)
     last = start
-    for back in (max(_steps(repeat.rule, 2), timedelta(days=366)), _REACH):
+    for back in (max(_steps(repeat.rule, 2), timedelta(days=366)), _reach(repeat.rule)):
         if last == start:
             since = end - min(back, end - start)
             *_, last = start, *_walk(repeat, start, shift, since, end)
