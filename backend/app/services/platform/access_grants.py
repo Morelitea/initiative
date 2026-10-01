@@ -187,13 +187,16 @@ async def _tell(
     if requester is not None:
         body_vars["requester"] = requester
     first, *rest = lines
+    # The community it is about, so a person who has muted that community
+    # hears about it the way they asked to.
+    guild_id = int(first["guild_id"]) if first.get("guild_id") else None
     rows = [
         await notice_outbox.notice(
             session,
             recipient,
             notification_type,
             first,
-            guild_id=None,
+            guild_id=guild_id,
             push=(
                 translate(
                     f"accessGrant.{push_key}.title", locale, namespace="notifications"
@@ -220,7 +223,7 @@ async def _tell(
         )
     ]
     rows += [
-        notice_outbox.row(cast(int, recipient.id), None, notification_type, line)
+        notice_outbox.row(cast(int, recipient.id), guild_id, notification_type, line)
         for line in rest
     ]
     await notice_outbox.enqueue(session, rows)

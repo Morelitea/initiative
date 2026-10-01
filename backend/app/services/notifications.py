@@ -405,6 +405,9 @@ async def notify(
         "guild_id": str(guild_id),
         "target_path": payload["target_path"],
     }
+    # A channel the deployment or the community has switched off is not worded
+    # at all; ``notice`` applies the same answer again to what is.
+    policy = await notification_policy.for_send(session, guild_id)
     rows: list[dict[str, Any]] = []
     for user_id in wanted:
         recipient = accounts.get(user_id)
@@ -415,17 +418,19 @@ async def notify(
             name: value if isinstance(value, str) else value(recipient)
             for name, value in (values or {}).items()
         }
-        pieces = (
-            email(recipient)
-            if email is not None
-            else email_service.EmailPieces(
-                subject=email_t(f"{key}.subject", locale, escape=False, **filled),
-                headline=email_t(f"{key}.title", locale, **filled),
-                body=email_t(f"{key}.body", locale, **filled),
+        pieces: email_service.EmailPieces | None = None
+        if policy.email:
+            pieces = (
+                email(recipient)
+                if email is not None
+                else email_service.EmailPieces(
+                    subject=email_t(f"{key}.subject", locale, escape=False, **filled),
+                    headline=email_t(f"{key}.title", locale, **filled),
+                    body=email_t(f"{key}.body", locale, **filled),
+                )
             )
-        )
-        if pieces.link is None:
-            pieces = replace(pieces, link=payload["smart_link"])
+            if pieces.link is None:
+                pieces = replace(pieces, link=payload["smart_link"])
         rows.append(
             await notice_outbox.notice(
                 session,
@@ -434,8 +439,12 @@ async def notify(
                 payload,
                 guild_id=guild_id,
                 push=(
-                    _nt(f"{key}.title", locale, **filled),
-                    _nt(f"{key}.body", locale, **filled),
+                    (
+                        _nt(f"{key}.title", locale, **filled),
+                        _nt(f"{key}.body", locale, **filled),
+                    )
+                    if policy.push
+                    else None
                 ),
                 push_data=push_data,
                 email=pieces,

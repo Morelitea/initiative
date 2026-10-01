@@ -159,7 +159,11 @@ async def notice(
 
 
 async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> None:
-    """Write these notices down, in one statement, on the caller's session.
+    """Write these notices down on the caller's session.
+
+    The rows go as the statement's parameters rather than one VALUES list, so
+    the driver sends a row at a time in one round trip and an audience of
+    thousands never meets the limit on values one statement may bind.
 
     An append and nothing else: the rows are the worker's from here, and the
     request path holds no right to read them back. The wake is sent the same
@@ -167,7 +171,9 @@ async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> N
     """
     if not rows:
         return
-    await session.exec(insert(NoticeOutboxItem).values(list(rows)).inline())
+    # Written without reading anything back: the request path may not read
+    # this table, and an insert left to itself returns each new row's id.
+    await session.exec(insert(NoticeOutboxItem.__table__).inline(), params=list(rows))  # type: ignore[arg-type]
     await session.exec(select(func.pg_notify(CHANNEL, "")))
 
 
