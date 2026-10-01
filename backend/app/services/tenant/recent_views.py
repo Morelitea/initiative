@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Iterable, Sequence
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import select
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.recent_view import RecentView
@@ -117,6 +117,22 @@ async def clear_view(
     if record is not None:
         await session.delete(record)
         await session.commit()
+
+
+async def purge_for_entities(
+    session: AsyncSession, entity_type: str, entity_ids: Iterable[int]
+) -> None:
+    """Drop everyone's recent view of these, for a purge: ``entity_id`` is a
+    weak reference, so nothing carries the rows out with the entity."""
+    ids = tuple(entity_ids)
+    if not ids:
+        return
+    await session.exec(
+        delete(RecentView).where(  # type: ignore[arg-type]
+            RecentView.entity_type == entity_type,
+            RecentView.entity_id.in_(ids),  # type: ignore[attr-defined]
+        )
+    )
 
 
 async def list_recent_views(

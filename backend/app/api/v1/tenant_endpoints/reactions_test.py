@@ -16,6 +16,7 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
 from app.testing import (
+    create_comment,
     create_post,
     create_project,
     create_resource_grant,
@@ -949,37 +950,38 @@ class TestReactionNotifications:
 
 
 class TestReactionLifecycle:
-    async def test_purging_a_comment_takes_its_reactions(
+    async def test_purging_a_post_takes_what_names_it(
         self, client, session, acting_user
     ):
-        from app.models.tenant.comment import Comment
+        """Reactions on the post and on its comments, and recent views of it,
+        go with the post: they name it by id, and nothing could remove them
+        once it is gone."""
         from app.models.tenant.reaction import Reaction
-        from app.services.tenant.soft_delete import hard_purge_entity
+        from app.models.tenant.recent_view import RecentView
         from sqlmodel import select
 
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-        task = await create_task(session, a.project)
-        comment_id = await _comment_on_task(client, a, task.id)
-        await client.put(
-            a.g(f"/reactions/comment/{comment_id}"),
-            headers=a.headers,
-            json={"emoji": THUMBS},
-        )
-
-        await route_session_to_guild(session, a.guild.id)
-        comment = (
-            await session.exec(select(Comment).where(Comment.id == comment_id))
-        ).one()
-        await hard_purge_entity(session, comment)
-        await session.commit()
-
-        await route_session_to_guild(session, a.guild.id)
-        left = (
-            await session.exec(
-                select(Reaction).where(
-                    Reaction.target_type == "comment",
-                    Reaction.target_id == comment_id,
-                )
+        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        await _posts_enabled(session, a.initiative)
+        post = await create_post(session, a.initiative, a.user)
+        comment = await create_comment(session, a.user, post=post)
+        for path in (
+            f"/reactions/post/{post.id}",
+            f"/reactions/comment/{comment.id}",
+        ):
+            resp = await client.put(
+                a.g(path), headers=a.headers, json={"emoji": THUMBS}
             )
-        ).all()
-        assert left == []
+            assert resp.status_code == 200, resp.text
+        viewed = await client.post(a.g(f"/recents/post/{post.id}"), headers=a.headers)
+        assert viewed.status_code == 200, viewed.text
+
+        trashed = await client.delete(a.g(f"/posts/{post.id}"), headers=a.headers)
+        assert trashed.status_code in (200, 204), trashed.text
+        purged = await client.delete(
+            a.g(f"/trash/post/{post.id}/purge"), headers=a.headers
+        )
+        assert purged.status_code == 204, purged.text
+
+        await route_session_to_guild(session, a.guild.id)
+        assert (await session.exec(select(Reaction))).all() == []
+        assert (await session.exec(select(RecentView))).all() == []
