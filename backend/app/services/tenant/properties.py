@@ -886,11 +886,17 @@ def _value_on(target: str, parent_id: Any, property_id: int, predicate: Any) -> 
     start from the rows the list has already narrowed to, and the negation is
     an anti-join, where ``NOT IN`` would read every value of the property.
     """
-    return exists().where(
-        PropertyValue.entity_type == target,
-        PropertyValue.entity_id == parent_id,
-        PropertyValue.property_id == property_id,
-        predicate,
+    return (
+        exists()
+        .where(
+            PropertyValue.entity_type == target,
+            PropertyValue.entity_id == parent_id,
+            PropertyValue.property_id == property_id,
+            predicate,
+        )
+        # Named, so a query that does not select the row's table fails
+        # rather than reading every value as one row's.
+        .correlate(parent_id.expression.table)
     )
 
 
