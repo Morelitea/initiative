@@ -201,20 +201,34 @@ def test_a_repeating_date_is_due_on_its_next_date_and_repeats(
 
 
 @pytest.mark.parametrize(
-    ("deadline", "due", "rule"),
+    ("phrase", "zone", "deadline", "due", "rule"),
     [
         (
+            "every monday",
+            "",
             "2026-10-31",
             "2026-10-05T00:00:00+00:00",
             "RRULE:FREQ=WEEKLY;UNTIL=20261031T235959Z;BYDAY=MO",
         ),
-        ("2026-09-01", "2026-09-01T00:00:00+00:00", None),
+        # 9pm on the 31st in New York is the 1st in UTC, and still before it.
+        (
+            "every day at 9pm",
+            "America/New_York",
+            "2026-10-31",
+            "2026-10-01T01:00:00+00:00",
+            "RRULE:FREQ=DAILY;UNTIL=20261101T035959Z",
+        ),
+        ("every monday", "", "2026-09-01", "2026-09-01T00:00:00+00:00", None),
     ],
-    ids=["the repeat stops at it", "a deadline already gone is the due date"],
+    ids=[
+        "the repeat stops at it",
+        "at the end of its day where the repeat is",
+        "a deadline already gone is the due date",
+    ],
 )
-def test_a_deadline_beside_a_repeat_is_when_it_stops(deadline, due, rule):
+def test_a_deadline_beside_a_repeat_is_when_it_stops(phrase, zone, deadline, due, rule):
     mapped = tm.build_project_envelope(
-        _csv(f"task,T,,4,1,,,every monday,en,,,,,{deadline},"),
+        _csv(f"task,T,,4,1,,,{phrase},en,{zone},,,,{deadline},"),
         selection="P",
         app_version="1.2.3",
         now=datetime(2026, 9, 30, 15, tzinfo=timezone.utc),

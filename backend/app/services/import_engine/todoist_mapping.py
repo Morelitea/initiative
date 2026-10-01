@@ -30,7 +30,7 @@ from __future__ import annotations
 import csv
 import io
 import re
-from datetime import datetime, time, timezone
+from datetime import date, datetime, time, timezone
 from typing import Any, Optional
 
 from app.core import recurrence
@@ -245,9 +245,13 @@ def _repeating(
     if found is None:
         return {}
     rule, rolling, at = found
-    if deadline:
-        rule += f";UNTIL={deadline[:10].replace('-', '')}T235959Z"
     tz = zone if at else None
+    if deadline:
+        # The end of the deadline's day where the repeat's times are read.
+        end = datetime.combine(
+            date.fromisoformat(deadline[:10]), time(23, 59, 59), resolve_zone(tz)
+        )
+        rule += f";UNTIL={end.astimezone(timezone.utc):%Y%m%dT%H%M%SZ}"
     anchor = datetime.combine(
         now.astimezone(resolve_zone(tz)).date(), at or time(), resolve_zone(tz)
     )
