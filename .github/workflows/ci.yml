@@ -385,7 +385,7 @@ jobs:
             | tee "$RUNNER_TEMP/pytest-core.log" || status=1
           [[ "$MODE" == "core" ]] && exit $status
           uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 \
-            -m "not always and not seam" --testmon-nocollect --testmon-forceselect \
+            -m "not always and not seam and not budget" --testmon-nocollect --testmon-forceselect \
             | tee "$RUNNER_TEMP/pytest.log" || [[ $? -eq 5 ]] || status=1
           exit $status
 
