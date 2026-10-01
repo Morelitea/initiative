@@ -144,6 +144,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_hold_summaries,
         HOLD_SUMMARY_POLL_SECONDS,
     )
+    from app.services.platform import notice_outbox
     from app.services.platform.email_outbox import (
         EMAIL_OUTBOX_POLL_SECONDS,
         process_email_outbox,
@@ -209,6 +210,8 @@ def start_background_tasks() -> list[asyncio.Task]:
                 "hold-summary",
             )
         ),
+        # Notices, delivered as they are written.
+        asyncio.create_task(notice_outbox.run()),
         # The one way notification email leaves the building.
         asyncio.create_task(
             _loop_worker(

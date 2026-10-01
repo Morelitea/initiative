@@ -27,6 +27,7 @@ from app.testing import (
     create_property_definition,
     create_tag,
     route_session_to_guild,
+    drain_notices,
 )
 from app.testing.app_clients import (
     assert_names_nobody,
@@ -173,6 +174,7 @@ async def test_posts_as_itself_and_the_notices_name_the_app(
 
     # The member it answered hears of the reply, and the document's owner of
     # the comment: both from the app, by its name.
+    await drain_notices()
     notices = (
         await session.exec(
             select(Notification).where(

@@ -63,6 +63,7 @@ from app.testing import (
     create_project,
     create_task,
     create_user,
+    drain_notices,
     set_notification_prefs,
 )
 from app.testing import route_as
@@ -78,6 +79,7 @@ async def _dispatch(session: AsyncSession) -> None:
     """Run the reminder pass, leaving the test session unrouted."""
     await set_rls_context(session, Unattributed())
     await _sweep(await reminder_scan(now=datetime.now(timezone.utc)))
+    await drain_notices()
 
 
 async def _events_initiative(session: AsyncSession, creator):
@@ -378,6 +380,8 @@ async def test_a_community_notice_carries_its_guild(
         values={"initiative": initiative.name},
         data={"initiative_id": initiative.id, "target_path": f"/i/{initiative.id}"},
     )
+    await session.commit()
+    await drain_notices()
     await set_rls_context(session, Unattributed())
 
     notifs = (

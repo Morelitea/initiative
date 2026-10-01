@@ -28,6 +28,7 @@ from app.testing import (
     create_initiative_member,
     create_post,
     create_user,
+    drain_notices,
     route_session_to_guild,
 )
 
@@ -66,6 +67,7 @@ async def _draft(session, initiative, author, *, due_in: timedelta, **kw) -> int
 
 
 async def _notifications(session: AsyncSession, user_id: int) -> list[Notification]:
+    await drain_notices()
     return list(
         await session.exec(
             select(Notification).where(
@@ -225,35 +227,3 @@ async def test_a_failed_announcement_does_not_re_publish(session: AsyncSession):
 
 async def _explode(*_args, **_kwargs):
     raise RuntimeError("the network went away mid-announcement")
-
-
-async def test_one_failed_push_does_not_cost_the_rest(session: AsyncSession):
-    """The publication is committed by the time the fan-out runs, so a push
-    that fails for one reader is logged and the rest of the board is still
-    told."""
-    from app.services.platform import push_notifications
-
-    author, reader, initiative, guild = await _board(session)
-    reader_id = reader.id
-    second = await create_user(session)
-    second_id = second.id
-    await create_guild_membership(session, user=second, guild=guild)
-    await create_initiative_member(session, initiative, second)
-    await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
-
-    pushed: list[int] = []
-
-    async def _flaky(*, user_id, **_kw):
-        pushed.append(user_id)
-        if user_id == min(reader_id, second_id):
-            raise RuntimeError("that device went away")
-        return 1
-
-    with patch.object(push_notifications, "send_push_to_user", _flaky):
-        await route_session_to_guild(session, guild_of(initiative))
-        await publish_due_posts(session, now=datetime.now(timezone.utc))
-    await session.commit()
-
-    assert sorted(pushed) == sorted([reader_id, second_id])
-    for user_id in (reader_id, second_id):
-        assert len(await _notifications(session, user_id)) == 1

@@ -79,6 +79,7 @@ from app.models.platform.user_view_preference import UserViewPreference
 from app.models.platform.user_dm_settings import UserDmSettings
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.email_outbox import EmailOutboxItem
+from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.legal_acceptance import LegalAcceptance
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.contact_grant import ContactGrant
@@ -221,6 +222,7 @@ __all__ = [
     "UserDmSettings",
     "UserNotificationPrefs",
     "EmailOutboxItem",
+    "NoticeOutboxItem",
     "UserDmGuildOptout",
     "ContactGrant",
     "UserIgnore",

@@ -19,6 +19,7 @@ from app.testing import (
     create_resource_grant,
     create_task,
     create_user,
+    drain_notices,
     route_session_to_guild,
 )
 from app.db.request_context import SystemGuild, Unattributed
@@ -26,6 +27,8 @@ from app.db.request_context import SystemGuild, Unattributed
 
 async def _mentions(user_id: int) -> list[Notification]:
     from app.db.session import SystemSessionLocal
+
+    await drain_notices()
 
     async with SystemSessionLocal() as system_session:
         rows = (
@@ -79,6 +82,7 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
         headers=owner.headers,
     )
     assert plain.status_code in (200, 201), plain.text
+    await drain_notices()
 
     opened = await client.post(
         "/api/v1/notifications/read-subject",

@@ -1,4 +1,4 @@
-"""A deployment with push switched on, for a test about what a push carries."""
+"""Push in tests: a deployment with it switched on, and a phone to send to."""
 
 from __future__ import annotations
 
@@ -28,3 +28,23 @@ def push_switched_on() -> Iterator[None]:
         push_config, "ensure_push_config_fresh", AsyncMock(return_value=enabled)
     ):
         yield
+
+
+async def create_push_token(session, user, *, token: str | None = None) -> str:
+    """Register a phone for ``user`` under a live sign-in, as the app does when
+    it starts. Returns the token's value."""
+    from app.services.auth import sessions as session_service
+    from app.services.platform import push_tokens
+
+    signed_in = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    value = token or f"token-{user.id}"
+    await push_tokens.register_push_token(
+        session=session,
+        user_id=user.id,
+        push_token=value,
+        platform="android",
+        session_id=signed_in.session.id,
+    )
+    return value

@@ -71,6 +71,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # like the settings above: one message can gather rows from every
         # community somebody is in, so it belongs to none of them.
         "email_outbox",
+        # A notice waiting to be delivered to one account, from whichever
+        # community it happened in. Per-account for the same reason.
+        "notice_outbox",
         # The picture on a user's profile. Public-plane identity like the row
         # it hangs off: one user spans guilds, and the bytes are served to
         # anyone holding the URL.

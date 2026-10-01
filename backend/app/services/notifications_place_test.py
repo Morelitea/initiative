@@ -13,7 +13,7 @@ from app.core.tools import Tool
 from app.models.platform.notification import Notification, NotificationType
 from app.services import notifications as notifications_service
 from app.services.platform import user_notifications
-from app.testing import create_guild, create_user
+from app.testing import create_guild, create_user, drain_notices
 from app.db.request_context import SystemGuild, Unattributed
 
 
@@ -142,6 +142,7 @@ async def test_a_notice_is_placed_by_what_it_is_about(session: AsyncSession, kin
         actor=actor,
     )
     await session.commit()
+    await drain_notices()
     await set_rls_context(session, Unattributed())
 
     line = await _only(session, owner.id)
