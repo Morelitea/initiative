@@ -148,7 +148,6 @@ from app.services.auth.assurance import (
     record_for_provider,
     session_amr,
 )
-from app.services.platform import billing_claim
 from app.services.platform import legal as legal_service
 from app.services.platform import usernames as username_service
 from app.services.platform import users as users_service
@@ -577,8 +576,10 @@ async def _register_account(
                     detail=AuthMessages.UNABLE_TO_CREATE_USER,
                 )
             guild_id = guild.id
-            # The account was made with a guild of its own; claim it for them. Fire-and-forget, once the seed has committed.
-            billing_claim.claim_new_guild(user_id=user_id, guild_id=guild_id)
+            # The account was made with a guild of its own; claim it for them.
+            await guilds_service.welcome_new_guild(
+                guild_id, owner_user_id=user_id, plan=details.community.plan
+            )
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         logger.exception("Failed to register user due to integrity error")

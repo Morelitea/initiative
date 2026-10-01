@@ -38,8 +38,8 @@ def sent_claims(monkeypatch):
     """Capture dispatched claims without any network."""
     calls: list[tuple[int, int]] = []
 
-    async def _capture(user_id: int, guild_id: int) -> None:
-        calls.append((user_id, guild_id))
+    async def _capture(user_id: int, guild_id: int, plan: str | None = None) -> None:
+        calls.append((user_id, guild_id, plan))
 
     monkeypatch.setattr(billing_claim, "_send_claim", _capture)
     return calls
@@ -75,7 +75,7 @@ async def test_a_reachable_billing_without_a_signing_key_still_sends_nothing(
 async def test_configured_dispatches_one_claim(billing_configured, sent_claims):
     billing_claim.claim_new_guild(user_id=9, guild_id=77)
     await _drain()
-    assert sent_claims == [(9, 77)]
+    assert sent_claims == [(9, 77, None)]
 
 
 async def test_the_request_carries_a_signed_handoff_and_no_bare_identity(
@@ -150,12 +150,12 @@ async def test_creating_a_guild_claims_it_for_its_owner(
     response = await client.post(
         "/api/v1/communities/",
         headers=get_auth_headers(user),
-        json={"name": "Claimed Guild"},
+        json={"name": "Claimed Guild", "plan": "tier-2"},
     )
     assert response.status_code == 201
     await _drain()
 
-    assert sent_claims == [(user.id, response.json()["id"])]
+    assert sent_claims == [(user.id, response.json()["id"], "tier-2")]
 
 
 async def test_an_unconfigured_deployment_creates_guilds_without_claiming(
@@ -179,7 +179,8 @@ async def test_an_unconfigured_deployment_creates_guilds_without_claiming(
 async def test_registration_claims_the_guild_it_creates(
     client, billing_configured, sent_claims
 ):
-    """A registration that names a community claims it too."""
+    """A registration that names a community claims it too, with the tier
+    it picked."""
     response = await client.post(
         "/api/v1/auth/register",
         json={
@@ -187,13 +188,14 @@ async def test_registration_claims_the_guild_it_creates(
             "username": "claimregister",
             "full_name": "Claim Register",
             "password": "securepassword123",
-            "community": {"name": "Claimed"},
+            "community": {"name": "Claimed", "plan": "tier-1"},
         },
     )
     assert response.status_code == 201
     await _drain()
 
     assert len(sent_claims) == 1
-    claimed_user, claimed_guild = sent_claims[0]
+    claimed_user, claimed_guild, plan = sent_claims[0]
     assert claimed_user == response.json()["id"]
     assert claimed_guild > 0
+    assert plan == "tier-1"

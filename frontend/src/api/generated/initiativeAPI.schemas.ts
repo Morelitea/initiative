@@ -3588,6 +3588,7 @@ export const EmailCadence = {
 export interface NewCommunity {
   name: string;
   description?: string | null;
+  plan?: string | null;
 }
 
 /**
@@ -4792,6 +4793,7 @@ export interface GuildClaimRulesResponse {
 export interface GuildCreate {
   name: string;
   description?: string | null;
+  plan?: string | null;
   owner_user_id?: number | null;
 }
 
