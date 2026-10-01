@@ -107,6 +107,8 @@ class UserCreate(SanitizedBaseModel):
     # The community this account is made with, when it is made to start one
     # rather than to join one.
     community: Optional[NewCommunity] = None
+    # Answers the directory's age question at sign-up; the date is not kept.
+    birthdate: Optional[date] = None
 
 
 def _avatar_out(value: Optional[str]) -> Optional[str]:

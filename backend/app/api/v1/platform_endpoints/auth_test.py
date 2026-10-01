@@ -10,7 +10,7 @@ Tests the auth API endpoints including:
 """
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -155,6 +155,36 @@ async def test_register_with_a_community_makes_it(
     assert [(g.name, g.description, role) for g, role in held] == [
         ("Book Club", "Monthly reads", GuildRole.superadmin)
     ]
+
+
+async def test_register_answers_the_age_question(client: AsyncClient):
+    """A birthdate given at sign-up answers the directory's age question; under
+    age is recorded on the account rather than refusing it."""
+    today = date.today()
+
+    def register(name: str, birthdate: date):
+        return client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": f"{name}@example.com",
+                "username": name,
+                "password": "securepassword123",
+                "birthdate": birthdate.isoformat(),
+            },
+        )
+
+    adult = await register("adult", date(today.year - 30, 1, 1))
+    assert adult.status_code == 201
+    assert adult.json()["age_confirmed_at"] is not None
+
+    minor = await register("minor", date(today.year - 10, 1, 1))
+    assert minor.status_code == 201
+    assert minor.json()["age_confirmed_at"] is None
+    assert minor.json()["age_below_minimum_at"] is not None
+
+    unborn = await register("unborn", today + timedelta(days=1))
+    assert unborn.status_code == 422
+    assert unborn.json()["detail"] == "USER_AGE_INVALID_BIRTHDATE"
 
 
 async def test_register_with_invite_blocked_when_guild_full(

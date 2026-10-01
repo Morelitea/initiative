@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import hmac
 import logging
@@ -49,6 +49,7 @@ from app.core.messages import (
     AuthMessages,
     NativeMessages,
     OidcMessages,
+    UserMessages,
 )
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
@@ -230,6 +231,7 @@ class RegistrationDetails:
     timezone: str | None = None
     captcha_token: str | None = None
     community: NewCommunity | None = None
+    birthdate: date | None = None
 
 
 @dataclass(frozen=True)
@@ -274,11 +276,24 @@ async def register_user(
             timezone=user_in.timezone,
             captcha_token=user_in.captcha_token,
             community=user_in.community,
+            birthdate=user_in.birthdate,
         ),
         invite_code=invite_code,
         hashed_password=get_password_hash(user_in.password),
     )
     return await users_service.to_self_read(registered.user)
+
+
+def _refuse_impossible_birthdate(birthdate: date | None) -> None:
+    if birthdate is None:
+        return
+    try:
+        users_service.check_birthdate(birthdate)
+    except users_service.InvalidBirthdateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=UserMessages.AGE_INVALID_BIRTHDATE,
+        ) from exc
 
 
 async def _registration_gate(
@@ -449,6 +464,11 @@ async def _register_account(
         if normalized_timezone is not None:
             user_kwargs["timezone"] = normalized_timezone
         user = User(**user_kwargs)
+        # Under age is recorded rather than refused: it closes the directory,
+        # not the account.
+        _refuse_impossible_birthdate(details.birthdate)
+        if details.birthdate is not None:
+            users_service.record_age_answer(user, details.birthdate)
         # The handle: the name part as typed, the number drawn here. Registering
         # is where an account picks one, so it counts as chosen and its owner
         # never meets the pick screen.
@@ -633,6 +653,7 @@ async def begin_passkey_sign_up(
     under.
     """
     await _passkey_sign_up_allowed(session)
+    _refuse_impossible_birthdate(payload.birthdate)
     await _registration_gate(
         request,
         session,
@@ -730,6 +751,7 @@ async def finish_passkey_sign_up(
             timezone=payload.timezone,
             captcha_token=payload.captcha_token,
             community=payload.community,
+            birthdate=payload.birthdate,
         ),
         invite_code=invite_code,
         hashed_password=None,

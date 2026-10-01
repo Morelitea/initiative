@@ -3608,6 +3608,7 @@ export interface EmailOtpRegister {
   timezone?: string | null;
   invite_code?: string | null;
   community?: NewCommunity | null;
+  birthdate?: string | null;
 }
 
 /**
@@ -6675,6 +6676,7 @@ export interface PasskeySignUpFinish {
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
+  birthdate?: string | null;
   credential: PasskeySignUpFinishCredential;
   /**
    * @minLength 1
@@ -6712,6 +6714,7 @@ export interface PasskeySignUpStart {
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
+  birthdate?: string | null;
 }
 
 export type PasskeyStepUpFinishCredential = { [key: string]: unknown };
@@ -8923,6 +8926,7 @@ export interface UserCreate {
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
+  birthdate?: string | null;
 }
 
 export interface UserEmailCreate {

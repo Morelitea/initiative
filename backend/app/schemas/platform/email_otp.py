@@ -1,5 +1,6 @@
 """Payloads for signing in with a one-time code sent to an address."""
 
+from datetime import date
 from typing import Optional
 
 from pydantic import EmailStr, Field
@@ -53,3 +54,5 @@ class EmailOtpRegister(SanitizedBaseModel):
     timezone: Optional[str] = None
     invite_code: Optional[str] = None
     community: Optional[NewCommunity] = None
+    # Answers the directory's age question at sign-up; the date is not kept.
+    birthdate: Optional[date] = None

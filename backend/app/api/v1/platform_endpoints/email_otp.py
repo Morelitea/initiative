@@ -388,6 +388,7 @@ async def register_with_code(
             full_name=payload.full_name,
             timezone=payload.timezone,
             community=payload.community,
+            birthdate=payload.birthdate,
         ),
         invite_code=payload.invite_code,
         hashed_password=None,

@@ -1,7 +1,7 @@
 """Payloads for the account's passkeys."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, field_validator
@@ -108,6 +108,8 @@ class PasskeySignUpStart(SanitizedBaseModel):
     timezone: Optional[str] = Field(default=None, max_length=64)
     captcha_token: Optional[str] = Field(default=None, max_length=4096)
     community: Optional[NewCommunity] = None
+    # Answers the directory's age question at sign-up; the date is not kept.
+    birthdate: Optional[date] = None
 
 
 class PasskeySignUpFinish(PasskeySignUpStart):
