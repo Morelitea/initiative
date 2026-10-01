@@ -26,7 +26,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Is all of it open source?"
     The part you run is, under the AGPL — the app, every tool in it, the mobile builds.
 
-    So are the [app kit](https://github.com/Morelitea/initiative-app-kit) and the [GitHub app](https://github.com/Morelitea/initiative-github), under MIT, if you fancy building an app of your own.
+    So are the [app SDK](https://github.com/Morelitea/initiative-app-sdk) and the [GitHub app](https://github.com/Morelitea/initiative-developer/tree/main/apps/github), under MIT, if you fancy building an app of your own.
 
     The pieces that exist only to run the hosted service are ours and stay closed. Nothing you self-host waits on them.
 
