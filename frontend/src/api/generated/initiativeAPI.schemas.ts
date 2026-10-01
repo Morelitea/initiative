@@ -10640,6 +10640,11 @@ export type ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams = {
 export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
   initiative_id?: number | null;
   search?: string | null;
+  tag_ids?: number[] | null;
+  /**
+   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
+   */
+  archived?: boolean | null;
   unread?: boolean;
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.

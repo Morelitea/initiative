@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.testing import create_post
+from app.testing import assign_tag, create_post, create_tag
 
 _JANUARY = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
 _FEBRUARY = datetime(2026, 2, 10, 12, 0, tzinfo=timezone.utc)
@@ -179,9 +179,10 @@ async def test_the_rail_narrows_with_the_filters(
     client: AsyncClient, acting_user, session
 ):
     """The rail is a picture of the feed as it stands: with the unread filter
-    on, a month that is fully read has nothing to offer."""
+    on, a month that is fully read has nothing to offer, and the archive and
+    tag filters count only the notices the feed would show."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _board(session, a)
+    made = await _board(session, a)
     reader = await acting_user(
         guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
     )
@@ -202,6 +203,23 @@ async def test_the_rail_narrows_with_the_filters(
     )
 
     assert [b["period"] for b in response.json()["buckets"]] == ["2026-02", "2026-01"]
+
+    made["jan"].archived_at = datetime.now(timezone.utc)
+    session.add(made["jan"])
+    tag = await create_tag(session, a.guild, name="raid")
+    await assign_tag(session, made["feb"], tag, commit=True)
+
+    async def months(**params) -> list[str]:
+        rail = await client.get(
+            a.g("/posts/timeline"),
+            headers=a.headers,
+            params={"initiative_id": a.initiative.id, **params},
+        )
+        return [b["period"] for b in rail.json()["buckets"]]
+
+    assert await months() == ["2026-03", "2026-02"]
+    assert await months(archived=True) == ["2026-01"]
+    assert await months(tag_ids=[tag.id]) == ["2026-02"]
 
 
 async def test_the_rail_follows_the_archive_view(
