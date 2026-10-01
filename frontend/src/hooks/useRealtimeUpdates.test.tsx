@@ -8,6 +8,7 @@
  * here instead of shipping a thread that only refreshes on reload.
  */
 
+import { InfiniteQueryObserver } from "@tanstack/react-query";
 import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +21,7 @@ import { setAuthToken } from "@/api/client";
 import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
 import { type CommentRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationGuild } from "@/api/query-keys";
+import { commentThreadQueryOptions } from "@/hooks/useComments";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { dashboardDataKey } from "@/hooks/useSqlQuery";
 import { queryClient } from "@/lib/queryClient";
@@ -43,13 +45,20 @@ const seed = (key: readonly unknown[]) => {
   return () => queryClient.getQueryState(key)?.isInvalidated ?? false;
 };
 
-/** An open comment thread on one parent, as `useComments` keys and holds it. */
-const seedThread = (param: string, id: number, comments: CommentRead[] = []) => {
+/** A comment thread on one parent, as `useComments` keys and holds it; open
+ *  (something on screen watching it) unless `open` is false. */
+const seedThread = (param: string, id: number, comments: CommentRead[] = [], open = true) => {
   const key = getListCommentsApiV1CGuildIdCommentsGetQueryKey(GUILD, { [param]: id });
   queryClient.setQueryData(key, {
     pages: [{ comments, next_cursor: null }],
     pageParams: [undefined],
   });
+  if (open) {
+    new InfiniteQueryObserver(queryClient, {
+      ...commentThreadQueryOptions(GUILD, { [param]: id }),
+      enabled: false,
+    }).subscribe(() => {});
+  }
   return {
     ids: () =>
       queryClient
@@ -99,7 +108,7 @@ describe("realtime comment frames", () => {
   it.each(TOOLS)("puts a new comment into a %s's thread and refreshes the entity", async (tool) => {
     const thread = seedThread(toolIdParam(tool), ENTITY_ID);
     const entity = seed([`/api/v1/c/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
-    serveComments({ 1: buildComment({ id: 1 }) });
+    serveComments({ 1: buildComment({ id: 1, [toolIdParam(tool)]: ENTITY_ID }) });
 
     applyChanges([comment(1, [{ type: toolPlural(tool), id: ENTITY_ID }])], GUILD);
 
@@ -141,29 +150,44 @@ describe("realtime comment frames", () => {
 
   it("leaves another entity's thread alone, and reads nothing for a thread not open", async () => {
     const other = seedThread("post_id", 99);
-    const asked = serveComments({ 1: buildComment({ id: 1 }) });
+    const closed = seedThread("post_id", ENTITY_ID, [], false);
+    const asked = serveComments({ 1: buildComment({ id: 1, post_id: ENTITY_ID }) });
 
     applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], GUILD);
-    await new Promise((resolve) => setTimeout(resolve, 0));
 
+    // A closed thread is only marked stale; it reads again when it is shown.
+    await vi.waitFor(() => expect(closed.invalidated()).toBe(true));
     expect(asked).toEqual([]);
+    expect(closed.ids()).toEqual([]);
     expect(other.ids()).toEqual([]);
     expect(other.invalidated()).toBe(false);
   });
 
+  it("puts a wiki page's comment into that page's thread, which its wiki names", async () => {
+    const page = seedThread("wiki_page_id", 7);
+    const otherPage = seedThread("wiki_page_id", 8);
+    serveComments({ 1: buildComment({ id: 1, wiki_page_id: 7 }) });
+
+    applyChanges([comment(1, [{ type: "wikis", id: ENTITY_ID }])], GUILD);
+
+    await vi.waitFor(() => expect(page.ids()).toEqual([1]));
+    expect(otherPage.ids()).toEqual([]);
+  });
+
   it("reads back each comment a batch names and brings the open pages up to date", async () => {
-    const root = buildComment({ id: 1 });
-    const reply = buildComment({ id: 2, parent_comment_id: 1 });
-    const edited = buildComment({ id: 4, content: "Before" });
+    const onTask = { task_id: ENTITY_ID };
+    const root = buildComment({ id: 1, ...onTask });
+    const reply = buildComment({ id: 2, parent_comment_id: 1, ...onTask });
+    const edited = buildComment({ id: 4, content: "Before", ...onTask });
     const thread = seedThread("task_id", ENTITY_ID, [root, reply, edited]);
     const parents = [{ type: "tasks", id: ENTITY_ID }];
     const asked = serveComments({
       // 1 was deleted, and its reply went with it.
       1: null,
-      3: buildComment({ id: 3 }),
+      3: buildComment({ id: 3, ...onTask }),
       4: { ...edited, content: "After" },
       // A reply to a conversation on a page not loaded yet comes with that page.
-      5: buildComment({ id: 5, parent_comment_id: 99 }),
+      5: buildComment({ id: 5, parent_comment_id: 99, ...onTask }),
     });
 
     applyChanges(

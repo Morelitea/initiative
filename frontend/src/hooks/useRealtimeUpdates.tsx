@@ -5,11 +5,11 @@ import { apiClient, getAuthToken } from "@/api/client";
 import type { DashboardDataResponse } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
-import { type CommentThreadParams, syncCommentsInThread } from "@/hooks/useComments";
+import { syncComments } from "@/hooks/useComments";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { queryClient } from "@/lib/queryClient";
-import { singularOf, TOOLS, toolPlural } from "@/lib/tools";
+import { TOOLS, toolPlural } from "@/lib/tools";
 import { buildGuildWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
@@ -136,10 +136,7 @@ export const applyChanges = (changes: readonly RealtimeChange[], guildId: number
   if (specs.length > 0) void invalidate(...specs);
 
   for (const { parent, commentIds } of threads.values()) {
-    // A thread is keyed by its parent's singular `{parent}_id`, the same
-    // derivation the backend makes from the parent's table.
-    const params: CommentThreadParams = { [`${singularOf(parent.type)}_id`]: parent.id };
-    void syncCommentsInThread(guildId, params, [...commentIds]);
+    void syncComments(guildId, parent, [...commentIds]);
   }
 
   // A dashboard's answer is keyed by the dashboard, not by anything a change

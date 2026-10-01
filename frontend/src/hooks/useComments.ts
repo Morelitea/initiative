@@ -28,6 +28,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
+import { singularOf } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -164,29 +165,73 @@ export const useCommentsCache = (params: CommentThreadParams) => {
 };
 
 /**
- * Bring the comments a realtime frame named into a thread this tab has open.
- *
- * Each is read back on its own (`GET /comments/{id}`, the same access check
- * as the thread), so the open pages are never fetched again for one new
- * comment. One that no longer reads back has been deleted, or the reader can
- * no longer see it, and comes out. More than a page's worth at once, or a read
- * that fails for any other reason, reads the thread again instead.
+ * The thread a comment belongs to: the one target it names. A task comment
+ * also reports its task's project, so the task is read first, as the backend
+ * reads a comment's columns.
  */
-export const syncCommentsInThread = async (
+const COMMENT_TARGETS = [
+  "task_id",
+  "wiki_page_id",
+  "document_id",
+  "project_id",
+  "queue_id",
+  "counter_group_id",
+  "calendar_id",
+  "dashboard_id",
+  "post_id",
+  "gallery_id",
+  "wiki_id",
+] as const satisfies readonly (keyof CommentThreadParams & keyof CommentRead)[];
+
+const inThread = (comment: CommentRead, params: CommentThreadParams) => {
+  const target = COMMENT_TARGETS.find((key) => comment[key] != null);
+  return target !== undefined && params[target] === comment[target];
+};
+
+/** The cached threads a comment under `parent` can be in. A wiki page has no
+ *  address of its own, so its comments name the wiki and reach every page
+ *  thread. */
+const threadsUnder = (guildId: number, parent: { type: string; id: number }) => {
+  const param = `${singularOf(parent.type)}_id` as keyof CommentThreadParams;
+  return queryClient
+    .getQueryCache()
+    .findAll({ queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId) })
+    .filter((query) => {
+      const params = query.queryKey[1] as CommentThreadParams | undefined;
+      if (!params) return false;
+      return (
+        params[param] === parent.id || (parent.type === "wikis" && params.wiki_page_id != null)
+      );
+    });
+};
+
+const readBack = async (
   guildId: number,
-  params: CommentThreadParams,
+  parent: { type: string; id: number },
   commentIds: readonly number[]
 ) => {
-  const { queryKey } = commentThreadQueryOptions(guildId, params);
-  if (!queryClient.getQueryData(queryKey)) return;
-  if (commentIds.length > COMMENT_PAGE_SIZE) {
-    await queryClient.invalidateQueries({ queryKey, exact: true });
+  const threads = threadsUnder(guildId, parent);
+  const refetch = () =>
+    Promise.all(
+      threads.map((thread) =>
+        queryClient.invalidateQueries({ queryKey: thread.queryKey, exact: true })
+      )
+    );
+  // A thread nobody is showing is only marked stale, and reads again when it
+  // is next shown.
+  if (!threads.some((thread) => thread.getObserversCount() > 0)) {
+    await refetch();
     return;
   }
+  if (commentIds.length > COMMENT_PAGE_SIZE) {
+    await refetch();
+    return;
+  }
+  let reads: (CommentRead | number)[];
   try {
     // In id order, so a reply written in the same batch as the comment it
     // answers is placed after it.
-    const reads = await Promise.all(
+    reads = await Promise.all(
       [...commentIds]
         .sort((a, b) => a - b)
         .map((id) =>
@@ -196,19 +241,51 @@ export const syncCommentsInThread = async (
           })
         )
     );
-    queryClient.setQueryData(
-      queryKey,
+  } catch {
+    await refetch();
+    return;
+  }
+  for (const thread of threads) {
+    const params = thread.queryKey[1] as CommentThreadParams;
+    queryClient.setQueryData<CommentThreadData>(
+      thread.queryKey,
       (prev) =>
         prev &&
         reads.reduce(
           (data, read) =>
-            typeof read === "number" ? dropComment(data, read) : placeComment(data, read),
+            typeof read === "number"
+              ? dropComment(data, read)
+              : inThread(read, params)
+                ? placeComment(data, read)
+                : data,
           prev
         )
     );
-  } catch {
-    await queryClient.invalidateQueries({ queryKey, exact: true });
   }
+};
+
+/** Read-backs run one batch at a time, so an earlier batch's reply can never
+ *  land after a later one's. */
+let pendingSync: Promise<void> = Promise.resolve();
+
+/**
+ * Bring the comments a realtime frame named under `parent` into the threads
+ * this tab has open.
+ *
+ * Each is read back on its own (`GET /comments/{id}`, the same access check
+ * as the thread) and placed in the thread it names, so the open pages are
+ * never fetched again for one new comment. One that no longer reads back has
+ * been deleted, or the reader can no longer see it, and comes out. More than
+ * a page's worth at once, or a read that fails for any other reason, reads the
+ * threads again instead.
+ */
+export const syncComments = (
+  guildId: number,
+  parent: { type: string; id: number },
+  commentIds: readonly number[]
+) => {
+  pendingSync = pendingSync.then(() => readBack(guildId, parent, commentIds));
+  return pendingSync;
 };
 
 // ── Mutations ───────────────────────────────────────────────────────────────
