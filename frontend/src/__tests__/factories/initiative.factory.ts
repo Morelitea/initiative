@@ -11,18 +11,12 @@ import {
   DEFAULT_ENABLED_TOOLS,
   TOOLS,
   toolCreatePermission,
-  toolPlural,
   toolViewPermission,
 } from "@/lib/tools";
 
 import { buildUserPublic, buildUserSummary } from "./user.factory";
 
 let counter = 0;
-
-type MemberToolFlags = Pick<
-  InitiativeMemberRead,
-  Extract<keyof InitiativeMemberRead, `can_view_${string}` | `can_create_${string}`>
->;
 
 type InitiativeToolSwitches = Pick<
   InitiativeRead,
@@ -46,14 +40,6 @@ export function buildInitiativeMember(
     override_share_restrictions: false,
     oidc_managed: false,
     joined_at: "2026-01-15T00:00:00.000Z",
-    // Viewing a core (always-on) tool, creating nothing, per tool in the
-    // registry.
-    ...(Object.fromEntries(
-      TOOLS.flatMap((tool) => [
-        [`can_view_${toolPlural(tool)}`, DEFAULT_ENABLED_TOOLS.has(tool)],
-        [`can_create_${toolPlural(tool)}`, false],
-      ])
-    ) as MemberToolFlags),
     ...overrides,
   };
 }
@@ -85,7 +71,8 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     auto_join: false,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
-    members: [],
+    member_count: 0,
+    role_display_name: null,
     can: initiativeCan(),
     // One `{plural}_enabled` master switch per tool, at the column defaults:
     // projects and documents on, the rest opt-in. Derived from the registry so

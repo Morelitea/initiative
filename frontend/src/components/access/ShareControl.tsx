@@ -26,7 +26,6 @@ import {
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuildApps } from "@/hooks/useGuildApps";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
-import { useInitiative } from "@/hooks/useInitiatives";
 import { type MemberSearchScope, useMemberSearch } from "@/hooks/useUsers";
 import { resolveArtworkUrl } from "@/lib/uploadUrl";
 import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
@@ -114,7 +113,6 @@ export const ShareControl = ({
   // and granting to one is not something this build does.
   const guildScoped = initiativeId == null;
   const { data: roles = [] } = useInitiativeRoles(initiativeId);
-  const { data: initiative } = useInitiative(initiativeId);
 
   // ── Derived grant buckets ────────────────────────────────────────────────
 
@@ -155,35 +153,32 @@ export const ShareControl = ({
 
   const allLevel: ShareLevel = allMembersGrant?.level === "write" ? "write" : "read";
 
-  // ── People: an initiative's roster, or the guild's searched ─────────────
+  // ── People: the initiative's members, or the guild's ────────────────────
 
   const [peoplePickerOpen, setPeoplePickerOpen] = useState(false);
   const [peopleQuery, setPeopleQuery] = useState("");
   const debouncedPeopleQuery = useDebouncedValue(peopleQuery, 250);
 
-  // A guild's roster is too large to hold: the picker asks the server for the
-  // people matching what was typed, and the people already named here (owner,
-  // grantees) are looked up by id.
-  const guildSearch = useMemberSearch(GUILD_SCOPE, {
-    search: debouncedPeopleQuery,
-    enabled: guildScoped && peoplePickerOpen,
-  });
-  const guildResults = useMemo(() => guildSearch.data?.items ?? [], [guildSearch.data]);
-  const namedGuildUserIds = useMemo(
-    () =>
-      guildScoped
-        ? [...(ownerId != null ? [ownerId] : []), ...userGrants.map((g) => g.user_id as number)]
-        : [],
-    [guildScoped, ownerId, userGrants]
+  // The picker asks the server for the people matching what was typed, and the
+  // people already named here (owner, grantees) are looked up by id.
+  const peopleScope = useMemo<MemberSearchScope>(
+    () => (guildScoped ? GUILD_SCOPE : { type: "initiative", initiativeId }),
+    [guildScoped, initiativeId]
   );
-  const seenGuildMembers = useSeenMembers(GUILD_SCOPE, namedGuildUserIds, undefined, guildResults);
+  const peopleSearch = useMemberSearch(peopleScope, {
+    search: debouncedPeopleQuery,
+    enabled: peoplePickerOpen,
+  });
+  const peopleResults = useMemo(() => peopleSearch.data?.items ?? [], [peopleSearch.data]);
+  const namedUserIds = useMemo(
+    () => [...(ownerId != null ? [ownerId] : []), ...userGrants.map((g) => g.user_id as number)],
+    [ownerId, userGrants]
+  );
+  const seenMembers = useSeenMembers(peopleScope, namedUserIds, undefined, peopleResults);
 
   const findMember = useCallback(
-    (userId: number): MemberLike | undefined =>
-      guildScoped
-        ? seenGuildMembers.get(userId)
-        : initiative?.members.find((m) => m.user.id === userId)?.user,
-    [guildScoped, seenGuildMembers, initiative?.members]
+    (userId: number): MemberLike | undefined => seenMembers.get(userId),
+    [seenMembers]
   );
 
   // ── Apps: the owning install, and the ones the seat granted ──────────────
@@ -253,12 +248,8 @@ export const ShareControl = ({
   const grantedRoleIds = useMemo(() => new Set(roleGrants.map((g) => g.role_id)), [roleGrants]);
 
   const availableMembers = useMemo(
-    () =>
-      (guildScoped
-        ? guildResults
-        : (initiative?.members ?? []).map((member) => member.user)
-      ).filter((user) => user.id !== ownerId && !grantedUserIds.has(user.id)),
-    [guildScoped, guildResults, initiative?.members, ownerId, grantedUserIds]
+    () => peopleResults.filter((user) => user.id !== ownerId && !grantedUserIds.has(user.id)),
+    [peopleResults, ownerId, grantedUserIds]
   );
   const availableRoles = useMemo(
     // Full-access roles already have access (shown locked), so they're not pickable.
@@ -458,16 +449,15 @@ export const ShareControl = ({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-72 p-0" align="end">
-                  {/* A guild's people are matched on the server; an initiative's
-                      roster is already here and filters as you type. */}
-                  <Command shouldFilter={!guildScoped}>
+                  {/* People are matched on the server, never re-filtered here. */}
+                  <Command shouldFilter={false}>
                     <CommandInput
                       placeholder={t("share.searchPeople")}
                       value={peopleQuery}
                       onValueChange={setPeopleQuery}
                     />
                     <CommandList>
-                      {guildScoped && guildSearch.isFetching && availableMembers.length === 0 ? (
+                      {peopleSearch.isFetching && availableMembers.length === 0 ? (
                         <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground text-sm">
                           <Loader2 className="h-4 w-4 animate-spin" />
                           {t("common:loading")}

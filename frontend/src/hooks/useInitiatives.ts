@@ -1,13 +1,14 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
   InitiativeCreate,
   InitiativeDirectoryEntry,
   InitiativeJoinRequestCreate,
   InitiativeJoinRequestRead,
-  InitiativeListRead,
+  InitiativeMemberListResponse,
   InitiativeRead,
   JoinRequestStatus,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -20,7 +21,9 @@ import {
   deleteInitiativeApiV1CGuildIdInitiativesInitiativeIdDelete,
   denyJoinRequestApiV1CGuildIdInitiativesInitiativeIdJoinRequestsRequestIdDenyPost,
   getGetInitiativeApiV1CGuildIdInitiativesInitiativeIdGetQueryKey,
+  getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey,
   getInitiativeApiV1CGuildIdInitiativesInitiativeIdGet,
+  getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet,
   getListInitiativeDirectoryApiV1CGuildIdInitiativesDirectoryGetQueryKey,
   getListInitiativesApiV1CGuildIdInitiativesGetQueryKey,
   getListJoinRequestsApiV1CGuildIdInitiativesInitiativeIdJoinRequestsGetQueryKey,
@@ -49,9 +52,9 @@ import type { QueryOpts } from "@/types/query";
  * guild, but their navigation is their own memberships. {@link useGuildInitiatives}
  * is the guild-wide listing.
  */
-export const useInitiatives = (options?: QueryOpts<InitiativeListRead[]>) => {
+export const useInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   const guildId = useActiveGuildId();
-  return useQuery<InitiativeListRead[]>({
+  return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId),
     queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId),
     ...options,
@@ -64,9 +67,9 @@ const GUILD_SCOPE = { scope: InitiativeListScope.guild } as const;
  * Every initiative in the guild, for the guild-settings management table.
  * Guild admins only — the endpoint answers 403 to anyone else.
  */
-export const useGuildInitiatives = (options?: QueryOpts<InitiativeListRead[]>) => {
+export const useGuildInitiatives = (options?: QueryOpts<InitiativeRead[]>) => {
   const guildId = useActiveGuildId();
-  return useQuery<InitiativeListRead[]>({
+  return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId, GUILD_SCOPE),
     queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId, GUILD_SCOPE),
     ...options,
@@ -81,10 +84,10 @@ export const useGuildInitiatives = (options?: QueryOpts<InitiativeListRead[]>) =
  */
 export const useInitiativesForGuild = (
   guildId: number | null,
-  options?: QueryOpts<InitiativeListRead[]>
+  options?: QueryOpts<InitiativeRead[]>
 ) => {
   const { enabled: userEnabled = true, ...rest } = options ?? {};
-  return useQuery<InitiativeListRead[]>({
+  return useQuery<InitiativeRead[]>({
     queryKey: getListInitiativesApiV1CGuildIdInitiativesGetQueryKey(guildId!),
     queryFn: () => listInitiativesApiV1CGuildIdInitiativesGet(guildId!),
     enabled: !!guildId && userEnabled,
@@ -156,6 +159,37 @@ export const useInitiative = (initiativeId: number | null, options?: QueryOpts<I
     ),
     queryFn: () => getInitiativeApiV1CGuildIdInitiativesInitiativeIdGet(guildId, initiativeId!),
     enabled: initiativeId !== null && Number.isFinite(initiativeId) && userEnabled,
+    ...rest,
+  });
+};
+
+/**
+ * One page of an initiative's roster, each member with their role, searched and
+ * paged on the server. A picker wants `useInitiativeMemberSearch` instead: the
+ * same people, as the slimmer `UserSummary`.
+ */
+export const useInitiativeRoster = (
+  initiativeId: number | null,
+  params: GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams,
+  options?: QueryOpts<InitiativeMemberListResponse>
+) => {
+  const guildId = useActiveGuildId();
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<InitiativeMemberListResponse>({
+    queryKey: getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey(
+      guildId,
+      initiativeId!,
+      params
+    ),
+    queryFn: () =>
+      getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet(
+        guildId,
+        initiativeId!,
+        params
+      ),
+    enabled: initiativeId !== null && userEnabled,
+    // Keep the page on screen while the next one (or the next search) loads.
+    placeholderData: keepPreviousData,
     ...rest,
   });
 };

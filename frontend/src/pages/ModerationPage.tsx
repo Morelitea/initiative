@@ -24,7 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useInitiative } from "@/hooks/useInitiatives";
+import { useInitiativeRoster } from "@/hooks/useInitiatives";
 import {
   REPORTS_PAGE_SIZE,
   useInitiativeSharing,
@@ -164,6 +164,9 @@ export const ModerationPage = () => {
 };
 
 type ConsoleArea = "reports" | "members" | "sharing";
+
+/** How many members the roster area shows at once. */
+const MEMBERS_PAGE_SIZE = 50;
 
 interface ReportCardProps {
   report: ModerationReportRead;
@@ -308,8 +311,12 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
  */
 const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
   const { t } = useTranslation(["moderation", "common"]);
-  const { data: initiative, isLoading, isError } = useInitiative(initiativeId);
-  const members = initiative?.members ?? [];
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError } = useInitiativeRoster(initiativeId, {
+    page,
+    page_size: MEMBERS_PAGE_SIZE,
+  });
+  const members = data?.items ?? [];
 
   if (isLoading) {
     return <p className="text-muted-foreground text-sm">{t("common:loading")}</p>;
@@ -343,6 +350,29 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
             </div>
           </div>
         ))}
+        {data && (data.has_prev || data.has_next) && (
+          <div className="flex items-center justify-between gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!data.has_prev}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              {t("common:previous")}
+            </Button>
+            <span className="text-muted-foreground text-sm">
+              {t("paging.page", { page: data.page })}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!data.has_next}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              {t("common:next")}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

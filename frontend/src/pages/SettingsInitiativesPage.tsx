@@ -10,7 +10,7 @@ import {
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeListRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativeDialog";
 import { type MemberLike, useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,7 @@ import {
   useAddInitiativeMember,
   useDeleteInitiative,
   useGuildInitiatives,
-  useInitiative,
+  useInitiativeRoster,
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
@@ -51,19 +51,9 @@ import { cn } from "@/lib/utils";
 const GUILD_SCOPE: MemberSearchScope = { type: "guild" };
 const NONE: never[] = [];
 
-/** An initiative's headcount, read from its roster. */
-const InitiativeMemberCountCell = ({ initiativeId }: { initiativeId: number }) => {
-  const { t } = useTranslation("initiatives");
-  const { data } = useInitiative(initiativeId);
-  if (!data) {
-    return <Skeleton className="h-4 w-16" />;
-  }
-  return (
-    <span className="text-muted-foreground text-sm">
-      {t("manage.memberCount", { count: data.members.length })}
-    </span>
-  );
-};
+/** The most managers one row's picker reads: the largest page the roster
+ *  endpoint serves. */
+const MANAGERS_PAGE_SIZE = 100;
 
 /**
  * Per-row project-manager picker — how a guild admin staffs an initiative, and
@@ -75,13 +65,16 @@ const InitiativeMemberCountCell = ({ initiativeId }: { initiativeId: number }) =
  * the exception: they cannot hold a standard role, so unticking removes their
  * row (which is also how they leave an initiative they added themselves to).
  */
-const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeListRead }) => {
+const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeRead }) => {
   const { t } = useTranslation(["initiatives", "common"]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query, 250);
   const rolesQuery = useInitiativeRoles(initiative.id);
-  const rosterQuery = useInitiative(initiative.id);
+  const rosterQuery = useInitiativeRoster(initiative.id, {
+    is_manager: true,
+    page_size: MANAGERS_PAGE_SIZE,
+  });
 
   // Candidates are the guild's members matching what was typed, asked of the
   // server once the picker is open.
@@ -104,22 +97,15 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeListRead
     [rolesQuery.data]
   );
 
-  const managerIds = useMemo(
-    () =>
-      new Set((rosterQuery.data?.members ?? []).filter((m) => m.is_manager).map((m) => m.user.id)),
-    [rosterQuery.data]
-  );
-  const memberIds = useMemo(
-    () => new Set((rosterQuery.data?.members ?? []).map((m) => m.user.id)),
-    [rosterQuery.data]
-  );
   // The current managers lead the list whatever was typed, so each can be
   // unticked. What unticking does depends on whether they are a guild admin,
   // which the guild answers by id.
   const managers = useMemo<MemberLike[]>(
-    () => (rosterQuery.data?.members ?? []).filter((m) => m.is_manager).map((m) => m.user),
+    () => (rosterQuery.data?.items ?? []).map((m) => m.user),
     [rosterQuery.data]
   );
+  const managerIds = useMemo(() => new Set(managers.map((m) => m.id)), [managers]);
+  const managerCount = rosterQuery.data?.total_count ?? 0;
   const managerIdList = useMemo(() => [...managerIds], [managerIds]);
   const knownManagers = useSeenMembers(
     GUILD_SCOPE,
@@ -151,18 +137,11 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeListRead
       return;
     }
     if (!managerIds.has(userId)) {
-      if (memberIds.has(userId)) {
-        updateMember.mutate({
-          initiativeId: initiative.id,
-          userId,
-          data: { role_id: managerRole.id },
-        });
-      } else {
-        addMember.mutate({
-          initiativeId: initiative.id,
-          data: { user_id: userId, role_id: managerRole.id },
-        });
-      }
+      // Adding someone who is already a member moves them onto the role.
+      addMember.mutate({
+        initiativeId: initiative.id,
+        data: { user_id: userId, role_id: managerRole.id },
+      });
       return;
     }
     if (isAdminRole(knownManagers.get(userId)?.guild_role) || !memberRole) {
@@ -198,11 +177,11 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeListRead
   }
 
   const selectedLabel =
-    managerIds.size === 0
+    managerCount === 0
       ? t("manage.noManagers")
-      : managerIds.size === 1
+      : managerCount === 1
         ? getUserDisplayName(managers[0], t("manage.managerCount", { count: 1 }))
-        : t("manage.managerCount", { count: managerIds.size });
+        : t("manage.managerCount", { count: managerCount });
 
   return (
     <Popover
@@ -221,7 +200,7 @@ const InitiativeManagersCell = ({ initiative }: { initiative: InitiativeListRead
           aria-label={t("manage.managersColumn")}
           className="w-48 justify-between font-normal"
         >
-          <span className={managerIds.size === 0 ? "text-muted-foreground" : undefined}>
+          <span className={managerCount === 0 ? "text-muted-foreground" : undefined}>
             {selectedLabel}
           </span>
           {pending ? (
@@ -282,9 +261,9 @@ export const SettingsInitiativesPage = () => {
   const archiveInitiative = useArchiveEntity();
   const unarchiveInitiative = useUnarchiveEntity();
 
-  const [deleteTarget, setDeleteTarget] = useState<InitiativeListRead | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<InitiativeRead | null>(null);
 
-  const toggleArchive = (initiative: InitiativeListRead) => {
+  const toggleArchive = (initiative: InitiativeRead) => {
     const nextArchived = initiative.archived_at === null;
     const mutation = nextArchived ? archiveInitiative : unarchiveInitiative;
     mutation.mutate(
@@ -311,7 +290,7 @@ export const SettingsInitiativesPage = () => {
     });
   };
 
-  const columns: AppColumnDef<InitiativeListRead>[] = [
+  const columns: AppColumnDef<InitiativeRead>[] = [
     {
       accessorKey: "id",
       header: t("manage.idColumn"),
@@ -346,7 +325,11 @@ export const SettingsInitiativesPage = () => {
     {
       id: "members",
       header: t("manage.membersColumn"),
-      cell: ({ row }) => <InitiativeMemberCountCell initiativeId={row.original.id} />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground text-sm">
+          {t("manage.memberCount", { count: row.original.member_count })}
+        </span>
+      ),
     },
     {
       id: "managers",

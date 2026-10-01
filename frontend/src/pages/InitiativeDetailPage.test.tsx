@@ -38,6 +38,8 @@ function stubEverything(hidden: Tool[] = []) {
         buildInitiative({
           id: Number(params.id),
           name: "Apollo",
+          member_count: 4,
+          role_display_name: "Project Manager",
           queues_enabled: true,
           dashboards_enabled: true,
           calendars_enabled: true,
@@ -72,6 +74,14 @@ const selectedTab = () =>
   screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true");
 
 describe("InitiativeDetailPage", () => {
+  it("heads the page with the headcount and the reader's own role", async () => {
+    stubEverything();
+    renderAt();
+
+    expect((await screen.findAllByText("4 members")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Project Manager").length).toBeGreaterThan(0);
+  });
+
   it("selects the tab the route names", async () => {
     stubEverything();
     renderAt(Tool.queue);

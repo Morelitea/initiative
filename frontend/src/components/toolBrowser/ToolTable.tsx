@@ -23,7 +23,7 @@ import type { ParseKeys } from "i18next";
 import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeListRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { SortHeader } from "@/components/SortIcon";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { DataTable } from "@/components/ui/data-table";
@@ -82,7 +82,7 @@ const InitiativeCell = ({
   initiatives,
 }: {
   row: ToolRow;
-  initiatives: Map<string, InitiativeListRead>;
+  initiatives: Map<string, InitiativeRead>;
 }) => {
   const { t } = useTranslation("guildHome");
   if (row.initiativeId === null) {
@@ -147,7 +147,7 @@ interface ToolTableProps {
   tool: Tool;
   rows: ToolRow[];
   /** Every initiative the rows might name, from however many communities. */
-  initiatives: InitiativeListRead[];
+  initiatives: InitiativeRead[];
   /**
    * Community id → name. Passing it adds the community column, which is what a
    * cross-community table needs and a single community's own page does not.

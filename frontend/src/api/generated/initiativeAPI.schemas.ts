@@ -3402,7 +3402,7 @@ export interface DocumentFileVersionRead {
  * An initiative as something else names it: enough to label and link it.
  *
  * What a project, a document or a task carries about the initiative it is in.
- * The initiative's own read is :class:`InitiativeRead`, roster and all.
+ * The initiative's own read is :class:`InitiativeRead`.
  */
 export interface InitiativeSummary {
   id: number;
@@ -5293,34 +5293,6 @@ export interface InitiativeJoinRequestRead {
 }
 
 /**
- * An initiative as a list names it: the row and what the caller may do in
- * it, without its roster. :class:`InitiativeRead` adds the roster.
- */
-export interface InitiativeListRead {
-  projects_enabled: boolean;
-  documents_enabled: boolean;
-  queues_enabled: boolean;
-  counter_groups_enabled: boolean;
-  calendars_enabled: boolean;
-  dashboards_enabled: boolean;
-  posts_enabled: boolean;
-  galleries_enabled: boolean;
-  wikis_enabled: boolean;
-  name: string;
-  description: string | null;
-  color: string | null;
-  id: number;
-  guild_id: number | null;
-  is_default: boolean;
-  archived_at: string | null;
-  join_policy: InitiativeJoinPolicy;
-  auto_join: boolean;
-  created_at: string;
-  updated_at: string;
-  can: InitiativeCan;
-}
-
-/**
  * Which initiatives ``GET /initiatives/`` should return.
  *
  * ``member`` — the caller's own workspace: the initiatives they hold a
@@ -5348,24 +5320,6 @@ export interface InitiativeMemberAdd {
  * Member info including their role.
  */
 export interface InitiativeMemberRead {
-  can_view_projects: boolean;
-  can_view_documents: boolean;
-  can_view_queues: boolean;
-  can_view_counter_groups: boolean;
-  can_view_calendars: boolean;
-  can_view_dashboards: boolean;
-  can_view_posts: boolean;
-  can_view_galleries: boolean;
-  can_view_wikis: boolean;
-  can_create_projects: boolean;
-  can_create_documents: boolean;
-  can_create_queues: boolean;
-  can_create_counter_groups: boolean;
-  can_create_calendars: boolean;
-  can_create_dashboards: boolean;
-  can_create_posts: boolean;
-  can_create_galleries: boolean;
-  can_create_wikis: boolean;
   user: UserPublic;
   role_id: number | null;
   role_name: string | null;
@@ -5377,12 +5331,29 @@ export interface InitiativeMemberRead {
 }
 
 /**
+ * One page of an initiative's roster, each member with their role.
+ */
+export interface InitiativeMemberListResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: InitiativeMemberRead[];
+}
+
+/**
  * Update a member's role.
  */
 export interface InitiativeMemberUpdate {
   role_id: number;
 }
 
+/**
+ * An initiative: the row, its headcount, what the caller may do in it and
+ * the role they hold there. Its roster is read a page at a time from
+ * ``GET /initiatives/{id}/members``.
+ */
 export interface InitiativeRead {
   projects_enabled: boolean;
   documents_enabled: boolean;
@@ -5405,7 +5376,8 @@ export interface InitiativeRead {
   created_at: string;
   updated_at: string;
   can: InitiativeCan;
-  members: InitiativeMemberRead[];
+  member_count: number;
+  role_display_name: string | null;
 }
 
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
@@ -10344,6 +10316,26 @@ export type GetInitiativeApiV1CGuildIdInitiativesInitiativeIdGetParams = {
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
+};
+
+export type GetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetParams = {
+  /**
+   * Case-insensitive substring match on the member's name.
+   */
+  search?: string | null;
+  /**
+   * Only the members whose role is (or is not) a manager role.
+   */
+  is_manager?: boolean | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  page_size?: number;
 };
 
 export type SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams = {

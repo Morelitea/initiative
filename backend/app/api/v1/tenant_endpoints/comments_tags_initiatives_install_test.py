@@ -361,7 +361,7 @@ async def test_reads_the_initiatives_it_is_placed_in(
     [only] = listed.json()
     assert only["id"] == installed.placed.id
     assert isinstance(only["guild_id"], str)
-    # A list names no roster; one initiative's read carries it.
+    # Neither the list nor one initiative's read names a roster.
     assert "members" not in only
     assert_names_nobody(listed.text, [installed.seat.user.id, guild_id])
 
@@ -370,8 +370,11 @@ async def test_reads_the_initiatives_it_is_placed_in(
     )
     assert read.status_code == 200, read.text
     assert read.json()["name"] == installed.placed.name
-    # The roster is the members scope's to read.
-    assert read.json()["members"] == []
+    # Who is in it is the members scope's to read, the headcount included.
+    assert (read.json()["member_count"], read.json()["role_display_name"]) == (
+        0,
+        None,
+    )
     assert_names_nobody(read.text, [installed.seat.user.id, guild_id])
 
     other = await client.get(
@@ -392,15 +395,24 @@ async def test_with_the_members_scope_the_roster_names_people_by_reference(
     scopes = ["initiatives:read", "members:read"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
 
+    headers = install_headers(installed, scopes)
+
     read = await client.get(
         guild_url(installed.guild.id, f"/initiatives/{installed.placed.id}"),
-        headers=install_headers(installed, scopes),
+        headers=headers,
     )
+    roster = await client.get(
+        guild_url(installed.guild.id, "/users/search"),
+        headers=headers,
+        params={"initiative_id": installed.placed.id},
+    )
+
     assert read.status_code == 200, read.text
-    members = read.json()["members"]
-    assert len(members) == 1
-    assert isinstance(members[0]["user"]["id"], str)
-    assert_names_nobody(read.text, [installed.seat.user.id, installed.guild.id])
+    assert read.json()["member_count"] == 1
+    assert roster.status_code == 200, roster.text
+    [member] = roster.json()["items"]
+    assert isinstance(member["id"], str)
+    assert_names_nobody(roster.text, [installed.seat.user.id, installed.guild.id])
 
 
 async def test_initiatives_need_the_initiatives_scope(

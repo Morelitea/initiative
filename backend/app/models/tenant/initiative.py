@@ -14,8 +14,11 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
+    select,
     text,
 )
+from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
@@ -23,6 +26,7 @@ from app.models.tenant._mixins import (
     ArchiveMixin,
     CreatedByMixin,
     SoftDeleteMixin,
+    _reader,
     attach_initiative_actions,
 )
 
@@ -441,3 +445,32 @@ class Initiative(
 
 
 attach_initiative_actions(Initiative)
+
+# How many people the initiative holds, and the role the request's user holds
+# in it. Deferred like ``actions``; the loaders that serialize an initiative ask
+# for them with ``undefer``.
+Initiative.__mapper__.add_property(  # type: ignore[attr-defined]
+    "member_count",
+    column_property(
+        select(func.count())
+        .select_from(InitiativeMember)
+        .where(InitiativeMember.initiative_id == Initiative.id)
+        .correlate_except(InitiativeMember)
+        .scalar_subquery(),
+        deferred=True,
+    ),
+)
+Initiative.__mapper__.add_property(  # type: ignore[attr-defined]
+    "role_display_name",
+    column_property(
+        select(InitiativeRoleModel.display_name)
+        .join(InitiativeMember, InitiativeMember.role_id == InitiativeRoleModel.id)
+        .where(
+            InitiativeMember.initiative_id == Initiative.id,
+            InitiativeMember.user_id == _reader(),
+        )
+        .correlate_except(InitiativeMember, InitiativeRoleModel)
+        .scalar_subquery(),
+        deferred=True,
+    ),
+)

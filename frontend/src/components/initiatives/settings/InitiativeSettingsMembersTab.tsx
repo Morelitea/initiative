@@ -1,3 +1,4 @@
+import type { PaginationState } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,13 +25,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
   useAddInitiativeMember,
+  useInitiativeRoster,
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
-import { type MemberSearchScope, useUserSearch } from "@/hooks/useUsers";
+import {
+  type MemberSearchScope,
+  USER_ID_LOOKUP_MAX,
+  useInitiativeMemberSearch,
+  useUserSearch,
+} from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { isAdminRole } from "@/lib/permissions";
@@ -42,7 +50,6 @@ const NONE: never[] = [];
 
 interface InitiativeSettingsMembersTabProps {
   initiativeId: number;
-  members: InitiativeMemberRead[];
   roles: InitiativeRoleRead[] | undefined;
   canManageMembers: boolean;
   /** How guild members may join this initiative. */
@@ -65,7 +72,6 @@ interface InitiativeSettingsMembersTabProps {
 
 export const InitiativeSettingsMembersTab = ({
   initiativeId,
-  members,
   roles,
   canManageMembers,
   joinPolicy,
@@ -83,21 +89,45 @@ export const InitiativeSettingsMembersTab = ({
 }: InitiativeSettingsMembersTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
 
+  // The roster is searched and paged on the server: the table only ever holds
+  // the page on screen.
+  const [draft, setDraft] = useState("");
+  const rosterSearch = useDebouncedValue(draft, 250);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const rosterQuery = useInitiativeRoster(initiativeId, {
+    search: rosterSearch.trim() || undefined,
+    page,
+    page_size: pageSize,
+  });
+  const members = useMemo(() => rosterQuery.data?.items ?? [], [rosterQuery.data]);
+  const totalCount = rosterQuery.data?.total_count ?? 0;
+
   // The add-member picker asks the guild for the people matching what was
-  // typed, once it is open. Only a members manager is shown it.
+  // typed, once it is open, and leaves out the ones already here. Only a
+  // members manager is shown it.
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const candidatesQuery = useUserSearch({
     search,
     enabled: canManageMembers && !!activeGuildId && pickerOpen,
   });
-  const memberIds = useMemo(() => members.map((member) => member.user.id), [members]);
+  const candidateIds = useMemo(
+    () => (candidatesQuery.data?.items ?? []).map((candidate) => candidate.id),
+    [candidatesQuery.data]
+  );
+  const alreadyInQuery = useInitiativeMemberSearch(initiativeId, {
+    userIds: candidateIds,
+    pageSize: USER_ID_LOOKUP_MAX,
+    enabled: candidateIds.length > 0,
+  });
   const availableUsers = useMemo(() => {
-    const existingIds = new Set(memberIds);
+    const existingIds = new Set((alreadyInQuery.data?.items ?? []).map((member) => member.id));
     return (candidatesQuery.data?.items ?? []).filter(
       (candidate) => !existingIds.has(candidate.id) && candidate.status !== "anonymized"
     );
-  }, [candidatesQuery.data, memberIds]);
+  }, [candidatesQuery.data, alreadyInQuery.data]);
+  const memberIds = useMemo(() => members.map((member) => member.user.id), [members]);
   // The person picked, held so the trigger keeps their name (and the role
   // select their standing) after the search moves on.
   const [picked, setPicked] = useState<UserSummary | null>(null);
@@ -329,10 +359,27 @@ export const InitiativeSettingsMembersTab = ({
           <DataTable
             columns={memberColumns}
             data={members}
+            getRowId={(row) => String(row.user.id)}
             enableFilterInput
-            filterInputColumnKey="name"
             filterInputPlaceholder={t("settings.filterByName")}
+            filterValue={draft}
+            onFilterValueChange={(value) => {
+              setDraft(value);
+              setPage(1);
+            }}
             enablePagination
+            manualPagination
+            pageCount={Math.max(1, Math.ceil(totalCount / pageSize))}
+            rowCount={totalCount}
+            pageIndex={page - 1}
+            onPaginationChange={(next: PaginationState) => {
+              if (next.pageSize !== pageSize) {
+                setPageSize(next.pageSize);
+                setPage(1);
+              } else {
+                setPage(next.pageIndex + 1);
+              }
+            }}
           />
           {canManageMembers ? (
             <>
