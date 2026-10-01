@@ -110,6 +110,13 @@ const emptyContent = (backup: boolean): ContentFilters => ({
   tasks: { ...EMPTY_TASK_FILTERS, include_archived: backup },
 });
 
+/** The same filters for another output: the archived switch moves to where
+ *  that output starts, and everything else stays as it was set. */
+const forOutput = (content: ContentFilters, backup: boolean): ContentFilters => ({
+  ...content,
+  tasks: { ...content.tasks, include_archived: backup },
+});
+
 /** A project's `tasks`: the conditions the task list sends and its archived
  *  switch, or nothing while they are where the output starts. */
 const taskExportParams = (spec: TaskFilterSpec, backup: boolean): Record<string, unknown> => {
@@ -542,8 +549,10 @@ function AggregateExportWizard({
               type="button"
               className="w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent"
               onClick={() => {
+                if (option !== mode) {
+                  setContent((prev) => forOutput(prev, option === "backup"));
+                }
                 setMode(option);
-                setContent(emptyContent(option === "backup"));
                 go(option);
               }}
             >
@@ -860,8 +869,10 @@ function EntitiesExportWizard({
       variant="outline"
       className="w-full justify-start"
       onClick={() => {
+        if ((format.format === "json") !== backup) {
+          setContent((prev) => forOutput(prev, format.format === "json"));
+        }
         setOption(format);
-        setContent(emptyContent(format.format === "json"));
         go(contentFilter ? "content" : "confirm");
       }}
     >
