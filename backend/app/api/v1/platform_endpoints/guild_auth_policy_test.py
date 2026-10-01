@@ -68,8 +68,13 @@ def _sat_headers(user: User, provider_ids: list[int]) -> dict[str, str]:
 
 
 def _policy(guild_id: int) -> str:
-    """The surface the seat holds: one community's sign-in requirement."""
+    """One community's sign-in requirement, as its admins read it."""
     return f"/api/v1/communities/{guild_id}/auth-policy"
+
+
+def _settings(guild_id: int) -> str:
+    """The surface the seat holds, where the requirement is written."""
+    return f"/api/v1/communities/{guild_id}/auth-settings"
 
 
 # --- Setting, reading and lifting a requirement ------------------------------
@@ -84,13 +89,13 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
     headers = _sat_headers(seat.user, [provider.id])
     guild_id = seat.guild.id
 
-    put = await client.put(
-        _policy(guild_id),
+    put = await client.patch(
+        _settings(guild_id),
         headers=headers,
-        json={"policy": "required", "provider_id": provider.id},
+        json={"auth_policy": {"policy": "required", "provider_id": provider.id}},
     )
     assert put.status_code == 200, put.text
-    assert put.json() == {
+    assert put.json()["auth_policy"] == {
         "policy": "required",
         "provider_id": provider.id,
         "provider_slug": "corp",
@@ -104,10 +109,10 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
     got = await client.get(_policy(guild_id), headers=headers)
     assert got.json()["policy"] == "required"
 
-    cleared = await client.put(
-        _policy(guild_id), headers=headers, json={"policy": "open"}
+    cleared = await client.patch(
+        _settings(guild_id), headers=headers, json={"auth_policy": {"policy": "open"}}
     )
-    assert cleared.json()["policy"] == "open"
+    assert cleared.json()["auth_policy"]["policy"] == "open"
     session.expire_all()
     assert await session.get(GuildAuthPolicy, guild_id) is None
 
@@ -118,10 +123,10 @@ async def test_non_admin_cannot_manage_policy(
     member = await acting_user(guild_role=GuildRole.member)
     provider = await create_auth_provider(session, slug="corp")
 
-    response = await client.put(
-        _policy(member.guild.id),
+    response = await client.patch(
+        _settings(member.guild.id),
         headers=_sat_headers(member.user, [provider.id]),
-        json={"policy": "required", "provider_id": provider.id},
+        json={"auth_policy": {"policy": "required", "provider_id": provider.id}},
     )
     assert response.status_code == 403
 
@@ -173,10 +178,10 @@ async def test_a_requirement_names_a_working_provider_of_this_communitys(
     if provider_id is not None:
         body["provider_id"] = provider_id
 
-    response = await client.put(
-        _policy(seat.guild.id),
+    response = await client.patch(
+        _settings(seat.guild.id),
         headers=_sat_headers(seat.user, [provider_id] if provider_id else []),
-        json=body,
+        json={"auth_policy": body},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "GUILD_AUTH_POLICY_INVALID_PROVIDER"
@@ -191,10 +196,10 @@ async def test_policy_requires_admin_own_session_to_satisfy(
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=seat.guild, provider=provider)
 
-    response = await client.put(
-        _policy(seat.guild.id),
+    response = await client.patch(
+        _settings(seat.guild.id),
         headers=seat.headers,  # legacy token: sat is empty
-        json={"policy": "required", "provider_id": provider.id},
+        json={"auth_policy": {"policy": "required", "provider_id": provider.id}},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
@@ -227,13 +232,15 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
     assert got.json()["policy"] == "required"
     assert got.json()["provider_slug"] == "corp"
 
-    put = await client.put(
-        _policy(guild_id),
+    put = await client.patch(
+        _settings(guild_id),
         headers=headers,
         json={
-            "policy": "required",
-            "provider_id": provider_id,
-            "require_methods": ["sso"],
+            "auth_policy": {
+                "policy": "required",
+                "provider_id": provider_id,
+                "require_methods": ["sso"],
+            }
         },
     )
     assert put.status_code == 404
@@ -242,11 +249,11 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
     untouched = await session.get(GuildAuthPolicy, guild_id)
     assert untouched is not None and untouched.policy == "required"
 
-    cleared = await client.put(
-        _policy(guild_id), headers=headers, json={"policy": "open"}
+    cleared = await client.patch(
+        _settings(guild_id), headers=headers, json={"auth_policy": {"policy": "open"}}
     )
     assert cleared.status_code == 200
-    assert cleared.json()["policy"] == "open"
+    assert cleared.json()["auth_policy"]["policy"] == "open"
     session.expire_all()
     assert await session.get(GuildAuthPolicy, guild_id) is None
 
@@ -446,13 +453,15 @@ async def test_an_ordinary_admin_reads_the_seats_surfaces_but_writes_neither(
     assert offered.status_code == 200
 
     writes = (
-        lambda: client.put(
-            _policy(guild_id), headers=admin.headers, json={"policy": "open"}
-        ),
-        lambda: client.put(
-            _policy(guild_id),
+        lambda: client.patch(
+            _settings(guild_id),
             headers=admin.headers,
-            json={"policy": "required", "provider_id": 1},
+            json={"auth_policy": {"policy": "open"}},
+        ),
+        lambda: client.patch(
+            _settings(guild_id),
+            headers=admin.headers,
+            json={"auth_policy": {"policy": "required", "provider_id": 1}},
         ),
         lambda: client.post(
             connections, headers=admin.headers, json={"provider_id": 1}
@@ -1193,18 +1202,20 @@ async def test_the_ask_is_written_only_by_a_session_that_has_met_it(
     met = await ask.met_by(session, seat.guild, seat.user)
     body = {"policy": "required", "require_methods": [ask.method]}
 
-    refused = await client.put(
-        _policy(seat.guild.id),
+    refused = await client.patch(
+        _settings(seat.guild.id),
         headers=_bearer(get_auth_token(seat.user, amr=ask.unmet_amr)),
-        json=body,
+        json={"auth_policy": body},
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
     assert refused.headers["X-Auth-Policy-Unmet"] == ask.method
 
-    saved = await client.put(_policy(seat.guild.id), headers=met, json=body)
+    saved = await client.patch(
+        _settings(seat.guild.id), headers=met, json={"auth_policy": body}
+    )
     assert saved.status_code == 200, saved.text
-    assert saved.json()["require_methods"] == [ask.method]
+    assert saved.json()["auth_policy"]["require_methods"] == [ask.method]
 
 
 @pytest.mark.parametrize("ask", _asks(the_deployment_can_withhold=True))
@@ -1223,10 +1234,10 @@ async def test_a_community_cannot_ask_for_what_the_deployment_withholds(
     session.add(row)
     await session.commit()
 
-    refused = await client.put(
-        _policy(seat.guild.id),
+    refused = await client.patch(
+        _settings(seat.guild.id),
         headers=headers,
-        json={"policy": "required", "require_methods": [ask.method]},
+        json={"auth_policy": {"policy": "required", "require_methods": [ask.method]}},
     )
     assert refused.status_code == 409
     assert refused.json()["detail"] == "AUTH_RULE_NOT_OFFERED"
@@ -1270,11 +1281,6 @@ async def test_a_community_is_told_when_the_deployment_asks_everybody(
 # --- a second factor, asked for on its own -----------------------------------
 
 
-def _second_factor(guild_id: int) -> str:
-    """The surface the seat holds: what this community asks of a session."""
-    return f"/api/v1/communities/{guild_id}/second-factor"
-
-
 async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     client, session: AsyncSession, acting_user
 ):
@@ -1291,8 +1297,8 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     # A session that has presented one; the seat has to answer its own ask.
     headers = _bearer(get_auth_token(seat.user, amr=[SECOND_FACTOR_AMR]))
 
-    response = await client.put(
-        _second_factor(seat.guild.id),
+    response = await client.patch(
+        _settings(seat.guild.id),
         json={"require_second_factor": True},
         headers=headers,
     )
@@ -1329,23 +1335,3 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
     assert await asked()
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     assert not await asked()
-
-
-async def test_the_seat_answers_its_own_ask_first(
-    client, session: AsyncSession, acting_user
-):
-    """A requirement this session does not meet is refused, and the answer
-    names what is wanted so the page can ask for it."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
-    await guild_administration(session, seat.guild, auth_options=["restrictions"])
-
-    response = await client.put(
-        _second_factor(seat.guild.id),
-        json={"require_second_factor": True},
-        headers=seat.headers,
-    )
-
-    assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
-    await session.refresh(seat.guild)
-    assert seat.guild.require_second_factor is False

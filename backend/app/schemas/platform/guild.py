@@ -453,91 +453,51 @@ class GuildAuthPolicyUpdate(SanitizedBaseModel):
 
 
 class GuildAuthSettingsRead(SanitizedBaseModel):
-    """The current controls on the superadmin's Authentication page."""
+    """Every control on the superadmin seat's Security page, and what the
+    deployment already asks beside them."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     auth_options: List[GuildAuthOption] = Field(default_factory=list)
+    auth_policy: GuildAuthPolicyRead
+    #: Whether a personal API key may reach this community. ``false`` means
+    #: none can be minted into it and none already minted reaches it.
     allow_api_keys: bool
+    #: Whether its members sign in again every twelve hours, whatever the
+    #: deployment's own limit says.
     enforce_compliance_session: bool
+    #: Whether reaching it asks for a second factor. Which kinds count is the
+    #: deployment's answer.
     require_second_factor: bool = False
+    #: What its notifications may leave the app carrying. Each is also asked of
+    #: the deployment and the stricter of the pair applies.
     allow_push_notifications: bool = True
     allow_email_notifications: bool = True
     redact_notification_content: bool = False
-
-
-class GuildApiAccessRead(SanitizedBaseModel):
-    """Whether this guild accepts personal API keys."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    allow_api_keys: bool
-
-
-class GuildSecondFactorRead(SanitizedBaseModel):
-    """Whether reaching this community asks for a second factor."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    require_second_factor: bool
-    #: Whether the deployment offers a second factor at all. With none, there
-    #: is nothing for a community to ask for and the control is not offered.
-    available: bool = True
-
-
-class GuildSecondFactorUpdate(SanitizedBaseModel):
-    """Ask for one, or stop. Which kinds count is the deployment's answer."""
-
-    require_second_factor: bool
-
-
-class GuildApiAccessUpdate(SanitizedBaseModel):
-    """Set it. ``false`` means no key can be minted into this guild and no
-    request carrying one reaches it; keys already minted stop working here."""
-
-    allow_api_keys: bool
-
-
-class GuildSessionLimitRead(SanitizedBaseModel):
-    """Whether this guild holds its members to the twelve-hour session
-    standard."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    enforce_compliance_session: bool
-
-
-class GuildSessionLimitUpdate(SanitizedBaseModel):
-    """Set it. ``true`` means this guild's members sign in again every twelve
-    hours, whatever the deployment's own limit says."""
-
-    enforce_compliance_session: bool
-
-
-class GuildNotificationPolicyRead(SanitizedBaseModel):
-    """What this community's notifications may leave the app carrying."""
-
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    allow_push_notifications: bool
-    allow_email_notifications: bool
-    redact_notification_content: bool
-    #: What the deployment already asks of every community, so the page can say
-    #: that a switch has nothing to add rather than offering the same answer
-    #: twice. The stricter of the two applies, so a deployment that has already
-    #: declined a channel leaves nothing here to decline.
+    #: The deployment's answers to the same three, so the page can say that a
+    #: switch has nothing to add rather than offering the same answer twice.
     push_allowed_by_platform: bool = True
     email_allowed_by_platform: bool = True
     redacted_by_platform: bool = False
 
 
-class GuildNotificationPolicyUpdate(SanitizedBaseModel):
-    """Set them. Each one restricts this community's notifications and nothing
-    else: no switch here relaxes what the deployment has already said."""
+class GuildAuthSettingsUpdate(SanitizedBaseModel):
+    """The rules to change. An omitted field is left as it is.
 
-    allow_push_notifications: bool
-    allow_email_notifications: bool
-    redact_notification_content: bool
+    The whole request is one change: it is applied together or refused
+    together, and a rule it loosens is loosened before one it tightens is
+    checked. Tightening a rule needs the option it belongs to; loosening one
+    never does.
+    """
+
+    #: The sign-in requirement, replaced as a whole.
+    auth_policy: Optional[GuildAuthPolicyUpdate] = None
+    allow_api_keys: Optional[bool] = None
+    enforce_compliance_session: Optional[bool] = None
+    require_second_factor: Optional[bool] = None
+    allow_push_notifications: Optional[bool] = None
+    allow_email_notifications: Optional[bool] = None
+    redact_notification_content: Optional[bool] = None
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

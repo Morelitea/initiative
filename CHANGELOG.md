@@ -62,6 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /me/tasks/created` → `GET /me/tasks?created=true`.
   - The nine `GET /c/{guild_id}/exports/<tool>` routes → `GET /c/{guild_id}/exports/{tool}`, named by the tool's own value (`counter_group`), with the selection as `ids` in place of `<tool>_id` and `<tool>_ids`.
   - `GET /wikis/{wiki_id}/pages/{page_id}` → `GET /wiki-pages/{page_id}`.
+  - `PUT /settings/auth/methods`, `/second-factor-requirement` and `/session-lifetime` → `PATCH /settings/auth/platform`, where a field you leave out is left as it is. The second-factor level is now sent as `second_factor_requirement`.
+  - `PUT /communities/{id}/auth-policy`, `/second-factor`, `/session-limit`, `/api-access` and `/notification-policy` → `PATCH /communities/{id}/auth-settings`, with the sign-in requirement as `auth_policy`. It returns the same shape as `GET /communities/{id}/auth-settings`, which now includes the sign-in requirement and your server's own notification answers; `GET /communities/{id}/notification-policy` is gone.
 
 ### Fixed
 

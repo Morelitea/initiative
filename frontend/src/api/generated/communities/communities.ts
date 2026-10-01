@@ -25,11 +25,9 @@ import type {
   BodySetGuildBannerApiV1CommunitiesGuildIdBannerPut,
   BodySetGuildIconApiV1CommunitiesGuildIdIconPut,
   CommunityGuildPage,
-  GuildApiAccessRead,
-  GuildApiAccessUpdate,
   GuildAuthPolicyRead,
-  GuildAuthPolicyUpdate,
   GuildAuthSettingsRead,
+  GuildAuthSettingsUpdate,
   GuildCreate,
   GuildDeletionRequest,
   GuildEntitlementsRead,
@@ -38,15 +36,9 @@ import type {
   GuildInviteRead,
   GuildInviteStatus,
   GuildMembershipUpdate,
-  GuildNotificationPolicyRead,
-  GuildNotificationPolicyUpdate,
   GuildOrderUpdate,
   GuildPaymentIssueRead,
   GuildRead,
-  GuildSecondFactorRead,
-  GuildSecondFactorUpdate,
-  GuildSessionLimitRead,
-  GuildSessionLimitUpdate,
   GuildUpdate,
   HTTPValidationError,
   LeaveGuildEligibilityResponse,
@@ -2469,348 +2461,130 @@ export function useGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet<
 }
 
 /**
- * What this community's notifications may leave the app carrying.
- * @summary Get Guild Notification Policy
+ * Change what reaching this community asks of somebody, and what its
+ * notifications may leave the app carrying.
+ *
+ * These sit with the seat rather than with running the community: they say
+ * what may be used to reach it and what is done on its behalf. Tightening a
+ * rule needs the option it belongs to — ``providers`` for the sign-in
+ * requirement, ``restrictions`` for the rest; loosening one never does. A
+ * rule applies while the community holds that option.
+ *
+ * The sign-in requirement: ``open`` clears it. ``required`` names one of the
+ * community's own login-ready providers, asks for its own single sign-on, a
+ * second factor or a passkey, or several at once — and the account writing
+ * it must already meet it, which both proves a provider works end to end and
+ * keeps an admin from locking the community behind a sign-in they have not
+ * completed.
+ *
+ * Nobody is signed out by a change, with one exception: a device token
+ * carries its deadline in its own expiry, so holding members to the
+ * twelve-hour standard brings the ones already issued under it. Existing API
+ * keys are left alone when keys are refused, so accepting them again
+ * restores them. Every notification answer only narrows what the deployment
+ * permits.
+ * @summary Update Guild Auth Settings
  */
-export const getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet = (
+export const updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch = (
   guildId: number,
+  guildAuthSettingsUpdate: BodyType<GuildAuthSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildNotificationPolicyRead>(
-    { url: `/api/v1/communities/${guildId}/notification-policy`, method: "GET", signal },
-    options
-  );
-};
-
-export const getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryKey = (
-  guildId: number
-) => {
-  return [`/api/v1/communities/${guildId}/notification-policy`] as const;
-};
-
-export const getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryOptions =
-  <
-    TData = Awaited<
-      ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-    >,
-    TError = ErrorType<HTTPValidationError>,
-  >(
-    guildId: number,
-    options?: {
-      query?: Partial<
-        UseQueryOptions<
-          Awaited<
-            ReturnType<
-              typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet
-            >
-          >,
-          TError,
-          TData
-        >
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    }
-  ) => {
-    const { query: queryOptions, request: requestOptions } = options ?? {};
-
-    const queryKey =
-      queryOptions?.queryKey ??
-      getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryKey(guildId);
-
-    const queryFn: QueryFunction<
-      Awaited<
-        ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-      >
-    > = ({ signal }) =>
-      getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet(
-        guildId,
-        requestOptions,
-        signal
-      );
-
-    return {
-      queryKey,
-      queryFn,
-      enabled: guildId !== null && guildId !== undefined,
-      ...queryOptions,
-    } as UseQueryOptions<
-      Awaited<
-        ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-      >,
-      TError,
-      TData
-    > & { queryKey: DataTag<QueryKey, TData, TError> };
-  };
-
-export type GetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-    >
-  >;
-export type GetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet<
-  TData = Awaited<
-    ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet<
-  TData = Awaited<
-    ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-        >,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<
-            ReturnType<
-              typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet
-            >
-          >,
-          TError,
-          Awaited<
-            ReturnType<
-              typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet
-            >
-          >
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet<
-  TData = Awaited<
-    ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary Get Guild Notification Policy
- */
-
-export function useGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet<
-  TData = Awaited<
-    ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-  >,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<
-          ReturnType<typeof getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet>
-        >,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions =
-    getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryOptions(
-      guildId,
-      options
-    );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-/**
- * Decide what this community's notifications may leave the app carrying.
- *
- * Three answers: whether one may reach a phone, whether one may reach a
- * mailbox, and whether what it says may name the thing it is about. Each is
- * also asked of the deployment, and the stricter of the pair applies — so
- * this surface only ever narrows, and a deployment that has already declined
- * a channel leaves nothing here to decline.
- *
- * The same seat as the three beside it, and for the same reason: it says what
- * is done on this community's behalf rather than how it is run. Narrowing
- * needs the ``restrictions`` entitlement; widening never does. The bell
- * inside the app is unaffected, and so is what an account is sent about
- * itself — a sign-in code and a password reset are not notifications.
- * @summary Set Guild Notification Policy
- */
-export const setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut = (
-  guildId: number,
-  guildNotificationPolicyUpdate: BodyType<GuildNotificationPolicyUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildNotificationPolicyRead>(
+  return apiMutator<GuildAuthSettingsRead>(
     {
-      url: `/api/v1/communities/${guildId}/notification-policy`,
-      method: "PUT",
+      url: `/api/v1/communities/${guildId}/auth-settings`,
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: guildNotificationPolicyUpdate,
+      data: guildAuthSettingsUpdate,
       signal,
     },
     options
   );
 };
 
-export const getSetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationKey =
-  () => ["setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut"] as const;
+export const getUpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationKey = () =>
+  ["updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch"] as const;
 
-export const getSetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut>
-      >,
-      TError,
-      SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut>
-    >,
+export const getUpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch>>,
     TError,
-    SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationVariables,
+    UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationVariables,
     TContext
-  > => {
-    const mutationKey =
-      getSetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch>>,
+  TError,
+  UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getUpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut>
-      >,
-      SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationVariables
-    > = (props) => {
-      const { guildId, data } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch>>,
+    UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
 
-      return setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut(
-        guildId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch(
+      guildId,
+      data,
+      requestOptions
+    );
   };
 
-export type SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationResult =
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationResult =
   NonNullable<
-    Awaited<
-      ReturnType<typeof setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut>
-    >
+    Awaited<ReturnType<typeof updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch>>
   >;
-export type SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationBody =
-  BodyType<GuildNotificationPolicyUpdate>;
-export type SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationError =
+export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationBody =
+  BodyType<GuildAuthSettingsUpdate>;
+export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationVariables =
-  { guildId: number; data: BodyType<GuildNotificationPolicyUpdate> };
+export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationVariables = {
+  guildId: number;
+  data: BodyType<GuildAuthSettingsUpdate>;
+};
 
 /**
- * @summary Set Guild Notification Policy
+ * @summary Update Guild Auth Settings
  */
-export const useSetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut = <
+export const useUpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut>
-      >,
+      Awaited<ReturnType<typeof updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch>>,
       TError,
-      SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationVariables,
+      UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut>
-  >,
+  Awaited<ReturnType<typeof updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch>>,
   TError,
-  SetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationVariables,
+  UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getSetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPutMutationOptions(
-      options
-    ),
+    getUpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationOptions(options),
     queryClient
   );
 };
@@ -2987,459 +2761,6 @@ export function useGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGet<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * Set the guild's sign-in requirement. Guild admin only.
- *
- * ``open`` deletes the stored row (no row IS open). ``required`` names one
- * of the guild's own login-ready providers — and the calling admin's own
- * session must already satisfy it, which both proves the provider works
- * end-to-end and keeps an admin from locking their guild (and themselves)
- * behind a sign-in they haven't completed.
- *
- * Tightening a requirement needs the guild's ``providers`` entitlement;
- * loosening or clearing one never does. Enforcement reads the policy row
- * alone, so a requirement outlives the entitlement, apart from its second
- * factor, which applies only while the guild holds ``providers``. See
- * ``auth_posture.change`` for the steps every rule's write takes.
- * @summary Set Guild Auth Policy
- */
-export const setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut = (
-  guildId: number,
-  guildAuthPolicyUpdate: BodyType<GuildAuthPolicyUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildAuthPolicyRead>(
-    {
-      url: `/api/v1/communities/${guildId}/auth-policy`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: guildAuthPolicyUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationKey = () =>
-  ["setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut"] as const;
-
-export const getSetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut>>,
-    TError,
-    SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut>>,
-  TError,
-  SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut>>,
-    SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut>>
->;
-export type SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationBody =
-  BodyType<GuildAuthPolicyUpdate>;
-export type SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationVariables = {
-  guildId: number;
-  data: BodyType<GuildAuthPolicyUpdate>;
-};
-
-/**
- * @summary Set Guild Auth Policy
- */
-export const useSetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut>>,
-      TError,
-      SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut>>,
-  TError,
-  SetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Decide whether this guild accepts personal API keys.
- *
- * The same seat as the sign-in requirement, and for the same reason: it says
- * what may be used to reach the community, which is not the job of running
- * one. Refusing keys needs the ``restrictions`` entitlement, which most guilds
- * never hold; accepting them never does.
- *
- * Existing keys are left alone. What they may reach is decided when they are
- * used, so switching this back on restores them rather than leaving somebody
- * to mint replacements.
- * @summary Set Guild Api Access
- */
-export const setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut = (
-  guildId: number,
-  guildApiAccessUpdate: BodyType<GuildApiAccessUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildApiAccessRead>(
-    {
-      url: `/api/v1/communities/${guildId}/api-access`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: guildApiAccessUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationKey = () =>
-  ["setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut"] as const;
-
-export const getSetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut>>,
-    TError,
-    SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut>>,
-  TError,
-  SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut>>,
-    SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut(guildId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut>>
->;
-export type SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationBody =
-  BodyType<GuildApiAccessUpdate>;
-export type SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationVariables = {
-  guildId: number;
-  data: BodyType<GuildApiAccessUpdate>;
-};
-
-/**
- * @summary Set Guild Api Access
- */
-export const useSetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut>>,
-      TError,
-      SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut>>,
-  TError,
-  SetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetGuildApiAccessApiV1CommunitiesGuildIdApiAccessPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Ask for a second factor from everybody reaching this community.
- *
- * The same seat as the two beside it, and separate from the sign-in
- * requirement on purpose: a community that lets its members arrive however
- * they like may still ask them to hold a factor, and lifting the sign-in
- * requirement does not lift this.
- *
- * Which kinds of factor exist is the deployment's answer, and so is which
- * providers' own account of one counts. The community asks; it does not say
- * how the question is answered.
- * @summary Set Guild Second Factor
- */
-export const setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut = (
-  guildId: number,
-  guildSecondFactorUpdate: BodyType<GuildSecondFactorUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildSecondFactorRead>(
-    {
-      url: `/api/v1/communities/${guildId}/second-factor`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: guildSecondFactorUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationKey = () =>
-  ["setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut"] as const;
-
-export const getSetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut>>,
-    TError,
-    SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut>>,
-  TError,
-  SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut>>,
-    SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut(
-      guildId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut>>
->;
-export type SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationBody =
-  BodyType<GuildSecondFactorUpdate>;
-export type SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationVariables = {
-  guildId: number;
-  data: BodyType<GuildSecondFactorUpdate>;
-};
-
-/**
- * @summary Set Guild Second Factor
- */
-export const useSetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut>>,
-      TError,
-      SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut>>,
-  TError,
-  SetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Hold this guild's members to the twelve-hour session standard, or stop.
- *
- * The same seat as the sign-in requirement beside it: how often somebody
- * signs in again is part of what the community asks of a session, not part of
- * running it. One standard rather than a figure of the guild's own, so
- * somebody in two communities that ask for it has an answer and not a
- * comparison. Turning it on needs the ``restrictions`` entitlement.
- *
- * It reaches members' sessions at their next sign-in. Phones are the
- * exception: a device token carries its deadline in its own expiry, so the
- * ones already issued are brought under the standard here — which can sign a
- * phone out at once, where it signed in longer ago than the standard allows.
- * @summary Set Guild Session Limit
- */
-export const setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut = (
-  guildId: number,
-  guildSessionLimitUpdate: BodyType<GuildSessionLimitUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<GuildSessionLimitRead>(
-    {
-      url: `/api/v1/communities/${guildId}/session-limit`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: guildSessionLimitUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationKey = () =>
-  ["setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut"] as const;
-
-export const getSetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut>>,
-    TError,
-    SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut>>,
-  TError,
-  SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getSetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut>>,
-    SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationVariables
-  > = (props) => {
-    const { guildId, data } = props ?? {};
-
-    return setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut(
-      guildId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut>>
->;
-export type SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationBody =
-  BodyType<GuildSessionLimitUpdate>;
-export type SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationVariables = {
-  guildId: number;
-  data: BodyType<GuildSessionLimitUpdate>;
-};
-
-/**
- * @summary Set Guild Session Limit
- */
-export const useSetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut>>,
-      TError,
-      SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut>>,
-  TError,
-  SetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getSetGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPutMutationOptions(options),
-    queryClient
-  );
-};
 /**
  * @summary Delete Guild Invite
  */

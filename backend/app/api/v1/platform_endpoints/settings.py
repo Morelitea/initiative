@@ -41,11 +41,9 @@ from app.schemas.platform.settings import (
     InterfaceSettingsUpdate,
     LoginMethodStatus,
     AccountsWithoutFactor,
-    LoginMethodsUpdate,
-    SecondFactorRequirementUpdate,
-    SessionLifetimeUpdate,
     OIDCSettingsResponse,
     PlatformAuthSettingsResponse,
+    PlatformAuthSettingsUpdate,
     StorageBackfillStatusResponse,
     CaptchaSettingsResponse,
     CaptchaSettingsUpdate,
@@ -218,74 +216,41 @@ async def get_platform_auth_settings(
     return await _platform_auth_payload(session)
 
 
-@router.put("/auth/methods", response_model=PlatformAuthSettingsResponse)
-async def update_login_methods(
-    payload: LoginMethodsUpdate,
+@router.patch("/auth/platform", response_model=PlatformAuthSettingsResponse)
+async def update_platform_auth_settings(
+    payload: PlatformAuthSettingsUpdate,
     session: SystemSessionDep,
     owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
-    """Set which ways in this deployment permits — at least one.
+    """Change how somebody reaches this deployment: the ways in it permits,
+    who it asks for a second factor, and how long a session lasts.
 
-    Withdrawing one that is somebody's only way in is refused (409) with the
-    count in ``X-Affected-Count``, and proceeds only when the caller echoes
-    that exact number back in ``acknowledge_stranded``. Nobody is signed out
-    either way."""
+    Loosening a rule is never refused. Tightening one is refused when the
+    deployment permits nothing that could answer it (409), and when the
+    account writing it does not meet it itself (400, naming the unmet
+    method). Withdrawing a way in that is somebody's only one is refused (409)
+    with the count in ``X-Affected-Count``, and proceeds only when the caller
+    echoes that exact number back in ``acknowledge_stranded``.
+
+    Nobody is signed out. A session already open keeps the terms it was
+    opened under; a device token is brought under a new session limit now,
+    measured from when it was issued, so shortening the limit can end one on
+    the spot.
+    """
+    changes: dict[str, object] = {
+        key: getattr(payload, key)
+        for key in ("session_max_hours", "session_idle_minutes")
+        if key in payload.model_fields_set
+    }
+    if payload.methods is not None:
+        changes["login_methods"] = frozenset(payload.methods)
+    if payload.second_factor_requirement is not None:
+        changes["second_factor_requirement"] = payload.second_factor_requirement
     await auth_posture.change(
         auth_posture.RuleContext.platform(
             session, owner, acknowledge_stranded=payload.acknowledge_stranded
         ),
-        {"login_methods": frozenset(payload.methods)},
-    )
-    return await _platform_auth_payload(session)
-
-
-@router.put(
-    "/auth/second-factor-requirement", response_model=PlatformAuthSettingsResponse
-)
-async def update_second_factor_requirement(
-    payload: SecondFactorRequirementUpdate,
-    session: SystemSessionDep,
-    owner: ConfigManageDep,
-) -> PlatformAuthSettingsResponse:
-    """Set who this deployment asks to hold a second factor.
-
-    Two refusals on the way up, and none coming down. Asking for one while the
-    deployment permits nothing that presents one is refused (409); so is
-    asking while the account writing it does not meet the rule itself (400,
-    naming the unmet method).
-
-    Nobody is signed out. An account the rule covers is asked at its next
-    request and can answer it where it stands; a credential that cannot
-    present one — the app on a phone, a personal API key — works again once
-    its owner holds a factor.
-    """
-    await auth_posture.change(
-        auth_posture.RuleContext.platform(session, owner),
-        {"second_factor_requirement": payload.level},
-    )
-    return await _platform_auth_payload(session)
-
-
-@router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
-async def update_session_lifetime(
-    payload: SessionLifetimeUpdate,
-    session: SystemSessionDep,
-    owner: ConfigManageDep,
-) -> PlatformAuthSettingsResponse:
-    """Set how long somebody may stay signed in before signing in again.
-
-    Separate from how long a session may be left alone, which the deployment's
-    own configuration holds. A session already open keeps the terms it was
-    opened under and takes the new figure at the next sign-in; a device token
-    is brought under the new figure now, measured from when it was issued, so
-    shortening the limit can end one on the spot.
-    """
-    await auth_posture.change(
-        auth_posture.RuleContext.platform(session, owner),
-        {
-            "session_max_hours": payload.session_max_hours,
-            "session_idle_minutes": payload.session_idle_minutes,
-        },
+        changes,
     )
     return await _platform_auth_payload(session)
 
