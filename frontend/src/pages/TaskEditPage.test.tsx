@@ -25,6 +25,9 @@ const TASK_ID = 2726;
 
 const TASK_ROUTE = "/c/$guildId/i/$initiativeId/projects/$projectId/tasks/$taskId";
 
+/** What the page asked the project list for, newest last. */
+const listed: URLSearchParams[] = [];
+
 /** The project the task actually belongs to, which a move can change. */
 const renderTaskPage = ({
   taskProjectId = PROJECT_ID,
@@ -62,7 +65,10 @@ const renderTaskPage = ({
     ),
     // The collection routes go first: `:projectId` would otherwise swallow
     // them and answer a list request with a single project.
-    guildHttp.get("/projects/", () => HttpResponse.json([project])),
+    guildHttp.get("/projects/", ({ request }) => {
+      listed.push(new URL(request.url).searchParams);
+      return HttpResponse.json([project]);
+    }),
     guildHttp.get("/projects/writable", () => HttpResponse.json([project])),
     guildHttp.get("/projects/:projectId", () => HttpResponse.json(project)),
     ...(statuses
@@ -149,13 +155,18 @@ describe("TaskEditPage", () => {
     expect(screen.queryByText(/select status/i)).not.toBeInTheDocument();
   });
 
-  it("opens the move dialog from the actions menu", async () => {
+  it("opens the move dialog from the actions menu, offering live projects", async () => {
+    listed.length = 0;
     renderTaskPage();
 
     await openActionsMenu();
     await userEvent.click(await screen.findByRole("menuitem", { name: /move to project/i }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // A template takes no tasks moved into it, so the destinations leave
+    // templates out.
+    const destinations = listed.find((params) => params.get("writable") === "true");
+    expect(destinations?.get("is_template")).toBe("false");
   });
 
   it("returns to the task's project after deleting it", async () => {
