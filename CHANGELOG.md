@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Chester is now a jackalope.** The mascot in notifications and sign-up is drawn from the Beyonders Studio logo: a jackalope with heart-shaped antlers and a leaf for a body, in place of the treasure chest.
+- **Chester is now a jackalope.** The mascot in notifications and sign-up is the jackalope from the Beyonders Studio logo, with its heart-shaped antlers and leaf-shaped body, in place of the treasure chest.
 - **A new front page, and a Download page of its own.** Signing up leads, the header always offers Download, Docs and signing in, and on a phone the page is much shorter. It shows the tools, a community's week (posts, polls, events and who's around), and the community directory where the server runs one. The Download page offers the Android app, installing on a computer straight from the browser where it can, and adding to an iPhone's home screen.
 - **The community directory takes more than one category.** Send `category` more than once to `GET /communities/directory` and it lists communities on any of them (API).
 - **Step-by-step dialogs fill the screen on a phone.**
