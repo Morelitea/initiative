@@ -345,6 +345,10 @@ _DESCRIPTION_COLUMNS = (
 #: strikethrough and tables), parsed here only for the words they show.
 _MARKDOWN = MarkdownIt("commonmark").enable(["strikethrough", "table"])
 
+#: A link, picture or mention the head ends inside: an opening ``[`` whose
+#: text, or whose ``](`` address, has not closed by the end.
+_UNFINISHED_LINK = re.compile(r"(?:[!@]|#[\w-]+)?\[[^\]]*(?:\]\([^)]*)?$")
+
 #: The task box GFM puts at the start of a checklist item.
 _TASK_BOX = re.compile(r"^\[[ xX]\]\s+")
 
@@ -364,9 +368,7 @@ def _description_excerpt(head: str | None) -> str | None:
     source = head[:_DESCRIPTION_SOURCE_CHARS]
     if source_cut:
         # A link, picture or mention the cut goes through is left out whole.
-        opening = source.rfind("[")
-        if opening != -1 and ")" not in source[opening:]:
-            source = source[:opening].rstrip("!@")
+        source = _UNFINISHED_LINK.sub("", source)
     source = TEXT_REFERENCE.sub(
         lambda m: m.group(2) if kind_for_trigger(m.group(1)) else m.group(0), source
     )

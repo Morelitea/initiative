@@ -80,8 +80,8 @@ async def test_list_tasks_in_project(
     long = await create_task(
         session,
         a.project,
-        description="## Plan\n\n"
-        + "Draft the **budget**, then share it with everyone. " * 5,
+        description="## [WIP] Plan\n\n"
+        + "Draft the **budget**, then share it with everyone. " * 15,
     )
     short = await create_task(
         session,
@@ -112,9 +112,9 @@ async def test_list_tasks_in_project(
         for task in (long, short, linked, bare)
     } == {
         long.id: (
-            "Plan Draft the budget, then share it with everyone. Draft the budget,"
-            " then share it with everyone. Draft the budget, then share it with"
-            " everyone. Draft the…",
+            "[WIP] Plan Draft the budget, then share it with everyone. Draft the"
+            " budget, then share it with everyone. Draft the budget, then share it"
+            " with everyone. Draft…",
             True,
         ),
         short.id: ("Ask @Mel about the budget.", True),
