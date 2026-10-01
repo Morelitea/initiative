@@ -332,8 +332,6 @@ async def get_device_token(
             await session_lifetime.resolve_max_hours(session, user_id=record.user_id),
             created_at=record.created_at,
         )
-        if slid <= now:
-            return None
         if slid == record.expires_at:
             # The limit has been reached: the window stops moving and the token
             # expires where it stands.
@@ -349,6 +347,10 @@ async def get_device_token(
         )
         await session.commit()
         await session.refresh(record)
+        # Moved in past now, the token is spent: stored, so everything that
+        # reads its expiry (push delivery, the content sockets) agrees.
+        if slid <= now:
+            return None
         if result.rowcount:
             await _record_device_token_use(user_id=record.user_id)
     return record

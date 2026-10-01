@@ -296,6 +296,8 @@ async def test_a_device_token_meets_the_limit_that_applies_when_it_is_used(sessi
     session.add(token)
     await session.commit()
     assert await user_tokens.get_device_token(session, token=raw) is None
+    # Refused and stored, so what reads the expiry agrees.
+    assert (await _token_times(session, user.id)).expires_at <= utcnow()
 
 
 # ---------------------------------------------------------------------------
