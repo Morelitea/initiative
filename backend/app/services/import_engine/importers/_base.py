@@ -203,6 +203,11 @@ class PropertyRestore:
         #: What each envelope property became in the target, so every row
         #: naming it shares one definition — a renamed one included.
         self._resolved: dict[tuple[str, PropertyType], PropertyDefinition] = {}
+        #: The target definitions already standing for one envelope property.
+        #: One definition holds one value a row, so no second property may
+        #: bind to it — a ``Priority`` renamed onto ``Priority_select`` beside
+        #: a ``Priority_select`` of the envelope's own.
+        self._bound: set[int] = set()
 
     async def declare(self, definitions: list[ProjectExportPropertyDefinition]) -> None:
         """Bind the definitions an envelope declares, before any value names
@@ -232,6 +237,7 @@ class PropertyRestore:
             found = self._existing.get(candidate)
             if (
                 found is not None
+                and found.id not in self._bound
                 and found.type == prop_type
                 and (
                     declared is None
@@ -240,6 +246,7 @@ class PropertyRestore:
             ):
                 self.matched += 1
                 self._resolved[key] = found
+                self._bound.add(found.id)
                 return found
         target_name = name
         if name in self._existing:
@@ -270,6 +277,7 @@ class PropertyRestore:
         self._existing[target_name] = definition
         self.created += 1
         self._resolved[key] = definition
+        self._bound.add(definition.id)
         return definition
 
     async def attach(self, row: Any, values: list[EnvelopePropertyValue]) -> None:

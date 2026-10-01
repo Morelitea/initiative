@@ -2444,6 +2444,60 @@ async def test_the_people_step_decides_who_an_imported_task_is_assigned_to(
     assert [row.user_id for row in assignees] == [a.user.id]
 
 
+async def test_two_properties_never_share_one_definition(client, acting_user, session):
+    """A ``Priority`` the target already uses for another type is renamed onto
+    the target's ``Priority_select``; the envelope's own ``Priority_select``
+    then gets a definition of its own, so a task keeps both values."""
+    from sqlmodel import select
+
+    from app.models.tenant.property import (
+        PropertyDefinition,
+        PropertyType,
+        PropertyValue,
+    )
+    from app.models.tenant.task import Task
+    from app.testing import create_property_definition
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    high = [{"value": "high", "label": "High"}]
+    await create_property_definition(
+        session, a.initiative, name="Priority", type=PropertyType.number
+    )
+    await create_property_definition(
+        session,
+        a.initiative,
+        name="Priority_select",
+        type=PropertyType.select,
+        options=high,
+    )
+    envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
+    envelope["tasks"][0]["comments"] = []
+    envelope["property_definitions"] = [
+        {"name": name, "type": "select", "position": 0, "options": high}
+        for name in ("Priority", "Priority_select")
+    ]
+    envelope["tasks"][0]["properties"] = [
+        {"property_name": name, "property_type": "select", "value_text": "high"}
+        for name in ("Priority", "Priority_select")
+    ]
+
+    resp = await _import_envelope(client, a, envelope, a.initiative.id)
+    assert resp.status_code == 201, resp.text
+
+    session.expunge_all()
+    task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
+    names = (
+        await session.exec(
+            select(PropertyDefinition.name)
+            .join(PropertyValue)
+            .where(
+                PropertyValue.entity_type == "task", PropertyValue.entity_id == task.id
+            )
+        )
+    ).all()
+    assert sorted(names) == ["Priority_select", "Priority_select_select"]
+
+
 async def test_a_user_property_is_placed_by_the_people_step(
     client, acting_user, session, monkeypatch, role_session
 ):
