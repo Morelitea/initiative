@@ -491,6 +491,9 @@ jobs:
       && github.event_name == 'push' && github.ref == 'refs/heads/dev'
       && !contains(needs.*.result, 'failure')
       && !contains(needs.*.result, 'cancelled') }}
+    permissions:
+      contents: read
+      id-token: write  # the image's signature
     uses: ./.github/workflows/dev-build.yml
     # inherit, not a list: the build's environment secrets (OTA_SIGNING_KEY)
     # read as empty without it.

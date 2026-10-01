@@ -28,6 +28,9 @@ jobs:
 
   docker:
     needs: sha
+    permissions:
+      contents: read
+      id-token: write  # the image's signature
     uses: ./.github/workflows/docker-image.yml
     with:
       name: dev
