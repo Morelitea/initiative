@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable
 
 import pytest
@@ -70,6 +71,10 @@ class Surface:
     make: Callable[[AsyncSession, Actor, Any, str], Awaitable[int]]
     #: The list query keeping only entities whose value equals ``value``.
     filter_query: Callable[[Actor, Any, int, Any], str]
+    #: The list that query is read from, when it is not ``path``, and the key
+    #: its items come back under.
+    list_path: str = ""
+    list_key: str = "items"
     #: How the values are replaced: the method, the path after the entity, and
     #: the key the list goes under. A task's ride its own PATCH.
     write: tuple[str, str, str] = ("PUT", "/properties", "values")
@@ -108,6 +113,23 @@ async def _make_document(session, a, initiative, title):
 def _property_filters(a, _parent, property_id, value):
     filters = json.dumps([{"property_id": property_id, "op": "eq", "value": value}])
     return f"initiative_id={a.initiative.id}&property_filters={filters}"
+
+
+def _around_now() -> str:
+    """The calendar-entries window around now, where the factory puts events,
+    with no task markers."""
+    now = datetime.now(timezone.utc)
+    return "&".join(
+        (
+            f"start_after={(now - timedelta(days=1)):%Y-%m-%dT%H:%M:%SZ}",
+            f"start_before={(now + timedelta(days=1)):%Y-%m-%dT%H:%M:%SZ}",
+            "include_tasks=false",
+        )
+    )
+
+
+def _event_filters(a, parent, property_id, value):
+    return f"{_property_filters(a, parent, property_id, value)}&{_around_now()}"
 
 
 async def _calendar_in(session, a, initiative):
@@ -154,7 +176,9 @@ EVENTS = Surface(
     entity_column="event_id",
     parent=_calendar_in,
     make=_make_event,
-    filter_query=_property_filters,
+    filter_query=_event_filters,
+    list_path="calendar-entries",
+    list_key="events",
 )
 
 SURFACES = [TASKS, DOCUMENTS, EVENTS]
@@ -190,9 +214,10 @@ async def _stored(session, surface: Surface, entity_id: int) -> list:
 
 async def _listed(client, a: Actor, surface: Surface, parent, defn_id, value) -> set:
     query = surface.filter_query(a, parent, defn_id, value)
-    response = await client.get(a.g(f"/{surface.path}/?{query}"), headers=a.headers)
-    assert response.status_code == 200
-    return {item["id"] for item in response.json()["items"]}
+    path = surface.list_path or surface.path
+    response = await client.get(a.g(f"/{path}/?{query}"), headers=a.headers)
+    assert response.status_code == 200, response.text
+    return {item["id"] for item in response.json()[surface.list_key]}
 
 
 # ---------------------------------------------------------------------------
@@ -659,7 +684,7 @@ async def test_reading_an_event_embeds_its_values(
     assert read.json()["property_values"][0]["value"] == "onboarding"
 
 
-async def test_list_events_is_null_matches_the_unset(
+async def test_calendar_entries_is_null_matches_the_unset(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a, calendar = await _scene(EVENTS, session, acting_user)
@@ -675,13 +700,14 @@ async def test_list_events_is_null_matches_the_unset(
     filters = json.dumps([{"property_id": defn.id, "op": "is_null", "value": True}])
     response = await client.get(
         a.g(
-            f"/calendar-events/?initiative_id={a.initiative.id}&property_filters={filters}"
+            f"/calendar-entries/?initiative_id={a.initiative.id}"
+            f"&property_filters={filters}&{_around_now()}"
         ),
         headers=a.headers,
     )
 
-    assert response.status_code == 200
-    listed = {item["id"] for item in response.json()["items"]}
+    assert response.status_code == 200, response.text
+    listed = {item["id"] for item in response.json()["events"]}
     assert without in listed
     assert with_value not in listed
 
