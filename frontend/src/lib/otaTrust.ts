@@ -9,12 +9,14 @@
  */
 
 /** ECDSA P-256 public keys (SPKI, base64). The first signs releases; the second
- *  is kept offline to replace it. A developer's own build may add one with
- *  `VITE_OTA_DEV_KEY`. */
+ *  is kept offline to replace it. A dev build adds the dev key's with
+ *  `VITE_OTA_DEV_PUBLIC_KEY`. */
 const RELEASE_KEYS: readonly string[] = [
   "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmC5sqg4Q71BRwU4fGluJvOizFTkqlZRMfEP2Wj6f24BRBBEIEqu6058/eAw2/UGnP/03qha23WE5n7DpvQFh1Q==",
   "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwIWhh/MTBmKSRiCzS8LcyTWEoqYhv4Qz0OFq7+oMRAzg8XYkLaGq/XVbF0Bap1s+YFaGe0QN9Nasox8KmlbOhQ==",
-  ...(import.meta.env.VITE_OTA_DEV_KEY ? [import.meta.env.VITE_OTA_DEV_KEY as string] : []),
+  ...(import.meta.env.VITE_OTA_DEV_PUBLIC_KEY
+    ? [import.meta.env.VITE_OTA_DEV_PUBLIC_KEY as string]
+    : []),
 ];
 
 export interface UpdateStatement {
