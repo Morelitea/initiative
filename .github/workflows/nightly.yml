@@ -3,9 +3,9 @@ name: Nightly
 # What the gates don't vary, on dev every night (a schedule starts from the
 # workflow on main, so this begins once it ships): the oldest and newest
 # Postgres the app runs on, a timezone ahead of UTC for both suites, a
-# non-English locale for the backend's, tests in a random order, and the
-# quarantined tests. A failed night opens an issue labelled nightly; the next
-# good night closes it.
+# non-English locale for the backend's, tests in a random order, the
+# quarantined tests, and what a community costs the database. A failed night
+# opens an issue labelled nightly; the next good night closes it.
 
 on:
   schedule:
@@ -17,6 +17,7 @@ on:
     paths:
       - .github/workflows/nightly.yml
       - backend/app/testing/run_options.py
+      - backend/app/db/budgets_test.py
 
 permissions:
   contents: read
@@ -112,6 +113,16 @@ jobs:
           # 0 passed, 1 failed, 5 none quarantined; anything else is a refusal.
           [[ $status == 0 || $status == 1 || $status == 5 ]]
 
+      - name: Hold the performance budgets
+        # Memory differs between major versions; the budgets are 17's, the
+        # version the example deployment ships.
+        if: ${{ !cancelled() && matrix.postgres == '17' }}
+        run: |
+          cd backend
+          set -o pipefail
+          uv run python -m pytest -m budget app/db/budgets_test.py -n 0 --tb=short \
+            | tee "$RUNNER_TEMP/pytest-budgets.log"
+
       - name: Summarise the test run
         if: ${{ !cancelled() }}
         env:
@@ -120,6 +131,7 @@ jobs:
           {
             python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest.log" "$TITLE"
             python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-quarantined.log" "Quarantined tests"
+            python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-budgets.log" "Performance budgets"
           } >> "$GITHUB_STEP_SUMMARY"
 
   frontend:

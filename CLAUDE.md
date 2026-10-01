@@ -424,7 +424,12 @@ night opens an issue labelled `nightly`. **A flaky test is quarantined, not
 retried**: mark it `@pytest.mark.quarantine(issue=<number>, since="YYYY-MM-DD")`
 and open the issue. Every run leaves it out except `pytest --quarantined`,
 which the nightly runs and which fails once a quarantine is two weeks old: by
-then the test is fixed or deleted (`app/testing/run_options.py`).
+then the test is fixed or deleted (`app/testing/run_options.py`). It also
+holds **what a community costs the database** (`pytest -m budget`,
+`app/db/budgets_test.py`, deselected otherwise): its parsed policies' memory
+per connection, the gates that read the standing staying `plpgsql`, and the
+standing being read once a statement. Each is a count Postgres reports rather
+than a time; when a change lowers one, lower its budget with it.
 
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:
