@@ -114,13 +114,13 @@ export const WikiPageView = () => {
   const loadedPageId = pageQuery.data?.id;
   useReadOnOpen("wiki_page", loadedPageId);
   // Track recently viewed wikis for the layout header tabs bar. A wiki is read
-  // through its pages, so this is where it is opened.
+  // through its pages, so each page that opens opens the wiki.
   const { mutate: recordView } = useRecordRecentView("wiki", Number(guildId));
-  const viewedWikiId = wikiQuery.data?.id;
+  const loadedWikiId = pageQuery.data?.wiki_id;
   useEffect(() => {
-    if (!viewedWikiId) return;
-    recordView(viewedWikiId);
-  }, [viewedWikiId, recordView]);
+    if (!loadedPageId || !loadedWikiId) return;
+    recordView(loadedWikiId);
+  }, [loadedPageId, loadedWikiId, recordView]);
   const loadedTitle = pageQuery.data?.title;
   useEffect(() => {
     sentTitle.current = null;

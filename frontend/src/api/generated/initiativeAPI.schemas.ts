@@ -10538,9 +10538,9 @@ export type ExportToolApiV1CGuildIdExportsToolGetParams = {
    */
   ids?: number[] | null;
   /**
-   * One of the tool's export formats: ``json`` (the importable envelope) for every tool, plus the tool's report formats. A document's formats depend on its type, so it has no default; a calendar defaults to ``ics``
+   * One of the tool's export formats (project: json, pdf, csv, xlsx; document: json, md, pdf, docx, csv, xlsx, file; queue: json, pdf, csv, xlsx, md; counter_group: json, pdf, csv, xlsx, md; calendar: ics, json; dashboard: json; post: json; gallery: json; wiki: json, pdf, md, docx). ``json`` is the importable envelope. A document's formats depend on its type, so it has no default; a calendar defaults to ``ics``, every other tool to ``json``
    */
-  format?: string | null;
+  format?: ExportToolApiV1CGuildIdExportsToolGetFormat;
   /**
    * Calendars only: with no ids, every calendar the caller may export in this initiative
    */
@@ -10550,6 +10550,21 @@ export type ExportToolApiV1CGuildIdExportsToolGetParams = {
    */
   tz?: string | null;
 };
+
+export type ExportToolApiV1CGuildIdExportsToolGetFormat =
+  | (typeof ExportToolApiV1CGuildIdExportsToolGetFormat)[keyof typeof ExportToolApiV1CGuildIdExportsToolGetFormat]
+  | null;
+
+export const ExportToolApiV1CGuildIdExportsToolGetFormat = {
+  csv: "csv",
+  docx: "docx",
+  file: "file",
+  ics: "ics",
+  json: "json",
+  md: "md",
+  pdf: "pdf",
+  xlsx: "xlsx",
+} as const;
 
 export type ConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPostBody = {
   [key: string]: unknown;

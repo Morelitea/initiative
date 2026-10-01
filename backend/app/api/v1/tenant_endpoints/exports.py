@@ -48,6 +48,7 @@ from app.schemas.tenant.export_job import (
     serialize_export_job,
 )
 from app.services import audit as audit_service
+from app.services.export.adapters import ADAPTERS
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
     build_upload_response,
@@ -650,6 +651,15 @@ _DEFAULT_FORMATS: dict[Tool, Optional[str]] = {
     Tool.calendar: "ics",
 }
 
+#: What each tool exports to, from its adapter.
+_TOOL_FORMATS = {tool: ADAPTERS[tool_export_source(tool)].formats for tool in Tool}
+
+#: Every format some tool exports, so OpenAPI carries the choices and an
+#: unknown one is refused at the HTTP layer. Which of them a given tool takes
+#: is its adapter's answer, which the engine checks.
+_ALL_FORMATS = tuple(sorted({f for formats in _TOOL_FORMATS.values() for f in formats}))
+ToolExportFormat: Any = Literal[_ALL_FORMATS]  # ty: ignore[invalid-type-form]
+
 
 # Registered after the job routes, which match only a numeric id, so a tool's
 # name never reaches them and a job id never reaches this.
@@ -664,12 +674,13 @@ async def export_tool(
         description="What to export: one artifact per id, zipped when there is "
         "more than one",
     ),
-    format: Optional[str] = Query(
+    format: Optional[ToolExportFormat] = Query(
         default=None,
-        description="One of the tool's export formats: ``json`` (the importable "
-        "envelope) for every tool, plus the tool's report formats. A document's "
-        "formats depend on its type, so it has no default; a calendar defaults to "
-        "``ics``",
+        description="One of the tool's export formats ("
+        + "; ".join(f"{t.value}: {', '.join(f)}" for t, f in _TOOL_FORMATS.items())
+        + "). ``json`` is the importable envelope. A document's formats depend on "
+        "its type, so it has no default; a calendar defaults to ``ics``, every "
+        "other tool to ``json``",
     ),
     initiative_id: Optional[int] = Query(
         default=None,
