@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The mobile app asks about notifications when you need them.** The offer to turn on push notifications no longer appears a few seconds after you sign in. It waits until you have a notification, such as a task assigned to you, a mention, an event invitation or a message. The camera and your photos are still only asked for when you go to add a picture.
 - **Every tool's list says how much sits in each view.** The Active, Templates and Archived toggle on every tool page shows its count, and the documents page calls its live view Active like every other tool. The sidebar's document count no longer includes templates, matching projects.
 - **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import. A repeat is saved only if it happens from its start, and one that ends after a number of times only if it gets there within a hundred years.
 - **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.

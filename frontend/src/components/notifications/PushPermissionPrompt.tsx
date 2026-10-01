@@ -1,57 +1,42 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useUnreadPlaces } from "@/hooks/useNotifications";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { getItem, setItem } from "@/lib/storage";
 
 const DISMISS_STORAGE_KEY = "push-prompt-dismissed";
-const SHOW_DELAY_MS = 3000;
 
+/**
+ * The offer to turn on push notifications, made once there is something to be
+ * notified about rather than at sign-in: a notification waiting for this
+ * account (someone assigned, mentioned or invited them, a message arrived).
+ * The device's own permission dialog only opens from Enable.
+ */
 export const PushPermissionPrompt = () => {
   const { permissionStatus, requestPermission, isSupported } = usePushNotifications();
   const { user } = useAuth();
   const { t } = useTranslation("guilds");
-  const [show, setShow] = useState(false);
+  const [dismissed, setDismissed] = useState(() => Boolean(getItem(DISMISS_STORAGE_KEY)));
+  const [answered, setAnswered] = useState(false);
 
-  useEffect(() => {
-    // Don't show if:
-    // - Not supported (web platform)
-    // - Not logged in
-    // - Already dismissed
-    // - Permission already granted or denied
-    if (!isSupported || !user) {
-      return;
-    }
-
-    if (permissionStatus !== "prompt") {
-      return;
-    }
-
-    const wasDismissed = getItem(DISMISS_STORAGE_KEY);
-    if (wasDismissed) {
-      return;
-    }
-
-    // Show banner after delay
-    const timer = setTimeout(() => {
-      setShow(true);
-    }, SHOW_DELAY_MS);
-
-    return () => clearTimeout(timer);
-  }, [isSupported, user, permissionStatus]);
+  const askable =
+    isSupported && Boolean(user) && permissionStatus === "prompt" && !dismissed && !answered;
+  const { data: unread } = useUnreadPlaces({ enabled: askable });
+  const show = askable && (unread?.places.length ?? 0) > 0;
 
   const handleDismiss = () => {
     setItem(DISMISS_STORAGE_KEY, "true");
-    setShow(false);
+    setDismissed(true);
   };
 
   const handleEnable = async () => {
     try {
       await requestPermission();
-      setShow(false);
+      setAnswered(true);
     } catch (err) {
       console.error("Failed to request push permission:", err);
     }
