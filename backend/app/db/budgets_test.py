@@ -13,7 +13,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.authorization import GUILD_FUNCTION_SIGNATURES
-from app.db.schema_provisioning import guild_schema_name
+from app.db.schema_provisioning import guild_role_name, guild_schema_name
 from app.testing import create_guild, create_initiative, create_project, create_user
 
 from conftest import TEST_DATABASE_URL
@@ -110,7 +110,7 @@ async def test_the_standing_is_read_once_a_statement(session: AsyncSession):
 
     for statement in (
         "SET LOCAL track_functions = 'pl'",
-        f'SET LOCAL ROLE "{schema}"',
+        f'SET LOCAL ROLE "{guild_role_name(guild.id)}"',
     ):
         await session.exec(text(statement))
     await session.exec(text(f'SELECT count(*) FROM "{schema}".projects'))
