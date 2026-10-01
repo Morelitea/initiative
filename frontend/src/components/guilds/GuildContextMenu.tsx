@@ -1,6 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import {
   Copy,
+  CreditCard,
   FolderOpen,
   GripVertical,
   LogOut,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
+import { holdsBillingSeat } from "@/lib/billingSummary";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -171,6 +173,15 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
                 <Settings className="mr-2 h-4 w-4" />
                 {t("nav:guildSettings")}
               </ContextMenuItem>
+              {/* The portal is where every change to the plan is made — this
+                  only opens it. The seat's own holder's, which is who the
+                  portal answers; never a grantee lent the seat. */}
+              {billing != null && holdsBillingSeat(guild) && (
+                <ContextMenuItem onClick={() => void openPortal(guild.id, "manage")}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  {t("usagePanel.manageBilling")}
+                </ContextMenuItem>
+              )}
             </>
           )}
           <ContextMenuSeparator />

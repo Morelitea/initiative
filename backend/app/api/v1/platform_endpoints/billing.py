@@ -23,6 +23,8 @@ from app.core.messages import BillingMessages
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.schemas.platform.billing import (
+    BillingCommunityNotice,
+    BillingCommunityNoticeRead,
     BillingGuildNameRead,
     BillingGuildNameRequest,
     BillingGuildStatusRead,
@@ -55,6 +57,7 @@ def _payload_error_code(exc: ValidationError) -> str:
         for code in (
             BillingMessages.SUPPORT_SOURCE_RESTRICTED,
             BillingMessages.ACTOR_REQUIRED,
+            BillingMessages.NOTICE_SOURCE_NOT_ALLOWED,
         ):
             if code in message:
                 return code
@@ -163,6 +166,49 @@ async def apply_guild_tier(
         async with cohorts.system_session(guild_id) as system_session:
             await guilds_service.announce_on_hold(system_session, guild_id)
     return result
+
+
+@router.post("/community-notice", response_model=BillingCommunityNoticeRead)
+async def community_notice(
+    request: Request, session: SessionDep
+) -> BillingCommunityNoticeRead:
+    """Tell a community's owner something about its plan, from a fixed list.
+
+    Billing names the notice and the day it is about; the words, the
+    recipients and the delivery are ours. The billing role writes the event-log
+    claim and nothing else: the notice goes out after the commit, on the system
+    engine, the way a hold's announcement does. A replayed event id, and a
+    community that is deleted or suspended, are recorded and tell nobody.
+    """
+    claims, payload = await _verify_and_parse(request, BillingCommunityNotice)
+    guild_id = await _resolve_guild(payload.guild_ref)
+    await set_rls_context(session, Billing(guild_id))
+    await _burn_jti(session, claims)
+    if await billing_service.guild_lifecycle_status(session, guild_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.GUILD_NOT_FOUND,
+        )
+    claimed = await billing_service.claim_community_notice(
+        session, payload, guild_id=guild_id
+    )
+    await session.commit()
+    if not claimed:
+        return BillingCommunityNoticeRead(delivered=False)
+    owner_user_id = (
+        await identity_refs.resolve_billing_user(ref=payload.recipient_user_ref)
+        if payload.recipient_user_ref
+        else None
+    )
+    async with cohorts.system_session(guild_id) as system_session:
+        delivered = await guilds_service.announce_trial_notice(
+            system_session,
+            guild_id,
+            kind=payload.kind.value,
+            trial_ends_on=payload.trial_ends_on,
+            owner_user_id=owner_user_id,
+        )
+    return BillingCommunityNoticeRead(delivered=delivered)
 
 
 @router.post("/community-name", response_model=BillingGuildNameRead)

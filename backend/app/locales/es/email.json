@@ -372,13 +372,31 @@
     "title": "{{community}} está en pausa",
     "greeting": "Hola:",
     "body": "<strong>{{community}}</strong> está en pausa, así que por ahora nadie puede abrirla, ni sus miembros ni sus administradores. No se ha cambiado ni eliminado nada.",
-    "deletion": "Si sigue en pausa el <strong>{{date}}</strong>, se eliminará.",
+    "bodyDeleting": "<strong>{{community}}</strong> está en pausa y se eliminará el <strong>{{date}}</strong> a menos que se restablezca su plan. Hasta entonces nadie puede abrirla, ni sus miembros ni sus administradores, y no se ha cambiado ni eliminado nada.",
+    "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> está en pausa y se eliminará el <strong>{{date}}</strong> a menos que se levante la pausa. Hasta entonces nadie puede abrirla, ni sus miembros ni sus administradores, y no se ha cambiado ni eliminado nada.",
     "contact": "Ponte en contacto con <strong>{{contact}}</strong> para resolverlo.",
     "contactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
     "textBody": "{{community}} está en pausa, así que por ahora nadie puede abrirla. No se ha cambiado ni eliminado nada.",
-    "textDeletion": "Si sigue en pausa el {{date}}, se eliminará.",
+    "textBodyDeleting": "{{community}} está en pausa y se eliminará el {{date}} a menos que se restablezca su plan. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
+    "textBodyDeletingUnlessLifted": "{{community}} está en pausa y se eliminará el {{date}} a menos que se levante la pausa. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
     "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
     "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo."
+  },
+  "communityTrialEnding": {
+    "subject": "La prueba de {{community}} termina el {{date}}",
+    "title": "La prueba de {{community}} termina el {{date}}",
+    "greeting": "Hola:",
+    "body": "La prueba de <strong>{{community}}</strong> termina el <strong>{{date}}</strong>. Suscríbete en el portal de facturación antes de esa fecha para seguir editando; después, la comunidad pasará a ser de solo lectura hasta que se elija un plan.",
+    "buttonLabel": "Abrir Plan y uso",
+    "textBody": "La prueba de {{community}} termina el {{date}}. Suscríbete en el portal de facturación antes de esa fecha para seguir editando; después, la comunidad pasará a ser de solo lectura hasta que se elija un plan. {{link}}"
+  },
+  "communityTrialEnded": {
+    "subject": "La prueba de {{community}} ha terminado",
+    "title": "La prueba de {{community}} ha terminado",
+    "greeting": "Hola:",
+    "body": "La prueba de <strong>{{community}}</strong> ha terminado y la comunidad ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando. No se ha eliminado nada.",
+    "buttonLabel": "Elegir un plan",
+    "textBody": "La prueba de {{community}} ha terminado y la comunidad ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando. No se ha eliminado nada. {{link}}"
   },
   "signInLocked": {
     "fallbackText": "Si fuiste tú, no tienes que hacer nada más. Si no, puede que alguien conozca tu dirección de correo. Tu contraseña sigue a salvo, pero plantéate iniciar sesión con una llave de acceso.",
@@ -392,6 +410,23 @@
       "title": "Inicio de sesión con contraseña en pausa",
       "body_one": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado durante una hora. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Para reactivarlo ahora, restablece tu contraseña con «¿Olvidaste tu contraseña?» en la página de inicio de sesión.",
       "body_other": "Siguieron llegando contraseñas o códigos incorrectos para tu cuenta, así que el inicio de sesión con contraseña o código está desactivado durante {{count}} horas. Las llaves de acceso siguen funcionando y sigues con la sesión iniciada donde ya la tenías. Para reactivarlo ahora, restablece tu contraseña con «¿Olvidaste tu contraseña?» en la página de inicio de sesión."
+    }
+  },
+  "dates": {
+    "long": "{{day}} de {{month}} de {{year}}",
+    "months": {
+      "m1": "enero",
+      "m2": "febrero",
+      "m3": "marzo",
+      "m4": "abril",
+      "m5": "mayo",
+      "m6": "junio",
+      "m7": "julio",
+      "m8": "agosto",
+      "m9": "septiembre",
+      "m10": "octubre",
+      "m11": "noviembre",
+      "m12": "diciembre"
     }
   }
 }

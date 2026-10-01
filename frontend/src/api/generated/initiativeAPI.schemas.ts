@@ -4620,6 +4620,42 @@ export interface GuildBannerWrite {
   fade: BannerFade;
 }
 
+export type GuildBillingChangeReadAction =
+  (typeof GuildBillingChangeReadAction)[keyof typeof GuildBillingChangeReadAction];
+
+export const GuildBillingChangeReadAction = {
+  cancel: "cancel",
+  pause: "pause",
+  resume: "resume",
+} as const;
+
+export interface GuildBillingChangeRead {
+  action: GuildBillingChangeReadAction;
+  on: string;
+}
+
+export interface GuildBillingChargeRead {
+  total: number;
+  currency: string;
+}
+
+/**
+ * The guild's plan as billing told it, fetched for this response alone.
+ *
+ * ``available`` is False when billing could not be asked or did not answer
+ * sensibly, and every other field is then empty — not a free plan, an
+ * unknown one.
+ */
+export interface GuildBillingSummaryRead {
+  available?: boolean;
+  tier_name?: string | null;
+  trial_ends_on?: string | null;
+  renews_on?: string | null;
+  next_charge?: GuildBillingChargeRead | null;
+  scheduled_change?: GuildBillingChangeRead | null;
+  payment_failed?: boolean;
+}
+
 /**
  * Info about a guild blocking user deletion.
  */
@@ -6096,6 +6132,8 @@ export const NotificationType = {
   account_suspended: "account_suspended",
   account_unsuspended: "account_unsuspended",
   guild_on_hold: "guild_on_hold",
+  guild_trial_ending: "guild_trial_ending",
+  guild_trial_ended: "guild_trial_ended",
   connection_requested: "connection_requested",
   connection_accepted: "connection_accepted",
   message_request_received: "message_request_received",

@@ -12,6 +12,7 @@ import {
   normalizeAppTarget,
   normalizeLegacyTarget,
 } from "@/lib/entityResolver";
+import { formatDate } from "@/lib/formatDate";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute } from "@/lib/tools";
 
@@ -457,10 +458,27 @@ export const notificationText = (
       });
     case "guild_on_hold": {
       const community = typeof data.community === "string" ? data.community : "";
-      return typeof data.contact === "string" && data.contact.trim()
-        ? t("notifications.guildOnHoldWithContact", { community, contact: data.contact.trim() })
+      // The day it is deleted, where this deployment deletes a held community.
+      const date = formatDate(data.delete_on);
+      const contact = typeof data.contact === "string" ? data.contact.trim() : "";
+      if (date) {
+        return contact
+          ? t("notifications.guildOnHoldDeletingWithContact", { community, date, contact })
+          : t("notifications.guildOnHoldDeleting", { community, date });
+      }
+      return contact
+        ? t("notifications.guildOnHoldWithContact", { community, contact })
         : t("notifications.guildOnHold", { community });
     }
+    case "guild_trial_ending":
+      return t("notifications.guildTrialEnding", {
+        community: typeof data.community === "string" ? data.community : "",
+        date: formatDate(data.trial_ends_on),
+      });
+    case "guild_trial_ended":
+      return t("notifications.guildTrialEnded", {
+        community: typeof data.community === "string" ? data.community : "",
+      });
     default:
       return t("notifications.defaultNotification");
   }

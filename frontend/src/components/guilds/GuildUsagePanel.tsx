@@ -1,11 +1,8 @@
 import { useTranslation } from "react-i18next";
 
 import { useReadStorageUsageApiV1CGuildIdStorageUsageGet } from "@/api/generated/storage/storage";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes } from "@/lib/fileUtils";
 
@@ -16,14 +13,14 @@ const ratioPct = (used: number, max: number | null): number | null =>
 
 /** Guild usage against its storage and member caps.
  *
- * Guild admins only, and doubly so: it lives on the admin-gated guild settings
- * page, and the numbers it renders are the administration half of `GuildRead`
- * (caps, plan label), which the API sends to admins alone — as does the
+ * On the seat's Usage tab, the first in community settings, on every install:
+ * self-hosted, the caps are the operator's; hosted, they come with the plan,
+ * which `GuildBillingPanel` shows below it. The numbers are the administration
+ * half of `GuildRead`, which the API sends to admins alone — as does the
  * storage-usage endpoint below. */
 export const GuildUsagePanel = () => {
   const { t } = useTranslation(["guilds", "common"]);
   const { activeGuild } = useGuilds();
-  const { billing, openPortal } = useBillingPortal();
 
   const guildId = activeGuild?.id;
   // What a community stores is read from inside it, so the figure is not part
@@ -42,7 +39,6 @@ export const GuildUsagePanel = () => {
   const maxUsers = activeGuild.max_users; // null = unlimited
   const storagePct = ratioPct(usedBytes, maxBytes);
   const memberPct = ratioPct(members, maxUsers);
-  const tierLabel = activeGuild.tier_name ?? t("usagePanel.selfHosted");
 
   return (
     <Card>
@@ -76,30 +72,6 @@ export const GuildUsagePanel = () => {
           </div>
           {memberPct != null && <Progress value={memberPct} />}
         </div>
-
-        {billing && activeGuild?.can.seat && (
-          <>
-            <Separator />
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm">
-                <span className="text-muted-foreground">{t("usagePanel.currentPlan")} </span>
-                <span className="font-semibold">{tierLabel}</span>
-              </p>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => void openPortal(activeGuild.id, "upgrade")}>
-                  {t("usagePanel.upgrade")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void openPortal(activeGuild.id, "manage")}
-                >
-                  {t("usagePanel.manageBilling")}
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
       </CardContent>
     </Card>
   );

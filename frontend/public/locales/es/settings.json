@@ -36,7 +36,15 @@
       "data": "Datos",
       "dangerZone": "Zona de peligro",
       "security": "Seguridad",
-      "integrations": "Integraciones"
+      "integrations": "Integraciones",
+      "usage": "Uso",
+      "planAndUsage": "Plan y uso"
+    },
+    "tabBadge": {
+      "paymentFailed": "Pago fallido",
+      "trial_one": "Prueba · {{count}} día",
+      "trial_other": "Prueba · {{count}} días",
+      "trialLastDay": "Prueba · último día"
     }
   },
   "profile": {

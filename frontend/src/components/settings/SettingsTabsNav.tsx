@@ -6,6 +6,8 @@ export interface SettingsTab {
   value: string;
   label: string;
   path: string;
+  /** Optional mark after the label — a badge saying the tab needs a look. */
+  adornment?: ReactNode;
 }
 
 export interface SettingsTabsNavProps {
@@ -41,8 +43,13 @@ export function SettingsTabsNav({ tabs, activeTab, onNavigate, children }: Setti
     >
       <TabsBar containerClassName="pb-2" className="gap-1">
         {tabs.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value}>
+          <TabsTrigger
+            key={tab.value}
+            value={tab.value}
+            className={tab.adornment ? "gap-1.5" : undefined}
+          >
             {tab.label}
+            {tab.adornment}
           </TabsTrigger>
         ))}
       </TabsBar>

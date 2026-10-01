@@ -67,6 +67,41 @@ describe("notificationText — account notices", () => {
     expect(notificationText(nobody, t)).not.toContain("WithContact");
   });
 
+  it("names the day a held community is deleted, where it is", () => {
+    const dated = notice("guild_on_hold", {
+      community: "Acme",
+      contact: "help@example.com",
+      delete_on: "2026-10-24",
+    });
+    const line = notificationText(dated, t);
+    expect(line).toContain("notifications.guildOnHoldDeletingWithContact");
+    expect(line).toContain("2026");
+    expect(
+      notificationText(notice("guild_on_hold", { community: "Acme", delete_on: "2026-10-24" }), t)
+    ).toContain("notifications.guildOnHoldDeleting(");
+  });
+
+  it("says when a trial ends, and that it has", () => {
+    const ending = notificationText(
+      notice("guild_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
+      t
+    );
+    expect(ending).toContain("notifications.guildTrialEnding");
+    expect(ending).toContain("Acme");
+    expect(ending).toContain("2026");
+    expect(notificationText(notice("guild_trial_ended", { community: "Acme" }), t)).toContain(
+      "notifications.guildTrialEnded"
+    );
+  });
+
+  it("takes a trial notice to the community's Plan & usage tab", () => {
+    expect(
+      notificationLink(
+        notice("guild_trial_ending", { guild_id: 7, target_path: "/settings/usage" })
+      )
+    ).toBe("/c/7/settings/usage");
+  });
+
   it("covers the rest of the account notices", () => {
     expect(notificationText(notice("avatar_removed", {}), t)).toBe("notifications.avatarRemoved");
     expect(notificationText(notice("account_unsuspended", {}), t)).toBe(

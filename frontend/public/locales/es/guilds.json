@@ -302,6 +302,10 @@
     "appConsentRequested": "{{app}} pide actuar en tu nombre: «{{label}}»",
     "appUpdatePending": "{{app}}, versión {{version}}, pide más acceso",
     "guildOnHoldWithContact": "{{community}} está en pausa. Ponte en contacto con {{contact}} para resolverlo.",
+    "guildOnHoldDeleting": "{{community}} está en pausa y se eliminará el {{date}}. Ponte en contacto con quien gestiona este servidor para resolverlo.",
+    "guildOnHoldDeletingWithContact": "{{community}} está en pausa y se eliminará el {{date}}. Ponte en contacto con {{contact}} para resolverlo.",
+    "guildTrialEnding": "La prueba de {{community}} termina el {{date}}. Suscríbete en el portal de facturación antes de esa fecha para seguir editando.",
+    "guildTrialEnded": "La prueba de {{community}} ha terminado y ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando.",
     "defaultNotification": "Tienes una nueva notificación.",
     "push": {
       "enableTitle": "Activar notificaciones push",
@@ -396,6 +400,27 @@
     "selfHosted": "Autoalojado",
     "upgrade": "Mejorar",
     "manageBilling": "Gestionar facturación"
+  },
+  "billingPanel": {
+    "title": "Plan",
+    "unavailable": "Los detalles de facturación no están disponibles en este momento.",
+    "updatePaymentMethod": "Actualizar método de pago",
+    "changeInPortal": "Cambia tu plan o tu método de pago, o cancela, en el portal de facturación.",
+    "cancelAnytime": "Cancela cuando quieras en el portal de facturación. Tu plan sigue activo hasta el final del periodo que has pagado. Después, tu comunidad será de solo lectura durante 30 días para que puedas exportarla; luego quedará en pausa y se eliminará 30 días más tarde.",
+    "status": {
+      "paymentFailed": "Pago fallido",
+      "paymentFailedDetail": "Actualiza tu método de pago para seguir editando: la comunidad pasa a ser de solo lectura 14 días después del pago fallido.",
+      "ends": "Termina el {{date}}",
+      "endsDetail": "Tu plan termina el {{date}}. Después, la comunidad será de solo lectura durante 30 días y luego quedará en pausa.",
+      "pauses": "Se pausa el {{date}}",
+      "resumes": "Se reanuda el {{date}}",
+      "trial_one": "Prueba · queda {{count}} día",
+      "trial_other": "Prueba · quedan {{count}} días",
+      "trialLastDay": "Prueba · último día",
+      "trialDetail": "La prueba termina el {{date}}. Suscríbete antes para seguir editando.",
+      "renews": "Se renueva el {{date}}",
+      "renewsWithAmount": "Se renueva el {{date}} · {{amount}}"
+    }
   },
   "transferOwnership": {
     "title": "Transferir propiedad",

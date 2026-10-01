@@ -372,13 +372,31 @@
     "title": "{{community}} est en attente",
     "greeting": "Bonjour,",
     "body": "<strong>{{community}}</strong> est en attente : personne ne peut l’ouvrir pour le moment, ni ses membres ni ses administrateurs. Rien n’y a été modifié ni supprimé.",
-    "deletion": "Si elle est toujours en attente le <strong>{{date}}</strong>, elle sera supprimée.",
+    "bodyDeleting": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
+    "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
     "contact": "Contactez <strong>{{contact}}</strong> pour régler la situation.",
     "contactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
     "textBody": "{{community}} est en attente : personne ne peut l’ouvrir pour le moment. Rien n’y a été modifié ni supprimé.",
-    "textDeletion": "Si elle est toujours en attente le {{date}}, elle sera supprimée.",
+    "textBodyDeleting": "{{community}} est en attente et sera supprimée le {{date}} si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
+    "textBodyDeletingUnlessLifted": "{{community}} est en attente et sera supprimée le {{date}} si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
     "textContact": "Contactez {{contact}} pour régler la situation.",
     "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation."
+  },
+  "communityTrialEnding": {
+    "subject": "L’essai de {{community}} se termine le {{date}}",
+    "title": "L’essai de {{community}} se termine le {{date}}",
+    "greeting": "Bonjour,",
+    "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait.",
+    "buttonLabel": "Ouvrir Forfait et utilisation",
+    "textBody": "L’essai de {{community}} se termine le {{date}}. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait. {{link}}"
+  },
+  "communityTrialEnded": {
+    "subject": "L’essai de {{community}} est terminé",
+    "title": "L’essai de {{community}} est terminé",
+    "greeting": "Bonjour,",
+    "body": "L’essai de <strong>{{community}}</strong> est terminé et la communauté est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier. Rien n’a été supprimé.",
+    "buttonLabel": "Choisir un forfait",
+    "textBody": "L’essai de {{community}} est terminé et la communauté est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier. Rien n’a été supprimé. {{link}}"
   },
   "signInLocked": {
     "fallbackText": "Si c'était vous, il n'y a rien d'autre à faire. Sinon, quelqu'un connaît peut-être votre adresse e-mail. Votre mot de passe reste protégé, mais pensez à vous connecter avec une clé d'accès.",
@@ -392,6 +410,23 @@
       "title": "Connexion par mot de passe suspendue",
       "body_one": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant une heure. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Pour la réactiver tout de suite, réinitialisez votre mot de passe avec « Mot de passe oublié ? » sur la page de connexion.",
       "body_other": "De mauvais mots de passe ou codes ont continué d'arriver pour votre compte : la connexion par mot de passe ou code est donc désactivée pendant {{count}} heures. Les clés d'accès fonctionnent toujours et vous restez connecté là où vous l'êtes déjà. Pour la réactiver tout de suite, réinitialisez votre mot de passe avec « Mot de passe oublié ? » sur la page de connexion."
+    }
+  },
+  "dates": {
+    "long": "{{day}} {{month}} {{year}}",
+    "months": {
+      "m1": "janvier",
+      "m2": "février",
+      "m3": "mars",
+      "m4": "avril",
+      "m5": "mai",
+      "m6": "juin",
+      "m7": "juillet",
+      "m8": "août",
+      "m9": "septembre",
+      "m10": "octobre",
+      "m11": "novembre",
+      "m12": "décembre"
     }
   }
 }

@@ -1,5 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
@@ -24,10 +23,6 @@ vi.mock("@/hooks/useAppConfig", () => ({
 vi.mock("@/api/generated/storage/storage", () => ({
   useReadStorageUsageApiV1CGuildIdStorageUsageGet: () => ({ data: state.usage }),
 }));
-const mintMock = vi.hoisted(() => vi.fn());
-vi.mock("@/api/generated/communities/communities", () => ({
-  createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintMock,
-}));
 
 import { GuildUsagePanel } from "./GuildUsagePanel";
 
@@ -46,7 +41,6 @@ describe("GuildUsagePanel", () => {
     });
     state.billing = null;
     state.usage = { usage_bytes: 500 };
-    mintMock.mockReset();
   });
 
   it("renders storage and member usage against caps (FOSS, billing absent)", () => {
@@ -57,8 +51,13 @@ describe("GuildUsagePanel", () => {
     expect(screen.getByText("4 of 10")).toBeInTheDocument();
   });
 
-  it("shows no billing/upgrade UI when no portal is configured", () => {
+  it("shows no plan or portal UI, even to the seat of a billed deployment", () => {
+    // The plan lives on the seat-only Billing tab (GuildBillingPanel); this
+    // panel is usage alone.
+    state.billing = { url: "https://billing.example.com" };
+    state.guild = buildGuild({ id: 42, role: "superadmin", member_count: 4, tier_name: "gold" });
     renderWithProviders(<GuildUsagePanel />);
+    expect(screen.getByText("Storage")).toBeInTheDocument();
     expect(screen.queryByText("Upgrade")).not.toBeInTheDocument();
     expect(screen.queryByText("Manage billing")).not.toBeInTheDocument();
     expect(screen.queryByText(/Current plan/)).not.toBeInTheDocument();
@@ -74,75 +73,5 @@ describe("GuildUsagePanel", () => {
     });
     renderWithProviders(<GuildUsagePanel />);
     expect(screen.getAllByText(/Unlimited/).length).toBeGreaterThan(0);
-  });
-
-  it("shows the plan label and both portal buttons when billing is configured", () => {
-    state.billing = { url: "https://billing.example.com" };
-    state.guild = buildGuild({
-      id: 42,
-      role: "superadmin",
-      max_storage_bytes: 1000,
-      max_users: 10,
-      member_count: 4,
-      tier_name: "gold",
-    });
-    renderWithProviders(<GuildUsagePanel />);
-
-    expect(screen.getByText("gold")).toBeInTheDocument();
-    expect(screen.getByText("Upgrade")).toBeInTheDocument();
-    expect(screen.getByText("Manage billing")).toBeInTheDocument();
-  });
-
-  it("admin: opens the portal with the minted token in the URL fragment", async () => {
-    state.billing = { url: "https://billing.example.com" };
-    state.guild = buildGuild({
-      id: 42,
-      role: "superadmin",
-      max_storage_bytes: 1000,
-      max_users: 10,
-      member_count: 4,
-      tier_name: "gold",
-    });
-    mintMock.mockResolvedValue({ handoff_token: "TOK", expires_in_seconds: 60 });
-    const tab = { location: { href: "" }, opener: {} as unknown };
-    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
-
-    renderWithProviders(<GuildUsagePanel />);
-    await userEvent.click(screen.getByText("Manage billing"));
-
-    expect(mintMock).toHaveBeenCalledWith(42);
-    await waitFor(() =>
-      expect(tab.location.href).toBe(
-        "https://billing.example.com/manage?guild=42&lang=en#handoff=TOK"
-      )
-    );
-    openSpy.mockRestore();
-  });
-
-  it("admin: falls back to the anonymous link if the mint fails", async () => {
-    state.billing = { url: "https://billing.example.com" };
-    state.guild = buildGuild({ id: 42, role: "superadmin", member_count: 1 });
-    mintMock.mockRejectedValue(new Error("nope"));
-    const tab = { location: { href: "" }, opener: {} as unknown };
-    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
-
-    renderWithProviders(<GuildUsagePanel />);
-    await userEvent.click(screen.getByText("Upgrade"));
-
-    await waitFor(() =>
-      expect(tab.location.href).toBe("https://billing.example.com/upgrade?guild=42&lang=en")
-    );
-    openSpy.mockRestore();
-  });
-
-  it("keeps the portal from an ordinary admin", async () => {
-    // Billing is the superadmin's, so an admin is not offered a button that
-    // would come back GUILD_SUPERADMIN_REQUIRED.
-    state.guild = buildGuild({ id: 42, role: "admin", member_count: 1 });
-    renderWithProviders(<GuildUsagePanel />);
-
-    expect(await screen.findByText(/storage/i)).toBeInTheDocument();
-    expect(screen.queryByText("Upgrade")).not.toBeInTheDocument();
-    expect(screen.queryByText(/manage billing/i)).not.toBeInTheDocument();
   });
 });

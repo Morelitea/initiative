@@ -302,6 +302,10 @@
     "appConsentRequested": "{{app}} asks to act as you: “{{label}}”",
     "appUpdatePending": "{{app}} version {{version}} asks for more access",
     "guildOnHoldWithContact": "{{community}} is on hold. Contact {{contact}} to sort it out.",
+    "guildOnHoldDeleting": "{{community}} is on hold and will be deleted on {{date}}. Contact whoever runs this server to sort it out.",
+    "guildOnHoldDeletingWithContact": "{{community}} is on hold and will be deleted on {{date}}. Contact {{contact}} to sort it out.",
+    "guildTrialEnding": "{{community}}'s trial ends on {{date}}. Subscribe in the billing portal before then to keep editing.",
+    "guildTrialEnded": "{{community}}'s trial has ended and it is now read-only. Choose a plan in the billing portal to keep editing.",
     "defaultNotification": "You have a new notification.",
     "push": {
       "enableTitle": "Enable Push Notifications",
@@ -396,6 +400,27 @@
     "selfHosted": "Self-hosted",
     "upgrade": "Upgrade",
     "manageBilling": "Manage billing"
+  },
+  "billingPanel": {
+    "title": "Plan",
+    "unavailable": "Billing details are unavailable right now.",
+    "updatePaymentMethod": "Update payment method",
+    "changeInPortal": "Change your plan, payment method or cancel in the billing portal.",
+    "cancelAnytime": "Cancel anytime in the billing portal. Your plan keeps running until the end of the period you've paid for. After that your community is read-only for 30 days so you can export it, then put on hold and deleted 30 days later.",
+    "status": {
+      "paymentFailed": "Payment failed",
+      "paymentFailedDetail": "Update your payment method to keep editing — the community becomes read-only 14 days after the payment failed.",
+      "ends": "Ends {{date}}",
+      "endsDetail": "Your plan ends on {{date}}. After that the community is read-only for 30 days, then put on hold.",
+      "pauses": "Pauses {{date}}",
+      "resumes": "Resumes {{date}}",
+      "trial_one": "Trial · {{count}} day left",
+      "trial_other": "Trial · {{count}} days left",
+      "trialLastDay": "Trial · last day",
+      "trialDetail": "Trial ends {{date}}. Subscribe before then to keep editing.",
+      "renews": "Renews {{date}}",
+      "renewsWithAmount": "Renews {{date}} · {{amount}}"
+    }
   },
   "transferOwnership": {
     "title": "Transfer ownership",
