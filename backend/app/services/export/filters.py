@@ -29,13 +29,15 @@ from app.models.platform.user import User
 from app.services.export.engine import ExportError
 
 #: List params that say where, in what order and in what shape a page is
-#: served. The export decides those for itself, so they are not filters.
+#: served, or which rows the reader may change. The export decides those for
+#: itself, so they are not filters.
 _NOT_FILTERS = frozenset(
     {
         "initiative_id",
         "ids",
         "scope",
         "slim",
+        "writable",
         "page",
         "page_size",
         "sort_by",
@@ -44,9 +46,9 @@ _NOT_FILTERS = frozenset(
 )
 
 
-#: List params whose unset value shows one side of them (live rows, ordinary
-#: projects) rather than both.
-_BOTH_WHEN_UNSET = ("archived", "template")
+#: List params whose unset value shows one side of them (live rows) rather
+#: than both.
+_BOTH_WHEN_UNSET = ("archived",)
 
 
 @lru_cache(maxsize=None)

@@ -446,11 +446,11 @@ async def test_templates_are_found_by_name_and_pickable_on_their_own(
 
     assert [
         h["entity_id"]
-        for h in (await _search(client, a, q="kickoff", template=True))["items"]
+        for h in (await _search(client, a, q="kickoff", is_template=True))["items"]
     ] == [blank.id]
     assert [
         h["entity_id"]
-        for h in (await _search(client, a, q="kickoff", template=False))["items"]
+        for h in (await _search(client, a, q="kickoff", is_template=False))["items"]
     ] == [real.id]
 
 
@@ -513,7 +513,7 @@ async def test_a_template_picker_is_a_wider_net_not_a_looser_one(
     response = await client.get(
         other.g("/search/suggest"),
         headers=other.headers,
-        params={"q": "private", "types": ["document"], "template": True},
+        params={"q": "private", "types": ["document"], "is_template": True},
     )
     assert response.status_code == 200, response.text
     assert private_template.id not in {r["entity_id"] for r in response.json()}

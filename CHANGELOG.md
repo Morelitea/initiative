@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Loosening a sign-in rule is never refused.** Lowering who your server asks for a second factor, or switching off a community's restriction, no longer asks you to meet the rule or for the community to hold the option. Saving a setting without changing it records nothing in the audit log.
 - **Two error codes for refused sign-in rules (API).** `AUTH_RULE_NOT_OFFERED` (409) replaces `SETTINGS_FACTOR_REQUIREMENT_NO_METHOD` and `GUILD_AUTH_POLICY_METHOD_UNAVAILABLE`, and `AUTH_RULE_SELF_UNSATISFIED` (400, naming what you haven't met in `X-Auth-Policy-Unmet`) replaces `SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED` and `GUILD_AUTH_POLICY_SELF_UNSATISFIED`.
 - **List pages search and filter the whole list.** Searching queues, counter groups, dashboards and projects, and filtering projects by tag, now finds matches beyond the page that has loaded, and an export narrows the same way. Counter groups, dashboards, wikis and galleries page like the other tools, rather than stopping at the first 50 or 100. Queues filter by whether they are running (`is_active` on the queue list, API), and the posts board filters by tag.
+- **Templates filter the same way on projects and documents.** Archived project templates now show in the archive, where no view showed them before. The projects list and search take `is_template` in place of `template`: omit it for templates and everything else, `true` for templates only, `false` for none. The projects list now includes templates when it is omitted, as the documents list does (API).
 
 ### Removed
 
@@ -72,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Two counter steps at the same moment both count.** A step sent through the API or an automation is now one database write, so two landing together no longer lose one.
+- **Galleries and wikis on My Tools show their cover and counts**, as they do on a community's own page.
 - **A signed-in phone keeps to the session limit that applies when it is used.** Joining a community that signs people in again every 12 hours, or that community getting its option back, now reaches a phone that signed in earlier within a day, instead of only when the limit itself was changed.
 - **A board's timeline follows the archive view.** Under **Archived**, the months beside the board count only archived posts, and the live board no longer counts archived ones. `GET /posts/timeline` takes `archived` (API).
 - **Access requests follow your push setting.** Turning push off for approvals or account notices now also silences pushes about access requests and their answers. The bell still shows them.

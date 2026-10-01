@@ -11,12 +11,11 @@ COPY VERSION /VERSION
 COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
-# A public key the app also accepts app updates from, for a build signed with
-# its own key (see docs/en/running-a-server/building-your-own-image.md).
-ARG VITE_OTA_DEV_KEY=
+# The dev signing key's public half: the dev app accepts updates signed with it.
+ARG VITE_OTA_DEV_PUBLIC_KEY=
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_VERSION_SUFFIX=$VITE_VERSION_SUFFIX
-ENV VITE_OTA_DEV_KEY=$VITE_OTA_DEV_KEY
+ENV VITE_OTA_DEV_PUBLIC_KEY=$VITE_OTA_DEV_PUBLIC_KEY
 # Browser SPA build (base "/") served by the backend at /app/static.
 RUN pnpm run build
 # Capacitor-flavored OTA bundle (base "", __IS_CAPACITOR__=true) shipped at /app/ota so the

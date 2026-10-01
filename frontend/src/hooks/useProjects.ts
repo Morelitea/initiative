@@ -38,6 +38,7 @@ import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
 import { fetchAllPages } from "@/lib/fetchAllPages";
+import { toolViewParams } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -76,14 +77,23 @@ export const useProjects = (
  *  own templates through `useProjects`, since the status filter picks which of
  *  the three states the same query returns. */
 export const useTemplateProjects = (initiativeId?: number | null) => {
-  return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
+  return useProjects({
+    is_template: true,
+    ...(initiativeId ? { initiative_id: initiativeId } : {}),
+  });
 };
 
-/** Every project the reader may edit — where a task can be moved to. Walks the
- *  list's windows, so no destination is left off a long list. */
+/** Every live project the reader may edit — where a task can be moved to; a
+ *  template takes no tasks moved into it. Walks the list's windows, so no
+ *  destination is left off a long list. */
 export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) => {
   const guildId = useActiveGuildId();
-  const params = { writable: true, slim: true, page_size: 0 };
+  const params = {
+    writable: true,
+    slim: true,
+    page_size: 0,
+    ...toolViewParams(Tool.project, "active"),
+  };
   return useQuery<ProjectListResponse>({
     queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId, params),
     queryFn: () => fetchAllPages(listProjectsApiV1CGuildIdProjectsGet, guildId, params),

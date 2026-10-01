@@ -53,7 +53,16 @@ type ToolListParams = {
 
 /** The params the list's caller decides rather than the person filtering:
  *  where the list is, which page of it, and in what order. */
-type NotAFilter = "initiative_id" | "ids" | "page" | "page_size" | "sort_by" | "sort_dir" | "scope";
+type NotAFilter =
+  | "initiative_id"
+  | "ids"
+  | "page"
+  | "page_size"
+  | "sort_by"
+  | "sort_dir"
+  | "scope"
+  | "slim"
+  | "writable";
 
 /** What a tool's list can be narrowed by. */
 export type ToolListFilters<T extends Tool = Tool> = Omit<ToolListParams[T], NotAFilter>;

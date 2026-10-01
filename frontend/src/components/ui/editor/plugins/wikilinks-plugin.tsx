@@ -139,7 +139,7 @@ function useWikilinkSearch(
     // `![[` reaches everything `#` does rather than only the tools.
     types: embed ? MENTIONABLE_TYPES : linkable,
     initiative_id: initiativeId ?? undefined,
-    template: false,
+    is_template: false,
     // A page does not link to itself: the page the link opens is the one the
     // words are on.
     subject,
