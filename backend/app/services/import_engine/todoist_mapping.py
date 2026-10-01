@@ -372,7 +372,7 @@ def build_project_envelope(
             "tags": [],
             "assignee_handles": [],
             "checklist": [],
-            "property_values": [],
+            "properties": [],
             "links": [],
             "comments": [],
         }

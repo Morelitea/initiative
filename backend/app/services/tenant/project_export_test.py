@@ -152,8 +152,8 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert [t.color for t in exported_task.tags] == ["#FF0000"]
     assert exported_task.assignee_handles == [handle_of(assignee)]
     assert {i.text for i in exported_task.checklist} == {"step 1", "step 2"}
-    assert exported_task.property_values[0].property_name == "Severity"
-    assert exported_task.property_values[0].value_text == "high"
+    assert exported_task.properties[0].property_name == "Severity"
+    assert exported_task.properties[0].value_text == "high"
     assert exported_task.series == 4242
     assert exported_task.recurrence_carry == {
         "title": "Fix it once",

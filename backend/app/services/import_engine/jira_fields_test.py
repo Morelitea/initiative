@@ -249,10 +249,8 @@ def test_two_fields_sharing_a_name_stay_two_properties():
 def test_the_mapping_produces_values_the_envelope_accepts():
     """Validated against the real project envelope, as the rest of the
     mapping is: the apply path will not bend to what a site sends."""
-    from app.schemas.tenant.project_export import (
-        ProjectExportPropertyDefinition,
-        ProjectExportPropertyValue,
-    )
+    from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
+    from app.schemas.tenant.project_export import ProjectExportPropertyDefinition
 
     catalog = [
         _custom("c1", "Team", "option"),
@@ -275,4 +273,4 @@ def test_the_mapping_produces_values_the_envelope_accepts():
     for definition in mapped.definitions:
         ProjectExportPropertyDefinition.model_validate(definition)
     for value in mapped.values_by_issue["ACME-1"]:
-        ProjectExportPropertyValue.model_validate(value)
+        EnvelopePropertyValue.model_validate(value)
