@@ -376,6 +376,50 @@ async def _load_links(
     return by_task
 
 
+async def get_project_for_export(
+    session,
+    current_user,
+    guild_id: int,
+    *,
+    project_id: int,
+    access: str = "owner",
+):
+    """The project-export adapter's seam: fetch + authorize in one place so
+    the rule holds on the worker's render-time replay too. It takes the owner
+    rung, or ``access="read"`` from an initiative or community backup
+    (``permissions.require_export_access``)."""
+    from fastapi import HTTPException, status
+
+    from app.core.tools import Tool
+    from app.db import session as db_session
+    from app.services import reachability
+    from app.services.permissions import DAC_RESOURCES, require_export_access
+    from app.services.tenant import project_grants
+
+    project = await project_grants.get_project_hydrated(session, project_id)
+    if project is None:
+        raise await reachability.missing_or_denied(
+            "projects",
+            project_id,
+            current_user.id,
+            guild_id,
+            not_found=Tool.project.not_found_code,
+            denied=Tool.project.no_access_code,
+        )
+    if project.initiative is not None and not project.initiative.projects_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=Tool.project.feature_disabled_code,
+        )
+    require_export_access(
+        DAC_RESOURCES[Tool.project],
+        project,
+        context=db_session.guild_context(session),
+        access=access,
+    )
+    return project
+
+
 async def list_project_ids_for_export(
     session,
     current_user,
@@ -384,19 +428,26 @@ async def list_project_ids_for_export(
     initiative_ids: list[int],
 ) -> list[int]:
     """Ids of every project the user may include in an aggregate export —
-    DAC-visible (a request that reaches the whole guild sees all). The aggregate
-    export includes read-accessible projects by design; the per-project seams
-    still enforce their own access level per entity."""
+    DAC-visible (a request that reaches the whole guild sees all), in
+    initiatives that have projects switched on. The aggregate export includes
+    read-accessible projects by design; the per-project seams still enforce
+    their own access level per entity."""
     from sqlmodel import select
 
+    from app.models.tenant.initiative import Initiative
     from app.models.tenant.project import Project
 
     if not initiative_ids:
         return []
-    conditions = [
-        Project.initiative_id.in_(initiative_ids),
-    ]
-    statement = select(Project.id).where(*conditions).order_by(Project.id.asc())
+    statement = (
+        select(Project.id)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(
+            Project.initiative_id.in_(initiative_ids),
+            Initiative.projects_enabled.is_(True),
+        )
+        .order_by(Project.id.asc())
+    )
     return list(await session.exec(statement))
 
 

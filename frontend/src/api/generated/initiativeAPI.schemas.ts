@@ -9813,11 +9813,10 @@ export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
    * The view the tag counts are for: active, archived, or templates for a tool that has them
    */
   view?: string;
-  search?: string | null;
   /**
-   * Documents only: narrow the tag counts by type
+   * JSON object of the tool's own list filters, as its list route takes them (``{"search": "notes", "document_type": "native"}``), that the tag counts are for
    */
-  document_type?: DocumentType | null;
+  filters?: string | null;
   /**
    * Also count the tag tree beside ``view``
    */

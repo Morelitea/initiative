@@ -6,6 +6,7 @@ disagree with the list it sits on. These tests hold that for every tool in
 ``TOOL_LISTS``: a new tool is covered by being registered.
 """
 
+import json
 from datetime import datetime, timezone
 
 import pytest
@@ -113,6 +114,23 @@ async def test_the_tag_tree_counts_the_view_shown(
     assert archived["untagged_count"] == (
         2 if "templates" in TOOL_LISTS[tool].views else 1
     )
+
+    # The tree counts what the list shows under the list's own filters.
+    nothing = await _counts(
+        client,
+        actor,
+        tool,
+        initiative_id=home.id,
+        include_tags=True,
+        filters=json.dumps({"search": "no row is called this"}),
+    )
+    assert (nothing["tag_counts"], nothing["untagged_count"]) == ({}, 0)
+    refused = await client.get(
+        actor.g(f"/tools/{tool.value}/counts"),
+        headers=actor.headers,
+        params={"include_tags": True, "filters": json.dumps({"page": 2})},
+    )
+    assert refused.status_code == 400
 
 
 @TOOLS

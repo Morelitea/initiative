@@ -34,12 +34,14 @@ keep in step. :mod:`app.api.v1.tenant_endpoints.tool_grants` reads it.
 # have to be real objects for FastAPI to read them.
 
 import inspect
+from functools import lru_cache
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Annotated, Any, Awaitable, Callable, List, Literal, Mapping, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, ValidationError, create_model
 from sqlalchemy import and_, func, literal, select, union_all
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -282,6 +284,57 @@ def page_size_param(
 # ---------------------------------------------------------------------------
 # The registry
 # ---------------------------------------------------------------------------
+
+
+#: List params that say where, in what order and in what shape a page is
+#: served, or which rows the reader may change: the caller's, not filters.
+_NOT_FILTERS = frozenset(
+    {
+        "initiative_id",
+        "ids",
+        "scope",
+        "slim",
+        "writable",
+        "page",
+        "page_size",
+        "sort_by",
+        "sort_dir",
+    }
+)
+
+
+@lru_cache(maxsize=None)
+def list_filter_model(tool: Tool) -> type[BaseModel]:
+    """What one tool's list can be narrowed by: its params, less the ones that
+    place and order a page. Derived, so a filter the list gains is one every
+    caller narrowing that list (its counts, its export) takes."""
+    return create_model(
+        f"{tool.value}_list_filters",
+        __config__=ConfigDict(extra="forbid"),
+        **{
+            param.name: (param.annotation, param.default.default)
+            for param in TOOL_LISTS[tool].params
+            if param.name not in _NOT_FILTERS
+        },
+    )
+
+
+def _list_filters(tool: Tool, raw: Optional[str]) -> dict[str, Any]:
+    """The list filters a request sent as JSON, checked against the tool's
+    list; the ones it left out are not narrowing."""
+    if not raw:
+        return {}
+    try:
+        return (
+            list_filter_model(tool)
+            .model_validate_json(raw)
+            .model_dump(exclude_unset=True)
+        )
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
 
 
 #: Live rows and the archive: the views every tool has.
@@ -1242,9 +1295,11 @@ async def get_tool_counts(
         description="The view the tag counts are for: active, archived, or "
         "templates for a tool that has them",
     ),
-    search: Optional[str] = Query(default=None),
-    document_type: Optional[DocumentType] = Query(
-        default=None, description="Documents only: narrow the tag counts by type"
+    filters: Optional[str] = Query(
+        default=None,
+        description="JSON object of the tool's own list filters, as its list "
+        'route takes them (``{"search": "notes", "document_type": "native"}``), '
+        "that the tag counts are for",
     ),
     include_tags: bool = Query(
         default=False, description="Also count the tag tree beside ``view``"
@@ -1298,8 +1353,13 @@ async def get_tool_counts(
             current_user,
             guild_context,
             **scope,
-            search=search,
-            document_type=document_type,
+            # The tree shows every tag, so tags are what it counts, not what
+            # it narrows by.
+            **{
+                name: value
+                for name, value in _list_filters(tool, filters).items()
+                if name not in ("tag_ids", "untagged")
+            },
             **spec.views[view],
         )
     )

@@ -12,9 +12,9 @@ the ones archived along with the project, which the list shows too.
 ``filters.tasks`` narrows each project's tasks to those the task list
 answers with the same filters (``TaskFilters``); without it, every task rides.
 
-Access rule for every format: WRITE on the project (read-only members can't
-take backups), enforced by the ``projects.py`` seams at both count and build
-time, under the caller's RLS session.
+Access rule for every format: the owner rung on the project, or read from an
+initiative or community backup, enforced by ``get_project_for_export`` at both
+count and build time, under the caller's RLS session.
 """
 
 from __future__ import annotations
@@ -100,22 +100,25 @@ class ProjectAdapter(ToolExportAdapter):
         # The row count is a query of its own here — a project's size is its
         # task list, which the backup envelope is built from but does not
         # have to be built to know.
-        from app.api.v1.tenant_endpoints.projects import count_project_export_rows
+        from app.models.tenant.task import Task
+        from app.services.tenant.project_export import get_project_for_export
 
         # Every selected project is authorized, as the build fetches each; the
         # size is what the filters leave of them.
         selection = self.selection(params)
-        rows = {
-            project_id: await count_project_export_rows(
-                session, user, guild_id, project_id=project_id
-            )
-            for project_id in selection
-        }
+        for project_id in selection:
+            await get_project_for_export(session, user, guild_id, project_id=project_id)
         filters = parse_filters(self.tool, params.get("filters"))
         kept = await narrow(session, user, self.tool, filters, selection)
         tasks = getattr(filters, "tasks", None)
         if tasks is None:
-            return sum(rows[project_id] for project_id in kept)
+            return (
+                await session.exec(
+                    select(func.count())
+                    .select_from(Task)
+                    .where(Task.project_id.in_(kept))
+                )
+            ).one()
         return await count_matching_tasks(
             session, user, kept, tasks, resolve_zone(params.get("tz")).key
         )
@@ -130,12 +133,26 @@ class ProjectAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> ProjectExportEnvelope:
-        from app.api.v1.tenant_endpoints.projects import build_project_export_for_user
+        from app.core.config import settings
+        from app.core.user_display import handle_of
+        from app.services.tenant.project_export import (
+            build_project_export,
+            get_project_for_export,
+        )
 
         # The seam enforces the rung per project — one project short of it in
-        # the selection fails the whole export, never a silent gap.
-        return await build_project_export_for_user(
+        # the selection fails the whole export, never a silent gap. Cross-row
+        # references (tags, statuses, properties, assignees) travel by name or
+        # handle, so the file imports cleanly on another instance.
+        project = await get_project_for_export(
             session, user, guild_id, project_id=project_id, access=access
+        )
+        return await build_project_export(
+            session,
+            project_id=project.id,
+            exported_by_handle=handle_of(user),
+            source_instance_url=settings.APP_URL,
+            source_guild_id=guild_id,
         )
 
     async def initiative_ids(

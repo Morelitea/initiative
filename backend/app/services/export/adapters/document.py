@@ -105,16 +105,13 @@ class DocumentAdapter(ToolExportAdapter):
         params: dict,
         format: str,
     ) -> list[Document]:
-        """Fetch + authorize every selected document (read suffices), and
-        enforce the per-type format rule on each — a selection is only
-        exportable in a format every member of it supports."""
-        documents = []
-        for document_id in self.selection(params):
-            document = await self.fetch(session, user, guild_id, document_id)
-            allowed = _TYPE_FORMATS.get(doc_type_of(document), ())
-            if format not in allowed:
+        """The selection, as every tool loads it (fetched, authorized and
+        narrowed by the filters), held to the per-type format rule: a selection
+        is only exportable in a format every document in it supports."""
+        documents = await super().load(session, user, guild_id, params, format)
+        for document in documents:
+            if format not in _TYPE_FORMATS.get(doc_type_of(document), ()):
                 raise ExportError(ExportMessages.EXPORT_INVALID_FORMAT)
-            documents.append(document)
         return documents
 
     def rows(self, document: Document, /) -> int:
