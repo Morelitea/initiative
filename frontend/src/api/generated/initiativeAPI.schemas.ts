@@ -3583,6 +3583,14 @@ export const EmailCadence = {
 } as const;
 
 /**
+ * A community, as somebody names it when they make one.
+ */
+export interface NewCommunity {
+  name: string;
+  description?: string | null;
+}
+
+/**
  * Make the account a proved address earned.
  */
 export interface EmailOtpRegister {
@@ -3599,6 +3607,7 @@ export interface EmailOtpRegister {
   full_name?: string | null;
   timezone?: string | null;
   invite_code?: string | null;
+  community?: NewCommunity | null;
 }
 
 /**
@@ -6665,6 +6674,7 @@ export interface PasskeySignUpFinish {
   full_name?: string | null;
   timezone?: string | null;
   captcha_token?: string | null;
+  community?: NewCommunity | null;
   credential: PasskeySignUpFinishCredential;
   /**
    * @minLength 1
@@ -6701,6 +6711,7 @@ export interface PasskeySignUpStart {
   full_name?: string | null;
   timezone?: string | null;
   captcha_token?: string | null;
+  community?: NewCommunity | null;
 }
 
 export type PasskeyStepUpFinishCredential = { [key: string]: unknown };
@@ -8911,6 +8922,7 @@ export interface UserCreate {
   password: string;
   timezone?: string | null;
   captcha_token?: string | null;
+  community?: NewCommunity | null;
 }
 
 export interface UserEmailCreate {

@@ -66,8 +66,13 @@ class GuildBase(SanitizedBaseModel):
     description: Optional[RichTextStr] = None
 
 
-class GuildCreate(GuildBase):
+class NewCommunity(GuildBase):
+    """A community, as somebody names it when they make one."""
+
     name: TitleStr
+
+
+class GuildCreate(NewCommunity):
     #: Make another account the guild's admin instead of the caller.
     #:
     #: Honoured only for a caller holding ``guilds.manage``; anyone else

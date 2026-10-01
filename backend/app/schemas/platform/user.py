@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.platform.guild import NewCommunity
 from app.schemas.query import PageMeta
 
 from app.core.capabilities import Capability, standing_capabilities
@@ -103,6 +104,9 @@ class UserCreate(SanitizedBaseModel):
     # server-side via ``app.services.captcha`` before the row is
     # written. Ignored when captcha isn't configured.
     captcha_token: Optional[str] = None
+    # The community this account is made with, when it is made to start one
+    # rather than to join one.
+    community: Optional[NewCommunity] = None
 
 
 def _avatar_out(value: Optional[str]) -> Optional[str]:

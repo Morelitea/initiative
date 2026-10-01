@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import EmailStr, Field
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.platform.guild import NewCommunity
 
 
 class EmailOtpSend(SanitizedBaseModel):
@@ -51,3 +52,4 @@ class EmailOtpRegister(SanitizedBaseModel):
     full_name: Optional[TitleStr] = Field(default=None, max_length=255)
     timezone: Optional[str] = None
     invite_code: Optional[str] = None
+    community: Optional[NewCommunity] = None

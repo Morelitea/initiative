@@ -123,6 +123,7 @@ from app.schemas.platform.passkey import (
     PasskeySignUpResult,
     PasskeySignUpStart,
 )
+from app.schemas.platform.guild import NewCommunity
 from app.schemas.platform.user import UserCreate, UserRead
 from app.services import audit as audit_service
 import webauthn
@@ -228,6 +229,7 @@ class RegistrationDetails:
     full_name: str | None = None
     timezone: str | None = None
     captcha_token: str | None = None
+    community: NewCommunity | None = None
 
 
 @dataclass(frozen=True)
@@ -271,6 +273,7 @@ async def register_user(
             full_name=user_in.full_name,
             timezone=user_in.timezone,
             captcha_token=user_in.captcha_token,
+            community=user_in.community,
         ),
         invite_code=invite_code,
         hashed_password=get_password_hash(user_in.password),
@@ -365,9 +368,9 @@ async def _register_account(
     captcha gates, the same handle and the same verification letter.
 
     What differs is the way in, and it is settled *here* rather than by the
-    caller afterwards: this commits — and, where ``REGISTRATION_CREATES_GUILD``
-    is on, provisions the account a guild of its own — so a credential written
-    after the fact could fail and leave an account nobody can sign in to.
+    caller afterwards: this commits — and, where the registration names a
+    community, provisions it — so a credential written after the fact could
+    fail and leave an account nobody can sign in to.
     Written in the same breath as the account, it is covered by the same undo.
 
     The caller has already refused a method this deployment does not permit and
@@ -378,6 +381,11 @@ async def _register_account(
     verification letter, because the thing the letter asks for has happened.
     """
     normalized_invite = (invite_code or "").strip() or None
+    if normalized_invite and details.community is not None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=AuthMessages.REGISTRATION_INVITE_OR_COMMUNITY,
+        )
 
     smtp_configured = False
     try:
@@ -532,21 +540,18 @@ async def _register_account(
             )
             await session.commit()
             await cohorts.settle(session)
-        elif not settings.REGISTRATION_CREATES_GUILD:
+        elif details.community is None:
             await session.commit()
         else:
-            guild_name_source = (user.full_name or "").strip() or user.username
-            guild_name = (
-                guild_name_source
-                if guild_name_source.lower().endswith("guild")
-                else f"{guild_name_source}'s Guild"
-            )
             # The account is committed with the guild; if the guild cannot be
             # set up, the account goes too.
             user_id = user.id
             try:
                 guild = await guilds_service.provision_new_guild(
-                    session, name=guild_name, creator=user
+                    session,
+                    name=details.community.name,
+                    description=details.community.description,
+                    creator=user,
                 )
             except guilds_service.GuildProvisionError:
                 await session.exec(sql_delete(User).where(User.id == user_id))
@@ -556,8 +561,7 @@ async def _register_account(
                     detail=AuthMessages.UNABLE_TO_CREATE_USER,
                 )
             guild_id = guild.id
-            # Registration seeds the new account a guild of its own; claim it
-            # for them. Fire-and-forget, once the seed has committed.
+            # The account was made with a guild of its own; claim it for them. Fire-and-forget, once the seed has committed.
             billing_claim.claim_new_guild(user_id=user_id, guild_id=guild_id)
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
@@ -729,6 +733,7 @@ async def finish_passkey_sign_up(
             full_name=payload.full_name,
             timezone=payload.timezone,
             captcha_token=payload.captcha_token,
+            community=payload.community,
         ),
         invite_code=invite_code,
         hashed_password=None,

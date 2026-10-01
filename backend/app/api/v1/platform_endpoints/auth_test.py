@@ -83,15 +83,10 @@ async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSe
     assert "public_registration_enabled" in data
 
 
-async def test_register_first_user(
-    client: AsyncClient, session: AsyncSession, monkeypatch
-):
-    """The first registered user becomes owner, and with
-    ``REGISTRATION_CREATES_GUILD`` off registering creates no guild."""
-    from app.core.config import settings
+async def test_register_first_user(client: AsyncClient, session: AsyncSession):
+    """The first registered user becomes owner, and a registration that names
+    no community creates none."""
     from app.models.platform.guild import GuildMembership
-
-    monkeypatch.setattr(settings, "REGISTRATION_CREATES_GUILD", False)
 
     user_data = {
         "email": "first@example.com",
@@ -112,6 +107,49 @@ async def test_register_first_user(
         select(GuildMembership).where(GuildMembership.user_id == data["id"])
     )
     assert held.all() == []
+
+
+async def test_register_with_a_community_makes_it(
+    client: AsyncClient, session: AsyncSession
+):
+    """A registration that names a community makes it, with the new account as
+    its superadmin; one that also carries an invite is refused."""
+    from app.models.platform.guild import Guild, GuildMembership, GuildRole
+
+    await create_user(session)
+    community = {"name": "Book Club", "description": "Monthly reads"}
+    response = await client.post(
+        "/api/v1/auth/register?invite_code=anything",
+        json={
+            "email": "both@example.com",
+            "username": "both",
+            "password": "securepassword123",
+            "community": community,
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "REGISTRATION_INVITE_OR_COMMUNITY"
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "founder@example.com",
+            "username": "founder",
+            "password": "securepassword123",
+            "community": community,
+        },
+    )
+    assert response.status_code == 201
+    held = (
+        await session.exec(
+            select(Guild, GuildMembership.role)
+            .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+            .where(GuildMembership.user_id == response.json()["id"])
+        )
+    ).all()
+    assert [(g.name, g.description, role) for g, role in held] == [
+        ("Book Club", "Monthly reads", GuildRole.superadmin)
+    ]
 
 
 async def test_register_with_invite_blocked_when_guild_full(
@@ -2456,6 +2494,7 @@ async def test_register_rolls_back_when_guild_seed_fails(
             "username": "seedfail",
             "full_name": "Seed Fail",
             "password": "securepassword123",
+            "community": {"name": "Seed Fail"},
         },
     )
 

@@ -7,6 +7,7 @@ from typing import Any, Optional
 from pydantic import ConfigDict, EmailStr, Field, field_validator
 
 from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.platform.guild import NewCommunity
 from app.services.auth.native_handoff import is_challenge
 
 #: The longest name a passkey may be given. Mirrors the service's cap.
@@ -106,6 +107,7 @@ class PasskeySignUpStart(SanitizedBaseModel):
     full_name: Optional[TitleStr] = None
     timezone: Optional[str] = Field(default=None, max_length=64)
     captcha_token: Optional[str] = Field(default=None, max_length=4096)
+    community: Optional[NewCommunity] = None
 
 
 class PasskeySignUpFinish(PasskeySignUpStart):

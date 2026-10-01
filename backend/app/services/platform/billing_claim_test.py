@@ -179,7 +179,7 @@ async def test_an_unconfigured_deployment_creates_guilds_without_claiming(
 async def test_registration_claims_the_guild_it_creates(
     client, billing_configured, sent_claims
 ):
-    """Registration seeds the new account a guild, and claims that one too."""
+    """A registration that names a community claims it too."""
     response = await client.post(
         "/api/v1/auth/register",
         json={
@@ -187,6 +187,7 @@ async def test_registration_claims_the_guild_it_creates(
             "username": "claimregister",
             "full_name": "Claim Register",
             "password": "securepassword123",
+            "community": {"name": "Claimed"},
         },
     )
     assert response.status_code == 201
