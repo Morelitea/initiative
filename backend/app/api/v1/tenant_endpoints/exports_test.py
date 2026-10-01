@@ -45,7 +45,7 @@ from app.services.export import worker as export_worker
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.storage import get_guild_storage
 from app.services.tenant import ical_service
-from app.testing import create_resource_grant, route_session_to_guild
+from app.testing import create_resource_grant, route_session_to_guild, drain_notices
 from app.testing.factories import (
     assign_tag,
     checklist_items,
@@ -536,6 +536,7 @@ async def test_worker_renders_job_and_download_succeeds(
     )
     assert media.status_code == 404
 
+    await drain_notices()
     rows = await session.exec(
         select(Notification).where(Notification.user_id == a.user.id)
     )

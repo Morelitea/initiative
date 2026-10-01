@@ -47,6 +47,7 @@ from app.testing import (
     create_guild,
     create_upload,
     create_user,
+    drain_notices,
 )
 
 
@@ -1154,6 +1155,7 @@ async def _hold_notices(session: AsyncSession, user_id: int) -> int:
     from app.models.platform.notification import Notification, NotificationType
 
     session.expire_all()
+    await drain_notices()
     rows = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,

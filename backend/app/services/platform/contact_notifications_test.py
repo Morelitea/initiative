@@ -18,7 +18,12 @@ from sqlalchemy import text
 
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_ignore import UserIgnore
-from app.testing import push_switched_on, set_notification_prefs, signed_in_headers
+from app.testing import (
+    drain_notices,
+    push_switched_on,
+    set_notification_prefs,
+    signed_in_headers,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +51,7 @@ async def _reachable(session, *users) -> None:
 
 
 async def _lines(session, user_id: int, kind: str) -> list[dict]:
+    await drain_notices()
     rows = (
         await session.exec(
             text(
@@ -224,6 +230,7 @@ class TestPush:
                 json={"user_id": bo.user.id},
                 headers=ada.headers,
             )
+            await drain_notices()
 
         assert send.await_count == 1
         kwargs = send.await_args.kwargs
@@ -254,6 +261,7 @@ class TestPush:
                 json={"user_id": bo.user.id},
                 headers=ada.headers,
             )
+            await drain_notices()
 
         assert send.await_count == 2
 
@@ -282,5 +290,6 @@ class TestPush:
                 json={"user_id": bo.user.id},
                 headers=ada.headers,
             )
+            await drain_notices()
 
         assert send.await_count == 0

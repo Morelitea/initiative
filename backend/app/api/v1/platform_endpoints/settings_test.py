@@ -33,6 +33,7 @@ from app.testing import (
     create_project,
     create_user,
     guild_administration,
+    drain_notices,
 )
 from sqlmodel import select
 from app.db.request_context import SystemGuild, Unattributed
@@ -264,6 +265,7 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
     assert nudged == [guild_id, guild_id]
 
     session.expire_all()
+    await drain_notices()
     notices = (
         await session.exec(
             select(Notification).where(
