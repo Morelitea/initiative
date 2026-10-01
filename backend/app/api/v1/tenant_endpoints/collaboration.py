@@ -486,5 +486,5 @@ async def _hand_over(
         )
     finally:
         room.release()
-    if room.is_empty():
-        await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)
+        if room.is_empty():
+            await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)

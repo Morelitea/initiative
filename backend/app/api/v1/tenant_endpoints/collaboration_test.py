@@ -30,6 +30,7 @@ from app.testing import (
     get_auth_token,
 )
 from app.core.search import SearchEntityType
+from app.services.tenant.collaboration import collaboration_manager
 from app.services.tenant.collaborative_resources import resource_for
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
@@ -191,6 +192,9 @@ async def test_an_unreadable_update_is_refused(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "DOCUMENT_COLLABORATION_UPDATE_INVALID"
+    # The room it opened to try is not left behind for the next caller.
+    key = (owner.guild.id, SearchEntityType.document.value, doc.id)
+    assert key not in collaboration_manager._rooms
 
 
 async def test_a_token_in_the_query_is_refused(
