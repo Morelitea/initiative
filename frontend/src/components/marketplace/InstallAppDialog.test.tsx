@@ -138,6 +138,25 @@ describe("InstallAppDialog", () => {
     expect((await install()).granted_scopes).toEqual(["projects:read", "apps:acme.github"]);
   });
 
+  it("leaves acting as a moderator or an admin for the seat to tick", async () => {
+    const standings = ["initiatives:moderate", "guild:admin"];
+    open({
+      requested_scopes: ["projects:read", ...standings],
+      grantable_scopes: ["projects:read", ...standings],
+    });
+
+    const moderate = await screen.findByLabelText(
+      "Act as a moderator in the initiatives it's placed in"
+    );
+    const admin = screen.getByLabelText("Act as an admin across your whole community");
+    expect(moderate).not.toBeChecked();
+    expect(admin).not.toBeChecked();
+
+    moderate.click();
+    await waitFor(() => expect(moderate).toBeChecked());
+    expect((await install()).granted_scopes).toEqual(["projects:read", "initiatives:moderate"]);
+  });
+
   it("says an app with no name by its public id", async () => {
     open({ requested_scopes: ["apps:acme.github"], grantable_scopes: [] });
 

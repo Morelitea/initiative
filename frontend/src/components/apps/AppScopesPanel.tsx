@@ -5,6 +5,9 @@
  * them here. A requested scope this server does not allow is shown but cannot
  * be ticked. Changing something implies reading it, so granting a change
  * includes the read, and taking the read away takes the change with it.
+ * Using another app, and acting as a moderator or an admin, are each a row of
+ * their own, said as a sentence: none of them is reading or changing a kind of
+ * thing.
  *
  * Saved as one set: the server replaces the whole grant.
  */
@@ -21,6 +24,7 @@ import { useSetAppScopes } from "@/hooks/useGuildApps";
 import {
   appScopeTarget,
   type ScopeAccess,
+  STANDING_SCOPES,
   scopeResourceLabel,
   scopeSentence,
   toggleScope,
@@ -41,12 +45,16 @@ interface ResourceRow {
 
 const scopeOf = (resource: string, access: Access) => `${resource}:${access}`;
 
-/** The requested scopes grouped by resource, keeping their order. A scope to
- * use another app is a row of its own, not a resource. */
+/** A scope said as a sentence on a row of its own rather than as an access to
+ * a resource: using another app, or acting as a moderator or an admin. */
+const isSentenceScope = (scope: string) =>
+  appScopeTarget(scope) !== null || STANDING_SCOPES.has(scope);
+
+/** The requested scopes grouped by resource, keeping their order. */
 const resourceRows = (requested: string[]): ResourceRow[] => {
   const rows: ResourceRow[] = [];
   for (const scope of requested) {
-    if (appScopeTarget(scope) !== null) continue;
+    if (isSentenceScope(scope)) continue;
     const [resource, access] = scope.split(":") as [string, Access];
     const row = rows.find((one) => one.resource === resource);
     if (row) row.accesses.push(access);
@@ -85,7 +93,7 @@ export function AppScopesPanel({ app }: AppScopesPanelProps) {
     });
 
   const rows = resourceRows(requested);
-  const appScopes = requested.filter((scope) => appScopeTarget(scope) !== null);
+  const sentenceScopes = requested.filter(isSentenceScope);
 
   return (
     <section className="space-y-3">
@@ -125,7 +133,7 @@ export function AppScopesPanel({ app }: AppScopesPanelProps) {
             })}
           </li>
         ))}
-        {appScopes.map((scope) => {
+        {sentenceScopes.map((scope) => {
           const allowed = grantable.has(scope);
           const id = `scope-${app.id}-${scope.replace(":", "-")}`;
           return (

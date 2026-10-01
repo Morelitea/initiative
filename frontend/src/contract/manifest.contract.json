@@ -118,7 +118,9 @@
       "sharing:read",
       "sharing:write",
       "members:read",
-      "initiatives:read"
+      "initiatives:read",
+      "initiatives:moderate",
+      "guild:admin"
     ],
     "surfaceScope": [
       "guild",

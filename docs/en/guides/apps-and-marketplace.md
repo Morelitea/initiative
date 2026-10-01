@@ -66,13 +66,24 @@ Adding an app asks up to three things, and every answer can be changed later fro
 
 | | What it means |
 |---|---|
-| **What it can reach** | The kinds of thing it may read, or read and change: projects, documents, comments, tags, and so on. Everything it asks for starts ticked; untick what you'd rather it didn't have. A line marked *This server doesn't allow it* is off-limits whatever you tick. |
+| **What it can reach** | The kinds of thing it may read, or read and change: projects, documents, comments, tags, and so on. Everything it asks for starts ticked; untick what you'd rather it didn't have. A line marked *This server doesn't allow it* is off-limits whatever you tick. Two lines start unticked: acting as a moderator, and acting as an admin (see below). |
 | **Where it works** | Every current initiative, or only the ones you pick. An app reads and changes things only in the initiatives it works in, so the committee's private budget initiative stays out of reach unless you put it there. |
 | **Who can open it there** | Only for an app with a page inside initiatives: which roles see that page. Community admins always can. |
 
 An app asking for nothing gets asked nothing. It just gets a name.
 
 However you answer, **it never reaches past what you allowed.** An app that may read projects in the Garden initiative reads projects in the Garden initiative. Not documents, not the Kitchen.
+
+### Acting as a moderator or an admin
+
+On its own, an app sees what any member of an initiative would without being given anything more: what's shared with everyone there, and what it made itself. Something shared with three people stays with those three.
+
+Some apps can do more if you let them, and ask for it in two lines that start unticked:
+
+- **Act as a moderator in the initiatives it's placed in.** Inside an initiative it works in, it reaches everything a moderator would, whoever it's shared with.
+- **Act as an admin across your whole community.** Everything a community admin reaches, including initiatives it isn't placed in.
+
+Ticking either lets the app ask for that standing; it doesn't use it everywhere at once. An automations app, for example, uses it only for an automation somebody holding that role set up to run that way. Either way, it still reaches only the kinds of thing ticked above. An admin-standing app that may read projects reads every project, and still no documents.
 
 ### Updates
 

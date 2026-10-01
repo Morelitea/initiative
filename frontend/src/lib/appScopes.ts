@@ -18,6 +18,15 @@ export const APP_SCOPE_PREFIX = "apps:";
 export const appScopeTarget = (scope: string): string | null =>
   scope.startsWith(APP_SCOPE_PREFIX) ? scope.slice(APP_SCOPE_PREFIX.length) : null;
 
+/**
+ * The scopes that name a standing rather than a resource: acting as a
+ * moderator in an initiative, or as a guild admin. Never ticked for the seat.
+ */
+export const STANDING_SCOPES: ReadonlySet<string> = new Set([
+  "initiatives:moderate",
+  "guild:admin",
+]);
+
 /** Public id → the name that app goes by, as the server read it. */
 export type AppNames = Readonly<Record<string, string>>;
 

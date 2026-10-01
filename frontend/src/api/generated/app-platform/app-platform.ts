@@ -253,6 +253,9 @@ export const issueAppAccessTokenApiV1AppPlatformOauthTokenPost = (
       issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.resource
     );
   }
+  if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.level !== undefined) {
+    formUrlEncoded.append(`level`, issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.level);
+  }
   if (issueAppAccessTokenApiV1AppPlatformOauthTokenPostBody.assertion !== undefined) {
     formUrlEncoded.append(
       `assertion`,
