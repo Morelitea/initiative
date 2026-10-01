@@ -40,6 +40,7 @@ export const PostsFilterBar = ({
   onFiltersOpenChange,
   onClear,
   activeCount,
+  initiativeId,
 }: PostsFilterBarProps) => {
   const { t } = useTranslation(["posts", "common"]);
 
@@ -51,7 +52,12 @@ export const PostsFilterBar = ({
       onClear={onClear}
       activeCount={activeCount}
     >
-      <ToolFilterFields tool={Tool.post} value={value} onChange={onChange}>
+      <ToolFilterFields
+        tool={Tool.post}
+        value={value}
+        onChange={onChange}
+        initiativeId={initiativeId}
+      >
         <div className="w-full space-y-2 sm:w-48">
           <Label
             htmlFor="post-read-filter"

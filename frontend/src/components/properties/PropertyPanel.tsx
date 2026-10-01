@@ -20,8 +20,16 @@ export interface PropertyPanelProps {
 /**
  * The properties on one tool or sub-tool, and the button that adds another.
  * Every value is saved as it changes, so it needs no Save of its own.
+ *
+ * Keyed by the row: a host that stays on screen while it moves to another row
+ * (a wiki page's drawer, a document opened from a document) gets a fresh list,
+ * so one row's drafts and additions never reach the next.
  */
-export const PropertyPanel = ({
+export const PropertyPanel = (props: PropertyPanelProps) => (
+  <RowProperties key={`${props.target}:${props.entityId}`} {...props} />
+);
+
+const RowProperties = ({
   target,
   entityId,
   saved,

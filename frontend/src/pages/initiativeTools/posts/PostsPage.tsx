@@ -323,6 +323,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
           onFiltersOpenChange={setFiltersOpen}
           onClear={clearFilters}
           activeCount={activeFilterCount}
+          initiativeId={fixedInitiativeId}
         />
 
         {postsQuery.isLoading ? (

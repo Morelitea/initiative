@@ -71,6 +71,9 @@ export type ToolListFilters<T extends Tool = Tool> = Omit<ToolListParams[T], Not
 export type ToolFilterFieldsProps<T extends Tool = Tool> = {
   value: ToolListFilters<T>;
   onChange: (next: ToolListFilters<T>) => void;
+  /** The initiative the list is in, whose definitions are the only properties
+   *  it can be filtered by. Omitted on a list across initiatives. */
+  initiativeId?: number;
   /** Controls only the page offers, in the same row as the shared fields. */
   children?: ReactNode;
 };
@@ -88,6 +91,7 @@ const SearchTagFields = ({
   placeholder,
   value,
   onChange,
+  initiativeId,
   children,
 }: SearchTagFieldsProps) => {
   // The tool's own namespace is named after it, so the loose translate
@@ -130,6 +134,7 @@ const SearchTagFields = ({
       <PropertyFilterParam
         value={value.property_filters}
         onChange={(next) => onChange({ ...value, property_filters: next })}
+        initiativeId={initiativeId}
       />
     </>
   );
@@ -146,6 +151,7 @@ const QUEUE_STATUSES = [
 const QueueFilterFields = ({
   value,
   onChange,
+  initiativeId,
   children,
 }: ToolFilterFieldsProps<typeof Tool.queue>) => {
   const { t } = useTranslation("queues");
@@ -158,6 +164,7 @@ const QueueFilterFields = ({
       placeholder="filters.searchQueues"
       value={value}
       onChange={onChange}
+      initiativeId={initiativeId}
     >
       <div className="w-full space-y-2 sm:w-48">
         <Label htmlFor={`${id}-status`} className="block font-medium text-muted-foreground text-xs">

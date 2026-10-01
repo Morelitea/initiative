@@ -267,6 +267,28 @@ describe("the tool index page", () => {
   });
 });
 
+describe("the tool index page's property filter", () => {
+  it("offers only the properties of the initiative the list is in", async () => {
+    stubList(Tool.queue, [row(Tool.queue, { id: 1, name: "Running" })]);
+    const asked: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/property-definitions/", ({ request }) => {
+        asked.push(new URL(request.url).searchParams);
+        return HttpResponse.json([]);
+      })
+    );
+
+    renderIndex(Tool.queue);
+    await screen.findByText("Running");
+    await userEvent.click(screen.getByRole("button", { name: shared("toolbar.filters") }));
+
+    await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+    expect(asked.map((params) => params.get("initiative_id"))).toEqual(
+      asked.map(() => String(INITIATIVE_ID))
+    );
+  });
+});
+
 describe("the queue index page", () => {
   it("sends the status filter as is_active", async () => {
     const requests = stubList(Tool.queue, [row(Tool.queue, { id: 1, name: "Running" })]);

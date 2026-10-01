@@ -10760,6 +10760,10 @@ export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
   initiative_id?: number | null;
   search?: string | null;
   tag_ids?: number[] | null;
+  /**
+   * The feed's property-value filters, JSON-encoded as it takes them.
+   */
+  property_filters?: string | null;
   unread?: boolean;
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.

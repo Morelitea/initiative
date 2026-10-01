@@ -45,7 +45,7 @@ from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.identity_boundary import current_install_boundary
-from app.core.messages import AppMessages, PropertyMessages
+from app.core.messages import AppMessages, PropertyMessages, QueryMessages
 from app.core.tools import PROPERTY_TARGETS, Tool
 from app.db.initiative_rls import entity_tables, governing_path
 from app.models.platform.identity_ref import IdentityEntity
@@ -1077,3 +1077,40 @@ async def load_definitions_by_ids(
     stmt = select(PropertyDefinition).where(PropertyDefinition.id.in_(ids))
     result = await session.exec(stmt)
     return {defn.id: defn for defn in result.all() if defn.id is not None}
+
+
+async def property_filter_clauses(
+    session: AsyncSession, target: str, raw: Optional[str], *, names_people: bool
+) -> list:
+    """WHERE clauses for the ``property_filters`` a list of ``target`` carries.
+
+    The one reading of the param, for every list and every view of one (a
+    tool's list, the event list, the posts timeline). A filter on a
+    person-valued property takes row ids, which an installed app does not
+    hold, so it is left to people (``names_people``), as the task list does.
+    """
+    from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles
+
+    try:
+        parsed = parse_property_filters(raw)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+    if not parsed:
+        return []
+    definitions = await load_definitions_by_ids(
+        session, [condition.property_id for condition in parsed]
+    )
+    if not names_people and any(
+        condition.op is not FilterOp.is_null
+        and (definition := definitions.get(condition.property_id)) is not None
+        and definition.type is PropertyType.user_reference
+        for condition in parsed
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+    return build_property_filter_clauses(target, parsed, definitions)

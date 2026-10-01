@@ -525,7 +525,12 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         onClear={() => changeFilters({})}
         activeCount={activeFilterCount}
       >
-        <ToolFilterFields tool={tool} value={filters} onChange={changeFilters} />
+        <ToolFilterFields
+          tool={tool}
+          value={filters}
+          onChange={changeFilters}
+          initiativeId={fixedInitiativeId}
+        />
       </ToolFilterPanel>
 
       {list.isLoading ? (

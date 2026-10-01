@@ -230,7 +230,7 @@ export const useProjectListView = ({
     isError: query.isError,
     /** The list shows only some of the projects a manual order covers:
      *  narrowed by the server's search or tags, or to favourites. */
-    narrowed: Boolean(search) || tagFilters.length > 0 || favoritesOnly,
+    narrowed: Boolean(search) || tagFilters.length > 0 || Boolean(propertyFilters) || favoritesOnly,
     filteredProjects,
     pinnedProjects,
     sortedProjects,
@@ -255,6 +255,7 @@ export const useProjectListView = ({
       allowCustomSort,
       onClear: clearFilters,
       activeCount: activeFilterCount,
+      initiativeId: params.initiative_id ?? undefined,
     },
   };
 };

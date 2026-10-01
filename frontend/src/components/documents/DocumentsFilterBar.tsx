@@ -37,6 +37,7 @@ type DocumentFilterFieldsProps = ToolFilterFieldsProps<typeof Tool.document> & {
 export const DocumentFilterFields = ({
   value,
   onChange,
+  initiativeId,
   tags = true,
   children,
 }: DocumentFilterFieldsProps) => {
@@ -110,6 +111,7 @@ export const DocumentFilterFields = ({
       <PropertyFilterParam
         value={value.property_filters}
         onChange={(next) => onChange({ ...value, property_filters: next })}
+        initiativeId={initiativeId}
       />
     </>
   );

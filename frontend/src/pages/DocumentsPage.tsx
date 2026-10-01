@@ -625,6 +625,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         onFiltersOpenChange={setFiltersOpen}
         onClear={clearFilters}
         activeCount={activeFilterCount}
+        initiativeId={fixedInitiativeId}
       />
 
       {!canViewDocs ? (
