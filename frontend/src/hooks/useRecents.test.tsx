@@ -28,7 +28,10 @@ describe("useRecordRecentView", () => {
 
   it("moves a reopened tab to the front, and reads the bar again only for a new one", async () => {
     const key = getListRecentsApiV1RecentsGetQueryKey();
-    const [first, reopened] = [buildRecentItem(), buildRecentItem()];
+    const [first, reopened] = [
+      buildRecentItem({ last_viewed_at: "2026-09-30T11:00:00.000Z" }),
+      buildRecentItem({ last_viewed_at: "2026-09-30T10:00:00.000Z" }),
+    ];
     queryClient.setQueryData<RecentItemRead[]>(key, [first, reopened]);
     server.use(
       guildHttp.post("/projects/:projectId/view", ({ params }) =>
@@ -52,6 +55,25 @@ describe("useRecordRecentView", () => {
       ])
     );
     expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+
+    // An answer for an earlier view, arriving last, does not jump the queue.
+    server.use(
+      guildHttp.post("/projects/:projectId/view", ({ params }) =>
+        HttpResponse.json({
+          entity_type: "project",
+          entity_id: Number(params.projectId),
+          last_viewed_at: "2026-09-30T11:30:00.000Z",
+        })
+      )
+    );
+    result.current.mutate(first.entity_id);
+
+    await waitFor(() =>
+      expect(queryClient.getQueryData(key)).toEqual([
+        { ...reopened, last_viewed_at: VIEWED_AT },
+        { ...first, last_viewed_at: "2026-09-30T11:30:00.000Z" },
+      ])
+    );
 
     result.current.mutate(reopened.entity_id + 100);
 

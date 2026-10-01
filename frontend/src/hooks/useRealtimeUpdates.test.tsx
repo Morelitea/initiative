@@ -349,10 +349,12 @@ describe("realtime socket lifecycle", () => {
     const socket = latestSocket();
     socket.open();
     const project = seed([`/api/v1/c/${GUILD}/projects/${ENTITY_ID}`]);
+    const activity = seed([`/api/v1/c/${GUILD}/projects/${ENTITY_ID}/activity`]);
 
     socket.receive({ changes: [], more: true });
 
-    expect(project()).toBe(true);
+    expect(project(), "project").toBe(true);
+    expect(activity(), "project activity").toBe(true);
   });
 
   it("ignores a beat beyond taking it as proof of life", async () => {

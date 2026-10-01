@@ -83,10 +83,16 @@ export const useRecordRecentView = (entityType: RecentEntityType, guildId: numbe
         void invalidate(q.recents());
         return;
       }
-      client.setQueryData(key, [
-        { ...opened, last_viewed_at: written.last_viewed_at },
-        ...held.filter((item) => item !== opened),
-      ]);
+      // Ordered by when each was viewed, as the server orders them, rather
+      // than by which answer arrived last.
+      client.setQueryData(
+        key,
+        held
+          .map((item) =>
+            item === opened ? { ...opened, last_viewed_at: written.last_viewed_at } : item
+          )
+          .sort((a, b) => Date.parse(b.last_viewed_at) - Date.parse(a.last_viewed_at))
+      );
     },
   });
 };
