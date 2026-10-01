@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Repeating tasks keep their repeat when imported from Todoist, TickTick and Vikunja.** TickTick's repeat is read in each task's own timezone, and Vikunja's interval, monthly and "from current date" repeats come across, the last as **After completion**. Todoist's documented English phrases ("every monday at 9am", "every! 2 weeks", "every last workday") become repeats, due on their next date, since Todoist's export leaves out when a repeat started. A repeat a task can't follow, such as an hourly one, imports as a one-off task.
+- **Repeating tasks keep their repeat when imported from Todoist, TickTick and Vikunja.** TickTick's repeat is read in each task's own timezone, and Vikunja's interval, monthly and "from current date" repeats come across, the last as **After completion**. Todoist's documented English phrases ("every monday at 9am", "every! 2 weeks", "every last workday") become repeats, due on their next date, since Todoist's export leaves out when a repeat started, and a deadline beside one is when it stops. A repeat a task can't follow, such as an hourly one, imports as a one-off task.
 - **Deleting a sign-in provider a community requires says so on PostgreSQL 18.** It's refused as in use, as on earlier versions, instead of failing with a server error.
 - **Wikis show in the recent tabs bar.** Opening a wiki now puts it beside the other tools you've opened.
 - **Invite links are for whoever can change the member list.** Someone with temporary read-only access to a community's settings no longer sees its invite links, and an account with temporary access to a community can't accept an invite into it until that access ends.

@@ -147,6 +147,14 @@ def test_a_lone_date_is_the_due_date():
     ("phrase", "zone", "due", "rule", "strategy"),
     [
         ("every day", "", "2026-09-30T00:00:00+00:00", "RRULE:FREQ=DAILY", "fixed"),
+        # Imported at 3pm, so today's 9am has gone.
+        (
+            "every day at 9am",
+            "UTC",
+            "2026-10-01T09:00:00+00:00",
+            "RRULE:FREQ=DAILY",
+            "fixed",
+        ),
         (
             "every! 2 weeks",
             "",
@@ -190,6 +198,29 @@ def test_a_repeating_date_is_due_on_its_next_date_and_repeats(
         strategy,
     )
     ProjectExportEnvelope.model_validate(mapped.envelope)
+
+
+@pytest.mark.parametrize(
+    ("deadline", "due", "rule"),
+    [
+        (
+            "2026-10-31",
+            "2026-10-05T00:00:00+00:00",
+            "RRULE:FREQ=WEEKLY;UNTIL=20261031T235959Z;BYDAY=MO",
+        ),
+        ("2026-09-01", "2026-09-01T00:00:00+00:00", None),
+    ],
+    ids=["the repeat stops at it", "a deadline already gone is the due date"],
+)
+def test_a_deadline_beside_a_repeat_is_when_it_stops(deadline, due, rule):
+    mapped = tm.build_project_envelope(
+        _csv(f"task,T,,4,1,,,every monday,en,,,,,{deadline},"),
+        selection="P",
+        app_version="1.2.3",
+        now=datetime(2026, 9, 30, 15, tzinfo=timezone.utc),
+    )
+    task = mapped.envelope["tasks"][0]
+    assert (task["due_date"], task.get("recurrence")) == (due, rule)
 
 
 @pytest.mark.parametrize(

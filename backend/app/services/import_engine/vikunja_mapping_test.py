@@ -144,8 +144,17 @@ def test_dates_come_across_and_the_zero_stamp_does_not():
         ),
         ({"repeat_mode": 1}, "RRULE:FREQ=MONTHLY", "fixed"),
         ({"repeat_after": 3600}, None, None),
+        ({"repeat_after": "soon"}, None, None),
+        ({"repeat_after": 604800, "done": True}, None, None),
     ],
-    ids=["a week", "two days from done", "monthly", "an hour is no task repeat"],
+    ids=[
+        "a week",
+        "two days from done",
+        "monthly",
+        "an hour is no task repeat",
+        "an interval that is not a number",
+        "a finished task holds no repeat",
+    ],
 )
 def test_a_repeat_comes_across(repeat, rule, strategy):
     task = _task(due_date="2026-03-09T15:02:00Z", **repeat)

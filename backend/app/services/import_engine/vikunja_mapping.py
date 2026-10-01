@@ -154,11 +154,15 @@ def _stamp(value: Any) -> Optional[str]:
 
 def _repeat(source: dict[str, Any]) -> tuple[str | None, bool]:
     """A task's repeat as a rule, and whether it counts from completion. An
-    interval that is not whole days has no rule a task repeats by."""
-    mode = int(source.get("repeat_mode") or 0)
+    interval that is not whole days, or that is not a number, has no rule a
+    task repeats by."""
+    try:
+        mode = int(source.get("repeat_mode") or 0)
+        seconds = int(source.get("repeat_after") or 0)
+    except (TypeError, ValueError):
+        return None, False
     if mode == _REPEAT_MONTHLY:
         return "RRULE:FREQ=MONTHLY", False
-    seconds = int(source.get("repeat_after") or 0)
     if seconds <= 0 or seconds % _DAY:
         return None, False
     days = seconds // _DAY
@@ -276,9 +280,13 @@ def build_project_envelope(
             stamp = _stamp(source.get(key))
             if stamp:
                 task[field] = stamp
-        # Vikunja's dates are UTC, and so is the day its interval counts in.
+        # Vikunja's dates are UTC, and so is the day its interval counts in. A
+        # finished task holds no repeat here; the series goes on in its next.
         rule, rolling = _repeat(source)
-        task.update(repeat_fields(rule, task.get("due_date"), None, rolling=rolling))
+        if not done:
+            task.update(
+                repeat_fields(rule, task.get("due_date"), None, rolling=rolling)
+            )
         finished = _stamp(source.get("done_at"))
         if done and finished:
             task["completed_at"] = finished

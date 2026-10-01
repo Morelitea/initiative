@@ -65,25 +65,36 @@ def _build(content, selection="Work"):
 # --- finding the real header ----------------------------------------------
 
 
+_WEEKLY = "RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO"
+
+
 @pytest.mark.parametrize(
-    ("repeat", "fields"),
+    ("repeat", "status", "fields"),
     [
         (
-            "RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO",
+            _WEEKLY,
+            "0",
             {
-                "recurrence": "RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO",
+                "recurrence": _WEEKLY,
                 "recurrence_shift": 1440,
                 "recurrence_strategy": "fixed",
             },
         ),
-        ("RRULE:FREQ=DAILY;TT_SKIP=HOLIDAY", {}),
+        ("RRULE:FREQ=DAILY;TT_SKIP=HOLIDAY", "0", {}),
+        (_WEEKLY, "2", {}),
     ],
-    ids=["picked in the task's zone", "a rule a task cannot repeat by"],
+    ids=[
+        "picked in the task's zone",
+        "a rule a task cannot repeat by",
+        "a finished task holds no repeat",
+    ],
 )
-def test_a_repeat_is_read_in_the_tasks_zone(repeat, fields):
+def test_a_repeat_is_read_in_the_tasks_zone(repeat, status, fields):
     """Mondays at midnight in Berlin are Sundays in UTC, which the shift
-    keeps; a rule with TickTick's own parts leaves the task a one-off."""
+    keeps; a rule with TickTick's own parts, or a finished task, leaves the
+    task a one-off."""
     row = _row(
+        Status=status,
         Repeat=repeat,
         Timezone="Europe/Berlin",
         **{"Due Date": "2026-03-08T23:00:00+0000"},

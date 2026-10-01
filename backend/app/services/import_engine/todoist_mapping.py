@@ -233,15 +233,20 @@ def _repeat(phrase: str) -> tuple[str, bool, time | None] | None:
     return (f"RRULE:{rule}", rolling, at) if rule else None
 
 
-def _repeating(phrase: str, zone: str | None, now: datetime) -> dict[str, Any]:
+def _repeating(
+    phrase: str, zone: str | None, now: datetime, deadline: str | None
+) -> dict[str, Any]:
     """A repeating task's due date and repeat fields. The export drops when
-    the repeat started, so it is due on its first date from ``now``. A time of
-    day is in the task's zone; without one the task is a day, which the app
-    reads at midnight UTC, as it does a plain Todoist date."""
+    the repeat started, so it is due on its first date from ``now``: today's
+    date, or a time of day still to come. A time of day is in the task's zone;
+    without one the task is a day, which the app reads at midnight UTC, as it
+    does a plain Todoist date. A deadline beside a repeat is when it stops."""
     found = _repeat(phrase)
     if found is None:
         return {}
     rule, rolling, at = found
+    if deadline:
+        rule += f";UNTIL={deadline[:10].replace('-', '')}T235959Z"
     tz = zone if at else None
     anchor = datetime.combine(
         now.astimezone(resolve_zone(tz)).date(), at or time(), resolve_zone(tz)
@@ -249,10 +254,11 @@ def _repeating(phrase: str, zone: str | None, now: datetime) -> dict[str, Any]:
     fields = repeat_fields(rule, anchor.isoformat(), tz, rolling=rolling)
     if not fields:
         return {}
-    due = recurrence.first(fields["recurrence"], anchor, fields["recurrence_shift"], 1)[
-        0
-    ]
-    return {"due_date": due.isoformat(), **fields}
+    starts = recurrence.first(
+        fields["recurrence"], anchor, fields["recurrence_shift"], 2
+    )
+    due = next((start for start in starts if at is None or start >= now), None)
+    return {"due_date": due.isoformat(), **fields} if due else {}
 
 
 def _person(raw: str) -> str:
@@ -370,11 +376,13 @@ def build_project_envelope(
             task["due_date"] = due
         if start:
             task["start_date"] = start
-        # A repeating DATE is a phrase rather than a date. Beside no deadline,
-        # it says when the task is due and how it repeats.
-        if not deadline and _cell(row, "DATE_LANG") in ("", "en"):
+        # A repeating DATE is a phrase rather than a date. It says when the
+        # task is due and how it repeats, until any deadline beside it.
+        if _cell(row, "DATE_LANG") in ("", "en"):
             task.update(
-                _repeating(_cell(row, "DATE"), _cell(row, "TIMEZONE") or None, now)
+                _repeating(
+                    _cell(row, "DATE"), _cell(row, "TIMEZONE") or None, now, deadline
+                )
             )
         assignee = _person(_cell(row, "RESPONSIBLE"))
         if assignee:
