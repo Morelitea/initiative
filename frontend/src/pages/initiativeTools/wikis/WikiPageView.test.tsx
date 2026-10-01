@@ -45,7 +45,7 @@ vi.mock("@/components/documents/editor/editor", () => ({
     const [built] = useState(() => editorSerializedState ?? null);
     return (
       <div>
-        <output>{JSON.stringify(built)}</output>
+        <output aria-label="built with">{JSON.stringify(built)}</output>
         <button type="button" onClick={() => onSerializedChange(editedBody)}>
           edit the body
         </button>
@@ -117,7 +117,7 @@ const addressOf = (params: typeof PARAMS, search: { edit: boolean }): string =>
   )}?edit=${search.edit}`;
 
 /** What the editor on screen was built with. */
-const shownBody = () => screen.getByRole("status").textContent ?? "";
+const shownBody = () => screen.getByRole("status", { name: "built with" }).textContent ?? "";
 
 // The app's own query client, because a mutation invalidates through that one
 // by name — a client made just for the test is never told anything.
