@@ -243,13 +243,13 @@
   "download": {
     "title": "Hol dir",
     "titleHighlight": "Initiative",
-    "description": "Es läuft im Browser, und es für immer so zu nutzen, ist eine völlig respektable Entscheidung. Es kann aber auch ein eigenes Symbol haben, ein eigenes Fenster und, auf Android, Benachrichtigungen, die ankommen, während du gerade nicht hinschaust.",
+    "description": "Es läuft im Browser, und es für immer so zu nutzen, ist eine völlig respektable Entscheidung. Es kann aber auch ein eigenes Symbol und ein eigenes Fenster haben.",
     "detected": "Sieht aus, als wärst du auf {{platform}}",
     "platformAndroid": "Android",
     "platformIos": "einem iPhone oder iPad",
     "platformDesktop": "einem Computer",
     "androidTitle": "Initiative für Android",
-    "androidBody": "Installiert sich wie alles andere, mit Push-Benachrichtigungen, ganz ohne App Store.",
+    "androidBody": "Installiert sich wie alles andere, ganz ohne App Store.",
     "iosTitle": "Initiative für iPhone und iPad",
     "iosBody": "Tippe auf Teilen und dann auf Zum Home-Bildschirm. Es ist dasselbe Initiative, nur bekommen iPhones noch keine Push-Benachrichtigungen.",
     "desktopTitle": "Initiative für deinen Computer",
@@ -267,8 +267,9 @@
     "android": {
       "title": "Android",
       "sub": "Handys und Tablets",
-      "body": "Mit Push-Benachrichtigungen. Oder lass <1>Obtainium</1> es für dich aktuell halten.",
-      "button": "APK herunterladen"
+      "body": "Lass <1>Obtainium</1> es für dich aktuell halten.",
+      "button": "APK herunterladen",
+      "bodyPush": "Mit Push-Benachrichtigungen. Oder lass <1>Obtainium</1> es für dich aktuell halten."
     },
     "ios": {
       "title": "iPhone und iPad",
@@ -296,7 +297,9 @@
     "accountTitle": "Ein Konto, jedes Gerät",
     "accountBody": "Melde dich auf dem Handy, dem Laptop oder dem Computer in der Bibliothek an, und alles ist da.",
     "passkeysTitle": "Passkeys willkommen",
-    "passkeysBody": "Nutze einen Passkey oder einen Code per E-Mail, wenn du lieber kein Passwort hättest."
+    "passkeysBody": "Melde dich mit einem Passkey an, wenn du lieber kein Passwort eintippst.",
+    "descriptionPush": "Es läuft im Browser, und es für immer so zu nutzen, ist eine völlig respektable Entscheidung. Es kann aber auch ein eigenes Symbol haben, ein eigenes Fenster und, auf Android, Benachrichtigungen, die ankommen, während du gerade nicht hinschaust.",
+    "androidBodyPush": "Installiert sich wie alles andere, mit Push-Benachrichtigungen, ganz ohne App Store."
   },
   "pricing": {
     "sectionLabel": "Tarife",

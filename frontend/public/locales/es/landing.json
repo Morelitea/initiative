@@ -243,13 +243,13 @@
   "download": {
     "title": "Descarga",
     "titleHighlight": "Initiative",
-    "description": "Funciona en el navegador, y usarlo así para siempre es una decisión perfectamente respetable. Pero también puede tener su propio icono, su propia ventana y, en Android, notificaciones que llegan aunque no estés mirando.",
+    "description": "Funciona en el navegador, y usarlo así para siempre es una decisión perfectamente respetable. Pero también puede tener su propio icono y su propia ventana.",
     "detected": "Parece que usas {{platform}}",
     "platformAndroid": "Android",
     "platformIos": "un iPhone o iPad",
     "platformDesktop": "un ordenador",
     "androidTitle": "Initiative para Android",
-    "androidBody": "Se instala como cualquier otra cosa, con notificaciones push y sin tienda de apps.",
+    "androidBody": "Se instala como cualquier otra cosa, sin tienda de apps.",
     "iosTitle": "Initiative para iPhone y iPad",
     "iosBody": "Toca Compartir y luego Añadir a la pantalla de inicio. Es el mismo Initiative, pero los iPhone todavía no reciben notificaciones push.",
     "desktopTitle": "Initiative para tu ordenador",
@@ -267,8 +267,9 @@
     "android": {
       "title": "Android",
       "sub": "Móviles y tabletas",
-      "body": "Con notificaciones push. O deja que <1>Obtainium</1> lo mantenga actualizado por ti.",
-      "button": "Descargar APK"
+      "body": "Deja que <1>Obtainium</1> lo mantenga actualizado por ti.",
+      "button": "Descargar APK",
+      "bodyPush": "Con notificaciones push. O deja que <1>Obtainium</1> lo mantenga actualizado por ti."
     },
     "ios": {
       "title": "iPhone y iPad",
@@ -296,7 +297,9 @@
     "accountTitle": "Una cuenta, todos los dispositivos",
     "accountBody": "Inicia sesión en el móvil, el portátil o el ordenador de la biblioteca y todo está ahí.",
     "passkeysTitle": "Llaves de acceso bienvenidas",
-    "passkeysBody": "Usa una llave de acceso o un código enviado a tu correo si prefieres no tener contraseña."
+    "passkeysBody": "Inicia sesión con una llave de acceso si prefieres no escribir una contraseña.",
+    "descriptionPush": "Funciona en el navegador, y usarlo así para siempre es una decisión perfectamente respetable. Pero también puede tener su propio icono, su propia ventana y, en Android, notificaciones que llegan aunque no estés mirando.",
+    "androidBodyPush": "Se instala como cualquier otra cosa, con notificaciones push y sin tienda de apps."
   },
   "pricing": {
     "sectionLabel": "Planes",

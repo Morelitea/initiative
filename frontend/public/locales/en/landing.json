@@ -243,13 +243,13 @@
   "download": {
     "title": "Download",
     "titleHighlight": "Initiative",
-    "description": "It runs in a browser, and using it that way forever is a completely respectable life choice. But it can also have its own icon, its own window and, on Android, notifications that turn up while you aren't looking.",
+    "description": "It runs in a browser, and using it that way forever is a completely respectable life choice. But it can also have its own icon and its own window.",
     "detected": "Looks like you're on {{platform}}",
     "platformAndroid": "Android",
     "platformIos": "an iPhone or iPad",
     "platformDesktop": "a computer",
     "androidTitle": "Initiative for Android",
-    "androidBody": "Installs like anything else, push notifications included, no app store needed.",
+    "androidBody": "Installs like anything else, no app store needed.",
     "iosTitle": "Initiative for iPhone and iPad",
     "iosBody": "Tap Share, then Add to Home Screen. It's the same Initiative, but iPhones don't get push notifications yet.",
     "desktopTitle": "Initiative for your computer",
@@ -267,8 +267,9 @@
     "android": {
       "title": "Android",
       "sub": "Phones and tablets",
-      "body": "Push notifications included. Or let <1>Obtainium</1> keep it updated for you.",
-      "button": "Download APK"
+      "body": "Let <1>Obtainium</1> keep it updated for you.",
+      "button": "Download APK",
+      "bodyPush": "Push notifications included. Or let <1>Obtainium</1> keep it updated for you."
     },
     "ios": {
       "title": "iPhone and iPad",
@@ -296,7 +297,9 @@
     "accountTitle": "One account, every device",
     "accountBody": "Sign in on your phone, laptop or the library computer and everything's there.",
     "passkeysTitle": "Passkeys welcome",
-    "passkeysBody": "Use a passkey or a code sent to your email if you'd rather not have a password."
+    "passkeysBody": "Sign in with a passkey if you'd rather not type a password.",
+    "descriptionPush": "It runs in a browser, and using it that way forever is a completely respectable life choice. But it can also have its own icon, its own window and, on Android, notifications that turn up while you aren't looking.",
+    "androidBodyPush": "Installs like anything else, push notifications included, no app store needed."
   },
   "pricing": {
     "sectionLabel": "Plans",

@@ -23,6 +23,7 @@ import {
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
+import { useGetFcmConfigApiV1SettingsFcmConfigGet } from "@/api/generated/settings/settings";
 import { Button } from "@/components/ui/button";
 import { androidApkUrl, docsUrl, OBTAINIUM_URL, RELEASES_URL } from "@/lib/links";
 
@@ -54,7 +55,13 @@ const useInstallPrompt = () => {
       window.removeEventListener("appinstalled", installed);
     };
   }, []);
-  return event;
+  // A prompt can be shown once. After that, whatever the answer, it is spent,
+  // and the buttons go back to pointing at the guide.
+  const consume = () => {
+    if (!event) return;
+    void event.prompt().finally(() => setEvent(null));
+  };
+  return { available: event != null, consume };
 };
 
 const DESKTOP_BUTTON = {
@@ -71,13 +78,13 @@ const InstallButton = ({
   variant,
   children,
 }: {
-  prompt: InstallPromptEvent | null;
+  prompt: ReturnType<typeof useInstallPrompt>;
   className?: string;
   variant?: "default" | "outline";
   children: ReactNode;
 }) =>
-  prompt ? (
-    <Button size="lg" variant={variant} className={className} onClick={() => void prompt.prompt()}>
+  prompt.available ? (
+    <Button size="lg" variant={variant} className={className} onClick={prompt.consume}>
       {children}
     </Button>
   ) : (
@@ -164,6 +171,9 @@ const PLATFORM_NAME: Record<
 export const DownloadPage = () => {
   const { t } = useTranslation("landing");
   const { config, passkeyLoginEnabled } = useFrontDoor();
+  // The Android app only gets push where this server has it switched on.
+  const fcm = useGetFcmConfigApiV1SettingsFcmConfigGet({ query: { staleTime: 300_000 } });
+  const push = fcm.data?.enabled === true;
   const minNativeVersion = config?.min_native_version ?? null;
   const platform = useMemo(() => detectPlatform(), []);
   const desktopOs = useMemo<DesktopOs | null>(() => detectDesktopOs(), []);
@@ -181,7 +191,9 @@ export const DownloadPage = () => {
             {t("download.title")}{" "}
             <span className="text-amber-400">{t("download.titleHighlight")}</span>
           </h1>
-          <p className="mt-4 max-w-2xl text-lg text-slate-300">{t("download.description")}</p>
+          <p className="mt-4 max-w-2xl text-lg text-slate-300">
+            {t(push ? "download.descriptionPush" : "download.description")}
+          </p>
         </div>
       </DarkBand>
 
@@ -200,7 +212,15 @@ export const DownloadPage = () => {
             >
               {t(`download.${platform}Title`)}
             </h2>
-            <p className="mt-2 text-muted-foreground">{t(`download.${platform}Body`)}</p>
+            <p className="mt-2 text-muted-foreground">
+              {t(
+                platform === "android"
+                  ? push
+                    ? "download.androidBodyPush"
+                    : "download.androidBody"
+                  : `download.${platform}Body`
+              )}
+            </p>
           </div>
           <div className="flex flex-col gap-2.5 md:min-w-72">
             {platform === "android" ? (
@@ -249,7 +269,7 @@ export const DownloadPage = () => {
             <p className="flex-1 text-muted-foreground text-sm">
               <Trans
                 t={t}
-                i18nKey="download.android.body"
+                i18nKey={push ? "download.android.bodyPush" : "download.android.body"}
                 components={{
                   1: (
                     // biome-ignore lint/a11y/useAnchorContent: Trans fills the link with the translated text

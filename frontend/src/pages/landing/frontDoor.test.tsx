@@ -1,6 +1,6 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http, type JsonBodyType } from "msw";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -98,8 +98,19 @@ const stubCatalog = (body: JsonBodyType = CATALOG, status = 200) =>
 /** Nobody signed in: the pages' whole audience. */
 const signedOut = { auth: { token: null, user: null, loading: false } };
 
+const stubPush = (enabled: boolean) =>
+  http.get("/api/v1/settings/fcm-config", () =>
+    HttpResponse.json({
+      enabled,
+      project_id: null,
+      application_id: null,
+      api_key: null,
+      sender_id: null,
+    })
+  );
+
 beforeEach(() => {
-  server.use(stubConfig(null), stubBootstrap(true));
+  server.use(stubConfig(null), stubBootstrap(true), stubPush(false));
 });
 
 describe("HomePage", () => {
@@ -241,6 +252,32 @@ describe("DownloadPage", () => {
     ).toBeInTheDocument();
     const cards = screen.getByRole("list", { name: landing.download.cardsAria });
     expect(cards.querySelectorAll("[data-platform]")).toHaveLength(4);
+  });
+
+  it("promises push notifications only where the server sends them", async () => {
+    renderDownload();
+    expect(await screen.findByText(landing.download.description)).toBeInTheDocument();
+
+    server.use(stubPush(true));
+    renderDownload();
+    expect(await screen.findByText(landing.download.descriptionPush)).toBeInTheDocument();
+  });
+
+  it("shows the browser's install prompt once, then points at the guide", async () => {
+    renderDownload();
+    const install = await screen.findByRole("link", { name: landing.download.desktop.button });
+
+    const prompt = vi.fn().mockResolvedValue(undefined);
+    act(() => {
+      window.dispatchEvent(Object.assign(new Event("beforeinstallprompt"), { prompt }));
+    });
+    fireEvent.click(await screen.findByRole("button", { name: landing.download.desktop.button }));
+    expect(prompt).toHaveBeenCalledTimes(1);
+
+    // Spent after one use, whatever the answer: the guide again.
+    expect(
+      await screen.findByRole("link", { name: landing.download.desktop.button })
+    ).toHaveAttribute("href", install.getAttribute("href"));
   });
 
   it("mentions passkeys only where the server offers them", async () => {
