@@ -4961,6 +4961,40 @@ export interface GuildRead {
   icon_url: string | null;
 }
 
+/**
+ * One person on a community's people roster.
+ *
+ * ``UserSummary`` plus what a roster row draws beside the name: how they
+ * appear right now and the line they wrote. Both are public, as they are on
+ * the profile.
+ */
+export interface GuildRosterMember {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
+  full_name: string | null;
+  profile_decorations: ProfileDecorationsOutput | null;
+  guild_role: string | null;
+  presence: Presence;
+  custom_status: CustomStatusOutput;
+}
+
+/**
+ * A page of the roster, and how many people are in each presence group
+ * across every page, so a group's heading can count people not yet loaded.
+ */
+export interface GuildRosterResponse {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: GuildRosterMember[];
+  presence_counts: Partial<Record<Presence, number>>;
+}
+
 export interface GuildStorageUsageRead {
   guild_id: number;
   usage_bytes: number;
@@ -10956,6 +10990,18 @@ export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
   page?: number;
   /**
    * @minimum 0
+   * @maximum 100
+   */
+  page_size?: number;
+};
+
+export type ListRosterApiV1CGuildIdUsersRosterGetParams = {
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
    * @maximum 100
    */
   page_size?: number;

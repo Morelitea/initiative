@@ -37,7 +37,9 @@ import type {
   DeletionEligibilityResponse,
   ExportUsersCsvApiV1CGuildIdUsersExportCsvGetParams,
   GetUserStatsApiV1MeStatsGetParams,
+  GuildRosterResponse,
   HTTPValidationError,
+  ListRosterApiV1CGuildIdUsersRosterGetParams,
   ListUsersApiV1CGuildIdUsersGetParams,
   OwnedContentResponse,
   OwnedDecorationsResponse,
@@ -3217,6 +3219,186 @@ export function useSearchUsersApiV1CGuildIdUsersSearchGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getSearchUsersApiV1CGuildIdUsersSearchGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The people in this community, as the sidebar lists them.
+ *
+ * Grouped by presence (online, idle, busy, then everyone else) and
+ * alphabetical within a group. ``presence_counts`` sizes each group across
+ * every page.
+ *
+ * Nobody whose direct message policy is private is listed, the reader
+ * included. Where the deployment offers no direct messages there is no policy
+ * to keep, and everyone is listed.
+ * @summary List Roster
+ */
+export const listRosterApiV1CGuildIdUsersRosterGet = (
+  guildId: number,
+  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildRosterResponse>(
+    { url: `/api/v1/c/${guildId}/users/roster`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getListRosterApiV1CGuildIdUsersRosterGetQueryKey = (
+  guildId: number,
+  params?: ListRosterApiV1CGuildIdUsersRosterGetParams
+) => {
+  return [`/api/v1/c/${guildId}/users/roster`, ...(params ? [params] : [])] as const;
+};
+
+export const getListRosterApiV1CGuildIdUsersRosterGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListRosterApiV1CGuildIdUsersRosterGetQueryKey(guildId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
+  > = ({ signal }) =>
+    listRosterApiV1CGuildIdUsersRosterGet(guildId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListRosterApiV1CGuildIdUsersRosterGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
+>;
+export type ListRosterApiV1CGuildIdUsersRosterGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListRosterApiV1CGuildIdUsersRosterGet<
+  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params: undefined | ListRosterApiV1CGuildIdUsersRosterGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+          TError,
+          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListRosterApiV1CGuildIdUsersRosterGet<
+  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+          TError,
+          Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListRosterApiV1CGuildIdUsersRosterGet<
+  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Roster
+ */
+
+export function useListRosterApiV1CGuildIdUsersRosterGet<
+  TData = Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  params?: ListRosterApiV1CGuildIdUsersRosterGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listRosterApiV1CGuildIdUsersRosterGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListRosterApiV1CGuildIdUsersRosterGetQueryOptions(
     guildId,
     params,
     options

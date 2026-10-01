@@ -509,6 +509,30 @@ class UserProfile(SanitizedBaseModel):
     joined_at: datetime
 
 
+class GuildRosterMember(UserSummary):
+    """One person on a community's people roster.
+
+    ``UserSummary`` plus what a roster row draws beside the name: how they
+    appear right now and the line they wrote. Both are public, as they are on
+    the profile.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    presence: Presence = Presence.offline
+    custom_status: CustomStatus = Field(default_factory=CustomStatus)
+
+
+class GuildRosterResponse(PageMeta):
+    """A page of the roster, and how many people are in each presence group
+    across every page, so a group's heading can count people not yet loaded."""
+
+    items: List[GuildRosterMember]
+    presence_counts: dict[Presence, int]
+
+
 class UserEmailRead(SanitizedBaseModel):
     """One address on the account reading it.
 

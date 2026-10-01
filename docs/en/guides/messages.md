@@ -31,8 +31,8 @@ You decide, under **User settings → Privacy**. The setting covers who may *ask
 
 | Setting | Who can ask |
 |---|---|
-| **Private** | Nobody. |
-| **My communities** | People you share a community with — narrowable to particular communities. |
+| **Private** | Nobody. You're also left off the [People](communities.md#whos-around) tab in your communities. |
+| **My communities** | People you share a community with — narrowable to particular communities. You're left off the People tab of any you switch off. |
 | **Anyone** | Anybody on Initiative, by your handle. |
 
 Every one of these ends in a **request** you accept or decline. *Anyone* widens who may ask; it never lets somebody write to you unasked.
