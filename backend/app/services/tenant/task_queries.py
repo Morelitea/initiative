@@ -864,6 +864,35 @@ class TaskListQuery:
     property_definitions: dict
 
 
+def _property_value_leaves(
+    conditions: list[FilterCondition | FilterGroup],
+) -> list[FilterCondition]:
+    """Every ``property_values`` leaf, wherever it sits."""
+    return [
+        cond
+        for cond in iter_leaf_conditions(conditions)
+        if cond.field == "property_values"
+    ]
+
+
+def check_task_conditions(
+    conditions: Optional[str],
+) -> list[FilterCondition | FilterGroup]:
+    """The task list's ``conditions``, parsed and checked without a database:
+    the operators each field takes, and how many property filters one list
+    compiles. Raises ``ValueError`` on anything the list refuses."""
+    user_conditions = parse_conditions(conditions)
+    # Operators are checked here rather than at query-build time so an
+    # unsupported one is refused like any other malformed filter.
+    check_ops(user_conditions, fields_registry.allowed_ops("tasks"))
+    if (
+        len(_property_value_leaves(user_conditions))
+        > properties_service.MAX_PROPERTY_FILTERS
+    ):
+        raise ValueError("too many property filters")
+    return user_conditions
+
+
 async def parse_task_list_query(
     session,
     conditions: Optional[str],
@@ -880,10 +909,7 @@ async def parse_task_list_query(
     ``property_definitions`` table; the definitions are then read in each of
     their guilds (:func:`_load_property_definitions_across_guilds`)."""
     try:
-        user_conditions = parse_conditions(conditions)
-        # Operators are checked here rather than at query-build time so an
-        # unsupported one is the same 400 as any other malformed filter.
-        check_ops(user_conditions, fields_registry.allowed_ops("tasks"))
+        user_conditions = check_task_conditions(conditions)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -902,16 +928,7 @@ async def parse_task_list_query(
 
     # Every property_values leaf, wherever it sits, so its definition is loaded
     # and the limit counts what the query actually compiles.
-    property_value_leaves = [
-        cond
-        for cond in iter_leaf_conditions(user_conditions)
-        if cond.field == "property_values"
-    ]
-    if len(property_value_leaves) > properties_service.MAX_PROPERTY_FILTERS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=QueryMessages.INVALID_CONDITIONS,
-        )
+    property_value_leaves = _property_value_leaves(user_conditions)
     property_ids_needed: list[int] = []
     for cond in property_value_leaves:
         if isinstance(cond.value, dict):
