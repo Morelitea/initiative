@@ -25,7 +25,7 @@ import type {
   AppPublisherRead,
   AppPublisherUpdate,
   AppServiceConnect,
-  AppServicePublishedKeyRead,
+  AppServicePublishedKey,
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
@@ -481,7 +481,7 @@ export const readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<AppServicePublishedKeyRead[]>(
+  return apiMutator<AppServicePublishedKey[]>(
     { url: `/api/v1/app-services/${registrationId}/connect`, method: "GET", signal },
     options
   );
@@ -643,8 +643,9 @@ export function useReadAppServiceKeysApiV1AppServicesRegistrationIdConnectGet<
 }
 
 /**
- * Store the key set the app serves as the registration's pasted set, when
- * its fingerprints are the ones confirmed (409 when they are not).
+ * Store the key set the app serves as the registration's pasted set, in
+ * place of any key set address, when its keys are the ones confirmed and
+ * its base URL has not moved (409 otherwise).
  * @summary Connect App Service
  */
 export const connectAppServiceApiV1AppServicesRegistrationIdConnectPost = (

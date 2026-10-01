@@ -413,7 +413,7 @@
   "APP_SERVICE_INVALID_ORIGIN": "An allowed origin isn't valid. Use scheme://host with an optional port, and no path.",
   "APP_SERVICE_INVALID_JWKS": "That key set isn't one this deployment can verify a signature against.",
   "APP_SERVICE_INVALID_EMBED_ORIGIN": "That browser address isn't valid. Give an http or https address with no query string.",
-  "APP_SERVICE_INVALID_JWKS_URI": "The key set address must be on the app's base URL, with the same scheme, host and port.",
+  "APP_SERVICE_INVALID_JWKS_URI": "The key set address must be https on the app's own address.",
   "APP_SERVICE_CONNECT_NEEDS_BASE_URL": "Save the app's base URL first. Connect reads its keys from there.",
   "APP_SERVICE_KEYS_UNREADABLE": "The app didn't answer with its key set. Check that it's running and that its base URL is right.",
   "APP_SERVICE_KEYS_CHANGED": "The app's keys changed after you checked them. Connect again to see the new fingerprints.",

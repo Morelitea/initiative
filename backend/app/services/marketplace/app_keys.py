@@ -3,15 +3,16 @@
 A registration carries its key set in one of two ways, or both: pasted into the
 registration (``jwks``), or published by the app at ``jwks_uri``. The pasted
 set is parsed with the registration snapshot. A published set is fetched here,
-from the app's own origin on the same terms as its base URL, and reused for
-:data:`CACHE_TTL_SECONDS`, the same bound the snapshot keeps. A rotation is the
-app publishing its new key beside the old one; the next fetch picks it up.
+from the app's own origin over https, and reused for :data:`CACHE_TTL_SECONDS`,
+the same bound the snapshot keeps. A rotation is the app publishing its new key
+beside the old one; the next fetch picks it up.
 
 A key named in both sets is the pasted one.
 
 An operator's **Connect** reads the set the app serves at :data:`KEY_SET_PATH`
 under its base URL with :func:`read_key_set`, shows each key's
-:func:`jwk_thumbprint`, and pastes the set it confirms.
+:func:`jwk_thumbprint`, and pastes the set it confirms. That is how an app on
+a plain-http address inside the deployment's network gets its keys pinned.
 """
 
 from __future__ import annotations
@@ -97,15 +98,13 @@ def _origin(url: str) -> Optional[tuple[str, str, Optional[int]]]:
 
 
 def jwks_uri_allowed(jwks_uri: str, base_url: str) -> bool:
-    """Whether ``jwks_uri`` is on ``base_url``'s own origin, scheme included.
+    """Whether ``jwks_uri`` is https and on ``base_url``'s own origin.
 
-    So it is http only where the base URL is, and the fetch holds it to the
-    addresses a call to that base URL may reach. Asked when the address is
-    stored and again before every fetch, since the base URL may have moved
-    since.
+    Asked when the address is stored and again before every fetch, since the
+    base URL may have moved since.
     """
     uri_origin = _origin(jwks_uri)
-    if uri_origin is None or uri_origin[0] not in ("http", "https"):
+    if uri_origin is None or uri_origin[0] != "https":
         return False
     return uri_origin == _origin(base_url)
 

@@ -1283,7 +1283,7 @@ class AppServiceMessages:
     #: A registration entry or request named something only the app's
     #: listing states (its listing, scope ceiling, image or sectors).
     STATED_BY_LISTING = "APP_SERVICE_STATED_BY_LISTING"
-    #: The key set address is not on the base URL's own origin.
+    #: The key set address is not https on the base URL's own origin.
     INVALID_JWKS_URI = "APP_SERVICE_INVALID_JWKS_URI"
     #: Connect reads the key set from the base URL, and there is none yet.
     CONNECT_NEEDS_BASE_URL = "APP_SERVICE_CONNECT_NEEDS_BASE_URL"

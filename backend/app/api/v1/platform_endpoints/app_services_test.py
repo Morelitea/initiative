@@ -95,7 +95,9 @@ async def test_non_owner_tiers_are_refused(
     ).status_code == 403
     assert (
         await client.post(
-            f"{BASE}{row.id}/connect", headers=headers, json={"fingerprints": ["x"]}
+            f"{BASE}{row.id}/connect",
+            headers=headers,
+            json={"keys": [{"kid": "k", "fingerprint": "x"}]},
         )
     ).status_code == 403
 
@@ -226,8 +228,8 @@ async def test_connect_pins_the_key_set_the_operator_confirmed(
 
     shown = await client.get(f"{BASE}{row.id}/connect", headers=owner.headers)
     assert shown.status_code == 200, shown.text
-    ((kid, fingerprint),) = [(k["kid"], k["fingerprint"]) for k in shown.json()]
-    assert kid == "acme.widgets-1"
+    (confirmed,) = shown.json()
+    assert confirmed["kid"] == "acme.widgets-1"
     assert fetched == [f"{APP_URL}/.well-known/jwks.json"]
     assert (await _listed(client, owner.headers, row.id))["jwks"] is None
 
@@ -235,7 +237,7 @@ async def test_connect_pins_the_key_set_the_operator_confirmed(
     pinned = await client.post(
         f"{BASE}{row.id}/connect",
         headers=owner.headers,
-        json={"fingerprints": [fingerprint]},
+        json={"keys": [confirmed]},
     )
     assert pinned.status_code == 200, pinned.text
     assert pinned.json()["jwks"] == served[0]
@@ -249,7 +251,7 @@ async def test_connect_pins_the_key_set_the_operator_confirmed(
     stale = await client.post(
         f"{BASE}{row.id}/connect",
         headers=owner.headers,
-        json={"fingerprints": [fingerprint]},
+        json={"keys": [confirmed]},
     )
     assert stale.status_code == 409
     assert stale.json()["detail"] == AppServiceMessages.KEYS_CHANGED

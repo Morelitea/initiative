@@ -137,30 +137,10 @@ def test_the_address_rule():
     assert app_keys.jwks_uri_allowed(f"{BASE}/keys", f"{BASE}/prefix")
     assert not app_keys.jwks_uri_allowed(JWKS_URI, "http://127.0.0.1:9443")
     assert not app_keys.jwks_uri_allowed("not a url", BASE)
-    # http where the base URL is http, on its origin and nowhere else.
-    assert app_keys.jwks_uri_allowed(
+    # https only, even on an http base URL's own origin.
+    assert not app_keys.jwks_uri_allowed(
         "http://github:8080/.well-known/jwks.json", "http://github:8080"
     )
-    assert not app_keys.jwks_uri_allowed(
-        "http://keys:8080/.well-known/jwks.json", "http://github:8080"
-    )
-    assert not app_keys.jwks_uri_allowed(
-        "https://github:8080/.well-known/jwks.json", "http://github:8080"
-    )
-
-
-async def test_an_http_address_on_an_http_base_url_is_fetched():
-    base = "http://127.0.0.1:9100"
-    fetched, transport = _serving({"keys": [_jwk(_published, "pub-1")]})
-
-    key = await app_keys.key_for(
-        _snapshot(base_url=base, jwks_uri=app_keys.key_set_url(base)),
-        "pub-1",
-        transport=transport,
-    )
-
-    assert key is not None
-    assert fetched == [f"{base}/.well-known/jwks.json"]
 
 
 def test_a_thumbprint_is_rfc_7638():

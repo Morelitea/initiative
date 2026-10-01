@@ -313,7 +313,9 @@ describe("SettingsAppServicesPage", () => {
 
     it("connects: shows the fingerprints the app serves and pins them once confirmed", async () => {
       const user = userEvent.setup();
-      registrations = [buildRegistration({ jwks: null, live: false })];
+      registrations = [
+        buildRegistration({ jwks: null, jwks_uri: "https://gh.example.com/jwks.json" }),
+      ];
       const pinned = { keys: [{ kty: "OKP", crv: "Ed25519", kid: "gh-1", x: "def" }] };
       readKeysMutate.mockImplementation((_id, { onSuccess }) =>
         onSuccess([{ kid: "gh-1", fingerprint: "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs" }])
@@ -338,11 +340,15 @@ describe("SettingsAppServicesPage", () => {
       await user.click(within(shown).getByRole("button", { name: "Pin these keys" }));
 
       expect(connectMutate).toHaveBeenCalledWith(
-        { registrationId: 1, fingerprints: ["NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"] },
+        {
+          registrationId: 1,
+          keys: [{ kid: "gh-1", fingerprint: "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs" }],
+        },
         expect.anything()
       );
       expect(screen.queryByRole("region", { name: "Keys the app serves" })).toBeNull();
-      // The pinned set is what the box now holds.
+      // The pinned set is what the box now holds, in place of the address.
+      expect(screen.getByLabelText("Key set address")).toHaveValue("");
       expect(
         JSON.parse(
           String(screen.getByLabelText<HTMLTextAreaElement>("Pasted key set (JWKS)").value)

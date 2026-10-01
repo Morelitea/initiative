@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  AppServicePublishedKeyRead,
+  AppServicePublishedKey,
   AppServiceRegistrationRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,7 @@ export const AppServiceFormDialog = ({
   // verify against is the server's answer, and it gives a message code.
   const [jwksError, setJwksError] = useState<string | null>(null);
   // The keys Connect read, waiting for the operator to confirm them.
-  const [servedKeys, setServedKeys] = useState<AppServicePublishedKeyRead[] | null>(null);
+  const [servedKeys, setServedKeys] = useState<AppServicePublishedKey[] | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const readKeys = useAppServiceKeys();
   const connect = useConnectAppService();
@@ -137,12 +137,15 @@ export const AppServiceFormDialog = ({
   const handleConnect = () => {
     if (!editing || !servedKeys) return;
     connect.mutate(
-      { registrationId: editing.id, fingerprints: servedKeys.map((key) => key.fingerprint) },
+      // Exactly what was shown, so the server stores only that.
+      { registrationId: editing.id, keys: servedKeys },
       {
         onSuccess: (registration) => {
           setForm((prev) => ({
             ...prev,
             jwks: registration.jwks ? JSON.stringify(registration.jwks, null, 2) : "",
+            // Connect clears the key set address; saving must not put it back.
+            jwksUri: registration.jwks_uri ?? "",
           }));
           setServedKeys(null);
           toast.success(t("appServices.connected"));

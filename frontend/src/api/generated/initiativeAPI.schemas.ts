@@ -838,6 +838,16 @@ export interface AppPublisherUpdate {
 }
 
 /**
+ * One key the app serves under its base URL: what Connect shows, and what
+ * the operator confirms.
+ */
+export interface AppServicePublishedKey {
+  kid: string;
+  /** @maxLength 64 */
+  fingerprint: string;
+}
+
+/**
  * Pin the key set the app serves, as the operator confirmed it.
  */
 export interface AppServiceConnect {
@@ -845,15 +855,7 @@ export interface AppServiceConnect {
    * @minItems 1
    * @maxItems 20
    */
-  fingerprints: string[];
-}
-
-/**
- * One key the app serves under its base URL, as Connect shows it.
- */
-export interface AppServicePublishedKeyRead {
-  kid: string;
-  fingerprint: string;
+  keys: AppServicePublishedKey[];
 }
 
 export type AppServiceRegistrationCreateJwks = { [key: string]: unknown } | null;
@@ -869,7 +871,7 @@ export type AppServiceRegistrationCreateVendorValues = { [key: string]: string |
  * deployment calls.
  *
  * Keys are a pasted ``jwks``, a ``jwks_uri`` on ``base_url``'s own origin
- * (http only where ``base_url`` is), or both. A registration with neither is not live.
+ * over https, or both. A registration with neither is not live.
  */
 export interface AppServiceRegistrationCreate {
   /** @maxLength 120 */

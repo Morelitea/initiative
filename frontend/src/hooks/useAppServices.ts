@@ -10,7 +10,7 @@ import {
   updateAppServiceApiV1AppServicesRegistrationIdPatch,
 } from "@/api/generated/app-services/app-services";
 import type {
-  AppServicePublishedKeyRead,
+  AppServicePublishedKey,
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
@@ -71,8 +71,8 @@ export const useDeleteAppService = (options?: MutationOpts<void, number>) =>
  * mutation because it runs when the operator presses Connect, and stores
  * nothing.
  */
-export const useAppServiceKeys = (options?: MutationOpts<AppServicePublishedKeyRead[], number>) =>
-  useApiMutation<AppServicePublishedKeyRead[], number>(
+export const useAppServiceKeys = (options?: MutationOpts<AppServicePublishedKey[], number>) =>
+  useApiMutation<AppServicePublishedKey[], number>(
     {
       mutationFn: (registrationId) =>
         readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet(registrationId),
@@ -82,19 +82,19 @@ export const useAppServiceKeys = (options?: MutationOpts<AppServicePublishedKeyR
 
 export interface ConnectAppServiceVariables {
   registrationId: number;
-  /** The fingerprints the operator was shown and confirmed. */
-  fingerprints: string[];
+  /** The keys the operator was shown and confirmed, kid and fingerprint. */
+  keys: AppServicePublishedKey[];
 }
 
-/** Pin the key set the app serves, when it still has the confirmed fingerprints. */
+/** Pin the key set the app serves, when it still holds exactly the confirmed keys. */
 export const useConnectAppService = (
   options?: MutationOpts<AppServiceRegistrationRead, ConnectAppServiceVariables>
 ) =>
   useApiMutation<AppServiceRegistrationRead, ConnectAppServiceVariables>(
     {
-      mutationFn: ({ registrationId, fingerprints }) =>
+      mutationFn: ({ registrationId, keys }) =>
         connectAppServiceApiV1AppServicesRegistrationIdConnectPost(registrationId, {
-          fingerprints,
+          keys,
         }),
       invalidate: () => invalidate(q.appServices()),
     },

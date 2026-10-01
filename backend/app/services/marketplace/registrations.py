@@ -22,8 +22,8 @@ Every app splits the same way, whatever published its listing
 Nothing is fetched from the app to fill any of it in, except its key set when
 the operator asks: **Connect** (:func:`published_keys`, then
 :func:`connect_registration`) reads the set the app serves under its base URL,
-shows each key's fingerprint, and pastes the set the operator confirms. A
-changed set is picked up only by connecting again. Its publisher is the row
+shows each key's fingerprint, and pins the set the operator confirms in place
+of any ``jwks_uri``. A changed set is picked up only by connecting again. Its publisher is the row
 for its ``public_id`` prefix (:mod:`app.services.marketplace.publishers`). The
 one secret it may hold is its vendor values
 (:mod:`app.services.marketplace.vendor_values`).
@@ -381,9 +381,8 @@ def normalize_jwks(value: Optional[dict]) -> Optional[dict]:
 
 
 def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
-    """Where the app publishes its key set: on ``base_url``'s own origin,
-    scheme included, with no query, fragment or credentials. Empty clears
-    it."""
+    """Where the app publishes its key set: https, on ``base_url``'s own
+    origin, with no query, fragment or credentials. Empty clears it."""
     cleaned = (value or "").strip()
     if not cleaned:
         return None
@@ -400,7 +399,7 @@ def normalize_jwks_uri(value: Optional[str], *, base_url: str) -> Optional[str]:
     if not jwks_uri_allowed(cleaned, base_url):
         raise _bad_request(
             AppServiceMessages.INVALID_JWKS_URI,
-            "jwks_uri must be on base_url's own origin",
+            "jwks_uri must be https on base_url's own origin",
         )
     return cleaned
 
@@ -697,7 +696,7 @@ async def delete_registration(
 # --- connect: the key set the app serves --------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class PublishedKey:
     """One key the app serves: its ``kid`` and RFC 7638 thumbprint."""
 
@@ -706,16 +705,16 @@ class PublishedKey:
 
 
 async def _served_key_set(
-    row: AppServiceRegistration, transport: Optional[httpx.AsyncBaseTransport]
+    base_url: Optional[str], transport: Optional[httpx.AsyncBaseTransport]
 ) -> tuple[dict, list[PublishedKey]]:
-    """The key set the app serves under its base URL, held to what a pasted
+    """The key set the app serves under ``base_url``, held to what a pasted
     set must be, with each key's fingerprint."""
-    if not row.base_url:
+    if not base_url:
         raise HTTPException(
             status_code=http_status.HTTP_409_CONFLICT,
             detail=AppServiceMessages.CONNECT_NEEDS_BASE_URL,
         )
-    url = key_set_url(row.base_url)
+    url = key_set_url(base_url)
     try:
         document = await read_key_set(url, transport=transport)
     except KeySetUnreadableError as exc:
@@ -734,6 +733,13 @@ async def _served_key_set(
     return key_set, keys
 
 
+def _keys_changed() -> HTTPException:
+    return HTTPException(
+        status_code=http_status.HTTP_409_CONFLICT,
+        detail=AppServiceMessages.KEYS_CHANGED,
+    )
+
+
 async def published_keys(
     session: AsyncSession,
     registration_id: int,
@@ -743,7 +749,7 @@ async def published_keys(
     """The keys the app serves, for the operator to compare with the
     fingerprints its container logged. Writes nothing."""
     row = await get_registration(session, registration_id)
-    _, keys = await _served_key_set(row, transport)
+    _, keys = await _served_key_set(row.base_url, transport)
     return keys
 
 
@@ -751,24 +757,41 @@ async def connect_registration(
     session: AsyncSession,
     registration_id: int,
     *,
-    fingerprints: Sequence[str],
+    keys: Sequence[PublishedKey],
     actor_user_id: int | None = None,
     transport: Optional[httpx.AsyncBaseTransport] = None,
 ) -> AppServiceRegistration:
-    """Pin the key set the app serves as the registration's ``jwks``.
+    """Pin the key set the app serves as the registration's ``jwks``, and
+    clear its ``jwks_uri`` so the pinned set is the only one it is verified
+    against.
 
-    Read again rather than taken from the request, and stored only when its
-    fingerprints are the ones the operator confirmed (409 otherwise).
+    The set is read again rather than taken from the request, and stored only
+    when its keys, ``kid`` and fingerprint together, are the ones the operator
+    confirmed, and the base URL it was read from is still the registration's
+    (409 otherwise). The row is locked for that check and the write, after the
+    read, so no lock is held while the app is asked.
     """
-    row = await get_registration(session, registration_id)
-    key_set, keys = await _served_key_set(row, transport)
-    if sorted(key.fingerprint for key in keys) != sorted(fingerprints):
-        raise HTTPException(
-            status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.KEYS_CHANGED,
+    base_url = (await get_registration(session, registration_id)).base_url
+    key_set, served = await _served_key_set(base_url, transport)
+    if sorted(served) != sorted(keys):
+        raise _keys_changed()
+    locked = (
+        await session.exec(
+            select(AppServiceRegistration)
+            .where(AppServiceRegistration.id == registration_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         )
+    ).first()
+    if locked is None or locked.base_url != base_url:
+        await session.rollback()
+        raise _keys_changed()
     return await update_registration(
-        session, registration_id, jwks=key_set, actor_user_id=actor_user_id
+        session,
+        registration_id,
+        jwks=key_set,
+        jwks_uri="",
+        actor_user_id=actor_user_id,
     )
 
 

@@ -260,30 +260,23 @@ async def test_live_needs_a_key_set(session):
 
 
 @pytest.mark.parametrize(
-    ("base_url", "jwks_uri"),
+    "jwks_uri",
     [
-        # http where the base URL is https.
-        (HTTPS_BASE_URL, "http://widgets.example.com/jwks.json"),
+        # Not https.
+        "http://widgets.example.com/jwks.json",
         # Another host.
-        (HTTPS_BASE_URL, "https://keys.example.net/jwks.json"),
-        (BASE_URL, "http://127.0.0.2:9100/jwks.json"),
+        "https://keys.example.net/jwks.json",
         # Another port.
-        (HTTPS_BASE_URL, "https://widgets.example.com:8443/jwks.json"),
+        "https://widgets.example.com:8443/jwks.json",
         # A query.
-        (HTTPS_BASE_URL, "https://widgets.example.com/jwks.json?v=1"),
+        "https://widgets.example.com/jwks.json?v=1",
     ],
 )
-async def test_a_key_set_address_is_on_the_apps_own_origin(session, base_url, jwks_uri):
+async def test_a_key_set_address_is_https_on_the_apps_own_origin(session, jwks_uri):
     with pytest.raises(HTTPException) as excinfo:
-        await _create(session, base_url=base_url, jwks_uri=jwks_uri)
+        await _create(session, base_url=HTTPS_BASE_URL, jwks_uri=jwks_uri)
 
     assert excinfo.value.detail == AppServiceMessages.INVALID_JWKS_URI
-
-
-async def test_a_key_set_address_is_http_where_the_base_url_is(session):
-    row = await _create(session, jwks_uri=f"{BASE_URL}/.well-known/jwks.json")
-
-    assert row.jwks_uri == f"{BASE_URL}/.well-known/jwks.json"
 
 
 async def test_moving_the_base_url_rechecks_the_key_set_address(session):
@@ -349,36 +342,83 @@ async def test_connect_shows_the_fingerprints_of_the_set_the_app_serves(session)
     assert row.jwks is None
 
 
-async def test_connect_stores_the_set_that_was_confirmed(session):
+async def test_connect_pins_the_confirmed_set_in_place_of_a_key_set_address(
+    session,
+):
+    base_url = "https://127.0.0.1:9443"
     key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
     _fetched, transport = _serving(key_set)
-    row = await _create(session)
+    row = await _create(
+        session, base_url=base_url, jwks_uri=f"{base_url}/.well-known/jwks.json"
+    )
+    (shown,) = await service.published_keys(session, row.id, transport=transport)
 
     connected = await service.connect_registration(
-        session,
-        row.id,
-        fingerprints=[jwk_thumbprint(key_set["keys"][0])],
-        transport=transport,
+        session, row.id, keys=[shown], transport=transport
     )
 
     assert connected.jwks == key_set
+    # Verified against the pinned set alone, with nothing fetched for a kid
+    # it does not hold.
+    assert connected.jwks_uri is None
 
 
-async def test_connect_refuses_a_set_that_changed_since_it_was_shown(session):
+def _renamed(key_set: dict, kid: str) -> dict:
+    return {"keys": [{**key_set["keys"][0], "kid": kid}]}
+
+
+@pytest.mark.parametrize(
+    "now_served",
+    [
+        # Another key under the same kid.
+        lambda shown: {"keys": [_rsa_jwk("acme.widgets-1")]},
+        # The same key under another kid.
+        lambda shown: _renamed(shown, "acme.widgets-2"),
+    ],
+)
+async def test_connect_refuses_a_set_that_changed_since_it_was_shown(
+    session, now_served
+):
     shown = {"keys": [_rsa_jwk("acme.widgets-1")]}
-    _fetched, transport = _serving(shown, {"keys": [_rsa_jwk("acme.widgets-1")]})
+    _fetched, transport = _serving(shown, now_served(shown))
     row = await _create(session, jwks={"keys": [_rsa_jwk("acme.widgets-0")]})
-    (key,) = await service.published_keys(session, row.id, transport=transport)
+    confirmed = await service.published_keys(session, row.id, transport=transport)
 
     with pytest.raises(HTTPException) as excinfo:
         await service.connect_registration(
-            session, row.id, fingerprints=[key.fingerprint], transport=transport
+            session, row.id, keys=confirmed, transport=transport
         )
 
     assert excinfo.value.status_code == 409
     assert excinfo.value.detail == AppServiceMessages.KEYS_CHANGED
     await session.refresh(row)
     assert row.jwks["keys"][0]["kid"] == "acme.widgets-0"
+
+
+async def test_connect_refuses_when_the_base_url_moved_during_the_read(
+    session, monkeypatch
+):
+    key_set = {"keys": [_rsa_jwk("acme.widgets-1")]}
+    row = await _create(session)
+    registration_id = row.id
+    (shown,) = await service.published_keys(
+        session, registration_id, transport=_serving(key_set)[1]
+    )
+
+    async def read_while_the_operator_repoints_it(url, *, transport=None):
+        await service.update_registration(
+            session, registration_id, base_url="http://127.0.0.2:9100"
+        )
+        return key_set
+
+    monkeypatch.setattr(service, "read_key_set", read_while_the_operator_repoints_it)
+
+    with pytest.raises(HTTPException) as excinfo:
+        await service.connect_registration(session, registration_id, keys=[shown])
+
+    assert excinfo.value.detail == AppServiceMessages.KEYS_CHANGED
+    stored = await service.get_registration(session, registration_id)
+    assert (stored.base_url, stored.jwks) == ("http://127.0.0.2:9100", None)
 
 
 @pytest.mark.parametrize(

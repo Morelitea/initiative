@@ -29,7 +29,7 @@ from app.schemas.platform.app_service import (
     AppPublisherRead,
     AppPublisherUpdate,
     AppServiceConnect,
-    AppServicePublishedKeyRead,
+    AppServicePublishedKey,
     AppServiceRegistrationCreate,
     AppServiceRegistrationRead,
     AppServiceRegistrationUpdate,
@@ -174,20 +174,17 @@ async def update_app_service(
     return await _read_one(session, row.id)
 
 
-@router.get(
-    "/{registration_id}/connect", response_model=List[AppServicePublishedKeyRead]
-)
+@router.get("/{registration_id}/connect", response_model=List[AppServicePublishedKey])
 async def read_app_service_keys(
     registration_id: int,
     session: SystemSessionDep,
     _owner: AppsManageDep,
-) -> List[AppServicePublishedKeyRead]:
+) -> List[AppServicePublishedKey]:
     """The keys the app serves at ``{base_url}/.well-known/jwks.json``, each
     with its fingerprint, for the operator to confirm. Stores nothing."""
     keys = await registrations_service.published_keys(session, registration_id)
     return [
-        AppServicePublishedKeyRead(kid=key.kid, fingerprint=key.fingerprint)
-        for key in keys
+        AppServicePublishedKey(kid=key.kid, fingerprint=key.fingerprint) for key in keys
     ]
 
 
@@ -198,12 +195,16 @@ async def connect_app_service(
     session: SystemSessionDep,
     owner: AppsManageDep,
 ) -> AppServiceRegistrationRead:
-    """Store the key set the app serves as the registration's pasted set, when
-    its fingerprints are the ones confirmed (409 when they are not)."""
+    """Store the key set the app serves as the registration's pasted set, in
+    place of any key set address, when its keys are the ones confirmed and
+    its base URL has not moved (409 otherwise)."""
     row = await registrations_service.connect_registration(
         session,
         registration_id,
-        fingerprints=payload.fingerprints,
+        keys=[
+            registrations_service.PublishedKey(kid=key.kid, fingerprint=key.fingerprint)
+            for key in payload.keys
+        ],
         actor_user_id=owner.id,
     )
     return await _read_one(session, row.id)

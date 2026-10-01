@@ -21,7 +21,7 @@ __all__ = [
     "AppPublisherRead",
     "AppPublisherUpdate",
     "AppServiceConnect",
-    "AppServicePublishedKeyRead",
+    "AppServicePublishedKey",
     "AppServiceRegistrationCreate",
     "AppServiceRegistrationRead",
     "AppServiceRegistrationUpdate",
@@ -66,7 +66,7 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     #: public half is meant to be read, and an operator provisioning it needs
     #: to see which ``kid`` landed.
     jwks: Optional[Dict[str, Any]] = None
-    #: Where the app publishes its key set, on its base URL's origin.
+    #: Where the app publishes its key set, on its own origin.
     jwks_uri: Optional[str] = None
     #: The most an install of this app may be granted, from its listing.
     #: Empty means no scope may be granted.
@@ -120,7 +120,7 @@ class AppServiceRegistrationCreate(_DeploymentFacts):
     deployment calls.
 
     Keys are a pasted ``jwks``, a ``jwks_uri`` on ``base_url``'s own origin
-    (http only where ``base_url`` is), or both. A registration with neither is not live.
+    over https, or both. A registration with neither is not live.
     """
 
     public_id: str = Field(max_length=120)
@@ -158,22 +158,23 @@ class AppServiceRegistrationUpdate(_DeploymentFacts):
     vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
 
 
-class AppServicePublishedKeyRead(SanitizedBaseModel):
-    """One key the app serves under its base URL, as Connect shows it."""
+class AppServicePublishedKey(SanitizedBaseModel):
+    """One key the app serves under its base URL: what Connect shows, and what
+    the operator confirms."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     kid: str
     #: The key's RFC 7638 SHA-256 thumbprint, base64url without padding: the
     #: fingerprint the app logs at start.
-    fingerprint: str
+    fingerprint: str = Field(max_length=64)
 
 
 class AppServiceConnect(SanitizedBaseModel):
     """Pin the key set the app serves, as the operator confirmed it."""
 
-    #: The fingerprints the operator was shown and confirmed.
-    fingerprints: List[str] = Field(min_length=1, max_length=20)
+    #: The keys the operator was shown and confirmed.
+    keys: List[AppServicePublishedKey] = Field(min_length=1, max_length=20)
 
 
 class AppPublisherRead(SanitizedBaseModel):
