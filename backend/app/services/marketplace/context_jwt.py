@@ -29,14 +29,18 @@ document, stamped with the same ``kid`` the token header carries, so an app can
 verify and an operator can rotate without a coordinated restart.
 
 The keypair is dedicated and has no fallback (see
-:func:`app.core.security.resolve_app_platform_signing_material`). With it unset
-this module raises, and callers turn that into a fail-closed 503 rather than
-signing app traffic with some other boundary's key.
+:func:`app.core.security.resolve_app_platform_signing_material`): the one in
+``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM``, or else the one the deployment
+generated and stored. With neither loaded this module raises, and callers turn
+that into a fail-closed 503 rather than signing app traffic with some other
+boundary's key.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional
@@ -57,6 +61,8 @@ __all__ = [
     "CONTEXT_TOKEN_LIFETIME",
     "ContextTokenError",
     "context_jwks",
+    "generate_signing_key",
+    "key_thumbprint",
     "mint_context_token",
 ]
 
@@ -88,6 +94,30 @@ def _b64u(value: int) -> str:
     """A JWKS integer: big-endian bytes, base64url, no padding."""
     length = max(1, (value.bit_length() + 7) // 8)
     return base64.urlsafe_b64encode(value.to_bytes(length, "big")).rstrip(b"=").decode()
+
+
+def generate_signing_key() -> str:
+    """A new 2048-bit RSA signing key, as an unencrypted PKCS #8 PEM."""
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return private_key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ).decode("ascii")
+
+
+def key_thumbprint(private_pem: str) -> str:
+    """The RFC 7638 SHA-256 thumbprint of an RSA key's public half, base64url."""
+    private_key = serialization.load_pem_private_key(
+        private_pem.encode("utf-8"), password=None
+    )
+    if not isinstance(private_key, rsa.RSAPrivateKey):
+        raise ContextTokenError("the app platform signing key must be an RSA key")
+    numbers = private_key.public_key().public_numbers()
+    members = {"e": _b64u(numbers.e), "kty": "RSA", "n": _b64u(numbers.n)}
+    canonical = json.dumps(members, separators=(",", ":"), sort_keys=True)
+    digest = hashlib.sha256(canonical.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
 
 
 def mint_context_token(

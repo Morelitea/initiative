@@ -32,6 +32,9 @@ SALT_APP_CONFIG = b"app-config"
 # What an operator supplies for an app's vendor client (its secret, its
 # signing key), one ciphertext per field on the app's registration.
 SALT_APP_VENDOR = b"app-vendor"
+# The app platform's signing key, when this deployment generated its own
+# rather than being given one in APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM.
+SALT_APP_PLATFORM_SIGNING_KEY = b"app-platform-signing-key"
 # The state an app connection's vendor flow carries through the vendor and
 # back. Transient: it lives ten minutes and is never stored.
 SALT_APP_CONNECTION_FLOW = b"app-connection-flow"

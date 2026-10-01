@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import text
+from cryptography.fernet import InvalidToken
+from sqlalchemy import text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,12 +18,15 @@ from app.core.transitions import Transition
 from app.services import audit as audit_service
 from app.core.config import settings as app_config
 from app.core.encryption import (
+    decrypt_field,
     encrypt_field,
+    SALT_APP_PLATFORM_SIGNING_KEY,
     SALT_CAPTCHA_SECRET_KEY,
     SALT_FCM_SERVICE_ACCOUNT,
     SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
 )
+from app.core.security import use_stored_app_platform_signing_key
 from app.core.login_methods import (
     DEFAULT_LOGIN_METHODS,
     LOGIN_METHOD_VALUES,
@@ -37,6 +41,7 @@ from app.models.platform.app_setting import AppSetting
 from app.models.platform.app_setting_secret import AppSettingSecret
 from app.models.platform.user_dm_settings import DmPolicy
 from app.models.tenant.guild_setting import GuildSetting
+from app.services.marketplace import context_jwt
 from app.services.platform import guilds as guilds_service
 from app.db.request_context import SystemGuild
 
@@ -358,6 +363,63 @@ async def seed_app_settings(session: AsyncSession) -> AppSetting:
         await _ensure_secrets_row(session)
         await session.commit()
     return settings_row
+
+
+async def load_app_platform_signing_key(session: AsyncSession) -> None:
+    """Load the app platform's stored signing key into this process.
+
+    Only while ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset; the env key
+    is used as it is. The first start generates a key and stores it, and every
+    start after it, on any replica, loads that one: the write only fills an
+    empty column, and the key is read back from the row. System engine only,
+    after :func:`seed_app_settings`. Commits.
+    """
+    if app_config.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM:
+        return
+    column = AppSettingSecret.__table__.c.app_platform_signing_key_encrypted
+    stored_query = select(column).where(
+        AppSettingSecret.__table__.c.id == GLOBAL_SETTINGS_ID
+    )
+    encrypted = await session.scalar(stored_query)
+    if encrypted is None:
+        if await _stored_app_settings(session) is None:
+            logger.warning(
+                "app platform: the settings row is not stored, so no signing "
+                "key can be kept; app services stay unavailable."
+            )
+            return
+        await _ensure_secrets_row(session)
+        await session.exec(
+            update(AppSettingSecret.__table__)
+            .where(
+                AppSettingSecret.__table__.c.id == GLOBAL_SETTINGS_ID,
+                column.is_(None),
+            )
+            .values(
+                {
+                    column: encrypt_field(
+                        context_jwt.generate_signing_key(),
+                        SALT_APP_PLATFORM_SIGNING_KEY,
+                    )
+                }
+            )
+        )
+        await session.commit()
+        encrypted = await session.scalar(stored_query)
+        if encrypted is None:  # pragma: no cover - the UPDATE landed or lost a race
+            raise RuntimeError("app platform signing key could not be stored")
+    try:
+        private_pem = decrypt_field(encrypted, SALT_APP_PLATFORM_SIGNING_KEY)
+    except InvalidToken:
+        logger.error(
+            "app platform: the stored signing key does not decrypt under "
+            "SECRET_KEY; app services stay unavailable. Set PREVIOUS_SECRET_KEY "
+            "to the key it was stored under."
+        )
+        return
+    use_stored_app_platform_signing_key(
+        private_pem, context_jwt.key_thumbprint(private_pem)
+    )
 
 
 async def record_running_version(

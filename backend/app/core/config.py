@@ -866,36 +866,42 @@ class Settings(BaseSettings):
 
     # --- App platform (external app services; default OFF) ----------------
     # An app service is an external container this deployment has wired up
-    # (see the app service registry). Everything below is unset on a default
-    # install, and with it unset the platform simply has no app services: the
-    # registry lists nothing, and the endpoints that would mint credentials for
-    # one fail closed rather than improvising.
+    # (see the app service registry). Everything below is optional: a default
+    # install generates its own signing key, and an owner wires apps up from
+    # the settings pages.
     #
-    # RSA private key (PEM) signing Initiative -> app context JWTs. This is a
-    # DEDICATED keypair with no fallback: an app verifies these against the
-    # published public half, so borrowing another service's key would put two
-    # unrelated trust boundaries on one rotation schedule. Generate one with
-    # ``openssl genrsa -out app-platform.pem 2048``. Unset ⇒ registering and
-    # verifying app services refuse with APP_SERVICE_SIGNING_NOT_CONFIGURED.
+    # RSA private key (PEM) signing what Initiative sends an app. Optional:
+    # unset, Initiative generates one on first start and keeps it in the
+    # database, encrypted under SECRET_KEY, so every replica signs with the same
+    # key. Set it to supply your own (``openssl genrsa -out app-platform.pem
+    # 2048``); while set it wins, and changing it is how the key is rotated.
     APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM: str | None = None
-    # Key id stamped on the JWT header so an app can pick the right verifying
-    # key out of the published JWKS while a rotation is in flight.
+    # Key id stamped on the JWT header for the key above, so an app picks it out
+    # of the published JWKS during a rotation. A generated key uses its RFC 7638
+    # thumbprint instead.
     APP_PLATFORM_SIGNING_KEY_ID: str | None = None
-    # Path to a mounted file of app service registrations, reconciled into the
-    # database at startup so a chart can wire approved apps with no owner
-    # clicks. JSON (or a JSON array in a .json file):
-    #   [{"public_id": "acme.shopify", "listing_uid": "<14-character uid>",
+    # Path to a mounted JSON file (an array of entries) wiring app services at
+    # startup, with no owner clicks. An entry gives the app's ``public_id`` and
+    # this deployment's facts about it; what the app is (its listing) comes
+    # from the marketplace, and an entry naming a listing field is refused:
+    #   [{"public_id": "acme.shopify",
     #     "base_url": "http://shopify:9100",
     #     "embed_origin": "https://shopify.example.com",
-    #     "jwks": {"keys": […]}, "scope_ceiling": ["projects:read"],
-    #     "allowed_origins": ["…"], "mandatory": false}]
-    # ``base_url`` is where this deployment's server calls the app, so it may be
-    # an address only the cluster resolves; ``embed_origin`` is where a browser
-    # loads its iframes and connection pages, and is omitted when the app
-    # answers both at one address.
-    # It holds only public keys, so the file can be a plain ConfigMap.
-    # Unset (the default) ⇒ no reconciliation runs. Reconciliation never
-    # re-enables a registration an operator disabled, and never blocks boot.
+    #     "jwks": {"keys": […]},
+    #     "allowed_origins": ["https://shopify.example.com"],
+    #     "vendor_env": {"client_secret": "SHOPIFY_CLIENT_SECRET"},
+    #     "mandatory": false}]
+    # ``base_url`` is where this server calls the app, so it may be an address
+    # only the container network resolves; ``embed_origin`` is where a browser
+    # loads its pages, omitted when the app answers both at one address. Give
+    # the app's public keys as ``jwks``, or as ``jwks_uri`` when the app serves
+    # them at ``base_url``'s origin (``/.well-known/jwks.json`` for an app built
+    # on the SDK). ``vendor_env`` maps a vendor value to the environment
+    # variable holding it, so the file names no secret and can be a plain
+    # ConfigMap. An entry waits until its app's listing
+    # arrives. Unset (the default) ⇒ nothing is reconciled.
+    # Reconciliation never re-enables a registration an operator disabled, and
+    # never blocks boot.
     APP_SERVICES_CONFIG: str | None = None
 
     # --- Billing (hosted deployments only; default OFF) -------------------

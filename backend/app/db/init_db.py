@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.security import app_platform_signing_enabled, get_password_hash
+from app.core.security import get_password_hash
 from app.core.transitions import TRANSITIONS
 from app.core.version import __version__, get_version
 from app.db.schema_provisioning import (
@@ -580,15 +580,6 @@ async def _prepare_database() -> None:
     # Database-only: an app's container may boot after this one, and nothing is
     # fetched from it. No-op when the setting is unset.
     if settings.APP_SERVICES_CONFIG:
-        if not app_platform_signing_enabled():
-            # Registrations reconcile fine, but minting what Initiative sends an
-            # app (its context tokens and handoffs) needs the platform's own
-            # keypair.
-            logger.warning(
-                "APP_SERVICES_CONFIG is set but APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM "
-                "is not; app services will fail closed until a signing key is "
-                "configured."
-            )
         try:
             from app.services.marketplace import registrations as app_registrations
 

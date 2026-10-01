@@ -49,6 +49,7 @@ from app.core.config import settings
 from app.core.encryption import (
     SALT_AI_API_KEY,
     SALT_APP_CONFIG,
+    SALT_APP_PLATFORM_SIGNING_KEY,
     SALT_APP_VENDOR,
     SALT_EMAIL,
     SALT_IMPORT_CREDENTIAL,
@@ -95,6 +96,11 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
         "app_setting_secrets",
         "fcm_service_account_json_encrypted",
         SALT_FCM_SERVICE_ACCOUNT,
+    ),
+    (
+        "app_setting_secrets",
+        "app_platform_signing_key_encrypted",
+        SALT_APP_PLATFORM_SIGNING_KEY,
     ),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
     # The address a sign-in code was sent to before any account held it. Same
