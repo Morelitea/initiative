@@ -31,9 +31,6 @@ _BELL_WRITERS = {
     "app/services/notifications.py::deliver_notices",
     "app/services/notifications.py::_roll_up_comment",
     "app/services/notifications.py::_roll_up_reaction",
-    # The time-out screen reads the reason off this line the moment the
-    # suspension commits.
-    "app/services/notifications.py::queue_account_suspended",
     # Direct messages deliver on their own path.
     "app/services/platform/dm_notifications.py::_roll_up",
 }

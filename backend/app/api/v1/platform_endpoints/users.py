@@ -67,7 +67,6 @@ from app.models.platform.guild import (
 )
 from app.models.platform.guild_image import GuildImageVariant
 from app.core.intake import IntakeStream
-from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import intake as intake_service
@@ -206,26 +205,12 @@ async def read_my_time_out(
     """
     if current_user.status != UserStatus.suspended:
         return AccountTimeOutRead()
-    # The reason travels on the notice the suspension wrote; the newest one is
-    # this suspension's.
-    notice = (
-        await session.exec(
-            select(Notification)
-            .where(
-                Notification.user_id == current_user.id,
-                Notification.type == NotificationType.account_suspended,
-            )
-            .order_by(Notification.created_at.desc())
-            .limit(1)
-        )
-    ).first()
-    reason = (notice.data or {}).get("reason") if notice is not None else None
     return AccountTimeOutRead(
         contact_email=await intake_service.contact_for(
             session, IntakeStream.moderation
         ),
         since=current_user.status_changed_at,
-        reason=reason.strip() if isinstance(reason, str) and reason.strip() else None,
+        reason=current_user.status_reason,
     )
 
 

@@ -2551,14 +2551,16 @@ async def queue_account_suspended(
     They can still sign in, which is the only reason telling them works: a
     suspension nobody could read would present as the app quietly breaking.
     """
-    # Written here rather than by the notice worker: the time-out screen reads
-    # the reason off this line, and must find this suspension's, not the last
-    # one's, from the moment the suspension commits.
-    await user_notifications.create_notification(
+    await notice_outbox.enqueue(
         session,
-        user_id=user.id,
-        notification_type=NotificationType.account_suspended,
-        data={"reason": reason, "target_path": "/profile/account"},
+        [
+            notice_outbox.row(
+                cast(int, user.id),
+                None,
+                NotificationType.account_suspended,
+                {"reason": reason, "target_path": "/profile/account"},
+            )
+        ],
     )
 
 
