@@ -209,6 +209,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
     discriminate the file for a future import; tags (by name) and custom
     properties (flat, by name) ride along so a backup keeps the document's
     metadata."""
+    from app.schemas.tenant.property import annotated_properties
     from app.services.export.property_values import property_export_dict
 
     return {
@@ -219,9 +220,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
         "content": content,
         "tags": sorted(tag.name for tag in document.tags or []),
         "properties": [
-            property_export_dict(pv)
-            for pv in document.property_values or []
-            if pv.property_definition is not None
+            property_export_dict(summary) for summary in annotated_properties(document)
         ],
     }
 

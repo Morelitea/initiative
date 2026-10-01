@@ -11,6 +11,7 @@ from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.document import smart_link_url
+from app.schemas.tenant.property import PropertySummary, annotated_properties
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
@@ -204,6 +205,7 @@ class WikiPageSummary(SanitizedBaseModel):
     #: opening it.
     headings: List[WikiPageHeading] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     #: A document row's kind of document and the facts its icon is drawn
     #: from — a PDF, a spreadsheet and a link to a design tool each look like
     #: what they are. ``None`` on a page.
@@ -287,6 +289,7 @@ def serialize_wiki_page_summary(
         guild_id=context.guild_id,
         headings=[WikiPageHeading(**h) for h in headings],
         tags=annotated_tags(page),
+        properties=annotated_properties(page),
     )
 
 

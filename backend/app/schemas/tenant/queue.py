@@ -11,6 +11,7 @@ from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
+from app.schemas.tenant.property import PropertySummary, annotated_properties
 from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 from app.schemas.platform.user import UserPublic
@@ -83,6 +84,7 @@ class QueueItemRead(QueueItemBase):
     user_id: Optional[PersonId] = None
     user: Optional[UserPublic] = None
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     documents: List[QueueItemDocumentRead] = Field(default_factory=list)
     tasks: List[QueueItemTaskRead] = Field(default_factory=list)
     #: How many things are pinned to this item, of whatever kind. Not
@@ -207,6 +209,7 @@ def serialize_queue_item(
         is_visible=item.is_visible,
         held_at_round=item.held_at_round,
         tags=annotated_tags(item),
+        properties=annotated_properties(item),
         documents=_serialize_queue_item_documents(documents),
         tasks=_serialize_queue_item_tasks(tasks),
         attachment_count=attachment_count,

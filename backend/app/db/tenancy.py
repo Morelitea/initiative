@@ -409,6 +409,8 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "project_favorites",
         "project_orders",
         "recent_views",
+        # A property value belongs to the initiative, not to whoever set it.
+        "property_values",
         # Machinery. Written by a trigger, a poller or a scheduler rather than
         # by a person; each already records the actor it needs (the outbox
         # carries ``actor_user_id``) or has none to record.

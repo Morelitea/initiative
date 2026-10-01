@@ -234,6 +234,24 @@ def _tag_ids(tool: Tool, description: Optional[str] = None) -> ListParam:
     )
 
 
+def _property_filters() -> ListParam:
+    """Every tool carries properties, so every list narrows by them — ALL-of,
+    each a typed comparison against one property's value."""
+    return ListParam(
+        "property_filters",
+        Optional[str],
+        Query(
+            default=None,
+            description=(
+                "JSON-encoded list of property-value filters, e.g. "
+                '`[{"property_id": 12, "op": "eq", "value": "live"}]`. '
+                f"Maximum {properties_service.MAX_PROPERTY_FILTERS} "
+                "conditions per request."
+            ),
+        ),
+    )
+
+
 def _archived(described: bool = True) -> ListParam:
     return ListParam(
         "archived",
@@ -447,8 +465,17 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 
 async def list_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     """The WHERE one tool's list answers ``req`` with — what an export of the
-    tool narrows by, too."""
-    return await (spec.conditions or _default_conditions)(spec, req)
+    tool narrows by, too. Every tool carries properties, so every list
+    narrows by them the same way."""
+    return [
+        *await (spec.conditions or _default_conditions)(spec, req),
+        *await _property_filter_clauses(
+            req.session,
+            spec.tool,
+            req.values.get("property_filters"),
+            names_people=req.user is not None,
+        ),
+    ]
 
 
 def _summaries(schema: type[ToolSummaryBase]) -> Callable[..., Awaitable[list]]:
@@ -456,6 +483,7 @@ def _summaries(schema: type[ToolSummaryBase]) -> Callable[..., Awaitable[list]]:
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
+        await properties_service.annotate_properties(req.session, rows)
         return [
             serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
@@ -558,20 +586,13 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     conditions.append(
         archive_service.archive_filter_clause(Document, values.get("archived"))
     )
-    conditions.extend(
-        await _property_filter_clauses(
-            req.session,
-            values.get("property_filters"),
-            names_people=req.user is not None,
-        )
-    )
     return conditions
 
 
 async def _property_filter_clauses(
-    session: AsyncSession, raw: Optional[str], *, names_people: bool
+    session: AsyncSession, tool: Tool, raw: Optional[str], *, names_people: bool
 ) -> list:
-    """WHERE clauses for the typed property filters a document list may carry.
+    """WHERE clauses for the typed property filters a tool list may carry.
 
     Loads the definitions the caller can see, then hands the compilation to the
     shared helper so documents, tasks and events agree about what each operator
@@ -602,7 +623,7 @@ async def _property_filter_clauses(
             detail=QueryMessages.INVALID_CONDITIONS,
         )
     return properties_service.build_property_filter_clauses(
-        "document", parsed, definitions
+        tool.value, parsed, definitions
     )
 
 
@@ -667,6 +688,7 @@ async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> 
     # of times rather than forty.
     session = req.session
     await tags_service.annotate_tags(session, rows)
+    await properties_service.annotate_properties(session, rows)
     # An installed app's page carries no reactions, read state or ballots.
     await posts_endpoints.annotate_post_rows(session, rows, user_id=req.user_id)
     return [
@@ -770,6 +792,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             sort_dir_param(),
             _tag_ids(Tool.project),
+            _property_filters(),
             page_param(),
             page_size_param(0, ge=0, le=100),
         ),
@@ -814,6 +837,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             search_param(description=None),
             _tag_ids(Tool.document, description="Filter by tag IDs"),
+            _property_filters(),
             ListParam(
                 "untagged",
                 Optional[bool],
@@ -824,19 +848,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                 "document_type",
                 Optional[DocumentType],
                 Query(default=None, description="Filter by document type"),
-            ),
-            ListParam(
-                "property_filters",
-                Optional[str],
-                Query(
-                    default=None,
-                    description=(
-                        "JSON-encoded list of property-value filters, e.g. "
-                        '`[{"property_id": 12, "op": "eq", "value": "live"}]`. '
-                        f"Maximum {properties_service.MAX_PROPERTY_FILTERS} "
-                        "conditions per request."
-                    ),
-                ),
             ),
             page_param(),
             page_size_param(20, ge=0, le=100),
@@ -880,6 +891,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.queue),
+            _property_filters(),
             _archived(),
             ListParam(
                 "is_active",
@@ -923,6 +935,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.counter_group),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(20, ge=1, le=100),
@@ -954,6 +967,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.calendar),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=1, le=200),
@@ -996,6 +1010,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.dashboard),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=1, le=200),
@@ -1031,6 +1046,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             sort_dir_param(),
             _tag_ids(Tool.post),
+            _property_filters(),
             _archived(),
             ListParam(
                 "unread",
@@ -1103,6 +1119,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             sort_dir_param(),
             _tag_ids(Tool.gallery),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=0, le=500),
@@ -1130,6 +1147,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             sort_dir_param(),
             _tag_ids(Tool.wiki),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=0, le=500),

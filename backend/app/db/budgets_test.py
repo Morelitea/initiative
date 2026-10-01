@@ -22,11 +22,11 @@ pytestmark = pytest.mark.budget
 
 #: Parsed policies, per community, per database connection that has served it.
 #: Postgres keeps them until the table changes, so a pooled connection holds one
-#: of these for every community it has served. 5.6 MB on 2026-10-01.
-POLICY_MEMORY_PER_COMMUNITY = 6 * 1024 * 1024
+#: of these for every community it has served. 4.9 MB on 2026-10-01.
+POLICY_MEMORY_PER_COMMUNITY = 5_500 * 1024
 
-#: The same for one table. 304 KB (``task_property_values``) on 2026-10-01.
-POLICY_MEMORY_PER_TABLE = 350 * 1024
+#: The same for one table. 240 KB (``task_assignees``) on 2026-10-01.
+POLICY_MEMORY_PER_TABLE = 280 * 1024
 
 _POLICY_MEMORY = (
     "SELECT ident, total_bytes FROM pg_backend_memory_contexts "

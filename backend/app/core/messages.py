@@ -915,11 +915,10 @@ class CalendarEventMessages:
     # One occurrence stays in its series' calendar and repeats with it.
     OCCURRENCE_FOLLOWS_SERIES = "CALENDAR_EVENT_OCCURRENCE_FOLLOWS_SERIES"
     # A guild calendar holds guild-level content only. Things defined on an
-    # initiative — custom properties, documents — have no counterpart at guild
-    # scope, so an event there cannot carry them; and an event cannot be moved
-    # across the guild/initiative line, because it would take its initiative
-    # attachments with it.
-    GUILD_CALENDAR_NO_PROPERTIES = "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES"
+    # initiative — documents — have no counterpart at guild scope, so an event
+    # there cannot carry them; and an event cannot be moved across the
+    # guild/initiative line, because it would take its initiative attachments
+    # with it.
     GUILD_CALENDAR_NO_DOCUMENTS = "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS"
     CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
     # A calendar read's date window ends before it starts or spans too long.

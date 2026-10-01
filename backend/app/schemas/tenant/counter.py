@@ -12,6 +12,7 @@ from app.core.messages import CounterMessages
 from app.models.tenant.counter import COUNTER_DIGITS, COUNTER_PLACES, CounterViewMode
 from app.schemas.base import SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
+from app.schemas.tenant.property import PropertySummary, annotated_properties
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.tool import ToolSummaryBase
 
@@ -139,6 +140,7 @@ class CounterRead(SanitizedBaseModel):
     initial_count: str
     view_mode: CounterViewMode
     position: str
+    properties: List[PropertySummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -236,6 +238,7 @@ def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRe
         initial_count=_format_decimal(counter.initial_count),
         view_mode=counter.view_mode,
         position=_format_decimal(counter.position),
+        properties=annotated_properties(counter),
         created_at=counter.created_at,
         updated_at=counter.updated_at,
     )

@@ -34,11 +34,10 @@ from app.core.relationships import (
     ENDPOINT_KINDS,
     FACETS,
     SYMMETRIC_TYPES,
-    EndpointKind,
     Provenance,
     RelationshipType,
 )
-from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
+from app.core.tools import DEFAULT_ENABLED_TOOLS, PROPERTY_TARGETS, Tool
 from app.db.authorization import IN_POLICY, STANDING, app_narrowed, app_scope, in_body
 
 #: The legs a policy reads, off this statement's standing.
@@ -624,45 +623,6 @@ def via_event_calendar(fk: str = "calendar_event_id") -> InitiativePath:
     )
 
 
-def via_property(
-    entity_from: str,
-    entity_pred: str,
-    entity_init: str,
-    parents: ParentsLocator,
-    dac: DacPath | None = None,
-) -> InitiativePath:
-    """Property-value rows: join the entity and ``property_definitions`` and
-    require both resolve to the SAME initiative, then check access on it.
-
-    ``entity_from`` is the FROM clause for the entity (e.g. ``documents d``),
-    ``entity_pred`` ties the value row to that entity (e.g. ``d.id =
-    {t}.document_id``), ``entity_init`` is the entity's initiative column
-    (e.g. ``d.initiative_id``), and ``parents`` is that entity's own chain.
-
-    Every fragment interpolated here is a string literal from the
-    INITIATIVE_PATHS registry in this module — policy DDL rendering, never
-    user input."""
-    return InitiativePath(
-        predicate=lambda t, w: (
-            f"EXISTS (SELECT 1 FROM {entity_from} "  # noqa: S608
-            f"JOIN property_definitions pd ON pd.id = {t}.property_id "
-            f"WHERE {entity_pred.format(t=t)} AND {entity_init} = pd.initiative_id "
-            f"AND {_access('pd.initiative_id', w)})"
-        ),
-        # The policy already requires entity and definition to share an
-        # initiative, so either side names the same one; the definition is a
-        # single-table lookup.
-        initiative_expr=lambda r: (
-            f"(SELECT pd.initiative_id FROM property_definitions pd "  # noqa: S608
-            f"WHERE pd.id = {r}.property_id)"
-        ),
-        # The ENTITY, not the definition: a value is a facet of the thing it is
-        # on, and that is the surface an event about it should name.
-        parents=parents,
-        dac=dac,
-    )
-
-
 @dataclass(frozen=True)
 class CommentParent:
     """One thing a comment can hang off, declared once and rendered five ways.
@@ -1017,6 +977,72 @@ $entity_access$;
 """
 
 
+#: The initiative a ``(kind, id)`` pair belongs to, for a policy that needs to
+#: compare it with something else on the row.
+ENTITY_INITIATIVE_FN = "entity_initiative"
+
+
+def render_entity_initiative_fn() -> str:
+    """The initiative of whatever a ``(kind, id)`` pair names, as one function.
+
+    One arm per kind :data:`ENTITY_ACCESS_FN` answers for, each asking the
+    kind's own ``initiative_expr`` — the same lookup its change capture stamps
+    events with. NULL for a row the reader cannot see, for a kind that belongs
+    to no initiative, and for a guild-level row. ``plpgsql`` and run as the
+    caller, like :func:`render_entity_access_fn`.
+    """
+    arms = "\n".join(
+        f"        WHEN '{kind}' THEN\n"
+        f"            RETURN (SELECT {path.initiative_expr('re')} FROM {table} re "
+        f"WHERE re.id = p_entity_id);"
+        for kind, table in sorted(entity_tables().items())
+        if (path := INITIATIVE_PATHS.get(table)) is not None
+    )
+    return f"""
+CREATE OR REPLACE FUNCTION {ENTITY_INITIATIVE_FN}(p_kind text, p_entity_id integer)
+    RETURNS integer
+    LANGUAGE plpgsql STABLE
+    AS $entity_initiative$
+BEGIN
+    CASE p_kind
+{arms}
+        ELSE
+            RETURN NULL;
+    END CASE;
+END;
+$entity_initiative$;
+"""
+
+
+def property_values_path() -> InitiativePath:
+    """A property value is read by whoever can read the thing it is on, and
+    written by whoever can edit that thing.
+
+    Polymorphic over ``(entity_type, entity_id)``, the pair
+    :data:`ENTITY_ACCESS_FN` takes, so every tool and sub-tool is one arm of the
+    same call. A write also asks that the definition belongs to the thing's own
+    initiative: definitions are initiative-level, so a value from another
+    initiative's definition — or on a thing that belongs to none — is refused.
+    """
+
+    def build(t: str, w: bool) -> str:
+        reach = _entity_call(f"{t}.entity_type", f"{t}.entity_id", w, w)
+        if not w:
+            return reach
+        return (
+            f"({_P.system} OR ({reach} AND EXISTS (SELECT 1 FROM property_definitions pd "  # noqa: S608
+            f"WHERE pd.id = {t}.property_id AND pd.initiative_id = "
+            f"{ENTITY_INITIATIVE_FN}({t}.entity_type, {t}.entity_id))))"
+        )
+
+    return InitiativePath(
+        predicate=build,
+        initiative_expr=lambda r: (
+            f"{ENTITY_INITIATIVE_FN}({r}.entity_type, {r}.entity_id)"
+        ),
+    )
+
+
 def relationships_path() -> InitiativePath:
     """An edge is reached by whoever can reach BOTH of the things it connects.
 
@@ -1310,41 +1336,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # Two hops -> calendar_events -> calendars
     "calendar_event_attendees": via_event_calendar("calendar_event_id"),
     "calendar_event_answers": via_event_calendar("calendar_event_id"),
-    # Property values (entity + property_definitions, same-initiative)
-    "document_property_values": via_property(
-        "documents d",
-        "d.id = {t}.document_id",
-        "d.initiative_id",
-        lambda r: _one_parent("documents", f"{r}.document_id"),
-        _dac_via("documents", "document_id"),
-    ),
-    "task_property_values": via_property(
-        "tasks tk JOIN projects pr ON pr.id = tk.project_id",
-        "tk.id = {t}.task_id",
-        "pr.initiative_id",
-        lambda r: _parent_chain(
-            "tasks tk",
-            "tk.id",
-            f"{r}.task_id",
-            ("tasks", "tk.id"),
-            ("projects", "tk.project_id"),
-        ),
-        _dac_two_hop("tasks", "project_id", "projects", "task_id"),
-    ),
-    "calendar_event_property_values": via_property(
-        "calendar_events ce JOIN calendars cal ON cal.id = ce.calendar_id",
-        "ce.id = {t}.event_id",
-        "cal.initiative_id",
-        lambda r: _parent_chain(
-            "calendar_events ce",
-            "ce.id",
-            f"{r}.event_id",
-            ("calendar_events", "ce.id"),
-            ("calendars", "ce.calendar_id"),
-        ),
-        _dac_two_hop("calendar_events", "calendar_id", "calendars", "event_id"),
-    ),
-    # Multi-parent
+    # Every tool and sub-tool's custom property values, by (entity_type, entity_id)
+    "property_values": property_values_path(),
     "comments": comments_path(),
     # Polymorphic over what it is on; gated by that thing's own path.
     "reactions": reactions_path(),
@@ -1378,11 +1371,9 @@ class NamedPerson:
 
 NAMED_PEOPLE: tuple[NamedPerson, ...] = (
     NamedPerson("task_assignees", "user_id"),
-    NamedPerson("task_property_values", "value_user_id", clear=True),
     NamedPerson("calendar_event_attendees", "user_id"),
     NamedPerson("calendar_event_answers", "user_id"),
-    NamedPerson("calendar_event_property_values", "value_user_id", clear=True),
-    NamedPerson("document_property_values", "value_user_id", clear=True),
+    NamedPerson("property_values", "value_user_id", clear=True),
     NamedPerson("queue_items", "user_id", clear=True),
 )
 
@@ -1390,8 +1381,12 @@ NAMED_PEOPLE: tuple[NamedPerson, ...] = (
 def initiative_of(table: str, row: str, *, qualify: str = "") -> str:
     """The initiative a row of ``table`` belongs to, as a sub-select, walked
     through the hops its policies declare. ``qualify`` goes before each table
-    name (a schema)."""
-    hops = INITIATIVE_PATHS[table].dac.via
+    name (a schema). A table that names its subject as a ``(kind, id)`` pair
+    has no hops to walk, and answers through its own ``initiative_expr``."""
+    path = INITIATIVE_PATHS[table]
+    if path.dac is None:
+        return path.initiative_expr(row)
+    hops = path.dac.via
     joins = f"{qualify}{hops[0][1]} h1"
     for i, (fk, parent) in enumerate(hops[1:], start=2):
         joins += f" JOIN {qualify}{parent} h{i} ON h{i}.id = h{i - 1}.{fk}"
@@ -1597,18 +1592,20 @@ def reactions_report_on_their_target() -> ReportsAs:
     )
 
 
-def _endpoint_report(endpoint: EndpointKind) -> tuple[str, Callable[[str], str]]:
-    """The resource an event about this kind names, and how to reach its id.
+def _reported_as(table: str) -> tuple[str, Callable[[str], str]]:
+    """The resource an event about a row of ``table`` names, and how to reach
+    its id.
 
-    An endpoint kind is not always a thing a subscriber fetches: a picture has
-    no route of its own, and its own table says so by reporting against its
-    gallery. An edge naming one has to name what that kind names, or the event
-    would carry an id nothing can re-read — so the answer comes from the
-    table's own registry entry rather than from a second decision here.
+    A row is not always a thing a subscriber fetches: a picture has no route of
+    its own, and its own table says so by reporting against its gallery. A row
+    naming one (an edge end, a property value) has to name what that table
+    names, or the event would carry an id nothing can re-read — so the answer
+    comes from the table's own registry entry rather than from a second
+    decision here.
     """
-    declared = event_source(endpoint.table).reports_as
+    declared = event_source(table).reports_as
     if declared is None:
-        return endpoint.table, lambda alias: f"{alias}.id"
+        return table, lambda alias: f"{alias}.id"
     report = declared[0] if isinstance(declared, tuple) else declared
     (parent,) = report.resource_types
     return parent, report.id_expr
@@ -1636,7 +1633,7 @@ def relationships_report_on_both_ends() -> tuple[ReportsAs, ...]:
     facet_arms = " ".join(
         f"WHEN '{t.value}' THEN '{FACETS[t]}'" for t in RelationshipType
     )
-    reports = {kind: _endpoint_report(ep) for kind, ep in ENDPOINT_KINDS.items()}
+    reports = {kind: _reported_as(ep.table) for kind, ep in ENDPOINT_KINDS.items()}
 
     def one(side: str) -> ReportsAs:
         type_arms = " ".join(
@@ -1669,6 +1666,36 @@ def relationships_report_on_both_ends() -> tuple[ReportsAs, ...]:
         )
 
     return (one("source"), one("target"))
+
+
+def properties_report_on_their_target() -> ReportsAs:
+    """A property value is a facet OF what it is on — report it there.
+
+    Whatever that thing itself reports as: a task's values as the task, a
+    picture's as its gallery. The subscriber re-reads it, and its read carries
+    the current values.
+    """
+    tables = {target: entity_tables()[target] for target in PROPERTY_TARGETS}
+    reports = {target: _reported_as(table) for target, table in tables.items()}
+    type_arms = " ".join(
+        f"WHEN '{target}' THEN '{resource}'"
+        for target, (resource, _) in reports.items()
+    )
+
+    def id_of(r: str) -> str:
+        arms = " ".join(
+            f"WHEN '{target}' THEN (SELECT {id_expr('pv')} "  # noqa: S608
+            f"FROM {tables[target]} pv WHERE pv.id = {r}.entity_id)"
+            for target, (_, id_expr) in reports.items()
+        )
+        return f"(CASE {r}.entity_type {arms} END)"
+
+    return ReportsAs(
+        resource_types=frozenset(resource for resource, _ in reports.values()),
+        id_expr=id_of,
+        facet="properties",
+        type_expr=lambda r: f"(CASE {r}.entity_type {type_arms} END)",
+    )
 
 
 def poll_options_report_on_their_post() -> ReportsAs:
@@ -1885,6 +1912,8 @@ def event_source(table: str) -> Emit:
 # endpoints report against, so it can only be built once every endpoint's own
 # entry above exists.
 EVENT_SOURCES["relationships"] = Emit(reports_as=relationships_report_on_both_ends())
+# The same, for whatever a property value is on.
+EVENT_SOURCES["property_values"] = Emit(reports_as=properties_report_on_their_target())
 
 
 def initiative_locator(table: str) -> RowLocator:

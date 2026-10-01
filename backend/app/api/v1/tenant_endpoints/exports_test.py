@@ -51,19 +51,18 @@ from app.testing.factories import (
     checklist_items,
     create_calendar,
     create_calendar_event,
-    create_calendar_event_property_value,
     create_comment,
     create_counter,
     create_counter_group,
     create_dashboard,
     create_document,
     create_export_job,
-    create_document_property_value,
     create_guild_app,
     create_initiative,
     create_post,
     create_project,
     create_property_definition,
+    create_property_value,
     create_queue,
     create_queue_item,
     create_relationship,
@@ -1041,7 +1040,7 @@ async def test_document_envelope_carries_tags_and_properties(
     await assign_tag(session, doc, tag)
     await session.commit()
     definition = await create_property_definition(session, a.initiative, name="Status")
-    await create_document_property_value(session, doc, definition, value_text="Draft")
+    await create_property_value(session, doc, definition, value_text="Draft")
 
     resp = await _export(client, a, "document", ids=[doc.id], format="json")
     envelope = json.loads(_assert_export(resp, "json"))
@@ -2029,7 +2028,7 @@ async def test_calendar_export_ics_and_json(client: AsyncClient, acting_user, se
         recurrence=monthly,
     )
     definition = await create_property_definition(session, a.initiative, name="Table")
-    await create_calendar_event_property_value(
+    await create_property_value(
         session, recurring_event, definition, value_text="Table 3"
     )
     await create_calendar_event(session, calendar, a.user, title="One-shot night")
@@ -2475,17 +2474,13 @@ async def test_a_backup_lists_who_its_user_properties_name(
     and the value lands only on an exact name match."""
     from app.core.user_display import handle_of
     from app.models.tenant.property import PropertyType
-    from app.testing.factories import (
-        create_property_definition,
-        create_task_property_value,
-    )
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     task = await create_task(session, a.project, title="Report it")
     reporter = await create_property_definition(
         session, a.initiative, name="Reporter", type=PropertyType.user_reference
     )
-    await create_task_property_value(session, task, reporter, value_user_id=a.user.id)
+    await create_property_value(session, task, reporter, value_user_id=a.user.id)
 
     resp = await _export(client, a, "initiative", initiative_id=a.initiative.id)
     archive = await _rendered_zip(client, a, monkeypatch, role_session, resp)

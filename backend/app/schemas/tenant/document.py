@@ -15,7 +15,6 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_re
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.ownership import OwnerAppSummary
-from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -91,7 +90,6 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
     )
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
-    properties: List[PropertySummary] = Field(default_factory=list)
     # File document fields
     document_type: DocumentType = DocumentType.native
     file_url: Optional[str] = None
@@ -113,7 +111,6 @@ class DocumentSummary(DocumentBase, ToolSummaryBase):
         return {
             "owner": _document_owner(row),
             "owner_app": owner_app_of(row),
-            "properties": _serialize_document_properties(row),
             "smart_link_url": smart_link_url(row),
         }
 
@@ -176,20 +173,6 @@ def _serialize_project_links(
         )
         for related in projects
     ]
-
-
-def _serialize_document_properties(document: "Document") -> List[PropertySummary]:
-    """Serialize loaded document property values.
-
-    Requires ``property_values.property_definition`` (and ``.value_user``
-    for user_reference) to be eager-loaded — otherwise they are skipped.
-    """
-    # Local import avoids the schema layer pulling in the service at
-    # module import time.
-    from app.services.tenant.properties import summaries_from_rows
-
-    rows = getattr(document, "property_values", None) or []
-    return summaries_from_rows(rows)
 
 
 def _document_owner(document: "Document") -> Optional[UserPublic]:

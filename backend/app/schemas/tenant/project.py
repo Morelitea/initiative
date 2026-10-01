@@ -14,6 +14,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_re
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.ownership import OwnerAppSummary
 from app.schemas.tenant.document import ProjectDocumentSummary
+from app.schemas.tenant.property import PropertySummary
 from app.schemas.tenant.tag import TagSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.user import UserPublic
@@ -131,6 +132,7 @@ class ProjectRead(ProjectBase, ToolState):
     # thread belongs to the task, not to the tool.
     comments_enabled: bool = True
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     # The full sharing state — every resource_grants row for this resource.
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 

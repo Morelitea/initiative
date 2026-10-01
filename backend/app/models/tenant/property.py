@@ -6,25 +6,27 @@ from typing import Any, List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models.tenant._mixins import CreatedByMixin
 
+from app.core.tools import PROPERTY_TARGETS
+
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.tenant.calendar_event import CalendarEvent
-    from app.models.tenant.document import Document
     from app.models.tenant.initiative import Initiative
-    from app.models.tenant.task import Task
     from app.models.platform.user_profile_view import MemberProfile
 
 
@@ -45,9 +47,8 @@ class PropertyType(str, Enum):
 class PropertyDefinition(CreatedByMixin, table=True):
     """Initiative-scoped custom property definition.
 
-    Definitions live on a single initiative; values live on entity-specific
-    junction tables (``document_property_values`` / ``task_property_values``
-    / ``calendar_event_property_values``) so they stay SARGable under RLS.
+    A definition belongs to one initiative and applies to everything in it:
+    any tool or sub-tool there may carry a value for it (``PropertyValue``).
     """
 
     __tablename__ = "property_definitions"
@@ -105,27 +106,77 @@ class PropertyDefinition(CreatedByMixin, table=True):
     )
 
     initiative: Optional["Initiative"] = Relationship()
-    document_values: List["DocumentPropertyValue"] = Relationship(
-        back_populates="property_definition",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    task_values: List["TaskPropertyValue"] = Relationship(
-        back_populates="property_definition",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    event_values: List["CalendarEventPropertyValue"] = Relationship(
-        back_populates="property_definition",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
 
 
-class PropertyValueColumns(SQLModel):
-    """The typed value columns every ``*_property_values`` table carries,
-    whichever entity it attaches to.
+_TARGET_VALUES = ", ".join(f"'{target}'" for target in PROPERTY_TARGETS)
 
-    Declared without ``sa_column`` so each table builds its own Column.
+#: The typed columns a value is stored in, one per kind of value.
+VALUE_COLUMNS: tuple[str, ...] = (
+    "value_text",
+    "value_number",
+    "value_boolean",
+    "value_date",
+    "value_datetime",
+    "value_user_id",
+    "value_json",
+)
+
+#: The columns a property filter compares, each indexed by definition.
+_FILTERED_COLUMNS: tuple[str, ...] = (
+    "value_text",
+    "value_number",
+    "value_date",
+    "value_datetime",
+    "value_user_id",
+)
+
+
+class PropertyValue(SQLModel, table=True):
+    """One property's value on one thing in an initiative.
+
+    The thing is named by ``(entity_type, entity_id)``, where ``entity_type`` is
+    one of ``PROPERTY_TARGETS``: every tool and sub-tool. There is no foreign key
+    to it — the value belongs to the initiative, so removing the thing removes
+    its values explicitly (the purge, a move across initiatives) rather than by
+    cascade. Who may read or write a value is what may be asked of the thing,
+    through ``entity_access``.
     """
 
+    __tablename__ = "property_values"
+    __allow_unmapped__ = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    __table_args__ = (
+        CheckConstraint(
+            f"entity_type IN ({_TARGET_VALUES})", name="ck_property_values_entity_type"
+        ),
+        *(
+            Index(
+                f"ix_property_values_{column}",
+                "property_id",
+                column,
+                postgresql_where=text(f"{column} IS NOT NULL"),
+            )
+            for column in _FILTERED_COLUMNS
+        ),
+        Index(
+            "ix_property_values_value_json",
+            "value_json",
+            postgresql_using="gin",
+            postgresql_ops={"value_json": "jsonb_path_ops"},
+            postgresql_where=text("value_json IS NOT NULL"),
+        ),
+    )
+
+    entity_type: str = Field(sa_column=Column(String(32), primary_key=True))
+    entity_id: int = Field(sa_column=Column(Integer, primary_key=True))
+    property_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("property_definitions.id", ondelete="CASCADE"),
+            primary_key=True,
+            index=True,
+        ),
+    )
     value_text: Optional[str] = Field(default=None, sa_type=Text, nullable=True)
     value_number: Optional[Decimal] = Field(
         default=None, sa_type=Numeric, nullable=True
@@ -135,9 +186,7 @@ class PropertyValueColumns(SQLModel):
     value_datetime: Optional[datetime] = Field(
         default=None, sa_type=DateTime(timezone=True), nullable=True
     )
-    value_user_id: Optional[int] = Field(
-        default=None, foreign_key="users.id", nullable=True
-    )
+    value_user_id: Optional[int] = Field(default=None, nullable=True)
     value_json: Optional[Any] = Field(default=None, sa_type=JSONB, nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -150,112 +199,10 @@ class PropertyValueColumns(SQLModel):
         nullable=False,
     )
 
-
-class DocumentPropertyValue(CreatedByMixin, PropertyValueColumns, table=True):
-    """Typed property value attached to a document."""
-
-    __tablename__ = "document_property_values"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    document_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("documents.id", ondelete="CASCADE"),
-            primary_key=True,
-        ),
-    )
-    property_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("property_definitions.id", ondelete="CASCADE"),
-            primary_key=True,
-            index=True,
-        ),
-    )
-    document: Optional["Document"] = Relationship(back_populates="property_values")
-    property_definition: Optional[PropertyDefinition] = Relationship(
-        back_populates="document_values"
-    )
+    property_definition: Optional[PropertyDefinition] = Relationship()
     value_user: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": (
-                "foreign(DocumentPropertyValue.value_user_id) == MemberProfile.id"
-            ),
-            "viewonly": True,
-        },
-    )
-
-
-class TaskPropertyValue(CreatedByMixin, PropertyValueColumns, table=True):
-    """Typed property value attached to a task."""
-
-    __tablename__ = "task_property_values"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    task_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("tasks.id", ondelete="CASCADE"),
-            primary_key=True,
-        ),
-    )
-    property_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("property_definitions.id", ondelete="CASCADE"),
-            primary_key=True,
-            index=True,
-        ),
-    )
-    task: Optional["Task"] = Relationship(back_populates="property_values")
-    property_definition: Optional[PropertyDefinition] = Relationship(
-        back_populates="task_values"
-    )
-    value_user: Optional["MemberProfile"] = Relationship(
-        sa_relationship_kwargs={
-            "primaryjoin": (
-                "foreign(TaskPropertyValue.value_user_id) == MemberProfile.id"
-            ),
-            "viewonly": True,
-        },
-    )
-
-
-class CalendarEventPropertyValue(CreatedByMixin, PropertyValueColumns, table=True):
-    """Typed property value attached to a calendar event."""
-
-    __tablename__ = "calendar_event_property_values"
-    __allow_unmapped__ = True
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    event_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("calendar_events.id", ondelete="CASCADE"),
-            primary_key=True,
-        ),
-    )
-    property_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("property_definitions.id", ondelete="CASCADE"),
-            primary_key=True,
-            index=True,
-        ),
-    )
-    calendar_event: Optional["CalendarEvent"] = Relationship(
-        back_populates="property_values"
-    )
-    property_definition: Optional[PropertyDefinition] = Relationship(
-        back_populates="event_values"
-    )
-    value_user: Optional["MemberProfile"] = Relationship(
-        sa_relationship_kwargs={
-            "primaryjoin": (
-                "foreign(CalendarEventPropertyValue.value_user_id) == MemberProfile.id"
-            ),
+            "primaryjoin": "foreign(PropertyValue.value_user_id) == MemberProfile.id",
             "viewonly": True,
         },
     )

@@ -601,7 +601,7 @@ async def test_list_my_tasks_property_value_is_null_filter(
     from app.models.tenant.property import PropertyType
     from app.testing.factories import (
         create_property_definition,
-        create_task_property_value,
+        create_property_value,
     )
 
     user = await create_user(session, email="user@example.com")
@@ -615,9 +615,7 @@ async def test_list_my_tasks_property_value_is_null_filter(
     without_value = await _create_task(session, project, "No value", created_by=user.id)
     await _assign(session, with_value, user.id)
     await _assign(session, without_value, user.id)
-    await create_task_property_value(
-        session, with_value, definition, value_text="something"
-    )
+    await create_property_value(session, with_value, definition, value_text="something")
 
     headers = get_auth_headers(user)
     conditions = json.dumps(
@@ -653,7 +651,7 @@ async def test_list_my_tasks_property_filter_spans_guilds(
     from app.models.tenant.property import PropertyType
     from app.testing.factories import (
         create_property_definition,
-        create_task_property_value,
+        create_property_value,
     )
 
     user = await create_user(session, email="user@example.com")
@@ -682,13 +680,13 @@ async def test_list_my_tasks_property_filter_spans_guilds(
     g1_empty = await _create_task(session, project1, "g1 empty", created_by=user.id)
     await _assign(session, g1_has, user.id)
     await _assign(session, g1_empty, user.id)
-    await create_task_property_value(session, g1_has, def1, value_text="x")
+    await create_property_value(session, g1_has, def1, value_text="x")
 
     g2_has = await _create_task(session, project2, "g2 has", created_by=user.id)
     g2_empty = await _create_task(session, project2, "g2 empty", created_by=user.id)
     await _assign(session, g2_has, user.id)
     await _assign(session, g2_empty, user.id)
-    await create_task_property_value(session, g2_has, def2, value_text="y")
+    await create_property_value(session, g2_has, def2, value_text="y")
 
     headers = get_auth_headers(user)
     conditions = json.dumps(

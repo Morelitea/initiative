@@ -36,8 +36,8 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
     RSVPStatus,
 )
-from app.models.tenant.property import CalendarEventPropertyValue
 from app.services.tenant import calendar_events as events_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 #: What an occurrence can change alone, as ``overridden_fields`` names it.
@@ -213,20 +213,7 @@ async def _copy_lists(
         await tags_service.replace_entity_tags(session, _TAGS, target.id, [])
         await tags_service.copy_entity_tags(session, _TAGS, {source.id: target.id})
     if "properties" in lists:
-        await session.exec(
-            sa_delete(CalendarEventPropertyValue).where(
-                CalendarEventPropertyValue.event_id == target.id
-            )
-        )
-        session.add_all(
-            CalendarEventPropertyValue(
-                **value.model_dump(
-                    exclude={"id", "event_id", "created_at", "updated_at"}
-                ),
-                event_id=target.id,
-            )
-            for value in source.property_values
-        )
+        await properties_service.copy_values(session, source, target)
     await session.flush()
 
 
@@ -382,6 +369,16 @@ async def follow(
         session.add(override)
         if lists := free & set(LISTS):
             await _copy_lists(session, series, override, lists)
+
+
+async def followed(session: AsyncSession, event: CalendarEvent, field: str) -> None:
+    """After a list changed on ``event``: an occurrence's own row now holds its
+    own, and a series' overrides that didn't change it follow."""
+    if event.series_id is not None:
+        mark(event, [field])
+        session.add(event)
+    elif event.recurrence:
+        await follow(session, event, [field])
 
 
 async def rehome(

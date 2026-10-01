@@ -68,6 +68,7 @@ from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant import soft_delete as soft_delete_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import wikis as wikis_service
 
@@ -91,6 +92,7 @@ async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
     """Everything a wiki row carries beyond its columns, one grouped query
     each for the page."""
     await tags_service.annotate_tags(session, wikis)
+    await properties_service.annotate_properties(session, wikis)
     await comments_service.annotate_comment_counts(session, wikis, column="wiki_id")
     await wikis_service.annotate_page_counts(session, wikis)
 
@@ -303,6 +305,7 @@ async def list_wiki_pages(
     rows = await wikis_service.load_list(session, wiki)
     pages = [row for row, _ in rows if isinstance(row, WikiPage)]
     await tags_service.annotate_tags(session, pages)
+    await properties_service.annotate_properties(session, pages)
     # The position each row is SERVED with is its place in the list as drawn —
     # a document's is kept on the wiki and a page's in its own column, and
     # neither is what a client counts with.
@@ -536,6 +539,7 @@ async def read_wiki_page(
         session, wiki_id, page_id, current_user, guild_context
     )
     await tags_service.annotate_tags(session, [page])
+    await properties_service.annotate_properties(session, [page])
     return serialize_wiki_page(page, context=guild_context)
 
 
@@ -609,6 +613,7 @@ async def update_wiki_page(
         )
     await session.refresh(page)
     await tags_service.annotate_tags(session, [page])
+    await properties_service.annotate_properties(session, [page])
     return serialize_wiki_page(page, context=guild_context)
 
 

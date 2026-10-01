@@ -35,7 +35,7 @@ from app.models.tenant.project import Project
 
 from app.models.tenant.property import (
     PropertyType,
-    TaskPropertyValue,
+    PropertyValue,
 )
 from app.models.tenant.task import (
     Task,
@@ -465,7 +465,12 @@ async def _import_task(
                 column_kwargs["value_user_id"], pv.value_handle
             )
         session.add(
-            TaskPropertyValue(task_id=task.id, property_id=prop_id, **column_kwargs)
+            PropertyValue(
+                entity_type="task",
+                entity_id=task.id,
+                property_id=prop_id,
+                **column_kwargs,
+            )
         )
 
     if context is not None and links_to_pages(task.description):

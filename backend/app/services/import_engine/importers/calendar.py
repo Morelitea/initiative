@@ -29,7 +29,7 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.property import CalendarEventPropertyValue
+from app.models.tenant.property import PropertyValue
 from app.schemas.tenant.import_envelopes import (
     CalendarEnvelope,
     EventEnvelopeItem,
@@ -333,8 +333,11 @@ class CalendarImporter(NamesPeopleInPassing):
             named_handles.setdefault(user_id, handle)
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(
-                CalendarEventPropertyValue(
-                    event_id=event.id, property_id=prop_id, **column_kwargs
+                PropertyValue(
+                    entity_type="calendar_event",
+                    entity_id=event.id,
+                    property_id=prop_id,
+                    **column_kwargs,
                 )
             )
 

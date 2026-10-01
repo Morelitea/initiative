@@ -95,6 +95,10 @@ _NAMED: dict[str, AppTableAccess] = {
     "initiatives": _scoped("initiatives"),
     "initiative_roles": _scoped("initiatives"),
     "property_definitions": _scoped("initiatives"),
+    # No scope of its own: a value is reached through the thing it is on, and
+    # ``entity_access`` asks that thing's own policies — its tool's read scope
+    # to see it, its write scope to change it.
+    "property_values": AppTableAccess(AppTableKind.scoped),
     "initiative_members": _scoped("members"),
     "webhook_subscriptions": AppTableAccess(AppTableKind.subscriptions),
     **{table: AppTableAccess(AppTableKind.side_effect) for table in _SIDE_EFFECTS},

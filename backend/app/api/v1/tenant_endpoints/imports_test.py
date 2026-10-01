@@ -2255,7 +2255,7 @@ async def test_a_user_property_is_placed_by_the_people_step(
     does, so it is asked about the same way, and the answer is what lands."""
     from sqlmodel import select
 
-    from app.models.tenant.property import TaskPropertyValue
+    from app.models.tenant.property import PropertyValue
     from app.models.tenant.task import Task
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -2291,7 +2291,9 @@ async def test_a_user_property_is_placed_by_the_people_step(
     task = (await session.exec(select(Task).where(Task.title == "Fit the door"))).one()
     values = (
         await session.exec(
-            select(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
+            select(PropertyValue).where(
+                PropertyValue.entity_type == "task", PropertyValue.entity_id == task.id
+            )
         )
     ).all()
     assert [v.value_user_id for v in values] == [a.user.id]
@@ -4084,7 +4086,7 @@ async def test_a_jira_import_brings_its_fields_as_properties(
     mapped to."""
     from sqlmodel import select
 
-    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.property import PropertyDefinition, PropertyValue
     from app.models.tenant.task import Task
     from app.services.import_engine import atlassian as atlassian_service
 
@@ -4124,12 +4126,14 @@ async def test_a_jira_import_brings_its_fields_as_properties(
     task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
     rows = (
         await session.exec(
-            select(TaskPropertyValue, PropertyDefinition)
+            select(PropertyValue, PropertyDefinition)
             .join(
                 PropertyDefinition,
-                PropertyDefinition.id == TaskPropertyValue.property_id,
+                PropertyDefinition.id == PropertyValue.property_id,
             )
-            .where(TaskPropertyValue.task_id == task.id)
+            .where(
+                PropertyValue.entity_type == "task", PropertyValue.entity_id == task.id
+            )
         )
     ).all()
     by_name = {definition.name: value for value, definition in rows}
@@ -4520,7 +4524,7 @@ async def test_a_property_unticked_on_the_review_is_not_created(
     value for it. The rest arrive as usual."""
     from sqlmodel import select
 
-    from app.models.tenant.property import PropertyDefinition, TaskPropertyValue
+    from app.models.tenant.property import PropertyDefinition, PropertyValue
     from app.models.tenant.task import Task
     from app.services.import_engine import atlassian as atlassian_service
 
@@ -4562,12 +4566,14 @@ async def test_a_property_unticked_on_the_review_is_not_created(
     task = (await session.exec(select(Task).where(Task.title == "Fit the frame"))).one()
     values = (
         await session.exec(
-            select(TaskPropertyValue, PropertyDefinition)
+            select(PropertyValue, PropertyDefinition)
             .join(
                 PropertyDefinition,
-                PropertyDefinition.id == TaskPropertyValue.property_id,
+                PropertyDefinition.id == PropertyValue.property_id,
             )
-            .where(TaskPropertyValue.task_id == task.id)
+            .where(
+                PropertyValue.entity_type == "task", PropertyValue.entity_id == task.id
+            )
         )
     ).all()
     assert {definition.name for _value, definition in values} == {
@@ -5445,8 +5451,8 @@ async def test_a_confluence_page_points_its_jira_issues_at_the_tasks_they_became
     from app.services.import_engine import atlassian as atlassian_service
     from app.testing import (
         create_property_definition,
+        create_property_value,
         create_task,
-        create_task_property_value,
     )
 
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
@@ -5454,7 +5460,7 @@ async def test_a_confluence_page_points_its_jira_issues_at_the_tasks_they_became
         session, a.initiative, name="Jira key"
     )
     task = await create_task(session, a.project, title="Task 1")
-    await create_task_property_value(session, task, key_property, value_text="SCRUM-1")
+    await create_property_value(session, task, key_property, value_text="SCRUM-1")
 
     site = _confluence_site(
         pages=[

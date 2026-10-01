@@ -38,6 +38,7 @@ from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 #: How big a picture may be. Larger than a document image (10 MB): a gallery
@@ -224,6 +225,7 @@ async def get_gallery(
     gallery = result.one_or_none()
     if gallery is not None:
         await tags_service.annotate_tags(session, [gallery])
+        await properties_service.annotate_properties(session, [gallery])
     return gallery
 
 
@@ -247,6 +249,7 @@ async def get_image(
     image = (await session.exec(stmt)).one_or_none()
     if image is not None:
         await tags_service.annotate_tags(session, [image])
+        await properties_service.annotate_properties(session, [image])
     return image
 
 

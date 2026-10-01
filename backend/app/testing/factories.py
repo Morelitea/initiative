@@ -72,11 +72,9 @@ from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.tenant.property import (
-    CalendarEventPropertyValue,
-    DocumentPropertyValue,
     PropertyDefinition,
     PropertyType,
-    TaskPropertyValue,
+    PropertyValue,
 )
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.reaction import Reaction
@@ -1034,73 +1032,37 @@ async def create_property_definition(
     return definition
 
 
-async def create_document_property_value(
+async def create_property_value(
     session: AsyncSession,
-    document: Document,
+    entity: Any,
     definition: PropertyDefinition,
     *,
     commit: bool = True,
     **value_kwargs: Any,
-) -> DocumentPropertyValue:
+) -> PropertyValue:
     """
-    Attach a typed property value to a document.
+    Attach a typed property value to any tool or sub-tool row.
 
     Accepts any of ``value_text``, ``value_number``, ``value_boolean``,
     ``value_date``, ``value_datetime``, ``value_user_id``, ``value_json``.
 
     Args:
         session: Database session
-        document: Document to attach the value to
+        entity: The row to attach the value to (a task, a document, a queue, …)
         definition: PropertyDefinition the value references
         commit: Whether to commit the transaction (default True)
         **value_kwargs: Typed column values
 
     Returns:
-        Created DocumentPropertyValue instance
+        Created PropertyValue instance
     """
-    await route_session_to_guild(session, guild_of(document))
+    from app.services.tenant.properties import link_for
 
-    row = DocumentPropertyValue(
-        document_id=document.id,
-        property_id=definition.id,
-        **value_kwargs,
-    )
-    session.add(row)
+    await route_session_to_guild(session, guild_of(entity))
 
-    if commit:
-        await session.commit()
-
-    return row
-
-
-async def create_task_property_value(
-    session: AsyncSession,
-    task: Task,
-    definition: PropertyDefinition,
-    *,
-    commit: bool = True,
-    **value_kwargs: Any,
-) -> TaskPropertyValue:
-    """
-    Attach a typed property value to a task.
-
-    Accepts any of ``value_text``, ``value_number``, ``value_boolean``,
-    ``value_date``, ``value_datetime``, ``value_user_id``, ``value_json``.
-
-    Args:
-        session: Database session
-        task: Task to attach the value to
-        definition: PropertyDefinition the value references
-        commit: Whether to commit the transaction (default True)
-        **value_kwargs: Typed column values
-
-    Returns:
-        Created TaskPropertyValue instance
-    """
-    await route_session_to_guild(session, guild_of(task))
-
-    row = TaskPropertyValue(
-        task_id=task.id,
+    row = PropertyValue(
+        entity_type=link_for(entity).target,
+        entity_id=entity.id,
         property_id=definition.id,
         **value_kwargs,
     )
@@ -1818,34 +1780,6 @@ async def create_calendar_event(
         await session.refresh(event)
 
     return event
-
-
-async def create_calendar_event_property_value(
-    session: AsyncSession,
-    event: CalendarEvent,
-    definition: PropertyDefinition,
-    *,
-    commit: bool = True,
-    **value_kwargs: Any,
-) -> CalendarEventPropertyValue:
-    """Attach a typed property value to a calendar event.
-
-    Mirrors :func:`create_document_property_value` /
-    :func:`create_task_property_value` for the event value table.
-    """
-    await route_session_to_guild(session, guild_of(event))
-
-    row = CalendarEventPropertyValue(
-        event_id=event.id,
-        property_id=definition.id,
-        **value_kwargs,
-    )
-    session.add(row)
-
-    if commit:
-        await session.commit()
-
-    return row
 
 
 async def create_document(

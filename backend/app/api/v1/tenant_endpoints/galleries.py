@@ -82,6 +82,7 @@ from app.services import storage_config
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import galleries as galleries_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import timeline as timeline_service
 
@@ -159,6 +160,7 @@ async def annotate_gallery_rows(session: RLSSessionDep, galleries: list) -> None
     """Everything a gallery row carries beyond its columns, one grouped query
     each for the page."""
     await tags_service.annotate_tags(session, galleries)
+    await properties_service.annotate_properties(session, galleries)
     await comments_service.annotate_comment_counts(
         session, galleries, column="gallery_id"
     )
@@ -550,6 +552,7 @@ async def list_gallery_images(
     )
     images = list((await session.exec(stmt)).unique().all())
     await tags_service.annotate_tags(session, images)
+    await properties_service.annotate_properties(session, images)
     await galleries_service.annotate_version_counts(session, images)
     items = [serialize_gallery_image(i, context=guild_context) for i in images]
     return GalleryImageListResponse(

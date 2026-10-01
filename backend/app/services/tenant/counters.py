@@ -22,6 +22,7 @@ from app.models.tenant.counter import (
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -68,6 +69,8 @@ async def get_counter_group(
     group = result.one_or_none()
     if group is not None:
         await tags_service.annotate_tags(session, [group])
+        await properties_service.annotate_properties(session, [group])
+        await properties_service.annotate_properties(session, group.counters or [])
     return group
 
 
@@ -106,8 +109,9 @@ async def get_counter(
     stmt = select(Counter).where(Counter.id == counter_id)
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
-    result = await session.exec(stmt)
-    return result.one_or_none()
+    counter = (await session.exec(stmt)).one_or_none()
+    await properties_service.annotate_properties(session, [counter])
+    return counter
 
 
 # ---------------------------------------------------------------------------

@@ -244,7 +244,7 @@ async def restore_entity(
 
 async def _purge_references(session: AsyncSession, doomed: Level) -> None:
     """Drop every row that names one of these by ``(kind, id)``: edges,
-    reactions and recent views.
+    reactions, recent views and custom property values.
 
     Nothing carries those out with the row they name, and once it is gone
     their policies have nothing to ask, so they go first. Each kind is read
@@ -254,7 +254,7 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
     from app.core.reactions import ReactionTarget
     from app.core.relationships import ENDPOINT_KINDS
     from app.db.initiative_rls import RECENT_ENTITY_TABLES
-    from app.services.tenant import reactions, recent_views, relationships
+    from app.services.tenant import properties, reactions, recent_views, relationships
 
     edge_kinds = {endpoint.table: kind for kind, endpoint in ENDPOINT_KINDS.items()}
     reaction_targets = {target.table: target for target in ReactionTarget}
@@ -269,6 +269,8 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
             await reactions.purge_reactions_for(session, target=target, target_ids=ids)
         if (recent := recent_kinds.get(table)) is not None:
             await recent_views.purge_for_entities(session, recent, ids)
+        if (spec := properties.PROPERTY_LINKS_BY_MODEL.get(model)) is not None:
+            await properties.drop_values(session, spec.target, ids)
 
 
 #: The tables whose rows the purge hooks read, not just their ids, with the

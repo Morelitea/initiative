@@ -21,7 +21,6 @@ from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
-    from app.models.tenant.property import CalendarEventPropertyValue
     from app.models.platform.user_profile_view import MemberProfile
 
 
@@ -113,10 +112,6 @@ class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
         },
     )
     attendees: List["CalendarEventAttendee"] = Relationship(
-        back_populates="calendar_event",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    property_values: List["CalendarEventPropertyValue"] = Relationship(
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

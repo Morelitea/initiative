@@ -17,20 +17,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import text
 
 from app.db.schema_provisioning import guild_schema_name
-from app.core.messages import CalendarEventMessages, CommonMessages
+from app.core.messages import CalendarEventMessages, CommonMessages, PropertyMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.property import CalendarEventPropertyValue
+from app.models.tenant.property import PropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
-    create_calendar_event_property_value,
     create_document,
     create_guild_calendar,
     create_initiative,
     create_property_definition,
+    create_property_value,
     create_tag,
     get_auth_headers,
     route_session_to_guild,
@@ -704,9 +704,7 @@ async def test_a_move_into_another_initiative_drops_property_values(
     )
     definition = await create_property_definition(session, initiative, name="Table")
     for event in (series, override):
-        await create_calendar_event_property_value(
-            session, event, definition, value_text="3"
-        )
+        await create_property_value(session, event, definition, value_text="3")
     nearby = await create_calendar(session, initiative, a.user, name="Nearby")
     elsewhere = await _enable_calendars(
         session, await create_initiative(session, guild, a.user), a.user
@@ -715,8 +713,9 @@ async def test_a_move_into_another_initiative_drops_property_values(
     async def holding_values() -> list[int]:
         await route_session_to_guild(session, guild.id)
         rows = await session.exec(
-            select(CalendarEventPropertyValue.event_id).where(
-                CalendarEventPropertyValue.event_id.in_([series.id, override.id])
+            select(PropertyValue.entity_id).where(
+                PropertyValue.entity_type == "calendar_event",
+                PropertyValue.entity_id.in_([series.id, override.id]),
             )
         )
         return sorted(rows.all())
@@ -735,7 +734,7 @@ async def test_a_move_into_another_initiative_drops_property_values(
         json={"calendar_id": elsewhere.id},
     )
     assert moved.status_code == 200
-    assert moved.json()["property_values"] == []
+    assert moved.json()["properties"] == []
     assert await holding_values() == []
 
 
@@ -1174,22 +1173,25 @@ class TestGuildCalendarEvents:
     async def test_properties_are_refused(
         self, client: AsyncClient, acting_user, session
     ):
-        """Property definitions belong to an initiative too."""
+        """Property definitions belong to an initiative, so an event in no
+        initiative holds none; clearing them is still a write it takes."""
         a = await acting_user(guild_role=GuildRole.admin, initiative=True)
         definition = await create_property_definition(session, a.initiative)
         calendar = await create_guild_calendar(session, a.guild, a.user)
         event = await create_calendar_event(session, calendar, a.user)
+        route = a.g(f"/properties/calendar_event/{event.id}")
 
         response = await client.put(
-            a.g(f"/calendar-events/{event.id}/properties"),
+            route,
             headers=a.headers,
             json={"values": [{"property_id": definition.id, "value": "anything"}]},
         )
-        assert response.status_code == 400
-        assert (
-            response.json()["detail"]
-            == CalendarEventMessages.GUILD_CALENDAR_NO_PROPERTIES
-        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == PropertyMessages.DEFINITION_NOT_FOUND
+
+        cleared = await client.put(route, headers=a.headers, json={"values": []})
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json() == []
 
     async def test_documents_cannot_be_linked(
         self, client: AsyncClient, acting_user, session

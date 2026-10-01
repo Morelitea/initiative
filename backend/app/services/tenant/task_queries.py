@@ -50,7 +50,6 @@ from app.models.tenant.project import Project
 from app.models.tenant.property import (
     PropertyDefinition,
     PropertyType,
-    TaskPropertyValue,
 )
 from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.task import Task, TaskAssignee, TaskPriority
@@ -313,18 +312,6 @@ async def _annotate_tasks(
         )
 
 
-def _annotate_task_properties(tasks: list[Task]) -> None:
-    """Annotate tasks with serialized ``PropertySummary`` values.
-
-    Relies on ``task.property_values`` being eager-loaded with the
-    ``property_definition`` (and ``value_user`` where relevant) relationship.
-    """
-    for task in tasks:
-        rows = getattr(task, "property_values", []) or []
-        summaries = properties_service.summaries_from_rows(rows)
-        object.__setattr__(task, "properties", summaries)
-
-
 #: How long a list row's description excerpt runs: two lines of a board card.
 _DESCRIPTION_EXCERPT_CHARS: Final = 160
 
@@ -437,7 +424,7 @@ async def list_reads(
     tasks = [row[0] for row in rows]
     await _annotate_tasks(session, tasks)
     await tags_service.annotate_tags(session, tasks)
-    _annotate_task_properties(tasks)
+    await properties_service.annotate_properties(session, tasks)
     return [
         _task_to_list_read(task, head, has_description, guild_id=guild_id)
         for task, head, has_description in rows
@@ -451,10 +438,6 @@ _LIST_ROW_OPTIONS = (
     selectinload(Task.project).selectinload(Project.initiative),
     selectinload(Task.assignees),
     selectinload(Task.task_status),
-    selectinload(Task.property_values).selectinload(
-        TaskPropertyValue.property_definition
-    ),
-    selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
 )
 
 #: What an export row reads beyond the task itself.
@@ -502,10 +485,6 @@ async def load_tasks(session: AsyncSession, task_ids: list[int]) -> list[Task]:
             joinedload(Task.task_status),
             joinedload(Task.creator),
             selectinload(Task.assignees),
-            selectinload(Task.property_values).options(
-                selectinload(TaskPropertyValue.property_definition),
-                selectinload(TaskPropertyValue.value_user),
-            ),
         )
         .order_by(Task.position.asc(), Task.id.asc())
         .execution_options(populate_existing=True)
@@ -519,7 +498,7 @@ async def load_tasks(session: AsyncSession, task_ids: list[int]) -> list[Task]:
         blocker_counts={row[0].id: row[2] for row in rows},
     )
     await tags_service.annotate_tags(session, tasks)
-    _annotate_task_properties(tasks)
+    await properties_service.annotate_properties(session, tasks)
     await _annotate_series_sizes(session, tasks)
     return tasks
 
@@ -632,10 +611,6 @@ def _global_task_options():
         joinedload(Task.project).joinedload(Project.initiative),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
-        selectinload(Task.property_values).selectinload(
-            TaskPropertyValue.property_definition
-        ),
-        selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
     )
 
 
@@ -759,7 +734,7 @@ async def _gather_global_task_reads(
             blocker_counts=blocker_counts,
         )
         await tags_service.annotate_tags(guild_session, tasks)
-        _annotate_task_properties(tasks)
+        await properties_service.annotate_properties(guild_session, tasks)
         return [
             (
                 placement[(_guild_id, task.id)],
@@ -1136,6 +1111,7 @@ async def query_tasks_for_export(
     statement = list_statement(build, q, *_EXPORT_ROW_OPTIONS)
     tasks = list(await session.exec(statement.limit(max_rows)))
     await tags_service.annotate_tags(session, tasks)
+    await properties_service.annotate_properties(session, tasks)
     return tasks
 
 
@@ -1169,6 +1145,7 @@ async def query_tasks_for_detailed_export(
     statement = list_statement(build, q, *_EXPORT_ROW_OPTIONS)
     tasks = list(await session.exec(statement.limit(max_rows)))
     await tags_service.annotate_tags(session, tasks)
+    await properties_service.annotate_properties(session, tasks)
     comments = await _load_comments_for_tasks(session, [t.id for t in tasks if t.id])
     return tasks, comments
 

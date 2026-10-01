@@ -1,4 +1,3 @@
-from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
@@ -6,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload, selectinload, undefer
-from sqlmodel import select, delete
+from sqlmodel import select
 
 from app.api import resource_access
 from app.api.actor_route import ActorRoute
@@ -31,7 +30,6 @@ from app.models.platform.user import User
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment
 from app.models.tenant.project import Project
-from app.models.tenant.property import TaskPropertyValue
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.schemas.ai_generation import (
     GenerateChecklistResponse,
@@ -332,7 +330,6 @@ async def create_task(
             "assignee_ids",
             "task_status_id",
             "tag_ids",
-            "property_values",
             "checklist",
             "tz",
         }
@@ -380,15 +377,6 @@ async def create_task(
                 guild_id=guild_context.guild_id,
                 entity_id=task.id,
                 tag_ids=task_in.tag_ids,
-            )
-        if task_in.property_values:
-            await properties_service.set_task_property_values(
-                session,
-                task,
-                await properties_service.property_values_by_row_id(
-                    session, task_in.property_values
-                ),
-                project.initiative_id,
             )
     except HTTPException:
         await session.rollback()
@@ -441,7 +429,6 @@ async def update_task(
     update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
     tag_ids = update_data.pop("tag_ids", None)
-    property_values = update_data.pop("property_values", None)
     checklist_sent = update_data.pop("checklist", None) is not None
     picked_in = update_data.pop("tz", None)
     scope = update_data.pop("scope", None)
@@ -563,15 +550,6 @@ async def update_task(
                 entity_id=task.id,
                 tag_ids=tag_ids,
             )
-        if property_values is not None:
-            await properties_service.set_task_property_values(
-                session,
-                task,
-                await properties_service.property_values_by_row_id(
-                    session, task_in.property_values or []
-                ),
-                project.initiative_id,
-            )
     except HTTPException:
         await session.rollback()
         raise
@@ -668,9 +646,7 @@ async def move_task(
     # their definitions belong to the old initiative and can't resolve in
     # the new one.
     if source_project.initiative_id != target_project.initiative_id:
-        await session.exec(
-            delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
-        )
+        await properties_service.drop_values(session, "task", [task.id])
     # Only those who can open the destination stay assigned.
     await task_creation_service.set_task_assignees(
         session,
@@ -747,30 +723,7 @@ async def duplicate_task(
 
     # Copy property values — duplicate stays in the same project and
     # therefore the same initiative, so definitions always resolve.
-    source_values_stmt = select(TaskPropertyValue).where(
-        TaskPropertyValue.task_id == original_task.id
-    )
-    source_values_result = await session.exec(source_values_stmt)
-    source_values = source_values_result.all()
-    if source_values:
-        session.add_all(
-            [
-                TaskPropertyValue(
-                    task_id=new_task.id,
-                    property_id=row.property_id,
-                    value_text=row.value_text,
-                    value_number=row.value_number,
-                    value_boolean=row.value_boolean,
-                    value_date=row.value_date,
-                    value_datetime=row.value_datetime,
-                    value_user_id=row.value_user_id,
-                    value_json=deepcopy(row.value_json)
-                    if row.value_json is not None
-                    else None,
-                )
-                for row in source_values
-            ]
-        )
+    await properties_service.copy_values(session, original_task, new_task)
 
     if new_task.description:
         await task_description_service.record_references(

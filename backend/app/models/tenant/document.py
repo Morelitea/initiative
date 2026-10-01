@@ -31,7 +31,6 @@ from app.models.tenant._mixins import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import Initiative
-    from app.models.tenant.property import DocumentPropertyValue
     from app.models.tenant.resource_grant import ResourceGrant
 
 
@@ -128,10 +127,6 @@ class Document(
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="documents")
-    property_values: List["DocumentPropertyValue"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     grants: List["ResourceGrant"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": (

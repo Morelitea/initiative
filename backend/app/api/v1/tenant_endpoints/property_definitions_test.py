@@ -16,19 +16,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.property import (
-    DocumentPropertyValue,
     PropertyDefinition,
     PropertyType,
-    TaskPropertyValue,
+    PropertyValue,
 )
 from app.testing import (
     create_document,
-    create_document_property_value,
     create_initiative,
     create_project,
     create_property_definition,
+    create_property_value,
     create_task,
-    create_task_property_value,
 )
 
 
@@ -394,7 +392,7 @@ async def test_patch_removing_option_reports_orphaned_values(
 
     # Attach a document value that uses the "live" slug.
     doc = await create_document(session, a.initiative, a.user)
-    await create_document_property_value(session, doc, defn, value_text="live")
+    await create_property_value(session, doc, defn, value_text="live")
 
     # Remove "live" from the option list.
     payload = {"options": [{"value": "draft", "label": "Draft"}]}
@@ -409,9 +407,10 @@ async def test_patch_removing_option_reports_orphaned_values(
 
     # DB value should still be present — orphans are preserved.
     result = await session.exec(
-        select(DocumentPropertyValue).where(
-            DocumentPropertyValue.property_id == defn.id,
-            DocumentPropertyValue.document_id == doc.id,
+        select(PropertyValue).where(
+            PropertyValue.property_id == defn.id,
+            PropertyValue.entity_type == "document",
+            PropertyValue.entity_id == doc.id,
         )
     )
     assert result.one_or_none() is not None
@@ -486,27 +485,19 @@ async def test_delete_definition_cascades_to_values(
     task = await create_task(session, project)
     doc = await create_document(session, a.initiative, a.user)
 
-    await create_document_property_value(session, doc, defn, value_text="a doc value")
-    await create_task_property_value(session, task, defn, value_text="a task value")
+    await create_property_value(session, doc, defn, value_text="a doc value")
+    await create_property_value(session, task, defn, value_text="a task value")
 
     response = await client.delete(
         a.g(f"/property-definitions/{defn.id}"), headers=a.headers
     )
     assert response.status_code == 204
 
-    # Doc value row gone
-    doc_val = await session.exec(
-        select(DocumentPropertyValue).where(
-            DocumentPropertyValue.property_id == defn.id
-        )
+    # The doc's and the task's value rows are gone
+    values = await session.exec(
+        select(PropertyValue).where(PropertyValue.property_id == defn.id)
     )
-    assert doc_val.one_or_none() is None
-
-    # Task value row gone
-    task_val = await session.exec(
-        select(TaskPropertyValue).where(TaskPropertyValue.property_id == defn.id)
-    )
-    assert task_val.one_or_none() is None
+    assert values.all() == []
 
     # Definition gone
     defn_row = await session.exec(

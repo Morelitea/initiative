@@ -17,7 +17,7 @@ from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.initiative import Initiative, PermissionKey
-from app.models.tenant.property import DocumentPropertyValue
+from app.models.tenant.property import PropertyValue
 from app.schemas.tenant.import_envelopes import DocumentEnvelope
 from app.services.import_engine.common import (
     ensure_tag,
@@ -150,8 +150,11 @@ class DocumentImporter(NamesPeopleInPassing):
         )
         for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
             session.add(
-                DocumentPropertyValue(
-                    document_id=document.id, property_id=prop_id, **column_kwargs
+                PropertyValue(
+                    entity_type="document",
+                    entity_id=document.id,
+                    property_id=prop_id,
+                    **column_kwargs,
                 )
             )
 

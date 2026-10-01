@@ -876,7 +876,7 @@ async def _apply_file_entry(
     of text, which a file document cannot hold, becomes a spreadsheet read
     from the zip instead."""
     from app.models.tenant.document import Document, DocumentType
-    from app.models.tenant.property import DocumentPropertyValue
+    from app.models.tenant.property import PropertyValue
     from app.models.tenant.upload import Upload
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
     from app.services.import_engine.common import (
@@ -990,8 +990,9 @@ async def _apply_file_entry(
                 )
                 for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
                     session.add(
-                        DocumentPropertyValue(
-                            document_id=document.id,
+                        PropertyValue(
+                            entity_type="document",
+                            entity_id=document.id,
                             property_id=prop_id,
                             **column_kwargs,
                         )

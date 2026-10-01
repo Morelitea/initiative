@@ -14,7 +14,7 @@ from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
-from app.schemas.tenant.property import PropertySummary, PropertyValueInput
+from app.schemas.tenant.property import PropertySummary
 
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
@@ -121,7 +121,6 @@ class TaskCreate(TaskBase):
     assignee_ids: List[PersonId] = Field(default_factory=list)
     task_status_id: Optional[int] = None
     tag_ids: List[int] = Field(default_factory=list, max_length=100)
-    property_values: List[PropertyValueInput] = Field(default_factory=list)
     checklist: List[ChecklistItemInput] = Field(default_factory=list)
 
 
@@ -140,7 +139,6 @@ class TaskUpdate(SanitizedBaseModel):
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
     # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
-    property_values: Optional[List[PropertyValueInput]] = None
     checklist: Optional[List[ChecklistItemInput]] = None
     #: Which tasks of a repeating series the edit is for (``task_series``).
     #: Omitted, it carries forward from this task ("following"). The repeat

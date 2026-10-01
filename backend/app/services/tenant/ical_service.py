@@ -20,6 +20,7 @@ from app.core.relationships import Related
 from app.core.user_input_validators import resolve_zone
 from app.models.tenant.calendar_event import CalendarEvent
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
+from app.schemas.tenant.property import annotated_properties
 from app.services.export.property_values import property_export_dict
 from app.services.tenant import calendar_occurrences
 from app.core.user_display import display_name
@@ -95,9 +96,7 @@ def event_export_dict(
             related.entity.name for related in documents if related.entity is not None
         ),
         "properties": [
-            property_export_dict(pv)
-            for pv in event.property_values or []
-            if pv.property_definition is not None
+            property_export_dict(summary) for summary in annotated_properties(event)
         ],
     }
 

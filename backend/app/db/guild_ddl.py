@@ -48,6 +48,7 @@ from app.db.initiative_rls import (
     dac_asks_at_write,
     governing_path,
     render_entity_access_fn,
+    render_entity_initiative_fn,
     InitiativePath,
 )
 from app.db import gucs
@@ -1077,6 +1078,8 @@ def render_guild_rls_ddl() -> str:
         + render_guild_authorization_functions()
         + "\n"
         + render_entity_access_fn()
+        + "\n"
+        + render_entity_initiative_fn()
         + "\n"
         + render_resource_frozen_fn()
         + "\n"

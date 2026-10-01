@@ -22,7 +22,6 @@ from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMi
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.property import TaskPropertyValue
 
 
 class TaskStatusCategory(str, Enum):
@@ -188,10 +187,6 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
             "primaryjoin": "foreign(Task.created_by) == MemberProfile.id",
             "viewonly": True,
         }
-    )
-    property_values: List["TaskPropertyValue"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
 

@@ -30,6 +30,7 @@ from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCat
 from app.services import notifications as notifications_service
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_description as task_description_service
@@ -249,6 +250,7 @@ async def advance_recurrence_if_needed(
         .execution_options(populate_existing=True)
     )
     await tags_service.annotate_tags(session, [new_task])
+    await properties_service.annotate_properties(session, [new_task])
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"

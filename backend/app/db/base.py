@@ -37,11 +37,7 @@ from app.models.tenant.document import (
 from app.models.platform.notification import Notification
 from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
 from app.models.tenant.tag import Tag
-from app.models.tenant.property import (
-    DocumentPropertyValue,
-    PropertyDefinition,
-    TaskPropertyValue,
-)
+from app.models.tenant.property import PropertyDefinition, PropertyValue
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
@@ -187,8 +183,7 @@ __all__ = [
     "OIDCClaimMapping",
     "Tag",
     "PropertyDefinition",
-    "DocumentPropertyValue",
-    "TaskPropertyValue",
+    "PropertyValue",
     "Queue",
     "QueueItem",
     "Calendar",
