@@ -221,6 +221,7 @@
   "PUSH_NOTIFICATIONS_DISABLED": "Dieser Server sendet keine Push-Benachrichtigungen.",
   "QUERY_INVALID_CONDITIONS": "Ungültige Filterbedingungen",
   "QUERY_INVALID_SORT_FIELDS": "Ungültige Sortierfelder",
+  "QUERY_UNKNOWN_VIEW": "Diese Liste hat keine solche Ansicht",
   "QUERY_UNPARSEABLE": "Das ist kein SQL, das diese Version lesen kann.",
   "QUERY_ONE_STATEMENT_ONLY": "Eine Abfrage besteht aus einer einzigen Anweisung.",
   "QUERY_READ_ONLY": "Eine Abfrage darf nur lesen. Schreibe sie als SELECT.",

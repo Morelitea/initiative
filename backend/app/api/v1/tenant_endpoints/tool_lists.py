@@ -1238,16 +1238,20 @@ async def get_tool_counts(
     document_type: Optional[DocumentType] = Query(
         default=None, description="Documents only: narrow the tag counts by type"
     ),
+    include_tags: bool = Query(
+        default=False, description="Also count the tag tree beside ``view``"
+    ),
 ) -> ToolCountsResponse:
-    """How many rows sit in each of one tool's views, and the tag tree beside
-    the one being shown.
+    """How many rows sit in each of one tool's views, and, when asked, the tag
+    tree beside the one being shown.
 
     Every figure is a count of the tool's own list. ``views`` counts each view
     in the initiative (or the guild) whatever the page's filters, so a toggle
     says how much sits behind each view before it is opened. The tag counts
     are for ``view`` after ``search`` and the tool's own filters, so the tree
     and the list beside it agree; tags are not a filter here, because the tree
-    shows every one.
+    shows every one. A page with no tree leaves ``include_tags`` off and its
+    request runs the view counts alone.
     """
     spec = TOOL_LISTS[tool]
     if view not in spec.views:
@@ -1276,6 +1280,8 @@ async def get_tool_counts(
             )
         )
     ).all()
+    if not include_tags:
+        return ToolCountsResponse(views=dict(view_counts))
 
     shown = select(spec.model.id).where(
         *await _view_conditions(

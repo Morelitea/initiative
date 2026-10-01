@@ -74,6 +74,8 @@ async def test_each_view_counts_what_its_list_holds(
         listed = await _listed(client, actor, tool, initiative_id=home.id, **params)
         assert counts["views"][name] == listed, name
     assert counts["views"]["active"] == 2
+    # A page with no tag tree does not pay for one.
+    assert (counts["tag_counts"], counts["untagged_count"]) == (None, None)
 
 
 @TOOLS
@@ -82,7 +84,7 @@ async def test_the_tag_tree_counts_the_view_shown(
 ):
     actor, home, tag = await _one_of_each(session, acting_user, tool)
 
-    live = await _counts(client, actor, tool, initiative_id=home.id)
+    live = await _counts(client, actor, tool, initiative_id=home.id, include_tags=True)
     assert live["tag_counts"] == {str(tag.id): 1}
     assert live["untagged_count"] == 1
     assert live["tag_counts"][str(tag.id)] == await _listed(
@@ -90,7 +92,7 @@ async def test_the_tag_tree_counts_the_view_shown(
     )
 
     archived = await _counts(
-        client, actor, tool, initiative_id=home.id, view="archived"
+        client, actor, tool, initiative_id=home.id, view="archived", include_tags=True
     )
     assert archived["tag_counts"] == {}
     assert archived["untagged_count"] == 1

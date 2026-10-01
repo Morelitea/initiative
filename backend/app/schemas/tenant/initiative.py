@@ -148,8 +148,9 @@ class ToolCountsResponse(SanitizedBaseModel):
     #: View name -> rows. ``active`` and ``archived`` for every tool, and
     #: ``templates`` for a tool that keeps them.
     views: Dict[str, int]
-    tag_counts: Dict[int, int]
-    untagged_count: int
+    #: The tag tree beside the view asked for; ``None`` unless it was.
+    tag_counts: Optional[Dict[int, int]] = None
+    untagged_count: Optional[int] = None
 
 
 # Member schemas - updated to work with role_id

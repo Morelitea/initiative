@@ -341,6 +341,8 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
     view: status,
+    // Only the tags view shows the tree, so only it pays for the tag counts.
+    ...(viewMode === "tags" ? { include_tags: true } : {}),
   });
 
   // Prefetch adjacent page on hover

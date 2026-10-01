@@ -859,7 +859,9 @@ async def test_the_tag_tree_narrows_by_document_type(
 
     async def untagged(**params) -> int:
         response = await client.get(
-            actor.g("/tools/document/counts"), headers=actor.headers, params=params
+            actor.g("/tools/document/counts"),
+            headers=actor.headers,
+            params={**params, "include_tags": True},
         )
         assert response.status_code == 200, response.text
         return response.json()["untagged_count"]

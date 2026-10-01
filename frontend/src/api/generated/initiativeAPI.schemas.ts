@@ -8712,7 +8712,7 @@ export interface ToolCountsByInitiativeResponse {
 
 export type ToolCountsResponseViews = { [key: string]: number };
 
-export type ToolCountsResponseTagCounts = { [key: string]: number };
+export type ToolCountsResponseTagCounts = { [key: string]: number } | null;
 
 /**
  * One tool's page: how many rows sit in each of its views, and the tag
@@ -8721,7 +8721,7 @@ export type ToolCountsResponseTagCounts = { [key: string]: number };
 export interface ToolCountsResponse {
   views: ToolCountsResponseViews;
   tag_counts: ToolCountsResponseTagCounts;
-  untagged_count: number;
+  untagged_count: number | null;
 }
 
 export interface TrashItem {
@@ -9809,6 +9809,10 @@ export type GetToolCountsApiV1CGuildIdToolsToolCountsGetParams = {
    * Documents only: narrow the tag counts by type
    */
   document_type?: DocumentType | null;
+  /**
+   * Also count the tag tree beside ``view``
+   */
+  include_tags?: boolean;
 };
 
 export type ListProjectsApiV1CGuildIdProjectsGetParams = {

@@ -257,15 +257,16 @@ export function useGetToolCountsByInitiativeApiV1CGuildIdToolsCountsByInitiative
 }
 
 /**
- * How many rows sit in each of one tool's views, and the tag tree beside
- * the one being shown.
+ * How many rows sit in each of one tool's views, and, when asked, the tag
+ * tree beside the one being shown.
  *
  * Every figure is a count of the tool's own list. ``views`` counts each view
  * in the initiative (or the guild) whatever the page's filters, so a toggle
  * says how much sits behind each view before it is opened. The tag counts
  * are for ``view`` after ``search`` and the tool's own filters, so the tree
  * and the list beside it agree; tags are not a filter here, because the tree
- * shows every one.
+ * shows every one. A page with no tree leaves ``include_tags`` off and its
+ * request runs the view counts alone.
  * @summary Get Tool Counts
  */
 export const getToolCountsApiV1CGuildIdToolsToolCountsGet = (

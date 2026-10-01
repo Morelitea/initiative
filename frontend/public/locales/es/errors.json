@@ -209,6 +209,7 @@
   "PUSH_NOTIFICATIONS_DISABLED": "Este servidor no envía notificaciones push.",
   "QUERY_INVALID_CONDITIONS": "Condiciones de filtro no válidas",
   "QUERY_INVALID_SORT_FIELDS": "Campos de ordenamiento no válidos",
+  "QUERY_UNKNOWN_VIEW": "Esta lista no tiene esa vista",
   "QUERY_UNPARSEABLE": "Esto no es SQL que esta versión pueda leer.",
   "QUERY_ONE_STATEMENT_ONLY": "Una consulta es una sola sentencia.",
   "QUERY_READ_ONLY": "Una consulta solo puede leer. Escríbela como un SELECT.",
