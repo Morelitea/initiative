@@ -255,16 +255,17 @@ def _request_body_models() -> set[type[BaseModel]]:
 
     found: set[type[BaseModel]] = set()
 
-    def walk(model: object) -> None:
-        if not (isinstance(model, type) and issubclass(model, BaseModel)):
-            return
-        if model in found or not model.__module__.startswith("app.schemas"):
-            return
-        found.add(model)
-        for info in model.model_fields.values():
-            annotation = info.annotation
-            for candidate in (annotation, *getattr(annotation, "__args__", ())):
-                walk(candidate)
+    def walk(annotation: object) -> None:
+        # An optional body (``Model | None``) and a nested field are both
+        # unions; follow their arguments as well as the annotation itself.
+        for model in (annotation, *getattr(annotation, "__args__", ())):
+            if not (isinstance(model, type) and issubclass(model, BaseModel)):
+                continue
+            if model in found or not model.__module__.startswith("app.schemas"):
+                continue
+            found.add(model)
+            for info in model.model_fields.values():
+                walk(info.annotation)
 
     for route in fastapi_app.routes:
         if isinstance(route, APIRoute) and route.body_field is not None:
