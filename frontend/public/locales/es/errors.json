@@ -4,6 +4,7 @@
   "DOCUMENT_FILE_TOO_LARGE": "El archivo es demasiado grande (máx. 50 MB)",
   "EMAIL_ALREADY_REGISTERED": "Email ya registrado",
   "INVITE_EMAIL_MISMATCH": "Esta invitación se emitió para otra dirección de correo electrónico",
+  "INVITE_DURING_ACCESS_GRANT": "Tienes acceso temporal a esta comunidad. Acepta la invitación cuando termine ese acceso.",
   "OIDC_EMAIL_UNVERIFIED": "Tu proveedor de identidad no confirmó que tu correo electrónico esté verificado, así que no podemos iniciar sesión en una cuenta existente. Verifica tu correo con tu proveedor e inténtalo de nuevo.",
   "REGISTRATION_REQUIRES_INVITE": "El registro requiere un código de invitación",
   "CAPTCHA_REQUIRED": "Por favor completa el captcha e inténtalo de nuevo.",
