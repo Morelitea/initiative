@@ -987,13 +987,14 @@ async def favorite_projects(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
-    """The reader's favorite projects, most recently favorited first."""
+    """The reader's favorite projects, most recently favorited first, in the
+    slim projection the projects list returns for ``slim=true``."""
     favorites = await session.exec(
         select(Project)
         .join(ProjectFavorite, ProjectFavorite.project_id == Project.id)
         .where(ProjectFavorite.user_id == current_user.id)
         .order_by(ProjectFavorite.created_at.desc())
-        .options(*project_load_options())
+        .options(*project_load_options(slim=True))
     )
     readable: List[Project] = []
     for project in favorites.all():
@@ -1004,9 +1005,9 @@ async def favorite_projects(
         except HTTPException:
             continue
         readable.append(project)
-    return await _project_reads_with_order(
-        session, current_user.id, readable, preserve_order=True
-    )
+    reads = await serialize_project_page(session, current_user.id, readable, slim=True)
+    # Every row here is a favorite, so the flag is known without a lookup.
+    return [read.model_copy(update={"is_favorited": True}) for read in reads]
 
 
 @router.post("/{project_id}/favorite", response_model=ProjectFavoriteStatus)

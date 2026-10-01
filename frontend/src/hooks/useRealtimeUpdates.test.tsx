@@ -257,9 +257,7 @@ describe("realtime socket lifecycle", () => {
 
   afterEach(() => {
     setAuthToken(null);
-    vi.restoreAllMocks();
     vi.useRealTimers();
-    vi.unstubAllGlobals();
     queryClient.clear();
     setInvalidationGuild(null);
   });

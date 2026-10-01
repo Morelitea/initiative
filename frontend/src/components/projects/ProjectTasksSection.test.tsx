@@ -12,7 +12,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildDefaultFilterPresets,
@@ -468,10 +468,6 @@ describe("ProjectTasksSection ticking tasks off", () => {
     // which windows it down to no rows at all.
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(800);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1200);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
   });
 
   it("ticks the box and celebrates before the server answers", async () => {

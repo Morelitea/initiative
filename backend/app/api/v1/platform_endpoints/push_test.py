@@ -46,6 +46,32 @@ async def test_register_and_unregister_push_token(
     assert unregister.json() == {"status": "unregistered"}
 
 
+async def test_a_key_does_not_register_a_device(
+    client: AsyncClient, session: AsyncSession
+):
+    """A device is registered in the person's own sign-in."""
+    user = await create_user(session)
+    create = await client.post(
+        "/api/v1/users/me/api-keys",
+        headers=get_auth_headers(user),
+        json={"name": "Pinned"},
+    )
+    assert create.status_code == 201, create.text
+
+    response = await client.post(
+        "/api/v1/push/register",
+        headers={"Authorization": f"Bearer {create.json()['secret']}"},
+        json={"push_token": "key-push-token", "platform": "ios"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "SESSION_REQUIRED"
+    assert (
+        await push_tokens_service.get_push_tokens_for_user(session, user_id=user.id)
+        == []
+    )
+
+
 async def test_unregister_cannot_delete_other_users_token(
     client: AsyncClient, session: AsyncSession
 ):

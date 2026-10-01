@@ -59,7 +59,6 @@ describe("resolveUploadUrl (web)", () => {
 
 describe("resolveUploadUrl (native)", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
     getUploadTokenMock.mockReset();
     getUploadTokenMock.mockReturnValue(null);
   });
@@ -99,10 +98,6 @@ describe("resolveUploadUrl (native)", () => {
 });
 
 describe("resolveArtworkUrl", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("leaves catalog artwork paths alone on web", () => {
     expect(resolveArtworkUrl("/marketplace/core-guild-calendar.svg")).toBe(
       "/marketplace/core-guild-calendar.svg"

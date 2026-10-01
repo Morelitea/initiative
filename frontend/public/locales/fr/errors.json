@@ -4,6 +4,7 @@
   "DOCUMENT_FILE_TOO_LARGE": "Le fichier est trop volumineux (max. 50 Mo)",
   "EMAIL_ALREADY_REGISTERED": "Adresse e-mail déjà enregistrée",
   "INVITE_EMAIL_MISMATCH": "Cette invitation a été émise pour une autre adresse e-mail",
+  "INVITE_DURING_ACCESS_GRANT": "Vous avez un accès temporaire à cette communauté. Acceptez l'invitation une fois cet accès terminé.",
   "OIDC_EMAIL_UNVERIFIED": "Votre fournisseur d'identité n'a pas confirmé que votre adresse e-mail est vérifiée, nous ne pouvons donc pas vous connecter à un compte existant. Vérifiez votre adresse e-mail auprès de votre fournisseur et réessayez.",
   "REGISTRATION_REQUIRES_INVITE": "L'inscription nécessite un code d'invitation",
   "CAPTCHA_REQUIRED": "Veuillez compléter le captcha et réessayer.",

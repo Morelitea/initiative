@@ -36,6 +36,7 @@ from app.models.platform.guild import (
     GuildStatus,
     restore_status_choices,
 )
+from app.models.platform.access_grant import AccessGrant, AccessGrantPurpose
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_setting import GuildSetting
@@ -1682,6 +1683,22 @@ async def redeem_invite_for_user(
     user: User,
 ) -> Guild:
     invite = await _live_invite(session, code=code)
+
+    # A grant reaches the community for its window and makes nobody a
+    # member; joining waits until the grant has ended. A billing grant
+    # reaches the billing account alone.
+    live_grant = await session.exec(
+        select(AccessGrant.id)
+        .where(
+            AccessGrant.user_id == user.id,
+            AccessGrant.guild_id == invite.guild_id,
+            AccessGrant.purpose != AccessGrantPurpose.billing.value,
+            AccessGrant.live(datetime.now(timezone.utc)),
+        )
+        .limit(1)
+    )
+    if live_grant.first() is not None:
+        raise GuildInviteError(GuildMessages.INVITE_DURING_ACCESS_GRANT)
 
     # Email binding. An invite with no bound address
     # (``invitee_email_encrypted`` is NULL) is a shareable link that any
