@@ -431,6 +431,16 @@ per connection, the gates that read the standing staying `plpgsql`, and the
 standing being read once a statement. Each is a count Postgres reports rather
 than a time; when a change lowers one, lower its budget with it.
 
+**The browser journeys** (`frontend/e2e/*.journey.ts`, Playwright, Chromium)
+walk the paths a person takes through an image started from
+`docker-compose.example.yml` as shipped: the first owner building a community
+through to a task, and an invited member seeing only what they were let into.
+`.github/workflows/journeys.yml` runs them on every push to `dev`, nightly, on
+a pull request labelled `journeys`, and before Release Candidate marks a
+candidate checked or Build and Release publishes a build of its own. Each run
+keeps its HTML report for 90 days. They need an empty database: the first
+journey registers the first owner. No retries, as for every other test.
+
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:
 
@@ -463,6 +473,10 @@ cd backend && pytest -m seam app/db/seam_conformance_test.py
 
 # Run all frontend tests
 cd frontend && pnpm test:run
+
+# The browser journeys (frontend/e2e/*.journey.ts) against a fresh install:
+# start docker-compose.example.yml with the image to check, then
+cd frontend && pnpm exec playwright install chromium && JOURNEYS_URL=http://localhost:8173 pnpm test:journeys
 
 # Run frontend tests in watch mode
 cd frontend && pnpm test

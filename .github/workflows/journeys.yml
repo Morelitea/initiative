@@ -1,0 +1,123 @@
+name: Browser Journeys
+
+# The paths a person takes through the app (frontend/e2e), in Chromium, against
+# an image started the way docker-compose.example.yml starts it. Release
+# Candidate and Build and Release need it to pass before an image is marked or
+# published as a release; it also runs on every push to dev, nightly, and on a
+# pull request labelled journeys. Each run keeps its HTML report.
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: An image to pull and run. Empty builds this tree.
+        required: false
+        type: string
+        default: ""
+      ref:
+        description: What to check out, when not the run's own ref (a schedule runs from main).
+        required: false
+        type: string
+        default: ""
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  journeys:
+    name: Browser Journeys
+    if: >-
+      ${{ github.event_name != 'pull_request'
+      || contains(github.event.pull_request.labels.*.name, 'journeys') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Docker Buildx
+        if: inputs.image == ''
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Read the version, and name today for the package refresh
+        if: inputs.image == ''
+        id: build
+        run: |
+          echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+          echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
+      - name: Build this tree's image
+        if: inputs.image == ''
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          # Read only, as upgrade.yml reads it.
+          build-args: |
+            VERSION=${{ steps.build.outputs.version }}
+            APT_REFRESH=${{ steps.build.outputs.day }}
+          cache-from: type=gha,scope=docker-build-linux-amd64
+          load: true
+          tags: morelitea/initiative:latest
+
+      - name: Pull the image to run
+        if: inputs.image != ''
+        env:
+          IMAGE: ${{ inputs.image }}
+        run: |
+          docker pull "$IMAGE"
+          docker tag "$IMAGE" morelitea/initiative:latest
+
+      - name: Start it as the example compose file does
+        # The file as shipped, with the image under test as the
+        # morelitea/initiative:latest it names.
+        run: |
+          mkdir -p "$RUNNER_TEMP/install"
+          cp docker-compose.example.yml "$RUNNER_TEMP/install/docker-compose.yml"
+          cd "$RUNNER_TEMP/install"
+          printf 'POSTGRES_PASSWORD=%s\nSECRET_KEY=%s\n' "$(openssl rand -hex 16)" "$(openssl rand -hex 32)" > .env
+          docker compose up -d --pull never
+          for _ in $(seq 1 90); do
+            if curl -fs http://localhost:8173/api/v1/readyz | grep -q '"status":"ok"'; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs initiative | tail -n 100
+          echo "::error::The server did not become ready."
+          exit 1
+
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Install Chromium
+        # Downloaded each run rather than cached: a cached browser would hold
+        # its share of the Actions cache for every Playwright version.
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Walk the journeys
+        working-directory: frontend
+        env:
+          JOURNEYS_URL: http://localhost:8173
+        run: pnpm test:journeys
+
+      - name: The server's log
+        if: failure()
+        working-directory: ${{ runner.temp }}/install
+        run: docker compose logs initiative | tail -n 300
+
+      - name: Keep the report
+        # The record of what was checked: every journey, with a trace and a
+        # screenshot of any that failed.
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: journeys-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 90

@@ -23,6 +23,7 @@
     "format:api": "biome format ./src/api/generated --write --no-errors-on-unmatched",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:journeys": "playwright test",
     "generate:api": "./scripts/generate-api.sh",
     "build:crypto": "./scripts/build-crypto.sh",
     "prepare": "cd .. && husky ./frontend/.husky"
@@ -143,6 +144,7 @@
     "@biomejs/biome": "2.5.13",
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.2",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/typography": "^0.5.20",
     "@tanstack/router-plugin": "^1.168.38",

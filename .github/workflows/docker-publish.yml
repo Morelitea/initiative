@@ -277,11 +277,19 @@ jobs:
       mode: walk
       image: docker.io/morelitea/initiative@${{ needs.docker-public.outputs.digest }}
 
+  journeys:
+    needs: [candidate, docker-public]
+    uses: ./.github/workflows/journeys.yml
+    with:
+      image: docker.io/morelitea/initiative@${{ needs.docker-public.outputs.digest }}
+
   publish:
     # Tags the checked image as the release: the candidate, or the build
-    # above once its walk passed. Nothing is published unwalked.
-    needs: [decide, candidate, docker-public, walk]
-    if: ${{ !cancelled() && (needs.candidate.outputs.checked == 'true' || needs.walk.result == 'success') }}
+    # above once its walk and journeys passed. Nothing is published unchecked.
+    needs: [decide, candidate, docker-public, walk, journeys]
+    if: >-
+      ${{ !cancelled() && (needs.candidate.outputs.checked == 'true'
+      || (needs.walk.result == 'success' && needs.journeys.result == 'success')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

@@ -73,9 +73,16 @@ jobs:
       mode: walk
       image: docker.io/morelitea/initiative@${{ needs.build.outputs.digest }}
 
+  journeys:
+    name: Journeys
+    needs: build
+    uses: ./.github/workflows/journeys.yml
+    with:
+      image: docker.io/morelitea/initiative@${{ needs.build.outputs.digest }}
+
   checked:
     name: Mark it checked
-    needs: [identify, build, walk]
+    needs: [identify, build, walk, journeys]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
