@@ -1,6 +1,11 @@
 import path from "path";
 import { defineConfig } from "vitest/config";
 
+// The app formats dates and numbers in the runtime's own locale, and the
+// tests expect English. Each test worker is a child process, which takes its
+// locale from this when it starts.
+process.env.LC_ALL = "en_US.UTF-8";
+
 export default defineConfig({
   resolve: {
     alias: {

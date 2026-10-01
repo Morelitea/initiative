@@ -415,8 +415,10 @@ test until one of these catches it. Keep the core cheap: it runs on every pull
 request.
 
 **The nightly run** (`.github/workflows/nightly.yml`) varies what the gates
-hold fixed: Postgres 16 and 18, `TZ=Pacific/Auckland` with a German locale for
-both suites, and a shuffled order (`pytest --shuffle=SEED`, the seed in the
+hold fixed: Postgres 16 and 18, `TZ=Pacific/Auckland` for both suites and a
+German locale for the backend's (the frontend tests pin English in
+`vitest.config.ts`, because the app formats in the browser's locale), and a
+shuffled order (`pytest --shuffle=SEED`, the seed in the
 run's header; `vitest --sequence.shuffle --sequence.seed=SEED`). A failed
 night opens an issue labelled `nightly`. **A flaky test is quarantined, not
 retried**: mark it `@pytest.mark.quarantine(issue=<number>, since="YYYY-MM-DD")`
