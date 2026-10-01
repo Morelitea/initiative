@@ -21,7 +21,6 @@ from app.services.auth import session_lifetime
 from app.services.auth import challenges as challenge_service
 from app.services.auth import sessions as session_service
 from app.services.platform import api_keys as api_keys_service
-from app.services.platform import push_tokens
 
 
 DEFAULT_TOKEN_TTL_MINUTES = 60
@@ -539,8 +538,5 @@ async def revoke_user_sessions(
     # A sign-in part-way through rests on the password it proved, so it goes
     # with the rest rather than standing until it expires.
     await challenge_service.revoke_for_user(system_session, user_id=user.id)
-    # A device ends with the sign-in that registered it; one that names none
-    # goes now rather than at its grace.
-    await push_tokens.drop_unlinked(system_session, user_id=user.id)
     if commit:
         await system_session.commit()

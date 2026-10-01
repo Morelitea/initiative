@@ -6,7 +6,7 @@ recipient's rows on the system engine (``push_notifications.send_push_to_user``)
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Iterable, List, Optional
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -78,21 +78,15 @@ async def get_push_tokens_for_user(
     return list(result.all())
 
 
-#: How long a row that names no sign-in is sent to after it was last
-#: registered.
-UNLINKED_GRACE = timedelta(days=7)
-
-
 async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToken]:
     """The recipient's devices whose sign-in still stands.
 
     A row stands while the session that registered it has a live chain, or,
     registered under a device token, while that token is good. A row that
-    names neither, registered before rows named their sign-in, stands for
-    :data:`UNLINKED_GRACE` after it was last registered; the app registers
-    again each time it starts. Rows whose sign-in has ended are removed, and a
-    row whose session was renewed moves to the live row. Does not commit — the
-    caller owns the transaction.
+    names neither stands for nothing; the app registers again each time it
+    starts. Rows whose sign-in has ended are removed, and a row whose session
+    was renewed moves to the live row. Does not commit — the caller owns the
+    transaction.
     """
     rows = await get_push_tokens_for_user(session, user_id=user_id)
     tips = await session_service.live_chain_tips(
@@ -103,7 +97,6 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
     )
     live: List[PushToken] = []
     ended: List[PushToken] = []
-    unlinked_since = datetime.now(timezone.utc) - UNLINKED_GRACE
     for row in rows:
         if row.session_id is not None:
             tip = tips.get(row.session_id)
@@ -113,9 +106,7 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
             if tip != row.session_id:
                 await follow_session(session, from_id=row.session_id, to_id=tip)
             live.append(row)
-        elif row.device_token_id is not None:
-            (live if row.device_token_id in devices else ended).append(row)
-        elif row.updated_at > unlinked_since:
+        elif row.device_token_id in devices:
             live.append(row)
         else:
             ended.append(row)
@@ -140,22 +131,6 @@ async def live_for_user(session: AsyncSession, *, user_id: int) -> List[PushToke
             )
         )
     return live
-
-
-async def drop_unlinked(session: AsyncSession, *, user_id: int) -> None:
-    """Remove the account's devices that name no sign-in.
-
-    A row registered under a session or a device token ends with it; one that
-    names neither would otherwise stand out its :data:`UNLINKED_GRACE`. Called
-    when every sign-in is revoked. Does not commit.
-    """
-    await session.exec(
-        delete(PushToken).where(
-            PushToken.user_id == user_id,
-            PushToken.session_id.is_(None),
-            PushToken.device_token_id.is_(None),
-        )
-    )
 
 
 async def follow_session(
