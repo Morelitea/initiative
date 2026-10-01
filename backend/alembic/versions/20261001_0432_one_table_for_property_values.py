@@ -15,8 +15,8 @@ Order is create -> backfill -> drop. RLS, its policies and the grants are NOT
 written here: provisioning renders those from the registries, and the boot
 backfill re-applies them to every guild whose stamp this revision made stale.
 
-Revision ID: 20261001_0431
-Revises: 20261001_0430
+Revision ID: 20261001_0432
+Revises: 20261001_0431
 Create Date: 2026-10-01
 """
 
@@ -26,8 +26,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261001_0431"
-down_revision = "20261001_0430"
+revision = "20261001_0432"
+down_revision = "20261001_0431"
 branch_labels = None
 depends_on = None
 
