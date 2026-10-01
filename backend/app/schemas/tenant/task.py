@@ -14,7 +14,11 @@ from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
-from app.schemas.tenant.property import PropertiesOnCreate, PropertySummary
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertiesOnUpdate,
+    PropertySummary,
+)
 
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
@@ -124,7 +128,7 @@ class TaskCreate(TaskBase, PropertiesOnCreate):
     checklist: List[ChecklistItemInput] = Field(default_factory=list)
 
 
-class TaskUpdate(SanitizedBaseModel):
+class TaskUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
     task_status_id: Optional[int] = None

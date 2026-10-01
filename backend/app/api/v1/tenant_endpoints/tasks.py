@@ -431,6 +431,7 @@ async def update_task(
     update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
     tag_ids = update_data.pop("tag_ids", None)
+    update_data.pop("properties", None)
     checklist_sent = update_data.pop("checklist", None) is not None
     picked_in = update_data.pop("tz", None)
     scope = update_data.pop("scope", None)
@@ -552,6 +553,7 @@ async def update_task(
                 entity_id=task.id,
                 tag_ids=tag_ids,
             )
+        await properties_service.write_on_update(session, task, task_in.properties)
     except HTTPException:
         await session.rollback()
         raise

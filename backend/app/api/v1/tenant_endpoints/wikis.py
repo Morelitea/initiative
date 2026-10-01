@@ -598,6 +598,7 @@ async def update_wiki_page(
             entity_id=page.id,
             tag_ids=data["tag_ids"],
         )
+    await properties_service.write_on_update(session, page, page_in.properties)
     if "content" in data:
         await content_references.sync_for_entity(
             session,

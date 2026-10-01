@@ -453,6 +453,9 @@ async def update_queue_item(
             tag_ids=update_data["tag_ids"],
         )
         updated = True
+    if item_in.properties is not None:
+        await properties_service.write_on_update(session, item, item_in.properties)
+        updated = True
 
     if updated:
         session.add(item)

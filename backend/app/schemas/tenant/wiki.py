@@ -13,6 +13,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_re
 from app.schemas.tenant.document import smart_link_url
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
+    PropertiesOnUpdate,
     PropertySummary,
     annotated_properties,
 )
@@ -114,7 +115,7 @@ class WikiPageCreate(PropertiesOnCreate):
     tag_ids: Optional[List[int]] = None
 
 
-class WikiPageUpdate(SanitizedBaseModel):
+class WikiPageUpdate(PropertiesOnUpdate):
     """A change to one page.
 
     Every field is optional and only what is sent is written, so renaming a

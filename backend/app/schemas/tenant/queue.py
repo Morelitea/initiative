@@ -13,6 +13,7 @@ from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
+    PropertiesOnUpdate,
     PropertySummary,
     annotated_properties,
 )
@@ -67,7 +68,7 @@ class QueueItemCreate(QueueItemBase, PropertiesOnCreate):
     task_ids: Optional[List[int]] = None
 
 
-class QueueItemUpdate(SanitizedBaseModel):
+class QueueItemUpdate(PropertiesOnUpdate):
     label: Optional[TitleStr] = None
     position: Optional[float] = None
     user_id: Optional[PersonId] = None

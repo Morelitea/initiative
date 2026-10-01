@@ -1048,6 +1048,12 @@ async def _apply_update(
         # occurrences that kept the series' tags.
         await _followed(session, event, "tags")
         updated = True
+    if event_in.properties is not None:
+        await properties_service.write_on_update(session, event, event_in.properties)
+        await session.flush()
+        # The same for its properties.
+        await _followed(session, event, "properties")
+        updated = True
 
     # Validate dates after applying partial updates
     if updated:

@@ -14,6 +14,7 @@ from app.schemas.recurrence import EventRule, OccurrenceScope
 from app.models.tenant.calendar_event import RSVPStatus
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
+    PropertiesOnUpdate,
     PropertySummary,
     annotated_properties,
 )
@@ -109,7 +110,7 @@ class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
     document_ids: Optional[List[int]] = None
 
 
-class CalendarEventUpdate(SanitizedBaseModel):
+class CalendarEventUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[str] = None
     location: Optional[str] = Field(default=None, max_length=500)

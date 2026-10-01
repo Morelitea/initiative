@@ -11,6 +11,7 @@ from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
+    PropertiesOnUpdate,
     PropertySummary,
     annotated_properties,
 )
@@ -92,7 +93,7 @@ class GalleryListResponse(PageMeta):
     items: List[GallerySummary]
 
 
-class GalleryImageUpdate(SanitizedBaseModel):
+class GalleryImageUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, max_length=255)
     caption: Optional[str] = Field(default=None, max_length=2000)
     tag_ids: Optional[List[int]] = None

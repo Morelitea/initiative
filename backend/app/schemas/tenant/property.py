@@ -164,6 +164,14 @@ class PropertiesOnCreate(SanitizedBaseModel):
     properties: List[PropertyValueInput] = Field(default_factory=list)
 
 
+class PropertiesOnUpdate(SanitizedBaseModel):
+    """What a sub-tool's update takes beside its tags: the custom property
+    values to replace, in the same transaction. Omitted, they stay as they
+    are; a list (empty included) replaces them all."""
+
+    properties: Optional[List[PropertyValueInput]] = None
+
+
 class PropertySummary(SanitizedBaseModel):
     """Lightweight property value for embedding in entity reads.
 

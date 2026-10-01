@@ -585,7 +585,8 @@ async def test_a_create_writes_its_values_with_the_row(
 ):
     """A create carries its values in its own transaction: a queue and an item
     in it come back holding them, and a task naming a person who cannot open
-    its project is refused whole — no task is left without its values."""
+    its project is refused whole — no task is left without its values. A
+    task's update does the same."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     await enable_all_tools(session, a.initiative)
     note = await create_property_definition(session, a.initiative, name="Note")
@@ -632,6 +633,31 @@ async def test_a_create_writes_its_values_with_the_row(
     assert refused.json()["detail"] == "PERSON_CANNOT_READ"
     left = (await session.exec(select(Task).where(Task.title == "Named"))).all()
     assert left == []
+
+    # An update carries them the same way: refused whole, the title unchanged.
+    task = await create_task(session, a.project, title="Kept")
+    edited = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "title": "Renamed",
+            "properties": [{"property_id": owner.id, "value": outsider.id}],
+        },
+    )
+    assert edited.status_code == 422, edited.text
+    kept = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
+    assert kept.json()["title"] == "Kept"
+    edited = await client.patch(
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
+        json={
+            "title": "Renamed",
+            "properties": [{"property_id": note.id, "value": "task"}],
+        },
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["title"] == "Renamed"
+    assert _values(edited.json()["properties"]) == {note.id: "task"}
 
 
 # ---------------------------------------------------------------------------

@@ -458,8 +458,26 @@ async def write_on_create(
     Held to the row's own initiative, read the way the policies read it
     (``entity_initiative``), so a row that belongs to none carries none.
     """
-    if not values:
-        return
+    if values:
+        await _write_in_place(session, row, values)
+
+
+async def write_on_update(
+    session: AsyncSession,
+    row: Any,
+    values: Optional[Sequence[PropertyValueInput]],
+) -> None:
+    """The values an update sent with its row, replacing the ones it holds in
+    the same transaction. ``None`` leaves them as they are."""
+    if values is not None:
+        await _write_in_place(session, row, values)
+
+
+async def _write_in_place(
+    session: AsyncSession, row: Any, values: Sequence[PropertyValueInput]
+) -> None:
+    """``values`` onto ``row`` in the caller's transaction, held to the row's
+    own initiative as the policies read it."""
     await session.flush()
     initiative_id = (
         await session.exec(select(func.entity_initiative(link_for(row).target, row.id)))

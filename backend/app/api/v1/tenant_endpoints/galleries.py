@@ -698,8 +698,8 @@ async def update_gallery_image(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> GalleryImageRead:
-    """Retitle, caption or retag a picture. Requires write access on the
-    gallery."""
+    """Retitle, caption, retag or set the properties of a picture. Requires
+    write access on the gallery."""
     gallery, image = await _load_image(
         session, gallery_id, image_id, current_user, guild_context, access="write"
     )
@@ -716,6 +716,7 @@ async def update_gallery_image(
             entity_id=image.id,
             tag_ids=update_data["tag_ids"],
         )
+    await properties_service.write_on_update(session, image, image_in.properties)
     image.updated_at = datetime.now(timezone.utc)
     session.add(image)
     await attachments_service.claim_uploads(session, image)
