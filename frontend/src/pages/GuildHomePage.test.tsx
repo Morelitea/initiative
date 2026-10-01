@@ -422,7 +422,7 @@ describe("GuildHomePage", () => {
     expect(screen.getByRole("radio", { name: "Active" })).toHaveTextContent("4");
 
     await userEvent.click(templates);
-    await waitFor(() => expect(sought(asked, "template")).toBe("true"));
+    await waitFor(() => expect(sought(asked, "is_template")).toBe("true"));
   });
 
   it("searches the whole community rather than the page in hand", async () => {

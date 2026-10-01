@@ -76,7 +76,10 @@ export const useProjects = (
  *  own templates through `useProjects`, since the status filter picks which of
  *  the three states the same query returns. */
 export const useTemplateProjects = (initiativeId?: number | null) => {
-  return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
+  return useProjects({
+    is_template: true,
+    ...(initiativeId ? { initiative_id: initiativeId } : {}),
+  });
 };
 
 /** Every project the reader may edit — where a task can be moved to. Walks the

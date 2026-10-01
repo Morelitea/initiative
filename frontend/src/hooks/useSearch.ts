@@ -53,7 +53,7 @@ export type SuggestFilters = Omit<SuggestGuildApiV1CGuildIdSearchSuggestGetParam
 const FILTER_FIELDS: Record<keyof SuggestFilters, true> = {
   types: true,
   initiative_id: true,
-  template: true,
+  is_template: true,
   subject: true,
   limit: true,
 };
@@ -88,7 +88,7 @@ const splitFilters = <TData>(
  * This is the ONE lookup behind every picker in the app — the command palette,
  * a mention, a wikilink, a queue link, a template. They differ only in what
  * they narrow to: `types` for what kind of thing, `initiative_id` for where,
- * and `template` for whether it is a blueprint. A picker built on this gets
+ * and `is_template` for whether it is a blueprint. A picker built on this gets
  * ranking, prefix matching and every access gate without asking for them.
  *
  * It answers only the half of a picker's job that starts with typed words;

@@ -122,13 +122,20 @@ export const isToolView = (value: unknown): value is ToolView =>
 /** The list parameters that select a view. */
 export interface ToolViewParams {
   archived?: true;
-  template?: true;
   is_template?: boolean;
 }
 
 type ToolViewSpec = Partial<Record<ToolView, ToolViewParams>>;
 
 const DEFAULT_VIEWS: ToolViewSpec = { active: {}, archived: { archived: true } };
+
+/** A tool with templates: its live rows without them, the templates on their
+ *  own, and an archive holding both. */
+const TEMPLATE_VIEWS: ToolViewSpec = {
+  active: { is_template: false },
+  templates: { is_template: true },
+  archived: { archived: true },
+};
 
 /**
  * Each tool's views, as the list parameters that select them. Mirrors backend
@@ -137,14 +144,8 @@ const DEFAULT_VIEWS: ToolViewSpec = { active: {}, archived: { archived: true } }
  * view of their own. Stated as the exceptions, so a new tool gets the two.
  */
 const TOOL_VIEW_SPECS: Partial<Record<Tool, ToolViewSpec>> = {
-  [Tool.project]: { ...DEFAULT_VIEWS, templates: { template: true } },
-  // The default document list shows templates beside documents; the live
-  // view names the documents alone.
-  [Tool.document]: {
-    active: { is_template: false },
-    templates: { is_template: true },
-    archived: { archived: true },
-  },
+  [Tool.project]: TEMPLATE_VIEWS,
+  [Tool.document]: TEMPLATE_VIEWS,
 };
 
 /** The views a tool's list offers. */

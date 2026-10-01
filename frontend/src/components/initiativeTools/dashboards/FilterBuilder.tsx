@@ -29,6 +29,7 @@ import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DatasetName } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ import { useFieldCatalog } from "@/hooks/useFieldCatalog";
 import { useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import type { MemberSearchScope } from "@/hooks/useUsers";
+import { toolViewParams } from "@/lib/tools";
 import {
   type ConditionValue,
   type FilterFieldSpec,
@@ -98,7 +100,7 @@ export function FilterBuilder({ value, onChange, initiativeId, dataset }: Filter
   // The option lists. Each is a query the canvas or dialog already makes, and
   // each returns only what this viewer can see — so an author cannot filter by
   // something they could not have found in the app anyway.
-  const projects = useProjects({ slim: true });
+  const projects = useProjects({ slim: true, ...toolViewParams(Tool.project, "active") });
   const tags = useTags();
 
   // What may be filtered on, from the server's field registry — one

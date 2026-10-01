@@ -87,7 +87,7 @@ export const EntityPicker = ({
     types: types ?? LINKABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
     // A template's contents are not what somebody is reaching for here.
-    template: false,
+    is_template: false,
     subject: subject ? `${subject.type}:${subject.id}` : undefined,
     enabled: open,
   });

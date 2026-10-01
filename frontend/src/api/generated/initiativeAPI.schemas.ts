@@ -10833,7 +10833,7 @@ export type SearchGuildApiV1CGuildIdSearchGetParams = {
   /**
    * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
    */
-  template?: boolean | null;
+  is_template?: boolean | null;
   /**
    * @minimum 1
    * @maximum 100
@@ -10857,7 +10857,7 @@ export type RecentGuildApiV1CGuildIdSearchRecentGetParams = {
   /**
    * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
    */
-  template?: boolean | null;
+  is_template?: boolean | null;
   /**
    * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */
@@ -10885,7 +10885,7 @@ export type SuggestGuildApiV1CGuildIdSearchSuggestGetParams = {
   /**
    * Omit for both. ``true`` returns only templates (a template picker), ``false`` only real content (a picker choosing where content goes).
    */
-  template?: boolean | null;
+  is_template?: boolean | null;
   /**
    * The thing being written in, as a reference (``document:12``). It is left out of the answer: a thing does not point at itself. A reference that names nothing narrows nothing.
    */
