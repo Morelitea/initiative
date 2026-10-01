@@ -2,7 +2,6 @@ import { useRouter } from "@tanstack/react-router";
 import {
   Copy,
   CreditCard,
-  FolderOpen,
   GripVertical,
   LogOut,
   Plus,
@@ -15,6 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import { createGuildInviteApiV1CommunitiesGuildIdInvitesPost } from "@/api/generated/communities/communities";
 import type { GuildInviteRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -139,7 +139,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
             <>
               <ContextMenuSeparator />
               <ContextMenuItem onClick={handleViewInitiatives}>
-                <FolderOpen className="mr-2 h-4 w-4" />
+                <InitiativeMark className="mr-2 h-4 w-4" />
                 {t("viewInitiatives")}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleViewMembers}>
