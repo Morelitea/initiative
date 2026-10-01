@@ -191,9 +191,10 @@ def test_s3_write_applies_guild_prefix_and_content_type():
     storage.write("abc.png", b"img", content_type="image/png")
     # Keyed under the resolver-supplied guild prefix.
     assert ("bucket", "guild_7/abc.png") in client.objects
-    assert client.objects[("bucket", "guild_7/abc.png")]["extra"]["ContentType"] == (
-        "image/png"
-    )
+    # The content type is the only parameter sent; encryption is the bucket's.
+    assert client.objects[("bucket", "guild_7/abc.png")]["extra"] == {
+        "ContentType": "image/png"
+    }
 
 
 def test_s3_key_reduces_to_basename():
@@ -218,7 +219,7 @@ def test_s3_copy_same_namespace():
     client, storage = _s3()
     storage.write("src.bin", b"payload")
     assert storage.copy("src.bin", "dst.bin") is True
-    assert ("bucket", "guild_7/dst.bin") in client.objects
+    assert client.objects[("bucket", "guild_7/dst.bin")]["extra"] == {}
     # Copying a missing source fails cleanly.
     assert storage.copy("missing.bin", "dst2.bin") is False
 
@@ -476,4 +477,4 @@ def test_dualread_copy_cross_store(tmp_path):
     assert dual.copy("src.png", "dst.png") is True
     obj = client.objects[("bucket", "guild_7/dst.png")]
     # Content-type recovered from the extension so it isn't served as octet-stream.
-    assert obj["extra"]["ContentType"] == "image/png"
+    assert obj["extra"] == {"ContentType": "image/png"}
