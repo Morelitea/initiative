@@ -90,25 +90,29 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const gp = useGuildPath();
 
   const [listFilters, setListFilters] = useState<ToolListFilters<typeof Tool.post>>({});
-  const searchQuery = listFilters.search ?? "";
+  const tagIds = listFilters.tag_ids ?? [];
   const [readFilter, setReadFilter] = useState<ReadFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
   // Which of the board's two states it is showing. An archived notice is off
   // the feed, so this is the only place it can be reached.
   const [archiveState, setArchiveState] = useState<ToolArchiveState>("active");
-  const search = useDebouncedValue(searchQuery, 300);
-
-  // Where the board has been jumped to, if anywhere. Setting it re-anchors the
-  // feed: a new query key, so the reader lands at the top of that month rather
-  // than paging through everything since.
-  const [anchor, setAnchor] = useState<{ period: string; at: string } | null>(null);
+  const search = useDebouncedValue(listFilters.search ?? "", 300).trim();
 
   const filters = {
     initiative_id: fixedInitiativeId,
     archived: archivedParam(archiveState),
-    ...(search.trim() ? { search: search.trim() } : {}),
+    ...(search ? { search } : {}),
+    ...(tagIds.length > 0 ? { tag_ids: tagIds } : {}),
     ...(readFilter === "unread" ? { unread: true } : {}),
   };
+  const filtersKey = JSON.stringify(filters);
+
+  // Where the board has been jumped to, if anywhere. Setting it re-anchors the
+  // feed: a new query key, so the reader lands at the top of that month rather
+  // than paging through everything since. A jump is into one set of results,
+  // so it lapses when the filters change and the board starts at its latest.
+  const [jump, setJump] = useState<{ period: string; at: string; filters: string } | null>(null);
+  const anchor = jump?.filters === filtersKey ? jump : null;
 
   const postsQuery = usePostsFeed({ ...filters, ...(anchor ? { until: anchor.at } : {}) });
 
@@ -153,11 +157,11 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const totalCount = postsQuery.data?.pages[0]?.total_count ?? 0;
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = postsQuery;
 
-  const activeFilterCount = (search.trim() ? 1 : 0) + (readFilter === "unread" ? 1 : 0);
+  const activeFilterCount =
+    (search ? 1 : 0) + (tagIds.length > 0 ? 1 : 0) + (readFilter === "unread" ? 1 : 0);
   const clearFilters = useCallback(() => {
     setListFilters({});
     setReadFilter("all");
-    setAnchor(null);
   }, []);
 
   // The page itself scrolls, not a box inside it, so the virtualizer measures
@@ -259,9 +263,9 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
         virtualizer.scrollToIndex(loaded, { align: "start" });
         return;
       }
-      setAnchor({ period: stop.period, at: stop.anchor });
+      setJump({ period: stop.period, at: stop.anchor, filters: filtersKey });
     },
-    [posts, virtualizer, anchor]
+    [posts, virtualizer, anchor, filtersKey]
   );
 
   const renderCard = useCallback(
@@ -333,7 +337,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
                   variant="link"
                   size="sm"
                   className="h-auto p-0 text-sm"
-                  onClick={() => setAnchor(null)}
+                  onClick={() => setJump(null)}
                 >
                   {t("common:timeline.backToLatest")}
                 </Button>

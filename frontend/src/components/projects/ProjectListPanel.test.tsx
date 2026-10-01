@@ -6,18 +6,20 @@
  */
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildProject, ownerCan, readerCan } from "@/__tests__/factories";
+import { buildPage, buildProject, ownerCan, readerCan } from "@/__tests__/factories";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
 
-const panel = (projects: ReturnType<typeof buildProject>[]) =>
-  renderPage(() => (
+const panel = (projects: ReturnType<typeof buildProject>[]) => {
+  server.use(guildHttp.get("/projects/", () => HttpResponse.json(buildPage(projects))));
+  return renderPage(() => (
     <ProjectListPanel
-      projects={projects}
-      isLoading={false}
-      isError={false}
+      params={{ initiative_id: 1 }}
       loadingLabel="Loading"
       errorLabel="Error"
       noMatchesLabel="No matches"
@@ -25,11 +27,13 @@ const panel = (projects: ReturnType<typeof buildProject>[]) =>
       storagePrefix="project:test"
     />
   ));
+};
 
 // Entering selection lives in the toolbar's overflow menu, alongside import —
 // on a phone it had been claiming a row of its own.
 const selectProject = async (name: string) => {
   const user = userEvent.setup();
+  await screen.findAllByText(name);
   await user.click(await screen.findByRole("button", { name: /more actions/i }));
   await user.click(await screen.findByRole("menuitem", { name: /select items/i }));
   await user.click(await screen.findByRole("button", { name, pressed: false }));

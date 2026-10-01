@@ -9971,6 +9971,10 @@ export type ListQueuesApiV1CGuildIdQueuesGetParams = {
    */
   archived?: boolean | null;
   /**
+   * Only running queues, or only stopped ones.
+   */
+  is_active?: boolean | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -10636,6 +10640,7 @@ export type ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams = {
 export type GetPostTimelineApiV1CGuildIdPostsTimelineGetParams = {
   initiative_id?: number | null;
   search?: string | null;
+  tag_ids?: number[] | null;
   unread?: boolean;
   /**
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.

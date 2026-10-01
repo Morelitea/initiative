@@ -278,6 +278,7 @@ async def get_post_timeline(
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
+    tag_ids: Optional[List[int]] = Query(default=None),
     unread: bool = Query(default=False),
     archived: Optional[bool] = Query(
         default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
@@ -307,6 +308,7 @@ async def get_post_timeline(
         context=guild_context,
         initiative_id=initiative_id,
         search=search,
+        tag_ids=tag_ids,
         unread=unread,
         archived=archived,
     )

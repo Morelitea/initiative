@@ -25,7 +25,6 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   useProjectStatusCounts,
-  useProjects,
   useRemoveProjectTemplate,
   useUnarchiveProject,
 } from "@/hooks/useProjects";
@@ -76,9 +75,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
     ...(status === "templates" ? { template: true } : {}),
     ...(status === "archived" ? { archived: true } : {}),
   };
-  const projectsQuery = useProjects(
-    Object.keys(projectsParams).length > 0 ? projectsParams : undefined
-  );
   // Totals for all three states, so the filter can say how much sits behind
   // each one before it is opened.
   const statusCounts = useProjectStatusCounts(lockedInitiativeId);
@@ -127,8 +123,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
       setIsComposerOpen(false);
     }
   }, [canCreateProjects, setIsComposerOpen]);
-
-  const projects = useMemo(() => projectsQuery.data?.items ?? [], [projectsQuery.data]);
 
   const availableInitiatives = useMemo(() => {
     const initiatives = Array.isArray(initiativesQuery.data) ? initiativesQuery.data : [];
@@ -247,9 +241,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             // Status is a different list, not a different filter of the same
             // one: remounting drops any in-flight bulk selection with it.
             key={status}
-            projects={projects}
-            isLoading={projectsQuery.isLoading}
-            isError={projectsQuery.isError}
+            params={projectsParams}
             loadingLabel={statusCopy.loading}
             errorLabel={statusCopy.error}
             noMatchesLabel={t("noMatchingProjects")}

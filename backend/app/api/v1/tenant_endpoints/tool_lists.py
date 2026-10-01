@@ -546,6 +546,14 @@ async def _calendar_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 # ---------------------------------------------------------------------------
 
 
+async def _queue_conditions(spec: ToolListSpec, req: ListRequest) -> list:
+    """The shared set, and whether the queue is running."""
+    conditions = await _default_conditions(spec, req)
+    if req.values.get("is_active") is not None:
+        conditions.append(Queue.is_active.is_(req.values["is_active"]))
+    return conditions
+
+
 async def _post_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
     conditions = posts_endpoints.board_conditions(
@@ -783,6 +791,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         loader_options=_loads(queues_service.list_loader_options),
         default_order=_order(Queue.updated_at.desc(), Queue.id.desc()),
         serialize=_summaries(QueueSummary),
+        conditions=_queue_conditions,
         params=(
             _initiative_id(),
             search_param(),
@@ -790,6 +799,14 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_dir_param(),
             _tag_ids(Tool.queue),
             _archived(),
+            ListParam(
+                "is_active",
+                Optional[bool],
+                Query(
+                    default=None,
+                    description="Only running queues, or only stopped ones.",
+                ),
+            ),
             page_param(),
             page_size_param(20, ge=1, le=100),
         ),
