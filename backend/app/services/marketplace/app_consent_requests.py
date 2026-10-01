@@ -25,7 +25,7 @@ from app.models.platform.user import User, UserStatus
 from app.models.tenant.app_member_consent import ConsentAccess, ConsentStatus
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.initiative import InitiativeMember
-from app.services.platform import user_notifications
+from app.services.platform import notice_outbox
 from app.services.tenant import app_member_consents
 from app.db.request_context import SystemGuild, Unattributed
 
@@ -158,19 +158,24 @@ async def record_request(
             # Out of the community's schema: the notification is the member's
             # own row in ``public``.
             await set_rls_context(session, Unattributed())
-            await user_notifications.create_notification(
+            await notice_outbox.enqueue(
                 session,
-                user_id=user_id,
-                notification_type=NotificationType.app_consent_requested,
-                data={
-                    "guild_id": guild_id,
-                    "app_id": install_id,
-                    "app_name": app_name or "",
-                    "consent_id": consent_id,
-                    "label": recorded.label,
-                    "access": recorded.requested_access.value,
-                    "target_path": consent_target_path(install_id),
-                },
+                [
+                    notice_outbox.row(
+                        user_id,
+                        guild_id,
+                        NotificationType.app_consent_requested,
+                        {
+                            "guild_id": guild_id,
+                            "app_id": install_id,
+                            "app_name": app_name or "",
+                            "consent_id": consent_id,
+                            "label": recorded.label,
+                            "access": recorded.requested_access.value,
+                            "target_path": consent_target_path(install_id),
+                        },
+                    )
+                ],
             )
             await session.commit()
     return recorded

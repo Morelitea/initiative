@@ -204,6 +204,28 @@ async def test_the_rail_narrows_with_the_filters(
     assert [b["period"] for b in response.json()["buckets"]] == ["2026-02", "2026-01"]
 
 
+async def test_the_rail_follows_the_archive_view(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    made = await _board(session, a)
+    made["jan"].archived_at = datetime.now(timezone.utc)
+    session.add(made["jan"])
+    await session.commit()
+
+    async def periods(**params) -> list[str]:
+        response = await client.get(
+            a.g("/posts/timeline"),
+            headers=a.headers,
+            params={"initiative_id": a.initiative.id, **params},
+        )
+        assert response.status_code == 200, response.text
+        return [b["period"] for b in response.json()["buckets"]]
+
+    assert await periods() == ["2026-03", "2026-02"]
+    assert await periods(archived=True) == ["2026-01"]
+
+
 # ---------------------------------------------------------------------------
 # The anchored feed
 # ---------------------------------------------------------------------------

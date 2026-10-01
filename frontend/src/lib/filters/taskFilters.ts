@@ -51,7 +51,15 @@ export const EMPTY_TASK_FILTERS: TaskFilterSpec = {
   include_archived: false,
 };
 
-const DUE_TOKENS: readonly string[] = ["overdue", "today", "7_days", "30_days"];
+/** Each due window's label in `projects`, in the order the picker offers them. */
+export const DUE_LABEL_KEYS = {
+  overdue: "filters.overdue",
+  today: "filters.dueToday",
+  "7_days": "filters.dueNext7Days",
+  "30_days": "filters.dueNext30Days",
+} as const satisfies Record<DueToken, string>;
+
+const DUE_TOKENS: readonly string[] = Object.keys(DUE_LABEL_KEYS);
 const CATEGORIES: readonly string[] = ["backlog", "todo", "in_progress", "done"];
 
 const numbers = (raw: unknown): number[] =>
@@ -194,7 +202,6 @@ function assigneeConditions(assignees: string[]): (FilterCondition | FilterGroup
   return [{ logic: "or", conditions: [unassigned, someone] }];
 }
 
-/** Compile a spec into the endpoint's `conditions`. */
 function statusConditions(spec: TaskFilterSpec): (FilterCondition | FilterGroup)[] {
   const byId: FilterCondition = {
     field: "task_status_id",
@@ -216,12 +223,10 @@ function statusConditions(spec: TaskFilterSpec): (FilterCondition | FilterGroup)
   return [{ logic: "or", conditions: [byId, byCategory] }];
 }
 
-export function buildTaskConditions(
-  spec: TaskFilterSpec,
-  options: { projectId: number }
-): (FilterCondition | FilterGroup)[] {
+/** The spec's conditions without the project they're scoped to: an export
+ *  applies them to each project it carries. */
+export function taskSpecConditions(spec: TaskFilterSpec): (FilterCondition | FilterGroup)[] {
   return [
-    { field: "project_id", op: "eq", value: options.projectId },
     ...statusConditions(spec),
     ...assigneeConditions(spec.assignees),
     ...(spec.tag_ids.length > 0
@@ -234,6 +239,14 @@ export function buildTaskConditions(
     })),
     ...(spec.due ? dueConditions(spec.due) : []),
   ];
+}
+
+/** Compile a spec into the endpoint's `conditions`. */
+export function buildTaskConditions(
+  spec: TaskFilterSpec,
+  options: { projectId: number }
+): (FilterCondition | FilterGroup)[] {
+  return [{ field: "project_id", op: "eq", value: options.projectId }, ...taskSpecConditions(spec)];
 }
 
 /**

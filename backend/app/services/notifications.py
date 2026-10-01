@@ -85,7 +85,6 @@ from app.services.platform import (
     notice_outbox,
     notification_policy,
     notification_prefs,
-    push_config,
     push_notifications,
     user_notifications,
 )
@@ -396,13 +395,6 @@ async def notify(
     accounts = await accounts_service.load(
         wanted, excluding_ignorers_of=actor_id(actor)
     )
-    # What the deployment and the community let a notice carry, applied here
-    # so a row never holds more than its notice will say. Whether each
-    # recipient wants each channel is the worker's question, asked when it
-    # delivers.
-    policy = await notification_policy.for_send(session, guild_id)
-    pushing = policy.push and (await push_config.ensure_push_config_fresh()).enabled
-    category = category_of(notification_type)
     push_data = {
         "type": notification_type.value,
         **{
@@ -413,6 +405,9 @@ async def notify(
         "guild_id": str(guild_id),
         "target_path": payload["target_path"],
     }
+    # A channel the deployment or the community has switched off is not worded
+    # at all; ``notice`` applies the same answer again to what is.
+    policy = await notification_policy.for_send(session, guild_id)
     rows: list[dict[str, Any]] = []
     for user_id in wanted:
         recipient = accounts.get(user_id)
@@ -436,33 +431,26 @@ async def notify(
             )
             if pieces.link is None:
                 pieces = replace(pieces, link=payload["smart_link"])
-            if policy.redact:
-                pieces = email_outbox.redacted(pieces, category, locale)
-        title, body = (
-            notification_policy.redacted_push(notification_type, locale)
-            if policy.redact
-            else (
-                _nt(f"{key}.title", locale, **filled),
-                _nt(f"{key}.body", locale, **filled),
-            )
-        )
         rows.append(
-            notice_outbox.row(
-                user_id,
-                guild_id,
+            await notice_outbox.notice(
+                session,
+                recipient,
                 notification_type,
                 payload,
+                guild_id=guild_id,
+                push=(
+                    (
+                        _nt(f"{key}.title", locale, **filled),
+                        _nt(f"{key}.body", locale, **filled),
+                    )
+                    if policy.push
+                    else None
+                ),
+                push_data=push_data,
+                email=pieces,
                 rollup_key=rollup_key,
                 actor_id=actor_id(actor),
                 actor_name=actor_name(actor) if actor is not None else None,
-                push_title=title if pushing else None,
-                push_body=body if pushing else None,
-                push_data=push_data if pushing else None,
-                email_subject=pieces.subject if pieces else None,
-                email_headline=pieces.headline if pieces else None,
-                email_body=pieces.body if pieces else None,
-                email_link=pieces.link if pieces else None,
-                email_link_label=pieces.link_label if pieces else None,
                 email_names_line=email_names_line,
             )
         )
@@ -2576,11 +2564,16 @@ async def queue_avatar_removed(session: AsyncSession, *, user: User) -> None:
     of it land together or not at all. A picture that vanished with no
     explanation is a support ticket.
     """
-    await user_notifications.create_notification(
+    await notice_outbox.enqueue(
         session,
-        user_id=user.id,
-        notification_type=NotificationType.avatar_removed,
-        data={"target_path": "/profile"},
+        [
+            notice_outbox.row(
+                cast(int, user.id),
+                None,
+                NotificationType.avatar_removed,
+                {"target_path": "/profile"},
+            )
+        ],
     )
 
 
@@ -2596,14 +2589,19 @@ async def queue_username_changed(
     :func:`queue_avatar_removed`: not something to opt out of, not urgent
     enough to interrupt, and it lands with the change or not at all.
     """
-    await user_notifications.create_notification(
+    await notice_outbox.enqueue(
         session,
-        user_id=user.id,
-        notification_type=NotificationType.username_changed,
-        data={
-            "previous_handle": previous_handle,
-            "target_path": "/profile/account",
-        },
+        [
+            notice_outbox.row(
+                cast(int, user.id),
+                None,
+                NotificationType.username_changed,
+                {
+                    "previous_handle": previous_handle,
+                    "target_path": "/profile/account",
+                },
+            )
+        ],
     )
 
 
@@ -2615,6 +2613,9 @@ async def queue_account_suspended(
     They can still sign in, which is the only reason telling them works: a
     suspension nobody could read would present as the app quietly breaking.
     """
+    # Written here rather than by the notice worker: the time-out screen reads
+    # the reason off this line, and must find this suspension's, not the last
+    # one's, from the moment the suspension commits.
     await user_notifications.create_notification(
         session,
         user_id=user.id,
@@ -2625,9 +2626,14 @@ async def queue_account_suspended(
 
 async def queue_account_unsuspended(session: AsyncSession, *, user: User) -> None:
     """Tell a user their account is theirs again."""
-    await user_notifications.create_notification(
+    await notice_outbox.enqueue(
         session,
-        user_id=user.id,
-        notification_type=NotificationType.account_unsuspended,
-        data={"target_path": "/"},
+        [
+            notice_outbox.row(
+                cast(int, user.id),
+                None,
+                NotificationType.account_unsuspended,
+                {"target_path": "/"},
+            )
+        ],
     )

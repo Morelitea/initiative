@@ -7,7 +7,6 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
 import {
   PropertyFilter,
@@ -24,9 +23,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useTags } from "@/hooks/useTags";
+import type { MemberSearchScope } from "@/hooks/useUsers";
 import {
   ASSIGNEE_ME,
   ASSIGNEE_NONE,
+  DUE_LABEL_KEYS,
   type DueToken,
   type TaskFilterSpec,
 } from "@/lib/filters/taskFilters";
@@ -44,22 +46,27 @@ const STATUS_CATEGORIES: readonly TaskStatusCategory[] = ["backlog", "todo", "in
 const CATEGORY_PREFIX = "category:";
 
 type ProjectTasksFiltersProps = {
-  projectId: number;
+  /** Whose names the assignee picker offers. */
+  memberScope: MemberSearchScope;
+  /** One project's statuses; with none, the categories alone are offered. */
   taskStatuses: TaskStatusRead[];
-  tags: TagRead[];
+  /** Scopes the property filter's definitions; omitted, it offers every
+   *  initiative's. */
+  initiativeId?: number;
   /** The filter values, as one object — the same shape a preset holds. */
   value: TaskFilterSpec;
   onChange: (next: TaskFilterSpec) => void;
 };
 
 export const ProjectTasksFilters = ({
+  memberScope,
   taskStatuses,
-  projectId,
-  tags,
+  initiativeId,
   value,
   onChange,
 }: ProjectTasksFiltersProps) => {
   const { t } = useTranslation("projects");
+  const { data: tags = [] } = useTags();
 
   const patch = (fields: Partial<TaskFilterSpec>) => onChange({ ...value, ...fields });
 
@@ -113,7 +120,7 @@ export const ProjectTasksFilters = ({
           <MemberMultiSelect
             id="assignee-filter"
             variant="filter"
-            scope={{ type: "canOpen", tool: Tool.project, id: projectId }}
+            scope={memberScope}
             selectedIds={assigneeIds.map(Number).filter(Number.isFinite)}
             onChange={(ids) => setAssignees({ ids: ids.map(String) })}
             tokens={[
@@ -147,10 +154,11 @@ export const ProjectTasksFilters = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("filters.allDueDates")}</SelectItem>
-              <SelectItem value="overdue">{t("filters.overdue")}</SelectItem>
-              <SelectItem value="today">{t("filters.dueToday")}</SelectItem>
-              <SelectItem value="7_days">{t("filters.dueNext7Days")}</SelectItem>
-              <SelectItem value="30_days">{t("filters.dueNext30Days")}</SelectItem>
+              {Object.entries(DUE_LABEL_KEYS).map(([token, labelKey]) => (
+                <SelectItem key={token} value={token}>
+                  {t(labelKey)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -225,6 +233,7 @@ export const ProjectTasksFilters = ({
         </div>
       </div>
       <PropertyFilter
+        initiativeId={initiativeId}
         value={value.properties}
         onChange={(properties: PropertyFilterCondition[]) => patch({ properties })}
       />

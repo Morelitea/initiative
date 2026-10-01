@@ -1444,7 +1444,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     from app.services import email as email_service
     from app.services.platform import guild_purge
     from app.services.platform import intake as intake_service
-    from app.services.platform import user_notifications
+    from app.services.platform import notice_outbox
 
     await set_rls_context(session, Unattributed())
     guild = (
@@ -1467,14 +1467,20 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
             )
         )
     ).all()
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(
+                user_id,
+                None,
+                NotificationType.guild_on_hold,
+                {"community": guild.name, "contact": contact, "target_path": "/"},
+            )
+            for user_id in seat_holders
+        ],
+    )
     recipients: list[str] = []
     for user_id in seat_holders:
-        await user_notifications.create_notification(
-            session,
-            user_id=user_id,
-            notification_type=NotificationType.guild_on_hold,
-            data={"community": guild.name, "contact": contact, "target_path": "/"},
-        )
         recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
     await session.commit()
     if not recipients:

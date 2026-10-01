@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, ChevronDown, Filter, Loader2, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
@@ -15,13 +15,13 @@ import {
   ToolArchiveFilter,
 } from "@/components/initiativeTools/shared/ToolArchiveFilter";
 import { FilterCountBadge } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   DateRangeField,
   dateRangeParams,
-  isDateRangeSet,
   type LocalDateRange,
   useFormatDateRange,
 } from "@/components/ui/date-range-field";
@@ -34,6 +34,12 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useExportJob } from "@/hooks/useExportJob";
 import { useWizard } from "@/hooks/useWizard";
 import { formatBytes } from "@/lib/fileUtils";
+import {
+  DUE_LABEL_KEYS,
+  EMPTY_TASK_FILTERS,
+  type TaskFilterSpec,
+  taskSpecConditions,
+} from "@/lib/filters/taskFilters";
 import { toolExportEndpoint, toolNavLabelKey } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -64,10 +70,6 @@ type EntitiesScope = Extract<ExportWizardScope, { kind: "entities" }>;
 
 const DEFAULT_DOCUMENT_FORMATS = { native: "pdf", spreadsheet: "xlsx" };
 
-/** Tools whose content has a filter of its own, and the key it travels under
- *  in `filters`: a calendar's events, by date. */
-const CONTENT_DATE_FILTERS: Partial<Record<Tool, "events">> = { [Tool.calendar]: "events" };
-
 /** An export's `archived`: omitted exports live and archived alike. */
 const ARCHIVED_FOR: Record<ToolArchiveChoice, boolean | undefined> = {
   all: undefined,
@@ -93,18 +95,116 @@ const compact = (filters: object): Record<string, unknown> =>
     })
   );
 
+/** What the wizard narrows tools' content by: a calendar's events by date, a
+ *  project's tasks by the task list's own filters. */
+interface ContentFilters {
+  events: LocalDateRange;
+  tasks: TaskFilterSpec;
+}
+
+/** Nothing narrowed. A backup carries every task, archived ones too, and a
+ *  report the ones its task list shows, so the archived switch starts where
+ *  the chosen output does. */
+const emptyContent = (backup: boolean): ContentFilters => ({
+  events: {},
+  tasks: { ...EMPTY_TASK_FILTERS, include_archived: backup },
+});
+
+/** The same filters for another output: the archived switch moves to where
+ *  that output starts, and everything else stays as it was set. */
+const forOutput = (content: ContentFilters, backup: boolean): ContentFilters => ({
+  ...content,
+  tasks: { ...content.tasks, include_archived: backup },
+});
+
+/** A project's `tasks`: the conditions the task list sends and its archived
+ *  switch, or nothing while they are where the output starts. */
+const taskExportParams = (spec: TaskFilterSpec, backup: boolean): Record<string, unknown> => {
+  const conditions = taskSpecConditions(spec);
+  if (conditions.length === 0 && spec.include_archived === backup) return {};
+  return {
+    ...(conditions.length > 0 ? { conditions: JSON.stringify(conditions) } : {}),
+    include_archived: spec.include_archived,
+  };
+};
+
+interface ContentFieldProps {
+  value: ContentFilters;
+  onChange: (next: ContentFilters) => void;
+  /** The initiative being exported, where there is one. */
+  initiativeId?: number;
+}
+
+/** A calendar's events, by the dates they start in. */
+function EventDatesField({ value, onChange }: ContentFieldProps) {
+  const { t } = useTranslation("exports");
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="calendar-content-dates" className="text-xs">
+        {t("wizard.filter.eventDates")}
+      </Label>
+      <DateRangeField
+        id="calendar-content-dates"
+        value={value.events}
+        onChange={(events) => onChange({ ...value, events })}
+      />
+    </div>
+  );
+}
+
+/** A project's tasks, by the task list's own filters. With no one project to
+ *  read statuses from, statuses are picked by category. */
+function TaskFiltersField({ value, onChange, initiativeId }: ContentFieldProps) {
+  const { t } = useTranslation("exports");
+  return (
+    <div className="space-y-2">
+      <p className="font-medium text-xs">{t("wizard.filter.tasks")}</p>
+      <ProjectTasksFilters
+        memberScope={
+          initiativeId == null ? { type: "guild" } : { type: "initiative", initiativeId }
+        }
+        taskStatuses={[]}
+        initiativeId={initiativeId}
+        value={value.tasks}
+        onChange={(tasks) => onChange({ ...value, tasks })}
+      />
+    </div>
+  );
+}
+
+interface ContentFilter {
+  /** What it adds to the tool's `filters` entry, for a backup or a report. */
+  params: (content: ContentFilters, backup: boolean) => Record<string, unknown>;
+  /** Its step's prompt and note, when exporting named entities. */
+  prompt: string;
+  note: string;
+  Field: (props: ContentFieldProps) => ReactNode;
+}
+
+/** Tools whose content has a filter of its own. */
+const CONTENT_FILTERS: Partial<Record<Tool, ContentFilter>> = {
+  [Tool.calendar]: {
+    params: ({ events }) => ({ events: dateRangeParams(events) }),
+    prompt: "wizard.content.prompt",
+    note: "wizard.content.allDatesNote",
+    Field: EventDatesField,
+  },
+  [Tool.project]: {
+    params: ({ tasks }, backup) => ({ tasks: taskExportParams(tasks, backup) }),
+    prompt: "wizard.content.tasksPrompt",
+    note: "wizard.content.allTasksNote",
+    Field: TaskFiltersField,
+  },
+};
+
 /** One tool's `filters` entry: its list filters, and its content filter. */
 const toolExportFilters = (
   tool: Tool,
   listFilters: ToolListFilters | undefined,
-  contentDates: LocalDateRange
-): Record<string, unknown> => {
-  const contentKey = CONTENT_DATE_FILTERS[tool];
-  return compact({
-    ...listFilters,
-    ...(contentKey ? { [contentKey]: dateRangeParams(contentDates) } : {}),
-  });
-};
+  content: ContentFilters,
+  backup: boolean
+): Record<string, unknown> =>
+  compact({ ...listFilters, ...CONTENT_FILTERS[tool]?.params(content, backup) });
 
 /** The wizard's step trail and its export job, reset to a fresh flow when the
  *  dialog closes (state only — a job already started keeps polling in the hook
@@ -171,27 +271,6 @@ function ExportProgress({
   );
 }
 
-/** The date range a tool's content is narrowed by — a calendar's events. */
-function ContentDatesField({
-  tool,
-  value,
-  onChange,
-}: {
-  tool: Tool;
-  value: LocalDateRange;
-  onChange: (next: LocalDateRange) => void;
-}) {
-  const { t } = useTranslation("exports");
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={`${tool}-content-dates`} className="text-xs">
-        {t("wizard.filter.eventDates")}
-      </Label>
-      <DateRangeField id={`${tool}-content-dates`} value={value} onChange={onChange} />
-    </div>
-  );
-}
-
 /** A tool card's "Filter" disclosure: which of the tool's things to export
  *  (its list's own filters, plus live / archived / both), and what inside
  *  them where the content has a filter of its own. */
@@ -199,18 +278,23 @@ function ToolFilterSection({
   tool,
   value,
   onChange,
-  contentDates,
-  onContentDatesChange,
+  content,
+  onContentChange,
+  backup,
+  initiativeId,
 }: {
   tool: Tool;
   value: ToolListFilters;
   onChange: (next: ToolListFilters) => void;
-  contentDates: LocalDateRange;
-  onContentDatesChange: (next: LocalDateRange) => void;
+  content: ContentFilters;
+  onContentChange: (next: ContentFilters) => void;
+  backup: boolean;
+  initiativeId?: number;
 }) {
   const { t } = useTranslation(["exports", "nav"]);
   const [open, setOpen] = useState(false);
-  const count = Object.keys(toolExportFilters(tool, value, contentDates)).length;
+  const count = Object.keys(toolExportFilters(tool, value, content, backup)).length;
+  const ContentField = CONTENT_FILTERS[tool]?.Field;
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -239,8 +323,8 @@ function ToolFilterSection({
         <div className="flex flex-col gap-3">
           <ToolFilterFields tool={tool} value={value} onChange={onChange} />
         </div>
-        {CONTENT_DATE_FILTERS[tool] ? (
-          <ContentDatesField tool={tool} value={contentDates} onChange={onContentDatesChange} />
+        {ContentField ? (
+          <ContentField value={content} onChange={onContentChange} initiativeId={initiativeId} />
         ) : null}
       </CollapsibleContent>
     </Collapsible>
@@ -249,11 +333,28 @@ function ToolFilterSection({
 
 /** One tool's active filters, briefly: "1 Jul – 30 Sep 2026 · 2 tags". */
 function useDescribeFilters() {
-  const { t } = useTranslation("exports");
+  const { t } = useTranslation(["exports", "projects"]);
   const formatRange = useFormatDateRange();
-  return (filters: Record<string, unknown>, contentDates: LocalDateRange): string => {
+  return (filters: Record<string, unknown>, content: ContentFilters, backup: boolean): string => {
     const parts: string[] = [];
-    if ("events" in filters) parts.push(formatRange(contentDates));
+    if ("events" in filters) parts.push(formatRange(content.events));
+    if ("tasks" in filters) {
+      const { status_ids, status_categories, assignees, tag_ids, properties, due } = content.tasks;
+      const statuses = status_ids.length + status_categories.length;
+      const taskParts = [
+        statuses > 0 && t("wizard.filterSummary.statuses", { count: statuses }),
+        assignees.length > 0 && t("wizard.filterSummary.assignees", { count: assignees.length }),
+        due && t(`projects:${DUE_LABEL_KEYS[due]}`),
+        tag_ids.length > 0 && t("wizard.filterSummary.tags", { count: tag_ids.length }),
+        properties.length > 0 && t("wizard.filterSummary.more", { count: properties.length }),
+        // Said only where it differs from what the output carries anyway.
+        content.tasks.include_archived !== backup &&
+          t(backup ? "wizard.filterSummary.withoutArchived" : "wizard.filterSummary.withArchived"),
+      ];
+      parts.push(
+        t("wizard.filterSummary.tasks", { filters: taskParts.filter(Boolean).join(", ") })
+      );
+    }
     if (typeof filters.search === "string") {
       parts.push(t("wizard.filterSummary.search", { search: filters.search }));
     }
@@ -262,7 +363,7 @@ function useDescribeFilters() {
     }
     if (filters.archived === true) parts.push(t("wizard.filterSummary.archivedOnly"));
     if (filters.archived === false) parts.push(t("wizard.filterSummary.activeOnly"));
-    const described = new Set(["events", "search", "tag_ids", "archived"]);
+    const described = new Set(["events", "tasks", "search", "tag_ids", "archived"]);
     const more = Object.keys(filters).filter((key) => !described.has(key)).length;
     if (more > 0) parts.push(t("wizard.filterSummary.more", { count: more }));
     return parts.join(" · ");
@@ -289,7 +390,7 @@ function AggregateExportWizard({
   const [formats, setFormats] = useState<Record<string, string>>({});
   const [documentFormats, setDocumentFormats] = useState(DEFAULT_DOCUMENT_FORMATS);
   const [listFilters, setListFilters] = useState<Partial<Record<Tool, ToolListFilters>>>({});
-  const [contentDates, setContentDates] = useState<LocalDateRange>({});
+  const [content, setContent] = useState(() => emptyContent(true));
 
   const { step, go, commit, back, canGoBack, exportJob } = useExportWizardFlow<
     "mode" | "backup" | "report" | "confirm"
@@ -300,7 +401,7 @@ function AggregateExportWizard({
     setFormats({});
     setDocumentFormats(DEFAULT_DOCUMENT_FORMATS);
     setListFilters({});
-    setContentDates({});
+    setContent(emptyContent(true));
   });
 
   const visibleTools = AGGREGATE_EXPORT_TOOLS;
@@ -311,7 +412,9 @@ function AggregateExportWizard({
   // Each included tool's filters, and only the tools that have some; no
   // `filters` param at all when none do.
   const activeFilters = visibleTools.flatMap((tool) => {
-    const filters = included(tool) ? toolExportFilters(tool, listFilters[tool], contentDates) : {};
+    const filters = included(tool)
+      ? toolExportFilters(tool, listFilters[tool], content, mode === "backup")
+      : {};
     return Object.keys(filters).length > 0 ? [[tool, filters] as const] : [];
   });
   const filtersParam =
@@ -365,8 +468,10 @@ function AggregateExportWizard({
       tool={tool}
       value={listFilters[tool] ?? {}}
       onChange={(next) => setListFilters((prev) => ({ ...prev, [tool]: next }))}
-      contentDates={contentDates}
-      onContentDatesChange={setContentDates}
+      content={content}
+      onContentChange={setContent}
+      backup={mode === "backup"}
+      initiativeId={scope.kind === "initiative" ? scope.initiativeId : undefined}
     />
   );
 
@@ -444,6 +549,9 @@ function AggregateExportWizard({
               type="button"
               className="w-full rounded-lg border p-4 text-left transition-colors hover:bg-accent"
               onClick={() => {
+                if (option !== mode) {
+                  setContent((prev) => forOutput(prev, option === "backup"));
+                }
                 setMode(option);
                 go(option);
               }}
@@ -668,7 +776,7 @@ function AggregateExportWizard({
                 <p key={tool} className="text-muted-foreground text-xs">
                   {t("wizard.confirm.toolFilters", {
                     tool: toolLabel(tool),
-                    filters: describeFilters(filters, contentDates),
+                    filters: describeFilters(filters, content, mode === "backup"),
                   })}
                 </p>
               ))}
@@ -711,22 +819,27 @@ function EntitiesExportWizard({
   onOpenChange,
 }: ExportWizardProps & { scope: EntitiesScope }) {
   const { t } = useTranslation("exports");
-  const formatRange = useFormatDateRange();
+  const describeFilters = useDescribeFilters();
   const { tool, ids, formats, filenameStem, extraActions = [] } = scope;
-  const contentKey = CONTENT_DATE_FILTERS[tool];
+  const contentFilter = CONTENT_FILTERS[tool];
 
   // A tool with one format and nothing client-side has no choice to offer,
   // so the wizard starts past it.
   const only = formats.length === 1 && extraActions.length === 0 ? formats[0] : null;
   const [option, setOption] = useState<ExportFormatOption | null>(only);
-  const [contentDates, setContentDates] = useState<LocalDateRange>({});
+  const backup = option?.format === "json";
+  const [content, setContent] = useState(() => emptyContent(only?.format === "json"));
 
   const { step, go, commit, back, canGoBack, exportJob } = useExportWizardFlow<
     "format" | "content" | "confirm"
-  >(open, only ? (contentKey ? "content" : "confirm") : "format", () => {
+  >(open, only ? (contentFilter ? "content" : "confirm") : "format", () => {
     setOption(only);
-    setContentDates({});
+    setContent(emptyContent(only?.format === "json"));
   });
+
+  // Only the content filter travels for named entities: the ids already say
+  // which things.
+  const filters = toolExportFilters(tool, undefined, content, backup);
 
   // The menu's grouping, kept: the JSON envelope is the importable backup;
   // every other format, and the client-side extras, is a report.
@@ -737,9 +850,6 @@ function EntitiesExportWizard({
     if (exportJob.busy || !option) {
       return;
     }
-    // Only the content key travels for named entities: the ids already say
-    // which things.
-    const filters = toolExportFilters(tool, undefined, contentDates);
     commit("progress");
     void exportJob.start({
       endpoint: toolExportEndpoint(tool),
@@ -759,8 +869,11 @@ function EntitiesExportWizard({
       variant="outline"
       className="w-full justify-start"
       onClick={() => {
+        if ((format.format === "json") !== backup) {
+          setContent((prev) => forOutput(prev, format.format === "json"));
+        }
         setOption(format);
-        go(contentKey ? "content" : "confirm");
+        go(contentFilter ? "content" : "confirm");
       }}
     >
       {t(format.labelKey as never)}
@@ -769,11 +882,11 @@ function EntitiesExportWizard({
 
   const stepDescription = {
     format: t("wizard.format.prompt"),
-    content: t("wizard.content.prompt"),
+    content: contentFilter ? t(contentFilter.prompt as never) : null,
     confirm: t("wizard.confirm.prompt"),
     progress: null,
   }[step];
-  const steps = [...(only ? [] : ["format"]), ...(contentKey ? ["content"] : []), "confirm"];
+  const steps = [...(only ? [] : ["format"]), ...(contentFilter ? ["content"] : []), "confirm"];
   const total = steps.length;
   const position = step === "progress" ? null : steps.indexOf(step) + 1;
 
@@ -822,10 +935,10 @@ function EntitiesExportWizard({
         </div>
       )}
 
-      {step === "content" && (
+      {step === "content" && contentFilter && (
         <div className="space-y-4">
-          <ContentDatesField tool={tool} value={contentDates} onChange={setContentDates} />
-          <p className="text-muted-foreground text-xs">{t("wizard.content.allDatesNote")}</p>
+          <contentFilter.Field value={content} onChange={setContent} />
+          <p className="text-muted-foreground text-xs">{t(contentFilter.note as never)}</p>
           <Button className="w-full" onClick={() => go("confirm")}>
             {t("wizard.next")}
           </Button>
@@ -839,8 +952,10 @@ function EntitiesExportWizard({
             <p className="text-muted-foreground text-xs">
               {t("wizard.confirm.selected", { count: ids.length })}
             </p>
-            {contentKey && isDateRangeSet(contentDates) ? (
-              <p className="text-muted-foreground text-xs">{formatRange(contentDates)}</p>
+            {Object.keys(filters).length > 0 ? (
+              <p className="text-muted-foreground text-xs">
+                {describeFilters(filters, content, backup)}
+              </p>
             ) : null}
           </div>
           <Button className="w-full" disabled={exportJob.busy} onClick={startExport}>

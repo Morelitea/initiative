@@ -30,6 +30,7 @@ import type {
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
@@ -1193,9 +1194,8 @@ export const ProjectTasksSection = ({
           }
         >
           <ProjectTasksFilters
+            memberScope={{ type: "canOpen", tool: Tool.project, id: projectId }}
             taskStatuses={sortedTaskStatuses}
-            projectId={projectId}
-            tags={tags}
             value={appliedSpec}
             onChange={applySpec}
           />

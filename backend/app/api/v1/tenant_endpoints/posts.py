@@ -78,6 +78,7 @@ from app.services import notifications as notifications_service
 from app.services import rls as rls_service
 from app.services.notifications import AppAuthor
 from app.core.search import SearchEntityType
+from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
@@ -233,6 +234,7 @@ def board_conditions(
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     unread: bool = False,
+    archived: Optional[bool] = None,
 ) -> list:
     """Which notices this reader may see on a board — the whole rule, once.
 
@@ -240,11 +242,9 @@ def board_conditions(
     rail that counted a different set would offer months with nothing in them
     (or, worse, hide months that do). So the gates are built here and both
     routes take them: the guild, the feature switch, sharing and the filters
-    (:func:`tool_listing.base_conditions`), then publication — a notice
-    scheduled for later is on the board only for the people who could edit it.
-
-    The archive answer is the caller's: the feed takes an ``archived``
-    parameter and the rail does not.
+    (:func:`tool_listing.base_conditions`), the archive state, then
+    publication — a notice scheduled for later is on the board only for the
+    people who could edit it.
 
     An installed app (``user_id`` ``None``) keeps no read markers, so ``unread``
     narrows nothing for it.
@@ -259,6 +259,7 @@ def board_conditions(
         search=search,
         tag_ids=tag_ids,
     )
+    conditions.append(archive_service.archive_filter_clause(Post, archived))
     if unread and user_id is not None:
         conditions.append(posts_service.unread_clause(user_id))
     return conditions
@@ -278,6 +279,9 @@ async def get_post_timeline(
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
     unread: bool = Query(default=False),
+    archived: Optional[bool] = Query(
+        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
+    ),
     tz: Optional[str] = Query(
         default=None,
         description=(
@@ -304,6 +308,7 @@ async def get_post_timeline(
         initiative_id=initiative_id,
         search=search,
         unread=unread,
+        archived=archived,
     )
     return TimelineResponse(
         buckets=await timeline_service.month_buckets(

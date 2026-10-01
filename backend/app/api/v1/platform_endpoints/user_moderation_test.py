@@ -16,11 +16,18 @@ from app.main import app
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import UserRole, UserStatus
-from app.testing import create_guild, create_guild_membership, create_user, emitted
+from app.testing import (
+    create_guild,
+    create_guild_membership,
+    create_user,
+    emitted,
+    drain_notices,
+)
 from app.testing.factories import get_auth_headers
 
 
 async def _notification_types(session: AsyncSession, user_id: int) -> set[str]:
+    await drain_notices()
     rows = (
         await session.exec(select(Notification).where(Notification.user_id == user_id))
     ).all()

@@ -555,9 +555,7 @@ async def _post_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         search=values.get("search"),
         tag_ids=values.get("tag_ids"),
         unread=bool(values.get("unread")),
-    )
-    conditions.append(
-        archive_service.archive_filter_clause(Post, values.get("archived"))
+        archived=values.get("archived"),
     )
     if values.get("until") is not None:
         conditions.append(posts_service.anchored_clause(values["until"]))

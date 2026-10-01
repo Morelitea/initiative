@@ -31,6 +31,7 @@ from app.services.import_engine.mapping import (
     build_envelope,
     dedupe_names,
     iso_from_timestamp,
+    repeat_fields,
     statuses_from_names,
 )
 
@@ -63,6 +64,13 @@ NO_BUCKET = "Tasks"
 
 #: A Vikunja timestamp for "never".
 _ZERO_TIME = "0001-01-01"
+
+#: Vikunja's ``repeat_mode``: an interval from the due date (the default),
+#: the same day each month, or an interval from when it was done.
+_REPEAT_MONTHLY = 1
+_REPEAT_FROM_DONE = 2
+#: ``repeat_after`` is in seconds.
+_DAY = 86400
 
 #: Task-list entries Vikunja writes into a description.
 _TASK_ITEM = re.compile(
@@ -142,6 +150,28 @@ def _stamp(value: Any) -> Optional[str]:
     if not text or text.startswith(_ZERO_TIME):
         return None
     return iso_from_timestamp(text)
+
+
+def _repeat(source: dict[str, Any]) -> tuple[str | None, bool]:
+    """A task's repeat as a rule, and whether it counts from completion. An
+    interval that is not whole days, or that is not a number, has no rule a
+    task repeats by."""
+    try:
+        mode = int(source.get("repeat_mode") or 0)
+        seconds = int(source.get("repeat_after") or 0)
+    except (TypeError, ValueError):
+        return None, False
+    if mode == _REPEAT_MONTHLY:
+        return "RRULE:FREQ=MONTHLY", False
+    if seconds <= 0 or seconds % _DAY:
+        return None, False
+    days = seconds // _DAY
+    rule = (
+        f"RRULE:FREQ=WEEKLY;INTERVAL={days // 7}"
+        if days % 7 == 0
+        else f"RRULE:FREQ=DAILY;INTERVAL={days}"
+    )
+    return rule, mode == _REPEAT_FROM_DONE
 
 
 def _projects(content: str) -> list[dict[str, Any]]:
@@ -250,6 +280,13 @@ def build_project_envelope(
             stamp = _stamp(source.get(key))
             if stamp:
                 task[field] = stamp
+        # Vikunja's dates are UTC, and so is the day its interval counts in. A
+        # finished task holds no repeat here; the series goes on in its next.
+        rule, rolling = _repeat(source)
+        if not done:
+            task.update(
+                repeat_fields(rule, task.get("due_date"), None, rolling=rolling)
+            )
         finished = _stamp(source.get("done_at"))
         if done and finished:
             task["completed_at"] = finished
