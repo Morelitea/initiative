@@ -152,6 +152,36 @@ describe("PeopleSection", () => {
     expect(screen.queryByText(/people here can.t message you/)).not.toBeInTheDocument();
   });
 
+  it("lists somebody once when their presence moved them onto the next page", async () => {
+    const ada = member({ id: 1, username: "ada", presence: "online" });
+    const counts = { online: 1, idle: 0, busy: 0, offline: 1 };
+    const meta = { total_count: 2, page_size: 1, has_prev: false, presence_counts: counts };
+    mocks.roster.mockReturnValue({
+      data: {
+        pages: [
+          { ...meta, items: [ada], page: 1, has_next: true },
+          { ...meta, items: [{ ...ada, presence: "offline" }], page: 2, has_next: false },
+        ],
+      },
+      isLoading: false,
+      hasNextPage: false,
+    });
+
+    render();
+
+    expect(await screen.findAllByText(/^ada/)).toHaveLength(1);
+  });
+
+  it("says when the list could not be loaded, rather than that it is empty", async () => {
+    mocks.roster.mockReturnValue({ data: undefined, isLoading: false, isError: true });
+
+    render();
+
+    expect(await screen.findByText("The people list couldn't be loaded.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByText(/Nobody is listed here yet/)).not.toBeInTheDocument();
+  });
+
   it("says so when nobody is listed", async () => {
     page([], { online: 0, idle: 0, busy: 0, offline: 0 });
 

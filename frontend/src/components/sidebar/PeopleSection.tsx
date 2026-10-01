@@ -78,7 +78,7 @@ const RosterRow = ({ member }: { member: GuildRosterMember }) => {
  * that position is told why they are missing from it.
  */
 export const PeopleSection = () => {
-  const { t } = useTranslation(["nav", "profiles"]);
+  const { t } = useTranslation(["nav", "profiles", "common"]);
   const roster = useGuildRoster();
   const guildId = useActiveGuildId();
   const dmEnabled = useDirectMessagesEnabled();
@@ -92,9 +92,16 @@ export const PeopleSection = () => {
   const pages = roster.data?.pages;
   const counts = pages?.[0]?.presence_counts;
   const groups = useMemo(() => {
+    // Pages are fetched one at a time from a list ordered by live presence, so
+    // somebody whose presence changed in between can come back on two of them.
+    const seen = new Set<number>();
     const byPresence = new Map<Presence, GuildRosterMember[]>();
     for (const member of pages?.flatMap((page) => page.items) ?? []) {
-      byPresence.set(member.presence, [...(byPresence.get(member.presence) ?? []), member]);
+      if (seen.has(member.id)) continue;
+      seen.add(member.id);
+      const group = byPresence.get(member.presence);
+      if (group) group.push(member);
+      else byPresence.set(member.presence, [member]);
     }
     return PRESENCE_ORDER.flatMap((presence) => {
       const members = byPresence.get(presence);
@@ -117,6 +124,18 @@ export const PeopleSection = () => {
                 <Skeleton className="h-4 flex-1" />
               </div>
             ))}
+          </div>
+        ) : roster.isError && !pages ? (
+          <div className="space-y-2 px-2">
+            <p className="text-muted-foreground text-xs">{t("peopleError")}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => void roster.refetch()}
+            >
+              {t("common:tryAgain")}
+            </Button>
           </div>
         ) : groups.length === 0 ? (
           <p className="px-2 text-muted-foreground text-xs">{t("peopleEmpty")}</p>

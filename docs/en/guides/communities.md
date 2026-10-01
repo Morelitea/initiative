@@ -35,7 +35,7 @@ Community admins get the same page. Their authority is unchanged — open any in
 
 The **People** tab in the sidebar lists the community's members, with whoever is here at the top: online first, then idle, then busy, then everyone else. Point at a name to see who they are, or click it for their full profile. The list refreshes itself every minute or so.
 
-Anybody whose direct messages are set to **Private** is left off it, and so is anybody on **My communities** who switched this one off. That includes you. To be on the list, open your messages up under [Privacy](messages.md#who-can-reach-you). If you'd rather the committee didn't see you lurking at eleven at night, Private is exactly the setting you want.
+Anybody whose direct messages are set to **Private** is left off it, and so is anybody on **My communities** who switched this one off. That includes you. To be on the list, open your messages up under [Privacy](messages.md#who-can-reach-you). If you'd rather the committee didn't see you lurking at eleven at night, Private is exactly the setting you want. On a server that doesn't offer direct messages there's no such setting, and everybody is listed.
 
 ## Finding a community to join
 
