@@ -75,8 +75,8 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
 });
 
 /**
- * Serve the tool's list endpoint, honouring the two things every tool's page
- * can ask for: which archive state, and a search. Every request is kept, so a
+ * Serve the tool's list endpoint, honouring what every tool's page can ask
+ * for: which archive state, a search, and a page. Every request is kept, so a
  * test can read what the page sent.
  */
 const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
@@ -87,25 +87,29 @@ const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
       requests.push(params);
       const wantArchived = params.get("archived") === "true";
       const search = (params.get("search") ?? "").toLowerCase();
-      const items = rows.filter(
+      const matching = rows.filter(
         (item) =>
           Boolean(item.archived_at) === wantArchived &&
           (!search || item.name.toLowerCase().includes(search))
       );
+      const page = Number(params.get("page") ?? 1);
+      const pageSize = Number(params.get("page_size") ?? 20);
       return HttpResponse.json({
-        items,
-        total_count: items.length,
-        page: 1,
-        page_size: 50,
-        has_next: false,
+        items: matching.slice((page - 1) * pageSize, page * pageSize),
+        total_count: matching.length,
+        page,
+        page_size: pageSize,
+        has_next: page * pageSize < matching.length,
       });
     })
   );
   return requests;
 };
 
-const renderIndex = (tool: Tool) =>
-  renderPage(() => <ToolIndexPage tool={tool} fixedInitiativeId={INITIATIVE_ID} canCreate />);
+const renderIndex = (tool: Tool, routerSearch?: Record<string, unknown>) =>
+  renderPage(() => <ToolIndexPage tool={tool} fixedInitiativeId={INITIATIVE_ID} canCreate />, {
+    routerSearch,
+  });
 
 describe("the tool index page", () => {
   it.each(CASES)("$tool names its own empty shelf", async ({ tool, entry }) => {
@@ -212,6 +216,16 @@ describe("the tool index page", () => {
         translate("pagination.rangeOf", { ns: "common", start: 1, end: 1, total: 1 })
       )
     ).toBeInTheDocument();
+  });
+
+  it.each(CASES)("$tool leaves a page past its end for its last one", async ({ tool }) => {
+    const requests = stubList(tool, [row(tool, { id: 1, name: "Survivor" })]);
+
+    // A link to page 3 of a list that now holds one row.
+    renderIndex(tool, { page: 3 });
+
+    expect(await screen.findByText("Survivor")).toBeInTheDocument();
+    expect(requests.map((params) => params.get("page"))).toEqual(["3", "1"]);
   });
 
   it.each(CASES)("$tool opens a row at its own address", async ({ tool }) => {

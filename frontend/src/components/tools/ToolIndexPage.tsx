@@ -19,7 +19,7 @@
 import { useRouter, useSearch } from "@tanstack/react-router";
 import type { FlatNamespace } from "i18next";
 import { Plus } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -427,6 +427,13 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
     page,
     pageSize,
   });
+
+  // A page past the end (its rows deleted, a link to one that is gone) has
+  // nothing on it and no pager to leave by, so the list moves to its last page.
+  const lastPage = Math.max(1, Math.ceil(list.totalCount / pageSize));
+  useEffect(() => {
+    if (!list.isLoading && list.rows.length === 0 && page > lastPage) setPage(lastPage);
+  }, [list.isLoading, list.rows.length, page, lastPage, setPage]);
 
   // Canonical create answer: this initiative's server-computed create flag. An
   // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
