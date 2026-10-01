@@ -29,6 +29,7 @@ from app.testing import (
     create_post,
     create_resource_grant,
     lexical_body,
+    drain_notices,
 )
 from app.testing import route_as
 
@@ -565,6 +566,7 @@ async def test_reacting_takes_read_access_and_nothing_more(
 async def _notifications_for(
     session: AsyncSession, user_id: int, ntype: NotificationType
 ) -> list[Notification]:
+    await drain_notices()
     await session.exec(text("SET search_path TO public"))
     result = await session.exec(
         select(Notification).where(

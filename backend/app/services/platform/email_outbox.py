@@ -98,13 +98,7 @@ async def enqueue(
     if not policy.email:
         return False
     if policy.redact:
-        locale = getattr(recipient, "locale", None) or "en"
-        pieces = email_service.EmailPieces(
-            subject=notification_policy.redacted_subject(category, locale),
-            headline=notification_policy.redacted_subject(category, locale),
-            body=notification_policy.redacted_body(category, locale),
-            link=pieces.link,
-        )
+        pieces = redacted(pieces, category, getattr(recipient, "locale", None) or "en")
     if not await email_service.email_configured(session):
         # Nothing to drain it, so nothing is written. A caller holding a queue
         # keeps it rather than treating this as delivered.
@@ -139,6 +133,19 @@ async def enqueue(
         .inline()
     )
     return True
+
+
+def redacted(
+    pieces: email_service.EmailPieces, category: NotificationCategory, locale: str
+) -> email_service.EmailPieces:
+    """What a notification email says where content is redacted: the kind of
+    thing that happened, and the link to it."""
+    return email_service.EmailPieces(
+        subject=notification_policy.redacted_subject(category, locale),
+        headline=notification_policy.redacted_subject(category, locale),
+        body=notification_policy.redacted_body(category, locale),
+        link=pieces.link,
+    )
 
 
 async def enqueue_account_letter(user: User, pieces: email_service.EmailPieces) -> None:

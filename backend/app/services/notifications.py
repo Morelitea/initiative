@@ -53,6 +53,7 @@ from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
     GuildMembership,
 )
+from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User
 from app.models.platform.user_notification_prefs import (
@@ -81,8 +82,10 @@ from app.services.guild_sweeps import Scan, Scope
 from app.services.platform import accounts as accounts_service
 from app.services.platform import (
     email_outbox,
+    notice_outbox,
     notification_policy,
     notification_prefs,
+    push_config,
     push_notifications,
     user_notifications,
 )
@@ -325,7 +328,9 @@ async def notify(
     """Tell ``recipients`` one thing: a bell line each, then email and push.
 
     Every notice in the app goes through here, and it never commits — the
-    caller's transaction is what it rides on.
+    caller's transaction is what it rides on. What it decides and words is
+    written down here, one row per recipient (``notice_outbox``); the worker
+    delivers it, in :func:`deliver_notices`, once the caller commits.
 
     ``about`` is what the notice names. It decides who may hear it (only people
     who can open it), where it opens and where it sits in the navigation;
@@ -384,58 +389,43 @@ async def notify(
     ]
     if not wanted:
         return
-    # On the system engine: an account's settings and address are not a
-    # guild's to read. Anybody who ignores the actor drops out here.
+    if rollup_key is not None and actor is None:
+        raise ValueError("a rolled-up notice names who acted")
+    # On the system engine: an account's address is not a guild's to read.
+    # Anybody who ignores the actor drops out here.
     accounts = await accounts_service.load(
         wanted, excluding_ignorers_of=actor_id(actor)
     )
-    all_prefs = await notification_prefs.load_prefs_for_delivery_many(list(accounts))
-    push_ids = {
-        name: str(value)
-        for name, value in payload.items()
-        if name.endswith("_id") and name != "guild_id" and value is not None
+    # What the deployment and the community let a notice carry, applied here
+    # so a row never holds more than its notice will say. Whether each
+    # recipient wants each channel is the worker's question, asked when it
+    # delivers.
+    policy = await notification_policy.for_send(session, guild_id)
+    pushing = policy.push and (await push_config.ensure_push_config_fresh()).enabled
+    category = category_of(notification_type)
+    push_data = {
+        "type": notification_type.value,
+        **{
+            name: str(value)
+            for name, value in payload.items()
+            if name.endswith("_id") and name != "guild_id" and value is not None
+        },
+        "guild_id": str(guild_id),
+        "target_path": payload["target_path"],
     }
+    now = datetime.now(timezone.utc)
+    rows: list[dict[str, Any]] = []
     for user_id in wanted:
         recipient = accounts.get(user_id)
         if recipient is None:
-            continue
-        channels = await _channels(
-            session,
-            recipient,
-            notification_type=notification_type,
-            guild_id=guild_id,
-            prefs=all_prefs.get(user_id, {}),
-        )
-        if rollup_key is None:
-            opened = True
-            line = await user_notifications.create_notification(
-                session,
-                user_id=user_id,
-                notification_type=notification_type,
-                data=payload,
-                prefs=channels.prefs,
-            )
-        else:
-            if actor is None:
-                raise ValueError("a rolled-up notice names who acted")
-            opened, line = await _roll_up_comment(
-                session,
-                recipient=recipient,
-                notification_type=notification_type,
-                rollup_key=rollup_key,
-                data=payload,
-                commenter_name=actor_name(actor),
-                commenter_id=actor.id,
-                prefs=channels.prefs,
-            )
-        if not opened:
             continue
         locale = _recipient_locale(recipient)
         filled = {
             name: value if isinstance(value, str) else value(recipient)
             for name, value in (values or {}).items()
         }
-        if channels.email:
+        pieces: email_service.EmailPieces | None = None
+        if policy.email:
             pieces = (
                 email(recipient)
                 if email is not None
@@ -447,36 +437,108 @@ async def notify(
             )
             if pieces.link is None:
                 pieces = replace(pieces, link=payload["smart_link"])
+            if policy.redact:
+                pieces = email_outbox.redacted(pieces, category, locale)
+        title, body = (
+            notification_policy.redacted_push(notification_type, locale)
+            if policy.redact
+            else (
+                _nt(f"{key}.title", locale, **filled),
+                _nt(f"{key}.body", locale, **filled),
+            )
+        )
+        rows.append(
+            {
+                "user_id": user_id,
+                "guild_id": guild_id,
+                "type": notification_type.value,
+                "data": payload,
+                "rollup_key": rollup_key,
+                "actor_id": actor_id(actor),
+                "actor_name": actor_name(actor) if actor is not None else None,
+                "push_title": title if pushing else None,
+                "push_body": body if pushing else None,
+                "push_data": push_data if pushing else None,
+                "email_subject": pieces.subject if pieces else None,
+                "email_headline": pieces.headline if pieces else None,
+                "email_body": pieces.body if pieces else None,
+                "email_link": pieces.link if pieces else None,
+                "email_link_label": pieces.link_label if pieces else None,
+                "email_names_line": email_names_line,
+                "created_at": now,
+                "deliver_after": now,
+            }
+        )
+    await notice_outbox.enqueue(session, rows)
+
+
+async def deliver_notices(
+    session: AsyncSession,
+    recipient: User,
+    notices: Sequence[NoticeOutboxItem],
+    prefs: Mapping[str, Any],
+) -> set[int]:
+    """The worker's half of :func:`notify`: one recipient's bell lines and
+    email, as their settings say now.
+
+    Each notice is a line of its own, or joins the recipient's unread line for
+    its thread; a notice that joins one sends no email and no push, so a
+    flurry is one interruption. Returns the notices whose push should go —
+    the worker sends them together once this is committed. Never commits.
+    """
+    push: set[int] = set()
+    for notice in notices:
+        notification_type = NotificationType(notice.type)
+        channels = await _channels(
+            session,
+            recipient,
+            notification_type=notification_type,
+            guild_id=notice.guild_id,
+            prefs=prefs,
+        )
+        if notice.rollup_key is None:
+            opened = True
+            line = await user_notifications.create_notification(
+                session,
+                user_id=recipient.id,
+                notification_type=notification_type,
+                data=notice.data,
+                prefs=prefs,
+            )
+        else:
+            opened, line = await _roll_up_comment(
+                session,
+                recipient=recipient,
+                notification_type=notification_type,
+                rollup_key=notice.rollup_key,
+                data=dict(notice.data),
+                commenter_name=notice.actor_name or "",
+                commenter_id=notice.actor_id,
+                prefs=prefs,
+            )
+        if not opened:
+            continue
+        if channels.email and notice.email_subject is not None:
             await email_outbox.enqueue(
                 session,
                 recipient,
                 category=category_of(notification_type),
-                guild_id=guild_id,
+                guild_id=notice.guild_id,
                 notification_id=(
-                    line.id if line is not None and email_names_line else None
+                    line.id if line is not None and notice.email_names_line else None
                 ),
-                prefs=channels.prefs,
-                pieces=pieces,
+                prefs=prefs,
+                pieces=email_service.EmailPieces(
+                    subject=notice.email_subject,
+                    headline=notice.email_headline or "",
+                    body=notice.email_body or "",
+                    link=notice.email_link,
+                    link_label=notice.email_link_label,
+                ),
             )
-        if channels.push:
-            try:
-                await push_notifications.send_push_to_user(
-                    session=session,
-                    user_id=user_id,
-                    notification_type=notification_type,
-                    guild_id=guild_id,
-                    locale=locale,
-                    title=_nt(f"{key}.title", locale, **filled),
-                    body=_nt(f"{key}.body", locale, **filled),
-                    data={
-                        "type": notification_type.value,
-                        **push_ids,
-                        "guild_id": str(guild_id),
-                        "target_path": payload["target_path"],
-                    },
-                )
-            except Exception as exc:
-                logger.error("Failed to send push notification: %s", exc, exc_info=True)
+        if channels.push and notice.push_title is not None and notice.id is not None:
+            push.add(notice.id)
+    return push
 
 
 def actor_id(actor: "User | AppAuthor | None") -> int | None:

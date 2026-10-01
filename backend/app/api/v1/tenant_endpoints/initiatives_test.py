@@ -34,6 +34,7 @@ from app.testing import (
     create_tool_entity,
     enable_all_tools,
     set_notification_prefs,
+    drain_notices,
 )
 from app.testing.factories import create_initiative
 
@@ -116,6 +117,7 @@ async def _project_shared_with_the_initiative(session: AsyncSession, initiative,
 async def _notifications_for(
     session: AsyncSession, user_id: int, ntype: NotificationType
 ) -> list[Notification]:
+    await drain_notices()
     result = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,
@@ -127,6 +129,7 @@ async def _notifications_for(
 
 async def _pending_mail_for(session: AsyncSession, user_id: int) -> int:
     """How much notification mail is waiting for this account."""
+    await drain_notices()
     result = await session.exec(
         select(EmailOutboxItem).where(EmailOutboxItem.user_id == user_id)
     )
@@ -2145,7 +2148,9 @@ async def test_a_resolution_reaches_the_requester_on_both_channels(
     )
     request_id = created.json()["id"]
 
-    # Capture only after the request lands, so the queue mail is out of the way.
+    # Capture only after the request's own notice is delivered, so the queue
+    # mail is out of the way.
+    await drain_notices()
     sent = _capture_join_request_emails(monkeypatch)
 
     resolved = await client.post(

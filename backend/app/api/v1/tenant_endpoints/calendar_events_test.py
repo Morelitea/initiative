@@ -30,6 +30,7 @@ from app.testing import (
     create_tag,
     get_auth_headers,
     route_session_to_guild,
+    drain_notices,
 )
 
 
@@ -52,6 +53,7 @@ async def _drop_all_members_grant(session: AsyncSession, guild, calendar) -> Non
 async def _notifications_for(
     session: AsyncSession, user_id: int, ntype: NotificationType
 ) -> list[Notification]:
+    await drain_notices()
     result = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,

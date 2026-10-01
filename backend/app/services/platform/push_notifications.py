@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from contextlib import nullcontext
+from dataclasses import dataclass
+from typing import Any, AsyncContextManager, Dict, Optional, Sequence
 
 import httpx
 from google.auth.transport.requests import Request
@@ -341,41 +343,132 @@ async def send_push_to_user(
             notification_type, locale or await _recipient_locale(user_id)
         )
 
-    successful = 0
-    delivered_ids: list[int] = []
-    tokens_to_delete: list[str] = []
-
-    channel_id = channel_for(notification_type)
-
     async with httpx.AsyncClient(timeout=10.0) as client:
-        for token_record in tokens:
-            success, should_delete = await send_push_notification(
+        outcome = await _send_to_devices(
+            client,
+            tokens,
+            title=title,
+            body=body,
+            data=data,
+            channel_id=channel_for(notification_type),
+        )
+
+    await _record_delivery(
+        user_id, delivered_ids=outcome.delivered_ids, dead_tokens=outcome.dead_tokens
+    )
+
+    logger.info(
+        f"Sent push notification to {len(outcome.delivered_ids)}/{len(tokens)} "
+        f"devices for user {user_id} (type: {notification_type})"
+    )
+
+    return len(outcome.delivered_ids)
+
+
+@dataclass
+class _Outcome:
+    """What sending one push to one person's devices came to."""
+
+    delivered_ids: list[int]
+    dead_tokens: list[str]
+    #: No device took it, and at least one send failed short of an answer —
+    #: a timeout or a server error — so trying again later could still land.
+    retry: bool
+
+
+async def _send_to_devices(
+    client: httpx.AsyncClient,
+    tokens: Sequence[PushToken],
+    *,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]],
+    channel_id: str,
+    gate: AsyncContextManager[Any] | None = None,
+) -> _Outcome:
+    """Send one push to each of these devices. ``gate`` bounds how many sends
+    are in flight across a batch."""
+
+    async def one(token: PushToken) -> tuple[bool, bool]:
+        async with gate or nullcontext():
+            return await send_push_notification(
                 client,
-                push_token=token_record.push_token,
+                push_token=token.push_token,
                 title=title,
                 body=body,
                 data=data,
                 channel_id=channel_id,
             )
 
-            if success:
-                successful += 1
-                if token_record.id is not None:
-                    delivered_ids.append(token_record.id)
-            elif should_delete:
-                # Token is invalid (404/410 from FCM), mark for deletion
-                logger.info(
-                    f"Deleting invalid push token: {token_record.push_token[:20]}..."
+    results = await asyncio.gather(*(one(token) for token in tokens))
+    outcome = _Outcome(delivered_ids=[], dead_tokens=[], retry=False)
+    for token, (success, should_delete) in zip(tokens, results):
+        if success:
+            if token.id is not None:
+                outcome.delivered_ids.append(token.id)
+        elif should_delete:
+            # Token is invalid (404/410 from FCM), mark for deletion
+            logger.info(f"Deleting invalid push token: {token.push_token[:20]}...")
+            outcome.dead_tokens.append(token.push_token)
+        else:
+            outcome.retry = True
+    outcome.retry = outcome.retry and not outcome.delivered_ids
+    return outcome
+
+
+@dataclass(frozen=True)
+class Push:
+    """One push for one person, already worded and already allowed."""
+
+    user_id: int
+    notification_type: NotificationType
+    title: str
+    body: str
+    data: Dict[str, Any]
+
+
+#: How many FCM calls one batch keeps in flight at once.
+CONCURRENT_SENDS = 16
+
+
+async def send_pushes(session: AsyncSession, pushes: Sequence[Push]) -> list[bool]:
+    """Send a batch of pushes at once, on the system engine's ``session``.
+
+    For the notice worker, which has already applied the deployment's and the
+    community's switches and each recipient's settings: this only finds each
+    person's devices, sends, and records what FCM said. One HTTP client serves
+    the batch and :data:`CONCURRENT_SENDS` calls are in flight at a time.
+
+    Returns, for each push in order, whether it should be tried again: no device
+    took it, and a send failed short of an answer. Does not commit.
+    """
+    if not pushes or not (await push_config.ensure_push_config_fresh()).enabled:
+        return [False] * len(pushes)
+    # One session, so the reads go one after another; the sends do not.
+    devices: dict[int, list[PushToken]] = {}
+    for user_id in dict.fromkeys(push.user_id for push in pushes):
+        devices[user_id] = await push_tokens.live_for_user(session, user_id=user_id)
+    gate = asyncio.Semaphore(CONCURRENT_SENDS)
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        outcomes = await asyncio.gather(
+            *(
+                _send_to_devices(
+                    client,
+                    devices[push.user_id],
+                    title=push.title,
+                    body=push.body,
+                    data=push.data,
+                    channel_id=channel_for(push.notification_type),
+                    gate=gate,
                 )
-                tokens_to_delete.append(token_record.push_token)
-
-    await _record_delivery(
-        user_id, delivered_ids=delivered_ids, dead_tokens=tokens_to_delete
-    )
-
-    logger.info(
-        f"Sent push notification to {successful}/{len(tokens)} devices "
-        f"for user {user_id} (type: {notification_type})"
-    )
-
-    return successful
+                for push in pushes
+            )
+        )
+    for push, outcome in zip(pushes, outcomes):
+        await push_tokens.record_delivery(
+            session,
+            user_id=push.user_id,
+            delivered_ids=outcome.delivered_ids,
+            dead_tokens=outcome.dead_tokens,
+        )
+    return [outcome.retry for outcome in outcomes]

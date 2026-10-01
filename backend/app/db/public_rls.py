@@ -2185,6 +2185,22 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_install_base=frozenset({INSERT}),
         ),
     ),
+    "notice_outbox": SharedTable(
+        rls=NO_RLS,
+        grants=Grants(
+            # A notice waiting to be delivered. The worker owns this table: it
+            # claims what is due, writes the bell line and the email, sends the
+            # push and deletes the row. The request path only ever appends.
+            app_admin=DML,
+            app_user=None,
+            # A routed request appends a row per recipient of what it caused,
+            # and never reads one back.
+            app_guild_base=frozenset({INSERT}),
+            platform_base=frozenset({INSERT}),
+            # What an install's write causes is told the same way.
+            app_install_base=frozenset({INSERT}),
+        ),
+    ),
     "push_tokens": SharedTable(
         rls=TableRls(
             policies=(

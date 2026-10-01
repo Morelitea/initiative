@@ -10,7 +10,7 @@ from sqlmodel import select
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user_ignore import UserIgnore
 from app.services.platform import accounts as accounts_service
-from app.testing import create_resource_grant, create_user
+from app.testing import create_resource_grant, create_user, drain_notices
 
 
 def _mentions(rows: list[Notification]) -> list[Notification]:
@@ -28,6 +28,7 @@ async def _inbox(session, user_id: int) -> list[Notification]:
     """
     from app.db.session import SystemSessionLocal
 
+    await drain_notices()
     async with SystemSessionLocal() as system_session:
         return list(
             (
