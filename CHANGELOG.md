@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Signing up asks what you're here for first.** Somebody with an invite, somebody joining a public community, somebody who wants a space for their own to-dos and somebody starting a community for a group each get a few short steps with answers filled in, then the account. A personal space starts with a **To do** list, a group's community with its first initiative and an invite link to send, and joining opens the directory on what you said you're into. Where the server asks the age question, the date of birth is asked here; it's required only for joining a public community, and the date isn't kept. A signed-in person with no community gets the same steps without the account. Every sign-up endpoint takes an optional `community` and `birthdate` (API).
 - **See who's around.** A **People** tab in the community sidebar lists its members, with whoever is online first, then idle and busy, then everyone else, each with their status line. People whose direct messages are set to Private aren't listed, nor are people on My communities who switched that community off, and the Privacy page says so beside both choices. The list comes from `GET /c/{guild_id}/users/roster` (API).
 - **A server that can't start says what to report.** Its log ends with a short block to paste into an issue: the version, how the database is set up, the PostgreSQL version, where the migrations stopped, and the error, with passwords and keys taken out.
 - **Images you can check.** Each published image is signed by the workflow that built it and carries a list of what's inside it (an SBOM) and how it was built. [Installation](docs/en/running-a-server/installation.md#checking-an-image-is-ours) has the command to check one.
@@ -32,11 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Step-by-step dialogs fill the screen on a phone.**
+- **`public_registration_enabled` from `GET /auth/bootstrap` is false when community creation is switched off**, since signing up without an invite is refused then too (API).
 - **Every tool's list says how much sits in each view.** The Active, Templates and Archived toggle on every tool page shows its count, and the documents page calls its live view Active like every other tool. The sidebar's document count no longer includes templates, matching projects.
 - **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import. A repeat is saved only if it happens from its start, and one that ends after a number of times only if it gets there within a hundred years.
 - **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.
 - **An account can create up to five communities a day.** Change it with `GUILD_CREATION_DAILY_LIMIT` (`0` for no limit). Operators and owners aren't limited.
-- **Choose whether signing up creates a community.** Set `REGISTRATION_CREATES_GUILD=false` and a new account starts on the page for creating or joining one, instead of with a community of its own.
 - **The notification list counts unread notifications on its first page only (API).** `unread_count` on `GET /notifications/` is `null` on any page read with a `cursor`; read it from the first page.
 - **An app's community-wide settings are the superadmin's.** Other admins and members see whether each one is filled in, not what it's set to, and the app's settings no longer offer them a form they can't save. `values` on a guild-wide connection is empty for them (API).
 - **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.

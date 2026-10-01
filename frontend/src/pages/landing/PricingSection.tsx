@@ -72,7 +72,7 @@ const TierAction = ({
   if (tier.cta.kind === "signup") {
     return (
       <Button variant={variant} className="w-full" asChild>
-        <Link to={registrationOpen ? "/register" : "/login"}>{tier.cta.label}</Link>
+        <Link to={registrationOpen ? "/start" : "/login"}>{tier.cta.label}</Link>
       </Button>
     );
   }

@@ -18,7 +18,12 @@ import {
   setAuthToken,
   setHasActiveSession,
 } from "@/api/client";
-import type { PasskeySignInResult, Token, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  NewCommunity,
+  PasskeySignInResult,
+  Token,
+  UserRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { clearAllWhiteboardSceneCaches } from "@/components/documents/whiteboardSceneCache";
 import { forgetMessagesOnThisDevice } from "@/crypto/messaging";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -93,6 +98,10 @@ interface RegisterPayload {
    *  ``GET /api/v1/config``). Backend validates server-side; missing
    *  when the deployment has no captcha. */
   captcha_token?: string;
+  /** The community the new account makes and owns. Omitted, it makes none. */
+  community?: NewCommunity;
+  /** ISO date, answering the age question at sign-up. */
+  birthdate?: string;
 }
 
 interface AuthContextValue {
@@ -642,10 +651,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     inviteCode,
     timezone,
     captcha_token,
+    community,
+    birthdate,
   }: RegisterPayload) => {
     const response = await apiClient.post<UserRead>(
       "/auth/register",
-      { email, password, username, full_name, timezone, captcha_token },
+      { email, password, username, full_name, timezone, captcha_token, community, birthdate },
       inviteCode
         ? {
             params: { invite_code: inviteCode },

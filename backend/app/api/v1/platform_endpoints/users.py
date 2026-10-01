@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 from fastapi import (
@@ -1061,25 +1061,6 @@ async def claim_my_username(
     return await users_service.to_self_read(current_user)
 
 
-#: The age below which somebody may not take part in the parts of the platform
-#: that are open to people they have not met.
-MINIMUM_AGE_YEARS = 16
-
-#: A bound on what counts as a date somebody could have been born on. Not a
-#: judgement about anyone — it is what separates a real answer from a typo.
-MAX_PLAUSIBLE_AGE_YEARS = 120
-
-
-def _years_since(birthdate: date, today: date) -> int:
-    """Whole years between two dates — an age, counted the way people count it.
-
-    A birthday that has not come round yet this year does not count, which is
-    the whole of the arithmetic.
-    """
-    had_birthday = (today.month, today.day) >= (birthdate.month, birthdate.day)
-    return today.year - birthdate.year - (0 if had_birthday else 1)
-
-
 @router.post("/me/age-confirmation", response_model=UserRead)
 async def confirm_my_age(
     payload: AgeConfirmation,
@@ -1122,34 +1103,24 @@ async def confirm_my_age(
             detail=UserMessages.AGE_ANSWER_STANDS,
         )
 
-    today = datetime.now(timezone.utc).date()
-    if payload.birthdate > today or payload.birthdate < today.replace(
-        year=today.year - MAX_PLAUSIBLE_AGE_YEARS
-    ):
+    try:
+        old_enough = users_service.record_age_answer(current_user, payload.birthdate)
+    except users_service.InvalidBirthdateError as exc:
         # Not a date anybody was born on. Refused separately from being too
         # young, so the reply says which it was.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_INVALID_BIRTHDATE,
-        )
-    if _years_since(payload.birthdate, today) < MINIMUM_AGE_YEARS:
-        # Recorded before the refusal, so the answer holds: what is written is
-        # that they answered under age, never the date they gave.
-        current_user.age_below_minimum_at = datetime.now(timezone.utc)
-        current_user.updated_at = datetime.now(timezone.utc)
-        session.add(current_user)
-        await session.commit()
+        ) from exc
+    current_user.updated_at = datetime.now(timezone.utc)
+    session.add(current_user)
+    await session.commit()
+    if not old_enough:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=UserMessages.AGE_BELOW_MINIMUM,
         )
-
-    if current_user.age_confirmed_at is None:
-        current_user.age_confirmed_at = datetime.now(timezone.utc)
-        current_user.updated_at = datetime.now(timezone.utc)
-        session.add(current_user)
-        await session.commit()
-        await session.refresh(current_user)
+    await session.refresh(current_user)
 
     return await users_service.to_self_read(current_user)
 

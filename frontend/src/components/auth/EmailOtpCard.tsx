@@ -18,8 +18,9 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import type { Token } from "@/api/generated/initiativeAPI.schemas";
+import type { EmailOtpRegister, Token } from "@/api/generated/initiativeAPI.schemas";
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
+import { LegalNotice } from "@/components/auth/LegalNotice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,16 +35,20 @@ type Step = "address" | "code" | "handle";
 interface Props {
   /** Back to the other ways in. */
   onCancel: () => void;
-  /** Where to go once there is a session. */
-  onSignedIn: () => void;
+  /** Where to go once there is a session; `registered` when the code made a
+   *  new account rather than signing in to one. */
+  onSignedIn: (registered: boolean) => void;
   /** An invite this deployment asked for, carried from the URL. */
   inviteCode?: string | null;
+  /** What the start flow already asked: the handle and name fill the last
+   *  step, and the rest is sent with the account the code makes. */
+  registration?: Omit<Partial<EmailOtpRegister>, "registration_ticket" | "invite_code">;
 }
 
 /** Strip the spaces a pasted code brings with it. */
 const compact = (value: string) => value.replace(/\s+/g, "");
 
-export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
+export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }: Props) => {
   const { t } = useTranslation("auth");
   const { applyEmailOtpSignIn } = useAuth();
   const { isNativePlatform } = useServer();
@@ -53,8 +58,8 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
   const [step, setStep] = useState<Step>("address");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [username, setUsername] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState(registration?.username ?? "");
+  const [fullName, setFullName] = useState(registration?.full_name ?? "");
   const [challenge, setChallenge] = useState<string | null>(null);
   const [ticket, setTicket] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,7 +116,7 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
       }
       if (response.data.access_token) {
         await applyEmailOtpSignIn({ ...response.data, access_token: response.data.access_token });
-        onSignedIn();
+        onSignedIn(false);
       }
     } catch (err) {
       setError(getErrorMessage(err, "auth:emailOtp.codeError"));
@@ -128,14 +133,15 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
     setError(null);
     try {
       const { data } = await apiClient.post<Token>("/auth/email-otp/register", {
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...registration,
         registration_ticket: ticket,
         username: username.trim(),
-        ...(fullName.trim() ? { full_name: fullName.trim() } : {}),
+        full_name: fullName.trim() || undefined,
         ...(inviteCode ? { invite_code: inviteCode } : {}),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
       await applyEmailOtpSignIn(data);
-      onSignedIn();
+      onSignedIn(true);
     } catch (err) {
       setError(getErrorMessage(err, "auth:emailOtp.registerError"));
     } finally {
@@ -262,6 +268,9 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode }: Props) => {
                 maxLength={255}
               />
             </div>
+            {/* Pressing the button below is the agreement, so the notice sits
+              right above it. */}
+            <LegalNotice />
             <Button type="submit" className="w-full" disabled={busy}>
               {busy ? t("login.submitting") : t("emailOtp.registerAction")}
             </Button>

@@ -7,6 +7,7 @@
   "INVITE_DURING_ACCESS_GRANT": "Tienes acceso temporal a esta comunidad. Acepta la invitación cuando termine ese acceso.",
   "OIDC_EMAIL_UNVERIFIED": "Tu proveedor de identidad no confirmó que tu correo electrónico esté verificado, así que no podemos iniciar sesión en una cuenta existente. Verifica tu correo con tu proveedor e inténtalo de nuevo.",
   "REGISTRATION_REQUIRES_INVITE": "El registro requiere un código de invitación",
+  "REGISTRATION_INVITE_OR_COMMUNITY": "Únete con la invitación o crea una comunidad, no ambas cosas",
   "CAPTCHA_REQUIRED": "Por favor completa el captcha e inténtalo de nuevo.",
   "CAPTCHA_INVALID": "La verificación del captcha falló. Inténtalo de nuevo.",
   "SETTINGS_EMAIL_SEND_FAILED": "No se pudo enviar el correo de prueba. Consulta los registros del servidor para más detalles.",
