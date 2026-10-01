@@ -48,7 +48,7 @@
  */
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { queryClient } from "@/lib/queryClient";
-import { singularOf, TOOLS, toolApiPath, toolIdParam, toolRouteSegment } from "@/lib/tools";
+import { TOOLS, toolApiPath, toolRouteSegment } from "@/lib/tools";
 
 // The active guild is per-tab React state in `GuildProvider`, mirrored here (a
 // module var is per-JS-context, so it stays per-tab — unlike shared storage) so
@@ -80,12 +80,6 @@ export type Spec = {
   /** Non-guild path prefixes: `/api/v1/me/tasks`. */
   personalPrefix?: readonly string[];
   /**
-   * Comment threads, as `[parentParam, parentId]`. A thread is keyed
-   * `["/api/v1/c/{g}/comments/", { task_id: 7 }]` — the id sits in the params
-   * object rather than the path, so it cannot be reached by a prefix.
-   */
-  threads?: readonly (readonly [param: string, id: number])[];
-  /**
    * Hand-written keys named by their first element and carrying their guild in
    * the second (`["guild-app", guildId, appId]`). Scoped to the active guild by
    * that element, like every other guild key.
@@ -101,7 +95,6 @@ type Matcher = {
   guildPrefix: string[];
   personalExact: Set<string>;
   personalPrefix: string[];
-  threads: Map<string, Set<number>>;
   guildNamed: Set<string>;
   named: Set<string>;
 };
@@ -112,7 +105,6 @@ const merge = (specs: readonly Spec[]): Matcher => {
     guildPrefix: [],
     personalExact: new Set(),
     personalPrefix: [],
-    threads: new Map(),
     guildNamed: new Set(),
     named: new Set(),
   };
@@ -128,11 +120,6 @@ const merge = (specs: readonly Spec[]): Matcher => {
     }
     for (const prefix of spec.personalPrefix ?? []) {
       if (!matcher.personalPrefix.includes(prefix)) matcher.personalPrefix.push(prefix);
-    }
-    for (const [param, id] of spec.threads ?? []) {
-      const ids = matcher.threads.get(param);
-      if (ids) ids.add(id);
-      else matcher.threads.set(param, new Set([id]));
     }
   }
   return matcher;
@@ -158,15 +145,6 @@ const matches = (matcher: Matcher, queryKey: readonly unknown[]): boolean => {
     for (const prefix of matcher.guildPrefix) {
       if (path.startsWith(prefix)) return true;
     }
-    if (matcher.threads.size > 0 && path === "/api/v1/comments/") {
-      const params = queryKey[1];
-      if (typeof params === "object" && params !== null) {
-        for (const [param, ids] of matcher.threads) {
-          const value = (params as Record<string, unknown>)[param];
-          if (typeof value === "number" && ids.has(value)) return true;
-        }
-      }
-    }
     return false;
   }
 
@@ -188,10 +166,17 @@ const matches = (matcher: Matcher, queryKey: readonly unknown[]): boolean => {
  * three hundred. It is one walk either way.
  */
 export const invalidate = (...specs: readonly Spec[]) => {
+  const named = describes(...specs);
+  return queryClient.invalidateQueries({ predicate: (query) => named(query.queryKey) });
+};
+
+/**
+ * Whether a cached key is one the given specs name — for a caller that has to
+ * leave one of them out, and cannot say so with `invalidate`.
+ */
+export const describes = (...specs: readonly Spec[]) => {
   const matcher = merge(specs);
-  return queryClient.invalidateQueries({
-    predicate: (query) => matches(matcher, query.queryKey),
-  });
+  return (queryKey: readonly unknown[]) => matches(matcher, queryKey);
 };
 
 // ── Builders ─────────────────────────────────────────────────────────────────
@@ -204,7 +189,6 @@ const compose = (...specs: Spec[]): Spec => ({
   guildPrefix: specs.flatMap((spec) => spec.guildPrefix ?? []),
   personalExact: specs.flatMap((spec) => spec.personalExact ?? []),
   personalPrefix: specs.flatMap((spec) => spec.personalPrefix ?? []),
-  threads: specs.flatMap((spec) => spec.threads ?? []),
   guildNamed: specs.flatMap((spec) => spec.guildNamed ?? []),
   named: specs.flatMap((spec) => spec.named ?? []),
 });
@@ -252,10 +236,6 @@ const projectFilterPresets = (projectId: number): Spec => ({
   guildExact: [`/api/v1/projects/${projectId}/filter-presets/`],
 });
 
-const projectActivity = (projectId: number): Spec => ({
-  guildExact: [`/api/v1/projects/${projectId}/activity`],
-});
-
 // Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /c/).
 const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
@@ -277,33 +257,6 @@ const documentVersions = (documentId: number): Spec => ({
 // ── Comments (guild) ─────────────────────────────────────────────────────────
 
 const allComments = (): Spec => ({ guildPrefix: ["/api/v1/comments"] });
-
-/**
- * One comment thread: the list query keyed by the parent it hangs off.
- *
- * A thread is addressed by exactly one `{parent}_id` param, so the description
- * is that param rather than a builder per parent — the backend declares the
- * same set once in `_COMMENT_PARENTS`.
- */
-const commentsByParent = (param: string, id: number): Spec => ({ threads: [[param, id]] });
-
-const taskComments = (taskId: number): Spec => commentsByParent("task_id", taskId);
-
-const documentComments = (documentId: number): Spec => commentsByParent("document_id", documentId);
-
-/** The comment thread on one tool entity — a post, a queue, a dashboard. */
-const toolComments = (which: Tool, id: number): Spec => commentsByParent(toolIdParam(which), id);
-
-/**
- * The comment thread on one parent, named by the parent's own resource type.
- *
- * The bus names a parent by its table (`tasks`, `counter_groups`), and a thread
- * is keyed by that parent's singular `{parent}_id` — the same derivation the
- * backend makes to report a junction against its owner. So this covers the task
- * and every tool without a branch per parent.
- */
-const commentsOnResource = (resourceType: string, id: number): Spec =>
-  commentsByParent(`${singularOf(resourceType)}_id`, id);
 
 const recentComments = (): Spec => ({ guildPrefix: ["/api/v1/comments/recent"] });
 
@@ -572,18 +525,34 @@ const allProperties = (): Spec => ({ guildPrefix: ["/api/v1/property-definitions
 const toolCounts = (): Spec => ({ guildExact: ["/api/v1/tools/counts/by-initiative"] });
 
 /**
- * Every list of one tool — its guild-wide list, the cross-guild `/me` twin
- * every tool has, and the counts beside them. A calendar's also reaches the
- * events and entries views, which show its name and colour.
+ * Every list of one tool — its guild-wide list and the cross-guild `/me` twin
+ * every tool has. A calendar's also reaches the events and entries views,
+ * which show its name and colour. Not the counts: changing what a row says
+ * leaves every count where it was.
  */
-const toolList = (which: Tool): Spec => {
-  const lists = compose(resourceAndMe(toolRouteSegment(which)), toolCounts());
+const toolLists = (which: Tool): Spec => {
+  const lists = resourceAndMe(toolRouteSegment(which));
   return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
 };
+
+/** Every list of one tool and the counts beside them — what adding or
+ *  removing one makes stale. */
+const toolList = (which: Tool): Spec => compose(toolLists(which), toolCounts());
 
 /** One tool entity's own read. */
 const toolEntity = (which: Tool, id: number): Spec => ({
   guildExact: [`${toolApiPath(which)}/${id}`],
+});
+
+/**
+ * One tool entity's own read and every read under its address — a gallery's
+ * pictures, a wiki's pages, a project's activity and statuses. What a change
+ * inside it makes stale. The trailing slash keeps project 1 from reaching
+ * project 10.
+ */
+const toolSubtree = (which: Tool, id: number): Spec => ({
+  guildExact: [`${toolApiPath(which)}/${id}`],
+  guildPrefix: [`${toolApiPath(which)}/${id}/`],
 });
 
 /** One entity and every list it sits in — what a generic per-tool write makes stale. */
@@ -651,7 +620,6 @@ export const q = {
   calendar,
   captchaSettings,
   calendarEvent,
-  commentsOnResource,
   communitySettings,
   guildNotificationPolicy,
   notificationSettings,
@@ -667,7 +635,6 @@ export const q = {
   directMessages,
   dmSettings,
   document,
-  documentComments,
   documentVersions,
   emailSettings,
   favoriteProjects,
@@ -694,7 +661,6 @@ export const q = {
   post,
   postTimeline,
   project,
-  projectActivity,
   projectFilterPresets,
   projectTaskStatuses,
   pushSettings,
@@ -707,10 +673,10 @@ export const q = {
   tag,
   tagEntities,
   task,
-  taskComments,
   tool,
   toolList,
-  toolComments,
+  toolLists,
+  toolSubtree,
   userStats,
   version,
   writableProjects,

@@ -430,7 +430,6 @@ async def _queue_reaction_notification(
         reactor=reactor,
         reaction=reaction,
         context_title=ctx.title,
-        about=ctx.about,
         subject=subject,
         guild_id=guild_id,
     )

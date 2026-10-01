@@ -433,7 +433,8 @@ export const useDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = <
   );
 };
 /**
- * The reader's favorite projects, most recently favorited first.
+ * The reader's favorite projects, most recently favorited first, in the
+ * slim projection the projects list returns for ``slim=true``.
  * @summary Favorite Projects
  */
 export const favoriteProjectsApiV1CGuildIdProjectsFavoritesGet = (

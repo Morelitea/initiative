@@ -12,7 +12,7 @@
  *
  * - **Everyone** gets the two answers that are theirs — whether the app may act
  *   as them, and their own half of any connection. Nobody else's appears.
- * - **A guild admin** additionally gets what the guild owns: the guild-wide
+ * - **The seat** additionally gets what the guild owns: the guild-wide
  *   credential, where the app appears, and the governance view of what every
  *   member has given it.
  *
@@ -43,7 +43,7 @@ import { declaredEmbeds } from "@/lib/appSurfaces";
 
 export interface AppSettingsDialogProps {
   appId: number;
-  /** Guild connections are an admin's to fill in; personal ones are everyone's. */
+  /** Where the app appears is an admin's to choose. */
   isGuildAdmin: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -70,7 +70,8 @@ export function AppSettingsDialog({
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the
   // community and are a different question.
-  const showsAdminSection = Boolean(activeGuild?.can.seat) && !!app;
+  const holdsTheSeat = Boolean(activeGuild?.can.seat);
+  const showsAdminSection = holdsTheSeat && !!app;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,7 +103,7 @@ export function AppSettingsDialog({
             <AppConnectionsPanel
               appId={app.id}
               connections={app.connections}
-              isGuildAdmin={isGuildAdmin}
+              canManage={holdsTheSeat}
             />
 
             {showsAdminSection && (

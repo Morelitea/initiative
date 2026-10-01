@@ -61,6 +61,7 @@ from app.models.platform.guild import (
     GuildMembership,
     GuildStatus,
 )
+from app.models.platform.access_grant import AccessLevel
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.auth.oidc._http import (
@@ -69,6 +70,7 @@ from app.services.auth.oidc._http import (
     post_form_json_pinned,
 )
 from app.services.marketplace import app_installs, registration_lookup
+from app.services.platform import access_grants as access_grants_service
 from app.services.marketplace.app_data import (
     MAX_RESPONSE_BYTES,
     REQUEST_TIMEOUT_SECONDS,
@@ -827,6 +829,19 @@ def _clean_installation_id(value: Optional[str]) -> Optional[str]:
     return value if all(char in allowed for char in value) else None
 
 
+async def _is_member(session: AsyncSession, state: ConnectionFlowState) -> bool:
+    """Whether the flow's starter holds a membership row in its community."""
+    member = (
+        await session.exec(
+            select(GuildMembership.user_id).where(
+                GuildMembership.guild_id == state.guild_id,
+                GuildMembership.user_id == state.started_by,
+            )
+        )
+    ).first()
+    return member is not None
+
+
 async def _person_outcome(
     state: ConnectionFlowState, signed_in: Optional[int]
 ) -> Optional[str]:
@@ -835,7 +850,10 @@ async def _person_outcome(
 
     The flow is finished only by the signed-in person who started it. A
     community connection is finished only while that person still holds the
-    community's seat.
+    community's seat, and may still change what the seat holds: the
+    membership row's seat may, a lent seat only beside a live ``read_write``
+    content grant — what ``require_grant_writes`` asks of the route that
+    started it.
     """
     if signed_in is None or signed_in != state.started_by:
         return "sign_in_required"
@@ -847,6 +865,14 @@ async def _person_outcome(
                     select(func.guild_superadmin(state.guild_id, state.started_by))
                 )
             ).first()
+            if holds and not await _is_member(session, state):
+                content = await access_grants_service.get_live_grant(
+                    session, user_id=state.started_by, guild_id=state.guild_id
+                )
+                holds = (
+                    content is not None
+                    and content.access_level == AccessLevel.read_write.value
+                )
         if not holds:
             return "refused"
     return None

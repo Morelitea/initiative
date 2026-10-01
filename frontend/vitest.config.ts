@@ -1,6 +1,11 @@
 import path from "path";
 import { defineConfig } from "vitest/config";
 
+// The app formats dates and numbers in the runtime's own locale, and the
+// tests expect English. Each test worker is a child process, which takes its
+// locale from this when it starts.
+process.env.LC_ALL = "en_US.UTF-8";
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -34,5 +39,11 @@ export default defineConfig({
     // queued for seconds on slower dev machines and time out spuriously while
     // passing in isolation. CI finishes comfortably under either ceiling.
     testTimeout: 15_000,
+    // Whatever a test swaps in is put back when it ends: a spy, a global, an
+    // environment variable. A test that needs one across tests sets it in a
+    // beforeEach.
+    restoreMocks: true,
+    unstubGlobals: true,
+    unstubEnvs: true,
   },
 });

@@ -84,7 +84,7 @@ jobs:
 
             # This workflow file is in scope for itself: it defines the roles,
             # URLs and services the backend job runs against.
-            if [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/)" ]]; then
+            if [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/ .github/actions/test-database/)" ]]; then
               out backend true; out alembic true; out backend_mode full
               echo "CI workflow changed — running every backend test"
               return
@@ -313,17 +313,9 @@ jobs:
           BASE_REF: origin/${{ github.base_ref }}
         run: scripts/ci/check migrations
 
-      - name: Bootstrap database roles
-        # The same module a deployment runs at startup, over the same kind of
-        # owner connection: it creates the three login roles, hands the app's
-        # schema to app_provisioner, and installs the guild-search match
-        # operator. Runs after dependency install because it is app code, and
-        # before the migrations below, which connect as app_provisioner.
-        env:
-          DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
-        run: |
-          cd backend
-          uv run python -m app.db.bootstrap
+      - name: Set up the test database
+        # Before the migrations below, which connect as app_provisioner.
+        uses: ./.github/actions/test-database
 
       - name: Run Alembic migrations
         # conftest.py auto-applies migrations before tests run, so this
@@ -345,20 +337,6 @@ jobs:
         # false-positive rules disabled in backend/pyproject.toml
         # ([tool.ty.rules]), which is the single source of truth for the gate.
         run: scripts/ci/check ty
-
-      - name: Start PgBouncer (transaction mode)
-        # Runs as a step (not a service) so the committed reference config is
-        # available post-checkout. edoburu/pgbouncer is pinned; PgBouncer
-        # >= 1.21 is required for max_prepared_statements (asyncpg keeps its
-        # normal prepared-statement cache — there is no app-side pooler mode).
-        run: |
-          printf '"app_user" "app_user"\n"app_admin" "app_admin"\n' > /tmp/pgb-userlist.txt
-          docker run -d --name ci-pgbouncer --network host \
-            -v "$GITHUB_WORKSPACE/backend/scripts/ci/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro" \
-            -v /tmp/pgb-userlist.txt:/etc/pgbouncer/userlist.txt:ro \
-            edoburu/pgbouncer:v1.24.1-p1
-          timeout 30 bash -c 'until (echo > /dev/tcp/127.0.0.1/6432) 2>/dev/null; do sleep 1; done'
-          echo "PgBouncer up on :6432 (transaction mode)"
 
       - name: Fetch the test selection data dev last recorded
         # Which code each test ran, as dev's newest run recorded it. Every file

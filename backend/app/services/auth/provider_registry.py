@@ -22,7 +22,7 @@ from app.core.encryption import SALT_OIDC_CLIENT_SECRET, encrypt_field
 from app.core.config import API_V1_STR, settings as app_config
 from app.core.messages import AuthProviderMessages
 from app.db.errors import (
-    FOREIGN_KEY_VIOLATION_SQLSTATE,
+    STILL_REFERENCED_SQLSTATES,
     UNIQUE_VIOLATION_SQLSTATE,
     dbapi_sqlstate,
 )
@@ -314,7 +314,7 @@ async def delete_provider(
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
-        if dbapi_sqlstate(exc) != FOREIGN_KEY_VIOLATION_SQLSTATE:
+        if dbapi_sqlstate(exc) not in STILL_REFERENCED_SQLSTATES:
             raise
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

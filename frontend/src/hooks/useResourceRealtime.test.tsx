@@ -34,9 +34,7 @@ describe("useQueueRealtime", () => {
 
   afterEach(() => {
     setAuthToken(null);
-    vi.restoreAllMocks();
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
 
   it("authenticates in its first frame and refetches on a change", () => {

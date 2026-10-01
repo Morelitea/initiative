@@ -19,10 +19,11 @@ const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
 vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
 
 const mintHandoff = vi.hoisted(() => vi.fn());
+const listInvites = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 vi.mock("@/api/generated/communities/communities", () => ({
   createGuildInviteApiV1CommunitiesGuildIdInvitesPost: vi.fn(),
   deleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete: vi.fn(),
-  listGuildInvitesApiV1CommunitiesGuildIdInvitesGet: vi.fn().mockResolvedValue([]),
+  listGuildInvitesApiV1CommunitiesGuildIdInvitesGet: listInvites,
   createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintHandoff,
 }));
 
@@ -125,5 +126,16 @@ describe("SettingsUsersPage roles", () => {
     // not on the list it is offered.
     expect(await screen.findByText("Admin")).toBeInTheDocument();
     expect(screen.queryByText("Superadmin")).not.toBeInTheDocument();
+  });
+});
+
+describe("SettingsUsersPage invites", () => {
+  it("leaves invites out for a rung that reads the roster", async () => {
+    const guild = buildGuild({ role: "admin" }) as GuildRead;
+    setup({ role: "admin", can: { ...guild.can, configure: false } });
+
+    expect(await screen.findByText("Admin")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generate invite" })).not.toBeInTheDocument();
+    expect(listInvites).not.toHaveBeenCalled();
   });
 });

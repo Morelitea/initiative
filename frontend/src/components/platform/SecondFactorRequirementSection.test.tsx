@@ -18,10 +18,7 @@ let onRequirementError:
 
 let settings: PlatformAuthSettingsResponse;
 
-let providers: { id: number; display_name: string; asserts_second_factor: boolean }[] = [
-  { id: 1, display_name: "Corp SSO", asserts_second_factor: false },
-  { id: 2, display_name: "Entra", asserts_second_factor: true },
-];
+let providers: { id: number; display_name: string; asserts_second_factor: boolean }[];
 const providerMutate = vi.fn();
 
 vi.mock("@/hooks/useSettings", () => ({
@@ -68,16 +65,17 @@ const selfUnsatisfied = (): AxiosError => {
   return error;
 };
 
-describe("SecondFactorRequirementSection", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    settings = structuredClone(base);
-    providers = [
-      { id: 1, display_name: "Corp SSO", asserts_second_factor: false },
-      { id: 2, display_name: "Entra", asserts_second_factor: true },
-    ];
-  });
+// For every test in the file: the providers' tests set these too.
+beforeEach(() => {
+  vi.clearAllMocks();
+  settings = structuredClone(base);
+  providers = [
+    { id: 1, display_name: "Corp SSO", asserts_second_factor: false },
+    { id: 2, display_name: "Entra", asserts_second_factor: true },
+  ];
+});
 
+describe("SecondFactorRequirementSection", () => {
   it("starts on the stored answer", () => {
     settings = { ...base, second_factor_requirement: "platform_roles" };
     renderWithProviders(<SecondFactorRequirementSection />);

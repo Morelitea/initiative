@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
+import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import { useNotifications } from "@/hooks/useNotifications";
 
 const pillClass =
@@ -39,8 +40,11 @@ export function BottomNav() {
   const { isCreateContext, action } = usePrimaryCreateAction();
   const globalCreate = useGlobalCreateAccess();
 
+  // A connected tab is told when the inbox moves, so it polls only without a
+  // channel — the rule the bell follows.
+  const streamConnected = useNotificationStreamConnected();
   const notificationsQuery = useNotifications({
-    refetchInterval: 30_000,
+    refetchInterval: streamConnected ? false : 30_000,
     enabled: Boolean(user) && isMobile,
   });
   const unreadCount = notificationsQuery.data?.unread_count ?? 0;

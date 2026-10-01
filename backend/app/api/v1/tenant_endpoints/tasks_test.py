@@ -74,10 +74,26 @@ async def _create_task(session, project, title="Test Task", checklist=None):
 async def test_list_tasks_in_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Test listing tasks filtered by project."""
+    """Test listing tasks filtered by project. A row carries its description
+    as a plain-text excerpt and a flag, never the whole text."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task1 = await _create_task(session, a.project, "Task 1")
-    task2 = await _create_task(session, a.project, "Task 2")
+    long = await create_task(
+        session,
+        a.project,
+        description="## [WIP] Plan\n\n"
+        + "Draft the **budget**, then share it with everyone. " * 15,
+    )
+    short = await create_task(
+        session,
+        a.project,
+        description=f"Ask @[Mel]({a.user.id}) about [the budget](https://example.com).",
+    )
+    linked = await create_task(
+        session,
+        a.project,
+        description="Read [the brief](https://example.com/" + "a" * 700 + ")",
+    )
+    bare = await create_task(session, a.project)
 
     conditions = json.dumps(
         [{"field": "project_id", "op": "eq", "value": a.project.id}]
@@ -87,10 +103,25 @@ async def test_list_tasks_in_project(
     )
 
     assert response.status_code == 200
-    data = response.json()["items"]
-    task_ids = {t["id"] for t in data}
-    assert task1.id in task_ids
-    assert task2.id in task_ids
+    rows = {row["id"]: row for row in response.json()["items"]}
+    assert {
+        task.id: (
+            rows[task.id]["description_excerpt"],
+            rows[task.id]["has_description"],
+        )
+        for task in (long, short, linked, bare)
+    } == {
+        long.id: (
+            "[WIP] Plan Draft the budget, then share it with everyone. Draft the"
+            " budget, then share it with everyone. Draft the budget, then share it"
+            " with everyone. Draft…",
+            True,
+        ),
+        short.id: ("Ask @Mel about the budget.", True),
+        linked.id: ("Read…", True),
+        bare.id: (None, False),
+    }
+    assert not any("description" in row for row in rows.values())
 
 
 async def test_list_tasks_hides_a_project_the_member_holds_no_grant_on(

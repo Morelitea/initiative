@@ -43,7 +43,8 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
   return {
     id: counter,
     title: `Task ${counter}`,
-    description: "",
+    description_excerpt: null,
+    has_description: false,
     task_status_id: 1,
     task_status: defaultStatus,
     priority: "medium",

@@ -152,6 +152,18 @@ class CommentRead(CommentBase):
     reactions: list[ReactionGroup] = Field(default_factory=list)
 
 
+class CommentListResponse(SanitizedBaseModel):
+    """One page of a thread: ``limit`` conversations, newest first, each with
+    every reply under it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: The page's comments, in the order they were written.
+    comments: list[CommentRead]
+    #: The next page, or null at the end of the thread.
+    next_cursor: Optional[str] = None
+
+
 class RecentActivityEntry(SanitizedBaseModel):
     # Same as the other read schemas here: a field with a default is still
     # always sent, so the generated client should see it as present rather than

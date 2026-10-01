@@ -23,7 +23,6 @@ describe("openLiveSocket — silence", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
 
   it("closes a socket the server has gone silent on", async () => {
@@ -66,7 +65,6 @@ describe("openLiveSocket — frames and resuming", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
 
   it("hands a binary frame to onBytes and a JSON one to onFrame", () => {

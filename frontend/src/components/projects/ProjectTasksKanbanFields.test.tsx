@@ -61,9 +61,11 @@ beforeEach(() => {
 
 describe("the board's Fields menu", () => {
   it("shows every field on a board nobody has configured", async () => {
+    seedTask({ description_excerpt: "Start from the coast…", has_description: true });
     board();
 
     expect(await screen.findByText("Draw the map")).toBeInTheDocument();
+    expect(screen.getByText("Start from the coast…")).toBeInTheDocument();
     expect(screen.getByText(/priority: medium/i)).toBeInTheDocument();
   });
 

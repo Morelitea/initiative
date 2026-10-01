@@ -221,6 +221,8 @@ class Subject:
     are rendered from: the tool row whose sharing governs it, who that sharing
     reaches, and where the notice opens."""
 
+    #: What the notice names, as it was asked about.
+    about: Ref
     tool: Tool
     initiative_id: int | None
     #: The row of ``tool`` that governs it: the project a task is in.
@@ -233,15 +235,15 @@ class Subject:
     target_path: str
 
 
-def _place_of(about: Ref, subject: Subject) -> dict[str, Any]:
-    """Where a line about ``about`` sits, all the way down: its initiative, its
-    tool and that tool's row, and the thing itself."""
+def _place_of(subject: Subject) -> dict[str, Any]:
+    """Where a line about ``subject`` sits, all the way down: its initiative,
+    its tool and that tool's row, and the thing itself."""
     return {
         "initiative_id": subject.initiative_id,
         "tool": subject.tool.value,
         "resource_id": subject.resource_id,
-        "subject_type": about[0],
-        "subject_id": about[1],
+        "subject_type": subject.about[0],
+        "subject_id": subject.about[1],
     }
 
 
@@ -278,18 +280,21 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
         return None
     guild_id = routed_guild_id(session)
     async with roster_session(session) as reader:
-        members = (
-            await reader.exec(
-                select(GuildMembership.user_id, GuildMembership.role).where(
-                    GuildMembership.guild_id == guild_id
+        admins = set(
+            (
+                await reader.exec(
+                    select(GuildMembership.user_id).where(
+                        GuildMembership.guild_id == guild_id,
+                        GuildMembership.role.in_(GUILD_ADMIN_ROLES),  # type: ignore[attr-defined]
+                    )
                 )
-            )
-        ).all()
+            ).scalars()
+        )
         shared = (await permissions_service.audience(reader, tool, [row.id])).get(
             row.id, set()
         )
-    admins = {user_id for user_id, role in members if role in GUILD_ADMIN_ROLES}
     return Subject(
+        about=ref,
         tool=tool,
         initiative_id=row.initiative_id,
         resource_id=row.id,
@@ -308,7 +313,7 @@ async def notify(
     notification_type: NotificationType,
     recipients: Iterable[int | None] | str,
     *,
-    about: Ref | None,
+    about: Ref | Subject | None,
     key: str,
     values: Mapping[str, str | Callable[[User], str]] | None = None,
     data: Mapping[str, Any] | None = None,
@@ -325,7 +330,9 @@ async def notify(
     ``about`` is what the notice names. It decides who may hear it (only people
     who can open it), where it opens and where it sits in the navigation;
     ``None`` is news about the community itself, which every recipient already
-    belongs to. The community is the session's routing.
+    belongs to. The community is the session's routing. A caller telling
+    several groups about one thing passes the :class:`Subject` it resolved, so
+    the thing is looked up once.
 
     ``key`` is the prefix the email (``email`` namespace: ``subject``, ``title``,
     ``body``) and the push (``notifications``: ``title``, ``body``) share, filled
@@ -337,17 +344,30 @@ async def notify(
     one. ``email_names_line=False`` leaves the mail standing when the line is
     read — for a notice waiting on somebody's decision.
     """
+    if recipients != SHARED_WITH:
+        recipients = [
+            user_id
+            for user_id in cast(Iterable[int | None], recipients)
+            if user_id is not None and user_id != actor_id(actor)
+        ]
+        if not recipients:
+            # Nobody to tell, so nothing to look up about what it would say.
+            return
     guild_id = routed_guild_id(session)
     payload: dict[str, Any] = {**(data or {}), "guild_id": guild_id}
     allowed: frozenset[int] = frozenset()
     if about is not None:
-        subject = await resolve_subject(session, about)
+        subject = (
+            about
+            if isinstance(about, Subject)
+            else await resolve_subject(session, about)
+        )
         if subject is None:
             return
         allowed = subject.readers
         if recipients == SHARED_WITH:
             recipients = sorted(subject.shared_with)
-        payload.update(_place_of(about, subject))
+        payload.update(_place_of(subject))
         payload.setdefault("target_path", subject.target_path)
     elif recipients == SHARED_WITH:
         raise ValueError("SHARED_WITH needs something to be shared")
@@ -355,15 +375,13 @@ async def notify(
     payload["smart_link"] = _build_smart_link(
         target_path=payload["target_path"], guild_id=guild_id
     )
-    wanted: list[int] = []
-    for user_id in cast(Iterable[int | None], recipients):
-        if (
-            user_id is not None
-            and user_id != actor_id(actor)
-            and (about is None or user_id in allowed)
-            and user_id not in wanted
-        ):
-            wanted.append(user_id)
+    wanted = [
+        user_id
+        for user_id in dict.fromkeys(cast(Iterable[int | None], recipients))
+        if user_id is not None
+        and user_id != actor_id(actor)
+        and (about is None or user_id in allowed)
+    ]
     if not wanted:
         return
     # On the system engine: an account's settings and address are not a
@@ -726,18 +744,18 @@ async def notify_assigned(
     digest, which is queued when either channel is on for the community and
     re-reads both when it sends. The caller commits.
     """
-    about: Ref = ("task", cast(int, task.id))
-    subject = await resolve_subject(session, about)
+    candidates = [
+        user_id
+        for user_id in dict.fromkeys(assignee_ids)
+        if user_id is not None and user_id != assigned_by.id
+    ]
+    if not candidates:
+        return
+    subject = await resolve_subject(session, ("task", cast(int, task.id)))
     if subject is None:
         return
     guild_id = routed_guild_id(session)
-    wanted = [
-        user_id
-        for user_id in dict.fromkeys(assignee_ids)
-        if user_id is not None
-        and user_id != assigned_by.id
-        and user_id in subject.readers
-    ]
+    wanted = [user_id for user_id in candidates if user_id in subject.readers]
     if not wanted:
         return
     accounts = await accounts_service.load(wanted, excluding_ignorers_of=assigned_by.id)
@@ -754,7 +772,7 @@ async def notify_assigned(
                 "project_id": task.project_id,
                 "assigned_by_name": actor_name(assigned_by),
                 "guild_id": guild_id,
-                **_place_of(about, subject),
+                **_place_of(subject),
                 "target_path": subject.target_path,
                 "smart_link": smart_link,
             },
@@ -1355,12 +1373,11 @@ async def enqueue_reaction_event(
     reactor: User,
     reaction,
     context_title: str,
-    about: Ref,
     subject: Subject,
     guild_id: int,
 ) -> None:
     """Record that someone reacted to something ``author`` wrote, on the thread
-    or post ``about`` names (resolved by the caller as ``subject``).
+    or post ``subject`` names.
 
     Reactions are the lightest signal in the app and they arrive in flurries,
     so every channel digests them — including the bell, which rolls them up per
@@ -1373,7 +1390,7 @@ async def enqueue_reaction_event(
         return
     target_path = subject.target_path
     place = {
-        **_place_of(about, subject),
+        **_place_of(subject),
         "target_path": target_path,
         "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
     }
