@@ -66,7 +66,13 @@
     "unassigned": "Nicht zugewiesen",
     "archived": "Archiviert",
     "statusCategory": "Statuskategorie",
-    "savePresetDescription": "Alle in diesem Projekt sehen diese Voreinstellung."
+    "savePresetDescription": "Alle in diesem Projekt sehen diese Voreinstellung.",
+    "seededPresets": {
+      "all": "Alle",
+      "incomplete": "Unerledigt",
+      "unassigned": "Nicht zugewiesen",
+      "mine": "Meine"
+    }
   },
   "templates": {
     "loading": "Vorlagen werden geladen…",

@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Duplicate a project, document or counter group into any initiative** where you can create one, from **Settings › Advanced**. The copy keeps its tags, and its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
 
+### Fixed
+
+- **A project's built-in filter presets** (All, Incomplete, Unassigned, Mine) now show in your language, unless someone has renamed them.
+
 ## [0.74.0] - 2026-10-01
 
 ### Added
