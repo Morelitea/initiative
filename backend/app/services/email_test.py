@@ -195,6 +195,7 @@ async def test_the_hold_letter_names_the_deletion_day_when_there_is_one(
             recipients=["seat@example.com"],
             community="Acme",
             contact="help@example.com",
+            guild_id=7,
             delete_at=delete_at,
             plan_managed=plan_managed,
         )
@@ -209,9 +210,14 @@ async def test_the_hold_letter_names_the_deletion_day_when_there_is_one(
         " restored."
     )
     assert "help@example.com" in billed["text_body"]
+    # Restoring the plan lifts the hold, so the letter leads to the portal.
+    for part in ("html_body", "text_body"):
+        assert "/c/7/billing?page=manage" in billed[part]
+        assert "Restore the plan" in billed[part]
     # Where no plan is behind the hold, the plan is not what lifts it.
     assert "unless the hold is lifted" in held["text_body"]
     assert "plan" not in held["text_body"]
+    assert "/billing" not in held["html_body"]
     assert "deleted" not in undated["html_body"]
     assert "deleted" not in undated["text_body"]
 
@@ -231,6 +237,7 @@ async def test_the_hold_letter_is_written_in_its_readers_language(session, monke
         recipients=["seat@example.com"],
         community="Acme",
         contact=None,
+        guild_id=7,
         delete_at=datetime(2026, 3, 4, tzinfo=timezone.utc),
         plan_managed=True,
         locale="de",
@@ -239,6 +246,7 @@ async def test_the_hold_letter_is_written_in_its_readers_language(session, monke
     (letter,) = sent
     assert letter["subject"] == "Acme ist pausiert"
     assert "am 4. März 2026 gelöscht" in letter["text_body"]
+    assert "Tarif wiederherstellen" in letter["html_body"]
 
 
 @pytest.mark.parametrize(

@@ -18,6 +18,7 @@ from fastapi import (
 
 from app.api.deps import (
     GuildContext,
+    SeatPaymentSessionDep,
     SeatSessionDep,
     SeatWriteSessionDep,
     SettingsAdminContextDep,
@@ -587,6 +588,16 @@ async def create_guild(
     # Committed and seeded. Claimed for the owner — who holds the admin
     # membership — rather than the caller. Fire-and-forget.
     billing_claim.claim_new_guild(user_id=owner.id, guild_id=guild.id)
+    if settings.BILLING_URL:
+        # Where billing sets plans, the owner is invited to set one up. On a
+        # session of its own, and never allowed to fail the creation.
+        try:
+            async with cohorts.system_session(guild.id) as notice_session:
+                await guilds_service.queue_welcome_notice(
+                    notice_session, guild.id, owner_user_id=owner.id
+                )
+        except Exception:
+            logger.exception("could not welcome the owner of guild %s", guild.id)
 
     # The owner's membership — the caller's own in the ordinary case. When the
     # guild was created for another account the caller holds none, so the
@@ -1013,13 +1024,14 @@ async def _guild_payload_after_image_change(
 )
 async def create_guild_billing_handoff(
     guild_id: int,
-    seat_session: SeatWriteSessionDep,
+    seat_session: SeatPaymentSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> BillingPortalHandoffResponse:
     """Mint a billing-portal handoff. The guild's superadmin only.
 
     What a community pays for is the top seat's, like its sign-in: an ordinary
-    admin runs the place without holding its card.
+    admin runs the place without holding its card. The seat reaches it while
+    the community is on hold too, since paying is how a hold is lifted.
     """
     if not settings.BILLING_URL:
         raise HTTPException(

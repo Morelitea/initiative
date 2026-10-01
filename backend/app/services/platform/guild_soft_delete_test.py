@@ -772,6 +772,7 @@ async def test_the_hold_is_told_in_each_seats_language(
     ]
     delete_at = held_at + timedelta(days=DEFAULT_HOLD_DELETION_DAYS)
     assert {letter["delete_at"] for letter in sent} == {delete_at}
+    assert {letter["guild_id"] for letter in sent} == {guild_id}
     # The bell carries the day too, and writes it in the reader's language.
     await drain_notices()
     session.expire_all()
