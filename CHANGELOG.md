@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A signed-in phone keeps to the session limit that applies when it is used.** Joining a community that signs people in again every 12 hours, or that community getting its option back, now reaches a phone that signed in earlier within a day, instead of only when the limit itself was changed.
 - **Deleting a sign-in provider a community requires says so on PostgreSQL 18.** It's refused as in use, as on earlier versions, instead of failing with a server error.
 - **Wikis show in the recent tabs bar.** Opening a wiki now puts it beside the other tools you've opened.
 - **Invite links are for whoever can change the member list.** Someone with temporary read-only access to a community's settings no longer sees its invite links, and an account with temporary access to a community can't accept an invite into it until that access ends.
