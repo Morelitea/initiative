@@ -867,8 +867,10 @@ async def test_the_tag_tree_narrows_by_document_type(
         return response.json()["untagged_count"]
 
     assert await untagged(view="templates") == 2
-    assert await untagged(view="templates", document_type="whiteboard") == 1
-    assert await untagged(document_type="native") == 1
+    assert (
+        await untagged(view="templates", filters='{"document_type": "whiteboard"}') == 1
+    )
+    assert await untagged(filters='{"document_type": "native"}') == 1
 
 
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):
