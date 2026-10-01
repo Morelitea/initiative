@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 """Refresh the vendored app-kit contract.
 
-The contract is written in the ``initiative-app-kit`` repository and vendored
+The contract is written in the ``initiative-app-sdk`` repository and vendored
 here, so the diff a reviewer reads is the contract itself and no build step
 depends on the network. This script is how the copy moves.
 
-    python scripts/refresh_app_kit.py --ref v0.10.0     # from a kit revision
-    python scripts/refresh_app_kit.py --from ../initiative-app-kit
+    python scripts/refresh_app_kit.py --ref v0.10.0     # from an SDK revision
+    python scripts/refresh_app_kit.py --from ../initiative-app-sdk
     python scripts/refresh_app_kit.py --check           # is the copy current?
 
 Moving it is a deliberate act: a newer contract may declare terms this build
@@ -32,7 +32,7 @@ VENDOR = _BACKEND / "vendor" / "app-kit"
 FRONTEND_CONTRACT = (
     _BACKEND.parent / "frontend" / "src" / "contract" / "manifest.contract.json"
 )
-RAW = "https://raw.githubusercontent.com/Morelitea/initiative-app-kit"
+RAW = "https://raw.githubusercontent.com/Morelitea/initiative-app-sdk"
 
 #: What the kit publishes and this build reads: the contract, and the schema
 #: generated from it that the conformance tests run.
