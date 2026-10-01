@@ -197,5 +197,8 @@ export const useSetProperties = (
       invalidate: (_data, vars) => invalidate(q.propertyHolder(vars.target)),
       errorKey: "properties:manager.setValuesError",
     },
-    options
+    // Each write replaces every value on its row, so they run one at a time
+    // in the order they were made: a later write can never be overtaken by
+    // an earlier one that knew about less.
+    { scope: { id: "property-values" }, ...options }
   );

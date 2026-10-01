@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   PropertyDefinitionRead,
@@ -24,6 +24,8 @@ export const usePendingProperties = (
   saved: PropertySummary[]
 ) => {
   const [pending, setPending] = useState<PropertyDefinitionRead[]>([]);
+  // The same list, readable by a second add before the first has rendered.
+  const pendingRef = useRef<PropertyDefinitionRead[]>([]);
   const { mutate: setProperties } = useSetProperties();
 
   const savedIds = useMemo(() => new Set(saved.map((p) => p.property_id)), [saved]);
@@ -38,26 +40,30 @@ export const usePendingProperties = (
   const propertyIds = useMemo(() => properties.map((p) => p.property_id), [properties]);
 
   useEffect(() => {
-    setPending((prev) => {
-      if (prev.length === 0) return prev;
-      const next = prev.filter((def) => !savedIds.has(def.id));
-      return next.length === prev.length ? prev : next;
-    });
+    const next = pendingRef.current.filter((def) => !savedIds.has(def.id));
+    if (next.length === pendingRef.current.length) return;
+    pendingRef.current = next;
+    setPending(next);
   }, [savedIds]);
 
   const add = useCallback(
     (definition: PropertyDefinitionRead) => {
-      setPending((prev) =>
-        prev.some((def) => def.id === definition.id) ? prev : [...prev, definition]
-      );
-      if (!Number.isFinite(id) || savedIds.has(definition.id)) return;
-      // Replace-all: everything already attached, plus the new one, empty.
+      if (savedIds.has(definition.id)) return;
+      if (!pendingRef.current.some((def) => def.id === definition.id)) {
+        pendingRef.current = [...pendingRef.current, definition];
+        setPending(pendingRef.current);
+      }
+      if (!Number.isFinite(id)) return;
+      // Replace-all: everything already attached, and every property added
+      // since — this one included — empty until it is filled in.
       setProperties({
         target,
         id,
         values: [
           ...saved.map((p) => ({ property_id: p.property_id, value: normalizePropertyValue(p) })),
-          { property_id: definition.id, value: null },
+          ...pendingRef.current
+            .filter((def) => !savedIds.has(def.id))
+            .map((def) => ({ property_id: def.id, value: null })),
         ],
       });
     },
