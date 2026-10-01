@@ -269,6 +269,27 @@ def registry_base_url() -> str:
 
 # --- fetchers -----------------------------------------------------------------
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parsed = httpx.URL(url)
+    return (
+        parsed.scheme,
+        parsed.host,
+        parsed.port or _DEFAULT_PORTS.get(parsed.scheme),
+    )
+
+
+def _request_headers(url: str) -> dict[str, str]:
+    """The headers for a fetch of ``url``: the configured token goes only to
+    the registry URL's own origin."""
+    headers = {"Accept": "application/json, */*"}
+    token = (settings.MARKETPLACE_REGISTRY_TOKEN or "").strip()
+    if token and _origin(url) == _origin(registry_base_url()):
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 
 async def _get(url: str) -> bytes:
     """GET ``url`` through the shared egress layer.
@@ -280,7 +301,7 @@ async def _get(url: str) -> bytes:
         response = await request_public_target(
             "GET",
             url,
-            headers={"Accept": "application/json, */*"},
+            headers=_request_headers(url),
             timeout=httpx.Timeout(FETCH_TIMEOUT_SECONDS),
             max_bytes=MAX_FETCH_BYTES,
         )

@@ -980,6 +980,10 @@ class Settings(BaseSettings):
         "https://morelitea.github.io/initiative-developer/public/"
     )
     MARKETPLACE_REGISTRY_ROOT: str | None = None
+    # A bearer token sent with registry requests, for a registry that asks for
+    # one. It goes only to the origin of ``MARKETPLACE_REGISTRY_URL``. Unset
+    # (the default) sends none.
+    MARKETPLACE_REGISTRY_TOKEN: str | None = None
     # How often the background refresh asks for new metadata. ~15 minutes keeps
     # a withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
