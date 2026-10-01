@@ -52,7 +52,7 @@ jobs:
           short=$(git rev-parse --short HEAD)
           echo "SHORT_SHA=$short" >> "$GITHUB_ENV"
           VITE_VERSION_SUFFIX="-dev-$short" \
-          VITE_OTA_DEV_KEY="$(tr -d '[:space:]' < ../.github/ota-dev-key.pub)" \
+          VITE_OTA_DEV_PUBLIC_KEY="$(tr -d '[:space:]' < ../.github/ota-dev-key.pub)" \
             pnpm build:capacitor
 
       - name: Set up Java
