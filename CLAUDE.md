@@ -414,6 +414,16 @@ run, so a new file (a model, a route, a revision) or a frontend file reaches no
 test until one of these catches it. Keep the core cheap: it runs on every pull
 request.
 
+**The nightly run** (`.github/workflows/nightly.yml`) varies what the gates
+hold fixed: Postgres 16 and 18, `TZ=Pacific/Auckland` with a German locale for
+both suites, and a shuffled order (`pytest --shuffle=SEED`, the seed in the
+run's header; `vitest --sequence.shuffle --sequence.seed=SEED`). A failed
+night opens an issue labelled `nightly`. **A flaky test is quarantined, not
+retried**: mark it `@pytest.mark.quarantine(issue=<number>, since="YYYY-MM-DD")`
+and open the issue. Every run leaves it out except `pytest --quarantined`,
+which the nightly runs and which fails once a quarantine is two weeks old: by
+then the test is fixed or deleted (`app/testing/run_options.py`).
+
 Coverage is **opt-in** — it roughly doubles the wall time of a targeted run and
 nothing consumes the report on the normal path:
 
