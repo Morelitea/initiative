@@ -171,3 +171,68 @@ async def test_a_push_nobody_answered_is_tried_again_without_a_second_line(
     assert await _waiting(session) == []
     assert len(pushed) == 2 + len(notice_outbox.BACKOFF_SECONDS)
     assert len(await _lines(session, recipient.id)) == 2
+
+
+async def test_a_retry_follows_the_communitys_switches_as_they_stand_then(
+    session: AsyncSession, fcm
+):
+    """A community that starts redacting gets the kind of thing that
+    happened; one that turns push off gets nothing more."""
+    pushed, answer = fcm
+    actor = await create_user(session)
+    recipient = await create_user(session)
+    guild = await create_guild(session, creator=actor)
+    await create_push_token(session, recipient)
+    await session.commit()
+
+    answer["now"] = (False, False)
+    for _ in range(2):
+        await _mention(session, guild.id, recipient, actor)
+    await session.commit()
+    start = datetime.now(timezone.utc)
+    await _deliver(session, start)
+    assert len(pushed) == 2
+
+    guild.redact_notification_content = True
+    session.add(guild)
+    await session.commit()
+    answer["now"] = (True, False)
+    await _deliver(session, start + timedelta(seconds=31))
+    title, _body = notification_policy.redacted_push(NotificationType.mention, "en")
+    assert pushed[2:] == [title, title]
+
+    answer["now"] = (False, False)
+    await _mention(session, guild.id, recipient, actor)
+    await session.commit()
+    at = datetime.now(timezone.utc)
+    await _deliver(session, at)
+    guild.allow_push_notifications = False
+    session.add(guild)
+    await session.commit()
+    await _deliver(session, at + timedelta(seconds=31))
+    assert len(pushed) == 5
+    assert await _waiting(session) == []
+
+
+async def test_a_bell_line_that_cannot_be_written_is_never_given_up(
+    session: AsyncSession, monkeypatch
+):
+    actor = await create_user(session)
+    recipient = await create_user(session)
+    guild = await create_guild(session, creator=actor)
+    await session.commit()
+
+    async def _broken(*_args, **_kwargs):
+        raise RuntimeError("the bell is down")
+
+    monkeypatch.setattr(notifications, "deliver_notices", _broken)
+    await _mention(session, guild.id, recipient, actor)
+    await session.commit()
+    at = datetime.now(timezone.utc)
+    for wait in (*notice_outbox.BACKOFF_SECONDS, notice_outbox.BACKOFF_SECONDS[-1]):
+        await _deliver(session, at)
+        at += timedelta(seconds=wait + 1)
+
+    [row] = await _waiting(session)
+    assert row.attempts == len(notice_outbox.BACKOFF_SECONDS) + 1
+    assert row.bell_written_at is None

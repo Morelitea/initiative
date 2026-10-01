@@ -483,8 +483,10 @@ async def deliver_notices(
 
     Each notice is a line of its own, or joins the recipient's unread line for
     its thread; a notice that joins one sends no email and no push, so a
-    flurry is one interruption. Returns the notices whose push should go —
-    the worker sends them together once this is committed. Never commits.
+    flurry is one interruption. A notice whose line is already written is back
+    only for its push, which is asked again. Returns the notices whose push
+    should go — the worker sends them together once this is committed. Never
+    commits.
     """
     push: set[int] = set()
     for notice in notices:
@@ -496,6 +498,10 @@ async def deliver_notices(
             guild_id=notice.guild_id,
             prefs=prefs,
         )
+        if notice.bell_written_at is not None:
+            if channels.push and notice.id is not None:
+                push.add(notice.id)
+            continue
         if notice.rollup_key is None:
             opened = True
             line = await user_notifications.create_notification(

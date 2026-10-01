@@ -444,17 +444,26 @@ async def send_pushes(session: AsyncSession, pushes: Sequence[Push]) -> list[boo
     """
     if not pushes or not (await push_config.ensure_push_config_fresh()).enabled:
         return [False] * len(pushes)
-    # One session, so the reads go one after another; the sends do not.
-    devices: dict[int, list[PushToken]] = {}
+    # One session, so the reads go one after another; the sends do not. Each
+    # recipient's read and write is a savepoint of its own, so one that fails
+    # costs that recipient's pushes alone.
+    devices: dict[int, list[PushToken] | None] = {}
     for user_id in dict.fromkeys(push.user_id for push in pushes):
-        devices[user_id] = await push_tokens.live_for_user(session, user_id=user_id)
+        try:
+            async with session.begin_nested():
+                devices[user_id] = await push_tokens.live_for_user(
+                    session, user_id=user_id
+                )
+        except Exception:
+            logger.exception("Could not read the devices of user %s", user_id)
+            devices[user_id] = None
     gate = asyncio.Semaphore(CONCURRENT_SENDS)
     async with httpx.AsyncClient(timeout=10.0) as client:
         outcomes = await asyncio.gather(
             *(
                 _send_to_devices(
                     client,
-                    devices[push.user_id],
+                    devices[push.user_id] or [],
                     title=push.title,
                     body=push.body,
                     data=push.data,
@@ -465,10 +474,19 @@ async def send_pushes(session: AsyncSession, pushes: Sequence[Push]) -> list[boo
             )
         )
     for push, outcome in zip(pushes, outcomes):
-        await push_tokens.record_delivery(
-            session,
-            user_id=push.user_id,
-            delivered_ids=outcome.delivered_ids,
-            dead_tokens=outcome.dead_tokens,
-        )
-    return [outcome.retry for outcome in outcomes]
+        try:
+            async with session.begin_nested():
+                await push_tokens.record_delivery(
+                    session,
+                    user_id=push.user_id,
+                    delivered_ids=outcome.delivered_ids,
+                    dead_tokens=outcome.dead_tokens,
+                )
+        except Exception:
+            # What was sent stays sent; only the bookkeeping is lost.
+            logger.exception("Could not record a push for user %s", push.user_id)
+    # A recipient whose devices could not be read was sent nothing.
+    return [
+        outcome.retry or devices[push.user_id] is None
+        for push, outcome in zip(pushes, outcomes)
+    ]
