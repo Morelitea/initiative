@@ -1,18 +1,22 @@
 import { useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
+import { SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Tool, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, Tool, WikiReadingWidth } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { PropertyPanel } from "@/components/properties";
+import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -37,7 +41,7 @@ import { cn } from "@/lib/utils";
  * below are the edges the server reads back out of them on save.
  */
 export const WikiPageView = () => {
-  const { t } = useTranslation(["wikis", "common"]);
+  const { t } = useTranslation(["wikis", "common", "properties"]);
   const gp = useGuildPath();
   const {
     guildId,
@@ -298,6 +302,9 @@ export const WikiPageView = () => {
   // The conversation is a drawer: a wiki is browsed, and talking about a page
   // is a different activity from reading it.
   const [commentsOpen, setCommentsOpen] = useState(false);
+  // A page's properties are about the page rather than part of reading it, so
+  // they wait in a drawer of their own too.
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   // Reading or writing. Kept in the address, because the bar over the page and
   // the page's row in the tree both offer it from different React trees, and
   // because a page being edited is then a thing you can link to or reload into.
@@ -352,6 +359,13 @@ export const WikiPageView = () => {
   const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
   // Asked for, allowed by the wiki, and there is a page to have connections.
   const railOpen = showConnections && wiki.show_connections && Boolean(page);
+  // Definitions belong to an initiative, so a guild-level wiki's pages have
+  // none; and a reader has nothing to open on a page that carries none.
+  const propertiesInitiativeId = wiki.initiative_id;
+  const offersProperties =
+    propertiesInitiativeId !== null &&
+    Boolean(page) &&
+    (canWrite || Boolean(page?.properties.length));
 
   return (
     <>
@@ -384,6 +398,24 @@ export const WikiPageView = () => {
             setShowConnections((shown) => !shown);
           }}
           connectionsOpen={showConnections}
+          trailing={
+            offersProperties ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    onClick={() => setPropertiesOpen(true)}
+                    aria-label={t("properties:title")}
+                  >
+                    <SlidersHorizontal className="size-4" aria-hidden />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("properties:title")}</TooltipContent>
+              </Tooltip>
+            ) : undefined
+          }
         />
 
         <div className="flex min-h-0 flex-1">
@@ -478,6 +510,26 @@ export const WikiPageView = () => {
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             <WikiPageConnections wikiId={wikiId} pageId={pageId} className="border-0 shadow-none" />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={propertiesOpen && offersProperties} onOpenChange={setPropertiesOpen}>
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+          <SheetHeader className="border-b px-5 py-4">
+            <SheetTitle>{t("properties:title")}</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            {page && propertiesInitiativeId !== null ? (
+              <PropertyPanel
+                target={PropertyTarget.wiki_page}
+                entityId={page.id}
+                saved={page.properties}
+                initiativeId={propertiesInitiativeId}
+                canOpen={{ tool: Tool.wiki, id: wikiId }}
+                disabled={!canWrite}
+              />
+            ) : null}
           </div>
         </SheetContent>
       </Sheet>

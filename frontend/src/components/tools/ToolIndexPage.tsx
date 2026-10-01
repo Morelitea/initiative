@@ -41,6 +41,7 @@ import { BrowseMarketplaceButton } from "@/components/marketplace/BrowseMarketpl
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
+import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
@@ -464,13 +465,16 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
 
   // Counted from the fields as set rather than from the debounced search, so
   // the badge and "Clear all" answer the keystroke instead of trailing it.
-  const activeFilterCount = Object.values(filters).filter((value) =>
-    Array.isArray(value)
-      ? value.length > 0
-      : typeof value === "string"
-        ? value.trim()
-        : value != null
-  ).length;
+  // Each property condition counts as a filter of its own.
+  const { property_filters: propertyFilters, ...fields } = filters;
+  const activeFilterCount =
+    Object.values(fields).filter((value) =>
+      Array.isArray(value)
+        ? value.length > 0
+        : typeof value === "string"
+          ? value.trim()
+          : value != null
+    ).length + parsePropertyFilters(propertyFilters).length;
 
   // A narrower list may not reach the page being read.
   const changeFilters = (next: ToolListFilters) => {

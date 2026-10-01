@@ -1,6 +1,6 @@
 /**
- * `/settings` — what a tool entity is called, what it is tagged with, and
- * whether it carries a comment thread.
+ * `/settings` — what a tool entity is called, what it is tagged with, its
+ * custom properties, and whether it carries a comment thread.
  *
  * The section every tool's settings open on, so it is served at `/settings`
  * itself rather than at a `/settings/details` alias.
@@ -10,7 +10,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyPanel } from "@/components/properties";
 import { TagPicker } from "@/components/tags";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,7 @@ import { useSetToolTags } from "@/hooks/useToolTags";
 import { toast } from "@/lib/chesterToast";
 
 export const ToolSettingsDetailsPage = () => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation(["common", "properties"]);
   const { tool, entity, update, detailsExtra } = useToolSettings();
   const canManage = entity.can.edit;
 
@@ -150,6 +151,27 @@ export const ToolSettingsDetailsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Definitions belong to an initiative, so a guild-level tool has none
+          to offer. */}
+      {entity.initiative_id !== null && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("properties:title")}</CardTitle>
+            <CardDescription>{t("toolSettings.propertiesDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PropertyPanel
+              target={PropertyTarget[tool]}
+              entityId={entity.id}
+              saved={entity.properties}
+              initiativeId={entity.initiative_id}
+              canOpen={{ tool, id: entity.id }}
+              disabled={!canManage}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {showsCommentSwitch && (
         <Card>

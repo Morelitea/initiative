@@ -330,3 +330,36 @@ export const PropertyFilter = ({
     </div>
   );
 };
+
+/** A list's `property_filters` param, a JSON-encoded array, as conditions. */
+export const parsePropertyFilters = (
+  encoded: string | null | undefined
+): PropertyFilterCondition[] => {
+  if (!encoded) return [];
+  try {
+    const parsed: unknown = JSON.parse(encoded);
+    return Array.isArray(parsed) ? (parsed as PropertyFilterCondition[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+export interface PropertyFilterParamProps {
+  /** The list's `property_filters` param. */
+  value: string | null | undefined;
+  onChange: (next: string | undefined) => void;
+  initiativeId?: number;
+}
+
+/** A {@link PropertyFilter} over a tool list's `property_filters` param. */
+export const PropertyFilterParam = ({
+  value,
+  onChange,
+  initiativeId,
+}: PropertyFilterParamProps) => (
+  <PropertyFilter
+    value={parsePropertyFilters(value)}
+    onChange={(next) => onChange(next.length > 0 ? JSON.stringify(next) : undefined)}
+    initiativeId={initiativeId}
+  />
+);

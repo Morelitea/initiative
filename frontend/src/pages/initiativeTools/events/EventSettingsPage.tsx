@@ -3,11 +3,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  CalendarEventRead,
-  PropertySummary,
-  TagSummary,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { CalendarEventRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { utcDateKey } from "@/components/calendar/eventCalendarEntry";
 import {
@@ -16,7 +12,7 @@ import {
 } from "@/components/initiativeTools/events/EventDateTimeFields";
 import { toDateKey, toTimeSlotRounded } from "@/components/initiativeTools/events/eventDateTime";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { AddPropertyButton, PropertyList, usePendingProperties } from "@/components/properties";
+import { PropertyPanel } from "@/components/properties";
 import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import {
@@ -137,12 +133,6 @@ export function EventSettingsPage() {
     () => (event?.attendees ?? []).flatMap((a) => (a.user ? [a.user] : [])),
     [event?.attendees]
   );
-
-  const savedProperties = useMemo<PropertySummary[]>(
-    () => event?.properties ?? [],
-    [event?.properties]
-  );
-  const attachedProperties = usePendingProperties(savedProperties);
 
   useEffect(() => {
     if (event) {
@@ -502,19 +492,13 @@ export function EventSettingsPage() {
           <CardHeader>
             <CardTitle>{t("properties")}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <PropertyList
+          <CardContent>
+            <PropertyPanel
               target={PropertyTarget.calendar_event}
               entityId={eventId}
-              properties={attachedProperties.properties}
-              unsaved={attachedProperties.unsavedIds}
+              saved={event.properties}
               initiativeId={event.initiative_id}
               canOpen={{ tool: Tool.calendar, id: event.calendar_id }}
-            />
-            <AddPropertyButton
-              initiativeId={event.initiative_id}
-              currentPropertyIds={attachedProperties.propertyIds}
-              onAdd={attachedProperties.add}
             />
           </CardContent>
         </Card>

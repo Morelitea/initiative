@@ -12,6 +12,7 @@ import { PostsFilterBar, type ReadFilter } from "@/components/initiativeTools/po
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { TimelineRail } from "@/components/timeline/TimelineRail";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
@@ -101,6 +102,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
     ...toolViewParams(Tool.post, view),
     ...(search ? { search } : {}),
     ...(tagIds.length > 0 ? { tag_ids: tagIds } : {}),
+    ...(listFilters.property_filters ? { property_filters: listFilters.property_filters } : {}),
     ...(readFilter === "unread" ? { unread: true } : {}),
   };
   const filtersKey = JSON.stringify(filters);
@@ -156,7 +158,10 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = postsQuery;
 
   const activeFilterCount =
-    (search ? 1 : 0) + (tagIds.length > 0 ? 1 : 0) + (readFilter === "unread" ? 1 : 0);
+    (search ? 1 : 0) +
+    (tagIds.length > 0 ? 1 : 0) +
+    parsePropertyFilters(listFilters.property_filters).length +
+    (readFilter === "unread" ? 1 : 0);
   const clearFilters = useCallback(() => {
     setListFilters({});
     setReadFilter("all");

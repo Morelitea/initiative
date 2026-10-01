@@ -4,6 +4,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildPropertySummary,
   buildTagSummary,
   ownerCan,
   readerCan,
@@ -105,6 +106,27 @@ describe("ToolSettingsDetailsPage tags", () => {
       expect(screen.getByTestId("selected-tags")).toHaveTextContent("Existing tag")
     );
     expect(screen.getByTestId("selected-tags")).not.toHaveTextContent("Added tag");
+  });
+});
+
+describe("ToolSettingsDetailsPage properties", () => {
+  it("shows what a tool in an initiative carries", async () => {
+    resetFactories();
+    renderSection(
+      ToolSettingsDetailsPage,
+      buildEntity({ properties: [buildPropertySummary({ name: "Budget" })] })
+    );
+
+    expect(await screen.findByText("Budget")).toBeInTheDocument();
+    expect(screen.getByText("Properties")).toBeInTheDocument();
+  });
+
+  it("offers none on a guild-level tool, which has no definitions to add", async () => {
+    resetFactories();
+    renderSection(ToolSettingsDetailsPage, buildEntity({ initiative_id: null }));
+
+    await screen.findByRole("switch", { name: "Enable comments" });
+    expect(screen.queryByText("Properties")).not.toBeInTheDocument();
   });
 });
 

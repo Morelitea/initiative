@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   EntityType,
   PermissionKey,
+  PropertyTarget,
   RecentEntityType,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -373,6 +374,33 @@ describe("tool relations", () => {
       "task",
       "wiki_page",
     ]);
+  });
+});
+
+describe("tool properties", () => {
+  it("every tool and sub-tool has somewhere its properties are set", () => {
+    const set = new Set<string>();
+    for (const source of Object.values(componentSources)) {
+      for (const [, target] of source.matchAll(
+        /<PropertyPanel[^>]*?target=\{PropertyTarget\.(\w+)\}/gs
+      )) {
+        set.add(target);
+      }
+    }
+    // A tool's are on its settings page, which every tool shares.
+    if (
+      /<PropertyPanel[^>]*?target=\{PropertyTarget\[tool\]\}/s.test(
+        componentSources["../pages/toolSettings/ToolSettingsDetailsPage.tsx"]
+      )
+    ) {
+      for (const tool of TOOLS) set.add(tool);
+    }
+    // A task's are part of its form, and saved with the task.
+    if (componentSources["../components/tasks/TaskForm.tsx"].includes("<PropertyFields")) {
+      set.add(PropertyTarget.task);
+    }
+    const missing = Object.values(PropertyTarget).filter((target) => !set.has(target));
+    expect(missing, `nowhere sets the properties of ${missing.join(", ")}`).toEqual([]);
   });
 });
 

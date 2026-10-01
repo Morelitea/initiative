@@ -25,6 +25,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DocumentFilterFields } from "@/components/documents/DocumentsFilterBar";
+import { PropertyFilterParam } from "@/components/properties/PropertyFilter";
 import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,7 +81,8 @@ type SearchTagFieldsProps = ToolFilterFieldsProps & {
   placeholder: string;
 };
 
-/** A search box and a tag picker — what most tool lists narrow by. */
+/** A search box, a tag picker and property conditions — what most tool lists
+ *  narrow by. */
 const SearchTagFields = ({
   tool,
   placeholder,
@@ -95,32 +97,41 @@ const SearchTagFields = ({
   const id = useId();
 
   return (
-    <div className="flex flex-wrap items-end gap-4">
-      <div className="w-full space-y-2 lg:flex-1">
-        <Label htmlFor={`${id}-search`} className="block font-medium text-muted-foreground text-xs">
-          {t("filters.searchLabel")}
-        </Label>
-        <Input
-          id={`${id}-search`}
-          placeholder={t(placeholder)}
-          value={value.search ?? ""}
-          onChange={(event) => onChange({ ...value, search: event.target.value })}
-          className="min-w-60"
-        />
+    <>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="w-full space-y-2 lg:flex-1">
+          <Label
+            htmlFor={`${id}-search`}
+            className="block font-medium text-muted-foreground text-xs"
+          >
+            {t("filters.searchLabel")}
+          </Label>
+          <Input
+            id={`${id}-search`}
+            placeholder={t(placeholder)}
+            value={value.search ?? ""}
+            onChange={(event) => onChange({ ...value, search: event.target.value })}
+            className="min-w-60"
+          />
+        </div>
+        <div className="w-full space-y-2 sm:w-64">
+          <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
+            {t("tags:picker.filterLabel")}
+          </Label>
+          <TagFilterPicker
+            id={`${id}-tags`}
+            tagIds={value.tag_ids ?? []}
+            onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
+            placeholder={t("tags:picker.anyTag")}
+          />
+        </div>
+        {children}
       </div>
-      <div className="w-full space-y-2 sm:w-64">
-        <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
-          {t("tags:picker.filterLabel")}
-        </Label>
-        <TagFilterPicker
-          id={`${id}-tags`}
-          tagIds={value.tag_ids ?? []}
-          onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
-          placeholder={t("tags:picker.anyTag")}
-        />
-      </div>
-      {children}
-    </div>
+      <PropertyFilterParam
+        value={value.property_filters}
+        onChange={(next) => onChange({ ...value, property_filters: next })}
+      />
+    </>
   );
 };
 

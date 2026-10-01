@@ -2,8 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { DocumentType, type Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
-import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
-import { PropertyFilter } from "@/components/properties/PropertyFilter";
+import { PropertyFilterParam } from "@/components/properties/PropertyFilter";
 import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
 import type { ToolFilterFieldsProps } from "@/components/tools/ToolFilterFields";
 import { Input } from "@/components/ui/input";
@@ -28,19 +27,6 @@ const DOCUMENT_TYPE_OPTIONS = [
   { value: DocumentType.smart_link, labelKey: "page.typeSmartLink" },
 ] as const;
 
-/** The list's `property_filters` param, a JSON-encoded array, as conditions. */
-export const parsePropertyFilters = (
-  encoded: string | null | undefined
-): PropertyFilterCondition[] => {
-  if (!encoded) return [];
-  try {
-    const parsed: unknown = JSON.parse(encoded);
-    return Array.isArray(parsed) ? (parsed as PropertyFilterCondition[]) : [];
-  } catch {
-    return [];
-  }
-};
-
 type DocumentFilterFieldsProps = ToolFilterFieldsProps<typeof Tool.document> & {
   /** Off where tags are browsed some other way (the tag tree). */
   tags?: boolean;
@@ -55,7 +41,6 @@ export const DocumentFilterFields = ({
   children,
 }: DocumentFilterFieldsProps) => {
   const { t } = useTranslation(["documents", "tags"]);
-  const propertyFilters = parsePropertyFilters(value.property_filters);
 
   return (
     <>
@@ -122,14 +107,9 @@ export const DocumentFilterFields = ({
         </div>
         {children}
       </div>
-      <PropertyFilter
-        value={propertyFilters}
-        onChange={(next) =>
-          onChange({
-            ...value,
-            property_filters: next.length > 0 ? JSON.stringify(next) : undefined,
-          })
-        }
+      <PropertyFilterParam
+        value={value.property_filters}
+        onChange={(next) => onChange({ ...value, property_filters: next })}
       />
     </>
   );

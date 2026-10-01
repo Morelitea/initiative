@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
-import type { PropertySummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import {
@@ -33,9 +33,7 @@ import { DOCUMENT_BODIES } from "@/components/documents/detail/documentBodies";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
 import { clearWhiteboardSceneCache } from "@/components/documents/whiteboardSceneCache";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
-import { PropertyList } from "@/components/properties/PropertyList";
-import { usePendingProperties } from "@/components/properties/usePendingProperties";
+import { PropertyPanel } from "@/components/properties/PropertyPanel";
 import { DocumentDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagPicker } from "@/components/tags/TagPicker";
@@ -601,9 +599,6 @@ export const DocumentDetailPage = () => {
     [parsedId, setDocumentTagsMutation]
   );
 
-  const savedProperties = useMemo<PropertySummary[]>(() => document?.properties ?? [], [document]);
-  const attachedProperties = usePendingProperties(savedProperties);
-
   if (documentQuery.isLoading) {
     return <DocumentDetailSkeleton label={t("detail.loading")} />;
   }
@@ -838,20 +833,13 @@ export const DocumentDetailPage = () => {
                 {/* Properties */}
                 <div className="space-y-2">
                   <Label>{t("properties:title")}</Label>
-                  <PropertyList
+                  <PropertyPanel
                     target={PropertyTarget.document}
                     entityId={parsedId}
-                    properties={attachedProperties.properties}
-                    unsaved={attachedProperties.unsavedIds}
+                    saved={document.properties}
                     disabled={!canEditDocument}
                     initiativeId={document.initiative_id}
                     canOpen={{ tool: Tool.document, id: document.id }}
-                  />
-                  <AddPropertyButton
-                    initiativeId={document.initiative_id}
-                    currentPropertyIds={attachedProperties.propertyIds}
-                    onAdd={attachedProperties.add}
-                    disabled={!canEditDocument}
                   />
                 </div>
               </CardContent>

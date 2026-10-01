@@ -5,6 +5,7 @@ import type {
   ListProjectsApiV1CGuildIdProjectsGetParams,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useProjects } from "@/hooks/useProjects";
@@ -64,6 +65,9 @@ export const useProjectListView = ({
   );
 
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  // The list's `property_filters` param. Not a saved preference: a property
+  // condition is one person's question of one list.
+  const [propertyFilters, setPropertyFilters] = useState<string | undefined>(undefined);
   const [customOrder, setCustomOrder] = useState<number[]>([]);
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
@@ -103,6 +107,7 @@ export const useProjectListView = ({
       ...params,
       ...(search ? { search } : {}),
       ...(tagFilters.length > 0 ? { tag_ids: tagFilters } : {}),
+      ...(propertyFilters ? { property_filters: propertyFilters } : {}),
     },
     // The cards stay on screen while a changed search is in flight.
     { placeholderData: keepPreviousData }
@@ -115,21 +120,29 @@ export const useProjectListView = ({
   const filterValue: ToolListFilters<typeof Tool.project> = {
     search: searchQuery,
     tag_ids: tagFilters,
+    property_filters: propertyFilters,
   };
   const handleFilterChange = (next: ToolListFilters<typeof Tool.project>) => {
     if (next.search !== filterValue.search) setSearchQuery(next.search ?? "");
     if (next.tag_ids !== filterValue.tag_ids) setTagFilters(next.tag_ids ?? []);
+    if (next.property_filters !== filterValue.property_filters) {
+      setPropertyFilters(next.property_filters ?? undefined);
+    }
   };
 
   // What the filter button reports while the panel is closed. Sort order is
   // deliberately excluded — it reorders the list, it doesn't narrow it, so
   // counting it would badge a list that is showing everything.
   const activeFilterCount =
-    (searchQuery.trim() ? 1 : 0) + tagFilters.length + (favoritesOnly ? 1 : 0);
+    (searchQuery.trim() ? 1 : 0) +
+    tagFilters.length +
+    parsePropertyFilters(propertyFilters).length +
+    (favoritesOnly ? 1 : 0);
 
   const clearFilters = useCallback(() => {
     setSearchQuery("");
     setTagFilters([]);
+    setPropertyFilters(undefined);
     setFavoritesOnly(false);
   }, [setSearchQuery, setTagFilters]);
 
