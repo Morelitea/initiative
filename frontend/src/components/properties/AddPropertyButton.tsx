@@ -176,7 +176,7 @@ export const AddPropertyButton = ({
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="start">
         {isCreating ? (
-          <div className="space-y-3 p-3">
+          <div className="max-h-[var(--radix-popover-content-available-height)] space-y-3 overflow-y-auto p-3">
             <div className="font-medium text-sm">{t("properties:picker.createHeading")}</div>
             <div className="space-y-2">
               <Label htmlFor="property-new-name" className="font-normal text-xs">
