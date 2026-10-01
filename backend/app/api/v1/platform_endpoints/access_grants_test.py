@@ -334,7 +334,14 @@ async def test_grantee_sees_guild_content(
     )
     assert members.status_code == 200, members.text
 
-    events = await client.get(host.g("/calendar-events/"), headers=headers)
+    events = await client.get(
+        host.g("/calendar-entries/"),
+        params={
+            "start_after": "2026-01-01T00:00:00Z",
+            "start_before": "2026-02-01T00:00:00Z",
+        },
+        headers=headers,
+    )
     assert events.status_code == 200, events.text
 
     # Recording a recent view answers rather than faulting: a grantee's own

@@ -142,8 +142,10 @@ type Resolve = (read: Read, guildId: number, id: number) => Promise<string>;
 
 /**
  * The kinds that live inside a tool and can be read by their own id, keyed by
- * the child-kind registry ({@link PARENT_TOOL}). A counter, a queue item and a
- * picture have no read by id alone, so a link never names one.
+ * the child-kind registry ({@link PARENT_TOOL}). A picture has no read by id
+ * alone, so a link never names one. A counter and a queue item do
+ * (`/counters/{id}`, `/queue-items/{id}`), but nothing links to either yet,
+ * so neither has a resolver.
  */
 const CHILD_RESOLVERS: Partial<Record<keyof typeof PARENT_TOOL, Resolve>> = {
   task: async (read, guildId, id) => {

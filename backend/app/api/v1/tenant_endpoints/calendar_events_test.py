@@ -4,11 +4,12 @@ Events live inside a calendar (the shareable container) and carry no grants of
 their own — read/write access is inherited from the parent calendar, the way
 tasks inherit project access. These tests cover event creation (which requires
 write on the target calendar), the attendee/RSVP notification flows, tag
-serialization on the list summary, and the cross-guild ``/me`` calendar list's
-DAC filter (which now keys off calendar sharing, not per-event grants).
+serialization on the event summary, and the calendar-entries reads' DAC filter
+(which keys off calendar sharing, not per-event grants).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from httpx import AsyncClient
 from sqlmodel import delete, select
@@ -32,6 +33,18 @@ from app.testing import (
     route_session_to_guild,
     drain_notices,
 )
+
+
+def _around_now(**params: Any) -> dict[str, Any]:
+    """A calendar-entries read of the events around now, where the factory
+    puts them, without task markers."""
+    now = datetime.now(timezone.utc)
+    return {
+        "start_after": (now - timedelta(days=1)).isoformat(),
+        "start_before": (now + timedelta(days=1)).isoformat(),
+        "include_tasks": "false",
+        **params,
+    }
 
 
 async def _drop_all_members_grant(session: AsyncSession, guild, calendar) -> None:
@@ -102,7 +115,7 @@ async def _setup_event(session, acting_user):
     return a, a.guild, a.initiative, calendar, event
 
 
-async def test_list_events_summary_includes_tags(
+async def test_event_summary_includes_tags(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
@@ -118,31 +131,33 @@ async def test_list_events_summary_includes_tags(
     )
     assert assign.status_code == 200
 
-    # The list summary should embed the tag.
+    # The summary should embed the tag.
     response = await client.get(
-        a.g(f"/calendar-events/?initiative_id={initiative.id}"),
+        a.g("/calendar-entries/"),
         headers=a.headers,
+        params=_around_now(initiative_id=initiative.id),
     )
-    assert response.status_code == 200
-    items = {item["id"]: item for item in response.json()["items"]}
+    assert response.status_code == 200, response.text
+    items = {item["id"]: item for item in response.json()["events"]}
     assert event.id in items
     tags = items[event.id]["tags"]
     assert [t["id"] for t in tags] == [tag.id]
     assert tags[0]["name"] == "Priority"
 
 
-async def test_list_events_summary_tags_default_empty(
+async def test_event_summary_tags_default_empty(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """An event with no tags still serializes ``tags: []`` in the summary."""
     a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
 
     response = await client.get(
-        a.g(f"/calendar-events/?initiative_id={initiative.id}"),
+        a.g("/calendar-entries/"),
         headers=a.headers,
+        params=_around_now(initiative_id=initiative.id),
     )
-    assert response.status_code == 200
-    items = {item["id"]: item for item in response.json()["items"]}
+    assert response.status_code == 200, response.text
+    items = {item["id"]: item for item in response.json()["events"]}
     assert items[event.id]["tags"] == []
 
 
@@ -526,14 +541,15 @@ async def test_an_event_repeat_is_stored_as_picked(
     # midnight, and from Auckland it ends before noon UTC; either way the event
     # is Monday's.
     listing = await client.get(
-        organizer.g("/calendar-events/"),
+        organizer.g("/calendar-entries/"),
         headers=organizer.headers,
         params={
             "start_after": "2026-10-05T07:00:00Z",
             "start_before": "2026-10-06T06:59:59Z",
+            "include_tasks": False,
         },
     )
-    assert "Market day" in {event["title"] for event in listing.json()["items"]}
+    assert "Market day" in {event["title"] for event in listing.json()["events"]}
     entries = await client.get(
         organizer.g("/calendar-entries/"),
         headers=organizer.headers,
@@ -828,24 +844,10 @@ async def test_rsvp_notifies_organizer(
     assert rsvps[0].data["rsvp_status"] == "accepted"
 
 
-async def test_global_calendar_events_reads_guild_schema(
+async def test_guild_entries_filter_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The cross-guild /me list must read events from the per-guild schema
-    (schema-per-guild). The factory writes the event into guild_<id>; /me
-    aggregates per guild and must surface it."""
-    a, guild, initiative, calendar, event = await _setup_event(session, acting_user)
-    headers = get_auth_headers(a.user)
-    response = await client.get("/api/v1/me/calendar-events", headers=headers)
-    assert response.status_code == 200
-    body = response.json()
-    assert event.id in {item["id"] for item in body["items"]}
-
-
-async def test_list_events_filters_events_without_calendar_grant(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The per-guild list resolves an event through its calendar's sharing.
+    """The per-guild read resolves an event through its calendar's sharing.
 
     Events carry no grants of their own, so calendar sharing is what decides.
     ``calendar_ids`` narrows the result; it is not how access is resolved.
@@ -861,31 +863,35 @@ async def test_list_events_filters_events_without_calendar_grant(
     event = await create_calendar_event(session, calendar, admin.user, title="NoGrant")
     await _drop_all_members_grant(session, admin.guild, calendar)
 
-    path = admin.g("/calendar-events/")
-    resp = await client.get(path, headers=get_auth_headers(member.user))
-    assert resp.status_code == 200
-    assert event.id not in {item["id"] for item in resp.json()["items"]}
+    path = admin.g("/calendar-entries/")
+    resp = await client.get(
+        path, params=_around_now(), headers=get_auth_headers(member.user)
+    )
+    assert resp.status_code == 200, resp.text
+    assert event.id not in {item["id"] for item in resp.json()["events"]}
 
     # Naming the calendar narrows the result; it does not change the answer.
     resp = await client.get(
         path,
-        params={"calendar_ids": [calendar.id]},
+        params=_around_now(calendar_ids=[calendar.id]),
         headers=get_auth_headers(member.user),
     )
-    assert resp.status_code == 200
-    assert resp.json()["items"] == []
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["events"] == []
 
     # The admin reaches it, as they do every calendar in their guild.
-    resp = await client.get(path, headers=get_auth_headers(admin.user))
-    assert resp.status_code == 200
-    assert event.id in {item["id"] for item in resp.json()["items"]}
+    resp = await client.get(
+        path, params=_around_now(), headers=get_auth_headers(admin.user)
+    )
+    assert resp.status_code == 200, resp.text
+    assert event.id in {item["id"] for item in resp.json()["events"]}
 
 
-async def test_my_calendar_events_filters_events_without_calendar_grant(
+async def test_my_calendar_entries_filter_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The cross-guild /me list applies the same calendar DAC filter as the
-    per-guild list: a non-admin member doesn't see an event in a calendar they
+    """The cross-guild /me read applies the same calendar DAC filter as the
+    per-guild read: a non-admin member doesn't see an event in a calendar they
     hold no grant for (even though they're an initiative member and RLS shows
     the row). Events inherit calendar access; they carry no grants of their own."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -904,20 +910,24 @@ async def test_my_calendar_events_filters_events_without_calendar_grant(
 
     # Member: the ungranted event is hidden on /me.
     resp = await client.get(
-        "/api/v1/me/calendar-events", headers=get_auth_headers(member.user)
+        "/api/v1/me/calendar-entries",
+        params=_around_now(),
+        headers=get_auth_headers(member.user),
     )
-    assert resp.status_code == 200
-    assert event.id not in {item["id"] for item in resp.json()["items"]}
+    assert resp.status_code == 200, resp.text
+    assert event.id not in {item["id"] for item in resp.json()["events"]}
 
     # Admin: sees it via the guild-admin bypass.
     resp = await client.get(
-        "/api/v1/me/calendar-events", headers=get_auth_headers(admin.user)
+        "/api/v1/me/calendar-entries",
+        params=_around_now(),
+        headers=get_auth_headers(admin.user),
     )
-    assert resp.status_code == 200
-    assert event.id in {item["id"] for item in resp.json()["items"]}
+    assert resp.status_code == 200, resp.text
+    assert event.id in {item["id"] for item in resp.json()["events"]}
 
 
-async def test_my_calendar_events_leaves_out_what_was_never_shared(
+async def test_my_calendar_entries_leave_out_what_was_never_shared(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A guild admin's own calendar is what has been shared with them.
@@ -936,19 +946,22 @@ async def test_my_calendar_events_leaves_out_what_was_never_shared(
     event = await create_calendar_event(session, calendar, other.user, title="Foreign")
 
     resp = await client.get(
-        "/api/v1/me/calendar-events", headers=get_auth_headers(admin.user)
+        "/api/v1/me/calendar-entries",
+        params=_around_now(),
+        headers=get_auth_headers(admin.user),
     )
-    assert resp.status_code == 200
-    assert event.id not in {item["id"] for item in resp.json()["items"]}
+    assert resp.status_code == 200, resp.text
+    assert event.id not in {item["id"] for item in resp.json()["events"]}
 
     # Named directly, the initiative answers in full — this moved navigation,
     # not authority.
     within = await client.get(
-        f"/api/v1/c/{admin.guild.id}/calendar-events/?initiative_id={initiative.id}",
+        admin.g("/calendar-entries/"),
+        params=_around_now(initiative_id=initiative.id),
         headers=get_auth_headers(admin.user),
     )
     assert within.status_code == 200, within.text
-    assert event.id in {item["id"] for item in within.json()["items"]}
+    assert event.id in {item["id"] for item in within.json()["events"]}
 
 
 async def _switch_calendars_on(session: AsyncSession, initiative) -> None:
@@ -981,9 +994,11 @@ class TestGuildCalendarEvents:
         calendar = await create_guild_calendar(session, a.guild, a.user)
         await create_calendar_event(session, calendar, a.user, title="Club night")
 
-        response = await client.get(a.g("/calendar-events/"), headers=a.headers)
+        response = await client.get(
+            a.g("/calendar-entries/"), headers=a.headers, params=_around_now()
+        )
         assert response.status_code == 200, response.text
-        assert [e["title"] for e in response.json()["items"]] == ["Club night"]
+        assert [e["title"] for e in response.json()["events"]] == ["Club night"]
 
     async def test_a_member_in_no_initiative_sees_them(
         self, client: AsyncClient, acting_user, session
@@ -996,10 +1011,12 @@ class TestGuildCalendarEvents:
         member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
 
         response = await client.get(
-            member.g("/calendar-events/"), headers=member.headers
+            member.g("/calendar-entries/"),
+            headers=member.headers,
+            params=_around_now(),
         )
         assert response.status_code == 200, response.text
-        assert [e["title"] for e in response.json()["items"]] == ["Club night"]
+        assert [e["title"] for e in response.json()["events"]] == ["Club night"]
 
     async def test_they_stay_out_of_an_initiative(
         self, client: AsyncClient, acting_user, session
@@ -1014,12 +1031,12 @@ class TestGuildCalendarEvents:
         await create_calendar_event(session, own, a.user, title="Sprint review")
 
         response = await client.get(
-            a.g("/calendar-events/"),
+            a.g("/calendar-entries/"),
             headers=a.headers,
-            params={"initiative_id": a.initiative.id},
+            params=_around_now(initiative_id=a.initiative.id),
         )
         assert response.status_code == 200, response.text
-        assert [e["title"] for e in response.json()["items"]] == ["Sprint review"]
+        assert [e["title"] for e in response.json()["events"]] == ["Sprint review"]
 
     async def test_the_calendar_is_listed_but_not_under_an_initiative(
         self, client: AsyncClient, acting_user, session

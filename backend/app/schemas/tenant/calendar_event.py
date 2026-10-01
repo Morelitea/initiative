@@ -9,7 +9,6 @@ from app.core import recurrence
 from app.core.identity_boundary import GuildId, PersonId
 from app.core.relationships import Related
 from app.schemas.base import SanitizedBaseModel, TitleStr
-from app.schemas.query import PageMeta
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
@@ -181,10 +180,6 @@ class CalendarEventSummary(CalendarEventBase):
     can: ContentCan = Field(default_factory=ContentCan)
     created_at: datetime
     updated_at: datetime
-
-
-class CalendarEventListResponse(PageMeta):
-    items: List[CalendarEventSummary]
 
 
 class CalendarEventRead(CalendarEventSummary):

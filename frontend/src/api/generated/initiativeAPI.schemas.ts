@@ -1819,15 +1819,6 @@ export interface CalendarEventDocumentRead {
   attached_at: string;
 }
 
-export interface CalendarEventListResponse {
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-  has_prev: boolean;
-  items: CalendarEventSummary[];
-}
-
 export interface CalendarEventRSVPUpdate {
   rsvp_status: RSVPStatus;
   occurrence?: string | null;
@@ -2709,6 +2700,24 @@ export const CounterSortField = {
 export interface CounterSortRequest {
   field: CounterSortField;
   direction?: CounterSortDirection;
+}
+
+export type CounterStepRequestDirection =
+  (typeof CounterStepRequestDirection)[keyof typeof CounterStepRequestDirection];
+
+export const CounterStepRequestDirection = {
+  up: "up",
+  down: "down",
+} as const;
+
+/**
+ * Move a counter up or down. ``amount`` left out moves it by the counter's
+ * own ``step``; given, it must be more than nothing, since which way the
+ * counter goes is ``direction``'s to say.
+ */
+export interface CounterStepRequest {
+  direction: CounterStepRequestDirection;
+  amount?: number | string | null;
 }
 
 export interface CounterUpdate {
@@ -10689,23 +10698,6 @@ export type ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams = {
   page_size?: number;
 };
 
-export type ListCalendarEventsApiV1CGuildIdCalendarEventsGetParams = {
-  initiative_id?: number | null;
-  calendar_ids?: number[] | null;
-  start_after?: string | null;
-  start_before?: string | null;
-  property_filters?: string | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 200
-   */
-  page_size?: number;
-};
-
 export type ReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetParams = {
   /**
    * One occurrence of a repeating event, whose answers to show.
@@ -11235,21 +11227,6 @@ export type ListMyWikisApiV1MeWikisGetParams = {
   /**
    * @minimum 0
    * @maximum 100
-   */
-  page_size?: number;
-};
-
-export type ListMyCalendarEventsApiV1MeCalendarEventsGetParams = {
-  guild_ids?: number[] | null;
-  start_after?: string | null;
-  start_before?: string | null;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 200
    */
   page_size?: number;
 };

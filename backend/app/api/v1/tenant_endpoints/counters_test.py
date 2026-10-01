@@ -1,19 +1,26 @@
 """Integration tests for counter group endpoints."""
 
+from datetime import datetime, timezone
+
 import pytest
 from decimal import Decimal
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.request_context import SystemGuild
+from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
+from app.models.tenant.counter import COUNTER_LIMIT
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     Actor,
+    create_counter,
     create_counter_group,
     create_initiative,
     create_resource_grant,
     grant_role_permission,
 )
+from app.services.tenant import counters as counters_service
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -188,12 +195,12 @@ async def test_progress_bar_requires_bounds(client: AsyncClient, acting_user):
 
 
 @pytest.mark.parametrize(
-    ("operation", "start", "landed"),
-    [("increment", "99", "100"), ("decrement", "2", "0")],
+    ("direction", "start", "landed"),
+    [("up", "99", "100"), ("down", "2", "0")],
     ids=["up to the maximum", "down to the minimum"],
 )
 async def test_a_step_lands_on_the_bound_rather_than_past_it(
-    client: AsyncClient, acting_user, operation: str, start: str, landed: str
+    client: AsyncClient, acting_user, direction: str, start: str, landed: str
 ):
     """A step wider than the room left stops at the bound it is heading for."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -209,11 +216,144 @@ async def test_a_step_lands_on_the_bound_rather_than_past_it(
     )
 
     response = await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}/{operation}"),
+        a.g(f"/counters/{counter['id']}/step"),
         headers=a.headers,
+        json={"direction": direction},
     )
     assert response.status_code == 200
     assert Decimal(response.json()["count"]) == Decimal(landed)
+
+
+async def test_a_step_moves_by_the_counter_s_step_or_the_amount_given(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(
+        session, group, count=Decimal("10"), step=Decimal("2"), max=Decimal("100")
+    )
+
+    landed = []
+    for body in (
+        {"direction": "up"},
+        {"direction": "down"},
+        {"direction": "up", "amount": "5"},
+        {"direction": "down", "amount": "0.5"},
+        {"direction": "up", "amount": "1000"},
+    ):
+        response = await client.post(
+            a.g(f"/counters/{counter.id}/step"), headers=a.headers, json=body
+        )
+        assert response.status_code == 200, response.text
+        landed.append(Decimal(response.json()["count"]))
+    assert landed == [12, 10, 15, Decimal("14.5"), 100]
+
+
+@pytest.mark.parametrize(
+    "amount",
+    [
+        "0",
+        "-1",
+        # More than a counter can store, before the point or after it.
+        "10000000000",
+        "0.00000000001",
+    ],
+)
+async def test_a_step_moves_by_more_than_nothing(
+    client: AsyncClient, session: AsyncSession, acting_user, amount: str
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group)
+
+    response = await client.post(
+        a.g(f"/counters/{counter.id}/step"),
+        headers=a.headers,
+        json={"direction": "up", "amount": amount},
+    )
+    assert response.status_code == 422
+
+
+async def test_an_open_counter_stops_at_the_largest_number_it_can_store(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group, count=COUNTER_LIMIT - 1)
+
+    response = await client.post(
+        a.g(f"/counters/{counter.id}/step"),
+        headers=a.headers,
+        json={"direction": "up", "amount": "5"},
+    )
+    assert response.status_code == 200, response.text
+    assert Decimal(response.json()["count"]) == COUNTER_LIMIT
+
+
+async def test_a_deleted_counter_does_not_step(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(
+        session, group, deleted_at=datetime.now(timezone.utc)
+    )
+
+    response = await client.post(
+        a.g(f"/counters/{counter.id}/step"),
+        headers=a.headers,
+        json={"direction": "up"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "COUNTER_NOT_FOUND"
+
+
+async def test_a_reader_cannot_step_a_counter(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    group = await create_counter_group(session, a.initiative, a.user)
+    await create_resource_grant(session, group, all_initiative_members=True)
+    counter = await create_counter(session, group)
+
+    response = await client.post(
+        reader.g(f"/counters/{counter.id}/step"),
+        headers=reader.headers,
+        json={"direction": "up"},
+    )
+    assert response.status_code == 403, response.text
+
+
+async def test_two_steps_that_overlap_both_count(
+    session: AsyncSession, role_session, acting_user
+):
+    """Staged rather than raced, so it is deterministic: one connection holds
+    the counter at 0 while a second step lands and commits. A step computed
+    from that copy would write 1 back; one computed by the database makes 2."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group)
+
+    first = await role_session("app_admin")
+    second = await role_session("app_admin")
+    for held in (first, second):
+        await set_rls_context(held, SystemGuild(a.guild.id))
+    loaded = await counters_service.get_counter(first, counter.id)
+    assert loaded is not None and loaded.count == 0
+
+    await counters_service.step_counter(second, counter.id, up=True)
+    await second.commit()
+    await counters_service.step_counter(first, counter.id, up=True)
+    await first.commit()
+
+    await session.refresh(counter)
+    assert counter.count == 2
 
 
 async def test_set_count_clamps(client: AsyncClient, acting_user):
@@ -222,7 +362,7 @@ async def test_set_count_clamps(client: AsyncClient, acting_user):
     counter = await _add_counter(client, a, group["id"], min_value="0", max_value="100")
 
     response = await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}/set"),
+        a.g(f"/counters/{counter['id']}/set"),
         headers=a.headers,
         json={"count": "9999"},
     )
@@ -245,13 +385,13 @@ async def test_reset_returns_to_initial(client: AsyncClient, acting_user):
 
     # Drop the value first
     await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}/set"),
+        a.g(f"/counters/{counter['id']}/set"),
         headers=a.headers,
         json={"count": "10"},
     )
 
     response = await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}/reset"),
+        a.g(f"/counters/{counter['id']}/reset"),
         headers=a.headers,
     )
     assert response.status_code == 200
@@ -283,12 +423,12 @@ async def test_reset_all_counters(client: AsyncClient, acting_user):
 
     # Mutate both
     await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{c1['id']}/set"),
+        a.g(f"/counters/{c1['id']}/set"),
         headers=a.headers,
         json={"count": "1"},
     )
     await client.post(
-        a.g(f"/counter-groups/{group['id']}/counters/{c2['id']}/set"),
+        a.g(f"/counters/{c2['id']}/set"),
         headers=a.headers,
         json={"count": "1"},
     )

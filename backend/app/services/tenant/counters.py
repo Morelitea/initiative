@@ -13,6 +13,7 @@ from typing import Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
+from sqlalchemy import func, literal, update
 from sqlmodel import select
 
 from app.services.permissions import (
@@ -20,6 +21,7 @@ from app.services.permissions import (
     require_export_access,
 )
 from app.models.tenant.counter import (
+    COUNTER_LIMIT,
     Counter,
     CounterGroup,
 )
@@ -174,18 +176,35 @@ async def set_count(session: AsyncSession, counter: Counter, value: Decimal) -> 
     return counter
 
 
-async def increment_counter(session: AsyncSession, counter: Counter) -> Counter:
-    counter.count = clamp(counter.count + counter.step, counter.min, counter.max)
-    _touch(counter)
-    session.add(counter)
-    return counter
+async def step_counter(
+    session: AsyncSession,
+    counter_id: int,
+    *,
+    up: bool,
+    amount: Optional[Decimal] = None,
+) -> None:
+    """Move a counter by ``amount``, or by its own step, within its bounds.
 
-
-async def decrement_counter(session: AsyncSession, counter: Counter) -> Counter:
-    counter.count = clamp(counter.count - counter.step, counter.min, counter.max)
-    _touch(counter)
-    session.add(counter)
-    return counter
+    One statement, so two steps landing together each count: the new value is
+    computed from the row as the database holds it, not from a copy read
+    earlier. ``GREATEST`` and ``LEAST`` skip a NULL bound, so an open side needs
+    no case of its own, and the largest number a counter can store bounds both
+    sides, so an open counter stops there rather than overflowing.
+    """
+    by = Counter.step if amount is None else literal(amount)
+    moved = Counter.count + by if up else Counter.count - by
+    await session.exec(
+        update(Counter)
+        .where(Counter.id == counter_id)
+        .values(
+            count=func.least(
+                func.greatest(moved, Counter.min, -COUNTER_LIMIT),
+                Counter.max,
+                COUNTER_LIMIT,
+            ),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
 
 
 async def reset_counter(session: AsyncSession, counter: Counter) -> Counter:

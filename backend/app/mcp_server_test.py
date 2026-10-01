@@ -34,8 +34,7 @@ _WRITE_PREFIXES = (
     "post_",
     "remove_",
     "add_",
-    "increment_",
-    "decrement_",
+    "step_",
     "reset_",
     "upload_",
     "import_",
@@ -98,8 +97,7 @@ _SAFE_WRITES = {
     "update_comment",
     # A counter's count, which its update schema doesn't carry.
     "set_counter_count",
-    "increment_counter",
-    "decrement_counter",
+    "step_counter",
     # One edge between two of them. No ``update_`` pair: an edge has no fields
     # to edit, only ends and a type, which are what it is.
     "create_relationship",

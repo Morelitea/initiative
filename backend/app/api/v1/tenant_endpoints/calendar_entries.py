@@ -6,9 +6,10 @@ window. Historically each fired two list requests (events + tasks) and merged
 them client-side. These endpoints return the union in a single round trip.
 
 This is a **union under the existing gates**, not a new authorization surface:
-each leg delegates to the exact query path of ``list_calendar_events`` /
-``list_tasks`` (guild) and ``list_my_calendar_events`` / ``list_my_tasks`` (me),
-so RLS + per-resource DAC are identical. The client keeps the merge, so the
+each leg delegates to the exact query path of
+``calendar_events.query_guild_calendar_events`` / ``list_tasks`` (guild) and
+``query_my_calendar_events`` / ``list_my_tasks`` (me), so RLS + per-resource
+DAC are identical. The client keeps the merge, so the
 response reuses the existing ``CalendarEventSummary`` and ``TaskListRead`` shapes.
 A repeating event or task is expanded into its occurrences in the window here,
 from rows those queries returned.
@@ -70,7 +71,7 @@ async def list_calendar_entries(
     """
     events_out = []
     if include_events:
-        events, _total = await calendar_events_api.query_guild_calendar_events(
+        events = await calendar_events_api.query_guild_calendar_events(
             session,
             current_user,
             guild_context,
@@ -134,8 +135,8 @@ async def list_my_calendar_entries(
 ) -> CalendarEntriesResponse:
     """Cross-guild events + assigned-task markers for the My Calendar page.
 
-    Both legs run on the caller's own ``platform_<tier>`` session, exactly as
-    ``/me/calendar-events`` and ``/me/tasks`` do: the event leg enters each
+    Both legs run on the caller's own ``platform_<tier>`` session, as
+    ``/me/tasks`` does: the event leg enters each
     member guild with the membership role held there (``gather_across_guilds``)
     and the task leg is the ``/me/tasks`` query, fetch-all over the window.
     """

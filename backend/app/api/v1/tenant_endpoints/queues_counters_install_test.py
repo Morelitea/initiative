@@ -369,7 +369,7 @@ async def test_a_counter_write_needs_the_write_scope(
     counter = await create_counter(session, group)
     headers = install_headers(installed, ["counter_groups:read"])
 
-    base = f"/counter-groups/{group.id}/counters/{counter.id}"
+    base = f"/counters/{counter.id}"
     for method, path, payload in (
         (
             "post",
@@ -377,8 +377,9 @@ async def test_a_counter_write_needs_the_write_scope(
             {"name": "No", "initiative_id": installed.placed.id},
         ),
         ("patch", f"/counter-groups/{group.id}", {"name": "No"}),
-        ("post", f"{base}/increment", None),
+        ("post", f"{base}/step", {"direction": "up"}),
         ("post", f"{base}/set", {"count": "3"}),
+        ("post", f"{base}/reset", None),
     ):
         response = await client.request(
             method, guild_url(guild_id, path), headers=headers, json=payload
@@ -435,12 +436,16 @@ async def test_what_it_creates_is_its_own_and_it_steps_the_counters(
     assert renamed.json()["description"] == "Kept by the app"
 
     counter = await create_counter(session, group, name="Round", initial_count=1)
-    base = guild_url(guild_id, f"/counter-groups/{group.id}/counters/{counter.id}")
+    base = guild_url(guild_id, f"/counters/{counter.id}")
 
-    stepped = await client.post(f"{base}/increment", headers=headers)
+    stepped = await client.post(
+        f"{base}/step", headers=headers, json={"direction": "up"}
+    )
     assert stepped.status_code == 200, stepped.text
     assert stepped.json()["count"] == "1"
-    down = await client.post(f"{base}/decrement", headers=headers)
+    down = await client.post(
+        f"{base}/step", headers=headers, json={"direction": "down"}
+    )
     assert down.status_code == 200, down.text
     assert down.json()["count"] == "0"
     set_to = await client.post(f"{base}/set", headers=headers, json={"count": "7"})
@@ -479,20 +484,16 @@ async def test_it_steps_a_counter_shared_for_writing_only(
     headers = install_headers(installed, ["counter_groups:write"])
 
     ran = await client.post(
-        guild_url(
-            guild_id,
-            f"/counter-groups/{writable.id}/counters/{on_writable.id}/increment",
-        ),
+        guild_url(guild_id, f"/counters/{on_writable.id}/step"),
         headers=headers,
+        json={"direction": "up"},
     )
     assert ran.status_code == 200, ran.text
     assert ran.json()["count"] == "1"
 
     refused = await client.post(
-        guild_url(
-            guild_id,
-            f"/counter-groups/{readable.id}/counters/{on_readable.id}/increment",
-        ),
+        guild_url(guild_id, f"/counters/{on_readable.id}/step"),
         headers=headers,
+        json={"direction": "up"},
     )
     assert refused.status_code == 403, refused.text
