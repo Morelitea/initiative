@@ -38,7 +38,6 @@ from app.models.platform.user import User
 from app.schemas.tenant.counter import (
     CounterCreate,
     CounterGroupCreate,
-    CounterGroupDuplicateRequest,
     CounterGroupRead,
     CounterGroupUpdate,
     CounterRead,
@@ -173,66 +172,6 @@ async def create_counter_group(
         CounterGroupRead,
         hydrated,
         user_id=guild_context.user_id,
-        context=guild_context,
-    )
-
-
-@router.post(
-    "/{group_id}/duplicate",
-    response_model=CounterGroupRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def duplicate_counter_group(
-    group_id: int,
-    payload: CounterGroupDuplicateRequest,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> CounterGroupRead:
-    source = await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-    )
-    await resource_access.prepare_create(
-        session, Tool.counter_group, source.initiative_id, current_user, guild_context
-    )
-
-    new_group = CounterGroup(
-        initiative_id=source.initiative_id,
-        created_by=current_user.id,
-        name=(
-            payload.name.strip()
-            if payload.name and payload.name.strip()
-            else f"{source.name} (Copy)"
-        ),
-        description=source.description,
-    )
-    session.add(new_group)
-    await session.flush()
-    await resource_access.grant_initial_sharing(
-        session,
-        guild_context,
-        Tool.counter_group,
-        user=current_user,
-        resource_id=new_group.id,
-        initiative_id=new_group.initiative_id,
-        payload=payload,
-        grants=resource_access.duplicate_sharing(
-            source, initiative_id=source.initiative_id
-        ),
-    )
-    await counters_service.copy_counters(session, source, new_group)
-    await session.commit()
-
-    hydrated = await _refetch_group(session, new_group.id)
-    return serialize_tool(
-        CounterGroupRead,
-        hydrated,
-        user_id=current_user.id,
         context=guild_context,
     )
 

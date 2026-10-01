@@ -249,15 +249,6 @@
       "markedAsTemplate": "Proyecto marcado como plantilla",
       "removedFromTemplates": "Proyecto eliminado de las plantillas"
     },
-    "duplicate": {
-      "title": "Duplicar proyecto",
-      "description": "Clona este proyecto, incluyendo su iniciativa y tareas, para iniciar nuevo trabajo.",
-      "duplicated": "Proyecto duplicado",
-      "promptName": "Nombre para el proyecto duplicado",
-      "duplicating": "Duplicando...",
-      "duplicateButton": "Duplicar proyecto",
-      "noWriteAccess": "Necesitas acceso de escritura para duplicar este proyecto."
-    },
     "tabFilterPresets": "Vistas",
     "filterPresetsHeading": "Preajustes de filtro",
     "filterPresetsDescription": "Conjuntos de filtros guardados que cualquiera del proyecto puede elegir. El predeterminado es con el que se abre el proyecto.",

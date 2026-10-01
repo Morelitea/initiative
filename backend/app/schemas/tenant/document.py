@@ -68,12 +68,6 @@ class DocumentUpdate(SanitizedBaseModel):
     is_template: Optional[bool] = None
 
 
-class DocumentCopyRequest(SanitizedBaseModel):
-    #: Omitted, the copy lands in the source document's own initiative.
-    target_initiative_id: Optional[int] = None
-    name: Optional[str] = None
-
-
 class DocumentSummary(DocumentBase, ToolSummaryBase):
     # ``validate_by_name`` so ``derived_fields`` can set ``owner`` and
     # ``owner_app`` by name; their aliases keep ``from_attributes`` from reading

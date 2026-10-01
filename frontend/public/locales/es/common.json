@@ -124,6 +124,17 @@
       "archived": "«{{name}}» archivado",
       "unarchived": "«{{name}}» ha vuelto"
     },
+    "duplicate": {
+      "title": "Duplicar",
+      "description": "Haz una copia con todo lo que contiene, en esta iniciativa o en otra donde puedas crearlo.",
+      "action": "Duplicar",
+      "dialogTitle": "Duplicar «{{name}}»",
+      "initiative": "Iniciativa",
+      "defaultName": "{{name}} (Copia)",
+      "duplicating": "Duplicando…",
+      "duplicated": "Copiado en {{initiative}}",
+      "error": "No se pudo hacer la copia."
+    },
     "export": {
       "title": "Exportar",
       "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo."

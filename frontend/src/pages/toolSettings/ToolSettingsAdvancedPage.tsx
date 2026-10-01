@@ -1,6 +1,6 @@
 /**
- * `/settings/advanced` — the tool's own extra operations, exporting, and
- * deletion.
+ * `/settings/advanced` — the tool's own extra operations, duplicating,
+ * archiving, exporting, and deletion.
  *
  * Exporting and deleting are the owner's alone, so those cards are absent for
  * everyone else however they reached the address — and when that leaves the
@@ -15,6 +15,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { canUseArchiveCard, ToolArchiveCard } from "@/components/tools/settings/ToolArchiveCard";
+import {
+  canUseDuplicateCard,
+  ToolDuplicateCard,
+} from "@/components/tools/settings/ToolDuplicateCard";
 import { ToolExportCard } from "@/components/tools/settings/ToolExportCard";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
@@ -35,7 +39,11 @@ export const ToolSettingsAdvancedPage = () => {
 
   const canArchive = canUseArchiveCard(entity);
   const hasAnything =
-    Boolean(advancedExtra) || entity.can.export || entity.can.delete || canArchive;
+    Boolean(advancedExtra) ||
+    entity.can.export ||
+    entity.can.delete ||
+    canArchive ||
+    canUseDuplicateCard(tool, entity);
 
   const handleDelete = () => {
     remove.mutate(entity.id, {
@@ -62,6 +70,8 @@ export const ToolSettingsAdvancedPage = () => {
   return (
     <div className="space-y-6">
       {advancedExtra}
+
+      <ToolDuplicateCard />
 
       <ToolExportCard />
 

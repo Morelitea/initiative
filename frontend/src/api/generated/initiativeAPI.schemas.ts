@@ -2636,10 +2636,6 @@ export interface CounterGroupCreate {
   grants?: ResourceGrantSchema[];
 }
 
-export interface CounterGroupDuplicateRequest {
-  name?: string | null;
-}
-
 export interface CounterGroupSummary {
   archived_at: string | null;
   can: ToolCan;
@@ -3411,11 +3407,6 @@ export interface DmVerificationSend {
    * @maxLength 4096
    */
   body: string;
-}
-
-export interface DocumentCopyRequest {
-  target_initiative_id?: number | null;
-  name?: string | null;
 }
 
 export type DocumentCreateContent = { [key: string]: unknown } | null;
@@ -7295,10 +7286,6 @@ export interface ProjectDocumentSummary {
   attached_at: string;
 }
 
-export interface ProjectDuplicateRequest {
-  name?: string | null;
-}
-
 export interface ProjectFavoriteStatus {
   project_id: number;
   is_favorited: boolean;
@@ -8895,6 +8882,15 @@ export interface ToolCountsResponse {
   views: ToolCountsResponseViews;
   tag_counts: ToolCountsResponseTagCounts;
   untagged_count: number | null;
+}
+
+/**
+ * What a duplicate of any tool may be told. Left out, the copy goes beside
+ * its source as "<name> (Copy)"; in another initiative it keeps the name.
+ */
+export interface ToolDuplicateRequest {
+  name?: string | null;
+  target_initiative_id?: number | null;
 }
 
 export interface TrashItem {

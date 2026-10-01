@@ -14,7 +14,6 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost,
   favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost,
   favoriteProjectsApiV1CGuildIdProjectsFavoritesGet,
   getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey,
@@ -191,30 +190,6 @@ export const useUnarchiveProject = (options?: MutationOpts<void, number>) =>
           projectId
         );
       },
-      invalidate: () => invalidate(q.allProjects()),
-    },
-    options
-  );
-
-export const useDuplicateProject = (
-  options?: MutationOpts<
-    ProjectRead,
-    {
-      projectId: number;
-      data: Parameters<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>[2];
-    }
-  >
-) =>
-  useGuildMutation<
-    ProjectRead,
-    {
-      projectId: number;
-      data: Parameters<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>[2];
-    }
-  >(
-    {
-      mutationFn: (guildId, { projectId, data }) =>
-        duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost(guildId, projectId, data),
       invalidate: () => invalidate(q.allProjects()),
     },
     options

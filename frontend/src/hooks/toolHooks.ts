@@ -41,6 +41,7 @@ import {
 import {
   createCounterGroupApiV1CGuildIdCounterGroupsPost,
   deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete,
+  duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost,
   getListCounterGroupsApiV1CGuildIdCounterGroupsGetQueryKey,
   getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
   listCounterGroupsApiV1CGuildIdCounterGroupsGet,
@@ -61,6 +62,7 @@ import {
 import {
   createDocumentApiV1CGuildIdDocumentsPost,
   deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
+  duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost,
   getListDocumentsApiV1CGuildIdDocumentsGetQueryKey,
   getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
   listDocumentsApiV1CGuildIdDocumentsGet,
@@ -80,6 +82,7 @@ import {
 import type {
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -115,6 +118,7 @@ import {
 import {
   createProjectApiV1CGuildIdProjectsPost,
   deleteProjectApiV1CGuildIdProjectsProjectIdDelete,
+  duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost,
   getListProjectsApiV1CGuildIdProjectsGetQueryKey,
   getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
   listProjectsApiV1CGuildIdProjectsGet,
@@ -152,6 +156,13 @@ import type { QueryOpts } from "@/types/query";
 
 /** A cache key, as the generated key builders return one. */
 type CacheKey = readonly unknown[];
+
+/** Copies one into an initiative: `POST /{tool}/{id}/duplicate`, one route shape for every tool. */
+type Duplicate = (
+  guildId: number,
+  id: number,
+  data: ToolDuplicateRequest
+) => Promise<{ id: number; initiative_id: number }>;
 
 /**
  * The narrowing every tool's guild-wide list understands.
@@ -379,6 +390,7 @@ interface ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams> {
   update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
   remove: (guildId: number, id: number) => Promise<void>;
   setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
+  duplicate?: Duplicate;
   /** Which tool this is — what its writes make stale follows from it. */
   tool: Tool;
 }
@@ -395,6 +407,7 @@ const makeToolHooks = <TRead, TList, TMyList, TCreate, TUpdate, TParams>(
   return {
     ...listQueries(endpoints),
     create: endpoints.create,
+    duplicate: endpoints.duplicate,
     useList: listHook(endpoints),
     useDetail: detailHook(endpoints),
     useCreate: createHook(endpoints, errorKey),
@@ -431,6 +444,7 @@ const counterGroupEndpoints = {
   update: updateCounterGroupApiV1CGuildIdCounterGroupsGroupIdPatch,
   remove: deleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete,
   setGrants: setCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut,
+  duplicate: duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost,
   tool: Tool.counter_group,
 };
 
@@ -471,6 +485,7 @@ const documentEndpoints = {
 const documentHooks = {
   ...listQueries(documentEndpoints),
   create: createDocumentApiV1CGuildIdDocumentsPost,
+  duplicate: duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost,
   useDetail: detailHook(documentEndpoints),
   useDelete: deleteHook(documentEndpoints, "documents:bulk.deleteError"),
   useSetGrants: grantsHook(documentEndpoints, "documents:settings.updateAccessError"),
@@ -523,6 +538,7 @@ const projectEndpoints = {
 const projectHooks = {
   ...listQueries(projectEndpoints),
   create: projectEndpoints.create,
+  duplicate: duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost,
   useDetail: detailHook(projectEndpoints),
   useCreate: createHook(projectEndpoints, "projects:createDialog.createError"),
   useDelete: deleteHook(projectEndpoints, "projects:detail.deleteError"),
@@ -581,6 +597,8 @@ interface ToolQueries {
     guildId: number,
     data: { name: string; initiative_id: number }
   ) => Promise<{ id: number }>;
+  /** Copies one into an initiative — what the settings page's duplicate card sends. */
+  duplicate?: Duplicate;
 }
 
 /**
@@ -601,3 +619,30 @@ export const TOOL_HOOKS = {
   [Tool.gallery]: makeToolHooks(galleryEndpoints, { seedsDetailOnUpdate: true }),
   [Tool.wiki]: makeToolHooks(wikiEndpoints),
 } satisfies Record<Tool, ToolQueries>;
+
+/**
+ * Copy one of `tool` into an initiative, its own unless `data` names another.
+ * The new one is in that tool's lists, so they refetch.
+ */
+export const useDuplicateTool = (
+  tool: Tool,
+  options?: MutationOpts<
+    { id: number; initiative_id: number },
+    { id: number; data: ToolDuplicateRequest }
+  >
+) =>
+  useGuildMutation<
+    { id: number; initiative_id: number },
+    { id: number; data: ToolDuplicateRequest }
+  >(
+    {
+      mutationFn: (guildId, { id, data }) => {
+        const duplicate = TOOL_HOOKS[tool].duplicate;
+        if (!duplicate) throw new Error(`${tool} cannot be duplicated`);
+        return duplicate(guildId, id, data);
+      },
+      invalidate: () => invalidate(q.toolList(tool)),
+      errorKey: "common:toolSettings.duplicate.error",
+    },
+    options
+  );

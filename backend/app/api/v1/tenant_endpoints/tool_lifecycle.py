@@ -1,4 +1,4 @@
-"""Deleting a tool — one route, mounted once for every tool.
+"""Deleting and duplicating a tool — one route each, mounted once for every tool.
 
 ``DELETE /{tool}/{id}`` puts a tool in the trash with everything inside it.
 Nine copies of it said the same thing: load and authorize with the delete
@@ -14,6 +14,12 @@ and finds it gone.
 
 Each route keeps the path, method, status code, tag and name its tool already
 had, so the generated client is unchanged.
+
+``POST /{tool}/{id}/duplicate`` copies a tool into an initiative: its own, or
+the one the body names. The steps are ``app.api.tool_copy``'s, the same for
+every tool, and the answer is the copy as the tool's own read returns it. An
+installed app reaches it for each tool that serves apps, under the tool's
+write scope, as it reaches the tool's create.
 """
 
 # NOT ``from __future__ import annotations``: the handlers are built per tool
@@ -21,25 +27,33 @@ had, so the generated client is unchanged.
 # stringized annotations re-evaluate it where that local is out of scope.
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 
-from app.api import resource_access
+from app.api import resource_access, tool_copy
+from app.api.actor_route import ActorRoute
 from app.api.deps import (
+    ActorContext,
+    ActorSessionDep,
+    ActorUserDep,
     GuildContext,
     RLSSessionDep,
+    app_scope,
     get_current_active_user,
     get_guild_membership,
 )
-from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
+from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS, ToolListSpec
+from app.core.messages import AttachmentMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
+from app.schemas.tenant.tool import ToolDuplicateRequest
 from app.services.content_sockets import sockets
 from app.services.permissions import Action
+from app.services.tenant.attachments import StorageQuotaExceededError
 from app.services.tenant.soft_delete import trash
 
-router = APIRouter()
+router = APIRouter(route_class=ActorRoute)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
@@ -83,5 +97,95 @@ def _mount(tool: Tool, cfg: resource_access.ResourceAccessConfig) -> None:
     )
 
 
+_DUPLICATE_DOC = (
+    "Copy it, with everything inside it, into an initiative: its own unless the "
+    "body names another. Read is enough to copy a template; anything else needs "
+    "write. The copy is shared as its source is while it stays in the same "
+    "initiative, and carries the tags its maker may set: an installed app's "
+    "copy carries them only when it holds the scope to tag."
+)
+
+
+def _mount_duplicate(
+    tool: Tool, cfg: resource_access.ResourceAccessConfig, spec: ToolListSpec
+) -> None:
+    """Mount ``POST`` ``/{id}/duplicate`` for one tool."""
+    entity_id_param = Annotated[
+        int, Path(alias=cfg.path_param, title=_title(cfg.path_param))
+    ]
+    copier = tool_copy.TOOL_COPIERS[tool]
+
+    async def copy(
+        session: Any,
+        entity_id: int,
+        body: Optional[ToolDuplicateRequest],
+        current_user: Optional[User],
+        guild_context: ActorContext,
+    ):
+        body = body or ToolDuplicateRequest()
+        source = await tool_copy.load_source(
+            session, tool, entity_id, current_user, guild_context
+        )
+        try:
+            copied = await tool_copy.duplicate(
+                session,
+                tool,
+                source,
+                initiative_id=body.target_initiative_id,
+                name=body.name,
+                user=current_user,
+                actor=guild_context,
+                payload=body,
+            )
+        except StorageQuotaExceededError:
+            raise HTTPException(
+                status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+                detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+            )
+        copy_id = copied.id
+        await session.commit()
+        if copier.announce is not None and current_user is not None:
+            await copier.announce(session, copy_id, current_user)
+            await session.commit()
+        return await spec.read_row(session, copy_id, current_user, guild_context)
+
+    if spec.serves_apps:
+        ToolWrite = Annotated[ActorContext, Depends(app_scope(f"{tool.plural}:write"))]
+
+        async def duplicate(
+            entity_id: entity_id_param,
+            session: ActorSessionDep,
+            current_user: ActorUserDep,
+            guild_context: ToolWrite,
+            body: Optional[ToolDuplicateRequest] = None,
+        ):
+            return await copy(session, entity_id, body, current_user, guild_context)
+
+    else:
+
+        async def duplicate(
+            entity_id: entity_id_param,
+            session: RLSSessionDep,
+            current_user: CurrentUserDep,
+            guild_context: GuildContextDep,
+            body: Optional[ToolDuplicateRequest] = None,
+        ):
+            return await copy(session, entity_id, body, current_user, guild_context)
+
+    tags: list[str | Enum] = [spec.tag or tool.plural]
+    router.add_api_route(
+        f"/{tool.route_segment}/{{{cfg.path_param}}}/duplicate",
+        duplicate,
+        methods=["POST"],
+        status_code=status.HTTP_201_CREATED,
+        response_model=spec.read_model,
+        name=f"duplicate_{tool.value}",
+        description=_DUPLICATE_DOC,
+        tags=tags,
+    )
+
+
 for _tool, _cfg in resource_access.RESOURCE_ACCESS.items():
     _mount(_tool, _cfg)
+    if _tool in tool_copy.TOOL_COPIERS:
+        _mount_duplicate(_tool, _cfg, TOOL_LISTS[_tool])

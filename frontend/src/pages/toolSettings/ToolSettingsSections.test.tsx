@@ -1,11 +1,13 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  buildInitiative,
   buildPropertySummary,
   buildTagSummary,
+  initiativeCan,
   ownerCan,
   readerCan,
   resetFactories,
@@ -61,11 +63,15 @@ const buildEntity = (overrides: Partial<ToolSettingsEntity> = {}): ToolSettingsE
 const noopMutation = () => ({ mutate: vi.fn(), isPending: false });
 
 /** One section, mounted the way its route mounts it: inside the frame's context. */
-const renderSection = (Section: React.ComponentType, entity: ToolSettingsEntity) =>
+const renderSection = (
+  Section: React.ComponentType,
+  entity: ToolSettingsEntity,
+  tool: Tool = Tool.queue
+) =>
   renderPage(() => (
     <ToolSettingsProvider
       value={{
-        tool: Tool.queue,
+        tool,
         entity,
         setGrants: noopMutation(),
         remove: noopMutation(),
@@ -239,6 +245,35 @@ describe("ToolSettingsAdvancedPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /start export/i }));
 
     await waitFor(() => expect(sent).toEqual({ format: "csv", ids: "7" }));
+  });
+
+  it("copies it into the initiative chosen, the suggested name following the choice", async () => {
+    resetFactories();
+    const can = initiativeCan({ create: [Tool.counter_group] });
+    let sent: unknown = null;
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([
+          buildInitiative({ id: 3, name: "Here", can }),
+          buildInitiative({ id: 4, name: "There", can }),
+        ])
+      ),
+      guildHttp.post("/counter-groups/:groupId/duplicate", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ id: 8, initiative_id: 4 }, { status: 201 });
+      })
+    );
+    renderSection(ToolSettingsAdvancedPage, buildEntity(), Tool.counter_group);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Duplicate" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Q3 Roadmap (Copy)");
+    await userEvent.click(within(dialog).getByLabelText("Initiative"));
+    await userEvent.click(await screen.findByRole("option", { name: "There" }));
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Q3 Roadmap");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Duplicate" }));
+
+    await waitFor(() => expect(sent).toEqual({ name: "Q3 Roadmap", target_initiative_id: 4 }));
   });
 
   it("offers no export to someone who may edit it but not delete it", async () => {

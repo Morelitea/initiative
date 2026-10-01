@@ -23,7 +23,6 @@ import type {
 import type {
   CounterCreate,
   CounterGroupCreate,
-  CounterGroupDuplicateRequest,
   CounterGroupListResponse,
   CounterGroupRead,
   CounterGroupUpdate,
@@ -37,6 +36,7 @@ import type {
   ReadCounterApiV1CGuildIdCountersCounterIdGetParams,
   ReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -723,119 +723,6 @@ export const useDeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDelete = <
 > => {
   return useMutation(
     getDeleteCounterGroupApiV1CGuildIdCounterGroupsGroupIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Duplicate Counter Group
- */
-export const duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost = (
-  guildId: number,
-  groupId: number,
-  counterGroupDuplicateRequest: BodyType<CounterGroupDuplicateRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<CounterGroupRead>(
-    {
-      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/duplicate`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: counterGroupDuplicateRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationKey =
-  () => ["duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost"] as const;
-
-export const getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
-      >,
-      TError,
-      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>,
-    TError,
-    DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
-    TContext
-  > => {
-    const mutationKey =
-      getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
-      >,
-      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables
-    > = (props) => {
-      const { guildId, groupId, data } = props ?? {};
-
-      return duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost(
-        guildId,
-        groupId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>
-  >;
-export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationBody =
-  BodyType<CounterGroupDuplicateRequest>;
-export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables = {
-  guildId: number;
-  groupId: number;
-  data: BodyType<CounterGroupDuplicateRequest>;
-};
-
-/**
- * @summary Duplicate Counter Group
- */
-export const useDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
-      >,
-      TError,
-      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>,
-  TError,
-  DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };
@@ -1992,6 +1879,121 @@ export const useSetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPut 
 > => {
   return useMutation(
     getSetCounterGroupGrantsApiV1CGuildIdCounterGroupsGroupIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Counter Group
+ */
+export const duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost = (
+  guildId: number,
+  groupId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CounterGroupRead>(
+    {
+      url: `/api/v1/c/${guildId}/counter-groups/${groupId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationKey =
+  () => ["duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost"] as const;
+
+export const getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
+      >,
+      TError,
+      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>,
+    TError,
+    DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
+      >,
+      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables
+    > = (props) => {
+      const { guildId, groupId, data } = props ?? {};
+
+      return duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost(
+        guildId,
+        groupId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>
+  >;
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables = {
+  guildId: number;
+  groupId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Counter Group
+ */
+export const useDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>
+      >,
+      TError,
+      DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePost>>,
+  TError,
+  DuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateCounterGroupApiV1CGuildIdCounterGroupsGroupIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };

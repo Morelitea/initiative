@@ -39,15 +39,6 @@
   "sortNameDesc": "Nombre (Z→A)",
   "sortCountAsc": "Valor (menor→mayor)",
   "sortCountDesc": "Valor (mayor→menor)",
-  "duplicate": {
-    "title": "Duplicar grupo",
-    "description": "Crea una copia de este grupo con todos sus contadores y sus valores actuales.",
-    "action": "Duplicar",
-    "dialogDescription": "Asigna un nombre a la nueva copia. Se copian todos los contadores y sus valores.",
-    "defaultName": "{{name}} (copia)",
-    "duplicating": "Duplicando…",
-    "success": "Grupo duplicado"
-  },
   "noCounters": "No hay contadores en este grupo",
   "noCountersDescription": "Añade contadores para empezar a llevar el control de los valores.",
   "reorder": "Reordenar",

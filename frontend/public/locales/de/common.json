@@ -124,6 +124,17 @@
       "archived": "„{{name}}“ archiviert",
       "unarchived": "„{{name}}“ ist zurück"
     },
+    "duplicate": {
+      "title": "Duplizieren",
+      "description": "Erstelle eine Kopie mit allem, was darin ist, in dieser oder einer anderen Initiative, in der du es anlegen darfst.",
+      "action": "Duplizieren",
+      "dialogTitle": "„{{name}}“ duplizieren",
+      "initiative": "Initiative",
+      "defaultName": "{{name}} (Kopie)",
+      "duplicating": "Wird dupliziert…",
+      "duplicated": "Nach {{initiative}} kopiert",
+      "error": "Die Kopie konnte nicht erstellt werden."
+    },
     "export": {
       "title": "Exportieren",
       "description": "Eine Kopie herunterladen – als Datei, die sich hier oder auf einem anderen Server importieren lässt, oder als Bericht zum Lesen. Exportieren kann nur, wer dies auch löschen darf."

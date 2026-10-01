@@ -249,15 +249,6 @@
       "markedAsTemplate": "Projekt als Vorlage markiert",
       "removedFromTemplates": "Projekt aus Vorlagen entfernt"
     },
-    "duplicate": {
-      "title": "Projekt duplizieren",
-      "description": "Klone dieses Projekt einschließlich seiner Initiative und Aufgaben, um neue Arbeit anzukurbeln.",
-      "duplicated": "Projekt dupliziert",
-      "promptName": "Name für das duplizierte Projekt",
-      "duplicating": "Wird dupliziert...",
-      "duplicateButton": "Projekt duplizieren",
-      "noWriteAccess": "Du benötigst Schreibzugriff, um dieses Projekt zu duplizieren."
-    },
     "tabFilterPresets": "Ansichten",
     "filterPresetsHeading": "Filter-Voreinstellungen",
     "filterPresetsDescription": "Gespeicherte Filtersätze, aus denen alle in diesem Projekt wählen können. Der Standard bestimmt, womit das Projekt öffnet.",

@@ -26,7 +26,6 @@ import type {
   ProjectActivityFeedApiV1CGuildIdProjectsProjectIdActivityGetParams,
   ProjectActivityResponse,
   ProjectCreate,
-  ProjectDuplicateRequest,
   ProjectFavoriteStatus,
   ProjectListResponse,
   ProjectRead,
@@ -34,6 +33,7 @@ import type {
   ProjectUpdate,
   ReadProjectApiV1CGuildIdProjectsProjectIdGetParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -321,113 +321,6 @@ export const useCreateProjectApiV1CGuildIdProjectsPost = <
 > => {
   return useMutation(
     getCreateProjectApiV1CGuildIdProjectsPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Duplicate Project
- */
-export const duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = (
-  guildId: number,
-  projectId: number,
-  projectDuplicateRequest: BodyType<ProjectDuplicateRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ProjectRead>(
-    {
-      url: `/api/v1/c/${guildId}/projects/${projectId}/duplicate`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: projectDuplicateRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationKey = () =>
-  ["duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost"] as const;
-
-export const getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
-    TError,
-    DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
-  TError,
-  DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
-  TContext
-> => {
-  const mutationKey = getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
-    DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables
-  > = (props) => {
-    const { guildId, projectId, data } = props ?? {};
-
-    return duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost(
-      guildId,
-      projectId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>
->;
-export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationBody =
-  BodyType<ProjectDuplicateRequest>;
-export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationError =
-  ErrorType<HTTPValidationError>;
-export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables = {
-  guildId: number;
-  projectId: number;
-  data: BodyType<ProjectDuplicateRequest>;
-};
-
-/**
- * @summary Duplicate Project
- */
-export const useDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
-      TError,
-      DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
-  TError,
-  DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };
@@ -1585,6 +1478,115 @@ export const useSetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPut = <
 > => {
   return useMutation(
     getSetProjectGrantsApiV1CGuildIdProjectsProjectIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Project
+ */
+export const duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = (
+  guildId: number,
+  projectId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ProjectRead>(
+    {
+      url: `/api/v1/c/${guildId}/projects/${projectId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationKey = () =>
+  ["duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost"] as const;
+
+export const getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
+    TError,
+    DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
+  TError,
+  DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
+    DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, projectId, data } = props ?? {};
+
+    return duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost(
+      guildId,
+      projectId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>
+>;
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables = {
+  guildId: number;
+  projectId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Project
+ */
+export const useDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
+      TError,
+      DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePost>>,
+  TError,
+  DuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateProjectApiV1CGuildIdProjectsProjectIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };

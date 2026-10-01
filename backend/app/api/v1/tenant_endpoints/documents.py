@@ -42,7 +42,6 @@ from app.api.deps import (
     establish_guild_access,
     get_current_active_user,
     GuildAccessError,
-    GuildContext,
     GuildContextDep,
 )
 from app.core.messages import (
@@ -61,7 +60,6 @@ from app.models.tenant.initiative import Initiative
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.schemas.tenant.document import (
-    DocumentCopyRequest,
     DocumentCreate,
     DocumentFileVersionRead,
     DocumentRead,
@@ -871,106 +869,6 @@ async def update_document(
             )
     attachments_service.delete_blobs(guild_context.guild_id, released)
     return await read_after_write(session, document.id, current_user, guild_context)
-
-
-async def _duplicate_into(
-    session: RLSSessionDep,
-    source: Document,
-    *,
-    initiative_id: int,
-    name: str,
-    user: User,
-    guild_context: GuildContext,
-) -> DocumentRead:
-    """Make a copy of ``source`` named ``name`` in ``initiative_id``, held to
-    what a create is held to: the caller may create documents there and the
-    name is free in it. Commits."""
-    await resource_access.prepare_create(
-        session, Tool.document, initiative_id, user, guild_context
-    )
-    name = name.strip()
-    if not name:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.NAME_REQUIRED,
-        )
-    await ensure_name_free(
-        session,
-        Document.name,
-        name,
-        Document.initiative_id == initiative_id,
-        detail=DocumentMessages.NAME_ALREADY_EXISTS,
-    )
-    try:
-        duplicated = await documents_service.duplicate_document(
-            session,
-            source=source,
-            initiative_id=initiative_id,
-            name=name,
-            user=user,
-            actor=guild_context,
-        )
-    except attachments_service.StorageQuotaExceededError:
-        raise HTTPException(
-            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-        )
-    await content_references.sync_for_entity(
-        session,
-        Endpoint(SearchEntityType.document, duplicated.id),
-        body=duplicated.content,
-        author_id=user.id,
-    )
-    await session.commit()
-    return await read_after_write(session, duplicated.id, user, guild_context)
-
-
-@router.post(
-    "/{document_id}/copy",
-    response_model=DocumentRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def copy_document(
-    document_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    payload: DocumentCopyRequest | None = Body(default=None),
-) -> DocumentRead:
-    """Copy a document into an initiative — its own, unless another is named.
-
-    A copy beside its original is named "<name> (Copy)" unless the body names
-    it; one in another initiative keeps the original's name.
-    """
-    payload = payload or DocumentCopyRequest()
-    document = await resource_access.load_authorized(
-        session, Tool.document, document_id, current_user, guild_context
-    )
-    # Templates are starter content meant to be copied — read on the source is
-    # enough. Copying anything else asks for write on it, so a copy is never a
-    # quiet fork of somebody else's work.
-    if not document.is_template:
-        resource_access.authorize(
-            Tool.document,
-            document,
-            current_user,
-            access="write",
-            context=guild_context,
-        )
-    initiative_id = payload.target_initiative_id or document.initiative_id
-    return await _duplicate_into(
-        session,
-        document,
-        initiative_id=initiative_id,
-        name=payload.name
-        or (
-            f"{document.name} (Copy)"
-            if initiative_id == document.initiative_id
-            else document.name
-        ),
-        user=current_user,
-        guild_context=guild_context,
-    )
 
 
 @router.post("/{document_id}/mentions", status_code=status.HTTP_204_NO_CONTENT)

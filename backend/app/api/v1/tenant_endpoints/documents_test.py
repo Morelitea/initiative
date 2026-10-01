@@ -196,13 +196,13 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     await create_resource_grant(session, doc, all_initiative_members=True)
 
     refused = await client.post(
-        writer.g(f"/documents/{doc.id}/copy"), headers=writer.headers
+        writer.g(f"/documents/{doc.id}/duplicate"), headers=writer.headers
     )
     assert refused.status_code == 403
     assert refused.json()["detail"] == "DOCUMENT_CREATE_PERMISSION_REQUIRED"
 
     duplicated = await client.post(
-        owner.g(f"/documents/{doc.id}/copy"), headers=owner.headers
+        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
     )
     assert duplicated.status_code == 201, duplicated.text
     assert duplicated.json()["name"] == "Plan (Copy)"
@@ -216,86 +216,10 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
     }
 
     again = await client.post(
-        owner.g(f"/documents/{doc.id}/copy"), headers=owner.headers
+        owner.g(f"/documents/{doc.id}/duplicate"), headers=owner.headers
     )
     assert again.status_code == 409
     assert again.json()["detail"] == "DOCUMENT_NAME_ALREADY_EXISTS"
-
-
-async def test_copy_template_with_read_only_access(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """A user with only read on a template can still copy it into a new document."""
-    template_owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    # Reader needs create_documents in the target initiative; PM role grants it by default.
-    reader = await acting_user(
-        guild_role=GuildRole.member,
-        guild=template_owner.guild,
-        initiative=template_owner.initiative,
-        initiative_role="project_manager",
-    )
-    initiative = template_owner.initiative
-
-    template = await create_document(
-        session,
-        initiative,
-        template_owner.user,
-        name="Project Kickoff Template",
-        is_template=True,
-    )
-    # Grant reader explicit read-only access on the template.
-    await create_resource_grant(session, template, user=reader.user)
-
-    response = await client.post(
-        reader.g(f"/documents/{template.id}/copy"),
-        headers=reader.headers,
-        json={"target_initiative_id": initiative.id, "name": "My Kickoff"},
-    )
-
-    assert response.status_code == 201, response.text
-    data = response.json()
-    assert data["name"] == "My Kickoff"
-    assert data["is_template"] is False
-    assert data["created_by"] == reader.user.id
-
-    # Reader is owner of the new doc.
-    new_grant_levels = {
-        g["user_id"]: g["level"] for g in data["grants"] if g["user_id"]
-    }
-    assert new_grant_levels.get(reader.user.id) == "owner"
-
-    # Source template is unchanged.
-    await session.refresh(template)
-    assert template.is_template is True
-    assert template.name == "Project Kickoff Template"
-
-
-async def test_copy_non_template_still_requires_write_access(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Read-only access on a non-template document is still rejected by /copy."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    reader = await acting_user(
-        guild_role=GuildRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
-        initiative_role="project_manager",
-    )
-    initiative = owner.initiative
-
-    doc = await create_document(
-        session, initiative, owner.user, name="Confidential Notes"
-    )
-    await create_resource_grant(session, doc, user=reader.user)
-
-    response = await client.post(
-        reader.g(f"/documents/{doc.id}/copy"),
-        headers=reader.headers,
-        json={"target_initiative_id": initiative.id, "name": "My Copy"},
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "DOCUMENT_WRITE_ACCESS_REQUIRED"
 
 
 # ---------------------------------------------------------------------------
