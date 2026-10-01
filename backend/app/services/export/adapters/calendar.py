@@ -40,6 +40,7 @@ from app.services.export.adapters._common import (
     export_stem,
     related_reach,
 )
+from app.core.user_input_validators import resolve_zone
 from app.services.export.contract import RenderItem
 from app.services.export.filters import narrow, parse_filters
 from app.services.permissions import EXPORT_ACCESS
@@ -97,7 +98,8 @@ class CalendarAdapter(ToolExportAdapter):
                 .select_from(CalendarEvent)
                 .where(
                     CalendarEvent.calendar_id.in_(calendar_ids),
-                    *_window(filters, params.get("tz")),
+                    # The zone the render reads the range in (``BuildContext.now``).
+                    *_window(filters, resolve_zone(params.get("tz")).key),
                 )
             )
         ).one()
