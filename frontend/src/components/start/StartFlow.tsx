@@ -48,7 +48,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
 import {
   browserOffersPasskeys,
@@ -154,7 +154,7 @@ const StartSteps = ({
     communityAgeGateEnabled,
   } = useAppConfig();
   const { isNativePlatform, getServerOrigin } = useServer();
-  const { billing, openPortal, reserveTab } = useBillingPortal();
+  const { billing, canSell, openPortal, reserveTab } = useBillingPortal();
   // A plan is picked in both; only the web goes on to the portal. The native
   // app's pick travels with the new community, and the owner is emailed.
   const plansShown = Boolean(billing);
@@ -333,7 +333,13 @@ const StartSteps = ({
     } catch (err) {
       dropPlanTab();
       onBusy?.(false);
-      setError(getErrorMessage(err, "guilds:unableToCreateGuild"));
+      // The server's own line for this sends them to choose a plan, which the
+      // phone app may not do; there it only says why.
+      setError(
+        !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
+          ? t("guilds:freeCommunityHeldInApp")
+          : getErrorMessage(err, "guilds:unableToCreateGuild")
+      );
     } finally {
       setBusy(false);
     }
