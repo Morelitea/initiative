@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,11 +27,19 @@ export type BillingPortalPage = "manage" | "upgrade";
  * started it. `reserveTab` exposes that step on its own for callers with their
  * own await between the click and the hop (guild creation), which would
  * otherwise land the `window.open` outside the user gesture.
+ *
+ * `canSell` is whether this surface may lead anyone to a purchase: a portal
+ * is configured and this is not the app on a phone. The app stores refuse an
+ * app that sends people to pay anywhere but the store's own checkout, so the
+ * phone app shows the plan and never offers to change it — every
+ * upgrade/manage affordance asks `canSell`, not `billing`, and
+ * `reserveTab`/`openPortal` do nothing there.
  */
 export const useBillingPortal = () => {
   const { billing, isLoading } = useAppConfig();
   const { i18n } = useTranslation();
   const lang = i18n.resolvedLanguage ?? i18n.language;
+  const canSell = billing != null && !Capacitor.isNativePlatform();
 
   const pageUrl = useCallback(
     (guildId: number, page: BillingPortalPage): string | null =>
@@ -50,14 +59,15 @@ export const useBillingPortal = () => {
   );
 
   const reserveTab = useCallback((): Window | null => {
-    if (!billing) return null;
+    if (!canSell) return null;
     const tab = window.open("about:blank", "_blank");
     if (tab) tab.opener = null;
     return tab;
-  }, [billing]);
+  }, [canSell]);
 
   const openPortal = useCallback(
     async (guildId: number, page: BillingPortalPage, reserved?: Window | null) => {
+      if (!canSell) return;
       const base = pageUrl(guildId, page);
       if (!base) return;
       const tab = reserved ?? reserveTab();
@@ -70,8 +80,8 @@ export const useBillingPortal = () => {
       if (tab) tab.location.href = url;
       else window.open(url, "_blank", "noopener,noreferrer");
     },
-    [pageUrl, portalUrl, reserveTab]
+    [canSell, pageUrl, portalUrl, reserveTab]
   );
 
-  return { billing, isLoading, openPortal, portalUrl, reserveTab };
+  return { billing, canSell, isLoading, openPortal, portalUrl, reserveTab };
 };

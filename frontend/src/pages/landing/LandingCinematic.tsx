@@ -8,6 +8,7 @@
  * registry, so a new tool shows up here without anybody remembering to add it.
  */
 
+import { Capacitor } from "@capacitor/core";
 import { Link, useRouter } from "@tanstack/react-router";
 import type { ParseKeys } from "i18next";
 import type { LucideIcon } from "lucide-react";
@@ -151,7 +152,10 @@ export const LandingCinematic = () => {
   const { billing, config, cookieConsentEnabled } = useAppConfig();
   // Owned here rather than inside the section: the header only offers Pricing
   // once there is a price book to scroll to.
-  const catalog = useBillingCatalog(billing?.url);
+  // The phone app may not sell (the app stores forbid pointing anyone to a
+  // purchase outside them), so there it never asks for the plans at all.
+  const showsPlans = billing != null && !Capacitor.isNativePlatform();
+  const catalog = useBillingCatalog(showsPlans ? billing?.url : undefined);
   const router = useRouter();
   const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
   const [scrollY, setScrollY] = useState(0);
@@ -700,7 +704,7 @@ export const LandingCinematic = () => {
       {/* ================================================================== */}
       {/* Plans — only where there is a portal to describe them */}
       {/* ================================================================== */}
-      {billing && !catalog.isError && (
+      {billing && showsPlans && !catalog.isError && (
         <PricingSection
           portalUrl={billing.url}
           catalog={catalog.data}

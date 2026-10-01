@@ -1649,8 +1649,10 @@ async def queue_welcome_notice(
         guild,
         [owner_user_id],
         NotificationType.guild_welcome,
-        # Straight to the portal, which is what the line invites them to.
-        {"target_path": "/billing?page=upgrade"},
+        # The bell line leads to Plan & usage like the trial ones, not to the
+        # portal: in the phone app, which may not sell, that tab shows the plan
+        # and offers nothing. The letter is the way straight to the portal.
+        {},
         lambda locale: email_service.community_welcome_pieces(
             community=guild.name, guild_id=guild_id, locale=locale
         ),

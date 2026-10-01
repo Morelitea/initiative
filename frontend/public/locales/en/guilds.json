@@ -9,6 +9,7 @@
   "creating": "Creating…",
   "createGuildSubmit": "Create community",
   "unableToCreateGuild": "Unable to create community",
+  "freeCommunityHeldInApp": "You already have a free community. Another one can't be set up in the app.",
   "switchTo": "Switch to {{name}}",
   "guildsHeading": "Communities",
   "expandGuilds": "Expand community list",
@@ -228,6 +229,7 @@
     "readOnly": "Until it’s resolved, members can read everything here but can’t change anything.",
     "paymentTitle": "The payment for {{name}} was declined",
     "paymentDescription": "Update your card to restore the community.",
+    "paymentDescriptionInApp": "Payment details can't be changed in the app.",
     "updatePayment": "Update payment method",
     "notNow": "Not now",
     "contactSupport": "Contact support"
@@ -298,8 +300,11 @@
     "guildOnHoldDeleting": "{{community}} is on hold and will be deleted on {{date}}. Contact whoever runs this server to sort it out.",
     "guildOnHoldDeletingWithContact": "{{community}} is on hold and will be deleted on {{date}}. Contact {{contact}} to sort it out.",
     "guildTrialEnding": "{{community}}'s trial ends on {{date}}. Subscribe in the billing portal before then to keep editing.",
+    "guildTrialEndingInApp": "{{community}}'s trial ends on {{date}}. After that it becomes read-only.",
     "guildTrialEnded": "{{community}}'s trial has ended and it is now read-only. Choose a plan in the billing portal to keep editing.",
+    "guildTrialEndedInApp": "{{community}}'s trial has ended and it is now read-only.",
     "guildWelcome": "{{community}} is ready. Set up its plan to get started.",
+    "guildWelcomeInApp": "{{community}} is ready.",
     "defaultNotification": "You have a new notification.",
     "push": {
       "enableTitle": "Enable Push Notifications",
@@ -388,8 +393,8 @@
     "notConfiguredDescription": "This server has no billing portal, so there is no plan to set up here.",
     "errorTitle": "Couldn't open billing",
     "error": "The billing portal couldn't be opened. Try the link again in a moment.",
-    "nativeTitle": "Open this link in a browser",
-    "nativeDescription": "Plans are set up in the billing portal, which opens in a web browser rather than in the app. Open the link from your email there to continue."
+    "nativeTitle": "Not available in the app",
+    "nativeDescription": "Plan changes aren't available in the app."
   },
   "usagePanel": {
     "title": "Usage",
@@ -410,10 +415,12 @@
     "unavailable": "Billing details are unavailable right now.",
     "updatePaymentMethod": "Update payment method",
     "changeInPortal": "Change your plan, payment method or cancel in the billing portal.",
+    "notInApp": "Plan changes aren't available in the app.",
     "cancelAnytime": "Cancel anytime in the billing portal. Your plan keeps running until the end of the period you've paid for. After that your community is read-only for 30 days so you can export it, then put on hold and deleted 30 days later.",
     "status": {
       "paymentFailed": "Payment failed",
       "paymentFailedDetail": "Update your payment method to keep editing — the community becomes read-only 14 days after the payment failed.",
+      "paymentFailedDetailInApp": "The community becomes read-only 14 days after the payment failed.",
       "ends": "Ends {{date}}",
       "endsDetail": "Your plan ends on {{date}}. After that the community is read-only for 30 days, then put on hold.",
       "pauses": "Pauses {{date}}",
@@ -422,6 +429,7 @@
       "trial_other": "Trial · {{count}} days left",
       "trialLastDay": "Trial · last day",
       "trialDetail": "Trial ends {{date}}. Subscribe before then to keep editing.",
+      "trialDetailInApp": "Trial ends {{date}}. After that the community is read-only.",
       "renews": "Renews {{date}}",
       "renewsWithAmount": "Renews {{date}} · {{amount}}"
     }

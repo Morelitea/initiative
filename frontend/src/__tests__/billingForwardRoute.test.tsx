@@ -108,7 +108,8 @@ describe("the billing forwarder", () => {
     );
 
     const { unmount } = await renderForwarder({ server: { isNativePlatform: true } });
-    expect(await screen.findByText("Open this link in a browser")).toBeInTheDocument();
+    expect(await screen.findByText("Not available in the app")).toBeInTheDocument();
+    expect(screen.getByText("Plan changes aren't available in the app.")).toBeInTheDocument();
     unmount();
 
     config.billing = null;

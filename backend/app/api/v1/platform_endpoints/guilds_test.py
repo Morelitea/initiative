@@ -418,7 +418,7 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     assert line.data == {
         "community": "Acme",
         "guild_id": guild.id,
-        "target_path": "/billing?page=upgrade",
+        "target_path": "/settings/usage",
     }
     ((recipient_id, pieces),) = letters
     assert recipient_id == customer.user.id

@@ -8,7 +8,8 @@
  * These notices belong to the person rather than to any community, so the
  * server sends no guild with them.
  */
-import { describe, expect, it } from "vitest";
+import { Capacitor } from "@capacitor/core";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildNotification } from "@/__tests__/factories/notification.factory";
 import type { NotificationType } from "@/api/generated/initiativeAPI.schemas";
@@ -95,6 +96,26 @@ describe("notificationText — account notices", () => {
     expect(notificationText(notice("guild_welcome", { community: "Acme" }), t)).toBe(
       'notifications.guildWelcome({"community":"Acme"})'
     );
+  });
+
+  it("asks for no plan in the phone app, which may not sell", () => {
+    const native = vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    try {
+      expect(
+        notificationText(
+          notice("guild_trial_ending", { community: "Acme", trial_ends_on: "2026-10-08" }),
+          t
+        )
+      ).toContain("notifications.guildTrialEndingInApp(");
+      expect(notificationText(notice("guild_trial_ended", { community: "Acme" }), t)).toBe(
+        'notifications.guildTrialEndedInApp({"community":"Acme"})'
+      );
+      expect(notificationText(notice("guild_welcome", { community: "Acme" }), t)).toBe(
+        'notifications.guildWelcomeInApp({"community":"Acme"})'
+      );
+    } finally {
+      native.mockRestore();
+    }
   });
 
   it("takes a trial notice to the community's Plan & usage tab", () => {
