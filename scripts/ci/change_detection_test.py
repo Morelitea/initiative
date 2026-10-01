@@ -126,6 +126,7 @@ class BackendModeTest(unittest.TestCase):
             "backend/app/services/example.sql",
             ".github/workflows/ci.yml",
             ".github/actions/setup-backend/action.yml",
+            ".github/actions/test-database/action.yml",
         ]:
             self.assertMode([path], "full")
 
