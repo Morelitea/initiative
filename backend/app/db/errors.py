@@ -3,7 +3,10 @@
 from sqlalchemy.exc import DBAPIError
 
 INSUFFICIENT_PRIVILEGE_SQLSTATE = "42501"
-FOREIGN_KEY_VIOLATION_SQLSTATE = "23503"
+# A delete refused because another row still names the one deleted. Postgres
+# 18 reports a RESTRICT key as restrict_violation; a NO ACTION key, and every
+# key before 18, as foreign_key_violation.
+STILL_REFERENCED_SQLSTATES = frozenset({"23503", "23001"})
 UNIQUE_VIOLATION_SQLSTATE = "23505"
 
 
