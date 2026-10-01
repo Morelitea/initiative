@@ -14,7 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func
+from sqlalchemy import case, func, literal
 from sqlmodel import select
 
 from app.api.actor_route import ActorRoute
@@ -34,6 +34,7 @@ from app.api.deps import (
     require_first_party_session,
     SystemSessionDep,
     GuildAdminContext,
+    GuildContextDep,
 )
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
@@ -91,6 +92,8 @@ from app.schemas.platform.user import (
     OwnedDecorationsResponse,
     ProfileDecorations,
     UsernameClaim,
+    GuildRosterMember,
+    GuildRosterResponse,
     UserGuildMember,
     UserGuildMemberListResponse,
     UserProfile,
@@ -165,7 +168,9 @@ from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
 from app.db.query import (
     MAX_ID_FILTER_VALUES,
+    apply_pagination,
     build_paginated_response,
+    ids_in,
     paginated_query,
 )
 
@@ -542,6 +547,109 @@ async def search_users(
     ]
     return UserSummaryListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size)
+    )
+
+
+#: The roster's groups, in the order they are listed.
+ROSTER_PRESENCE_ORDER = (
+    Presence.online,
+    Presence.idle,
+    Presence.busy,
+    Presence.offline,
+)
+
+
+@guild_router.get("/roster", response_model=GuildRosterResponse)
+async def list_roster(
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> GuildRosterResponse:
+    """The people in this community, as the sidebar lists them.
+
+    Grouped by presence (online, idle, busy, then everyone else) and
+    alphabetical within a group. ``presence_counts`` sizes each group across
+    every page.
+
+    Nobody whose direct message policy is private is listed, the reader
+    included. Where the deployment offers no direct messages there is no policy
+    to keep, and everyone is listed.
+    """
+    shown = presence.online.shown()
+    ranked = [
+        (ids_in(MemberProfile.id, ids), rank)
+        for rank, appears in enumerate(ROSTER_PRESENCE_ORDER)
+        if (ids := [user_id for user_id, p in shown.items() if p is appears])
+    ]
+    offline_rank = ROSTER_PRESENCE_ORDER.index(Presence.offline)
+    group = case(*ranked, else_=offline_rank) if ranked else literal(offline_rank)
+
+    where = [
+        GuildMembership.guild_id == guild_context.guild_id,
+        users_service.visible_to_other_people(),
+    ]
+    if await app_settings_service.direct_messages_enabled(session):
+        where.append(MemberProfile.id.in_(select(func.public.roster_listed_members())))
+
+    groups = (
+        select(group.label("presence_rank"))
+        .select_from(MemberProfile)
+        .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+        .where(*where)
+        .subquery()
+    )
+    counts = dict(
+        (
+            await session.exec(
+                select(groups.c.presence_rank, func.count()).group_by(
+                    groups.c.presence_rank
+                )
+            )
+        ).all()
+    )
+    presence_counts = {
+        appears: counts.get(rank, 0)
+        for rank, appears in enumerate(ROSTER_PRESENCE_ORDER)
+    }
+
+    shows_names = bool(guild_context.guild.show_member_names)
+    rows = (
+        await session.exec(
+            apply_pagination(
+                select(MemberProfile, GuildMembership.role)
+                .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
+                .where(*where)
+                .order_by(
+                    group,
+                    *users_service.member_order(None, shows_names=shows_names),
+                    MemberProfile.username.asc(),
+                    MemberProfile.discriminator.asc(),
+                    MemberProfile.id.asc(),
+                ),
+                page,
+                page_size,
+            )
+        )
+    ).all()
+
+    items = [
+        GuildRosterMember.model_validate(user).model_copy(
+            update={
+                **_membership_standing(role),
+                "presence": shown.get(user.id, Presence.offline),
+            }
+        )
+        for user, role in rows
+    ]
+    return GuildRosterResponse(
+        **build_paginated_response(
+            items,
+            sum(presence_counts.values()),
+            page,
+            page_size,
+            presence_counts=presence_counts,
+        )
     )
 
 

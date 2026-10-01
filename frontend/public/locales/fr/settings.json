@@ -1699,7 +1699,7 @@
       "title": "Messages directs",
       "description": "Qui peut demander à vous écrire, en dehors de vos connexions.",
       "private": "Privé",
-      "privateHint": "Personne.",
+      "privateHint": "Personne, et vous n'apparaissez pas dans les listes de personnes des communautés.",
       "community": "Mes communautés",
       "communityHint": "Les personnes avec qui vous partagez une communauté.",
       "public": "Tout le monde",

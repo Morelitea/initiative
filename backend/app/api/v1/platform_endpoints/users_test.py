@@ -9,7 +9,7 @@ Tests the user API endpoints at /api/v1/users including:
 """
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import text, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,11 +18,13 @@ from app.db.query import MAX_ID_FILTER_VALUES
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import Presence, User, UserStatus
 from app.models.platform.user_decoration import UserDecoration
+from app.models.platform.user_dm_settings import DmPolicy
 from app.models.platform.user_passkey import UserPasskey
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.schemas.platform.user import STATUS_TEXT_MAX_LENGTH
 from app.services.marketplace import catalog as marketplace_catalog
 from app.services.marketplace.builtin import load_builtin_manifests
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import profile_decorations as profile_decorations_service
 from app.services.content_sockets import sockets as content_sockets
 from app.testing.sockets import (
@@ -88,6 +90,7 @@ async def test_the_users_router_answers_401_to_a_signed_out_caller(
     ("method", "path", "who"),
     [
         pytest.param("GET", "/users/search", "outsider", id="search-from-outside"),
+        pytest.param("GET", "/users/roster", "outsider", id="roster-from-outside"),
         pytest.param("GET", "/users/export.csv", "member", id="export-as-a-member"),
         pytest.param("DELETE", "/users/{target}", "member", id="remove-as-a-member"),
     ],
@@ -417,6 +420,71 @@ async def test_search_users_says_where_each_member_stands(client, acting_user):
     roles = {item["username"]: item["guild_role"] for item in response.json()["items"]}
     assert roles[admin.user.username] == "admin"
     assert roles[member.user.username] == "member"
+
+
+async def _dm_policy(session, policy: DmPolicy, *users) -> None:
+    await session.exec(
+        text(
+            "UPDATE public.user_dm_settings "
+            "SET dm_policy = CAST(:p AS user_dm_policy) "
+            "WHERE user_id = ANY(CAST(:ids AS int[]))"
+        ).bindparams(p=policy.value, ids=[user.id for user in users])
+    )
+    await session.commit()
+
+
+async def test_roster_groups_by_presence_and_leaves_out_private_accounts(
+    client, session, acting_user
+):
+    """Who is here comes first, a group at a time, and somebody whose direct
+    messages are private is not listed at all, the reader included."""
+    reader = await acting_user(guild_role=GuildRole.member, username="reader")
+    here = await acting_user(guild=reader.guild, username="zed-here")
+    busy = await acting_user(guild=reader.guild, username="amy-busy")
+    away = await acting_user(guild=reader.guild, username="bob-away")
+    hidden = await acting_user(guild=reader.guild, username="cat-hidden")
+    await _dm_policy(session, DmPolicy.community, here.user, busy.user)
+    await _dm_policy(session, DmPolicy.public, away.user)
+
+    sockets = [
+        open_account_socket(here.user.id),
+        open_account_socket(busy.user.id, chosen_presence=Presence.busy),
+        open_account_socket(hidden.user.id),
+    ]
+    try:
+        response = await client.get(reader.g("/users/roster"), headers=reader.headers)
+    finally:
+        for socket in sockets:
+            content_sockets.leave(socket)  # type: ignore[arg-type]
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [(item["username"], item["presence"]) for item in body["items"]] == [
+        ("zed-here", "online"),
+        ("amy-busy", "busy"),
+        ("bob-away", "offline"),
+    ]
+    assert body["presence_counts"] == {"online": 1, "idle": 0, "busy": 1, "offline": 1}
+    assert body["total_count"] == 3
+
+
+async def test_roster_lists_everyone_where_direct_messages_are_off(
+    client, session, acting_user
+):
+    """With no direct messages on the deployment there is no policy to keep."""
+    reader = await acting_user(guild_role=GuildRole.member)
+    other = await acting_user(guild=reader.guild)
+    await app_settings_service.update_community_settings(
+        session, community_directory_enabled=False, direct_messages_enabled=False
+    )
+
+    response = await client.get(reader.g("/users/roster"), headers=reader.headers)
+
+    assert response.status_code == 200, response.text
+    assert {item["id"] for item in response.json()["items"]} == {
+        reader.user.id,
+        other.user.id,
+    }
 
 
 @pytest.mark.parametrize(

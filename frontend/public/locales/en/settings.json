@@ -1699,7 +1699,7 @@
       "title": "Direct messages",
       "description": "Who can ask to message you, outside your connections.",
       "private": "Private",
-      "privateHint": "No one.",
+      "privateHint": "No one, and you're left off community people lists.",
       "community": "My communities",
       "communityHint": "People you share a community with.",
       "public": "Anyone",

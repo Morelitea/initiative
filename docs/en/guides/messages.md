@@ -31,7 +31,7 @@ You decide, under **User settings → Privacy**. The setting covers who may *ask
 
 | Setting | Who can ask |
 |---|---|
-| **Private** | Nobody. |
+| **Private** | Nobody. You're also left off the [People](communities.md#whos-around) tab in your communities. |
 | **My communities** | People you share a community with — narrowable to particular communities. |
 | **Anyone** | Anybody on Initiative, by your handle. |
 

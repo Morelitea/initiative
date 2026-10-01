@@ -1,4 +1,9 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch } from "@/api/generated/communities/communities";
 import type {
@@ -18,8 +23,10 @@ import {
   exportUsersCsvApiV1CGuildIdUsersExportCsvGet,
   getListDecorationPacksApiV1UsersMeDecorationPacksGetQueryKey,
   getListMyDecorationsApiV1UsersMeDecorationsGetQueryKey,
+  getListRosterApiV1CGuildIdUsersRosterGetQueryKey,
   getListUsersApiV1CGuildIdUsersGetQueryKey,
   installDecorationPackApiV1UsersMeDecorationPacksUidPost,
+  listRosterApiV1CGuildIdUsersRosterGet,
   listUsersApiV1CGuildIdUsersGet,
   removeDecorationPackApiV1UsersMeDecorationPacksUidDelete,
   updateUsersMeApiV1UsersMePatch,
@@ -54,6 +61,32 @@ export const useUsers = (
     // Keep the page on screen while the next one (or the next search) loads.
     placeholderData: keepPreviousData,
     ...options,
+  });
+};
+
+/** People per page of the sidebar roster. */
+const ROSTER_PAGE_SIZE = 50;
+
+/**
+ * The active guild's people roster, grown a page at a time.
+ *
+ * Presence is read when the page is served and not pushed, so it refetches
+ * every minute while it is open.
+ */
+export const useGuildRoster = () => {
+  const guildId = useActiveGuildId();
+  return useInfiniteQuery({
+    queryKey: getListRosterApiV1CGuildIdUsersRosterGetQueryKey(guildId),
+    queryFn: ({ pageParam }) =>
+      listRosterApiV1CGuildIdUsersRosterGet(guildId, {
+        page: pageParam,
+        page_size: ROSTER_PAGE_SIZE,
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.has_next ? last.page + 1 : undefined),
+    enabled: guildId > 0,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 };
 

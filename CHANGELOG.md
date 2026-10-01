@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **See who's around.** A **People** tab in the community sidebar lists its members, with whoever is online first, then idle and busy, then everyone else, each with their status line. People whose direct messages are set to Private aren't listed, and the Privacy page says so beside that choice. The list comes from `GET /c/{guild_id}/users/roster` (API).
 - **A server that can't start says what to report.** Its log ends with a short block to paste into an issue: the version, how the database is set up, the PostgreSQL version, where the migrations stopped, and the error, with passwords and keys taken out.
 - **Images you can check.** Each published image is signed by the workflow that built it and carries a list of what's inside it (an SBOM) and how it was built. [Installation](docs/en/running-a-server/installation.md#checking-an-image-is-ours) has the command to check one.
 - **A `stable` image tag.** We promote a release to it by hand once that release has been out at least three days with no open regression reported against it, while `latest` moves with every release. The bug report form asks for the version and how the server is set up, and reports are grouped by version.
