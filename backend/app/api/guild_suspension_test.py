@@ -111,7 +111,7 @@ async def test_admin_of_suspended_guild_reaches_nothing(
             json={"name": "Still Ours"},
         ),
         await client.get(
-            f"/api/v1/communities/{a.guild.id}/auth-policy", headers=a.headers
+            f"/api/v1/communities/{a.guild.id}/auth/connections", headers=a.headers
         ),
         await client.get(
             f"/api/v1/communities/{a.guild.id}/billing/payment-issue", headers=a.headers
@@ -143,7 +143,7 @@ async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
     for resp in (
         await client.get(a.g("/initiatives/"), headers=a.headers),
         await client.get(
-            f"/api/v1/communities/{a.guild.id}/auth-policy", headers=a.headers
+            f"/api/v1/communities/{a.guild.id}/auth/connections", headers=a.headers
         ),
         await client.delete(
             f"/api/v1/communities/{a.guild.id}/leave", headers=a.headers
@@ -487,7 +487,7 @@ async def test_break_glass_reads_a_suspended_guild(
     # The settings grant beside it reaches the community's configuration,
     # which its own administrators no longer do.
     resp = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=headers
     )
     assert resp.status_code == 200, resp.text
 

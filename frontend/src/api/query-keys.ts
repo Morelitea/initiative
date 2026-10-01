@@ -368,11 +368,6 @@ const notificationSettings = (): Spec => ({
   personalExact: ["/api/v1/settings/notifications"],
 });
 
-/** The same three answers for one community. */
-const guildNotificationPolicy = (guildId: number): Spec => ({
-  personalExact: [`/api/v1/communities/${guildId}/notification-policy`],
-});
-
 /** Where each stream of operations work lands, and what it could land in. */
 const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"] });
 
@@ -622,7 +617,6 @@ export const q = {
   captchaSettings,
   calendarEvent,
   communitySettings,
-  guildNotificationPolicy,
   notificationSettings,
   platformAuthSettings,
   intakeOptions,

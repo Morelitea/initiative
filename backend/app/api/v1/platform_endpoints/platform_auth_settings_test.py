@@ -17,8 +17,7 @@ from app.testing import (
 )
 
 
-METHODS_URL = "/api/v1/settings/auth/methods"
-READ_URL = "/api/v1/settings/auth/platform"
+URL = "/api/v1/settings/auth/platform"
 
 
 async def _owner(session: AsyncSession):
@@ -74,7 +73,7 @@ async def test_read_reports_every_method_and_its_cost(
     withdrawing it would concern."""
     _, headers = await _owner(session)
 
-    got = await client.get(READ_URL, headers=headers)
+    got = await client.get(URL, headers=headers)
     assert got.status_code == 200
     assert {m["method"] for m in got.json()["methods"]} == {
         "password",
@@ -98,7 +97,7 @@ async def test_at_least_one_way_in_must_remain(
     client: AsyncClient, session: AsyncSession
 ):
     _, headers = await _owner(session)
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": []})
+    put = await client.patch(URL, headers=headers, json={"methods": []})
     assert put.status_code == 422
 
 
@@ -112,23 +111,21 @@ async def test_withdrawing_a_method_reports_who_it_strands(
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
-    refused = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password"]}
-    )
+    refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert refused.status_code == 409
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
     assert refused.headers["X-Affected-Count"] == "1"
 
-    stale = await client.put(
-        METHODS_URL,
+    stale = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password"], "acknowledge_stranded": 99},
     )
     assert stale.status_code == 409
     assert stale.json()["detail"] == "SETTINGS_LOGIN_METHODS_STALE_ACK"
 
-    accepted = await client.put(
-        METHODS_URL,
+    accepted = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password"], "acknowledge_stranded": 1},
     )
@@ -144,13 +141,13 @@ async def test_the_account_making_the_change_cannot_strand_itself(
     comes back: they add another way in first, and then it goes through."""
     owner, headers = await _owner(session)
 
-    refused = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    refused = await client.patch(URL, headers=headers, json={"methods": ["sso"]})
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND_SELF"
     assert "X-Affected-Count" not in refused.headers
 
-    acknowledged = await client.put(
-        METHODS_URL,
+    acknowledged = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["sso"], "acknowledge_stranded": 1},
     )
@@ -159,7 +156,7 @@ async def test_the_account_making_the_change_cannot_strand_itself(
 
     provider = await create_auth_provider(session, slug="corp")
     await create_federated_identity(session, owner, provider=provider)
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["sso"]})
     assert put.status_code == 200, put.text
 
 
@@ -175,22 +172,18 @@ async def test_withdrawing_sso_waits_for_guild_requirements(
     await create_guild_provider_connection(session, guild=guild, provider=provider)
     policy = await create_guild_auth_policy(session, guild, provider)
 
-    refused = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password"]}
-    )
+    refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert refused.status_code == 409
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
     assert refused.headers["X-Affected-Count"] == "1"
 
-    got = await client.get(READ_URL, headers=headers)
+    got = await client.get(URL, headers=headers)
     assert got.json()["guilds_requiring_sign_in"] == 1
 
     await session.delete(policy)
     await session.commit()
 
-    allowed = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password"]}
-    )
+    allowed = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert allowed.status_code == 200
 
 
@@ -207,9 +200,7 @@ async def test_a_guild_only_identity_is_counted_when_sso_is_withdrawn(
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
-    refused = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password"]}
-    )
+    refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
 
     assert refused.status_code == 409
     assert refused.headers["X-Affected-Count"] == "1"
@@ -219,7 +210,7 @@ async def test_withdrawing_a_method_nobody_uses_needs_no_acknowledgement(
     client: AsyncClient, session: AsyncSession
 ):
     _, headers = await _owner(session)
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["password"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert put.status_code == 200
     enabled = {m["method"] for m in put.json()["methods"] if m["enabled"]}
     assert enabled == {"password"}
@@ -236,7 +227,7 @@ async def test_withdrawing_sso_closes_the_provider_routes(
     listed = await client.get("/api/v1/auth/providers")
     assert any(p["slug"] == "corp" for p in listed.json()["providers"])
 
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["password"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert put.status_code == 200
 
     assert (await client.get("/api/v1/auth/providers")).json()["providers"] == []
@@ -256,7 +247,7 @@ async def test_withdrawing_sso_closes_a_guilds_provider_routes_too(
     listed = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
     assert any(p["slug"] == "corp" for p in listed.json()["providers"])
 
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["password"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert put.status_code == 200
 
     after = await client.get(f"/api/v1/auth/c/{guild.id}/providers")
@@ -277,7 +268,7 @@ async def test_withdrawing_password_closes_its_routes(
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["sso"]})
     assert put.status_code == 200, put.text
 
     token = await client.post(
@@ -333,7 +324,7 @@ async def test_an_account_with_only_a_guild_provider_counts_as_signed_in(
     provider = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=provider)
 
-    before = await client.get(READ_URL, headers=headers)
+    before = await client.get(URL, headers=headers)
     baseline = next(m for m in before.json()["methods"] if m["method"] == "password")[
         "would_strand"
     ]
@@ -341,7 +332,7 @@ async def test_an_account_with_only_a_guild_provider_counts_as_signed_in(
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
-    after = await client.get(READ_URL, headers=headers)
+    after = await client.get(URL, headers=headers)
     password = next(m for m in after.json()["methods"] if m["method"] == "password")
     # A guild-scoped provider answers logins, so the member it linked is a way
     # in rather than an account the password is holding up.
@@ -358,10 +349,10 @@ async def test_withdrawing_a_method_signs_nobody_out(
     member = await create_user(session, hashed_password=None)
     await create_federated_identity(session, member, provider=provider)
 
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["sso"]})
     assert put.status_code == 200, put.text
 
-    still_in = await client.get(READ_URL, headers=headers)
+    still_in = await client.get(URL, headers=headers)
     assert still_in.status_code == 200
 
 
@@ -371,10 +362,8 @@ async def test_the_surface_needs_the_config_capability(
     member = await create_user(session, role=UserRole.member)
     headers = get_auth_headers(member)
 
-    assert (await client.get(READ_URL, headers=headers)).status_code == 403
-    methods = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password"]}
-    )
+    assert (await client.get(URL, headers=headers)).status_code == 403
+    methods = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert methods.status_code == 403
 
 
@@ -392,9 +381,7 @@ async def test_withdrawing_sso_counts_a_guild_that_requires_a_method(
     )
     await session.commit()
 
-    refused = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password"]}
-    )
+    refused = await client.patch(URL, headers=headers, json={"methods": ["password"]})
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
     assert refused.headers["X-Affected-Count"] == "1"
@@ -408,7 +395,7 @@ async def test_something_that_can_begin_a_session_must_remain(
     no way to begin."""
     _, headers = await _owner(session)
 
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["totp"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["totp"]})
     assert put.status_code == 400
     assert put.json()["detail"] == "SETTINGS_LOGIN_METHODS_NO_PRIMARY"
 
@@ -420,8 +407,8 @@ async def test_withdrawing_the_authenticator_strands_nobody(
     it costs is that the factor stops being asked for, not anybody's access."""
     _, headers = await _owner(session)
 
-    put = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    put = await client.patch(
+        URL, headers=headers, json={"methods": ["password", "sso"]}
     )
     assert put.status_code == 200, put.text
     assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {
@@ -440,13 +427,13 @@ async def test_withdrawing_passkeys_reports_who_it_strands(
     await _store_passkey(session, holder, credential_id=b"stranded-credential")
 
     keep_the_rest = {"methods": ["password", "sso", "totp"]}
-    refused = await client.put(METHODS_URL, headers=headers, json=keep_the_rest)
+    refused = await client.patch(URL, headers=headers, json=keep_the_rest)
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
     assert refused.headers["X-Affected-Count"] == "1"
 
-    accepted = await client.put(
-        METHODS_URL,
+    accepted = await client.patch(
+        URL,
         headers=headers,
         json={**keep_the_rest, "acknowledge_stranded": 1},
     )
@@ -466,7 +453,7 @@ async def test_passkeys_alone_can_begin_a_session(
     owner, headers = await _owner(session)
     await _store_passkey(session, owner, credential_id=b"owner-credential")
 
-    put = await client.put(METHODS_URL, headers=headers, json={"methods": ["passkey"]})
+    put = await client.patch(URL, headers=headers, json={"methods": ["passkey"]})
     assert put.status_code == 200, put.text
     assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"passkey"}
 
@@ -483,27 +470,27 @@ async def test_withdrawing_two_ways_in_at_once_counts_them_together(
     holder = await create_user(session)
     await _store_passkey(session, holder, credential_id=b"two-ways-in")
 
-    read = await client.get(READ_URL, headers=headers)
+    read = await client.get(URL, headers=headers)
     per_method = {m["method"]: m["would_strand"] for m in read.json()["methods"]}
     # Either one alone leaves them the other.
     assert per_method["passkey"] == 0
 
-    refused = await client.put(METHODS_URL, headers=headers, json={"methods": ["sso"]})
+    refused = await client.patch(URL, headers=headers, json={"methods": ["sso"]})
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
     counted = int(refused.headers["X-Affected-Count"])
     assert counted == per_method["password"] + 1
 
-    stale = await client.put(
-        METHODS_URL,
+    stale = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["sso"], "acknowledge_stranded": per_method["password"]},
     )
     assert stale.status_code == 409
     assert stale.json()["detail"] == "SETTINGS_LOGIN_METHODS_STALE_ACK"
 
-    accepted = await client.put(
-        METHODS_URL,
+    accepted = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["sso"], "acknowledge_stranded": counted},
     )
@@ -512,8 +499,6 @@ async def test_withdrawing_two_ways_in_at_once_counts_them_together(
 
 
 # ── What the deployment asks of an account ─────────────────────────────────
-
-REQUIREMENT_URL = "/api/v1/settings/auth/second-factor-requirement"
 
 
 async def _enrol(session: AsyncSession, user) -> None:
@@ -559,8 +544,8 @@ async def test_the_emailed_code_needs_a_way_to_send_mail(
     the deployment can send."""
     _, headers = await _owner(session)
 
-    refused = await client.put(
-        METHODS_URL,
+    refused = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
     )
@@ -575,8 +560,8 @@ async def test_the_emailed_code_is_permitted_once_mail_works(
     _, headers = await _owner(session)
     await _can_send_mail(session)
 
-    put = await client.put(
-        METHODS_URL,
+    put = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
     )
@@ -592,15 +577,15 @@ async def test_withdrawing_the_emailed_code_needs_no_mail_server(
     sending mail can still take the method back off."""
     _, headers = await _owner(session)
     await _can_send_mail(session)
-    await client.put(
-        METHODS_URL,
+    await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
     )
     await _cannot_send_mail(session)
 
-    put = await client.put(
-        METHODS_URL,
+    put = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "sso", "totp", "passkey"]},
     )
@@ -619,15 +604,13 @@ async def test_an_address_is_a_way_in_once_the_code_is_permitted(
     _, headers = await _owner(session)
     await _can_send_mail(session)
     await create_user(session, hashed_password=None)
-    await client.put(
-        METHODS_URL,
+    await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
     )
 
-    put = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["email_otp"]}
-    )
+    put = await client.patch(URL, headers=headers, json={"methods": ["email_otp"]})
 
     assert put.status_code == 200, put.text
     assert {m["method"] for m in put.json()["methods"] if m["enabled"]} == {"email_otp"}
@@ -656,10 +639,10 @@ async def test_a_placeholder_address_is_not_a_way_in(
         session.add(row)
     await session.commit()
     everything = ["password", "sso", "totp", "passkey", "email_otp"]
-    await client.put(METHODS_URL, headers=headers, json={"methods": everything})
+    await client.patch(URL, headers=headers, json={"methods": everything})
 
-    refused = await client.put(
-        METHODS_URL,
+    refused = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "totp", "passkey", "email_otp"]},
     )
@@ -677,14 +660,14 @@ async def test_withdrawing_the_emailed_code_reports_who_it_strands(
     _, headers = await _owner(session)
     await _can_send_mail(session)
     await create_user(session, hashed_password=None)
-    await client.put(
-        METHODS_URL,
+    await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "sso", "totp", "passkey", "email_otp"]},
     )
 
-    refused = await client.put(
-        METHODS_URL,
+    refused = await client.patch(
+        URL,
         headers=headers,
         json={"methods": ["password", "sso", "totp", "passkey"]},
     )
@@ -702,7 +685,7 @@ async def test_the_read_says_who_is_asked_and_what_it_would_cost(
     owner, headers = await _owner(session)
     await create_user(session)
 
-    answered = await client.get(READ_URL, headers=headers)
+    answered = await client.get(URL, headers=headers)
 
     assert answered.status_code == 200, answered.text
     body = answered.json()
@@ -721,48 +704,12 @@ async def test_an_owner_who_holds_a_factor_may_ask_for_one(
     owner, headers = await _owner(session)
     await _enrol(session, owner)
 
-    written = await client.put(
-        REQUIREMENT_URL, headers=headers, json={"level": "everyone"}
+    written = await client.patch(
+        URL, headers=headers, json={"second_factor_requirement": "everyone"}
     )
 
     assert written.status_code == 200, written.text
     assert written.json()["second_factor_requirement"] == "everyone"
-
-
-async def test_a_requirement_is_written_by_somebody_it_already_applies_to(
-    client: AsyncClient, session: AsyncSession
-):
-    """The same rule a community's requirement makes: prove it before it binds
-    anybody."""
-    owner, headers = await _owner(session)
-
-    refused = await client.put(
-        REQUIREMENT_URL, headers=headers, json={"level": "platform_roles"}
-    )
-
-    assert refused.status_code == 400, refused.text
-    assert refused.json()["detail"] == "AUTH_RULE_SELF_UNSATISFIED"
-    assert refused.headers["X-Auth-Policy-Unmet"] == "totp"
-
-
-async def test_asking_needs_something_that_can_answer(
-    client: AsyncClient, session: AsyncSession
-):
-    """A deployment permitting neither the authenticator nor passkeys has
-    nothing to ask for."""
-    owner, headers = await _owner(session)
-    await _enrol(session, owner)
-    withdrawn = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
-    )
-    assert withdrawn.status_code == 200, withdrawn.text
-
-    refused = await client.put(
-        REQUIREMENT_URL, headers=headers, json={"level": "everyone"}
-    )
-
-    assert refused.status_code == 409, refused.text
-    assert refused.json()["detail"] == "AUTH_RULE_NOT_OFFERED"
 
 
 async def test_the_last_way_to_answer_is_not_withdrawn_from_under_it(
@@ -772,40 +719,25 @@ async def test_the_last_way_to_answer_is_not_withdrawn_from_under_it(
     community's requirement asks for too."""
     owner, headers = await _owner(session)
     await _enrol(session, owner)
-    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+    await client.patch(
+        URL, headers=headers, json={"second_factor_requirement": "everyone"}
+    )
 
-    refused = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    refused = await client.patch(
+        URL, headers=headers, json={"methods": ["password", "sso"]}
     )
 
     assert refused.status_code == 409, refused.text
     assert refused.json()["detail"] == "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
 
-    lowered = await client.put(
-        REQUIREMENT_URL, headers=headers, json={"level": "nobody"}
+    lowered = await client.patch(
+        URL, headers=headers, json={"second_factor_requirement": "nobody"}
     )
     assert lowered.status_code == 200, lowered.text
-    withdrawn = await client.put(
-        METHODS_URL, headers=headers, json={"methods": ["password", "sso"]}
+    withdrawn = await client.patch(
+        URL, headers=headers, json={"methods": ["password", "sso"]}
     )
     assert withdrawn.status_code == 200, withdrawn.text
-
-
-async def test_lowering_it_asks_nothing_of_anybody(
-    client: AsyncClient, session: AsyncSession
-):
-    """Coming down only ever admits more, so it carries none of the conditions
-    going up does — including holding a factor yourself."""
-    owner, headers = await _owner(session)
-    await _enrol(session, owner)
-    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
-
-    lowered = await client.put(
-        REQUIREMENT_URL, headers=headers, json={"level": "nobody"}
-    )
-
-    assert lowered.status_code == 200, lowered.text
-    assert lowered.json()["second_factor_requirement"] == "nobody"
 
 
 async def test_the_change_is_recorded(
@@ -814,7 +746,9 @@ async def test_the_change_is_recorded(
     owner, headers = await _owner(session)
     await _enrol(session, owner)
     capfd.readouterr()
-    await client.put(REQUIREMENT_URL, headers=headers, json={"level": "everyone"})
+    await client.patch(
+        URL, headers=headers, json={"second_factor_requirement": "everyone"}
+    )
 
     rows = emitted(capfd, AuditEventType.PLATFORM_SECOND_FACTOR_REQUIREMENT_CHANGED)
 
@@ -822,15 +756,37 @@ async def test_the_change_is_recorded(
     assert rows[0]["detail"] == {"from": "nobody", "to": "everyone"}
 
 
-async def test_the_requirement_needs_the_config_capability(
+async def test_several_rules_change_together(
     client: AsyncClient, session: AsyncSession
 ):
-    operator = await create_user(session, role=UserRole.operator)
+    owner, headers = await _owner(session)
+    await _enrol(session, owner)
 
-    refused = await client.put(
-        REQUIREMENT_URL,
-        headers=get_auth_headers(operator),
-        json={"level": "everyone"},
+    written = await client.patch(
+        URL,
+        headers=headers,
+        json={"second_factor_requirement": "everyone", "session_max_hours": 12},
     )
 
-    assert refused.status_code == 403, refused.text
+    assert written.status_code == 200, written.text
+    assert written.json()["second_factor_requirement"] == "everyone"
+    assert written.json()["session_max_hours"] == 12
+
+
+async def test_a_refused_rule_leaves_the_others_as_they_were(
+    client: AsyncClient, session: AsyncSession
+):
+    """One change: the limit beside a requirement its writer does not meet is
+    not written either."""
+    owner, headers = await _owner(session)
+
+    refused = await client.patch(
+        URL,
+        headers=headers,
+        json={"session_max_hours": 12, "second_factor_requirement": "everyone"},
+    )
+    assert refused.status_code == 400, refused.text
+
+    read = (await client.get(URL, headers=headers)).json()
+    assert read["session_max_hours"] is None
+    assert read["second_factor_requirement"] == "nobody"

@@ -1038,16 +1038,16 @@ async def test_the_session_limit_starts_unset(client: AsyncClient, owner):
 
 
 async def test_an_owner_sets_and_clears_the_session_limit(client: AsyncClient, owner):
-    set_it = await client.put(
-        "/api/v1/settings/auth/session-lifetime",
+    set_it = await client.patch(
+        "/api/v1/settings/auth/platform",
         json={"session_max_hours": 12},
         headers=owner.headers,
     )
     assert set_it.status_code == 200, set_it.text
     assert set_it.json()["session_max_hours"] == 12
 
-    cleared = await client.put(
-        "/api/v1/settings/auth/session-lifetime",
+    cleared = await client.patch(
+        "/api/v1/settings/auth/platform",
         json={"session_max_hours": None},
         headers=owner.headers,
     )
@@ -1055,8 +1055,8 @@ async def test_an_owner_sets_and_clears_the_session_limit(client: AsyncClient, o
 
 
 async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
-    response = await client.put(
-        "/api/v1/settings/auth/session-lifetime",
+    response = await client.patch(
+        "/api/v1/settings/auth/platform",
         json={"session_max_hours": 0},
         headers=owner.headers,
     )
@@ -1091,8 +1091,8 @@ _ROUTES: list[tuple[str, str, str, dict | None]] = [
     ),
     (
         _CONFIG_MANAGE,
-        "put",
-        "/api/v1/settings/auth/session-lifetime",
+        "patch",
+        "/api/v1/settings/auth/platform",
         {"session_max_hours": 12},
     ),
     (_GUILDS_MANAGE, "get", GUILDS, None),

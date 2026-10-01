@@ -4155,21 +4155,6 @@ export interface GenerateDocumentSummaryResponse {
 }
 
 /**
- * Whether this guild accepts personal API keys.
- */
-export interface GuildApiAccessRead {
-  allow_api_keys: boolean;
-}
-
-/**
- * Set it. ``false`` means no key can be minted into this guild and no
- * request carrying one reaches it; keys already minted stop working here.
- */
-export interface GuildApiAccessUpdate {
-  allow_api_keys: boolean;
-}
-
-/**
  * One thing an install produced.
  */
 export interface GuildAppArtifact {
@@ -4579,16 +4564,39 @@ export interface GuildAuthPolicyUpdate {
 }
 
 /**
- * The current controls on the superadmin's Authentication page.
+ * Every control on the superadmin seat's Security page, and what the
+ * deployment already asks beside them.
  */
 export interface GuildAuthSettingsRead {
   auth_options: GuildAuthOption[];
+  auth_policy: GuildAuthPolicyRead;
   allow_api_keys: boolean;
   enforce_compliance_session: boolean;
   require_second_factor: boolean;
   allow_push_notifications: boolean;
   allow_email_notifications: boolean;
   redact_notification_content: boolean;
+  push_allowed_by_platform: boolean;
+  email_allowed_by_platform: boolean;
+  redacted_by_platform: boolean;
+}
+
+/**
+ * The rules to change. An omitted field is left as it is.
+ *
+ * The whole request is one change: it is applied together or refused
+ * together, and a rule it loosens is loosened before one it tightens is
+ * checked. Tightening a rule needs the option it belongs to; loosening one
+ * never does.
+ */
+export interface GuildAuthSettingsUpdate {
+  auth_policy?: GuildAuthPolicyUpdate | null;
+  allow_api_keys?: boolean | null;
+  enforce_compliance_session?: boolean | null;
+  require_second_factor?: boolean | null;
+  allow_push_notifications?: boolean | null;
+  allow_email_notifications?: boolean | null;
+  redact_notification_content?: boolean | null;
 }
 
 /**
@@ -4827,28 +4835,6 @@ export interface GuildNarrowingPending {
   agreed: boolean;
 }
 
-/**
- * What this community's notifications may leave the app carrying.
- */
-export interface GuildNotificationPolicyRead {
-  allow_push_notifications: boolean;
-  allow_email_notifications: boolean;
-  redact_notification_content: boolean;
-  push_allowed_by_platform: boolean;
-  email_allowed_by_platform: boolean;
-  redacted_by_platform: boolean;
-}
-
-/**
- * Set them. Each one restricts this community's notifications and nothing
- * else: no switch here relaxes what the deployment has already said.
- */
-export interface GuildNotificationPolicyUpdate {
-  allow_push_notifications: boolean;
-  allow_email_notifications: boolean;
-  redact_notification_content: boolean;
-}
-
 export type GuildNotificationSettingsCategories = { [key: string]: { [key: string]: boolean } };
 
 /**
@@ -4972,37 +4958,6 @@ export interface GuildRead {
   banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
-}
-
-/**
- * Whether reaching this community asks for a second factor.
- */
-export interface GuildSecondFactorRead {
-  require_second_factor: boolean;
-  available: boolean;
-}
-
-/**
- * Ask for one, or stop. Which kinds count is the deployment's answer.
- */
-export interface GuildSecondFactorUpdate {
-  require_second_factor: boolean;
-}
-
-/**
- * Whether this guild holds its members to the twelve-hour session
- * standard.
- */
-export interface GuildSessionLimitRead {
-  enforce_compliance_session: boolean;
-}
-
-/**
- * Set it. ``true`` means this guild's members sign in again every twelve
- * hours, whatever the deployment's own limit says.
- */
-export interface GuildSessionLimitUpdate {
-  enforce_compliance_session: boolean;
 }
 
 export interface GuildStorageUsageRead {
@@ -5721,15 +5676,6 @@ export interface LoginMethodStatus {
   primary: boolean;
   answers_factor: boolean;
   would_strand: number;
-}
-
-/**
- * The methods to permit from now on. Order and repetition are ignored.
- */
-export interface LoginMethodsUpdate {
-  /** @minItems 1 */
-  methods: LoginMethod[];
-  acknowledge_stranded?: number | null;
 }
 
 /**
@@ -6778,6 +6724,21 @@ export interface PlatformAuthSettingsResponse {
   session_idle_minutes: number | null;
   second_factor_requirement: SecondFactorRequirement;
   accounts_without_factor: AccountsWithoutFactor;
+}
+
+/**
+ * The rules to change. An omitted field is left as it is.
+ *
+ * The whole request is one change: it is applied together or refused
+ * together, and a rule it loosens is loosened before one it tightens is
+ * checked. Nobody is signed out by any of it.
+ */
+export interface PlatformAuthSettingsUpdate {
+  methods?: LoginMethod[] | null;
+  acknowledge_stranded?: number | null;
+  second_factor_requirement?: SecondFactorRequirement | null;
+  session_max_hours?: number | null;
+  session_idle_minutes?: number | null;
 }
 
 /**
@@ -8212,18 +8173,6 @@ export interface SecondFactorEnrolment {
 }
 
 /**
- * Who to ask for a second factor from now on.
- *
- * Nobody is signed out by the change. An account the level covers is asked
- * at its next request and answers it where it stands; one that cannot
- * present a factor — the app on a phone, a personal API key — works again
- * once its owner holds one.
- */
-export interface SecondFactorRequirementUpdate {
-  level: SecondFactorRequirement;
-}
-
-/**
  * What the account holds, for the settings surface.
  */
 export interface SecondFactorStatus {
@@ -8246,19 +8195,6 @@ export interface SecondFactorStatus {
 export interface SecondFactorStepUpAnswer {
   code?: string | null;
   recovery_code?: string | null;
-}
-
-/**
- * The absolute limit on staying signed in, in hours.
- *
- * ``None`` asks for no limit. It has to be longer than the idle window to
- * mean anything: set shorter, it is the only thing ending a session and the
- * idle window stops mattering — which is a fair thing to ask for, and the
- * reason the field is free rather than a list of blessed figures.
- */
-export interface SessionLifetimeUpdate {
-  session_max_hours?: number | null;
-  session_idle_minutes?: number | null;
 }
 
 /**

@@ -38,11 +38,11 @@ import type {
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
   ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
-  LoginMethodsUpdate,
   NotificationSettingsResponse,
   NotificationSettingsUpdate,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
+  PlatformAuthSettingsUpdate,
   PlatformGuildRestore,
   PlatformGuildStorageListResponse,
   PlatformGuildStorageRead,
@@ -50,8 +50,6 @@ import type {
   PushSettingsResponse,
   PushSettingsUpdate,
   SecondFactorAnswer,
-  SecondFactorRequirementUpdate,
-  SessionLifetimeUpdate,
   StorageBackfillStatusResponse,
   StorageSettingsResponse,
   StorageSettingsUpdate,
@@ -369,52 +367,60 @@ export function useGetPlatformAuthSettingsApiV1SettingsAuthPlatformGet<
 }
 
 /**
- * Set which ways in this deployment permits — at least one.
+ * Change how somebody reaches this deployment: the ways in it permits,
+ * who it asks for a second factor, and how long a session lasts.
  *
- * Withdrawing one that is somebody's only way in is refused (409) with the
- * count in ``X-Affected-Count``, and proceeds only when the caller echoes
- * that exact number back in ``acknowledge_stranded``. Nobody is signed out
- * either way.
- * @summary Update Login Methods
+ * Loosening a rule is never refused. Tightening one is refused when the
+ * deployment permits nothing that could answer it (409), and when the
+ * account writing it does not meet it itself (400, naming the unmet
+ * method). Withdrawing a way in that is somebody's only one is refused (409)
+ * with the count in ``X-Affected-Count``, and proceeds only when the caller
+ * echoes that exact number back in ``acknowledge_stranded``.
+ *
+ * Nobody is signed out. A session already open keeps the terms it was
+ * opened under; a device token is brought under a new session limit now,
+ * measured from when it was issued, so shortening the limit can end one on
+ * the spot.
+ * @summary Update Platform Auth Settings
  */
-export const updateLoginMethodsApiV1SettingsAuthMethodsPut = (
-  loginMethodsUpdate: BodyType<LoginMethodsUpdate>,
+export const updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch = (
+  platformAuthSettingsUpdate: BodyType<PlatformAuthSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<PlatformAuthSettingsResponse>(
     {
-      url: `/api/v1/settings/auth/methods`,
-      method: "PUT",
+      url: `/api/v1/settings/auth/platform`,
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: loginMethodsUpdate,
+      data: platformAuthSettingsUpdate,
       signal,
     },
     options
   );
 };
 
-export const getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationKey = () =>
-  ["updateLoginMethodsApiV1SettingsAuthMethodsPut"] as const;
+export const getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationKey = () =>
+  ["updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch"] as const;
 
-export const getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationOptions = <
+export const getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+    Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
     TError,
-    UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationVariables,
+    UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+  Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
   TError,
-  UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationVariables,
+  UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
   TContext
 > => {
-  const mutationKey = getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationKey();
+  const mutationKey = getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationKey();
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -422,283 +428,53 @@ export const getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
-    UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationVariables
+    Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
+    UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables
   > = (props) => {
     const { data } = props ?? {};
 
-    return updateLoginMethodsApiV1SettingsAuthMethodsPut(data, requestOptions);
+    return updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>
+export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>
 >;
-export type UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationBody =
-  BodyType<LoginMethodsUpdate>;
-export type UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationError =
+export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationBody =
+  BodyType<PlatformAuthSettingsUpdate>;
+export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationError =
   ErrorType<HTTPValidationError>;
-export type UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationVariables = {
-  data: BodyType<LoginMethodsUpdate>;
+export type UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables = {
+  data: BodyType<PlatformAuthSettingsUpdate>;
 };
 
 /**
- * @summary Update Login Methods
+ * @summary Update Platform Auth Settings
  */
-export const useUpdateLoginMethodsApiV1SettingsAuthMethodsPut = <
+export const useUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+      Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
       TError,
-      UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationVariables,
+      UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateLoginMethodsApiV1SettingsAuthMethodsPut>>,
+  Awaited<ReturnType<typeof updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch>>,
   TError,
-  UpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationVariables,
+  UpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationVariables,
   TContext
 > => {
   return useMutation(
-    getUpdateLoginMethodsApiV1SettingsAuthMethodsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Set who this deployment asks to hold a second factor.
- *
- * Two refusals on the way up, and none coming down. Asking for one while the
- * deployment permits nothing that presents one is refused (409); so is
- * asking while the account writing it does not meet the rule itself (400,
- * naming the unmet method).
- *
- * Nobody is signed out. An account the rule covers is asked at its next
- * request and can answer it where it stands; a credential that cannot
- * present one — the app on a phone, a personal API key — works again once
- * its owner holds a factor.
- * @summary Update Second Factor Requirement
- */
-export const updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut = (
-  secondFactorRequirementUpdate: BodyType<SecondFactorRequirementUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<PlatformAuthSettingsResponse>(
-    {
-      url: `/api/v1/settings/auth/second-factor-requirement`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: secondFactorRequirementUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationKey =
-  () => ["updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut"] as const;
-
-export const getUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
-      >,
-      TError,
-      UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
-    >,
-    TError,
-    UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationVariables,
-    TContext
-  > => {
-    const mutationKey =
-      getUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationKey();
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
-      >,
-      UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationVariables
-    > = (props) => {
-      const { data } = props ?? {};
-
-      return updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut(
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
-    >
-  >;
-export type UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationBody =
-  BodyType<SecondFactorRequirementUpdate>;
-export type UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationVariables =
-  { data: BodyType<SecondFactorRequirementUpdate> };
-
-/**
- * @summary Update Second Factor Requirement
- */
-export const useUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
-      >,
-      TError,
-      UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<
-    ReturnType<typeof updateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPut>
-  >,
-  TError,
-  UpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getUpdateSecondFactorRequirementApiV1SettingsAuthSecondFactorRequirementPutMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
-/**
- * Set how long somebody may stay signed in before signing in again.
- *
- * Separate from how long a session may be left alone, which the deployment's
- * own configuration holds. A session already open keeps the terms it was
- * opened under and takes the new figure at the next sign-in; a device token
- * is brought under the new figure now, measured from when it was issued, so
- * shortening the limit can end one on the spot.
- * @summary Update Session Lifetime
- */
-export const updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut = (
-  sessionLifetimeUpdate: BodyType<SessionLifetimeUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<PlatformAuthSettingsResponse>(
-    {
-      url: `/api/v1/settings/auth/session-lifetime`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: sessionLifetimeUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationKey = () =>
-  ["updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut"] as const;
-
-export const getUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
-    TError,
-    UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationVariables,
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
-  TError,
-  UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationVariables,
-  TContext
-> => {
-  const mutationKey = getUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationKey();
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
-    UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationVariables
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>
->;
-export type UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationBody =
-  BodyType<SessionLifetimeUpdate>;
-export type UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationError =
-  ErrorType<HTTPValidationError>;
-export type UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationVariables = {
-  data: BodyType<SessionLifetimeUpdate>;
-};
-
-/**
- * @summary Update Session Lifetime
- */
-export const useUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
-      TError,
-      UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationVariables,
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateSessionLifetimeApiV1SettingsAuthSessionLifetimePut>>,
-  TError,
-  UpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationVariables,
-  TContext
-> => {
-  return useMutation(
-    getUpdateSessionLifetimeApiV1SettingsAuthSessionLifetimePutMutationOptions(options),
+    getUpdatePlatformAuthSettingsApiV1SettingsAuthPlatformPatchMutationOptions(options),
     queryClient
   );
 };

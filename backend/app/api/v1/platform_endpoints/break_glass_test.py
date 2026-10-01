@@ -171,10 +171,10 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
     assert shared.status_code == 403, shared.text
 
     # What the settings grant carries: the community's own configuration.
-    policy = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=a.headers
+    rules = await client.get(
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=a.headers
     )
-    assert policy.status_code == 200, policy.text
+    assert rules.status_code == 200, rules.text
 
 
 async def test_break_glass_already_member_rejected(

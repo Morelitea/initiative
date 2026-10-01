@@ -6,14 +6,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type {
   PlatformAuthSettingsResponse,
-  SecondFactorRequirementUpdate,
+  PlatformAuthSettingsUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 
 const requirementMutate = vi.fn();
 
 /** The section's own error handler, as the hook received it. */
 let onRequirementError:
-  | ((error: unknown, variables: SecondFactorRequirementUpdate) => void)
+  | ((error: unknown, variables: PlatformAuthSettingsUpdate) => void)
   | undefined;
 
 let settings: PlatformAuthSettingsResponse;
@@ -23,8 +23,8 @@ const providerMutate = vi.fn();
 
 vi.mock("@/hooks/useSettings", () => ({
   usePlatformAuthSettings: () => ({ data: settings, isLoading: false }),
-  useUpdateSecondFactorRequirement: (options?: {
-    onError?: (error: unknown, variables: SecondFactorRequirementUpdate) => void;
+  useUpdatePlatformAuthSettings: (options?: {
+    onError?: (error: unknown, variables: PlatformAuthSettingsUpdate) => void;
   }) => {
     onRequirementError = options?.onError;
     return { mutate: requirementMutate, isPending: false };
@@ -95,7 +95,7 @@ describe("SecondFactorRequirementSection", () => {
     fireEvent.click(screen.getByRole("radio", { name: /everybody/i }));
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(requirementMutate).toHaveBeenCalledWith({ level: "everyone" });
+    expect(requirementMutate).toHaveBeenCalledWith({ second_factor_requirement: "everyone" });
   });
 
   it("says how many people the chosen answer would ask", () => {
@@ -126,7 +126,7 @@ describe("SecondFactorRequirementSection", () => {
   it("offers to present a factor when the server says this account has none", () => {
     renderWithProviders(<SecondFactorRequirementSection />);
 
-    act(() => onRequirementError?.(selfUnsatisfied(), { level: "everyone" }));
+    act(() => onRequirementError?.(selfUnsatisfied(), { second_factor_requirement: "everyone" }));
 
     expect(screen.getByText(/set up a second factor of your own/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /enter a code/i })).toBeInTheDocument();
