@@ -68,21 +68,30 @@
     },
     "content": {
       "prompt": "Elige qué eventos exportar",
-      "allDatesNote": "Deja las fechas vacías para exportar todos los eventos."
+      "allDatesNote": "Deja las fechas vacías para exportar todos los eventos.",
+      "tasksPrompt": "Elige qué tareas exportar",
+      "allTasksNote": "Sin filtros se exportan todas las tareas, también las archivadas."
     },
     "filter": {
       "toggle": "Filtrar",
       "toggleFor": "Filtrar {{tool}}",
-      "eventDates": "Fechas de los eventos"
+      "eventDates": "Fechas de los eventos",
+      "tasks": "Tareas de cada proyecto"
     },
     "filterSummary": {
       "search": "«{{search}}»",
       "tags_one": "{{count}} etiqueta",
       "tags_other": "{{count}} etiquetas",
+      "statuses_one": "{{count}} estado",
+      "statuses_other": "{{count}} estados",
+      "assignees_one": "{{count}} asignado",
+      "assignees_other": "{{count}} asignados",
       "activeOnly": "Solo activos",
       "archivedOnly": "Solo archivados",
+      "withoutArchived": "sin archivadas",
       "more_one": "{{count}} filtro más",
-      "more_other": "{{count}} filtros más"
+      "more_other": "{{count}} filtros más",
+      "tasks": "Tareas ({{filters}})"
     },
     "confirm": {
       "prompt": "Listo para exportar",

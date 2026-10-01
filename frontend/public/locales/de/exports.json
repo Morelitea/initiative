@@ -68,21 +68,30 @@
     },
     "content": {
       "prompt": "Wähle, welche Termine exportiert werden",
-      "allDatesNote": "Lass den Zeitraum leer, um alle Termine zu exportieren."
+      "allDatesNote": "Lass den Zeitraum leer, um alle Termine zu exportieren.",
+      "tasksPrompt": "Wähle, welche Aufgaben exportiert werden",
+      "allTasksNote": "Ohne Filter werden alle Aufgaben exportiert, auch archivierte."
     },
     "filter": {
       "toggle": "Filtern",
       "toggleFor": "Filtern: {{tool}}",
-      "eventDates": "Zeitraum der Termine"
+      "eventDates": "Zeitraum der Termine",
+      "tasks": "Aufgaben in jedem Projekt"
     },
     "filterSummary": {
       "search": "„{{search}}“",
       "tags_one": "{{count}} Tag",
       "tags_other": "{{count}} Tags",
+      "statuses_one": "{{count}} Status",
+      "statuses_other": "{{count}} Status",
+      "assignees_one": "{{count}} zuständige Person",
+      "assignees_other": "{{count}} zuständige Personen",
       "activeOnly": "Nur aktive",
       "archivedOnly": "Nur archivierte",
+      "withoutArchived": "ohne archivierte",
       "more_one": "{{count}} weiterer Filter",
-      "more_other": "{{count}} weitere Filter"
+      "more_other": "{{count}} weitere Filter",
+      "tasks": "Aufgaben ({{filters}})"
     },
     "confirm": {
       "prompt": "Bereit zum Export",
