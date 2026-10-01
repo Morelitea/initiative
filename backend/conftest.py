@@ -53,7 +53,7 @@ from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
 # Quarantined tests and a shuffled order (the nightly run).
-pytest_plugins = ["app.testing.run_options"]
+pytest_plugins = ["app.testing.run_options", "pytester"]
 
 # --- Per-run isolation (checkout + pytest-xdist worker) -------------------------
 # xdist runs each worker as its own OS process, so all Python state in this module

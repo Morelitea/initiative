@@ -20,8 +20,10 @@ on:
 permissions:
   contents: read
 
+# Every night reports to the same issue, whichever branch started it, so a
+# newer run replaces an older one rather than racing it to that issue.
 concurrency:
-  group: nightly-${{ github.event.pull_request.number || github.ref }}
+  group: nightly-${{ github.event.pull_request.number || 'dev' }}
   cancel-in-progress: true
 
 jobs:
@@ -103,7 +105,7 @@ jobs:
         run: |
           cd backend
           status=0
-          uv run python -m pytest app/ alembic/ -n 0 --tb=short --quarantined \
+          uv run python -m pytest app/ alembic/ -n 0 --tb=short -m quarantine --quarantined \
             > "$RUNNER_TEMP/pytest-quarantined.log" 2>&1 || status=$?
           cat "$RUNNER_TEMP/pytest-quarantined.log"
           # 0 passed, 1 failed, 5 none quarantined; anything else is a refusal.
@@ -133,6 +135,15 @@ jobs:
           ref: ${{ github.event_name == 'schedule' && 'dev' || '' }}
 
       - uses: ./.github/actions/setup-frontend
+
+      - name: Check Node sees the timezone and locale
+        # Node reads both from its own ICU data, not the system's locales.
+        run: |
+          node -e '
+            const { locale, timeZone } = Intl.DateTimeFormat().resolvedOptions();
+            console.log(locale, timeZone);
+            if (!locale.startsWith("de") || timeZone !== process.env.TZ) process.exit(1);
+          '
 
       - name: Run tests
         env:
