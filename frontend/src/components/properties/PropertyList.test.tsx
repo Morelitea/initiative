@@ -93,6 +93,33 @@ describe("PropertyList", () => {
     });
   });
 
+  it("hands back an addition the server refused", async () => {
+    server.use(
+      guildHttp.put("/properties/:target/:entityId", () =>
+        HttpResponse.json({ detail: "PROPERTY_DEFINITION_NOT_FOUND" }, { status: 404 })
+      )
+    );
+    const refused = vi.fn();
+    const added = buildPropertySummary({
+      property_id: 3,
+      name: "Stage",
+      type: PropertyType.text,
+      value: null,
+    });
+    renderWithProviders(
+      <PropertyList
+        target={PropertyTarget.document}
+        entityId={5}
+        properties={[added]}
+        unsaved={[3]}
+        onUnsavedRefused={refused}
+      />
+    );
+    await advanceDebounce();
+
+    await vi.waitFor(() => expect(refused).toHaveBeenCalledWith([3]));
+  });
+
   it("writes the values through the one route after the debounce when a value changes", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     server.use(

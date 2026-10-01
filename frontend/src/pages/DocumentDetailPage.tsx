@@ -843,6 +843,7 @@ export const DocumentDetailPage = () => {
                     entityId={parsedId}
                     properties={attachedProperties.properties}
                     unsaved={attachedProperties.unsavedIds}
+                    onUnsavedRefused={attachedProperties.discard}
                     disabled={!canEditDocument}
                     initiativeId={document.initiative_id}
                     canOpen={{ tool: Tool.document, id: document.id }}
