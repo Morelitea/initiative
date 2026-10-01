@@ -2,19 +2,19 @@
 
 The page is the guild home's table with the guild boundary taken off: pick a
 tool, see everything of that kind that reaches you, across every community you
-belong to. What "reaches you" means, what the search box narrows and what the
-made-by-me toggle does are stated once in
-:mod:`app.services.tenant.my_tools`; this module is the request surface over
-it.
+belong to. Inside each community a My Tools list IS that tool's own list —
+its live view, through :func:`tool_lists.list_conditions`, loaded and
+serialized by the same registry entry — so what reaches you here is what its
+page in that community shows. The made-by-me toggle is the one thing added.
 
 ``GET /me/{tool}`` is one route, mounted once for every tool out of
 :data:`MY_TOOL_LISTS`. Projects, documents and calendars each had a cross-guild
 list of their own before this page existed — for the task wizard, for My
 Calendar — and each was its own copy of the same merge. They answer here now,
-so the nine lists cannot drift. What survives per tool is the registry's
-fields: what to eager-load, how a page of rows becomes the summaries its
-response carries, the order a request that names none falls back to, and the
-query parameters the route publishes. The response model is read from
+so the nine lists cannot drift. What survives per tool is what a merge across
+communities needs of its own: the order a request that names none falls back
+to (one key the rows carry, which every community orders by alike), the page
+window and the published description. Everything else is read from
 :data:`TOOL_LISTS` — a tool answers in one shape whether it is asked inside a
 guild or across them.
 
@@ -33,19 +33,19 @@ is the same ``SET ROLE guild_<id>`` a ``/c/{guild_id}`` request makes.
 
 import inspect
 from dataclasses import dataclass
-from typing import Annotated, Any, Awaitable, Callable, List, Optional
+from typing import Annotated, Any, Callable, List, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import ColumnElement, func
+from sqlalchemy import ColumnElement, func, literal, union_all
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import UserSessionDep, get_current_active_user
-from app.api.v1.tenant_endpoints import documents as documents_endpoints
-from app.api.v1.tenant_endpoints import projects as projects_endpoints
 from app.api.v1.tenant_endpoints.tool_lists import (
     TOOL_LISTS,
     ListParam,
+    ListRequest,
+    list_conditions,
     page_param,
     page_size_param,
     search_param,
@@ -56,30 +56,13 @@ from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.db.query import build_paginated_response
 from app.models.platform.user import User
-from app.schemas.tenant.calendar import CalendarSummary
-from app.schemas.tenant.counter import CounterGroupSummary
-from app.schemas.tenant.dashboard import DashboardSummary
-from app.schemas.tenant.gallery import GallerySummary
 from app.schemas.tenant.my_tools import MyToolCountsResponse
-from app.schemas.tenant.post import PostRead
-from app.schemas.tenant.queue import QueueSummary
-from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
-from app.schemas.tenant.wiki import WikiSummary
 from app.services.cross_guild import (
     gather_across_guilds,
     member_guild_ids,
     page_across_guilds,
 )
-from app.services.tenant import calendars as calendars_service
-from app.services.tenant import counters as counters_service
-from app.services.tenant import dashboards as dashboards_service
-from app.services.tenant import documents as documents_service
-from app.services.tenant import galleries as galleries_service
 from app.services.tenant import my_tools as my_tools_service
-from app.services.tenant import posts as posts_service
-from app.services.tenant import queues as queues_service
-from app.services.tenant import tags as tags_service
-from app.services.tenant import wikis as wikis_service
 
 me_router = APIRouter()
 
@@ -127,60 +110,26 @@ def _params(tool: Tool, page_size: ListParam) -> tuple[ListParam, ...]:
 
 @dataclass(frozen=True)
 class MyToolList:
-    """One tool's half of a cross-guild list.
+    """What a cross-guild list needs beyond the tool's own list.
 
-    What to eager-load, how a page of rows becomes the summaries that tool's
-    list response carries, the order it falls back to when the request asks for
-    none, its page window, and its published description.
+    The order it falls back to when the request asks for none, its page window
+    and its published description. Which rows, how they load and how they
+    serialize are the tool's :data:`TOOL_LISTS` entry.
     """
 
-    loader_options: Callable[[], list]
-    #: async (session, rows, user) -> the response's ``items``. Runs inside the
-    #: guild's routed session, so relationships resolve in its schema.
-    serialize: Callable[[AsyncSession, list, User], Awaitable[list]]
-    #: (model) -> the SQL sort key used when the request names no order
+    #: (model) -> the SQL sort key used when the request names no order. One
+    #: key the rows carry, so every guild orders alike and their pages merge;
+    #: a tool's own default order may not be one (projects keep each reader's
+    #: manual order, which is a join).
     default_key: Callable[[Any], ColumnElement[Any]]
     #: The page window; the other parameters are every tool's.
     page_size: ListParam
     list_doc: str
     default_desc: bool = True
-    #: (values) -> extra fields on the list response.
-    response_extras: Optional[Callable[[dict], dict]] = None
-
-
-def _summaries(
-    schema: type[ToolSummaryBase],
-) -> Callable[[AsyncSession, list, User], Awaitable[list]]:
-    """The ordinary page: tag the rows, then turn each into its summary."""
-
-    async def serialize(session: AsyncSession, rows: list, user: User) -> list:
-        await tags_service.annotate_tags(session, rows)
-        context = require_guild_context(session)
-        return [
-            serialize_tool(schema, row, context=context, user_id=user.id)
-            for row in rows
-        ]
-
-    return serialize
-
-
-async def _serialize_projects(session: AsyncSession, rows: list, user: User) -> list:
-    # The projects list's own page serializer, which the guild-wide list runs
-    # too: task summaries, tags, the reader's own order/favourites/views, and
-    # the documents each project carries.
-    return await projects_endpoints.serialize_project_page(
-        session, user.id, rows, slim=False
-    )
-
-
-async def _serialize_documents(session: AsyncSession, rows: list, user: User) -> list:
-    return await documents_endpoints.serialize_document_page(session, user.id, rows)
 
 
 MY_TOOL_LISTS: dict[Tool, MyToolList] = {
     Tool.project: MyToolList(
-        loader_options=projects_endpoints.project_load_options,
-        serialize=_serialize_projects,
         default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=1, le=100),
         list_doc=(
@@ -193,15 +142,7 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         ),
     ),
     Tool.document: MyToolList(
-        loader_options=documents_service.list_loader_options,
-        serialize=_serialize_documents,
         default_key=lambda model: model.updated_at,
-        # The one list that echoes the order it was asked for back to the
-        # client, which its page reads to keep its column headers in step.
-        response_extras=lambda values: {
-            "sort_by": values.get("sort_by"),
-            "sort_dir": values.get("sort_dir"),
-        },
         page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
             "Documents that reach the current user across every guild they "
@@ -213,15 +154,11 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         ),
     ),
     Tool.queue: MyToolList(
-        loader_options=queues_service.list_loader_options,
-        serialize=_summaries(QueueSummary),
         default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc="Queues that reach the caller across every guild they belong to.",
     ),
     Tool.counter_group: MyToolList(
-        loader_options=counters_service.list_loader_options,
-        serialize=_summaries(CounterGroupSummary),
         default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc=(
@@ -229,8 +166,6 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         ),
     ),
     Tool.calendar: MyToolList(
-        loader_options=calendars_service.calendar_loader_options,
-        serialize=_summaries(CalendarSummary),
         # By name, like the calendar list inside a guild: this one backs a
         # grouping panel, which is read down rather than scanned for what moved.
         default_key=my_tools_service.name_key,
@@ -246,25 +181,18 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
             "(guild\n"
             "isolation + DAC hold); each orders and limits its own rows in SQL, "
             "and the\n"
-            "page is cut from their merge. The WHERE\n"
-            "legs are ``my_tools.scope_conditions`` — the same rules every "
-            "cross-guild\n"
-            "tool list reads; a guild calendar answers to no initiative switch "
-            "and so\n"
-            "belongs in this view like any other."
+            "page is cut from their merge. Inside each guild this is the "
+            "calendar list's\n"
+            "own live view, so a guild calendar belongs in it like any other."
         ),
     ),
     Tool.dashboard: MyToolList(
-        loader_options=dashboards_service.dashboard_loader_options,
-        serialize=_summaries(DashboardSummary),
         default_key=my_tools_service.name_key,
         default_desc=False,
         page_size=page_size_param(20, ge=0, le=100),
         list_doc="Dashboards that reach the caller across every guild they belong to.",
     ),
     Tool.post: MyToolList(
-        loader_options=posts_service.list_loader_options,
-        serialize=_summaries(PostRead),
         # The board's own date: when it went up, or when it is due to. A
         # scheduled draft — which only its writers see here — sorts by the day
         # it will land, not by the day somebody started it.
@@ -281,40 +209,14 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
         ),
     ),
     Tool.gallery: MyToolList(
-        loader_options=galleries_service.list_loader_options,
-        serialize=_summaries(GallerySummary),
         default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
-        list_doc=(
-            "Galleries that reach the caller across every guild they belong "
-            "to.\n"
-            "\n"
-            "Counts and covers are not carried here: a cross-guild list is "
-            "merged in\n"
-            "Python from one query per guild, and those annotations are "
-            "per-guild\n"
-            "grouped queries the merge has no session for. The card falls back "
-            "to no\n"
-            "picture, which is what a gallery looks like from outside its "
-            "community."
-        ),
+        list_doc=("Galleries that reach the caller across every guild they belong to."),
     ),
     Tool.wiki: MyToolList(
-        loader_options=wikis_service.list_loader_options,
-        serialize=_summaries(WikiSummary),
         default_key=lambda model: model.updated_at,
         page_size=page_size_param(20, ge=0, le=100),
-        list_doc=(
-            "Wikis that reach the caller across every guild they belong to.\n"
-            "\n"
-            "The page count each row carries is the one this merge cannot "
-            "fill: it is a\n"
-            "grouped query per guild, and the merge holds no session for the "
-            "guilds it\n"
-            "did not read. A card then shows no count, which is what a wiki "
-            "looks like\n"
-            "from outside its community."
-        ),
+        list_doc=("Wikis that reach the caller across every guild they belong to."),
     ),
 }
 
@@ -322,6 +224,36 @@ MY_TOOL_LISTS: dict[Tool, MyToolList] = {
 # ---------------------------------------------------------------------------
 # The merge
 # ---------------------------------------------------------------------------
+
+
+def _live_view(
+    guild_session: AsyncSession, current_user: User, tool: Tool, **values: Any
+) -> ListRequest:
+    """The tool's own list in this guild, asked for its live view.
+
+    Built inside :func:`gather_across_guilds`, which has routed the session
+    into the guild and computed the reader's standing there.
+    """
+    spec = TOOL_LISTS[tool]
+    return ListRequest(
+        guild_session,
+        current_user,
+        require_guild_context(guild_session),
+        {**spec.views["active"], **values},
+    )
+
+
+async def _conditions(
+    request: ListRequest, tool: Tool, *, created_by_me: bool, user_id: int
+) -> list:
+    """What the tool's list answers ``request`` with, and, for the page's other
+    view, only what the reader wrote. Authorship, not ownership: handing a
+    document to someone else does not take it out of the things you wrote."""
+    spec = TOOL_LISTS[tool]
+    conditions = await list_conditions(spec, request)
+    if created_by_me:
+        conditions.append(spec.model.created_by == user_id)
+    return conditions
 
 
 async def list_across_guilds(
@@ -349,7 +281,8 @@ async def list_across_guilds(
        cannot take a row the first pass counted off the page.
     """
     spec = MY_TOOL_LISTS[tool]
-    model = my_tools_service.tool_model(tool)
+    tool_list = TOOL_LISTS[tool]
+    model = tool_list.model
     key, descending = my_tools_service.sort_key(
         model,
         sort_by,
@@ -364,12 +297,11 @@ async def list_across_guilds(
     async def _keys(
         guild_session: AsyncSession, _guild_id: int, limit: int
     ) -> tuple[list, int]:
-        conditions = my_tools_service.scope_conditions(
+        conditions = await _conditions(
+            _live_view(guild_session, current_user, tool, search=search),
             tool,
-            user_id=current_user.id,
-            context=require_guild_context(guild_session),
-            search=search,
             created_by_me=created_by_me,
+            user_id=current_user.id,
         )
         rows = await guild_session.exec(
             select(key, model.id)
@@ -402,15 +334,18 @@ async def list_across_guilds(
         wanted.setdefault(guild_id, []).append(row[1])
 
     async def _load(guild_session: AsyncSession, guild_id: int) -> list:
+        request = _live_view(guild_session, current_user, tool)
         statement = (
             select(model)
             .where(model.id.in_(wanted[guild_id]))
-            .options(*spec.loader_options())
+            .options(*tool_list.loader_options(request))
         )
         rows = list((await guild_session.exec(statement)).unique().all())
-        # Serialize inside the routed session: relationships resolve in this
-        # guild's schema, and the next guild expunges these rows.
-        items = await spec.serialize(guild_session, rows, current_user)
+        # Serialized by the tool's own list, inside the routed session:
+        # relationships and the per-guild annotations (a gallery's cover, a
+        # wiki's page count) resolve in this guild's schema, and the next guild
+        # expunges these rows.
+        items = await tool_list.serialize(tool_list, request, rows)
         return [(placement[(guild_id, item.id)], item) for item in items]
 
     loaded = await gather_across_guilds(session, current_user.id, sorted(wanted), _load)
@@ -469,7 +404,8 @@ def _mount(tool: Tool, spec: MyToolList) -> None:
             page=page,
             page_size=page_size,
         )
-        extras = spec.response_extras(values) if spec.response_extras else {}
+        response_extras = TOOL_LISTS[tool].response_extras
+        extras = response_extras(values) if response_extras else {}
         return response_model(
             **build_paginated_response(items, total_count, page, page_size, **extras)
         )
@@ -498,12 +434,32 @@ async def get_my_tool_counts(
     """How much of each tool reaches the caller, across their communities.
 
     The My Tools page's tabs: a tool with nothing behind it gets none, so the
-    page never offers a table of nothing.
+    page never offers a table of nothing. Each tool's figure is its list's
+    total, summed over the caller's communities, and each community answers
+    for every tool in one statement.
     """
-    counts = await my_tools_service.count_across_guilds(
-        session, current_user, guild_ids=guild_ids, created_by_me=created_by_me
+    totals: dict[Tool, int] = {tool: 0 for tool in Tool}
+
+    async def _count(guild_session: AsyncSession, _guild_id: int) -> list:
+        selects = []
+        for tool in Tool:
+            conditions = await _conditions(
+                _live_view(guild_session, current_user, tool),
+                tool,
+                created_by_me=created_by_me,
+                user_id=current_user.id,
+            )
+            selects.append(select(literal(tool.value), func.count()).where(*conditions))
+        for tool, count in (await guild_session.exec(union_all(*selects))).all():
+            totals[Tool(tool)] += count
+        # The tallies accumulate above; the merge itself carries nothing.
+        return []
+
+    target_guilds = await member_guild_ids(
+        session, current_user.id, restrict_to=guild_ids
     )
-    return MyToolCountsResponse(counts={tool.value: n for tool, n in counts.items()})
+    await gather_across_guilds(session, current_user.id, target_guilds, _count)
+    return MyToolCountsResponse(counts={tool.value: n for tool, n in totals.items()})
 
 
 for _tool, _spec in MY_TOOL_LISTS.items():
