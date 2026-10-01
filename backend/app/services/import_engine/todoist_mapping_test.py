@@ -7,6 +7,8 @@ almost-right would fail at apply time, inside a worker, long after the person
 who started the import went away.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
@@ -141,10 +143,67 @@ def test_a_lone_date_is_the_due_date():
     assert "start_date" not in task
 
 
-def test_a_recurring_date_is_dropped_rather_than_guessed():
-    """Todoist writes "every day" in the same column as a date. It is not one."""
-    mapped = _build(_csv("task,T,,4,1,,,every day,,,,,,,"))
-    assert "due_date" not in mapped.envelope["tasks"][0]
+@pytest.mark.parametrize(
+    ("phrase", "zone", "due", "rule", "strategy"),
+    [
+        ("every day", "", "2026-09-30T00:00:00+00:00", "RRULE:FREQ=DAILY", "fixed"),
+        (
+            "every! 2 weeks",
+            "",
+            "2026-09-30T00:00:00+00:00",
+            "RRULE:FREQ=WEEKLY;INTERVAL=2",
+            "rolling",
+        ),
+        (
+            "every last workday at 3pm",
+            "America/New_York",
+            "2026-09-30T19:00:00+00:00",
+            "RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1",
+            "fixed",
+        ),
+        (
+            "every jan 15th",
+            "",
+            "2027-01-15T00:00:00+00:00",
+            "RRULE:FREQ=YEARLY;BYMONTHDAY=15;BYMONTH=1",
+            "fixed",
+        ),
+    ],
+)
+def test_a_repeating_date_is_due_on_its_next_date_and_repeats(
+    phrase, zone, due, rule, strategy
+):
+    """Todoist writes the phrase a repeat was typed as in the date column,
+    and drops when it started, so the task is due on its first date from the
+    import. A time of day is in the task's zone; ``every!`` counts from
+    completion."""
+    mapped = tm.build_project_envelope(
+        _csv(f"task,T,,4,1,,,{phrase},en,{zone},,,,,"),
+        selection="P",
+        app_version="1.2.3",
+        now=datetime(2026, 9, 30, 15, tzinfo=timezone.utc),
+    )
+    task = mapped.envelope["tasks"][0]
+    assert (task["due_date"], task["recurrence"], task["recurrence_strategy"]) == (
+        due,
+        rule,
+        strategy,
+    )
+    ProjectExportEnvelope.model_validate(mapped.envelope)
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        "task,T,,4,1,,,every hour,en,,,,,,",
+        "task,T,,4,1,,,every day until may 20,en,,,,,,",
+        "task,T,,4,1,,,jeden tag,de,,,,,,",
+    ],
+    ids=["a task cannot repeat hourly", "an end it cannot read", "another language"],
+)
+def test_a_repeat_it_cannot_read_is_dropped_rather_than_guessed(row):
+    task = _build(_csv(row)).envelope["tasks"][0]
+    assert "due_date" not in task and "recurrence" not in task
 
 
 def test_the_responsible_column_becomes_an_assignee():

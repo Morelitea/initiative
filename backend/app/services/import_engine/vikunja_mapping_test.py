@@ -133,6 +133,30 @@ def test_dates_come_across_and_the_zero_stamp_does_not():
     assert "start_date" not in task
 
 
+@pytest.mark.parametrize(
+    ("repeat", "rule", "strategy"),
+    [
+        ({"repeat_after": 604800}, "RRULE:FREQ=WEEKLY;INTERVAL=1", "fixed"),
+        (
+            {"repeat_after": 172800, "repeat_mode": 2},
+            "RRULE:FREQ=DAILY;INTERVAL=2",
+            "rolling",
+        ),
+        ({"repeat_mode": 1}, "RRULE:FREQ=MONTHLY", "fixed"),
+        ({"repeat_after": 3600}, None, None),
+    ],
+    ids=["a week", "two days from done", "monthly", "an hour is no task repeat"],
+)
+def test_a_repeat_comes_across(repeat, rule, strategy):
+    task = _task(due_date="2026-03-09T15:02:00Z", **repeat)
+    mapped = _build(_doc(_project(tasks=[task])))
+    task = mapped.envelope["tasks"][0]
+    assert (task.get("recurrence"), task.get("recurrence_strategy")) == (
+        rule,
+        strategy,
+    )
+
+
 def test_a_finished_task_records_when():
     mapped = _build(
         _doc(_project(tasks=[_task(done=True, done_at="2026-03-10T11:00:00Z")]))
