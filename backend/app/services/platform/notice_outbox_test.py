@@ -215,16 +215,20 @@ async def test_a_retry_follows_the_communitys_switches_as_they_stand_then(
 
 
 async def test_a_bell_line_that_cannot_be_written_is_never_given_up(
-    session: AsyncSession, monkeypatch
+    session: AsyncSession, fcm, monkeypatch
 ):
+    """…and once it is written, its push has every attempt of its own."""
+    pushed, answer = fcm
     actor = await create_user(session)
     recipient = await create_user(session)
     guild = await create_guild(session, creator=actor)
+    await create_push_token(session, recipient)
     await session.commit()
 
     async def _broken(*_args, **_kwargs):
         raise RuntimeError("the bell is down")
 
+    working = notifications.deliver_notices
     monkeypatch.setattr(notifications, "deliver_notices", _broken)
     await _mention(session, guild.id, recipient, actor)
     await session.commit()
@@ -236,3 +240,10 @@ async def test_a_bell_line_that_cannot_be_written_is_never_given_up(
     [row] = await _waiting(session)
     assert row.attempts == len(notice_outbox.BACKOFF_SECONDS) + 1
     assert row.bell_written_at is None
+
+    monkeypatch.setattr(notifications, "deliver_notices", working)
+    answer["now"] = (False, False)
+    await _deliver(session, at)
+    [row] = await _waiting(session)
+    assert row.bell_written_at is not None and row.attempts == 1
+    assert len(pushed) == 1

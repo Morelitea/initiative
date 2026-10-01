@@ -189,8 +189,13 @@ async def _run_pass(session: AsyncSession, *, now: datetime) -> bool:
             if push:
                 await session.exec(
                     update(NoticeOutboxItem)
-                    .where(NoticeOutboxItem.id.in_(push))  # type: ignore[union-attr]
-                    .values(bell_written_at=now)
+                    .where(
+                        NoticeOutboxItem.id.in_(push),  # type: ignore[union-attr]
+                        NoticeOutboxItem.bell_written_at.is_(None),  # type: ignore[union-attr]
+                    )
+                    # The push's attempts start here: failures writing the
+                    # bell line are not the push's to spend.
+                    .values(bell_written_at=now, attempts=0)
                     .execution_options(synchronize_session=False)
                 )
             await session.commit()
