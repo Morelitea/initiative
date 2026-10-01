@@ -6,6 +6,7 @@ import pytest
 
 from app.core.app_scopes import (
     ALL_SCOPES,
+    LEVEL_SCOPES,
     MAX_PUBLIC_ID_LENGTH,
     PUBLIC_ID_CHARS,
     app_scope,
@@ -14,7 +15,9 @@ from app.core.app_scopes import (
     ordered_scopes,
     AppScopeAccess,
     AppScopeResource,
+    InstallLevel,
     UnknownAppScope,
+    is_standing_scope,
     expand,
     parse_scope,
     tool_resource,
@@ -48,8 +51,34 @@ def test_what_is_not_a_scope_is_refused(scope):
 
 def test_validate_names_the_scope_it_refused():
     with pytest.raises(UnknownAppScope) as refused:
-        validate_scopes(["documents:read", "guild:admin"])
-    assert refused.value.scope == "guild:admin"
+        validate_scopes(["documents:read", "guild:owner"])
+    assert refused.value.scope == "guild:owner"
+
+
+def test_each_level_has_a_standing_scope_a_community_can_grant():
+    assert LEVEL_SCOPES == {
+        InstallLevel.moderator: "initiatives:moderate",
+        InstallLevel.guild_admin: "guild:admin",
+    }
+    for scope in LEVEL_SCOPES.values():
+        assert scope in ALL_SCOPES
+        assert is_known_scope(scope)
+        assert is_standing_scope(scope)
+    assert validate_scopes(["guild:admin", "documents:read"]) == {
+        "guild:admin",
+        "documents:read",
+    }
+
+
+@pytest.mark.parametrize("scope", ["initiatives:moderate", "guild:admin"])
+def test_a_standing_names_no_resource(scope):
+    """A standing is held by exact name: it reads and writes nothing itself,
+    so a grant of one alone reaches no tool."""
+    with pytest.raises(UnknownAppScope):
+        parse_scope(scope)
+    assert expand([scope]) == (frozenset(), frozenset())
+    read, write = expand([scope, "documents:read"])
+    assert read == {AppScopeResource("documents")} and write == frozenset()
 
 
 def test_writing_implies_reading():

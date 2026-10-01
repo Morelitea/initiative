@@ -491,6 +491,152 @@ async def test_the_app_role_cannot_read_the_communitys_settings(
 
 
 # ---------------------------------------------------------------------------
+# A standing its token asked for
+# ---------------------------------------------------------------------------
+
+
+async def _documents(session, install: _Install, third=None) -> None:
+    """One document shared with every member and one shared with nobody, in
+    each initiative, and in ``third`` when given."""
+    for initiative in (install.a, install.b, *((third,) if third else ())):
+        shared = await create_document(
+            session, initiative, install.seat.user, name=f"Shared {initiative.name}"
+        )
+        await create_resource_grant(session, shared, all_initiative_members=True)
+        await create_document(
+            session, initiative, install.seat.user, name=f"Private {initiative.name}"
+        )
+
+
+async def test_a_moderator_token_moderates_the_initiative_it_names(
+    session, acting_user, role_session
+):
+    """Manager with "Full access" there, as a moderator is: every document in
+    the initiative, whoever it is shared with, and nothing in the other."""
+    granted = ["documents:read", "initiatives:moderate"]
+    install = await _install(session, acting_user, role_session, granted=granted)
+    await _documents(session, install)
+
+    s, context = await _route(
+        role_session, install, granted, initiative_id=install.a.id
+    )
+    assert context.manager_initiatives == (install.a.id,)
+    assert context.override_initiatives == (install.a.id,)
+    assert context.overrides_sharing(install.a.id)
+    assert not context.is_admin
+    names = set((await s.exec(select(Document.name))).all())
+    assert names == {f"Shared {install.a.name}", f"Private {install.a.name}"}
+    await s.rollback()
+
+
+async def test_a_moderator_scope_does_nothing_on_a_token_naming_no_initiative(
+    session, acting_user, role_session
+):
+    granted = ["documents:read", "initiatives:moderate"]
+    install = await _install(session, acting_user, role_session, granted=granted)
+    await _documents(session, install)
+
+    s, context = await _route(role_session, install, granted)
+    assert context.manager_initiatives == ()
+    assert context.override_initiatives == ()
+    names = set((await s.exec(select(Document.name))).all())
+    assert names == {f"Shared {install.a.name}", f"Shared {install.b.name}"}
+    await s.rollback()
+
+
+@pytest.mark.parametrize(
+    ("granted", "token", "narrowed"),
+    [
+        # The token carries a standing the seat never granted.
+        (["documents:read"], ["documents:read", "initiatives:moderate"], True),
+        (["documents:read"], ["documents:read", "guild:admin"], False),
+        # The seat granted it and the token did not ask.
+        (["documents:read", "initiatives:moderate"], ["documents:read"], True),
+        (["documents:read", "guild:admin"], ["documents:read"], False),
+    ],
+)
+async def test_a_standing_needs_the_grant_and_the_token(
+    session, acting_user, role_session, granted, token, narrowed
+):
+    install = await _install(session, acting_user, role_session, granted=granted)
+    s, context = await _route(
+        role_session,
+        install,
+        token,
+        initiative_id=install.a.id if narrowed else None,
+    )
+    assert context.live
+    assert context.manager_initiatives == ()
+    assert context.override_initiatives == ()
+    assert not context.is_admin
+    await s.rollback()
+
+
+async def test_a_guild_admin_token_administers_the_community(
+    session, acting_user, role_session
+):
+    """A guild admin's standing reaches every initiative, placed in or not."""
+    granted = ["documents:read", "guild:admin"]
+    install = await _install(
+        session, acting_user, role_session, granted=granted, placed="a"
+    )
+    await _documents(session, install)
+
+    s, context = await _route(role_session, install, granted)
+    assert context.is_admin
+    assert context.manager_initiatives == ()
+    admin = (
+        await s.exec(text("SELECT current_setting('app.guild_admin', true)"))
+    ).one()
+    assert admin[0] == "true"
+    names = set((await s.exec(select(Document.name))).all())
+    assert names == {
+        f"{shared} {initiative.name}"
+        for shared in ("Shared", "Private")
+        for initiative in (install.a, install.b)
+    }
+    await s.rollback()
+
+
+async def test_a_guild_admin_scope_does_nothing_on_a_narrowed_token(
+    session, acting_user, role_session
+):
+    granted = ["documents:read", "guild:admin"]
+    install = await _install(session, acting_user, role_session, granted=granted)
+    await _documents(session, install)
+
+    s, context = await _route(
+        role_session, install, granted, initiative_id=install.a.id
+    )
+    assert not context.is_admin
+    names = set((await s.exec(select(Document.name))).all())
+    assert names == {f"Shared {install.a.name}"}
+    await s.rollback()
+
+
+@pytest.mark.parametrize(
+    ("standing", "narrowed"), [("initiatives:moderate", True), ("guild:admin", False)]
+)
+async def test_a_standing_reaches_no_tool_its_scopes_do_not(
+    session, acting_user, role_session, standing, narrowed
+):
+    granted = ["comments:read", standing]
+    install = await _install(session, acting_user, role_session, granted=granted)
+    await _documents(session, install)
+
+    s, context = await _route(
+        role_session,
+        install,
+        granted,
+        initiative_id=install.a.id if narrowed else None,
+    )
+    assert context.is_admin or context.manager_initiatives
+    assert (await s.exec(select(Document.name))).all() == []
+    assert set(context.install_read) == {"comments"}
+    await s.rollback()
+
+
+# ---------------------------------------------------------------------------
 # Round trips and replay
 # ---------------------------------------------------------------------------
 

@@ -9,7 +9,12 @@ signs with a key its registration publishes (RFC 7523 §2.2,
 * ``client_credentials`` alone: an **app token**, which lists the app's installs;
 * ``client_credentials`` with ``installation``: an **installation token** for
   that install, optionally down-scoped (``scope``, RFC 6749 §3.3) and narrowed
-  to one initiative it is placed in (``resource``, RFC 8707);
+  to one initiative it is placed in (``resource``, RFC 8707). ``level`` asks
+  for a standing on top of its scopes: ``moderator`` (narrowed to an
+  initiative) or ``guild_admin`` (not narrowed). The community must have
+  granted the level's scope (``LEVEL_SCOPES``), and the token then carries it.
+  No token carries a standing it did not ask for, and ``scope`` cannot name
+  one;
 * ``urn:ietf:params:oauth:grant-type:jwt-bearer`` (RFC 7523 §2.1): a **member
   token**, an installation token that acts for one member, for a purpose that
   member consented to. The ``assertion`` is signed with the same registered key
@@ -47,11 +52,14 @@ from app.core.app_access_token import (
     seal_install_token,
 )
 from app.core.app_scopes import (
+    LEVEL_SCOPES,
     AppScopeAccess,
+    InstallLevel,
     UnknownAppScope,
     app_scope_target,
     expand,
     is_known_scope,
+    is_standing_scope,
     parse_scope,
     validate_scopes,
 )
@@ -384,9 +392,52 @@ def _requested_scopes(value: str | None) -> frozenset[str] | None:
     if not requested:
         return None
     try:
-        return validate_scopes(requested)
+        checked = validate_scopes(requested)
     except UnknownAppScope as exc:
         raise OAuthError("invalid_scope", f"{exc.scope!r} is not a scope") from exc
+    for wanted in sorted(checked):
+        if is_standing_scope(wanted):
+            raise OAuthError(
+                "invalid_scope", f"{wanted!r} is asked for with level, not scope"
+            )
+    return checked
+
+
+def _requested_level(value: str | None) -> InstallLevel | None:
+    """The standing a ``level`` parameter asks for, or ``None``."""
+    if value is None:
+        return None
+    try:
+        return InstallLevel(value)
+    except ValueError as exc:
+        raise OAuthError("invalid_request", "level is not a level") from exc
+
+
+def _without_standings(scopes: frozenset[str]) -> frozenset[str]:
+    """``scopes`` less every standing: what a token carries by default."""
+    return frozenset(scope for scope in scopes if not is_standing_scope(scope))
+
+
+def _with_level(
+    scopes: frozenset[str],
+    granted: frozenset[str],
+    level: InstallLevel | None,
+    initiative_id: int | None,
+) -> frozenset[str]:
+    """``scopes`` plus the standing ``level`` asks for, when the grant holds
+    it and the token's narrowing suits it."""
+    if level is None:
+        return scopes
+    scope = LEVEL_SCOPES[level]
+    if scope not in granted:
+        raise OAuthError("invalid_scope", f"{scope!r} has not been granted")
+    if level is InstallLevel.moderator and initiative_id is None:
+        raise OAuthError("invalid_target", "a moderator token names its initiative")
+    if level is InstallLevel.guild_admin and initiative_id is not None:
+        raise OAuthError(
+            "invalid_target", "a guild admin token is not narrowed to an initiative"
+        )
+    return scopes | {scope}
 
 
 def _issuable(row: Any, client: RegistrationSnapshot) -> frozenset[str]:
@@ -428,7 +479,9 @@ async def _installation_token(
     installation: str,
     scope: str | None,
     resource: str | None,
+    level: str | None = None,
 ) -> IssuedToken:
+    wanted_level = _requested_level(level)
     resolved = await app_refs.resolve_app_guild_ref(ref=installation)
     if resolved is None:
         raise OAuthError("invalid_grant", "unknown installation")
@@ -448,7 +501,7 @@ async def _installation_token(
     requested = _requested_scopes(scope)
     if requested is not None and not _covered(requested, granted):
         raise OAuthError("invalid_scope", "a requested scope has not been granted")
-    scopes = granted if requested is None else requested
+    scopes = _without_standings(granted) if requested is None else requested
 
     initiative_id: int | None = None
     if resource is not None:
@@ -457,6 +510,7 @@ async def _installation_token(
             raise OAuthError(
                 "invalid_target", "the installation is not placed in that initiative"
             )
+    scopes = _with_level(scopes, granted, wanted_level, initiative_id)
 
     token, _exp = seal_install_token(
         guild_id=guild_id,
@@ -497,6 +551,8 @@ def _read_only_scopes(scopes: frozenset[str]) -> frozenset[str]:
     for a member who allowed reading only."""
     out: set[str] = set()
     for scope in scopes:
+        if is_standing_scope(scope):
+            continue
         if app_scope_target(scope) is not None:
             # Calling another app is not a write of the community's; which of
             # its endpoints a read-only consent reaches is the hub's to decide.
@@ -574,7 +630,8 @@ async def _member_token(
     requested = _requested_scopes(scope)
     if requested is not None and not _covered(requested, granted):
         raise OAuthError("invalid_scope", "a requested scope has not been granted")
-    scopes = granted if requested is None else requested
+    # A member token acts for the member, whose own standing it already is.
+    scopes = _without_standings(granted if requested is None else requested)
     if row.granted_access != ConsentAccess.read_write.value:
         scopes = _read_only_scopes(scopes)
 
@@ -621,12 +678,15 @@ async def issue_token(
     installation: str | None = None,
     scope: str | None = None,
     resource: str | None = None,
+    level: str | None = None,
     assertion: str | None = None,
 ) -> IssuedToken:
     """Answer one token request, or raise :class:`OAuthError`."""
     if not grant_type:
         raise OAuthError("invalid_request", "grant_type is required")
     if grant_type == GRANT_JWT_BEARER:
+        if level is not None:
+            raise OAuthError("invalid_request", "a member token takes no level")
         # The assertion is the client's authentication too (RFC 7523 §3), and
         # names the install itself.
         if client_assertion_type is not None or client_assertion is not None:
@@ -658,6 +718,8 @@ async def issue_token(
             raise OAuthError("invalid_scope", "an app token carries no scope")
         if resource is not None:
             raise OAuthError("invalid_target", "an app token names no resource")
+        if level is not None:
+            raise OAuthError("invalid_request", "an app token takes no level")
         token, _exp = seal_app_token(client_id=client.public_id)
         return IssuedToken(
             access_token=token, expires_in=ACCESS_TOKEN_LIFETIME_SECONDS, scope=""
@@ -670,6 +732,7 @@ async def issue_token(
         installation=installation,
         scope=scope,
         resource=resource,
+        level=level,
     )
 
 

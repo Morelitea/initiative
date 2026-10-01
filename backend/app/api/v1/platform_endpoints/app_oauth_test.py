@@ -326,6 +326,211 @@ async def test_an_initiative_it_is_not_placed_in_is_refused(
     assert _error(response) == "invalid_target"
 
 
+# ---------------------------------------------------------------------------
+# Standings: asked for by level, never carried by default
+# ---------------------------------------------------------------------------
+
+_STANDINGS = ["initiatives:moderate", "guild:admin"]
+
+
+async def test_a_granted_standing_is_not_on_a_token_that_did_not_ask(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+
+    response = await _ask(client, installation=await _installation(installed))
+
+    assert response.status_code == 200, response.text
+    assert response.json()["scope"] == "documents:read"
+
+
+async def test_a_moderator_level_carries_its_scope_into_the_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+
+    response = await _ask(
+        client,
+        installation=await _installation(installed),
+        resource=f"urn:initiative:initiative:{installed.placed.id}",
+        level="moderator",
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["scope"] == "documents:read initiatives:moderate"
+    token = unseal_access_token(response.json()["access_token"])
+    assert isinstance(token, InstallAccessToken)
+    assert token.scopes == frozenset({"documents:read", "initiatives:moderate"})
+    assert token.initiative_id == installed.placed.id
+
+
+async def test_a_guild_admin_level_carries_its_scope(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+
+    response = await _ask(
+        client,
+        installation=await _installation(installed),
+        scope="documents:read",
+        level="guild_admin",
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["scope"] == "documents:read guild:admin"
+
+
+@pytest.mark.parametrize(
+    ("level", "narrowed"), [("moderator", True), ("guild_admin", False)]
+)
+async def test_a_level_the_community_did_not_grant_is_refused(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    level,
+    narrowed,
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read"]
+    )
+    form = {"level": level}
+    if narrowed:
+        form["resource"] = f"urn:initiative:initiative:{installed.placed.id}"
+
+    response = await _ask(client, installation=await _installation(installed), **form)
+
+    assert response.status_code == 400
+    assert _error(response) == "invalid_scope"
+
+
+async def test_a_level_the_ceiling_does_not_allow_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    from app.models.platform.app_service_registration import AppServiceRegistration
+    from app.services.marketplace import registration_lookup
+
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+    registration = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == CLIENT
+            )
+        )
+    ).one()
+    registration.scope_ceiling = ["documents:read"]
+    session.add(registration)
+    await session.commit()
+    registration_lookup.invalidate_registrations()
+
+    response = await _ask(
+        client, installation=await _installation(installed), level="guild_admin"
+    )
+
+    assert response.status_code == 400
+    assert _error(response) == "invalid_scope"
+
+
+@pytest.mark.parametrize(
+    ("level", "narrowed"), [("moderator", False), ("guild_admin", True)]
+)
+async def test_a_level_on_the_wrong_narrowing_is_refused(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    level,
+    narrowed,
+):
+    """A moderator moderates one initiative, which the token names; a guild
+    admin administers the community, which a narrowed token is not about."""
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+    form = {"level": level}
+    if narrowed:
+        form["resource"] = f"urn:initiative:initiative:{installed.placed.id}"
+
+    response = await _ask(client, installation=await _installation(installed), **form)
+
+    assert response.status_code == 400
+    assert _error(response) == "invalid_target"
+
+
+@pytest.mark.parametrize("standing", _STANDINGS)
+async def test_a_standing_is_not_asked_for_by_scope(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session, standing
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+
+    response = await _ask(
+        client,
+        installation=await _installation(installed),
+        scope=f"documents:read {standing}",
+    )
+
+    assert response.status_code == 400
+    assert _error(response) == "invalid_scope"
+
+
+async def test_an_unknown_level_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+
+    response = await _ask(
+        client, installation=await _installation(installed), level="owner"
+    )
+
+    assert response.status_code == 400
+    assert _error(response) == "invalid_request"
+
+
+async def test_an_app_token_takes_no_level(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    await install_app(session, acting_user, role_session, granted=_STANDINGS)
+
+    response = await _ask(client, level="guild_admin")
+
+    assert response.status_code == 400
+    assert _error(response) == "invalid_request"
+
+
+async def test_a_member_token_takes_no_level(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """It acts for the member, whose own standing it already is."""
+    await install_app(session, acting_user, role_session, granted=_STANDINGS)
+
+    response = await client.post(
+        TOKEN_URL,
+        data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": "unread",
+            "level": "moderator",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": "invalid_request",
+        "error_description": "a member token takes no level",
+    }
+
+
 async def test_an_unknown_installation_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
