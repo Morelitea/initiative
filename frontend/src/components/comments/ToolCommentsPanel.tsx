@@ -21,7 +21,7 @@ import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { CommentEntity } from "@/components/comments/CommentSection";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { type CommentThreadParams, useComments, useCommentsCache } from "@/hooks/useComments";
-import type { ToolCommentEntity } from "@/lib/tools";
+import { type ToolCommentEntity, toolPlural } from "@/lib/tools";
 
 interface ToolCommentsPanelProps {
   /** Which tool answers for the thread — its switch, its sharing. */
@@ -63,6 +63,7 @@ export const ToolCommentsPanel = ({
 
   const commentsQuery = useComments(params, {
     enabled: Number.isFinite(entityId) && enabled,
+    under: target ? { type: toolPlural(tool), id: entity.id } : undefined,
   });
   // Write the new row straight into this thread's cache, so the comment
   // appears under the box the moment it posts.

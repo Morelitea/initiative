@@ -46,8 +46,17 @@ const seed = (key: readonly unknown[]) => {
 };
 
 /** A comment thread on one parent, as `useComments` keys and holds it; open
- *  (something on screen watching it) unless `open` is false. */
-const seedThread = (param: string, id: number, comments: CommentRead[] = [], open = true) => {
+ *  (something on screen watching it) unless `open` is false, and `under` the
+ *  tool entity it answers to when that is not its own parent. */
+const seedThread = (
+  param: string,
+  id: number,
+  {
+    comments = [],
+    open = true,
+    under,
+  }: { comments?: CommentRead[]; open?: boolean; under?: { type: string; id: number } } = {}
+) => {
   const key = getListCommentsApiV1CGuildIdCommentsGetQueryKey(GUILD, { [param]: id });
   queryClient.setQueryData(key, {
     pages: [{ comments, next_cursor: null }],
@@ -56,6 +65,7 @@ const seedThread = (param: string, id: number, comments: CommentRead[] = [], ope
   if (open) {
     new InfiniteQueryObserver(queryClient, {
       ...commentThreadQueryOptions(GUILD, { [param]: id }),
+      meta: under ? { under } : undefined,
       enabled: false,
     }).subscribe(() => {});
   }
@@ -150,7 +160,7 @@ describe("realtime comment frames", () => {
 
   it("leaves another entity's thread alone, and reads nothing for a thread not open", async () => {
     const other = seedThread("post_id", 99);
-    const closed = seedThread("post_id", ENTITY_ID, [], false);
+    const closed = seedThread("post_id", ENTITY_ID, { open: false });
     const asked = serveComments({ 1: buildComment({ id: 1, post_id: ENTITY_ID }) });
 
     applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], GUILD);
@@ -164,14 +174,19 @@ describe("realtime comment frames", () => {
   });
 
   it("puts a wiki page's comment into that page's thread, which its wiki names", async () => {
-    const page = seedThread("wiki_page_id", 7);
-    const otherPage = seedThread("wiki_page_id", 8);
-    serveComments({ 1: buildComment({ id: 1, wiki_page_id: 7 }) });
+    const wiki = { type: "wikis", id: ENTITY_ID };
+    const page = seedThread("wiki_page_id", 7, { under: wiki });
+    const siblingPage = seedThread("wiki_page_id", 8, { under: wiki });
+    const otherWikisPage = seedThread("wiki_page_id", 9, { under: { type: "wikis", id: 99 } });
+    const asked = serveComments({ 1: buildComment({ id: 1, wiki_page_id: 7 }) });
 
-    applyChanges([comment(1, [{ type: "wikis", id: ENTITY_ID }])], GUILD);
+    applyChanges([comment(1, [wiki])], GUILD);
 
     await vi.waitFor(() => expect(page.ids()).toEqual([1]));
-    expect(otherPage.ids()).toEqual([]);
+    expect(siblingPage.ids()).toEqual([]);
+    expect(otherWikisPage.ids()).toEqual([]);
+    expect(otherWikisPage.invalidated(), "another wiki's page is not touched").toBe(false);
+    expect(asked).toEqual([1]);
   });
 
   it("reads back each comment a batch names and brings the open pages up to date", async () => {
@@ -179,7 +194,7 @@ describe("realtime comment frames", () => {
     const root = buildComment({ id: 1, ...onTask });
     const reply = buildComment({ id: 2, parent_comment_id: 1, ...onTask });
     const edited = buildComment({ id: 4, content: "Before", ...onTask });
-    const thread = seedThread("task_id", ENTITY_ID, [root, reply, edited]);
+    const thread = seedThread("task_id", ENTITY_ID, { comments: [root, reply, edited] });
     const parents = [{ type: "tasks", id: ENTITY_ID }];
     const asked = serveComments({
       // 1 was deleted, and its reply went with it.

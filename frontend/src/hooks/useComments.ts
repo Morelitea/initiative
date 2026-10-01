@@ -46,6 +46,11 @@ export type CommentThreadParams = Omit<
 
 type CommentThreadData = InfiniteData<CommentListResponse>;
 
+/** The tool entity a thread answers to, where the thread is not that entity's
+ *  own: a wiki page's thread is under its wiki, which is what a realtime frame
+ *  about one of its comments names. */
+export type CommentThreadOwner = { type: string; id: number };
+
 /** One thread as an infinite query — shared by the hook and the route loaders
  *  that warm it, so both land in the same cache entry. */
 export const commentThreadQueryOptions = (guildId: number, params: CommentThreadParams) =>
@@ -82,10 +87,14 @@ const flattenThread = (data: CommentThreadData) => {
  * `data` is every comment loaded so far as one list; `fetchNextPage` brings
  * the next older page of conversations.
  */
-export const useComments = (params: CommentThreadParams, options?: { enabled?: boolean }) => {
+export const useComments = (
+  params: CommentThreadParams,
+  options?: { enabled?: boolean; under?: CommentThreadOwner }
+) => {
   const guildId = useActiveGuildId();
   return useInfiniteQuery({
     ...commentThreadQueryOptions(guildId, params),
+    meta: options?.under ? { under: options.under } : undefined,
     select: flattenThread,
     enabled: options?.enabled,
   });
@@ -188,20 +197,18 @@ const inThread = (comment: CommentRead, params: CommentThreadParams) => {
   return target !== undefined && params[target] === comment[target];
 };
 
-/** The cached threads a comment under `parent` can be in. A wiki page has no
- *  address of its own, so its comments name the wiki and reach every page
- *  thread. */
-const threadsUnder = (guildId: number, parent: { type: string; id: number }) => {
+/** The cached threads a comment under `parent` can be in: the parent's own,
+ *  and those opened under it (a wiki's pages). */
+const threadsUnder = (guildId: number, parent: CommentThreadOwner) => {
   const param = `${singularOf(parent.type)}_id` as keyof CommentThreadParams;
   return queryClient
     .getQueryCache()
     .findAll({ queryKey: getListCommentsApiV1CGuildIdCommentsGetQueryKey(guildId) })
     .filter((query) => {
       const params = query.queryKey[1] as CommentThreadParams | undefined;
+      const under = query.meta?.under as CommentThreadOwner | undefined;
       if (!params) return false;
-      return (
-        params[param] === parent.id || (parent.type === "wikis" && params.wiki_page_id != null)
-      );
+      return params[param] === parent.id || (under?.type === parent.type && under.id === parent.id);
     });
 };
 
