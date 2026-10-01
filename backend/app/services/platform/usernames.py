@@ -101,6 +101,37 @@ async def has_free_slot(session: AsyncSession, *, name: str) -> bool:
     return len(await _taken(session, validated)) < usernames.DISCRIMINATOR_SPACE
 
 
+async def suggest(
+    session: AsyncSession, *, seed: str | None = None, count: int = 4
+) -> list[str]:
+    """Name parts nobody holds yet, to offer somebody choosing one.
+
+    The first comes from ``seed`` (what they typed) where that is usable,
+    then from it with a word added, then generated names. Asked of the table
+    in one query.
+    """
+    base = usernames.slugify(seed)
+    candidates: list[str] = []
+    if base is not None:
+        candidates.append(base)
+        candidates += [
+            f"{base[: usernames.MAX_LENGTH - len(noun) - 1].rstrip('-')}-{noun}"
+            for noun in usernames.random_nouns(3)
+        ]
+    candidates += [usernames.random_name() for _ in range(count * 3)]
+    candidates = [c for c in dict.fromkeys(candidates) if usernames.is_valid(c)]
+    held = set(
+        (
+            await session.exec(
+                select(func.lower(User.username)).where(
+                    func.lower(User.username).in_(candidates)
+                )
+            )
+        ).all()
+    )
+    return [c for c in candidates if c not in held][:count]
+
+
 # How many numbers to try when the caller cannot read what is taken.
 _CLAIM_ATTEMPTS = 12
 

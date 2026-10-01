@@ -205,6 +205,12 @@ async def test_directory_flags_guilds_the_caller_is_already_in(
             id="a shelf, reaching a guild that is on two of them",
         ),
         pytest.param(
+            "?category=art&category=ttrpg",
+            200,
+            ["Dice Goblins", "Life Drawing", "Painted Minis"],
+            id="two shelves, reaching a guild on either",
+        ),
+        pytest.param(
             "?q=dice",
             200,
             ["Dice Goblins", "Painted Minis"],

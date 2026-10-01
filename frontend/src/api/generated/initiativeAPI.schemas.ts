@@ -9182,6 +9182,13 @@ export interface UsernameClaim {
   username: string;
 }
 
+/**
+ * Name parts nobody holds yet, best first.
+ */
+export interface UsernameSuggestionsResponse {
+  suggestions: string[];
+}
+
 export interface VerificationConfirmRequest {
   /** @minLength 10 */
   token: string;
@@ -9727,6 +9734,10 @@ export type FinishPasskeySignUpApiV1AuthRegisterPasskeyFinishPostParams = {
 
 export type BootstrapStatusApiV1AuthBootstrapGet200 = { [key: string]: boolean };
 
+export type SuggestUsernamesApiV1AuthUsernameSuggestionsGetParams = {
+  seed?: string | null;
+};
+
 export type CheckUsernameAvailableApiV1AuthUsernameAvailableGetParams = {
   /**
    * The name part to check
@@ -9789,7 +9800,7 @@ export type ExportPlatformUsersCsvApiV1OperatorUsersExportCsvGetParams = {
 
 export type ListCommunityGuildsApiV1CommunitiesDirectoryGetParams = {
   q?: string | null;
-  category?: GuildCategory | null;
+  category?: GuildCategory[];
   /**
    * @minimum 1
    */

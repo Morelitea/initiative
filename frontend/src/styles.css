@@ -518,6 +518,31 @@ html.pride [data-slot="button"].bg-primary:hover {
     opacity: 0.4;
   }
 }
+/* Chester hopping in, and his speech bubble following him. The start flow
+   applies these behind `motion-safe`. */
+@keyframes chester-hop {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.85);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.04);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes chester-bubble {
+  from {
+    opacity: 0;
+    transform: translateX(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
 .animate-chester-tongue {
   transform-origin: 16px 17px;
   animation: chester-tongue 0.4s ease-in-out infinite;

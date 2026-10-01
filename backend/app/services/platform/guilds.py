@@ -2202,7 +2202,7 @@ async def list_community_guilds(
     *,
     user_id: int,
     query: str | None = None,
-    category: str | None = None,
+    categories: list[str] | None = None,
     page: int = 1,
     page_size: int = 24,
 ) -> tuple[list[tuple[Guild, int, bool]], int]:
@@ -2242,8 +2242,9 @@ async def list_community_guilds(
     )
 
     filters = community_listing_filters()
-    if category:
-        filters.append(Guild.categories.contains([category]))
+    if categories:
+        # On any of the shelves asked for.
+        filters.append(Guild.categories.overlap(categories))
     if query and query.strip():
         # Case-insensitive across the two fields a card actually shows.
         needle = f"%{query.strip()}%"

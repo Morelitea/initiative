@@ -340,7 +340,7 @@ async def list_community_guilds(
     session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     q: str | None = Query(default=None, max_length=200),
-    category: GuildCategory | None = Query(default=None),
+    category: list[GuildCategory] = Query(default=[]),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_COMMUNITY_PAGE_SIZE),
 ) -> CommunityGuildPage:
@@ -365,7 +365,7 @@ async def list_community_guilds(
             session,
             user_id=current_user.id,
             query=q,
-            category=category.value if category else None,
+            categories=[c.value for c in category],
             page=page,
             page_size=page_size,
         )

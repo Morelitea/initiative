@@ -40,9 +40,12 @@ interface Props {
   onSignedIn: (registered: boolean) => void;
   /** An invite this deployment asked for, carried from the URL. */
   inviteCode?: string | null;
-  /** What the start flow already asked: the handle and name fill the last
-   *  step, and the rest is sent with the account the code makes. */
-  registration?: Omit<Partial<EmailOtpRegister>, "registration_ticket" | "invite_code">;
+  /** What the start flow already asked: the handle fills the last step, and
+   *  the rest is sent with the account the code makes. */
+  registration?: Omit<
+    Partial<EmailOtpRegister>,
+    "registration_ticket" | "invite_code" | "full_name"
+  >;
 }
 
 /** Strip the spaces a pasted code brings with it. */
@@ -59,7 +62,6 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [username, setUsername] = useState(registration?.username ?? "");
-  const [fullName, setFullName] = useState(registration?.full_name ?? "");
   const [challenge, setChallenge] = useState<string | null>(null);
   const [ticket, setTicket] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -137,7 +139,6 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
         ...registration,
         registration_ticket: ticket,
         username: username.trim(),
-        full_name: fullName.trim() || undefined,
         ...(inviteCode ? { invite_code: inviteCode } : {}),
       });
       await applyEmailOtpSignIn(data);
@@ -255,17 +256,6 @@ export const EmailOtpCard = ({ onCancel, onSignedIn, inviteCode, registration }:
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 placeholder={t("emailOtp.usernamePlaceholder")}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email-otp-full-name">{t("emailOtp.fullNameLabel")}</Label>
-              <Input
-                id="email-otp-full-name"
-                autoComplete="name"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                placeholder={t("emailOtp.fullNamePlaceholder")}
-                maxLength={255}
               />
             </div>
             {/* Pressing the button below is the agreement, so the notice sits
