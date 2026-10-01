@@ -1999,9 +1999,9 @@ async def _send_overdue(
             user is None
         ):  # deleted between the snapshot and now — skip, don't abort the pass
             continue
-        # Today's digest is claimed by stamping it before anything is sent, so
-        # it goes out once however many processes sweep at the same moment.
-        previous = user.last_overdue_notification_at
+        # Today's digest is claimed by stamping it in the transaction that
+        # queues it, so it goes out once however many processes sweep at the
+        # same moment: another waits on the row, then finds the day taken.
         claimed = await session.exec(
             sa_update(User)
             .where(
@@ -2014,8 +2014,8 @@ async def _send_overdue(
             )
             .values(last_overdue_notification_at=now)
         )
-        await session.commit()
         if not claimed.rowcount:
+            await session.rollback()
             continue
         # A channel that is merely unconfigured (no SMTP, no FCM) hands the day
         # back below, so the next poll tries again instead of the user's one
@@ -2050,16 +2050,10 @@ async def _send_overdue(
                 await _queue_push(session, user, _overdue_push(user, push_tasks))
                 or delivered
             )
-        if not delivered:
-            await session.exec(
-                sa_update(User)
-                .where(
-                    User.id == user_id,
-                    User.last_overdue_notification_at == now,
-                )
-                .values(last_overdue_notification_at=previous)
-            )
-        await session.commit()
+        if delivered:
+            await session.commit()
+        else:
+            await session.rollback()
 
 
 # Holds: one summary when a hold lifts

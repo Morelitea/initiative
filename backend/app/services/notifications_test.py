@@ -634,6 +634,10 @@ async def test_overdue_digest_skips_push_when_opted_out(
     await _sweep(overdue_scan(now=datetime.now(timezone.utc)))
 
     assert await _queued_pushes(session) == []
+    # With no mail server either, nothing went, so the day is handed back.
+    session.expunge_all()
+    refreshed = (await session.exec(select(User).where(User.id == user.id))).one()
+    assert refreshed.last_overdue_notification_at is None
 
 
 async def test_overdue_digest_skips_template_projects(
