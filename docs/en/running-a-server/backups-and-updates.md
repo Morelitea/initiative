@@ -55,6 +55,7 @@ Back up first anyway. It's the cheapest insurance available to you and it takes 
 ### Choosing a version
 
 - **`latest`** tracks the newest release.
+- **`stable`** tracks a release we have promoted after it spent a few days out in the world without a reported regression. See [Docker images](installation.md#docker-images).
 - **Pin one** (`morelitea/initiative:0.65`) if you'd rather update deliberately and read the changelog first.
 
 Initiative follows semantic versioning, and the changelog lists what changed in each release. Worth a skim before a jump, especially across minor versions.
@@ -62,6 +63,30 @@ Initiative follows semantic versioning, and the changelog lists what changed in 
 ### Knowing what's running
 
 The running version is at `<your-server>/api/v1/version`, and in the app's sidebar footer. The web app also notices when the server's been updated and prompts people to refresh.
+
+### If it won't start
+
+Rare, and recoverable. First, read the end of the log:
+
+```bash
+docker compose logs initiative | tail -n 40
+```
+
+If the last thing it says is a message framed in `=` signs telling you what to do (the image being older than the database, say), that message is the whole answer. Do what it says.
+
+Otherwise, find the report it wrote just before the traceback. The server keeps retrying, so there may be several; this prints the most recent one, and nothing past its closing line:
+
+```bash
+docker compose logs --no-log-prefix initiative | awk '
+  /Initiative could not start/ { report = ""; inside = 1 }
+  inside { report = report $0 "\n" }
+  inside && /^=+$/ { inside = 0 }
+  END { printf "%s", report }'
+```
+
+It lists the version, how the database is set up, where the migrations stopped, and the error. The passwords and keys the server is configured with are taken out, but give it a read before you post it. Then paste it into [an issue](https://github.com/Morelitea/initiative/issues).
+
+The fix is almost always a newer release, which picks up from exactly where this one stopped. Going back to the older version means restoring the backup you took before updating. You took one. It was one command.
 
 ### The mobile app
 
