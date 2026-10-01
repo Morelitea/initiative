@@ -34,9 +34,8 @@ import { LandingShell } from "./LandingShell";
 import { useFrontDoor } from "./useFrontDoor";
 import { usePageMeta } from "./usePageMeta";
 
-/** Profile banner art, standing in until the example communities have their
- *  own pictures. */
-const banner = (name: string) => `/decorations/banners/${name}.svg`;
+/** A photo cropped to banner shape for one of the example communities. */
+const photo = (name: string) => `/homepage/${name}.webp`;
 
 interface ExampleCommunity {
   key: "dnd" | "band" | "pta";
@@ -53,7 +52,7 @@ interface ExampleCommunity {
 const HERO_COMMUNITIES: ExampleCommunity[] = [
   {
     key: "dnd",
-    art: banner("gaming-tabletop"),
+    art: photo("fantasy-map"),
     initials: "TD",
     color: "#7c3aed",
     members: 6,
@@ -63,7 +62,7 @@ const HERO_COMMUNITIES: ExampleCommunity[] = [
   },
   {
     key: "band",
-    art: banner("music-soundcheck"),
+    art: photo("instruments"),
     initials: "TB",
     color: "#0f766e",
     members: 4,
@@ -72,7 +71,7 @@ const HERO_COMMUNITIES: ExampleCommunity[] = [
   },
   {
     key: "pta",
-    art: banner("education-classroom"),
+    art: photo("classroom"),
     initials: "HP",
     color: "#dc2626",
     members: 38,
@@ -82,18 +81,16 @@ const HERO_COMMUNITIES: ExampleCommunity[] = [
 ];
 
 const MARQUEE = [
-  ["soccer", "soccer-floodlights"],
-  ["pta", "education-commencement"],
-  ["business", "tea-service"],
-  ["books", "books-shelf"],
-  ["dogs", "pets-fetch"],
-  ["neighborhood", "world-street"],
-  ["theater", "drama-stage"],
-  ["faith", "faith-lights"],
-  ["robotics", "science-lab"],
-  ["mushrooms", "plants-grove"],
-  ["startup", "core-ember"],
-  ["family", "family-table"],
+  ["soccer", "street"],
+  ["pta", "campus"],
+  ["business", "bakery"],
+  ["books", "book-pages"],
+  ["breakfast", "breakfast-club"],
+  ["neighborhood", "meetup"],
+  ["theater", "theater"],
+  ["faith", "food-bank"],
+  ["robotics", "robot"],
+  ["family", "family"],
 ] as const;
 
 const CommunityCard = ({ community, big }: { community: ExampleCommunity; big: boolean }) => {
@@ -200,7 +197,7 @@ const Marquee = () => {
                   className="relative flex h-21 w-48 shrink-0 items-end overflow-hidden rounded-xl p-3 md:h-23 md:w-60"
                 >
                   <img
-                    src={banner(art)}
+                    src={photo(art)}
                     alt=""
                     className="absolute inset-0 h-full w-full object-cover"
                   />
