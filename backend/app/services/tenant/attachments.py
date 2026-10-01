@@ -306,14 +306,19 @@ async def guild_wide(guild_id: int) -> AsyncIterator[Any]:
 Leaving = Mapping[type, Iterable[int]]
 
 
-async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
+async def _still_shown(
+    session, filename: str, *, leaving: Leaving, tables: Set[str] | None = None
+) -> bool:
     """Whether anything stored — archived or in the trash included — other than
-    the rows ``leaving`` shows this stored file."""
+    the rows ``leaving`` shows this stored file, looking only in ``tables`` when
+    they are named."""
     from sqlalchemy import Text, cast
 
     from app.db.soft_delete_filter import select_including_deleted
 
     for model, column in _upload_columns():
+        if tables is not None and model.__tablename__ not in tables:
+            continue
         stmt = select_including_deleted(model.id).where(  # type: ignore[attr-defined]
             cast(getattr(model, column), Text).like(_like(filename))
         )
@@ -615,8 +620,9 @@ async def claim_uploads(
     from sqlalchemy.orm.attributes import flag_modified
     from sqlmodel import select
 
+    from app.db.app_rls import APP_TABLE_ACCESS
     from app.db.initiative_rls import INITIATIVE_PATHS
-    from app.db.session import guild_context
+    from app.db.session import guild_context, install_context
     from app.models.tenant.upload import Upload
     from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
 
@@ -683,6 +689,23 @@ async def claim_uploads(
     person = guild_context(session)
     if not wanted or (person is None and uploaded_by is not None):
         return
+    if install_context(session) is not None:
+        # An installed app reaches a file through the content showing it, so
+        # it copies one only when other content it reads shows it too.
+        saving: Dict[type, list[int]] = {}
+        for row, *_ in showing:
+            saving.setdefault(type(row), []).append(row.id)
+        for initiative_id, urls in wanted.items():
+            wanted[initiative_id] = {
+                url
+                for url in urls
+                if await _still_shown(
+                    session,
+                    Path(url).name,
+                    leaving=saving,
+                    tables=set(APP_TABLE_ACCESS),
+                )
+            }
     copies = {
         initiative_id: await copy_uploads(
             session,
