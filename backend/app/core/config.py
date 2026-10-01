@@ -895,7 +895,8 @@ class Settings(BaseSettings):
     # only the container network resolves; ``embed_origin`` is where a browser
     # loads its pages, omitted when the app answers both at one address. Give
     # the app's public keys as ``jwks``, or as ``jwks_uri`` when the app serves
-    # them over https at ``base_url``'s origin. ``vendor_env`` maps a vendor
+    # them at ``base_url``'s origin (``/.well-known/jwks.json`` for an app built
+    # on the SDK). ``vendor_env`` maps a vendor
     # value to the environment variable holding it, so the file names no secret
     # and can be a plain ConfigMap. An entry waits until its app's listing
     # arrives. Unset (the default) ⇒ nothing is reconciled.
