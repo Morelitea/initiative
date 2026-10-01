@@ -402,6 +402,29 @@ describe("GuildHomePage", () => {
     expect(sought(asked, "sort_dir")).toBe("desc");
   });
 
+  it("shows the tool's own views with the community's totals", async () => {
+    stubInitiatives();
+    const asked = watchProjects();
+    server.use(
+      guildHttp.get("/tools/project/counts", () =>
+        HttpResponse.json({
+          views: { active: 4, templates: 2, archived: 1 },
+          tag_counts: {},
+          untagged_count: 0,
+        })
+      )
+    );
+
+    renderHome();
+
+    const templates = await screen.findByRole("radio", { name: "Templates" });
+    await waitFor(() => expect(templates).toHaveTextContent("2"));
+    expect(screen.getByRole("radio", { name: "Active" })).toHaveTextContent("4");
+
+    await userEvent.click(templates);
+    await waitFor(() => expect(sought(asked, "template")).toBe("true"));
+  });
+
   it("searches the whole community rather than the page in hand", async () => {
     stubInitiatives();
     const asked = watchProjects((url) =>

@@ -21,17 +21,13 @@ import {
   parsePropertyFilters,
 } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
-import {
-  type DocumentStatus,
-  DocumentsStatusFilter,
-  isDocumentStatus,
-} from "@/components/documents/DocumentsStatusFilter";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   ToolListToolbar,
   type ToolViewOption,
 } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PaginationBar } from "@/components/PaginationBar";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
@@ -62,7 +58,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { everyCan } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
-import { toolDetailRoute } from "@/lib/tools";
+import { isToolView, type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
 
@@ -153,9 +149,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   // Documents and templates are two states of one list, the way the projects
   // list splits its own templates out. It lives in the URL so a templates view
   // is linkable and answers the back button.
-  const status: DocumentStatus = isDocumentStatus(searchParams.status)
-    ? searchParams.status
-    : "documents";
+  const status: ToolView = isToolView(searchParams.status) ? searchParams.status : "active";
   const isTemplateView = status === "templates";
   // An archived document is off the live list, so the archived state is the one
   // place it can be found — and the only place it can be taken back out. It
@@ -200,7 +194,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   );
 
   const setStatus = useCallback(
-    (next: DocumentStatus) => {
+    (next: ToolView) => {
       // Pushed, not replaced: switching between documents and templates is a
       // move the reader made, so Back has to take them out of it. (Paging
       // replaces, because a cursor is not somewhere you went.)
@@ -208,7 +202,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         to: ".",
         search: {
           ...searchParamsRef.current,
-          status: next === "documents" ? undefined : next,
+          status: next === "active" ? undefined : next,
           // The other state's cursor means nothing in this one.
           page: undefined,
         },
@@ -328,7 +322,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     ...(treeWantsUntagged ? { untagged: true } : {}),
     ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
+    ...toolViewParams(Tool.document, status),
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -346,13 +340,8 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    view: isArchivedView ? "archived" : isTemplateView ? "templates" : "active",
+    view: status,
   });
-  const statusCounts = {
-    documents: countsQuery.data?.views.active,
-    templates: countsQuery.data?.views.templates,
-    archived: countsQuery.data?.views.archived,
-  };
 
   // Prefetch adjacent page on hover
   const prefetchPage = useCallback(
@@ -365,7 +354,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         ...(treeWantsUntagged ? { untagged: true } : {}),
         ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
         ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-        ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
+        ...toolViewParams(Tool.document, status),
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),
@@ -380,12 +369,11 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       treeWantsUntagged,
       encodedPropertyFilters,
       queryDocumentType,
-      isTemplateView,
+      status,
       pageSize,
       sortBy,
       sortDir,
       prefetchDocuments,
-      isArchivedView,
     ]
   );
 
@@ -598,7 +586,12 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
       <ToolListToolbar
         leading={
-          <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
+          <ToolViewFilter
+            tool={Tool.document}
+            value={status}
+            onChange={setStatus}
+            counts={countsQuery.data?.views}
+          />
         }
         filters={{
           open: filtersOpen,

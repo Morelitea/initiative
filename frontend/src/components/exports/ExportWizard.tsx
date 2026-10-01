@@ -10,11 +10,11 @@ import {
   REPORT_DOCUMENT_FORMATS,
   REPORT_TOOL_FORMATS,
 } from "@/components/exports/formats";
+import { FilterCountBadge } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import {
   type ToolArchiveChoice,
-  ToolArchiveFilter,
-} from "@/components/initiativeTools/shared/ToolArchiveFilter";
-import { FilterCountBadge } from "@/components/initiativeTools/shared/ToolFilterPanel";
+  ToolViewFilter,
+} from "@/components/initiativeTools/shared/ToolViewFilter";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
@@ -337,7 +337,7 @@ function ToolFilterSection({
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="space-y-3 pt-2">
-        <ToolArchiveFilter
+        <ToolViewFilter
           tool={tool}
           includeAll
           value={archiveChoice(value.archived)}

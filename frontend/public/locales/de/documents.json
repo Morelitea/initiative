@@ -598,12 +598,6 @@
       "replaced_other": "{{count}} Zellen ersetzt"
     }
   },
-  "status": {
-    "label": "Anzeigen",
-    "documents": "Dokumente",
-    "templates": "Vorlagen",
-    "archived": "Archiviert"
-  },
   "summary": {
     "aiNotEnabled": "KI-Funktionen sind nicht aktiviert. Konfiguriere die KI-Einstellungen, um Dokumentzusammenfassungen zu generieren.",
     "generateDescription": "Generiere eine KI-gestützte Zusammenfassung dieses Dokuments.",

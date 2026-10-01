@@ -17,10 +17,11 @@
   "submit": "Submit",
   "reset": "Reset",
   "done": "Done",
-  "toolArchiveFilter": {
+  "toolViewFilter": {
     "label": "Show",
     "all": "All",
     "active": "Active",
+    "templates": "Templates",
     "archived": "Archived"
   },
   "dateRange": {

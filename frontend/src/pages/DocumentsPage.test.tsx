@@ -126,7 +126,7 @@ describe("DocumentsView documents/templates states", () => {
     await user.click(await screen.findByRole("radio", { name: "Templates" }));
     await waitFor(() => expect(latest(requests).get("is_template")).toBe("true"));
 
-    await user.click(screen.getByRole("radio", { name: "Documents" }));
+    await user.click(screen.getByRole("radio", { name: "Active" }));
     await waitFor(() => expect(latest(requests).get("is_template")).toBe("false"));
   });
 
@@ -135,7 +135,7 @@ describe("DocumentsView documents/templates states", () => {
     renderDocuments();
 
     await waitFor(() =>
-      expect(screen.getByRole("radio", { name: "Documents" })).toHaveTextContent("7")
+      expect(screen.getByRole("radio", { name: "Active" })).toHaveTextContent("7")
     );
     await waitFor(() =>
       expect(screen.getByRole("radio", { name: "Templates" })).toHaveTextContent("2")

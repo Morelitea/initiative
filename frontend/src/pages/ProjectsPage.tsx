@@ -7,16 +7,12 @@ import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
 import { ProjectCardActionButton } from "@/components/projects/ProjectCardActionButton";
 import { ProjectListPanel } from "@/components/projects/ProjectListPanel";
-import {
-  isProjectStatus,
-  type ProjectStatus,
-  ProjectStatusFilter,
-} from "@/components/projects/ProjectStatusFilter";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +21,7 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useRemoveProjectTemplate, useUnarchiveProject } from "@/hooks/useProjects";
 import { useToolCounts } from "@/hooks/useToolCounts";
+import { isToolView, type ToolView, toolViewParams } from "@/lib/tools";
 
 /** Scoped to an initiative: the initiative page's Projects tab. */
 type ProjectsViewProps = { fixedInitiativeId: number; canCreate?: boolean };
@@ -53,9 +50,9 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   // linkable and answers the back button.
   const router = useRouter();
   const search = useSearch({ strict: false }) as { status?: string };
-  const status: ProjectStatus = isProjectStatus(search.status) ? search.status : "active";
+  const status: ToolView = isToolView(search.status) ? search.status : "active";
   const setStatus = useCallback(
-    (next: ProjectStatus) => {
+    (next: ToolView) => {
       void router.navigate({
         to: ".",
         search: { ...search, status: next === "active" ? undefined : next },
@@ -69,22 +66,14 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   // which of the three states the server returns.
   const projectsParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
-    ...(status === "templates" ? { template: true } : {}),
-    ...(status === "archived" ? { archived: true } : {}),
+    ...toolViewParams(Tool.project, status),
   };
-  // Totals for all three states, so the filter can say how much sits behind
-  // each one before it is opened.
   // How much sits behind each state, so the filter says so before it is
   // opened: scoped to the initiative, whatever the other filters say.
   const countsQuery = useToolCounts(
     Tool.project,
     lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}
   );
-  const statusCounts = {
-    active: countsQuery.data?.views.active,
-    templates: countsQuery.data?.views.templates,
-    archived: countsQuery.data?.views.archived,
-  };
 
   // This is a guild-scoped page and the initiatives list is cheap + cached, so
   // fetch it unconditionally. Create access is derived from the same payload
@@ -275,7 +264,12 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             toolbarMenuItems={projectImport.menuItem}
             toolbarMenuDialogs={projectImport.dialog}
             leadingToolbar={
-              <ProjectStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
+              <ToolViewFilter
+                tool={Tool.project}
+                value={status}
+                onChange={setStatus}
+                counts={countsQuery.data?.views}
+              />
             }
           />
         )}

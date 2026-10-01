@@ -16,10 +16,11 @@
   "submit": "Envoyer",
   "reset": "Réinitialiser",
   "done": "Terminé",
-  "toolArchiveFilter": {
+  "toolViewFilter": {
     "label": "Afficher",
     "all": "Tous",
     "active": "Actifs",
+    "templates": "Modèles",
     "archived": "Archivés"
   },
   "dateRange": {
