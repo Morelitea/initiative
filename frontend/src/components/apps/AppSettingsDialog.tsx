@@ -70,7 +70,8 @@ export function AppSettingsDialog({
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the
   // community and are a different question.
-  const showsAdminSection = Boolean(activeGuild?.can.seat) && !!app;
+  const holdsTheSeat = Boolean(activeGuild?.can.seat);
+  const showsAdminSection = holdsTheSeat && !!app;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,7 +103,7 @@ export function AppSettingsDialog({
             <AppConnectionsPanel
               appId={app.id}
               connections={app.connections}
-              isGuildAdmin={isGuildAdmin}
+              canManage={holdsTheSeat}
             />
 
             {showsAdminSection && (
