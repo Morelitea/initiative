@@ -38,6 +38,7 @@ from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.property import PropertyType
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.task import TaskStatusCategory
 from app.services import storage as storage_module
 from app.services.export import worker as export_worker
 from app.services.guild_sweeps import Scope, each_guild
@@ -2754,6 +2755,10 @@ _INVALID_SELECTORS: list[tuple[dict[str, Any], str]] = [
         {"filters": '{"calendar": {"events": {"start_after": "soon"}}}'},
         "EXPORT_INVALID_PARAMS",
     ),
+    (
+        {"filters": '{"project": {"tasks": {"conditions": "[{]"}}}'},
+        "EXPORT_INVALID_PARAMS",
+    ),
 ]
 
 
@@ -2835,9 +2840,10 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """Each tool's filters are its list's: a tag keeps the queues carrying it,
-    archived ones too unless the archive is asked about, and a calendar keeps
-    the events in its range. The estimate counts what the filters leave, and
-    the finished job keeps no filters."""
+    archived ones too unless the archive is asked about, a calendar keeps the
+    events in its range, and a project the tasks its task list would show. The
+    estimate counts what the filters leave, and the finished job keeps no
+    filters."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await enable_all_tools(session, a.initiative)
     tag = await create_tag(session, a.guild, name="raid")
@@ -2859,9 +2865,25 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
             session, calendar, a.user, title=title, start_at=start, end_at=start
         )
 
+    await create_task(session, a.project, title="Open")
+    await create_task(
+        session, a.project, title="Shipped", status_category=TaskStatusCategory.done
+    )
+    open_tasks = {
+        "tasks": {
+            "conditions": json.dumps(
+                [{"field": "status_category", "op": "in_", "value": ["todo"]}]
+            )
+        }
+    }
+
     def filters(**queue: Any) -> str:
         return json.dumps(
-            {"queue": {"tag_ids": [tag.id], **queue}, "calendar": {"events": _SUMMER}}
+            {
+                "queue": {"tag_ids": [tag.id], **queue},
+                "calendar": {"events": _SUMMER},
+                "project": open_tasks,
+            }
         )
 
     async def queues(**queue: Any) -> int:
@@ -2894,7 +2916,22 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     assert {q["name"] for q in envelopes("initiative-queue")} == {"Tagged", "Shelved"}
     [raids] = envelopes("initiative-calendar")
     assert [e["title"] for e in raids["events"]] == ["Summer"]
+    [project] = envelopes("initiative-project")
+    assert [t["title"] for t in project["tasks"]] == ["Open"]
     assert "filters" not in (await _job(client, a, resp.json()["id"]))["params"]
+
+    # A project's own export takes the same task filter.
+    own = await _export(
+        client,
+        a,
+        "project",
+        ids=[a.project.id],
+        format="json",
+        filters=json.dumps(open_tasks),
+    )
+    assert [t["title"] for t in json.loads(_assert_export(own, "json"))["tasks"]] == [
+        "Open"
+    ]
 
 
 async def test_empty_initiative_backup_is_manifest_only_zip(

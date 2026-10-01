@@ -9,6 +9,9 @@ Archived tasks stay in the backup (it must round-trip everything) but are
 excluded from the report formats, matching the on-screen list defaults — save
 the ones archived along with the project, which the list shows too.
 
+``filters.tasks`` narrows each project's tasks to those the task list
+answers with the same filters (``TaskFilters``); without it, every task rides.
+
 Access rule for every format: WRITE on the project (read-only members can't
 take backups), enforced by the ``projects.py`` seams at both count and build
 time, under the caller's RLS session.
@@ -17,10 +20,14 @@ time, under the caller's RLS session.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, ClassVar
 
+from pydantic import BaseModel, ConfigDict, field_validator
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.export.adapters._common import (
@@ -51,10 +58,32 @@ def _columns(locale: str) -> list[dict]:
     ]
 
 
+class TaskFilters(BaseModel):
+    """The tasks a project's export carries: those the task list shows with
+    these filters, as ``GET /tasks/`` takes them."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    conditions: str | None = None
+    include_archived: bool = False
+
+    @field_validator("conditions")
+    @classmethod
+    def _readable(cls, value: str | None) -> str | None:
+        # The task list's own checks, so a malformed filter is refused before a
+        # job exists rather than failing it.
+        from app.db.query import check_ops, parse_conditions
+        from app.services.fields import registry
+
+        check_ops(parse_conditions(value), registry.allowed_ops("tasks"))
+        return value
+
+
 class ProjectAdapter(ToolExportAdapter):
     tool = Tool.project
     template_id = "project-report"
     formats = ("json", "pdf", "csv", "xlsx")
+    content_filters: ClassVar[dict[str, type[BaseModel]]] = {"tasks": TaskFilters}
 
     async def count(
         self,
@@ -124,10 +153,58 @@ class ProjectAdapter(ToolExportAdapter):
             )
         )
 
+    @property
+    def prepares(self) -> bool:
+        # A project's tasks are filtered one project at a time; nothing is
+        # gained by holding a whole initiative's envelopes at once.
+        return False
+
+    async def prepare(
+        self,
+        session: AsyncSession,
+        envelopes: list[ProjectExportEnvelope],
+        ctx: BuildContext,
+        /,
+    ) -> set[str | None] | None:
+        """The refs of the tasks the export's task filters leave; ``None``
+        keeps every task."""
+        from app.models.tenant.task import Task
+        from app.services.tenant import task_queries
+        from app.services.tenant.project_export import task_ref
+
+        tasks = getattr(ctx.filters, "tasks", None)
+        if tasks is None:
+            return None
+        ids = [
+            int(task.external_ref.removeprefix("task:"))
+            for envelope in envelopes
+            for task in envelope.tasks
+            if task.external_ref
+        ]
+        query = await task_queries.parse_task_list_query(
+            session, tasks.conditions, None, getattr(ctx.now.tzinfo, "key", None)
+        )
+        build = await task_queries.guild_task_query_builder(
+            session,
+            ctx.user,
+            require_guild_context(session),
+            q=query,
+            include_archived=tasks.include_archived,
+        )
+        if build is None or not ids:
+            return set()
+        kept = await session.exec(build(select(Task.id)).where(Task.id.in_(ids)))
+        return {task_ref(task_id) for task_id in kept}
+
     def title(self, envelope: ProjectExportEnvelope, /) -> str:
         return envelope.project.name
 
     def item(self, envelope: ProjectExportEnvelope, ctx: BuildContext, /) -> RenderItem:
+        kept: Any = ctx.prepared
+        if kept is not None:
+            envelope = envelope.model_copy(
+                update={"tasks": [t for t in envelope.tasks if t.external_ref in kept]}
+            )
         return build_project_item(envelope, ctx.format, ctx.user, ctx.now)
 
 
