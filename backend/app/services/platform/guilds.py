@@ -1630,7 +1630,8 @@ async def queue_welcome_notice(
         guild,
         [owner_user_id],
         NotificationType.guild_welcome,
-        {},
+        # Straight to the portal, which is what the line invites them to.
+        {"target_path": "/billing?page=upgrade"},
         lambda locale: email_service.community_welcome_pieces(
             community=guild.name, guild_id=guild_id, locale=locale
         ),
@@ -1646,8 +1647,8 @@ async def _queue_plan_notice(
     letter_for: Callable[[str], EmailPieces],
 ) -> None:
     """Write one account notice about a community's plan to each recipient: a
-    bell line leading to its Plan & usage tab, and a letter in the
-    recipient's language. Commits."""
+    bell line leading to its Plan & usage tab unless ``data`` names another
+    ``target_path``, and a letter in the recipient's language. Commits."""
     from app.services.platform import notice_outbox
 
     locales = dict(
@@ -1667,9 +1668,9 @@ async def _queue_plan_notice(
                 notification_type,
                 {
                     "community": guild.name,
-                    **data,
                     "guild_id": guild.id,
                     "target_path": "/settings/usage",
+                    **data,
                 },
                 email_subject=letter.subject,
                 email_headline=letter.headline,

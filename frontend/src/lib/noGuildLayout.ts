@@ -27,6 +27,8 @@
  * Keeping the checks aligned guarantees the no-guild shell never admits
  * anyone who couldn't already reach the page in the normal sidebar layout.
  */
+import { isBillingForwardPath } from "@/lib/guildUrl";
+
 export type NoGuildLayoutChoice = "main" | "shell" | "empty";
 
 export interface NoGuildLayoutInputs {
@@ -43,17 +45,6 @@ const isUserSettingsPath = (path: string): boolean =>
 // replaced by it.
 const isCommunityPath = (path: string): boolean =>
   path === "/communities" || path.startsWith("/communities/");
-
-const DIGITS = "0123456789";
-
-// The billing forwarder, `/c/<id>/billing`. A community on hold is not in the
-// guild list, so the person whose only community it is has no guilds, and
-// still needs the way to its plan.
-const isBillingForwardPath = (path: string): boolean => {
-  const [, c, id, page, ...rest] = path.split("/");
-  const isId = Boolean(id) && [...id].every((ch) => DIGITS.includes(ch));
-  return c === "c" && isId && page === "billing" && rest.length === 0;
-};
 
 // Both platform areas: the Operator dashboard (/settings/operator) and Platform
 // settings (/settings/platform). A guild-less platform user must still reach
