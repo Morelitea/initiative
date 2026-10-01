@@ -598,9 +598,11 @@ async def test_a_guild_admin_token_administers_the_community(
     await s.rollback()
 
 
-async def test_a_guild_admin_scope_does_nothing_on_a_narrowed_token(
+async def test_a_narrowed_guild_admin_token_administers_that_initiative(
     session, acting_user, role_session
 ):
+    """The narrowing still confines it: everything in the initiative it names,
+    nothing in the other."""
     granted = ["documents:read", "guild:admin"]
     install = await _install(session, acting_user, role_session, granted=granted)
     await _documents(session, install)
@@ -608,9 +610,9 @@ async def test_a_guild_admin_scope_does_nothing_on_a_narrowed_token(
     s, context = await _route(
         role_session, install, granted, initiative_id=install.a.id
     )
-    assert not context.is_admin
+    assert context.is_admin
     names = set((await s.exec(select(Document.name))).all())
-    assert names == {f"Shared {install.a.name}"}
+    assert names == {f"Shared {install.a.name}", f"Private {install.a.name}"}
     await s.rollback()
 
 

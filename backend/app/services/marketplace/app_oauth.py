@@ -11,7 +11,8 @@ signs with a key its registration publishes (RFC 7523 §2.2,
   that install, optionally down-scoped (``scope``, RFC 6749 §3.3) and narrowed
   to one initiative it is placed in (``resource``, RFC 8707). ``level`` asks
   for a standing on top of its scopes: ``moderator`` (narrowed to an
-  initiative) or ``guild_admin`` (not narrowed). The community must have
+  initiative) or ``guild_admin`` (narrowed or not; narrowed, it administers
+  within that one initiative). The community must have
   granted the level's scope (``LEVEL_SCOPES``), and the token then carries it.
   No token carries a standing it did not ask for, and ``scope`` cannot name
   one;
@@ -433,10 +434,6 @@ def _with_level(
         raise OAuthError("invalid_scope", f"{scope!r} has not been granted")
     if level is InstallLevel.moderator and initiative_id is None:
         raise OAuthError("invalid_target", "a moderator token names its initiative")
-    if level is InstallLevel.guild_admin and initiative_id is not None:
-        raise OAuthError(
-            "invalid_target", "a guild admin token is not narrowed to an initiative"
-        )
     return scopes | {scope}
 
 

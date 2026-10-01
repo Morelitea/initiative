@@ -397,8 +397,8 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #: standing (``standing_level``), which only an installation token that asked
 #: for one does, and only while the seat's grant still holds that scope:
 #: ``initiatives:moderate`` on a token narrowed to an initiative makes it a
-#: manager there with "Full access", as a moderator is; ``guild:admin`` on a
-#: token narrowed to none makes it a guild admin. Either is still bounded by
+#: manager there with "Full access", as a moderator is; ``guild:admin`` makes
+#: it a guild admin, within the one initiative a narrowed token names. Either is still bounded by
 #: its resource scopes, which every tool policy asks first. The community's
 #: sign-in rules
 #: govern people signing in; an install's admission is the seat's consent, so
@@ -489,8 +489,7 @@ standing_level AS (
   SELECT
     bool_or(t.scope = '{_MODERATE_SCOPE}')
       AND {gucs.SCOPE_INITIATIVE_ID} IS NOT NULL AS moderates,
-    bool_or(t.scope = '{_GUILD_ADMIN_SCOPE}')
-      AND {gucs.SCOPE_INITIATIVE_ID} IS NULL AS administers
+    bool_or(t.scope = '{_GUILD_ADMIN_SCOPE}') AS administers
   FROM install i
   CROSS JOIN LATERAL unnest({gucs.TOKEN_SCOPES}) AS t(scope)
   WHERE {gucs.USER_ID} IS NULL

@@ -439,30 +439,42 @@ async def test_a_level_the_ceiling_does_not_allow_is_refused(
     assert _error(response) == "invalid_scope"
 
 
-@pytest.mark.parametrize(
-    ("level", "narrowed"), [("moderator", False), ("guild_admin", True)]
-)
-async def test_a_level_on_the_wrong_narrowing_is_refused(
-    client: AsyncClient,
-    session: AsyncSession,
-    acting_user,
-    role_session,
-    level,
-    narrowed,
+async def test_a_moderator_level_names_its_initiative(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    """A moderator moderates one initiative, which the token names; a guild
-    admin administers the community, which a narrowed token is not about."""
+    """A moderator moderates one initiative, which the token names."""
     installed = await install_app(
         session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
     )
-    form = {"level": level}
-    if narrowed:
-        form["resource"] = f"urn:initiative:initiative:{installed.placed.id}"
 
-    response = await _ask(client, installation=await _installation(installed), **form)
+    response = await _ask(
+        client, installation=await _installation(installed), level="moderator"
+    )
 
     assert response.status_code == 400
     assert _error(response) == "invalid_target"
+
+
+async def test_a_guild_admin_level_may_be_narrowed(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """Narrowed, it administers within that one initiative."""
+    installed = await install_app(
+        session, acting_user, role_session, granted=["documents:read", *_STANDINGS]
+    )
+
+    response = await _ask(
+        client,
+        installation=await _installation(installed),
+        resource=f"urn:initiative:initiative:{installed.placed.id}",
+        level="guild_admin",
+    )
+
+    assert response.status_code == 200, response.text
+    token = unseal_access_token(response.json()["access_token"])
+    assert isinstance(token, InstallAccessToken)
+    assert token.scopes == frozenset({"documents:read", "guild:admin"})
+    assert token.initiative_id == installed.placed.id
 
 
 @pytest.mark.parametrize("standing", _STANDINGS)
