@@ -505,6 +505,11 @@ class Settings(BaseSettings):
         return self.JWT_SIGNING_KEY or self.SECRET_KEY
 
     @property
+    def registration_open(self) -> bool:
+        """Whether somebody may register without an invite."""
+        return self.ENABLE_PUBLIC_REGISTRATION and not self.DISABLE_GUILD_CREATION
+
+    @property
     def app_url_is_https(self) -> bool:
         """True when the public app origin is served over HTTPS.
 

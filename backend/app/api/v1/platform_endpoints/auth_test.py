@@ -71,16 +71,21 @@ async def test_bootstrap_status_no_users(client: AsyncClient):
     assert "public_registration_enabled" in data
 
 
-async def test_bootstrap_status_with_users(client: AsyncClient, session: AsyncSession):
-    """Test bootstrap status when users exist."""
+async def test_bootstrap_status_with_users(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Registration reads as open only where somebody may register without an
+    invite, which turning community creation off closes too."""
+    from app.core.config import settings
+
     await create_user(session)
 
     response = await client.get("/api/v1/auth/bootstrap")
+    assert response.json() == {"has_users": True, "public_registration_enabled": True}
 
-    assert response.status_code == 200
-    data = response.json()
-    assert data["has_users"] is True
-    assert "public_registration_enabled" in data
+    monkeypatch.setattr(settings, "DISABLE_GUILD_CREATION", True)
+    response = await client.get("/api/v1/auth/bootstrap")
+    assert response.json()["public_registration_enabled"] is False
 
 
 async def test_register_first_user(client: AsyncClient, session: AsyncSession):

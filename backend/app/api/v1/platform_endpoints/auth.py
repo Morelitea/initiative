@@ -306,11 +306,7 @@ async def _registration_gate(
     # Registration is closed without an invite when public registration or
     # guild creation is off. The very first account bootstraps the deployment
     # and is always allowed.
-    if (
-        (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION)
-        and not invite
-        and not is_first_user
-    ):
+    if not settings.registration_open and not invite and not is_first_user:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AuthMessages.REGISTRATION_REQUIRES_INVITE,
@@ -758,7 +754,7 @@ async def finish_passkey_sign_up(
 async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     return {
         "has_users": await any_account_exists(session),
-        "public_registration_enabled": settings.ENABLE_PUBLIC_REGISTRATION,
+        "public_registration_enabled": settings.registration_open,
     }
 
 
