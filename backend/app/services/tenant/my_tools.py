@@ -1,42 +1,16 @@
-"""What a cross-guild "my tools" list is made of.
+"""How a cross-guild "my tools" list orders its rows.
 
-The My Tools page is the guild home's table with the guild boundary taken off:
-one tool at a time, every community the reader belongs to. Each tool still
-answers through its own ``/me/{tool}`` endpoint, because the row a queue
-returns is not the row a project returns — but the *question* those endpoints
-ask is one question, and it is asked here so the six of them cannot drift.
-
-Two things a caller needs:
-
-``scope_conditions``
-    The WHERE legs one guild contributes: the tool's own master switch, what
-    reaches this reader (:func:`permissions.granted_scope_clause` — the same
-    leg the guild home's table uses), the search box, and the page's
-    everything/made-by-me toggle.
-
-``sort_key`` / :func:`count_across_guilds`
-    The order a list runs in, as an expression each guild orders by in SQL,
-    and the counts behind the page's tabs. Ids are unique per schema, so no
-    single statement spans guilds: each answers for itself and the caller
-    merges (:func:`cross_guild.page_across_guilds`).
+Which rows a My Tools list holds is each tool's own list, asked inside each
+community (``me_tools``). What is left here is the one thing a merge across
+communities needs of its own: a sort key every community orders by alike, so
+their pages merge (:func:`cross_guild.page_across_guilds`). Ids are unique per
+schema, so no single statement spans guilds.
 """
 
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Optional
 
-from sqlalchemy import ColumnElement, func, or_
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy import ColumnElement, func
 
-from app.core.tools import Tool
-from app.db.guild_standing import GuildContext
-from app.db.session import require_guild_context
-from app.models.platform.user import User
-from app.models.tenant.initiative import Initiative
-from app.services import permissions as permissions_service
-from app.services.tenant import archive as archive_service
-from app.services.cross_guild import gather_across_guilds, member_guild_ids
-from app.services.tenant import search as search_service
-from app.services.tenant.ownership import OWNABLE
 
 #: What ``sort_by`` accepts on a cross-guild tool list.
 #:
@@ -46,79 +20,6 @@ from app.services.tenant.ownership import OWNABLE
 #: initiative's name is not one. The page's initiative column therefore does
 #: not sort.
 MY_TOOL_SORT_FIELDS = ("name", "updated_at", "created_at")
-
-
-def tool_model(tool: Tool) -> Any:
-    """The content model backing a tool.
-
-    Reads the ownership registry rather than keeping a second copy of the
-    mapping — that one already derives from :class:`Tool` and its own test
-    fails if a tool is missing from it.
-    """
-    return OWNABLE[tool].model
-
-
-def _tool_enabled_clause(tool: Tool, model: Any) -> Optional[ColumnElement[bool]]:
-    """Rows whose tool is switched on for the initiative holding them.
-
-    The switch is the initiative column named by the tool's view permission —
-    and a row belonging to no initiative (a guild calendar, mounted by an app)
-    answers to no switch, so it is kept.
-    """
-    switch = getattr(Initiative, tool.view_permission)
-    return or_(
-        model.initiative_id.is_(None),
-        model.initiative_id.in_(select(Initiative.id).where(switch.is_(True))),
-    )
-
-
-def scope_conditions(
-    tool: Tool,
-    *,
-    user_id: int,
-    context: GuildContext,
-    search: Optional[str] = None,
-    created_by_me: bool = False,
-) -> list[ColumnElement[bool]]:
-    """The WHERE legs for one guild's contribution to a cross-guild tool list.
-
-    Called once per guild from inside :func:`cross_guild.gather_across_guilds`,
-    which has already routed the session into that guild's schema and computed
-    the reader's standing there — which is ``context``.
-    """
-    model = tool_model(tool)
-    conditions: list[ColumnElement[bool]] = []
-
-    enabled = _tool_enabled_clause(tool, model)
-    if enabled is not None:
-        conditions.append(enabled)
-
-    # Archived work is off the working list, for every tool — the guild-wide
-    # lists say the same. Every tool carries the archive, so this is read off
-    # the model rather than named per kind.
-    conditions.append(archive_service.archive_filter_clause(model, archived=None))
-
-    if "is_template" in model.model_fields:
-        # A template is a blueprint for new work, and not work itself.
-        conditions.append(model.is_template.is_(False))
-
-    conditions.append(
-        permissions_service.granted_scope_clause(
-            tool, model.id, user_id, context=context
-        )
-    )
-
-    name_match = search_service.tool_search_clause(tool, model.id, search)
-    if name_match is not None:
-        conditions.append(name_match)
-
-    if created_by_me:
-        # The page's other view: what the reader wrote, rather than everything
-        # that reaches them. Authorship, not ownership — handing a document to
-        # someone else does not take it out of the list of things you wrote.
-        conditions.append(model.created_by == user_id)
-
-    return conditions
 
 
 def name_key(model: Any) -> ColumnElement[Any]:
@@ -147,41 +48,3 @@ def sort_key(
     if sort_by in ("updated_at", "created_at"):
         return getattr(model, sort_by), descending
     return default(model), default_desc
-
-
-async def count_across_guilds(
-    session: AsyncSession,
-    current_user: User,
-    *,
-    guild_ids: Optional[Sequence[int]] = None,
-    created_by_me: bool = False,
-) -> dict[Tool, int]:
-    """How much of each tool reaches this reader, across their communities.
-
-    What the My Tools page's tabs are made of: a tool with nothing behind it
-    gets no tab, so the page never offers a reader a table of nothing.
-    """
-    target_guilds = await member_guild_ids(
-        session, current_user.id, restrict_to=guild_ids
-    )
-    totals: dict[Tool, int] = {tool: 0 for tool in Tool}
-
-    async def _fetch(guild_session: AsyncSession, guild_id: int) -> list:
-        for tool in Tool:
-            model = tool_model(tool)
-            conditions = scope_conditions(
-                tool,
-                user_id=current_user.id,
-                context=require_guild_context(guild_session),
-                created_by_me=created_by_me,
-            )
-            subquery = select(model.id).where(*conditions).subquery()
-            count = (
-                await guild_session.exec(select(func.count()).select_from(subquery))
-            ).one()
-            totals[tool] += count
-        # The tallies accumulate above; the merge itself carries nothing.
-        return []
-
-    await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
-    return totals

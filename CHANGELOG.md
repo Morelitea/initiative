@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Galleries and wikis on My Tools show their cover and counts**, as they do on a community's own page.
 - **A signed-in phone keeps to the session limit that applies when it is used.** Joining a community that signs people in again every 12 hours, or that community getting its option back, now reaches a phone that signed in earlier within a day, instead of only when the limit itself was changed.
 - **A board's timeline follows the archive view.** Under **Archived**, the months beside the board count only archived posts, and the live board no longer counts archived ones. `GET /posts/timeline` takes `archived` (API).
 - **Access requests follow your push setting.** Turning push off for approvals or account notices now also silences pushes about access requests and their answers. The bell still shows them.

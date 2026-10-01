@@ -348,8 +348,8 @@ class ToolListSpec:
     views: Mapping[str, Mapping[str, Any]] = field(
         default_factory=lambda: dict(DEFAULT_VIEWS)
     )
-    #: (req) -> extra fields on the list response.
-    response_extras: Optional[Callable[["ListRequest"], dict]] = None
+    #: (the request's values) -> extra fields on the list response.
+    response_extras: Optional[Callable[[dict], dict]] = None
     list_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
@@ -741,9 +741,9 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         # The one tool that also sorts by when a row was written — a document
         # list is a filing cabinet, and "newest first" is how you read one.
         extra_sort_fields={"created_at": Document.created_at},
-        response_extras=lambda req: {
-            "sort_by": req.values.get("sort_by"),
-            "sort_dir": req.values.get("sort_dir"),
+        response_extras=lambda values: {
+            "sort_by": values.get("sort_by"),
+            "sort_dir": values.get("sort_dir"),
         },
         params=(
             _initiative_id(),
@@ -1163,7 +1163,7 @@ def _mount_list(spec: ToolListSpec) -> None:
         )
         items = await spec.serialize(spec, request, rows)
         page_size = values["page_size"]
-        extras = spec.response_extras(request) if spec.response_extras else {}
+        extras = spec.response_extras(values) if spec.response_extras else {}
         return spec.response_model(
             **build_paginated_response(items, total_count, page, page_size, **extras)
         )
