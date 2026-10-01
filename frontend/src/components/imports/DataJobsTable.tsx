@@ -229,7 +229,7 @@ export function DataJobsTable() {
         </TableBody>
       </Table>
       <Dialog open={reportJob != null} onOpenChange={(open) => !open && setReportJob(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("imports:table.reportTitle")}</DialogTitle>
           </DialogHeader>

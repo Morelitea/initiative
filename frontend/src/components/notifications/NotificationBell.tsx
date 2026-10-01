@@ -209,10 +209,7 @@ export const NotificationBell = () => {
           ) : null}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        collisionPadding={8}
-        className="flex max-h-[var(--radix-popover-content-available-height)] w-80 flex-col overflow-hidden"
-      >
+      <PopoverContent collisionPadding={8} className="flex w-80 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center justify-between border-b pb-2">
           <p className="font-semibold text-sm">{t("notifications.title")}</p>
           <Button

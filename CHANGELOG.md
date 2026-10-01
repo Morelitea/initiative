@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A custom property with many options can be saved again: the property editor in initiative settings and the **Add property** form now scroll when they are taller than the screen, so **Save** is always within reach.
+- Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.
 
 ## [0.74.0] - 2026-10-01
 

@@ -405,7 +405,7 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
           if (!next) handleCloseDialog();
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {isEditing

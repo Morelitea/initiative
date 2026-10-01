@@ -78,7 +78,7 @@ export const PublishGuildDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !saving && onCancel()}>
-      <DialogContent className="max-h-screen overflow-y-auto bg-card sm:max-w-lg">
+      <DialogContent className="bg-card sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("guilds:community.publish.title")}</DialogTitle>
           <DialogDescription>{t("guilds:community.publish.description")}</DialogDescription>

@@ -118,7 +118,7 @@ export const TaskBulkEditDialog = ({
     startDate || dueDate || assigneeIds.length > 0 || statusId || priority || recurrence;
 
   return (
-    <DialogContent className="max-h-screen overflow-y-auto bg-card">
+    <DialogContent className="bg-card">
       <DialogHeader>
         <DialogTitle>{t("bulkEdit.title")}</DialogTitle>
         <DialogDescription>

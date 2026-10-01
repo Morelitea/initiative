@@ -543,7 +543,7 @@ export const ProjectTaskStatusesManager = ({
       </CardContent>
 
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <DialogContent className="max-h-screen overflow-y-auto bg-card">
+        <DialogContent className="bg-card">
           <DialogHeader>
             <DialogTitle>{t("statuses.deleteTitle")}</DialogTitle>
             <DialogDescription>
