@@ -1494,6 +1494,9 @@ class BillingMessages:
     STATUS_NOT_SETTABLE = "BILLING_STATUS_NOT_SETTABLE"
     #: A community notice from a source that does not send one.
     NOTICE_SOURCE_NOT_ALLOWED = "BILLING_NOTICE_SOURCE_NOT_ALLOWED"
+    #: The notice could not be written down. Nothing was recorded, so the same
+    #: event id may be sent again.
+    NOTICE_NOT_DELIVERED = "BILLING_NOTICE_NOT_DELIVERED"
     PORTAL_NOT_CONFIGURED = "BILLING_PORTAL_NOT_CONFIGURED"
     PORTAL_SIGNING_NOT_CONFIGURED = "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
     PORTAL_GRANT_UNAVAILABLE = "BILLING_PORTAL_GRANT_UNAVAILABLE"

@@ -385,18 +385,14 @@
   "communityTrialEnding": {
     "subject": "La prueba de {{community}} termina el {{date}}",
     "title": "La prueba de {{community}} termina el {{date}}",
-    "greeting": "Hola:",
     "body": "La prueba de <strong>{{community}}</strong> termina el <strong>{{date}}</strong>. Suscríbete en el portal de facturación antes de esa fecha para seguir editando; después, la comunidad pasará a ser de solo lectura hasta que se elija un plan.",
-    "buttonLabel": "Abrir Plan y uso",
-    "textBody": "La prueba de {{community}} termina el {{date}}. Suscríbete en el portal de facturación antes de esa fecha para seguir editando; después, la comunidad pasará a ser de solo lectura hasta que se elija un plan. {{link}}"
+    "buttonLabel": "Abrir Plan y uso"
   },
   "communityTrialEnded": {
     "subject": "La prueba de {{community}} ha terminado",
     "title": "La prueba de {{community}} ha terminado",
-    "greeting": "Hola:",
     "body": "La prueba de <strong>{{community}}</strong> ha terminado y la comunidad ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando. No se ha eliminado nada.",
-    "buttonLabel": "Elegir un plan",
-    "textBody": "La prueba de {{community}} ha terminado y la comunidad ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando. No se ha eliminado nada. {{link}}"
+    "buttonLabel": "Elegir un plan"
   },
   "signInLocked": {
     "fallbackText": "Si fuiste tú, no tienes que hacer nada más. Si no, puede que alguien conozca tu dirección de correo. Tu contraseña sigue a salvo, pero plantéate iniciar sesión con una llave de acceso.",

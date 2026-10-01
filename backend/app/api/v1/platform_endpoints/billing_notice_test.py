@@ -25,8 +25,8 @@ from app.api.v1.platform_endpoints.billing_test import (
 from app.models.platform.billing import BillingEventLog
 from app.models.platform.guild import GuildRole, GuildStatus
 from app.models.platform.notification import Notification, NotificationType
-from app.services import email as email_service
-from app.services.platform import identity_refs
+from app.core.notification_categories import NotificationCategory
+from app.services.platform import email_outbox, identity_refs, notice_outbox
 from app.testing import (
     billing_guild_ref,
     create_guild,
@@ -38,12 +38,14 @@ from app.testing import (
 
 @pytest.fixture
 def letters(monkeypatch) -> list[dict]:
+    """The letters the notice worker hands the email outbox, by recipient."""
     sent: list[dict] = []
 
-    async def _send_email(_session, **kwargs):
-        sent.append(kwargs)
+    async def _enqueue(_session, recipient, *, category, pieces, **kwargs):
+        sent.append({"user_id": recipient.id, "category": category, "pieces": pieces})
+        return True
 
-    monkeypatch.setattr(email_service, "send_email", _send_email)
+    monkeypatch.setattr(email_outbox, "enqueue", _enqueue)
     return sent
 
 
@@ -80,6 +82,7 @@ async def _notice(guild_id: int, **fields) -> dict:
 
 
 async def _told(session: AsyncSession, user_id: int) -> list[Notification]:
+    """The trial lines in this person's bell, once the outbox has run."""
     session.expire_all()
     await drain_notices()
     return list(
@@ -124,10 +127,67 @@ async def test_the_owner_billing_names_is_told(
     assert await _told(session, other_seat_id) == []
     assert await _told(session, admin_id) == []
     (letter,) = letters
-    assert letter["recipients"] == ["owner@example.com"]
-    assert letter["subject"] == "Acme's trial ends on 8 October 2026"
-    assert f"/c/{guild_id}/settings/usage" in letter["html_body"]
-    assert "read-only until a plan is chosen" in letter["text_body"]
+    assert letter["user_id"] == owner_id
+    # An account letter, filed under no community.
+    assert letter["category"] is NotificationCategory.account
+    pieces = letter["pieces"]
+    assert pieces.subject == "Acme's trial ends on 8 October 2026"
+    assert pieces.link is not None and pieces.link.endswith(
+        f"/c/{guild_id}/settings/usage"
+    )
+    assert "read-only until a plan is chosen" in pieces.body
+
+
+async def test_an_owner_moved_off_the_seat_falls_back_to_the_superadmins(
+    client: AsyncClient, session: AsyncSession, letters
+):
+    """Still a member, no longer the seat: the plan is not theirs to act on."""
+    guild_id, _, other_seat_id, admin_id, _ = await _community(session)
+    admin_ref = await identity_refs.billing_user_ref(user_id=admin_id)
+
+    response = await _post(
+        client,
+        "community-notice",
+        await _notice(guild_id, recipient_user_ref=admin_ref),
+    )
+
+    assert response.json() == {"delivered": True}
+    assert await _told(session, admin_id) == []
+    assert len(await _told(session, other_seat_id)) == 1
+
+
+async def test_a_notice_that_could_not_be_written_is_not_recorded(
+    client: AsyncClient, session: AsyncSession, letters, monkeypatch
+):
+    """Nothing is claimed until the notice is written down, so billing's retry
+    of the same event delivers it."""
+    guild_id, owner_id, *_ = await _community(session)
+    payload = await _notice(guild_id, event_id="evt-retry")
+    real_enqueue = notice_outbox.enqueue
+
+    async def _broken(*_args, **_kwargs):
+        raise RuntimeError("outbox unavailable")
+
+    monkeypatch.setattr(notice_outbox, "enqueue", _broken)
+    failed = await _post(client, "community-notice", payload)
+    assert failed.status_code == 503, failed.text
+    assert failed.json()["detail"] == "BILLING_NOTICE_NOT_DELIVERED"
+    assert (
+        await session.exec(
+            select(BillingEventLog.event_id).where(
+                BillingEventLog.event_id == "evt-retry"
+            )
+        )
+    ).all() == []
+    assert await _told(session, owner_id) == []
+
+    monkeypatch.setattr(notice_outbox, "enqueue", real_enqueue)
+    retried = await _post(client, "community-notice", payload)
+    assert retried.json() == {"delivered": True}
+    assert len(await _told(session, owner_id)) == 1
+    again = await _post(client, "community-notice", payload)
+    assert again.json() == {"delivered": False}
+    assert len(await _told(session, owner_id)) == 1
 
 
 async def test_an_owner_who_left_falls_back_to_the_superadmins(
@@ -174,16 +234,17 @@ async def test_nobody_named_falls_back_to_the_superadmins(
 async def test_each_letter_is_in_its_readers_language(
     client: AsyncClient, session: AsyncSession, letters
 ):
-    guild_id, *_ = await _community(session)
+    guild_id, owner_id, other_seat_id, *_ = await _community(session)
 
     await _post(client, "community-notice", await _notice(guild_id, kind="trial_ended"))
+    await _told(session, owner_id)
 
-    by_recipient = {tuple(letter["recipients"]): letter for letter in letters}
-    assert set(by_recipient) == {("owner@example.com",), ("seat@example.com",)}
-    assert by_recipient[("owner@example.com",)]["subject"] == "Acme's trial has ended"
-    german = by_recipient[("seat@example.com",)]
-    assert german["subject"] == "Die Testphase von Acme ist beendet"
-    assert "schreibgeschützt" in german["text_body"]
+    by_recipient = {letter["user_id"]: letter["pieces"] for letter in letters}
+    assert set(by_recipient) == {owner_id, other_seat_id}
+    assert by_recipient[owner_id].subject == "Acme's trial has ended"
+    german = by_recipient[other_seat_id]
+    assert german.subject == "Die Testphase von Acme ist beendet"
+    assert "schreibgeschützt" in german.body
 
 
 async def test_a_replayed_event_tells_nobody_twice(
@@ -199,7 +260,7 @@ async def test_a_replayed_event_tells_nobody_twice(
     assert again.status_code == 200, again.text
     assert again.json() == {"delivered": False}
     assert len(await _told(session, owner_id)) == 1
-    assert len(letters) == 2  # the first delivery's two languages, once
+    assert len(letters) == 2  # one letter for each seat, once
     rows = (
         await session.exec(
             select(BillingEventLog).where(BillingEventLog.event_id == "evt-notice-dup")

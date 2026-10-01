@@ -23,21 +23,22 @@ export const GuildUsagePanel = () => {
   const { activeGuild } = useGuilds();
 
   const guildId = activeGuild?.id;
-  // What a community stores is read from inside it, so the figure is not part
-  // of what a settings grant reaches. The panel renders without it.
-  const { data: usage } = useReadStorageUsageApiV1CGuildIdStorageUsageGet(guildId ?? 0, {
-    query: { enabled: guildId != null && Boolean(activeGuild?.can.content) },
+  // Read on the settings surface, by the same rung as the caps beside it, so a
+  // settings grant reaches it too. Until it answers — or if it cannot — the
+  // figure is not shown at all: an empty bar would read as nothing stored.
+  const { data: usage, isError } = useReadStorageUsageApiV1CGuildIdStorageUsageGet(guildId ?? 0, {
+    query: { enabled: guildId != null },
   });
 
   if (!activeGuild) {
     return null;
   }
 
-  const usedBytes = usage?.usage_bytes ?? 0;
+  const usedBytes = usage?.usage_bytes;
   const maxBytes = activeGuild.max_storage_bytes; // null = unlimited
   const members = activeGuild.member_count;
   const maxUsers = activeGuild.max_users; // null = unlimited
-  const storagePct = ratioPct(usedBytes, maxBytes);
+  const storagePct = usedBytes == null ? null : ratioPct(usedBytes, maxBytes);
   const memberPct = ratioPct(members, maxUsers);
 
   return (
@@ -50,12 +51,16 @@ export const GuildUsagePanel = () => {
           <div className="flex justify-between text-sm">
             <span className="font-medium">{t("usagePanel.storage")}</span>
             <span className="text-muted-foreground">
-              {maxBytes == null
-                ? t("usagePanel.usedOfUnlimited", { used: formatBytes(usedBytes) })
-                : t("usagePanel.usedOfMax", {
-                    used: formatBytes(usedBytes),
-                    max: formatBytes(maxBytes),
-                  })}
+              {usedBytes == null
+                ? isError
+                  ? t("usagePanel.storageUnavailable")
+                  : null
+                : maxBytes == null
+                  ? t("usagePanel.usedOfUnlimited", { used: formatBytes(usedBytes) })
+                  : t("usagePanel.usedOfMax", {
+                      used: formatBytes(usedBytes),
+                      max: formatBytes(maxBytes),
+                    })}
             </span>
           </div>
           {storagePct != null && <Progress value={storagePct} />}

@@ -385,18 +385,14 @@
   "communityTrialEnding": {
     "subject": "L’essai de {{community}} se termine le {{date}}",
     "title": "L’essai de {{community}} se termine le {{date}}",
-    "greeting": "Bonjour,",
     "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait.",
-    "buttonLabel": "Ouvrir Forfait et utilisation",
-    "textBody": "L’essai de {{community}} se termine le {{date}}. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait. {{link}}"
+    "buttonLabel": "Ouvrir Forfait et utilisation"
   },
   "communityTrialEnded": {
     "subject": "L’essai de {{community}} est terminé",
     "title": "L’essai de {{community}} est terminé",
-    "greeting": "Bonjour,",
     "body": "L’essai de <strong>{{community}}</strong> est terminé et la communauté est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier. Rien n’a été supprimé.",
-    "buttonLabel": "Choisir un forfait",
-    "textBody": "L’essai de {{community}} est terminé et la communauté est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier. Rien n’a été supprimé. {{link}}"
+    "buttonLabel": "Choisir un forfait"
   },
   "signInLocked": {
     "fallbackText": "Si c'était vous, il n'y a rien d'autre à faire. Sinon, quelqu'un connaît peut-être votre adresse e-mail. Votre mot de passe reste protégé, mais pensez à vous connecter avec une clé d'accès.",

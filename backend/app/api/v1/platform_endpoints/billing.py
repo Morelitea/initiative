@@ -14,6 +14,7 @@ and everything past it works on the id as before.
 
 from __future__ import annotations
 
+import logging
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import ValidationError
@@ -47,6 +48,7 @@ from app.services.platform.billing import (
 from app.db.request_context import Billing
 
 router = APIRouter(include_in_schema=False)
+logger = logging.getLogger(__name__)
 
 
 def _payload_error_code(exc: ValidationError) -> str:
@@ -175,10 +177,21 @@ async def community_notice(
     """Tell a community's owner something about its plan, from a fixed list.
 
     Billing names the notice and the day it is about; the words, the
-    recipients and the delivery are ours. The billing role writes the event-log
-    claim and nothing else: the notice goes out after the commit, on the system
-    engine, the way a hold's announcement does. A replayed event id, and a
-    community that is deleted or suspended, are recorded and tell nobody.
+    recipients and the delivery are ours. At least once, never lost:
+
+    1. the envelope is checked and its jti burned, and that is committed;
+    2. on the system engine — the billing role writes the event log and may
+       not read it — an event id already in the log is a replay, and tells
+       nobody;
+    3. on the system engine, the bell lines and the letters are written to the
+       notice outbox, whose worker delivers and retries them, and committed;
+    4. only then is the event id claimed, on the billing session.
+
+    The two writes are on two roles and cannot share a transaction without
+    widening either one's grants. A failure before step 4 leaves the event
+    unclaimed, and billing's retry delivers it; a crash between 3 and 4
+    repeats the reminder rather than losing it. A community that is deleted or
+    suspended is recorded and tells nobody.
     """
     claims, payload = await _verify_and_parse(request, BillingCommunityNotice)
     guild_id = await _resolve_guild(payload.guild_ref)
@@ -189,25 +202,33 @@ async def community_notice(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BillingMessages.GUILD_NOT_FOUND,
         )
-    claimed = await billing_service.claim_community_notice(
-        session, payload, guild_id=guild_id
-    )
-    await session.commit()
-    if not claimed:
-        return BillingCommunityNoticeRead(delivered=False)
+    await session.commit()  # persist the one-shot jti redemption
     owner_user_id = (
         await identity_refs.resolve_billing_user(ref=payload.recipient_user_ref)
         if payload.recipient_user_ref
         else None
     )
-    async with cohorts.system_session(guild_id) as system_session:
-        delivered = await guilds_service.announce_trial_notice(
-            system_session,
-            guild_id,
-            kind=payload.kind.value,
-            trial_ends_on=payload.trial_ends_on,
-            owner_user_id=owner_user_id,
-        )
+    try:
+        async with cohorts.system_session(guild_id) as system_session:
+            if await billing_service.event_claimed(system_session, payload.event_id):
+                return BillingCommunityNoticeRead(delivered=False)
+            delivered = await guilds_service.queue_trial_notice(
+                system_session,
+                guild_id,
+                kind=payload.kind.value,
+                trial_ends_on=payload.trial_ends_on,
+                owner_user_id=owner_user_id,
+            )
+    except Exception as exc:
+        logger.exception("billing: community notice %s not written", payload.event_id)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=BillingMessages.NOTICE_NOT_DELIVERED,
+        ) from exc
+    # A concurrent delivery of the same event may have claimed it meanwhile;
+    # both wrote the notice, which is the at-least-once this accepts.
+    await billing_service.claim_community_notice(session, payload, guild_id=guild_id)
+    await session.commit()
     return BillingCommunityNoticeRead(delivered=delivered)
 
 

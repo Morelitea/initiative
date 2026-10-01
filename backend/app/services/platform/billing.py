@@ -297,14 +297,28 @@ async def _claim_event(
     return True
 
 
+async def event_claimed(session: AsyncSession, event_id: str) -> bool:
+    """Whether ``event_id`` is already in ``billing_event_log``.
+
+    On the system engine: the billing role writes the log and may not read it,
+    so the community notice asks here before it writes anything down.
+    """
+    return (
+        await session.exec(
+            select(BillingEventLog.event_id).where(BillingEventLog.event_id == event_id)
+        )
+    ).first() is not None
+
+
 async def claim_community_notice(
     session: AsyncSession, payload: BillingCommunityNotice, *, guild_id: int
 ) -> bool:
-    """Record one community notice, exactly once per ``event_id``.
+    """Record one community notice in the event log; False if a concurrent
+    delivery recorded it first.
 
-    Whether to deliver it is the caller's, after the commit: the billing role
-    writes the log row and nothing else here, and the notice itself goes out
-    on the system engine the way a hold's does.
+    Claimed after the notice is written down, not before (see
+    ``api.v1.platform_endpoints.billing.community_notice``): the billing role
+    writes the log row and nothing else, and the notice is the system engine's.
     """
     return await _claim_event(
         session,

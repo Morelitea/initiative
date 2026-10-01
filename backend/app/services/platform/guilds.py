@@ -1538,7 +1538,7 @@ _TRIAL_NOTICE_TYPES = {
 }
 
 
-async def announce_trial_notice(
+async def queue_trial_notice(
     session: AsyncSession,
     guild_id: int,
     *,
@@ -1546,18 +1546,25 @@ async def announce_trial_notice(
     trial_ends_on: date,
     owner_user_id: int | None,
 ) -> bool:
-    """Tell a community's owner that its trial is ending or has ended.
+    """Write down a notice that a community's trial is ending or has ended.
 
-    Called after the commit that recorded billing's notice, on the system
-    engine, like a hold's announcement; True when anybody was told. The owner
-    is the person billing holds the community under, while they are still a
-    member of it; otherwise — billing named nobody, or somebody who has left —
-    its current superadmins. A community that is deleted or suspended is told
-    nothing: its members cannot act on a plan through either.
+    On the system engine, before billing's event id is claimed: this commits
+    the bell lines and the letters to the notice outbox, whose worker delivers
+    and retries them, and only then does the caller record the event. A crash
+    between the two repeats the reminder on billing's retry rather than losing
+    it. True when anybody is to be told.
 
-    Each recipient gets a line in their bell, leading to the community's Plan &
-    usage tab, and a letter in their own language at every proved address.
-    Neither may fail the notice, which billing has already been told was taken.
+    The owner is the person billing holds the community under, while they
+    still hold its seat; otherwise — billing named nobody, or somebody who has
+    left or been moved off the seat — its current superadmins. A community that
+    is deleted or suspended is told nothing: its members cannot act on a plan
+    through either.
+
+    Each recipient gets a line in their bell and a letter in their own
+    language, both leading to the community's Plan & usage tab. An account
+    notice, like a hold's: filed under no community, so no community's
+    switches apply to it, and the letter is the recipient's to switch off like
+    the rest of their account mail.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
@@ -1572,58 +1579,47 @@ async def announce_trial_notice(
         GuildStatus.suspended.value,
     ):
         return False
-    recipients: list[int] = []
-    if owner_user_id is not None:
-        still_here = (
-            await session.exec(
-                select(GuildMembership.user_id).where(
-                    GuildMembership.guild_id == guild_id,
-                    GuildMembership.user_id == owner_user_id,
-                )
-            )
-        ).one_or_none()
-        if still_here is not None:
-            recipients = [owner_user_id]
-    if not recipients:
-        recipients = await _superadmin_ids(session, guild_id)
+    seats = await _superadmin_ids(session, guild_id)
+    recipients = [owner_user_id] if owner_user_id in seats else seats
     if not recipients:
         return False
-    await notice_outbox.enqueue(
-        session,
-        [
+    locales = dict(
+        (
+            await session.exec(
+                select(User.id, User.locale).where(User.id.in_(recipients))  # type: ignore[union-attr]
+            )
+        ).all()
+    )
+    notification_type = _TRIAL_NOTICE_TYPES[kind]
+    rows = []
+    for user_id in recipients:
+        letter = email_service.community_trial_pieces(
+            kind=kind,
+            community=guild.name,
+            trial_ends_on=trial_ends_on,
+            guild_id=guild_id,
+            locale=locales.get(user_id) or "en",
+        )
+        rows.append(
             notice_outbox.row(
                 user_id,
                 None,
-                _TRIAL_NOTICE_TYPES[kind],
+                notification_type,
                 {
                     "community": guild.name,
                     "trial_ends_on": trial_ends_on.isoformat(),
                     "guild_id": guild_id,
                     "target_path": "/settings/usage",
                 },
+                email_subject=letter.subject,
+                email_headline=letter.headline,
+                email_body=letter.body,
+                email_link=letter.link,
+                email_link_label=letter.link_label,
             )
-            for user_id in recipients
-        ],
-    )
-    letters = await _seat_letters(session, recipients)
-    community = guild.name
+        )
+    await notice_outbox.enqueue(session, rows)
     await session.commit()
-    for locale, addresses_ in letters.items():
-        try:
-            await email_service.send_community_trial_email(
-                session,
-                kind=kind,
-                recipients=addresses_,
-                community=community,
-                trial_ends_on=trial_ends_on,
-                link=email_service.community_plan_link(guild_id),
-                locale=locale,
-            )
-        except email_service.EmailNotConfiguredError:
-            logger.info("no mail configured; trial notice not sent by letter")
-            break
-        except Exception:  # pragma: no cover - delivery is best-effort here
-            logger.exception("could not send the community trial notice")
     return True
 
 

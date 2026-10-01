@@ -385,18 +385,14 @@
   "communityTrialEnding": {
     "subject": "Die Testphase von {{community}} endet am {{date}}",
     "title": "Die Testphase von {{community}} endet am {{date}}",
-    "greeting": "Hallo,",
     "body": "Die Testphase von <strong>{{community}}</strong> endet am <strong>{{date}}</strong>. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können – danach ist die Community schreibgeschützt, bis ein Tarif gewählt ist.",
-    "buttonLabel": "Tarif & Nutzung öffnen",
-    "textBody": "Die Testphase von {{community}} endet am {{date}}. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können – danach ist die Community schreibgeschützt, bis ein Tarif gewählt ist. {{link}}"
+    "buttonLabel": "Tarif & Nutzung öffnen"
   },
   "communityTrialEnded": {
     "subject": "Die Testphase von {{community}} ist beendet",
     "title": "Die Testphase von {{community}} ist beendet",
-    "greeting": "Hallo,",
     "body": "Die Testphase von <strong>{{community}}</strong> ist beendet, und die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können. Es wurde nichts gelöscht.",
-    "buttonLabel": "Tarif wählen",
-    "textBody": "Die Testphase von {{community}} ist beendet, und die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können. Es wurde nichts gelöscht. {{link}}"
+    "buttonLabel": "Tarif wählen"
   },
   "signInLocked": {
     "fallbackText": "Wenn du das warst, musst du nichts weiter tun. Wenn nicht, kennt vielleicht jemand deine E-Mail-Adresse. Dein Passwort ist weiterhin sicher, aber überlege, dich mit einem Passkey anzumelden.",

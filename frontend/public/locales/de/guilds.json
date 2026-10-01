@@ -394,6 +394,7 @@
     "members": "Mitglieder",
     "usedOfMax": "{{used}} von {{max}}",
     "usedOfUnlimited": "{{used}} verwendet · Unbegrenzt",
+    "storageUnavailable": "Gerade nicht verfügbar",
     "membersOfMax": "{{used}} von {{max}}",
     "membersOfUnlimited": "{{used}} · Unbegrenzt",
     "currentPlan": "Aktueller Tarif:",

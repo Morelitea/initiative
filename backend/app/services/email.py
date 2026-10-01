@@ -990,40 +990,19 @@ _TRIAL_NOTICE_SECTIONS = {
 }
 
 
-async def send_community_trial_email(
-    session: AsyncSession,
-    *,
-    kind: str,
-    recipients: list[str],
-    community: str,
-    trial_ends_on: date,
-    link: str,
-    locale: str = "en",
-) -> None:
-    """Tell a community's seat that its trial is ending, or has ended.
+def community_trial_pieces(
+    *, kind: str, community: str, trial_ends_on: date, guild_id: int, locale: str
+) -> EmailPieces:
+    """A trial notice as notification mail, in ``locale``.
 
     ``kind`` is one of the billing notice kinds; the words are this
-    deployment's, and the button leads to the community's plan, where the
-    billing portal is one more click.
+    deployment's. Written into the notice outbox beside the bell line, so the
+    outbox worker sends it and retries it; the button leads to the community's
+    Plan & usage tab, where the billing portal is one more click.
     """
     section = _TRIAL_NOTICE_SECTIONS[kind]
-    settings_obj, accent = await _email_context(session)
     day = email_date(trial_ends_on, locale)
-    button = _cta_button(email_t(f"{section}.buttonLabel", locale=locale), link, accent)
-    body = f"""
-    <p>{email_t(f"{section}.greeting", locale=locale)}</p>
-    <p>{email_t(f"{section}.body", locale=locale, community=community, date=day)}</p>
-    <p style="margin:24px 0;">{button}</p>
-    """
-    html_body = _build_html_layout(
-        email_t(f"{section}.title", locale=locale, community=community, date=day),
-        body,
-        accent,
-        locale=locale,
-    )
-    await send_email(
-        session,
-        recipients=recipients,
+    return EmailPieces(
         subject=email_t(
             f"{section}.subject",
             locale=locale,
@@ -1031,16 +1010,12 @@ async def send_community_trial_email(
             date=day,
             escape=False,
         ),
-        html_body=html_body,
-        text_body=email_t(
-            f"{section}.textBody",
-            locale=locale,
-            community=community,
-            date=day,
-            link=link,
-            escape=False,
+        headline=email_t(
+            f"{section}.title", locale=locale, community=community, date=day
         ),
-        settings_obj=settings_obj,
+        body=email_t(f"{section}.body", locale=locale, community=community, date=day),
+        link=community_plan_link(guild_id),
+        link_label=email_t(f"{section}.buttonLabel", locale=locale),
     )
 
 
