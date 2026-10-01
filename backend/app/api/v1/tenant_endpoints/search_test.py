@@ -446,11 +446,11 @@ async def test_templates_are_found_by_name_and_pickable_on_their_own(
 
     assert [
         h["entity_id"]
-        for h in (await _search(client, a, q="kickoff", template=True))["items"]
+        for h in (await _search(client, a, q="kickoff", is_template=True))["items"]
     ] == [blank.id]
     assert [
         h["entity_id"]
-        for h in (await _search(client, a, q="kickoff", template=False))["items"]
+        for h in (await _search(client, a, q="kickoff", is_template=False))["items"]
     ] == [real.id]
 
 
