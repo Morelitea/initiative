@@ -28,6 +28,7 @@ from sqlmodel import select
 
 from app.api import deps as api_deps
 from app.core.config import settings
+from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.models.platform.guild import Guild, GuildRole, GuildStatus
@@ -1449,7 +1450,6 @@ async def _wiki_with_filed_documents(session, a, acting_user):
     """A wiki whose pages nest, one draft, and four documents filed in it: a
     text document, a spreadsheet and an upload the exporter owns — the upload
     filed under the first page — and one they can only read."""
-    from app.core.relationships import RelationshipType
     from app.testing.factories import create_wiki, create_wiki_page
 
     await enable_all_tools(session, a.initiative)
@@ -2759,6 +2759,30 @@ _INVALID_SELECTORS: list[tuple[dict[str, Any], str]] = [
         {"filters": '{"project": {"tasks": {"conditions": "[{]"}}}'},
         "EXPORT_INVALID_PARAMS",
     ),
+    # More property filters than the task list compiles.
+    (
+        {
+            "filters": json.dumps(
+                {
+                    "project": {
+                        "tasks": {
+                            "conditions": json.dumps(
+                                [
+                                    {
+                                        "field": "property_values",
+                                        "op": "eq",
+                                        "value": {"property_id": i, "value": "x"},
+                                    }
+                                    for i in range(6)
+                                ]
+                            )
+                        }
+                    }
+                }
+            )
+        },
+        "EXPORT_INVALID_PARAMS",
+    ),
 ]
 
 
@@ -2865,9 +2889,19 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
             session, calendar, a.user, title=title, start_at=start, end_at=start
         )
 
-    await create_task(session, a.project, title="Open")
-    await create_task(
+    open_task = await create_task(session, a.project, title="Open")
+    shipped = await create_task(
         session, a.project, title="Shipped", status_category=TaskStatusCategory.done
+    )
+    await create_task(
+        session, a.project, title="Put away", archived_at=datetime.now(timezone.utc)
+    )
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, open_task.id),
+        target=(SearchEntityType.task, shipped.id),
+        relationship_type=RelationshipType.depends_on,
     )
     open_tasks = {
         "tasks": {
@@ -2920,18 +2954,34 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     assert [t["title"] for t in project["tasks"]] == ["Open"]
     assert "filters" not in (await _job(client, a, resp.json()["id"]))["params"]
 
-    # A project's own export takes the same task filter.
+    # A project's own export takes the same task filter, read by the rule for
+    # that project: a guild admin with no grant on it gets the same tasks. A
+    # link to a task the filter left out has nothing to land on, so it goes.
+    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
     own = await _export(
         client,
         a,
         "project",
+        headers=admin.headers,
         ids=[a.project.id],
         format="json",
         filters=json.dumps(open_tasks),
     )
-    assert [t["title"] for t in json.loads(_assert_export(own, "json"))["tasks"]] == [
-        "Open"
-    ]
+    [kept] = json.loads(_assert_export(own, "json"))["tasks"]
+    assert (kept["title"], kept["links"]) == ("Open", [])
+    # A report shows what its filter asks for, archived tasks included.
+    _assert_export(
+        await _export(
+            client,
+            a,
+            "project",
+            ids=[a.project.id],
+            format="csv",
+            filters=json.dumps({"tasks": {"include_archived": True}}),
+        ),
+        "csv",
+        present=("Open", "Shipped", "Put away"),
+    )
 
 
 async def test_empty_initiative_backup_is_manifest_only_zip(
@@ -3536,7 +3586,6 @@ async def test_a_backup_says_which_wiki_page_a_file_is_filed_under(
     """A file document in a wiki crosses as ``attach_to`` naming the wiki's
     entry — and, when it sits under one of the wiki's pages, that page's slug,
     so a restore files it there again."""
-    from app.core.relationships import RelationshipType
     from app.core.search import SearchEntityType
     from app.services.tenant import relationships as relationships_service
     from app.services.tenant.wikis import file_document

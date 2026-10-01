@@ -19,6 +19,8 @@ time, under the caller's RLS session.
 
 from __future__ import annotations
 
+import json
+from collections import defaultdict
 from datetime import datetime
 from typing import Any, ClassVar
 
@@ -72,10 +74,9 @@ class TaskFilters(BaseModel):
     def _readable(cls, value: str | None) -> str | None:
         # The task list's own checks, so a malformed filter is refused before a
         # job exists rather than failing it.
-        from app.db.query import check_ops, parse_conditions
-        from app.services.fields import registry
+        from app.services.tenant.task_queries import check_task_conditions
 
-        check_ops(parse_conditions(value), registry.allowed_ops("tasks"))
+        check_task_conditions(value)
         return value
 
 
@@ -167,7 +168,11 @@ class ProjectAdapter(ToolExportAdapter):
         /,
     ) -> set[str | None] | None:
         """The refs of the tasks the export's task filters leave; ``None``
-        keeps every task."""
+        keeps every task.
+
+        Each project is asked about on its own, as its task list is: a list
+        that names its project reads it by the rule for that project, which
+        is what the export has already been allowed."""
         from app.models.tenant.task import Task
         from app.services.tenant import task_queries
         from app.services.tenant.project_export import task_ref
@@ -181,19 +186,36 @@ class ProjectAdapter(ToolExportAdapter):
             for task in envelope.tasks
             if task.external_ref
         ]
-        query = await task_queries.parse_task_list_query(
-            session, tasks.conditions, None, getattr(ctx.now.tzinfo, "key", None)
-        )
-        build = await task_queries.guild_task_query_builder(
-            session,
-            ctx.user,
-            require_guild_context(session),
-            q=query,
-            include_archived=tasks.include_archived,
-        )
-        if build is None or not ids:
-            return set()
-        kept = await session.exec(build(select(Task.id)).where(Task.id.in_(ids)))
+        by_project: dict[int, list[int]] = defaultdict(list)
+        for task_id, project_id in await session.exec(
+            select(Task.id, Task.project_id).where(Task.id.in_(ids))
+        ):
+            by_project[project_id].append(task_id)
+        kept: set[int] = set()
+        for project_id, task_ids in by_project.items():
+            confined = [
+                {"field": "project_id", "op": "eq", "value": project_id},
+                *json.loads(tasks.conditions or "[]"),
+            ]
+            query = await task_queries.parse_task_list_query(
+                session,
+                json.dumps(confined),
+                None,
+                getattr(ctx.now.tzinfo, "key", None),
+            )
+            build = await task_queries.guild_task_query_builder(
+                session,
+                ctx.user,
+                require_guild_context(session),
+                q=query,
+                include_archived=tasks.include_archived,
+            )
+            if build is not None:
+                kept.update(
+                    await session.exec(
+                        build(select(Task.id)).where(Task.id.in_(task_ids))
+                    )
+                )
         return {task_ref(task_id) for task_id in kept}
 
     def title(self, envelope: ProjectExportEnvelope, /) -> str:
@@ -202,14 +224,37 @@ class ProjectAdapter(ToolExportAdapter):
     def item(self, envelope: ProjectExportEnvelope, ctx: BuildContext, /) -> RenderItem:
         kept: Any = ctx.prepared
         if kept is not None:
+            # A link to a task this export left out has nothing to land on.
+            left_out = {t.external_ref for t in envelope.tasks} - kept
             envelope = envelope.model_copy(
-                update={"tasks": [t for t in envelope.tasks if t.external_ref in kept]}
+                update={
+                    "tasks": [
+                        t.model_copy(
+                            update={
+                                "links": [
+                                    link
+                                    for link in t.links
+                                    if link.target_external_ref not in left_out
+                                ]
+                            }
+                        )
+                        for t in envelope.tasks
+                        if t.external_ref in kept
+                    ]
+                }
             )
-        return build_project_item(envelope, ctx.format, ctx.user, ctx.now)
+        return build_project_item(
+            envelope, ctx.format, ctx.user, ctx.now, filtered=kept is not None
+        )
 
 
 def build_project_item(
-    envelope: ProjectExportEnvelope, format: str, user: User, now: datetime
+    envelope: ProjectExportEnvelope,
+    format: str,
+    user: User,
+    now: datetime,
+    *,
+    filtered: bool = False,
 ) -> RenderItem:
     date = now.strftime("%Y-%m-%d")
     name = envelope.project.name
@@ -220,15 +265,22 @@ def build_project_item(
             key=envelope_key(Tool.project, name, date),
             data=envelope.model_dump(mode="json"),
         )
-    return RenderItem(key=export_stem(name, date), data=_report_payload(envelope, user))
+    return RenderItem(
+        key=export_stem(name, date), data=_report_payload(envelope, user, filtered)
+    )
 
 
-def _report_payload(envelope: ProjectExportEnvelope, user: User) -> dict:
+def _report_payload(
+    envelope: ProjectExportEnvelope, user: User, filtered: bool
+) -> dict:
+    # A report shows what the task list does: the filters' answer when the
+    # export has one, which already says whether archived tasks belong, and
+    # the list's default otherwise.
     project_archived_at = envelope.project.archived_at
     tasks = [
         t
         for t in envelope.tasks
-        if t.archived_at is None or t.archived_at == project_archived_at
+        if filtered or t.archived_at is None or t.archived_at == project_archived_at
     ]
     loc = export_locale(user)
     return {
