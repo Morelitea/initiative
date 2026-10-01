@@ -9,6 +9,7 @@ matches the list on screen.
 """
 
 import re
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from operator import attrgetter
@@ -1026,11 +1027,16 @@ async def guild_task_query_builder(
     *,
     q: TaskListQuery,
     include_archived: bool,
+    projects: Collection[int] | None = None,
 ):
     """The guild-scoped task visibility pipeline (guild scope, archived
     default, project DAC, filter conditions) as a statement-builder closure.
     Shared by ``list_tasks`` and the tasks export so an export always matches
-    the on-screen list. Returns ``None`` when no project is reachable."""
+    the on-screen list. Returns ``None`` when no project is reachable.
+
+    ``projects`` names projects the caller has already been allowed, such as
+    the ones an export carries: the list's own question about which projects
+    the reader reaches is not asked again, and the filters only narrow."""
     access_conditions: list = []
 
     if not include_archived:
@@ -1041,14 +1047,18 @@ async def guild_task_query_builder(
             or_(Task.archived_at.is_(None), Task.archived_at == Project.archived_at)
         )
 
-    allowed_ids = await _allowed_project_ids(
-        session,
-        current_user,
-        context,
-        include_templates=q.project_id is not None,
-        # Access takes the strict reading, not the one that decides whether
-        # templates join the set.
-        project_id=_confining_project_id(q.user_conditions),
+    allowed_ids = (
+        projects
+        if projects is not None
+        else await _allowed_project_ids(
+            session,
+            current_user,
+            context,
+            include_templates=q.project_id is not None,
+            # Access takes the strict reading, not the one that decides whether
+            # templates join the set.
+            project_id=_confining_project_id(q.user_conditions),
+        )
     )
     if allowed_ids is not None:
         if not allowed_ids:

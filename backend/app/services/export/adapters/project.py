@@ -19,13 +19,12 @@ time, under the caller's RLS session.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from dataclasses import replace
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import Subquery, func, union_all
+from sqlalchemy import Subquery, func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -33,7 +32,6 @@ from app.core.tools import Tool
 from app.core.user_input_validators import resolve_zone
 from app.db.session import require_guild_context
 from app.models.platform.user import User
-from app.schemas.query import FilterCondition, FilterOp
 from app.schemas.tenant.project_export import ProjectExportEnvelope
 from app.services.export.adapters._common import (
     BuildContext,
@@ -238,50 +236,37 @@ class ProjectAdapter(ToolExportAdapter):
 async def _matching(
     session: AsyncSession,
     user: User,
-    project_ids: Iterable[int],
+    project_ids: Collection[int],
     tasks: TaskFilters,
     tz: str | None,
 ) -> Subquery | None:
     """The ids of these projects' tasks that the task list shows with
-    ``tasks``, as one statement; ``None`` when no project is reachable.
+    ``tasks``, as one statement; ``None`` when there are no projects.
 
-    Each project is asked about on its own, as its task list is: a list that
-    names its project reads it by the rule for that project, which is what
-    the export has already been allowed."""
+    The export has already been allowed these projects, so the list's question
+    about which projects the reader reaches is not asked again: the filters
+    only narrow."""
     from app.models.tenant.task import Task
     from app.services.tenant import task_queries
 
     query = await task_queries.parse_task_list_query(
         session, tasks.conditions, None, tz
     )
-    statements = []
-    for project_id in project_ids:
-        # Confined after parsing, so naming the project is not one more of the
-        # conditions a list may hold.
-        confined = replace(
-            query,
-            user_conditions=[
-                FilterCondition(field="project_id", op=FilterOp.eq, value=project_id),
-                *query.user_conditions,
-            ],
-            project_id=project_id,
-        )
-        build = await task_queries.guild_task_query_builder(
-            session,
-            user,
-            require_guild_context(session),
-            q=confined,
-            include_archived=tasks.include_archived,
-        )
-        if build is not None:
-            statements.append(build(select(Task.id)))
-    return union_all(*statements).subquery() if statements else None
+    build = await task_queries.guild_task_query_builder(
+        session,
+        user,
+        require_guild_context(session),
+        q=query,
+        include_archived=tasks.include_archived,
+        projects=project_ids,
+    )
+    return build(select(Task.id)).subquery() if build is not None else None
 
 
 async def matching_tasks(
     session: AsyncSession,
     user: User,
-    project_ids: Iterable[int],
+    project_ids: Collection[int],
     tasks: TaskFilters,
     tz: str | None,
 ) -> set[int]:
@@ -296,7 +281,7 @@ async def matching_tasks(
 async def count_matching_tasks(
     session: AsyncSession,
     user: User,
-    project_ids: Iterable[int],
+    project_ids: Collection[int],
     tasks: TaskFilters,
     tz: str | None,
 ) -> int:
