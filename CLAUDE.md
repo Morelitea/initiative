@@ -119,7 +119,7 @@ the last release** — the newest revision that has run on somebody's database.
 
 ### Releasing a Version
 
-Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `main` with the version bump and changelog stamp. Only code owners (@jordandrako, @LeeJMorel) can run this script.
+Releases are managed by `scripts/promote.sh`, which creates a PR from `dev` to `main` with the version bump and changelog stamp. Only code owners (@jordandrako, @LeeJMorel) can run this script. The same script runs from GitHub: **Actions → Release → Run workflow**, choose patch, minor, major or docs (and dry run), and approve the run. It runs as the release app, whose client ID (`RELEASE_APP_CLIENT_ID`) and private key (`RELEASE_APP_PRIVATE_KEY`) the `release` environment holds, so the PR's CI and the release candidate start as they would for a PR a person opened.
 
 ```bash
 # Patch release (0.29.1 → 0.29.2)
