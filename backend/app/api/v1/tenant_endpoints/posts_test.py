@@ -29,6 +29,7 @@ from app.testing import (
     create_post,
     create_resource_grant,
     lexical_body,
+    drain_notices,
 )
 from app.testing import route_as
 
@@ -565,6 +566,7 @@ async def test_reacting_takes_read_access_and_nothing_more(
 async def _notifications_for(
     session: AsyncSession, user_id: int, ntype: NotificationType
 ) -> list[Notification]:
+    await drain_notices()
     await session.exec(text("SET search_path TO public"))
     result = await session.exec(
         select(Notification).where(
@@ -723,9 +725,9 @@ async def test_a_draft_is_out_of_the_sidebar_counts(
     await create_post(session, author.initiative, author.user, name="Live one")
 
     counts = await client.get(
-        reader.g("/posts/counts/by-initiative"), headers=reader.headers
+        reader.g("/tools/counts/by-initiative"), headers=reader.headers
     )
-    assert counts.json()["counts"][str(author.initiative.id)] == 1
+    assert counts.json()["counts"]["post"][str(author.initiative.id)] == 1
 
 
 async def test_an_editor_can_see_a_draft(
@@ -969,7 +971,7 @@ async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, role_session
     On the request login, routed as the reader: what a notice is to somebody
     is the level they hold on it, and that is answered for whoever the
     session is."""
-    from app.services.tenant.posts import get_post_for_export
+    from app.services.export.adapters import ADAPTERS
 
     reader, draft = draft_scene.reader, draft_scene.draft
     guild_id = draft_scene.author.guild.id
@@ -977,7 +979,7 @@ async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, role_session
     s = await role_session("app_user")
     await route_as(s, user_id=reader.user.id, guild_id=guild_id)
     with pytest.raises(HTTPException) as excinfo:
-        await get_post_for_export(s, reader.user, guild_id, post_id=draft.id)
+        await ADAPTERS["post"].fetch(s, reader.user, guild_id, draft.id)
     assert excinfo.value.status_code == 404
 
 
@@ -986,7 +988,7 @@ async def test_its_author_still_reaches_a_draft_everywhere(
 ):
     """The gate is "not yours to read yet", not "gone" — whoever could edit it
     keeps every door."""
-    from app.services.tenant.posts import get_post_for_export
+    from app.services.export.adapters import ADAPTERS
 
     author, draft = draft_scene.author, draft_scene.draft
 
@@ -1002,7 +1004,7 @@ async def test_its_author_still_reaches_a_draft_everywhere(
     ).status_code == 200
     s = await role_session("app_user")
     await route_as(s, user_id=author.user.id, guild_id=author.guild.id)
-    assert await get_post_for_export(s, author.user, author.guild.id, post_id=draft.id)
+    assert await ADAPTERS["post"].fetch(s, author.user, author.guild.id, draft.id)
 
 
 # ---------------------------------------------------------------------------

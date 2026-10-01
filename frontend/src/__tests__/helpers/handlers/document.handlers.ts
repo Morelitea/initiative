@@ -14,7 +14,4 @@ export const documentHandlers = [
       sort_dir: null,
     });
   }),
-  guildHttp.get("/documents/counts/by-initiative", () => {
-    return HttpResponse.json({ counts: {} });
-  }),
 ];

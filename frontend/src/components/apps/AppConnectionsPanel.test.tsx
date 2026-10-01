@@ -60,9 +60,9 @@ const typed: GuildAppConnectionRead = {
   fields: [{ key: "shop_domain", type: "string", label: { en: "Shop domain" }, required: true }],
 };
 
-const render = (connection: GuildAppConnectionRead, isGuildAdmin = true) =>
+const render = (connection: GuildAppConnectionRead, canManage = true) =>
   renderPage(() => (
-    <AppConnectionsPanel appId={3} connections={[connection]} isGuildAdmin={isGuildAdmin} />
+    <AppConnectionsPanel appId={3} connections={[connection]} canManage={canManage} />
   ));
 
 beforeEach(() => {

@@ -1,9 +1,8 @@
 import { useTranslation } from "react-i18next";
 
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
-import { TagPicker } from "@/components/tags/TagPicker";
-import { Input } from "@/components/ui/input";
+import { ToolFilterFields, type ToolFilterFieldsProps } from "@/components/tools/ToolFilterFields";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -15,17 +14,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { ProjectSortMode } from "@/hooks/useProjectListView";
 
-type ProjectsFilterBarProps = {
-  searchQuery: string;
-  onSearchQueryChange: (value: string) => void;
+type ProjectsFilterBarProps = ToolFilterFieldsProps<typeof Tool.project> & {
   filtersOpen: boolean;
   onFiltersOpenChange: (open: boolean) => void;
   sortMode: ProjectSortMode;
   onSortModeChange: (value: ProjectSortMode) => void;
   favoritesOnly: boolean;
   onFavoritesOnlyChange: (value: boolean) => void;
-  tagFilters: TagSummary[];
-  onTagFiltersChange: (tags: TagSummary[]) => void;
   /** Manual ordering is only offered where the list can actually be dragged. */
   allowCustomSort?: boolean;
   /** How many filters are currently set — tells "Clear all" whether it has
@@ -35,20 +30,21 @@ type ProjectsFilterBarProps = {
   onClear?: () => void;
 };
 
+/** The projects list's filters: the list's shared fields, then the reader's
+ *  own sort order and favourites. */
 export const ProjectsFilterBar = ({
-  searchQuery,
-  onSearchQueryChange,
+  value,
+  onChange,
   filtersOpen,
   onFiltersOpenChange,
   sortMode,
   onSortModeChange,
   favoritesOnly,
   onFavoritesOnlyChange,
-  tagFilters,
-  onTagFiltersChange,
   allowCustomSort = true,
   onClear,
   activeCount,
+  initiativeId,
 }: ProjectsFilterBarProps) => {
   const { t } = useTranslation(["projects", "common"]);
 
@@ -60,33 +56,12 @@ export const ProjectsFilterBar = ({
       onClear={onClear}
       activeCount={activeCount}
     >
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="w-full space-y-2 lg:flex-1">
-          <Label
-            htmlFor="project-search"
-            className="block font-medium text-muted-foreground text-xs"
-          >
-            {t("filters.searchLabel")}
-          </Label>
-          <Input
-            id="project-search"
-            placeholder={t("filters.searchProjects")}
-            value={searchQuery}
-            onChange={(event) => onSearchQueryChange(event.target.value)}
-            className="min-w-60"
-          />
-        </div>
-        <div className="w-full space-y-2 sm:w-48">
-          <Label htmlFor="tag-filter" className="block font-medium text-muted-foreground text-xs">
-            {t("filters.filterByTag")}
-          </Label>
-          <TagPicker
-            selectedTags={tagFilters}
-            onChange={onTagFiltersChange}
-            placeholder={t("filters.allTags")}
-            variant="filter"
-          />
-        </div>
+      <ToolFilterFields
+        tool={Tool.project}
+        value={value}
+        onChange={onChange}
+        initiativeId={initiativeId}
+      >
         <div className="w-full space-y-2 sm:w-60">
           <Label htmlFor="project-sort" className="block font-medium text-muted-foreground text-xs">
             {t("filters.sortProjects")}
@@ -126,7 +101,7 @@ export const ProjectsFilterBar = ({
             <span className="text-muted-foreground text-sm">{t("filters.showOnlyFavorites")}</span>
           </div>
         </div>
-      </div>
+      </ToolFilterFields>
     </ToolFilterPanel>
   );
 };

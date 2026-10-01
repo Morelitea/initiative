@@ -597,7 +597,14 @@ async def _apply_entry(
         return outcome
     if entry.type in _STRUCTURAL_TYPES:
         return await _apply_structural_entry(
-            session, archive, entry, initiative, user, base, max_json_bytes
+            session,
+            archive,
+            entry,
+            initiative,
+            user,
+            base,
+            max_json_bytes,
+            context=context,
         )
     importer = importers.get(entry.type)
     if importer is None:
@@ -686,13 +693,17 @@ async def _apply_structural_entry(
     user: User,
     base: dict,
     max_json_bytes: int,
+    *,
+    context: ImportContext | None = None,
 ) -> EntryResult:
     """An initiative's own shape: its property definitions, or its roles and
     members.
 
     Both are **additive**. They create what the target does not have and leave
-    what it does alone: a definition or role of the same name is the target's
-    answer, not the archive's, and nobody is removed or demoted by an import.
+    what it does alone: a role of the same name, or a definition of the same
+    name and type, is the target's answer, not the archive's, and nobody is
+    removed or demoted by an import. A definition whose name the target uses
+    for something else is made beside it, as every importer makes one.
     """
     invalid = EntryResult(
         **base, status="failed", error=ImportEngineMessages.IMPORT_INVALID_ENVELOPE
@@ -711,7 +722,7 @@ async def _apply_structural_entry(
         async with session.begin_nested():
             if entry.type == "initiative-properties":
                 created = await _apply_property_definitions(
-                    session, initiative, payload
+                    session, initiative, payload, context=context
                 )
             else:
                 created = await _apply_initiative_structure(
@@ -729,44 +740,30 @@ async def _apply_structural_entry(
     )
 
 
-async def _apply_property_definitions(session, initiative, payload: dict) -> dict:
-    """Create the definitions the target does not already have, by name."""
-    from sqlmodel import select
+async def _apply_property_definitions(
+    session: AsyncSession,
+    initiative,
+    payload: dict,
+    *,
+    context: ImportContext | None,
+) -> dict:
+    """Bind the archive's definitions in the target, the way every importer
+    binds the definitions an envelope declares."""
+    from pydantic import ValidationError
 
-    from app.models.tenant.property import PropertyDefinition, PropertyType
+    from app.schemas.tenant.project_export import ProjectExportPropertyDefinition
+    from app.services.import_engine.importers._base import PropertyRestore
 
-    existing = {
-        name
-        for name in await session.exec(
-            select(PropertyDefinition.name).where(
-                PropertyDefinition.initiative_id == initiative.id
-            )
-        )
-    }
-    created = 0
+    declared = []
     for raw in payload.get("properties") or []:
-        name = str(raw.get("name") or "").strip()
-        if not name or name in existing:
-            continue
         try:
-            prop_type = PropertyType(raw.get("type"))
-        except ValueError:
-            continue  # a type this build has no column for
-        options = raw.get("options")
-        session.add(
-            PropertyDefinition(
-                initiative_id=initiative.id,
-                name=name,
-                type=prop_type,
-                position=float(raw.get("position") or 0),
-                color=raw.get("color"),
-                options=options if isinstance(options, list) else None,
-            )
-        )
-        existing.add(name)
-        created += 1
+            declared.append(ProjectExportPropertyDefinition.model_validate(raw))
+        except ValidationError:
+            continue  # a type this build has no column for, or no name
+    props = PropertyRestore(session, initiative_id=initiative.id, context=context)
+    await props.declare(declared)
     await session.flush()
-    return {"property_definitions": created}
+    return {"property_definitions": props.created}
 
 
 async def _apply_initiative_structure(session, initiative, user: User, payload) -> dict:
@@ -876,16 +873,12 @@ async def _apply_file_entry(
     of text, which a file document cannot hold, becomes a spreadsheet read
     from the zip instead."""
     from app.models.tenant.document import Document, DocumentType
-    from app.models.tenant.property import DocumentPropertyValue
     from app.models.tenant.upload import Upload
     from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
-    from app.services.import_engine.common import (
-        ensure_tag,
-        load_initiative_member_handles,
-    )
+    from app.services.import_engine.common import ensure_tag
     from app.services.import_engine.importers._base import (
+        PropertyRestore,
         grant_ownership,
-        resolve_property_values,
     )
     from app.services.tenant.attachments import MAX_DOCUMENT_FILE_SIZE
     from app.services.tenant.documents_spreadsheet import DocumentContentError
@@ -974,28 +967,14 @@ async def _apply_file_entry(
                         resolved.id,
                     )
                 )
-            if entry.properties:
-                values = [
-                    EnvelopePropertyValue.model_validate(p) for p in entry.properties
-                ]
-                member_handles = await load_initiative_member_handles(
-                    session, initiative_id=initiative.id
-                )
-                attached = await resolve_property_values(
-                    session,
-                    initiative_id=initiative.id,
-                    values=values,
-                    member_handles=member_handles,
-                    people=context.people if context is not None else None,
-                )
-                for prop_id, column_kwargs in attached.column_kwargs_by_id.items():
-                    session.add(
-                        DocumentPropertyValue(
-                            document_id=document.id,
-                            property_id=prop_id,
-                            **column_kwargs,
-                        )
-                    )
+            props = PropertyRestore(
+                session, initiative_id=initiative.id, context=context
+            )
+            await props.attach(
+                document,
+                [EnvelopePropertyValue.model_validate(p) for p in entry.properties],
+            )
+            unmatched_handles = await props.settle(document)
     except Exception:
         logger.exception(
             "backup file entry failed path=%s asset=%s", entry.path, entry.asset
@@ -1013,6 +992,7 @@ async def _apply_file_entry(
             entity_id=document.id,
             entity_title=document.name,
             created={"documents": 1},
+            unmatched_handles=unmatched_handles,
         ),
     )
 

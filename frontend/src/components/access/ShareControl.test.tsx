@@ -2,7 +2,6 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildInitiative, buildInitiativeMember } from "@/__tests__/factories/initiative.factory";
 import { buildUserPublic } from "@/__tests__/factories/user.factory";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type {
@@ -16,11 +15,6 @@ import type {
 
 const alice = buildUserPublic({ id: 101, full_name: "Alice" });
 const bob = buildUserPublic({ id: 102, full_name: "Bob" });
-
-const initiative = buildInitiative({
-  id: 1,
-  members: [buildInitiativeMember({ user: alice }), buildInitiativeMember({ user: bob })],
-});
 
 const roles: InitiativeRoleRead[] = [
   {
@@ -47,24 +41,25 @@ const roles: InitiativeRoleRead[] = [
   },
 ];
 
-vi.mock("@/hooks/useInitiatives", () => ({
-  useInitiative: () => ({ data: initiative }),
-}));
-
 vi.mock("@/hooks/useInitiativeRoles", () => ({
   useInitiativeRoles: () => ({ data: roles }),
 }));
 
-// The guild view searches the guild's members rather than holding an
-// initiative's, and looks up the ones already named by id.
+// People are searched on the server — the initiative's members, or the
+// guild's — and the ones already named are looked up by id.
+const memberSearch = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/useUsers", () => ({
   USER_ID_LOOKUP_MAX: 100,
-  useMemberSearch: (_scope: unknown, { userIds }: { userIds?: number[] } = {}) => ({
-    data: {
-      items: userIds?.length ? [alice, bob].filter((u) => userIds.includes(u.id)) : [alice, bob],
-    },
-    isFetching: false,
-  }),
+  useMemberSearch: (scope: unknown, options: { userIds?: number[] } = {}) => {
+    memberSearch(scope, options);
+    const { userIds } = options;
+    return {
+      data: {
+        items: userIds?.length ? [alice, bob].filter((u) => userIds.includes(u.id)) : [alice, bob],
+      },
+      isFetching: false,
+    };
+  },
 }));
 
 // The community's installed apps, which name an app grantee.
@@ -133,6 +128,11 @@ describe("ShareControl", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     const next = onChange.mock.calls[0][0] as ResourceGrantSchema[];
     expect(next).toContainEqual({ user_id: 101, level: "read" });
+    // The picker searched the initiative's members, not the guild's.
+    expect(memberSearch).toHaveBeenCalledWith(
+      { type: "initiative", initiativeId: 1 },
+      expect.objectContaining({ enabled: true })
+    );
   });
 
   it("renders a full-access role as a locked, non-removable Editor in restricted mode", () => {

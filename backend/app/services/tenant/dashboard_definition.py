@@ -597,7 +597,7 @@ def _require_mapping(value: Any, code: str) -> dict[str, Any]:
 
 def _clean_text(value: Any) -> str | None:
     """Plain text only — never markup. Non-strings are dropped rather than
-    coerced, so a nested object can't smuggle itself into a rendered label."""
+    coerced, so a nested object never ends up in a rendered label."""
     if not isinstance(value, str):
         return None
     stripped = value.strip()

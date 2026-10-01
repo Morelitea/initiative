@@ -5,7 +5,7 @@ Exercises the security properties of ``POST /api/v1/billing/*``:
 * the double envelope — HMAC over METHOD/PATH/TIMESTAMP/sha256(body) inside
   a replay window, plus an RS256 service JWT with one-shot jti — with
   negative tests for every layer (unconfigured, missing headers, stale or
-  tampered signatures, wrong key/aud/iss, replayed jti);
+  altered signatures, wrong key/aud/iss, reused jti);
 * exactly-once application via the ``billing_event_log`` claim (a retried
   event id is a no-op; a 404'd attempt does NOT consume its event id);
 * omit-vs-null sentinel semantics on the writable fields;
@@ -47,6 +47,7 @@ from app.testing import (
     create_guild,
     create_upload,
     create_user,
+    drain_notices,
 )
 
 
@@ -1154,6 +1155,7 @@ async def _hold_notices(session: AsyncSession, user_id: int) -> int:
     from app.models.platform.notification import Notification, NotificationType
 
     session.expire_all()
+    await drain_notices()
     rows = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,

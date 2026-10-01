@@ -80,8 +80,7 @@
     "loadError": "Impossible de charger les projets archivés.",
     "unarchive": "Désarchiver",
     "noArchived": "Aucun projet archivé",
-    "noArchivedDescription": "Les projets actifs restent dans l'onglet Actifs.",
-    "sharingUnavailable": "Le partage d'un projet archivé ne peut pas être modifié."
+    "noArchivedDescription": "Les projets actifs restent dans l'onglet Actifs."
   },
   "createDialog": {
     "title": "Créer un projet",
@@ -414,11 +413,5 @@
     "noComments": "Aucun commentaire pour l'instant.",
     "commentedOn": "a commenté sur",
     "loadMore": "Charger plus"
-  },
-  "status": {
-    "label": "Afficher",
-    "active": "Actifs",
-    "templates": "Modèles",
-    "archived": "Archivés"
   }
 }

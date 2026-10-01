@@ -142,8 +142,8 @@ async def test_rotate_expired_token_returns_expired(session):
 
 
 async def test_reuse_of_spent_token_revokes_whole_chain(session):
-    """Theft detection: replaying an already-rotated token kills the entire
-    chain — including the live tail the legitimate client is still using."""
+    """Presenting an already-rotated token revokes the entire chain —
+    including the live tail."""
     user = await create_user(session)
     r1 = await session_service.create_session(
         session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_at()
@@ -151,15 +151,14 @@ async def test_reuse_of_spent_token_revokes_whole_chain(session):
     r2 = await _rotate_ok(session, r1.refresh_token, _at(minutes=1))
     r3 = await _rotate_ok(session, r2.refresh_token, _at(minutes=2))
 
-    # Attacker replays r1's (long-spent) token.
+    # Present r1's (long-spent) token again.
     result = await session_service.rotate_session(
         session, raw_refresh_token=r1.refresh_token, now=_at(minutes=3)
     )
     assert result.outcome is RefreshOutcome.REUSED
     assert result.issued is None
 
-    # The live tail (r3) is now revoked — the attacker gained nothing and the
-    # real user is forced to re-authenticate.
+    # The live tail (r3) is now revoked, so the user must sign in again.
     for issued in (r1, r2, r3):
         await session.refresh(issued.session)
         assert issued.session.revoked_at is not None

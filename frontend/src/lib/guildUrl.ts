@@ -56,6 +56,18 @@ export function guildIdFromPath(path: string): number | null {
 }
 
 /**
+ * Whether a path is a community's billing forwarder (`/c/5/billing`, with or
+ * without its query). The forwarder asks the server for the handoff itself, so
+ * it is reached without the community being in the account's list: a
+ * community on hold is missing from it, and its seat still needs the way to
+ * its plan.
+ */
+export function isBillingForwardPath(path: string): boolean {
+  const pathname = path.split("?")[0].split("#")[0];
+  return guildIdFromPath(pathname) !== null && extractSubPath(pathname) === "/billing";
+}
+
+/**
  * Extract the sub-path from a guild-scoped path (everything after /c/:guildId).
  * @param path The full path
  * @returns The sub-path (e.g., "/projects/47" from "/c/5/projects/47")

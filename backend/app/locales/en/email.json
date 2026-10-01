@@ -372,13 +372,34 @@
     "title": "{{community}} is on hold",
     "greeting": "Hello,",
     "body": "<strong>{{community}}</strong> is on hold, so nobody can open it for now — its members and its administrators alike. Nothing in it has been changed or removed.",
-    "deletion": "If it is still on hold on <strong>{{date}}</strong>, it will be deleted.",
+    "bodyDeleting": "<strong>{{community}}</strong> is on hold and will be deleted on <strong>{{date}}</strong> unless its plan is restored. Until then nobody can open it — its members and its administrators alike — and nothing in it has been changed or removed.",
+    "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> is on hold and will be deleted on <strong>{{date}}</strong> unless the hold is lifted. Until then nobody can open it — its members and its administrators alike — and nothing in it has been changed or removed.",
     "contact": "Contact <strong>{{contact}}</strong> to sort it out.",
     "contactNobody": "Contact whoever runs this server to sort it out.",
     "textBody": "{{community}} is on hold, so nobody can open it for now. Nothing in it has been changed or removed.",
-    "textDeletion": "If it is still on hold on {{date}}, it will be deleted.",
+    "textBodyDeleting": "{{community}} is on hold and will be deleted on {{date}} unless its plan is restored. Until then nobody can open it, and nothing in it has been changed or removed.",
+    "textBodyDeletingUnlessLifted": "{{community}} is on hold and will be deleted on {{date}} unless the hold is lifted. Until then nobody can open it, and nothing in it has been changed or removed.",
     "textContact": "Contact {{contact}} to sort it out.",
-    "textContactNobody": "Contact whoever runs this server to sort it out."
+    "textContactNobody": "Contact whoever runs this server to sort it out.",
+    "buttonLabel": "Restore the plan"
+  },
+  "communityTrialEnding": {
+    "subject": "{{community}}'s trial ends on {{date}}",
+    "title": "{{community}}'s trial ends on {{date}}",
+    "body": "<strong>{{community}}</strong>'s trial ends on <strong>{{date}}</strong>. Subscribe in the billing portal before then to keep editing — after that the community becomes read-only until a plan is chosen.",
+    "buttonLabel": "Open the billing portal"
+  },
+  "communityTrialEnded": {
+    "subject": "{{community}}'s trial has ended",
+    "title": "{{community}}'s trial has ended",
+    "body": "<strong>{{community}}</strong>'s trial has ended and the community is now read-only. Choose a plan in the billing portal to keep editing. Nothing has been deleted.",
+    "buttonLabel": "Choose a plan"
+  },
+  "communityWelcome": {
+    "subject": "{{community}} is ready",
+    "title": "{{community}} is ready",
+    "body": "<strong>{{community}}</strong> is set up and ready for its members. When you're ready, set up its plan in the billing portal.",
+    "buttonLabel": "Set up the plan"
   },
   "signInLocked": {
     "fallbackText": "If this was you, there's nothing else to do. If it wasn't, someone may know your email address. Your password is still safe, but consider signing in with a passkey.",
@@ -392,6 +413,23 @@
       "title": "Password sign-in paused",
       "body_one": "Wrong passwords or codes kept arriving for your account, so signing in with a password or code is turned off for an hour. Passkeys still work, and you stay signed in where you already are. To turn it back on now, reset your password with “Forgot password?” on the sign-in page.",
       "body_other": "Wrong passwords or codes kept arriving for your account, so signing in with a password or code is turned off for {{count}} hours. Passkeys still work, and you stay signed in where you already are. To turn it back on now, reset your password with “Forgot password?” on the sign-in page."
+    }
+  },
+  "dates": {
+    "long": "{{day}} {{month}} {{year}}",
+    "months": {
+      "m1": "January",
+      "m2": "February",
+      "m3": "March",
+      "m4": "April",
+      "m5": "May",
+      "m6": "June",
+      "m7": "July",
+      "m8": "August",
+      "m9": "September",
+      "m10": "October",
+      "m11": "November",
+      "m12": "December"
     }
   }
 }

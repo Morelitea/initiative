@@ -30,6 +30,7 @@ export function buildGallery(overrides: Partial<GalleryRead> = {}): GalleryRead 
     comments_enabled: true,
     comment_count: 0,
     tags: [],
+    properties: [],
     grants: [],
     ...overrides,
   };
@@ -61,6 +62,7 @@ export function buildGalleryImage(overrides: Partial<GalleryImageRead> = {}): Ga
     updated_at: "2026-01-15T00:00:00.000Z",
     version_count: 1,
     tags: [],
+    properties: [],
     ...overrides,
   };
 }

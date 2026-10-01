@@ -30,7 +30,8 @@ class SummaryTest(unittest.TestCase):
     def test_reads_the_result_failures_and_durations(self):
         run = pytest_summary.parse(LOG)
         self.assertEqual(
-            run.result, "9637 passed, 265 skipped, 2 failed, 1 error in 2659.65s (0:44:19)"
+            run.result,
+            "9637 passed, 265 skipped, 2 failed, 1 error in 2659.65s (0:44:19)",
         )
         self.assertEqual(run.workers, {"gw2": 3})
         self.assertEqual(
@@ -64,7 +65,8 @@ class SummaryTest(unittest.TestCase):
 
     def test_each_log_gets_its_own_heading(self):
         text = pytest_summary.render(
-            pytest_summary.parse("==== 3 passed in 1.00s ====\n"), "Request-context seam"
+            pytest_summary.parse("==== 3 passed in 1.00s ====\n"),
+            "Request-context seam",
         )
         self.assertTrue(text.startswith("### Request-context seam"))
 

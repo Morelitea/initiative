@@ -10,6 +10,7 @@
     @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
     @keyframes lid-bob { 0%, 100% { transform: rotate(-20deg) translateY(0); } 50% { transform: rotate(-20deg) translateY(-1.5px); } }
     @keyframes tongue { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(3deg); } 70% { transform: rotate(-3deg); } }
+    @media (prefers-reduced-motion: reduce) { [class] { animation: none; } }
   </style>
   <g class="body">
     <rect x="3" y="16" width="26" height="12" fill="#8B5E3C"/>

@@ -434,6 +434,9 @@ class TestHandoff:
         )
         # Whether the viewer administers the community, and no other role.
         assert claims["guild_admin"] is True
+        # Opened at community level, there is no initiative to moderate.
+        assert "initiative_id" not in claims
+        assert "initiative_moderator" not in claims
 
         # The subject is pairwise (OIDC Core §8.1): it names the member to this
         # install and is not the row id, so an app storing `sub` as its key for
@@ -610,8 +613,44 @@ class TestInitiativeHandoff:
         claims = self._claims(response.json())
         assert claims["initiative_id"] == a.initiative.id
         # A member opening it through the placement does not administer the
-        # community, and the token says so.
+        # community or moderate the initiative, and the token says so.
         assert claims["guild_admin"] is False
+        assert claims["initiative_moderator"] is False
+
+    async def test_a_moderator_is_told_so_in_the_token(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        app = await _installed(session, a, placed=[a.initiative.id])
+        moderator = await self._member(acting_user, a, role="moderator")
+
+        response = await client.post(
+            self._path(moderator, a.initiative.id, app.id, "inside"),
+            headers=moderator.headers,
+        )
+
+        assert response.status_code == 200, response.text
+        claims = self._claims(response.json())
+        assert claims["initiative_moderator"] is True
+        assert claims["guild_admin"] is False
+
+    async def test_a_project_manager_does_not_moderate(
+        self, client: AsyncClient, acting_user, session: AsyncSession, registration
+    ):
+        """A project manager manages the initiative without "Full access", and
+        moderating takes both."""
+        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+        app = await _installed(session, a)
+        await _allow(session, a, app, a.initiative.id, "project_manager")
+        manager = await self._member(acting_user, a, role="project_manager")
+
+        response = await client.post(
+            self._path(manager, a.initiative.id, app.id, "inside"),
+            headers=manager.headers,
+        )
+
+        assert response.status_code == 200, response.text
+        assert self._claims(response.json())["initiative_moderator"] is False
 
     async def test_a_guild_admin_is_told_so_in_the_token(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
@@ -1116,12 +1155,6 @@ class TestPlacementRoutes:
         assert put.status_code == 403
         assert put.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
 
-        removed = await client.delete(
-            self._path(admin, app.id, a.initiative.id), headers=admin.headers
-        )
-        assert removed.status_code == 403
-        assert removed.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
-
     async def test_a_role_of_another_initiative_is_refused(
         self, client: AsyncClient, acting_user, session: AsyncSession, registration
     ):
@@ -1153,35 +1186,6 @@ class TestPlacementRoutes:
         )
         assert response.status_code == 422
         assert response.json()["detail"] == GuildAppMessages.PLACEMENT_INVALID
-
-    async def test_the_seat_removes_a_placement(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
-
-        response = await client.delete(
-            self._path(a, app.id, a.initiative.id), headers=a.headers
-        )
-        assert response.status_code == 204
-        assert await self._placements(client, a, app.id) == []
-
-    async def test_a_mandatory_app_may_be_removed_from_one_initiative(
-        self, client: AsyncClient, acting_user, session: AsyncSession, registration
-    ):
-        """The deployment decides that the app exists; the seat still decides
-        where it appears."""
-        a = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
-        app = await _installed(session, a, placed=[a.initiative.id])
-        await _mark(session, registration, mandatory=True)
-
-        response = await client.delete(
-            self._path(a, app.id, a.initiative.id), headers=a.headers
-        )
-        assert response.status_code == 204
-        read = (await client.get(a.g(f"/apps/{app.id}"), headers=a.headers)).json()
-        assert read["mandatory"] is True
-        assert read["placements"] == []
 
 
 class TestScopesRoute:

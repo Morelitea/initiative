@@ -7,14 +7,16 @@ import type {
   InitiativeRoleRead,
   ResourceGrantBulkItem,
   ResourceGrantSchema,
+  SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams,
   Tool,
   ToolCan,
+  UserSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey,
-  getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet,
   getListInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGetQueryKey,
+  getSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetQueryKey,
   listInitiativeRolesApiV1CGuildIdInitiativesInitiativeIdRolesGet,
+  searchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet,
 } from "@/api/generated/initiatives/initiatives";
 import { bulkSetResourceGrantsApiV1CGuildIdResourceGrantsBulkPut } from "@/api/generated/resource-grants/resource-grants";
 import { Button } from "@/components/ui/button";
@@ -44,7 +46,9 @@ import {
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInitiatives } from "@/hooks/useInitiatives";
+import { USER_ID_LOOKUP_MAX, USER_SEARCH_PAGE_SIZE } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { getUserDisplayName, getUserHandle } from "@/lib/userDisplay";
@@ -55,6 +59,7 @@ import type { DialogWithSuccessProps } from "@/types/dialog";
 export interface BulkAccessItem {
   id: number;
   initiative_id: number;
+  archived_at?: string | null;
   grants?: ResourceGrantSchema[] | null;
   can: ToolCan;
 }
@@ -85,6 +90,15 @@ interface SelectableRole {
 
 // The bulk endpoint caps items per request; chunk larger selections transparently.
 const MAX_BULK_ITEMS = 200;
+
+type MemberSearchParams =
+  SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetParams;
+
+const toSelectableUser = (member: UserSummary): SelectableUser => ({
+  id: member.id,
+  name: getUserDisplayName(member),
+  handle: getUserHandle(member),
+});
 
 /**
  * Bulk-edit sharing across many resources of one tool type. Keeps a safe
@@ -149,36 +163,77 @@ export function BulkEditAccessDialog({
     return map;
   }, [initiatives]);
 
-  // Every member across the relevant initiatives, for resolving names in both
-  // grant (pick) and revoke (already-granted) modes — works for tools whose
-  // summaries don't embed the initiative (queues, counters).
-  const memberQueries = useQueries({
-    queries: initiativeIds.map((id) => ({
-      queryKey: getGetInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGetQueryKey(
+  // One query per initiative and params: the people matching what was typed
+  // (grant), or the people already granted, named by id (revoke).
+  const memberQuery = (initiativeId: number, params: MemberSearchParams, enabled: boolean) => ({
+    queryKey:
+      getSearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGetQueryKey(
         guildId,
-        id
+        initiativeId,
+        params
       ),
-      queryFn: () =>
-        getInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersGet(guildId, id),
-      enabled: open,
-    })),
+    queryFn: () =>
+      searchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSearchGet(
+        guildId,
+        initiativeId,
+        params
+      ),
+    enabled,
+  });
+
+  // Granting: each relevant initiative's members matching what was typed,
+  // matched on the server.
+  const debouncedUserSearch = useDebouncedValue(userSearch, 250);
+  const searchQueries = useQueries({
+    queries: initiativeIds.map((id) =>
+      memberQuery(
+        id,
+        { search: debouncedUserSearch.trim() || undefined, page_size: USER_SEARCH_PAGE_SIZE },
+        open && userMode === "grant"
+      )
+    ),
+  });
+
+  // Revoking: the people granted on the selected resources, looked up by id in
+  // their resource's initiative a lookup page at a time.
+  const granteeLookups = useMemo(() => {
+    const byInitiative = new Map<number, Set<number>>();
+    for (const item of items) {
+      for (const grant of item.grants ?? []) {
+        if (!item.initiative_id || grant.user_id == null || grant.level === "owner") continue;
+        const ids = byInitiative.get(item.initiative_id) ?? new Set<number>();
+        ids.add(grant.user_id);
+        byInitiative.set(item.initiative_id, ids);
+      }
+    }
+    return [...byInitiative].flatMap(([initiativeId, ids]) => {
+      const sorted = [...ids].sort((a, b) => a - b);
+      const pages = [];
+      for (let i = 0; i < sorted.length; i += USER_ID_LOOKUP_MAX) {
+        pages.push({ initiativeId, userIds: sorted.slice(i, i + USER_ID_LOOKUP_MAX) });
+      }
+      return pages;
+    });
+  }, [items]);
+  const granteeQueries = useQueries({
+    queries: granteeLookups.map(({ initiativeId, userIds }) =>
+      memberQuery(
+        initiativeId,
+        { user_id: userIds, page_size: USER_ID_LOOKUP_MAX },
+        open && userMode === "revoke"
+      )
+    ),
   });
 
   const membersById = useMemo(() => {
     const map = new Map<number, SelectableUser>();
-    for (const query of memberQueries) {
-      for (const member of query.data ?? []) {
-        if (!map.has(member.id)) {
-          map.set(member.id, {
-            id: member.id,
-            name: getUserDisplayName(member),
-            handle: getUserHandle(member),
-          });
-        }
+    for (const query of granteeQueries) {
+      for (const member of query.data?.items ?? []) {
+        if (!map.has(member.id)) map.set(member.id, toSelectableUser(member));
       }
     }
     return map;
-  }, [memberQueries]);
+  }, [granteeQueries]);
 
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
@@ -255,12 +310,18 @@ export function BulkEditAccessDialog({
     );
   }, [displayRoles, roleSearch]);
 
-  // Build list of people from initiatives the selected resources belong to
+  // People from the initiatives the selected resources belong to
   const availableUsers = useMemo(() => {
-    return Array.from(membersById.values())
-      .filter((u) => u.id !== currentUser?.id)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [membersById, currentUser]);
+    const map = new Map<number, SelectableUser>();
+    for (const query of searchQueries) {
+      for (const member of query.data?.items ?? []) {
+        if (member.id !== currentUser?.id && !map.has(member.id)) {
+          map.set(member.id, toSelectableUser(member));
+        }
+      }
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [searchQueries, currentUser]);
 
   // People who have non-owner access on at least one selected resource (for revoke)
   const revocableUsers = useMemo(() => {
@@ -288,14 +349,15 @@ export function BulkEditAccessDialog({
 
   const displayUsers = userMode === "grant" ? availableUsers : revocableUsers;
 
+  // Granting searched on the server already; the granted list filters here.
   const filteredUsers = useMemo(() => {
-    if (!userSearch.trim()) return displayUsers;
+    if (userMode === "grant" || !userSearch.trim()) return displayUsers;
     const searchLower = userSearch.toLowerCase();
     return displayUsers.filter(
       (u) =>
         u.name.toLowerCase().includes(searchLower) || u.handle.toLowerCase().includes(searchLower)
     );
-  }, [displayUsers, userSearch]);
+  }, [displayUsers, userSearch, userMode]);
 
   const toggleUser = useCallback((userId: number) => {
     setSelectedUserIds((prev) => {

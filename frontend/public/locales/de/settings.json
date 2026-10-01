@@ -36,7 +36,15 @@
       "data": "Daten",
       "dangerZone": "Gefahrenzone",
       "security": "Sicherheit",
-      "integrations": "Integrationen"
+      "integrations": "Integrationen",
+      "usage": "Nutzung",
+      "planAndUsage": "Tarif & Nutzung"
+    },
+    "tabBadge": {
+      "paymentFailed": "Zahlung fehlgeschlagen",
+      "trial_one": "Testphase · {{count}} Tag",
+      "trial_other": "Testphase · {{count}} Tage",
+      "trialLastDay": "Testphase · letzter Tag"
     }
   },
   "profile": {
@@ -812,6 +820,10 @@
     "signInLockedUntil": "Bis {{time}}",
     "liftSignInLock": "Anmeldung mit Passwort wieder einschalten",
     "signInLockLifted": "Die Person kann sich wieder mit Passwort anmelden.",
+    "clearSecondFactor": "Zwei-Faktor-Authentifizierung entfernen",
+    "clearSecondFactorDescription": "Den Authenticator vom Konto von {{handle}} entfernen? Das ist für den Fall, dass Handy und Wiederherstellungscodes verloren sind. Die Person wird überall abgemeldet und per E-Mail informiert, meldet sich dann wie gewohnt an und kann ihn neu einrichten.",
+    "clearSecondFactorConfirm": "Entfernen",
+    "secondFactorCleared": "Zwei-Faktor-Authentifizierung entfernt. Die Person kann sich wie gewohnt anmelden.",
     "sheet": {
       "open": "Verwalten",
       "openLabel": "Konto {{handle}} verwalten",
@@ -1240,7 +1252,7 @@
     "backendLabel": "Speicher-Backend",
     "backendLocal": "Lokales Dateisystem",
     "backendS3": "S3-kompatibel",
-    "backendHelp": "Lokal speichert Dateien auf der Serverfestplatte. S3 funktioniert mit AWS S3, einer selbst gehosteten Garage-/MinIO-Instanz, Cloudflare R2 und Ähnlichem.",
+    "backendHelp": "Lokal speichert Dateien auf der Serverfestplatte. S3 funktioniert mit jedem S3-kompatiblen Speicher, etwa einer selbst gehosteten Garage- oder MinIO-Instanz oder Cloudflare R2.",
     "cutoverTitle": "Der Wechsel zu S3 verschiebt vorhandene Dateien nicht",
     "cutoverHelp": "Speichere diese Einstellungen, führe „Verbindung testen“ aus und kopiere dann mit „Backfill“ unten die vorhandenen lokalen Dateien in den Bucket. Wechsle das Backend erst auf S3, wenn der Backfill abgeschlossen ist – optional „Fehlende Objekte lokal ausliefern“ während eines Prüfzeitraums aktiviert lassen.",
     "bucketLabel": "Bucket",
@@ -1248,16 +1260,14 @@
     "regionLabel": "Region",
     "endpointLabel": "Endpunkt-URL",
     "endpointPlaceholder": "https://s3.example.com",
-    "endpointHelp": "Für AWS S3 leer lassen. Für Garage, MinIO, R2 oder andere Nicht-AWS-Speicher setzen.",
+    "endpointHelp": "Die Adresse der S3-API deines Speichers.",
     "accessKeyLabel": "Zugriffsschlüssel-ID",
     "accessKeyPlaceholder": "Leer lassen, um die Umgebungs-Anmeldedaten zu verwenden",
     "secretKeyLabel": "Geheimer Zugriffsschlüssel",
     "secretKeySet": "•••••••• (unverändert)",
     "secretKeyHelp": "Leer lassen, um den gespeicherten Schlüssel beizubehalten. Verschlüsselt gespeichert; nie angezeigt.",
-    "kmsLabel": "KMS-Schlüssel-ID (optional)",
-    "kmsPlaceholder": "Für SSE-KMS-serverseitige Verschlüsselung",
     "pathStyleLabel": "Path-Style-Adressierung",
-    "pathStyleHelp": "Erforderlich für Garage und die meisten Nicht-AWS-Speicher.",
+    "pathStyleHelp": "Erforderlich für Garage und die meisten selbst gehosteten Speicher.",
     "localFallbackLabel": "Fehlende Objekte lokal ausliefern",
     "localFallbackHelp": "Während der Umstellung Blobs, die noch nicht nach S3 kopiert wurden, von der lokalen Festplatte lesen.",
     "save": "Speichern",
@@ -1678,6 +1688,7 @@
     "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
+    "passwordsOffDescription": "Die Anmeldung per Passwort ist auf diesem Server ausgeschaltet, daher kannst du hier kein Passwort festlegen oder ändern.",
     "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
     "setPasswordTitle": "Passwort festlegen",
     "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",

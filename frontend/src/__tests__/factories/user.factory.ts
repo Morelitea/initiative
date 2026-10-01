@@ -144,6 +144,9 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     // Signs in with a password, like most accounts. A test about the
     // passwordless account overrides it.
     has_password: true,
+    // And is asked for it when confirming a change, which the deployment's
+    // own posture can turn off.
+    password_required: true,
     has_federated_identity: false,
     initiative_roles: [],
     created_at: "2026-01-15T00:00:00.000Z",
@@ -217,5 +220,12 @@ export function buildUserProfile(overrides: Partial<UserProfile> = {}): UserProf
 
 /** One decoration in somebody's library. Shipped (no pack) by default. */
 export function buildOwnedDecoration(overrides: Partial<OwnedDecoration> = {}): OwnedDecoration {
-  return { id: "core.aurora", kind: "banner", name: null, source: null, ...overrides };
+  return {
+    id: "core.aurora",
+    kind: "banner",
+    name: null,
+    source: null,
+    image_url: null,
+    ...overrides,
+  };
 }

@@ -33,7 +33,10 @@ describe("project list cache keys", () => {
     const keys = [
       getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD),
       getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD, { initiative_id: 5 }),
-      getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD, { template: true, initiative_id: 5 }),
+      getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD, {
+        is_template: true,
+        initiative_id: 5,
+      }),
       getListProjectsApiV1CGuildIdProjectsGetQueryKey(GUILD, { archived: true, initiative_id: 5 }),
     ];
     for (const key of keys) qc.setQueryData(key, list(project));

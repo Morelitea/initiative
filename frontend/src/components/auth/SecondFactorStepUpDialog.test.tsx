@@ -306,6 +306,31 @@ describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
     });
   });
 
+  it("confirms with a code sent to the account's address, where the deployment sends them", async () => {
+    passkeysAre([]);
+    server.use(
+      http.get("/api/v1/config", () => HttpResponse.json({ login_methods: ["sso", "email_otp"] })),
+      http.post("/api/v1/auth/step-up/email-otp/send", () =>
+        HttpResponse.json({ status: "sent", challenge: "handle-1" })
+      )
+    );
+    const stepUpWithEmailCode = vi.fn().mockResolvedValue(undefined);
+    await mount({ auth: { stepUpWithEmailCode, stepUpWithPasskey: vi.fn() } });
+
+    fireChallenge({ guildId: null, kind: "proof" });
+    await screen.findByRole("dialog");
+    await userEvent.click(await screen.findByRole("button", { name: /email me a code/i }));
+    await userEvent.type(await screen.findByLabelText(/code from your email/i), "123456");
+    await userEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    await waitFor(() => {
+      expect(stepUpWithEmailCode).toHaveBeenCalledWith({ challenge: "handle-1", code: "123456" });
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("asks an account holding none to sign in again", async () => {
     passkeysAre([]);
     await mount({ auth: { stepUpWithPasskey: vi.fn() } });

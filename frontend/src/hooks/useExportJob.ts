@@ -53,6 +53,9 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
   // The last terminal outcome, until the next start()/reset() — what lets a
   // wizard show a done/failed screen after the poll ends.
   const [outcome, setOutcome] = useState<"done" | "failed" | null>(null);
+  // Whether the last export came back as the file itself, with no job to
+  // download it from again.
+  const [inline, setInline] = useState(false);
   const [jobId, setJobId] = useState<number | null>(() => {
     if (!resumePending || !guildId) {
       return null;
@@ -103,6 +106,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
     }
     setRequesting(true);
     setOutcome(null);
+    setInline(false);
     try {
       // The generated client discards the HTTP status (mutator returns data
       // only), and these endpoints are a 200-file / 202-job union — call the
@@ -125,6 +129,7 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
         const serverName = filenameFromDisposition(res.headers["content-disposition"]);
         downloadBlob(res.data, serverName ?? options.fallbackFilename ?? `export-${Date.now()}`);
         setOutcome("done");
+        setInline(true);
         toast.success(t("export.success"));
       } else {
         const queued = JSON.parse(await res.data.text()) as { id: number };
@@ -154,6 +159,8 @@ export function useExportJob({ resumePending = false }: UseExportJobOptions = {}
     /** True while a request is in flight or a job is being polled. */
     busy: requesting || jobId != null,
     phase,
+    /** The last export downloaded straight away, without a job. */
+    inline,
     jobId,
     start,
     reset,

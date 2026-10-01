@@ -60,7 +60,7 @@ export const VerifyEmailPage = () => {
               <Link to="/login">{t("verifyEmail.goToSignIn")}</Link>
             </Button>
           ) : (
-            <Link className="text-primary underline-offset-4 hover:underline" to="/register">
+            <Link className="text-primary underline-offset-4 hover:underline" to="/start">
               {t("verifyEmail.needToRegister")}
             </Link>
           )}

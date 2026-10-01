@@ -13,7 +13,11 @@ import {
 } from "react";
 
 import { apiClient } from "@/api/client";
-import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  AccessGrantRead,
+  GuildRead,
+  NewCommunity,
+} from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -68,7 +72,7 @@ interface GuildContextValue {
   refreshGuilds: () => Promise<GuildEntry[]>;
   switchGuild: (guildId: number) => Promise<void>;
   syncGuildFromUrl: (guildId: number) => Promise<void>;
-  createGuild: (input: { name: string; description?: string }) => Promise<GuildRead>;
+  createGuild: (input: NewCommunity) => Promise<GuildRead>;
   updateGuildInState: (guild: GuildRead) => void;
   reorderGuilds: (guildIds: number[]) => void;
   canCreateGuilds: boolean;
@@ -580,7 +584,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const createGuild = useCallback(
-    async ({ name, description }: { name: string; description?: string }) => {
+    async ({ name, description, plan }: NewCommunity) => {
       if (userId === null) {
         throw new Error("You must be signed in to create a community.");
       }
@@ -596,6 +600,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       const response = await apiClient.post<GuildRead>("/communities/", {
         name: trimmedName,
         description: description?.trim() || undefined,
+        plan: plan ?? undefined,
       });
 
       await Promise.all([refreshGuilds(), refreshUser()]);

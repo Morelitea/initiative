@@ -37,11 +37,11 @@ describe("DocumentsBulkBar export", () => {
     localStorage.clear();
   });
 
-  it("sends the selected ids as document_ids and downloads the zip", async () => {
+  it("sends the selected ids and downloads the zip", async () => {
     let sent: string[] = [];
     server.use(
       guildHttp.get("/exports/document", ({ request }) => {
-        sent = new URL(request.url).searchParams.getAll("document_ids");
+        sent = new URL(request.url).searchParams.getAll("ids");
         return new HttpResponse("PK-zip-bytes", {
           status: 200,
           headers: {
@@ -58,7 +58,8 @@ describe("DocumentsBulkBar export", () => {
     renderWithProviders(<DocumentsBulkBar {...barProps} selectedDocuments={docs} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /json/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /json/i }));
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     expect(sent).toEqual(["11", "12"]);
@@ -73,10 +74,11 @@ describe("DocumentsBulkBar export", () => {
     ];
     renderWithProviders(<DocumentsBulkBar {...barProps} selectedDocuments={docs} />);
 
-    // json is the only shared format — the export control is a plain button
-    // (single format, no menu) rather than a dropdown.
+    // json is the only shared format, so the wizard asks nothing and names it.
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /start export/i })).toBeInTheDocument();
+    expect(screen.getByText(/json/i)).toBeInTheDocument();
+    expect(screen.queryByText(/pdf|csv/i)).not.toBeInTheDocument();
   });
 
   it("disables export when the selected types share no format", () => {

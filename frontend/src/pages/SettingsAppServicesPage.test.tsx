@@ -24,6 +24,8 @@ const buildRegistration = (
   scope_ceiling: [],
   mandatory: false,
   enabled: true,
+  source: "operator",
+  image_digest: null,
   vendor_fields: [],
   vendor_values: {},
   vendor_set: [],

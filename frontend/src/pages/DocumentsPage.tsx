@@ -7,8 +7,6 @@ import { useTranslation } from "react-i18next";
 import type {
   DocumentSummary,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
-  TagRead,
-  TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
@@ -18,38 +16,29 @@ import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { DocumentsBulkBar } from "@/components/documents/DocumentsBulkBar";
-import {
-  ALL_DOCUMENT_TYPES,
-  DocumentsFilterBar,
-  type DocumentTypeFilter,
-} from "@/components/documents/DocumentsFilterBar";
+import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
-import {
-  type DocumentStatus,
-  DocumentsStatusFilter,
-  isDocumentStatus,
-} from "@/components/documents/DocumentsStatusFilter";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { ToolImportAction, useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   ToolListToolbar,
   type ToolViewOption,
 } from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PaginationBar } from "@/components/PaginationBar";
-import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
+import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
+import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropOverlay } from "@/components/ui/file-drop";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { useAuth } from "@/hooks/useAuth";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import {
   useCopyDocument,
   useDeleteDocuments,
-  useDocumentCounts,
   useDocumentsList,
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
@@ -59,13 +48,14 @@ import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useTags } from "@/hooks/useTags";
+import { useToolCounts } from "@/hooks/useToolCounts";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { everyCan } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
-import { toolDetailRoute } from "@/lib/tools";
+import { isToolView, type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
 
@@ -90,7 +80,6 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const { t } = useTranslation(["documents", "common", "access"]);
   const router = useRouter();
   const prefetchDocuments = usePrefetchDocumentsList();
-  const { user } = useAuth();
   // Shared access helper — honors guild-admin / PAM / membership so this page
   // never re-derives access from raw membership flags.
   const gp = useGuildPath();
@@ -104,7 +93,13 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   const lockedInitiativeId = typeof fixedInitiativeId === "number" ? fixedInitiativeId : null;
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
-  const [searchQuery, setSearchQuery] = useState("");
+  // Search, type and property conditions are session-scoped: a persisted type
+  // or property filter would hide most of the list on the next visit with no
+  // obvious cause. Tags are the one filter kept as a preference (below).
+  const [filters, setFilters] = useState<Omit<ToolListFilters<typeof Tool.document>, "tag_ids">>(
+    {}
+  );
+  const searchQuery = filters.search ?? "";
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
@@ -145,21 +140,12 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
 
-  const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>([]);
-
-  // Session-scoped like the property conditions above: a persisted type filter
-  // would hide most of the list on the next visit with no obvious cause.
-  const [documentTypeFilter, setDocumentTypeFilter] =
-    useState<DocumentTypeFilter>(ALL_DOCUMENT_TYPES);
-  const queryDocumentType =
-    documentTypeFilter === ALL_DOCUMENT_TYPES ? undefined : documentTypeFilter;
+  const queryDocumentType = filters.document_type ?? undefined;
 
   // Documents and templates are two states of one list, the way the projects
   // list splits its own templates out. It lives in the URL so a templates view
   // is linkable and answers the back button.
-  const status: DocumentStatus = isDocumentStatus(searchParams.status)
-    ? searchParams.status
-    : "documents";
+  const status: ToolView = isToolView(searchParams.status) ? searchParams.status : "active";
   const isTemplateView = status === "templates";
   // An archived document is off the live list, so the archived state is the one
   // place it can be found — and the only place it can be taken back out. It
@@ -204,7 +190,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   );
 
   const setStatus = useCallback(
-    (next: DocumentStatus) => {
+    (next: ToolView) => {
       // Pushed, not replaced: switching between documents and templates is a
       // move the reader made, so Back has to take them out of it. (Paging
       // replaces, because a cursor is not somewhere you went.)
@@ -212,7 +198,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         to: ".",
         search: {
           ...searchParamsRef.current,
-          status: next === "documents" ? undefined : next,
+          status: next === "active" ? undefined : next,
           // The other state's cursor means nothing in this one.
           page: undefined,
         },
@@ -247,16 +233,6 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   );
 
   const { data: allTags = [] } = useTags();
-
-  // Convert tag IDs to Tag objects for TagPicker
-  const selectedTagsForFilter = useMemo(() => {
-    const tagMap = new Map(allTags.map((tg) => [tg.id, tg]));
-    return tagFilters.map((id) => tagMap.get(id)).filter((tg): tg is TagRead => tg !== undefined);
-  }, [allTags, tagFilters]);
-
-  const handleTagFiltersChange = (newTags: TagSummary[]) => {
-    setTagFilters(newTags.map((tg) => tg.id));
-  };
 
   const handleTreeTagToggle = (fullPath: string, ctrlKey: boolean) => {
     setTreeSelectedPaths((prev) => {
@@ -319,24 +295,21 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
   // Reset to page 1 when filters or view mode change — a narrower list can
   // have fewer pages than the one currently shown.
   const queryTagIdsKey = JSON.stringify(queryTagIds);
-  const propertyFiltersKey = JSON.stringify(propertyFilters);
+  // Serialized by the filter fields, the way the backend expects it on
+  // ``property_filters``: a primitive string, so the react-query key stays
+  // stable (same serialization => same cache key).
+  const encodedPropertyFilters = filters.property_filters ?? null;
   useEffect(() => {
     setPage(1);
   }, [
     setPage,
     searchQuery,
     queryTagIdsKey,
-    propertyFiltersKey,
+    encodedPropertyFilters,
     treeWantsUntagged,
-    documentTypeFilter,
+    queryDocumentType,
     viewMode,
   ]);
-
-  // Serialize property filters for the backend query string. The backend
-  // expects a JSON-encoded array on ``property_filters`` and we pre-encode
-  // it just before passing to the hook so the react-query key stays a
-  // primitive string (same serialization => same cache key).
-  const encodedPropertyFilters = propertyFilters.length > 0 ? propertyFiltersKey : null;
 
   const documentsQueryParams: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
@@ -345,7 +318,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     ...(treeWantsUntagged ? { untagged: true } : {}),
     ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
+    ...toolViewParams(Tool.document, status),
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -354,29 +327,24 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const documentsQuery = useDocumentsList(documentsQueryParams);
 
-  // Counts query for tags view sidebar
-  const countsQueryParams = {
-    ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
+  // One answer for the screen: the totals behind each view, so the toggle
+  // says how much sits in the other ones before they are opened, and the tag
+  // tree beside the view being shown. The totals are scoped to the initiative
+  // only — they answer "how many exist", not "how many survive the current
+  // filters".
+  // The tag tree beside the list counts under the list's own filters.
+  const countFilters: ListDocumentsApiV1CGuildIdDocumentsGetParams = {
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
+    ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
   };
-
-  const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
-
-  // Totals behind each state, so the toggle says how much sits in the other one
-  // before it is opened. Scoped to the initiative only — like the projects
-  // list's status counts, these answer "how many exist", not "how many survive
-  // the current filters".
-  const statusCountsBase = lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {};
-  const documentsCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: false });
-  const templatesCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: true });
-  const archivedCountQuery = useDocumentCounts({ ...statusCountsBase, archived: true });
-  const statusCounts = {
-    documents: documentsCountQuery.data?.total_count,
-    templates: templatesCountQuery.data?.total_count,
-    archived: archivedCountQuery.data?.total_count,
-  };
+  const countsQuery = useToolCounts(Tool.document, {
+    ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
+    ...(Object.keys(countFilters).length > 0 ? { filters: JSON.stringify(countFilters) } : {}),
+    view: status,
+    // Only the tags view shows the tree, so only it pays for the tag counts.
+    ...(viewMode === "tags" ? { include_tags: true } : {}),
+  });
 
   // Prefetch adjacent page on hover
   const prefetchPage = useCallback(
@@ -389,7 +357,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         ...(treeWantsUntagged ? { untagged: true } : {}),
         ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
         ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-        ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
+        ...toolViewParams(Tool.document, status),
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),
@@ -404,12 +372,11 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       treeWantsUntagged,
       encodedPropertyFilters,
       queryDocumentType,
-      isTemplateView,
+      status,
       pageSize,
       sortBy,
       sortDir,
       prefetchDocuments,
-      isArchivedView,
     ]
   );
 
@@ -522,13 +489,11 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     (searchQuery.trim() ? 1 : 0) +
     (viewMode === "tags" ? 0 : tagFilters.length) +
     (queryDocumentType ? 1 : 0) +
-    propertyFilters.length;
+    parsePropertyFilters(encodedPropertyFilters).length;
 
   const clearFilters = useCallback(() => {
-    setSearchQuery("");
+    setFilters({});
     setTagFilters([]);
-    setPropertyFilters([]);
-    setDocumentTypeFilter(ALL_DOCUMENT_TYPES);
   }, [setTagFilters]);
 
   // A file dragged in from the desktop lands wherever the cursor is, in any
@@ -574,34 +539,15 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     onSuccess: () => setSelectedDocuments([]),
   });
 
-  // Initiatives whose documents this reader may see. Still needed on the
-  // cross-initiative tag browse, which lists documents from several at once.
-  const viewableInitiatives = useMemo(
-    () =>
-      (initiativesQuery.data ?? []).filter((initiative) =>
-        initiative.can.view.includes(Tool.document)
-      ),
-    [initiativesQuery.data]
-  );
-  // Get IDs of initiatives where user can view docs
-  const viewableInitiativeIds = useMemo(() => {
-    return new Set(viewableInitiatives.map((i) => i.id));
-  }, [viewableInitiatives]);
-
-  // Filter documents to only show those from viewable initiatives
-  const documents = useMemo(() => {
-    const allDocs = documentsQuery.data?.items ?? [];
-    if (!user) return allDocs;
-    return allDocs.filter((doc) => viewableInitiativeIds.has(doc.initiative_id));
-  }, [documentsQuery.data, user, viewableInitiativeIds]);
+  // The server answers with the documents this reader may see, so the page
+  // shows them as they come.
+  const documents = useMemo(() => documentsQuery.data?.items ?? [], [documentsQuery.data]);
 
   const totalCount = documentsQuery.data?.total_count ?? 0;
   const hasNext = documentsQuery.data?.has_next ?? false;
   const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
 
-  // Server handles untagged filtering via ?untagged=true param
-  const displayDocuments = documents;
-  visibleDocumentsRef.current = displayDocuments;
+  visibleDocumentsRef.current = documents;
 
   return (
     <div className="relative space-y-6" {...drop.handlers}>
@@ -624,7 +570,12 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
       <ToolListToolbar
         leading={
-          <DocumentsStatusFilter value={status} onChange={setStatus} counts={statusCounts} />
+          <ToolViewFilter
+            tool={Tool.document}
+            value={status}
+            onChange={setStatus}
+            counts={countsQuery.data?.views}
+          />
         }
         filters={{
           open: filtersOpen,
@@ -661,19 +612,20 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
       {documentImport.dialog}
 
       <DocumentsFilterBar
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
+        value={{ ...filters, tag_ids: tagFilters }}
+        onChange={({ tag_ids, ...rest }) => {
+          setFilters(rest);
+          // Tags are a saved preference; write them only when they changed
+          // (the fields hand back this render's array when they didn't).
+          if (tag_ids !== tagFilters) setTagFilters(tag_ids ?? []);
+        }}
+        // The tag view browses by tag through its own tree.
+        tags={viewMode !== "tags"}
         filtersOpen={filtersOpen}
         onFiltersOpenChange={setFiltersOpen}
-        viewMode={viewMode}
-        tagFilters={selectedTagsForFilter}
-        onTagFiltersChange={handleTagFiltersChange}
-        documentTypeFilter={documentTypeFilter}
-        onDocumentTypeFilterChange={setDocumentTypeFilter}
-        propertyFilters={propertyFilters}
-        onPropertyFiltersChange={setPropertyFilters}
         onClear={clearFilters}
         activeCount={activeFilterCount}
+        initiativeId={fixedInitiativeId}
       />
 
       {!canViewDocs ? (
@@ -711,7 +663,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
             />
           ) : null}
           <DocumentsTagsView
-            documents={displayDocuments}
+            documents={documents}
             allTags={allTags}
             tagCounts={countsQuery.data?.tag_counts ?? {}}
             untaggedCount={countsQuery.data?.untagged_count ?? 0}

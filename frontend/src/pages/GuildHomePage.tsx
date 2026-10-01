@@ -23,12 +23,7 @@ import { GuildHomeEmptyState } from "@/components/guildHome/GuildHomeEmptyState"
 import { GuildRecentComments } from "@/components/guildHome/GuildRecentComments";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
 import { CreateInitiativeWizard } from "@/components/initiatives/CreateInitiativeWizard";
-import {
-  archivedParam,
-  isToolArchiveState,
-  ToolArchiveFilter,
-  type ToolArchiveState,
-} from "@/components/initiativeTools/shared/ToolArchiveFilter";
+import { ToolViewFilter } from "@/components/initiativeTools/shared/ToolViewFilter";
 import { PageBanner } from "@/components/PageBanner";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { TOOL_TRAY_SURFACE, ToolRail } from "@/components/toolBrowser/ToolRail";
@@ -39,9 +34,10 @@ import { useGuildToolRows } from "@/hooks/useGuildToolRows";
 import { liveInitiatives, useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useToolBrowserSearch } from "@/hooks/useToolBrowserSearch";
+import { useToolCounts } from "@/hooks/useToolCounts";
 import { renderableBanner } from "@/lib/banner";
 import { useGuildPath } from "@/lib/guildUrl";
-import { DEFAULT_ENABLED_TOOLS, TOOLS } from "@/lib/tools";
+import { DEFAULT_ENABLED_TOOLS, isToolView, TOOLS, type ToolView, toolViews } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export function GuildHomePage() {
@@ -104,9 +100,15 @@ export function GuildHomePage() {
   }, [visibleInitiatives]);
 
   const selected = selectTool(tools);
-  // Which of the tool's two states the table is showing. In the address like
-  // the rest of it, and left out while live — the default needs no spelling.
-  const archiveState: ToolArchiveState = isToolArchiveState(search.state) ? search.state : "active";
+  // Which of the tool's views the table is showing. In the address like the
+  // rest of it, and left out while live — the default needs no spelling. A
+  // view the selected tool does not have falls back to the live one.
+  const view: ToolView =
+    isToolView(search.state) && toolViews(selected).includes(search.state)
+      ? search.state
+      : "active";
+  // How much sits in each of the tool's views across the guild.
+  const countsQuery = useToolCounts(selected, {});
 
   const { rows, totalCount, isLoading, isError } = useGuildToolRows(
     selected,
@@ -116,7 +118,7 @@ export function GuildHomePage() {
       search: query || undefined,
       sortBy: table.sortBy,
       sortDir: table.sortDir,
-      archived: archivedParam(archiveState),
+      view,
     }
   );
 
@@ -174,15 +176,16 @@ export function GuildHomePage() {
               <div
                 className={cn("rounded-b-2xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4", TOOL_TRAY_SURFACE)}
               >
-                {/* Which of the tool's two states the tray is showing. Above
+                {/* Which of the tool's views the tray is showing. Above
                     the table rather than in its toolbar, because it changes
                     what the table IS rather than narrowing what it holds — and
                     for a calendar, which has no list page of its own, this is
                     the only place an archived one can be found. */}
                 <div className="flex justify-end pt-2 pb-3">
-                  <ToolArchiveFilter
+                  <ToolViewFilter
                     tool={selected}
-                    value={archiveState}
+                    value={view}
+                    counts={countsQuery.data?.views}
                     onChange={(next) =>
                       setSearch({
                         state: next === "active" ? undefined : next,

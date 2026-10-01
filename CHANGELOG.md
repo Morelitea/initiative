@@ -7,32 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-10-01
+
 ### Added
 
-- **Repeating events show on every date they happen.** A calendar draws each occurrence in view, not only the first, and opening one shows its own date along with how the event repeats. Each occurrence sends its own reminder, and a smart chip for a repeating event shows its next date. A repeating task's next dates show on the calendar too; opening one opens the current task. Dragging a repeating event on the calendar is turned off for now; change its time from the event's settings.
-- **More ways to repeat.** A custom repeat can now fall on several days of the month or its last day, the fifth or last of a weekday, every chosen weekday of the month, the first or last work day of the month, and in several months a year. The form shows the next dates it will fall on, and an event's repeat can be changed from its settings. Events no longer offer the "after completion" choice, which only tasks use.
-- **Preview a stored repeat as it runs (API).** `POST /recurrence/preview` takes an optional `shift`, a stored rule's own, to list its dates without taking the shift again.
-- **`calendar-entries` returns occurrences (API).** A repeating event comes back once for each occurrence in the window, with `original_start` naming it, and repeating tasks' next dates come back in `task_occurrences`.
+- **A friendlier sign-up** that asks what you're here for: joining by invite, joining a public community, a space for your own to-dos, or a community for a group. A personal space starts with a **To do** list, and a group's community starts with its first initiative and an invite link to send.
+- **A People tab** showing who's in your community and who's online.
+- **Repeating events and tasks**: change just one occurrence, skip one, or change the rest of the series. New repeats such as "the last Friday" or "the first work day of the month", and every date shows on the calendar.
+- **Custom properties on every tool**, with filters on every list.
+- **Filtered exports**, using the same filters as each list.
+- **What's new** shows release notes right in the app.
+- **A `stable` image tag** for servers that would rather wait. A release moves to it once it has been out three days with no reported regressions; `latest` still gets every release right away.
 
 ### Changed
 
-- **Repeats are standard RRULE rules (API).** A task's or event's `recurrence` is now RFC 5545 rule lines (`RRULE:FREQ=MONTHLY;BYDAY=2MO`) instead of a JSON object, in requests, responses and project and calendar exports, a complete rewrite of the old shape. Send a rule with `tz`, the zone its days were picked in, and it repeats on exactly those days for every viewer (`recurrence_shift` on reads); `POST /recurrence/preview` lists a rule's next dates. Existing repeats convert when you upgrade, and older exports still import.
-- **An all-day event is the same days for everyone.** It is stored as its dates, so somebody in another timezone no longer sees it a day early or late.
-- **An account can create up to five communities a day.** Change it with `GUILD_CREATION_DAILY_LIMIT` (`0` for no limit). Operators and owners aren't limited.
-- **Choose whether signing up creates a community.** Set `REGISTRATION_CREATES_GUILD=false` and a new account starts on the page for creating or joining one, instead of with a community of its own.
-- **An export downloads only while you can still reach everything in it.** Once you leave an initiative, or are removed from one, exports holding its content stop downloading. Exports that finished before this update can't be downloaded; start them again.
+- **A new front page and Download page.**
+- **Search and filters cover the whole list**, not just what's loaded.
+- **All-day events are the same days for everyone**, whatever their timezone.
+- **Comments open on the newest conversations**, with **Load older comments** for the rest.
+- **If your server doesn't use passwords, nothing asks for one.** Deleting your account, setting up two-factor or changing passkeys asks for a recent sign-in instead, or emails you a code.
+- **Initiatives have their own icon**: the figure from the Initiative logo, in place of the members icon.
+- **App and API integrations may need updating.** Repeats are now standard `RRULE` text, counters are changed through `/counters/{id}`, and many routes were merged into others.
+
+### Removed
+
+- **The KMS key setting for file storage.** Use the bucket's own encryption instead.
 
 ### Fixed
 
-- **A project made from a template keeps each task's repeat**, moved with the task's dates.
-- **Nothing comes back from the trash under something that's still in it.** Restoring a sub-page whose parent page is still in the trash, a reply whose comment is, or a task or tool that was archived before it was trashed, now says to restore what it's inside first, instead of bringing it back where nobody can open it.
-- **Archived content can be thrown away and brought back.** Deleting an archived initiative or wiki that has pages, or a page inside one, works again, and whatever you restore into an archive comes back archived.
-- **Ownership moves on archived tools.** Claiming unowned content or handing someone's content to another admin no longer fails when some of it is archived, and a restored tool with no owner goes back to whoever made it even when it's archived.
-- **Only a community admin can take somebody off the moderator role.** A project manager can no longer remove an initiative's moderator or change them to another role, the same way only an admin can put somebody on it.
-- **Exporting a calendar with a repeating event works again.** A repeat such as "the second Monday of every month" no longer fails the export, and every repeat setting now carries over to other calendar apps and back on import.
-- **Wiki page edits are no longer lost to a later live session.** A page saved while nobody was editing it live keeps that save, and a save from a tab outside a live session is refused with a prompt to reconnect instead of being reported as saved.
-- **Exported and imported events keep their days in your timezone.** All-day events no longer land a day early, a repeat's weekdays and last day stay put, and an imported all-day event covers exactly its days.
-- **Confirming your password in settings is limited per account.** Wrong passwords entered to remove a password, set up an authenticator app, regenerate recovery codes, or change or delete something now count toward the same account lock as sign-in, a correct one starts the count over as signing in does, and these requests are no longer limited per network address, so people sharing an office connection don't use up each other's attempts.
+- **Live documents stop flashing "Syncing…"** while you type, and wiki page saves and offline edits are no longer overwritten.
+- **Calendars with repeating events export again**, and imported events keep their days.
+- **Repeats carry over** from Todoist, TickTick, Vikunja and project templates.
+- **Property filters are fast** on big lists.
+- **Trash and archive work for archived things.** They can be deleted, restored and handed to a new owner, and nothing is restored inside something that's still in the trash.
+- **The document toolbar shows which formatting is on.**
+- **Sign-in:** you can't turn off your own only way to sign in, and wrong passwords in settings count toward the account lock.
+- **Changing your password stops notifications to every phone** until it signs in again.
+- **Only a community admin can remove a moderator.**
 
 ## [0.73.2] - 2026-09-29
 

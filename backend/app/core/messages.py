@@ -33,9 +33,15 @@ class CommonMessages:
 
 
 class AuthMessages:
+    #: A sign-in rule nothing the deployment permits could answer.
+    AUTH_RULE_NOT_OFFERED = "AUTH_RULE_NOT_OFFERED"
+    #: A sign-in rule its writer does not answer yet; the unmet header names
+    #: which part.
+    AUTH_RULE_SELF_UNSATISFIED = "AUTH_RULE_SELF_UNSATISFIED"
     EMAIL_ALREADY_REGISTERED = "EMAIL_ALREADY_REGISTERED"
     REGISTRATION_REQUIRES_INVITE = "REGISTRATION_REQUIRES_INVITE"
     UNABLE_TO_CREATE_USER = "UNABLE_TO_CREATE_USER"
+    REGISTRATION_INVITE_OR_COMMUNITY = "REGISTRATION_INVITE_OR_COMMUNITY"
     INCORRECT_CREDENTIALS = "INCORRECT_CREDENTIALS"
     #: Too many wrong passwords or codes lately: password and code sign-in are
     #: turned off for now. Passkeys are unaffected.
@@ -72,6 +78,9 @@ class AuthMessages:
     EMAIL_OTP_INVALID = "EMAIL_OTP_INVALID"
     #: A code was asked for while the deployment cannot send mail.
     EMAIL_OTP_CANNOT_SEND = "EMAIL_OTP_CANNOT_SEND"
+    #: A code confirming the session was asked for, and the account has proved
+    #: no address to send it to.
+    EMAIL_OTP_NO_PROVED_ADDRESS = "EMAIL_OTP_NO_PROVED_ADDRESS"
     #: Enrolling over a factor the account has already proved.
     TOTP_ALREADY_ENROLLED = "TOTP_ALREADY_ENROLLED"
     #: The deployment does not offer the authenticator app.
@@ -142,9 +151,6 @@ class GuildMessages:
     #: the answer reads the same wherever it is met.
     GUILD_API_KEYS_REFUSED = "GUILD_API_KEYS_REFUSED"
     GUILD_AUTH_POLICY_INVALID_PROVIDER = "GUILD_AUTH_POLICY_INVALID_PROVIDER"
-    GUILD_AUTH_POLICY_SELF_UNSATISFIED = "GUILD_AUTH_POLICY_SELF_UNSATISFIED"
-    #: The community asked for a way in the deployment does not offer.
-    GUILD_AUTH_POLICY_METHOD_UNAVAILABLE = "GUILD_AUTH_POLICY_METHOD_UNAVAILABLE"
     GUILD_PERMISSION_REQUIRED = "GUILD_PERMISSION_REQUIRED"
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
     #: The guild's sign-in configuration asks for the seat above admin.
@@ -237,6 +243,8 @@ class GuildMessages:
     INVITE_NOT_FOUND = "INVITE_NOT_FOUND"
     INVITE_EXPIRED_OR_USED = "INVITE_EXPIRED_OR_USED"
     INVITE_EMAIL_MISMATCH = "INVITE_EMAIL_MISMATCH"
+    #: The account holds a time-limited access grant to this community.
+    INVITE_DURING_ACCESS_GRANT = "INVITE_DURING_ACCESS_GRANT"
     INVITE_INVALID = "INVITE_INVALID"
     INVITE_EXPIRED = "INVITE_EXPIRED"
     INVITE_USED = "INVITE_USED"
@@ -327,6 +335,8 @@ class TaskMessages:
     STATUS_NOT_FOUND = "TASK_STATUS_NOT_FOUND_FOR_PROJECT"
     INVALID_ASSIGNEE_ID = "TASK_INVALID_ASSIGNEE_ID"
     DUPLICATE_NOT_FOUND = "TASK_DUPLICATE_NOT_FOUND"
+    NOT_REPEATING = "TASK_NOT_REPEATING"
+    NO_LATER_OCCURRENCE = "TASK_NO_LATER_OCCURRENCE"
 
 
 class ChecklistMessages:
@@ -537,7 +547,7 @@ class SettingsMessages:
     SMTP_INCOMPLETE = "SETTINGS_SMTP_INCOMPLETE"
     # Generic code for a failed SMTP delivery — the raw exception (which can
     # carry the SMTP host, port, or server banner) is logged server-side only
-    # and never returned to the client (pentest SEC-16).
+    # and never returned to the client.
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
@@ -550,6 +560,9 @@ class SettingsMessages:
     #: authenticator code accompanies a sign-in rather than opening one.
     LOGIN_METHODS_NO_PRIMARY = "SETTINGS_LOGIN_METHODS_NO_PRIMARY"
     LOGIN_METHODS_WOULD_STRAND = "SETTINGS_LOGIN_METHODS_WOULD_STRAND"
+    #: The change would leave the account making it with no way in. Not
+    #: acknowledgeable: the account adds another way in first.
+    LOGIN_METHODS_WOULD_STRAND_SELF = "SETTINGS_LOGIN_METHODS_WOULD_STRAND_SELF"
     #: The acknowledged number no longer matches what withdrawing would strand.
     LOGIN_METHODS_STALE_ACKNOWLEDGEMENT = "SETTINGS_LOGIN_METHODS_STALE_ACK"
     #: The method used to reach this endpoint is not one the platform permits.
@@ -559,11 +572,6 @@ class SettingsMessages:
     LOGIN_METHODS_FACTOR_REQUIRED = "SETTINGS_LOGIN_METHODS_FACTOR_REQUIRED"
     #: Permitting the emailed code while the deployment cannot send mail.
     LOGIN_METHODS_NO_EMAIL = "SETTINGS_LOGIN_METHODS_NO_EMAIL"
-    # What the deployment asks of an account.
-    #: Asking for a second factor while permitting nothing that presents one.
-    FACTOR_REQUIREMENT_NO_METHOD = "SETTINGS_FACTOR_REQUIREMENT_NO_METHOD"
-    #: The account writing the requirement does not meet it yet.
-    FACTOR_REQUIREMENT_SELF_UNSATISFIED = "SETTINGS_FACTOR_REQUIREMENT_SELF_UNSATISFIED"
 
     # Object storage
     STORAGE_BACKFILL_RUNNING = "SETTINGS_STORAGE_BACKFILL_RUNNING"
@@ -801,6 +809,8 @@ class ImportEngineMessages:
 class QueryMessages:
     INVALID_CONDITIONS = "QUERY_INVALID_CONDITIONS"
     INVALID_SORT_FIELDS = "QUERY_INVALID_SORT_FIELDS"
+    #: A view the tool does not have, such as templates of a tool with none.
+    UNKNOWN_VIEW = "QUERY_UNKNOWN_VIEW"
 
     # The SQL query surface. Each names what a reader has to change about
     # their query, and travels with the offending word as detail so a client
@@ -900,12 +910,16 @@ class CalendarEventMessages:
     # A repeat rule that can't be read, or asks for more than tasks and
     # events repeat by (``app.core.recurrence``).
     RECURRENCE_INVALID = "RECURRENCE_INVALID"
+    # A change to one occurrence (or from one on) names which, by its start.
+    OCCURRENCE_REQUIRED = "CALENDAR_EVENT_OCCURRENCE_REQUIRED"
+    NOT_AN_OCCURRENCE = "CALENDAR_EVENT_NOT_AN_OCCURRENCE"
+    # One occurrence stays in its series' calendar and repeats with it.
+    OCCURRENCE_FOLLOWS_SERIES = "CALENDAR_EVENT_OCCURRENCE_FOLLOWS_SERIES"
     # A guild calendar holds guild-level content only. Things defined on an
-    # initiative — custom properties, documents — have no counterpart at guild
-    # scope, so an event there cannot carry them; and an event cannot be moved
-    # across the guild/initiative line, because it would take its initiative
-    # attachments with it.
-    GUILD_CALENDAR_NO_PROPERTIES = "CALENDAR_EVENT_GUILD_CALENDAR_NO_PROPERTIES"
+    # initiative — documents — have no counterpart at guild scope, so an event
+    # there cannot carry them; and an event cannot be moved across the
+    # guild/initiative line, because it would take its initiative attachments
+    # with it.
     GUILD_CALENDAR_NO_DOCUMENTS = "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS"
     CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
     # A calendar read's date window ends before it starts or spans too long.
@@ -1478,6 +1492,11 @@ class BillingMessages:
     OPERATOR_CANNOT_LOWER_CEILING = "BILLING_OPERATOR_CANNOT_LOWER_CEILING"
     ACTOR_REQUIRED = "BILLING_ACTOR_REQUIRED"
     STATUS_NOT_SETTABLE = "BILLING_STATUS_NOT_SETTABLE"
+    #: A community notice from a source that does not send one.
+    NOTICE_SOURCE_NOT_ALLOWED = "BILLING_NOTICE_SOURCE_NOT_ALLOWED"
+    #: The notice could not be written down. Nothing was recorded, so the same
+    #: event id may be sent again.
+    NOTICE_NOT_DELIVERED = "BILLING_NOTICE_NOT_DELIVERED"
     PORTAL_NOT_CONFIGURED = "BILLING_PORTAL_NOT_CONFIGURED"
     PORTAL_SIGNING_NOT_CONFIGURED = "BILLING_PORTAL_SIGNING_NOT_CONFIGURED"
     PORTAL_GRANT_UNAVAILABLE = "BILLING_PORTAL_GRANT_UNAVAILABLE"

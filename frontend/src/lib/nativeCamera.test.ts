@@ -26,7 +26,6 @@ const respondWith = (blob: Blob) =>
     .mockResolvedValue(new Response(blob, { headers: { "Content-Type": blob.type } }));
 
 beforeEach(() => {
-  vi.restoreAllMocks();
   takePhoto.mockReset();
   chooseFromGallery.mockReset();
 });

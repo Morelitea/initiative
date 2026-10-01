@@ -8,13 +8,17 @@ from pydantic import ConfigDict, Field, field_validator
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
-from app.schemas.recurrence import TaskRule
+from app.schemas.recurrence import OccurrenceScope, TaskRule
 
 from app.schemas.platform.user import AvatarUrl, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
-from app.schemas.tenant.property import PropertySummary, PropertyValueInput
+from app.schemas.tenant.property import (
+    PropertiesOnCreate,
+    PropertiesOnUpdate,
+    PropertySummary,
+)
 
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
@@ -103,7 +107,6 @@ MAX_CHECKLIST_ITEMS: Final = 100
 
 class TaskBase(SanitizedBaseModel):
     title: str
-    description: Optional[RichTextStr] = None
     priority: TaskPriority = TaskPriority.medium
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
@@ -111,8 +114,9 @@ class TaskBase(SanitizedBaseModel):
     recurrence_strategy: Literal["fixed", "rolling"] = "fixed"
 
 
-class TaskCreate(TaskBase):
+class TaskCreate(TaskBase, PropertiesOnCreate):
     title: TitleStr
+    description: Optional[RichTextStr] = None
     project_id: int
     recurrence: Optional[TaskRule] = None
     #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
@@ -121,11 +125,10 @@ class TaskCreate(TaskBase):
     assignee_ids: List[PersonId] = Field(default_factory=list)
     task_status_id: Optional[int] = None
     tag_ids: List[int] = Field(default_factory=list, max_length=100)
-    property_values: List[PropertyValueInput] = Field(default_factory=list)
     checklist: List[ChecklistItemInput] = Field(default_factory=list)
 
 
-class TaskUpdate(SanitizedBaseModel):
+class TaskUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = None
     description: Optional[RichTextStr] = None
     task_status_id: Optional[int] = None
@@ -140,8 +143,11 @@ class TaskUpdate(SanitizedBaseModel):
     recurrence_strategy: Optional[Literal["fixed", "rolling"]] = None
     # PATCH semantics: None = "leave unchanged"; a list (incl. []) = replace-all.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
-    property_values: Optional[List[PropertyValueInput]] = None
     checklist: Optional[List[ChecklistItemInput]] = None
+    #: Which tasks of a repeating series the edit is for (``task_series``).
+    #: Omitted, it carries forward from this task ("following"). The repeat
+    #: itself always changes from this task on.
+    scope: Optional[OccurrenceScope] = None
 
 
 class TaskMoveRequest(SanitizedBaseModel):
@@ -167,6 +173,7 @@ class TaskRead(TaskBase):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
+    description: Optional[RichTextStr] = None
     id: int
     project_id: int
     task_status_id: int
@@ -185,6 +192,10 @@ class TaskRead(TaskBase):
     recurrence_shift: int = 0
     #: No occurrence of the series starts after this; None while it goes on.
     recurrence_until: Optional[datetime] = None
+    #: The first task of the repeating series; None until the series moves on.
+    series_id: Optional[int] = None
+    #: How many live tasks the series holds, this one included.
+    series_size: int = 1
     comment_count: int = 0
     #: How many things are still holding this task up: live ``depends_on``
     #: edges whose far end has not finished. Only kinds with a reading of
@@ -204,6 +215,10 @@ class TaskListRead(TaskBase):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
+    #: The description's opening words as plain text, ending on a word
+    #: boundary with an ellipsis when cut. The whole text is on ``TaskRead``.
+    description_excerpt: Optional[str] = None
+    has_description: bool = False
     id: int
     project_id: int
     task_status_id: int

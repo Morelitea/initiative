@@ -35,7 +35,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   InitiativeDirectoryEntry,
-  InitiativeListRead,
+  InitiativeRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeJoinPolicy } from "@/api/generated/initiativeAPI.schemas";
 import { RequestToJoinDialog } from "@/components/initiatives/RequestToJoinDialog";
@@ -47,7 +47,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives, useJoinInitiative } from "@/hooks/useInitiatives";
-import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
+import { useToolCountsByInitiative } from "@/hooks/useToolCounts";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { hexToRgba, InitiativeColorDot, resolveInitiativeColor } from "@/lib/initiativeColors";
@@ -110,7 +110,7 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
   const initiativesQuery = useInitiatives({ enabled: hasEnterable });
   const toolCounts = useToolCountsByInitiative({ enabled: hasEnterable });
 
-  const membershipById = new Map<number, InitiativeListRead>(
+  const membershipById = new Map<number, InitiativeRead>(
     (initiativesQuery.data ?? []).map((initiative) => [initiative.id, initiative])
   );
 

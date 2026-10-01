@@ -78,6 +78,17 @@ class CounterGroup(
     )
 
 
+#: How a counter's numbers are stored: twenty digits, ten after the point. A
+#: request is held to it, and a step is held within it.
+COUNTER_DIGITS = 20
+COUNTER_PLACES = 10
+COUNTER_NUMBER = Numeric(COUNTER_DIGITS, COUNTER_PLACES)
+#: The largest number that fits, either side of zero.
+COUNTER_LIMIT = (
+    Decimal(10) ** (COUNTER_DIGITS - COUNTER_PLACES) - Decimal(10) ** -COUNTER_PLACES
+)
+
+
 class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     """A single named numeric counter inside a counter group."""
 
@@ -99,23 +110,23 @@ class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     )
     count: Decimal = Field(
         default=Decimal("0"),
-        sa_column=Column(Numeric(20, 10), nullable=False, server_default="0"),
+        sa_column=Column(COUNTER_NUMBER, nullable=False, server_default="0"),
     )
     min: Optional[Decimal] = Field(
         default=None,
-        sa_column=Column(Numeric(20, 10), nullable=True),
+        sa_column=Column(COUNTER_NUMBER, nullable=True),
     )
     max: Optional[Decimal] = Field(
         default=None,
-        sa_column=Column(Numeric(20, 10), nullable=True),
+        sa_column=Column(COUNTER_NUMBER, nullable=True),
     )
     step: Decimal = Field(
         default=Decimal("1"),
-        sa_column=Column(Numeric(20, 10), nullable=False, server_default="1"),
+        sa_column=Column(COUNTER_NUMBER, nullable=False, server_default="1"),
     )
     initial_count: Decimal = Field(
         default=Decimal("0"),
-        sa_column=Column(Numeric(20, 10), nullable=False, server_default="0"),
+        sa_column=Column(COUNTER_NUMBER, nullable=False, server_default="0"),
     )
     view_mode: CounterViewMode = Field(
         default=CounterViewMode.number,
@@ -131,7 +142,7 @@ class Counter(CreatedByMixin, SoftDeleteMixin, table=True):
     )
     position: Decimal = Field(
         default=Decimal("0"),
-        sa_column=Column(Numeric(20, 10), nullable=False, server_default="0"),
+        sa_column=Column(COUNTER_NUMBER, nullable=False, server_default="0"),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

@@ -59,8 +59,36 @@ body:
     id: version
     attributes:
       label: Version
-      description: Which version are you running? (check the sidebar footer or /api/v1/version)
+      description: Which version are you running? (check the sidebar footer or /api/v1/version) Reports are grouped by it.
       placeholder: e.g. 0.29.1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database setup
+      description: How is Initiative given its database?
+      options:
+        - One DATABASE_URL (as in docker-compose.example.yml)
+        - Separate logins (DATABASE_URL_APP and DATABASE_URL_ADMIN are set)
+        - Not sure
+
+  - type: input
+    id: postgres
+    attributes:
+      label: PostgreSQL version
+      placeholder: e.g. 17
+
+  - type: dropdown
+    id: proxy
+    attributes:
+      label: How it is reached
+      options:
+        - Directly, over HTTP
+        - Through a reverse proxy, over HTTPS
+        - Through a reverse proxy, over HTTP
+        - Other
 
   - type: dropdown
     id: browser

@@ -459,7 +459,7 @@ def _resolve_sort_fields(
 # request. Deliberately a constant, not a setting: clients retrieve arbitrarily
 # large sets by walking ``page=1,2,...`` until ``has_next`` is false, so nothing
 # is unreachable through this bound and there is nothing for an operator to
-# tune — it only keeps any single response's row count finite (SEC-14).
+# tune — it only keeps any single response's row count finite.
 FETCH_ALL_WINDOW = 1000
 
 # How many ids one request may pass to an ``id``-filtered list endpoint. Matches
@@ -487,7 +487,7 @@ def apply_pagination(
     """Apply OFFSET/LIMIT.
 
     ``page_size<=0`` means "everything, in server-window-sized pages": the
-    response is bounded by :data:`FETCH_ALL_WINDOW` (SEC-14), and ``page``
+    response is bounded by :data:`FETCH_ALL_WINDOW`, and ``page``
     selects which window, so a caller can walk ``page=1,2,...`` until
     ``has_next`` is false and retrieve the complete set — a single request can
     never dump an unbounded table, but no result is unreachable either.
@@ -566,7 +566,7 @@ def build_paginated_response(
     """Build a dict suitable for unpacking into a ``PageMeta`` response model.
 
     Computes ``has_next`` and ``has_prev`` automatically from the inputs.
-    ``page_size<=0`` responses window through the server cap (SEC-14), so
+    ``page_size<=0`` responses window through the server cap, so
     ``page`` is echoed as requested and ``has_next`` tells the caller whether
     another window remains — truncation is always visible, never silent.
     """

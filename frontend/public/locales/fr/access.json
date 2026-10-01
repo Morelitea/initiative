@@ -97,6 +97,7 @@
     "selected_other": "{{count}} sélectionnés",
     "editAccess": "Modifier l'accès",
     "needManage": "Vous ne pouvez modifier l'accès que sur les éléments que vous possédez ou pouvez modifier.",
+    "archived": "Le partage des éléments archivés ne peut pas être modifié.",
     "resource_project_one": "projet",
     "resource_project_other": "projets",
     "resource_document_one": "document",

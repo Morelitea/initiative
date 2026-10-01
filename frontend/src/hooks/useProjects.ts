@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
@@ -19,9 +19,8 @@ import {
   favoriteProjectsApiV1CGuildIdProjectsFavoritesGet,
   getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey,
   getListProjectsApiV1CGuildIdProjectsGetQueryKey,
-  getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey,
   getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  listWritableProjectsApiV1CGuildIdProjectsWritableGet,
+  listProjectsApiV1CGuildIdProjectsGet,
   reorderProjectsApiV1CGuildIdProjectsReorderPost,
   unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1CGuildIdProjectsProjectIdPatch,
@@ -38,6 +37,8 @@ import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useGuildMutation } from "@/hooks/useApiMutation";
+import { fetchAllPages } from "@/lib/fetchAllPages";
+import { toolViewParams } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -56,11 +57,8 @@ export const useSetProjectGrants = projects.useSetGrants;
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 /**
- * One page of the guild's projects.
- *
- * Read straight, without the placeholder rows every other tool's list keeps:
- * the status-count queries below read only `total_count`, and holding the
- * previous count on screen would show the wrong badge while a filter changes.
+ * One page of the guild's projects. The rows stay on screen while a changed
+ * page, search or order is in flight, like every other tool's list.
  */
 export const useProjects = (
   params?: ListProjectsApiV1CGuildIdProjectsGetParams,
@@ -69,6 +67,7 @@ export const useProjects = (
   const guildId = useActiveGuildId();
   return useQuery<ProjectListResponse>({
     ...projects.listQuery(guildId, params),
+    placeholderData: keepPreviousData,
     ...options,
   });
 };
@@ -77,34 +76,27 @@ export const useProjects = (
  *  create dialog's "start from a template" picker. The projects list reads its
  *  own templates through `useProjects`, since the status filter picks which of
  *  the three states the same query returns. */
-/** Row counts for the three list states, for the status filter's badges. The
- *  smallest possible page of the slim projection: only `total_count` is read,
- *  so a state advertises how much it holds without loading any of it. */
-export const useProjectStatusCounts = (initiativeId?: number | null) => {
-  const base = {
-    slim: true,
-    page_size: 1,
-    ...(initiativeId ? { initiative_id: initiativeId } : {}),
-  };
-  const active = useProjects(base);
-  const templates = useProjects({ ...base, template: true });
-  const archived = useProjects({ ...base, archived: true });
-  return {
-    active: active.data?.total_count,
-    templates: templates.data?.total_count,
-    archived: archived.data?.total_count,
-  };
-};
-
 export const useTemplateProjects = (initiativeId?: number | null) => {
-  return useProjects({ template: true, ...(initiativeId ? { initiative_id: initiativeId } : {}) });
+  return useProjects({
+    is_template: true,
+    ...(initiativeId ? { initiative_id: initiativeId } : {}),
+  });
 };
 
-export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
+/** Every live project the reader may edit — where a task can be moved to; a
+ *  template takes no tasks moved into it. Walks the list's windows, so no
+ *  destination is left off a long list. */
+export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) => {
   const guildId = useActiveGuildId();
-  return useQuery<ProjectRead[]>({
-    queryKey: getListWritableProjectsApiV1CGuildIdProjectsWritableGetQueryKey(guildId),
-    queryFn: () => listWritableProjectsApiV1CGuildIdProjectsWritableGet(guildId),
+  const params = {
+    writable: true,
+    slim: true,
+    page_size: 0,
+    ...toolViewParams(Tool.project, "active"),
+  };
+  return useQuery<ProjectListResponse>({
+    queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId, params),
+    queryFn: () => fetchAllPages(listProjectsApiV1CGuildIdProjectsGet, guildId, params),
     staleTime: 60 * 1000,
     ...options,
   });

@@ -270,7 +270,7 @@ def test_rejects_too_many_widgets():
 
 def test_no_definition_can_name_an_endpoint():
     """The closed source vocabulary is what keeps a URL out of a definition —
-    there is no source a URL could be smuggled through."""
+    there is no source that carries a URL."""
     for candidate in ("https://evil.test/steal", "//evil.test", "file:///etc/passwd"):
         with pytest.raises(DashboardDefinitionError, match="BINDING_SOURCE_UNKNOWN"):
             normalize_dashboard_definition(

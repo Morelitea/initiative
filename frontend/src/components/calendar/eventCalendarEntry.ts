@@ -23,8 +23,8 @@ export const DEFAULT_CALENDAR_COLOR = "#6366f1";
  * The id carries the guild because the cross-guild calendar holds events whose
  * per-guild ids collide, and a repeating event's occurrence because the series
  * is there once for each; `meta` carries everything either calendar navigates
- * by. An occurrence is not dragged: moving one alone needs a choice of which
- * occurrences to move, which the event page makes.
+ * or reschedules by: an occurrence names its start in the series, and one with
+ * a row of its own names the series too.
  */
 export const buildEventCalendarEntry = (
   event: CalendarEventSummary,
@@ -44,9 +44,9 @@ export const buildEventCalendarEntry = (
     avatarUrl: att.avatar_url,
     userId: att.user_id,
   })),
-  properties: event.property_values,
+  properties: event.properties,
   tags: event.tags,
-  draggable: event.can.edit && !event.recurrence,
+  draggable: event.can.edit,
   unread,
   meta: {
     type: "event",
@@ -54,5 +54,6 @@ export const buildEventCalendarEntry = (
     calendarId: event.calendar_id,
     guildId: event.guild_id,
     occurrence: event.original_start ?? undefined,
+    seriesId: event.series_id ?? undefined,
   },
 });

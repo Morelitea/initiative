@@ -55,16 +55,18 @@ const renderPage = (role: "owner" | "operator" = "owner") =>
 
 const toggle = () => screen.getByLabelText("Run a community directory");
 
-describe("SettingsCommunityPage", () => {
-  beforeEach(() => {
-    updateMutate.mockClear();
-    config.communityDirectory = false;
-    config.ageGate = true;
-    config.defaultDmPolicy = "private";
-    config.directMessages = true;
-    config.retentionDays = 90;
-  });
+// For every test in the file, so none starts on what another left.
+beforeEach(() => {
+  updateMutate.mockClear();
+  config.communityDirectory = false;
+  config.ageGate = true;
+  config.defaultDmPolicy = "private";
+  config.directMessages = true;
+  config.retentionDays = 90;
+  config.holdDays = 30;
+});
 
+describe("SettingsCommunityPage", () => {
   it("starts off, matching a deployment that has never turned it on", async () => {
     renderPage();
 
@@ -217,12 +219,6 @@ describe("the policy new accounts start on", () => {
 });
 
 describe("how long deleted communities are kept", () => {
-  beforeEach(() => {
-    updateMutate.mockClear();
-    config.communityDirectory = false;
-    config.retentionDays = 90;
-  });
-
   it("shows the deployment's window and saves a new one", async () => {
     config.communityDirectory = true;
     renderPage();
@@ -271,12 +267,6 @@ describe("how long deleted communities are kept", () => {
 });
 
 describe("how long communities stay on hold", () => {
-  beforeEach(() => {
-    updateMutate.mockClear();
-    config.communityDirectory = false;
-    config.holdDays = 30;
-  });
-
   it("shows the deployment's window and saves a new one", async () => {
     renderPage();
 

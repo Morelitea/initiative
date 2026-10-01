@@ -139,8 +139,8 @@ def clean_text(
 ) -> str | None:
     """Plain text, trimmed and length-checked.
 
-    Non-strings are dropped rather than coerced, so a nested object cannot
-    smuggle itself into a rendered label. Over-length text is refused rather
+    Non-strings are dropped rather than coerced, so a nested object never
+    ends up in a rendered label. Over-length text is refused rather
     than cut: silently publishing half a sentence is worse than saying so.
     """
     if not isinstance(value, str):

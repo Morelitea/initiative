@@ -5,8 +5,8 @@
  * its own copy of these tests. The cases come from the page's own `TOOL_INDEX`:
  * add a tool with an entry and it is covered here the moment it exists.
  *
- * What is tool-specific stays where it belongs — the queue's status select and
- * the wiki's tag picker are tested with their tools, not here.
+ * What only one tool's list takes — a queue's status — is asked of that tool
+ * alone, at the bottom.
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -18,7 +18,7 @@ import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   type ToolIndexEntry,
   ToolIndexPage,
@@ -75,9 +75,9 @@ const row = (tool: Tool, fields: { id: number; name: string; archived_at?: strin
 });
 
 /**
- * Serve the tool's list endpoint, honouring the two things the page can ask
- * for: which archive state, and a search. A tool that searches in the browser
- * simply never sends the second, and narrows the same payload itself.
+ * Serve the tool's list endpoint, honouring what every tool's page can ask
+ * for: which archive state, a search, and a page. Every request is kept, so a
+ * test can read what the page sent.
  */
 const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
   const requests: URLSearchParams[] = [];
@@ -87,25 +87,29 @@ const stubList = (tool: Tool, rows: ReturnType<typeof row>[]) => {
       requests.push(params);
       const wantArchived = params.get("archived") === "true";
       const search = (params.get("search") ?? "").toLowerCase();
-      const items = rows.filter(
+      const matching = rows.filter(
         (item) =>
           Boolean(item.archived_at) === wantArchived &&
           (!search || item.name.toLowerCase().includes(search))
       );
+      const page = Number(params.get("page") ?? 1);
+      const pageSize = Number(params.get("page_size") ?? 20);
       return HttpResponse.json({
-        items,
-        total_count: items.length,
-        page: 1,
-        page_size: 50,
-        has_next: false,
+        items: matching.slice((page - 1) * pageSize, page * pageSize),
+        total_count: matching.length,
+        page,
+        page_size: pageSize,
+        has_next: page * pageSize < matching.length,
       });
     })
   );
   return requests;
 };
 
-const renderIndex = (tool: Tool) =>
-  renderPage(() => <ToolIndexPage tool={tool} fixedInitiativeId={INITIATIVE_ID} canCreate />);
+const renderIndex = (tool: Tool, routerSearch?: Record<string, unknown>) =>
+  renderPage(() => <ToolIndexPage tool={tool} fixedInitiativeId={INITIATIVE_ID} canCreate />, {
+    routerSearch,
+  });
 
 describe("the tool index page", () => {
   it.each(CASES)("$tool names its own empty shelf", async ({ tool, entry }) => {
@@ -122,15 +126,25 @@ describe("the tool index page", () => {
       row(tool, { id: 1, name: "Still in use" }),
       row(tool, { id: 2, name: "Put away", archived_at: "2026-02-01T00:00:00Z" }),
     ]);
+    server.use(
+      guildHttp.get(`/tools/${tool}/counts`, ({ request }) => {
+        expect(new URL(request.url).searchParams.get("initiative_id")).toBe(`${INITIATIVE_ID}`);
+        return HttpResponse.json({
+          views: { active: 1, archived: 1 },
+          tag_counts: {},
+          untagged_count: 0,
+        });
+      })
+    );
 
     renderIndex(tool);
 
     expect(await screen.findByText("Still in use")).toBeInTheDocument();
     expect(screen.queryByText("Put away")).not.toBeInTheDocument();
 
-    await userEvent.click(
-      screen.getByRole("radio", { name: shared("toolArchiveFilter.archived") })
-    );
+    const archived = screen.getByRole("radio", { name: shared("toolViewFilter.archived") });
+    await waitFor(() => expect(archived).toHaveTextContent("1"));
+    await userEvent.click(archived);
 
     expect(await screen.findByText("Put away")).toBeInTheDocument();
     await waitFor(() => expect(requests.at(-1)?.get("archived")).toBe("true"));
@@ -150,21 +164,28 @@ describe("the tool index page", () => {
     expect(button).toHaveAttribute("aria-expanded", "true");
   });
 
-  it.each(CASES)("$tool says so when the search matches nothing", async ({ tool, entry }) => {
-    stubList(tool, [row(tool, { id: 1, name: "Findable" })]);
+  it.each(CASES)(
+    "$tool searches on the server, and says so when nothing matches",
+    async ({ tool, entry }) => {
+      const requests = stubList(tool, [row(tool, { id: 1, name: "Findable" })]);
 
-    renderIndex(tool);
-    expect(await screen.findByText("Findable")).toBeInTheDocument();
+      renderIndex(tool);
+      expect(await screen.findByText("Findable")).toBeInTheDocument();
 
-    await userEvent.type(
-      screen.getByLabelText(i18n.t("filters.searchLabel", { ns: entry.text.ns })),
-      "nothing here"
-    );
+      await userEvent.type(
+        screen.getByLabelText(i18n.t("filters.searchLabel", { ns: entry.text.ns })),
+        "nothing here"
+      );
 
-    // Not the empty shelf: the tool has rows, they are just not these.
-    expect(await screen.findByText(copy(entry, "noMatches"))).toBeInTheDocument();
-    expect(screen.queryByText(copy(entry, "emptyTitle"))).not.toBeInTheDocument();
-  });
+      // Not the empty shelf: the tool has rows, they are just not these.
+      expect(await screen.findByText(copy(entry, "noMatches"))).toBeInTheDocument();
+      expect(screen.queryByText(copy(entry, "emptyTitle"))).not.toBeInTheDocument();
+      // Sent once, after the typing stopped, rather than once a keystroke.
+      expect(requests.map((params) => params.get("search")).filter(Boolean)).toEqual([
+        "nothing here",
+      ]);
+    }
+  );
 
   it.each(CASES)("$tool is created from the shared dialog", async ({ tool, entry }) => {
     stubList(tool, []);
@@ -190,6 +211,31 @@ describe("the tool index page", () => {
     await waitFor(() =>
       expect(sent).toMatchObject({ name: "Fresh", initiative_id: INITIATIVE_ID })
     );
+  });
+
+  it.each(CASES)("$tool asks for its list a page at a time", async ({ tool }) => {
+    const requests = stubList(tool, [row(tool, { id: 1, name: "Paged" })]);
+
+    renderIndex(tool);
+
+    expect(await screen.findByText("Paged")).toBeInTheDocument();
+    expect(requests.at(-1)?.get("page")).toBe("1");
+    expect(requests.at(-1)?.get("page_size")).toBe("20");
+    expect(
+      screen.getByText(
+        translate("pagination.rangeOf", { ns: "common", start: 1, end: 1, total: 1 })
+      )
+    ).toBeInTheDocument();
+  });
+
+  it.each(CASES)("$tool leaves a page past its end for its last one", async ({ tool }) => {
+    const requests = stubList(tool, [row(tool, { id: 1, name: "Survivor" })]);
+
+    // A link to page 3 of a list that now holds one row.
+    renderIndex(tool, { page: 3 });
+
+    expect(await screen.findByText("Survivor")).toBeInTheDocument();
+    expect(requests.map((params) => params.get("page"))).toEqual(["3", "1"]);
   });
 
   it.each(CASES)("$tool opens a row at its own address", async ({ tool }) => {
@@ -218,5 +264,52 @@ describe("the tool index page", () => {
     const dot = await screen.findByRole("img", { name: translate("guilds:unreadHere") });
     expect(screen.getAllByRole("img", { name: translate("guilds:unreadHere") })).toHaveLength(1);
     expect(dot.parentElement).toHaveTextContent("Talked about");
+  });
+});
+
+describe("the tool index page's property filter", () => {
+  it("offers only the properties of the initiative the list is in", async () => {
+    stubList(Tool.queue, [row(Tool.queue, { id: 1, name: "Running" })]);
+    const asked: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/property-definitions/", ({ request }) => {
+        asked.push(new URL(request.url).searchParams);
+        return HttpResponse.json([]);
+      })
+    );
+
+    renderIndex(Tool.queue);
+    await screen.findByText("Running");
+    await userEvent.click(screen.getByRole("button", { name: shared("toolbar.filters") }));
+
+    await waitFor(() => expect(asked.length).toBeGreaterThan(0));
+    expect(asked.map((params) => params.get("initiative_id"))).toEqual(
+      asked.map(() => String(INITIATIVE_ID))
+    );
+  });
+});
+
+describe("the queue index page", () => {
+  it("sends the status filter as is_active", async () => {
+    const requests = stubList(Tool.queue, [row(Tool.queue, { id: 1, name: "Running" })]);
+    const pick = async (label: string) => {
+      await userEvent.click(
+        screen.getByRole("combobox", { name: translate("filters.status", { ns: "queues" }) })
+      );
+      await userEvent.click(
+        await screen.findByRole("option", { name: translate(label, { ns: "queues" }) })
+      );
+    };
+
+    renderIndex(Tool.queue);
+    await screen.findByText("Running");
+    await userEvent.click(screen.getByRole("button", { name: shared("toolbar.filters") }));
+
+    await pick("filters.inactiveOnly");
+    await waitFor(() => expect(requests.at(-1)?.get("is_active")).toBe("false"));
+    await pick("filters.activeOnly");
+    await waitFor(() => expect(requests.at(-1)?.get("is_active")).toBe("true"));
+    await pick("filters.allStatuses");
+    await waitFor(() => expect(requests.at(-1)?.has("is_active")).toBe(false));
   });
 });

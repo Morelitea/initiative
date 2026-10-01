@@ -9,6 +9,7 @@
   "creating": "Creando…",
   "createGuildSubmit": "Crear comunidad",
   "unableToCreateGuild": "No se pudo crear la comunidad",
+  "freeCommunityHeldInApp": "Ya tienes una comunidad gratuita. No se puede crear otra en la app.",
   "switchTo": "Cambiar a {{name}}",
   "guildsHeading": "Comunidades",
   "expandGuilds": "Expandir lista de comunidades",
@@ -228,22 +229,16 @@
     "readOnly": "Hasta que se resuelva, los miembros pueden leer todo aquí, pero no pueden cambiar nada.",
     "paymentTitle": "Se rechazó el pago de {{name}}",
     "paymentDescription": "Actualiza tu tarjeta para restablecer la comunidad.",
+    "paymentDescriptionInApp": "Los datos de pago no se pueden cambiar en la app.",
     "updatePayment": "Actualizar método de pago",
     "notNow": "Ahora no",
     "contactSupport": "Contactar con soporte"
   },
   "noGuild": {
-    "title": "Sin membresía de comunidad",
-    "description": "Aún no eres miembro de ninguna comunidad. Pide a un administrador de comunidad un enlace de invitación o crea un nueva comunidad para comenzar.",
-    "guildNamePlaceholder": "Nombre de la comunidad",
-    "create": "Crear",
-    "inviteCodePlaceholder": "Código de invitación",
-    "redeem": "Canjear",
     "accountSettings": "Configuración de la cuenta",
     "platformSettings": "Configuración de la plataforma",
     "shellBackToStart": "Volver al inicio",
-    "logOut": "Cerrar sesión",
-    "browseCommunities": "Explorar comunidades"
+    "logOut": "Cerrar sesión"
   },
   "notifications": {
     "title": "Notificaciones",
@@ -302,6 +297,14 @@
     "appConsentRequested": "{{app}} pide actuar en tu nombre: «{{label}}»",
     "appUpdatePending": "{{app}}, versión {{version}}, pide más acceso",
     "guildOnHoldWithContact": "{{community}} está en pausa. Ponte en contacto con {{contact}} para resolverlo.",
+    "guildOnHoldDeleting": "{{community}} está en pausa y se eliminará el {{date}}. Ponte en contacto con quien gestiona este servidor para resolverlo.",
+    "guildOnHoldDeletingWithContact": "{{community}} está en pausa y se eliminará el {{date}}. Ponte en contacto con {{contact}} para resolverlo.",
+    "guildTrialEnding": "La prueba de {{community}} termina el {{date}}. Suscríbete en el portal de facturación antes de esa fecha para seguir editando.",
+    "guildTrialEndingInApp": "La prueba de {{community}} termina el {{date}}. Después pasará a ser de solo lectura.",
+    "guildTrialEnded": "La prueba de {{community}} ha terminado y ahora es de solo lectura. Elige un plan en el portal de facturación para seguir editando.",
+    "guildTrialEndedInApp": "La prueba de {{community}} ha terminado y ahora es de solo lectura.",
+    "guildWelcome": "{{community}} está lista. Configura su plan para empezar.",
+    "guildWelcomeInApp": "{{community}} está lista.",
     "defaultNotification": "Tienes una nueva notificación.",
     "push": {
       "enableTitle": "Activar notificaciones push",
@@ -384,18 +387,52 @@
   "billingSetup": {
     "opening": "Abriendo la facturación para que elijas un plan para {{guild}}."
   },
+  "billingForward": {
+    "opening": "Abriendo el portal de facturación…",
+    "notConfiguredTitle": "No hay portal de facturación",
+    "notConfiguredDescription": "Este servidor no tiene portal de facturación, así que aquí no hay ningún plan que configurar.",
+    "errorTitle": "No se pudo abrir la facturación",
+    "error": "No se pudo abrir el portal de facturación. Vuelve a probar el enlace en un momento.",
+    "nativeTitle": "No disponible en la app",
+    "nativeDescription": "Los cambios de plan no están disponibles en la app."
+  },
   "usagePanel": {
     "title": "Uso",
     "storage": "Almacenamiento",
     "members": "Miembros",
     "usedOfMax": "{{used}} de {{max}}",
     "usedOfUnlimited": "{{used}} usado · Ilimitado",
+    "storageUnavailable": "No disponible en este momento",
     "membersOfMax": "{{used}} de {{max}}",
     "membersOfUnlimited": "{{used}} · Ilimitado",
     "currentPlan": "Plan actual:",
     "selfHosted": "Autoalojado",
     "upgrade": "Mejorar",
     "manageBilling": "Gestionar facturación"
+  },
+  "billingPanel": {
+    "title": "Plan",
+    "unavailable": "Los detalles de facturación no están disponibles en este momento.",
+    "updatePaymentMethod": "Actualizar método de pago",
+    "changeInPortal": "Cambia tu plan o tu método de pago, o cancela, en el portal de facturación.",
+    "notInApp": "Los cambios de plan no están disponibles en la app.",
+    "cancelAnytime": "Cancela cuando quieras en el portal de facturación. Tu plan sigue activo hasta el final del periodo que has pagado. Después, tu comunidad será de solo lectura durante 30 días para que puedas exportarla; luego quedará en pausa y se eliminará 30 días más tarde.",
+    "status": {
+      "paymentFailed": "Pago fallido",
+      "paymentFailedDetail": "Actualiza tu método de pago para seguir editando: la comunidad pasa a ser de solo lectura 14 días después del pago fallido.",
+      "paymentFailedDetailInApp": "La comunidad pasa a ser de solo lectura 14 días después del pago fallido.",
+      "ends": "Termina el {{date}}",
+      "endsDetail": "Tu plan termina el {{date}}. Después, la comunidad será de solo lectura durante 30 días y luego quedará en pausa.",
+      "pauses": "Se pausa el {{date}}",
+      "resumes": "Se reanuda el {{date}}",
+      "trial_one": "Prueba · queda {{count}} día",
+      "trial_other": "Prueba · quedan {{count}} días",
+      "trialLastDay": "Prueba · último día",
+      "trialDetail": "La prueba termina el {{date}}. Suscríbete antes para seguir editando.",
+      "trialDetailInApp": "La prueba termina el {{date}}. Después, la comunidad será de solo lectura.",
+      "renews": "Se renueva el {{date}}",
+      "renewsWithAmount": "Se renueva el {{date}} · {{amount}}"
+    }
   },
   "transferOwnership": {
     "title": "Transferir propiedad",

@@ -14,7 +14,7 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { usePlatformAuthSettings, useUpdateSessionLifetime } from "@/hooks/useSettings";
+import { usePlatformAuthSettings, useUpdatePlatformAuthSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -42,7 +42,7 @@ const SessionLifetimeForm = ({
   const { t } = useTranslation(["settings", "common"]);
   const [value, setValue] = useState(hours === null ? "" : String(hours));
   const [idle, setIdle] = useState(idleMinutes === null ? "" : String(idleMinutes));
-  const update = useUpdateSessionLifetime({
+  const update = useUpdatePlatformAuthSettings({
     onSuccess: () => toast.success(t("auth.sessionLifetime.saved")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:auth.sessionLifetime.error")),
   });

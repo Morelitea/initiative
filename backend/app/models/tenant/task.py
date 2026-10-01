@@ -22,7 +22,6 @@ from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMi
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
     from app.models.platform.user_profile_view import MemberProfile
-    from app.models.tenant.property import TaskPropertyValue
 
 
 class TaskStatusCategory(str, Enum):
@@ -138,6 +137,17 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
+    # The first task of the repeating series this task is in, set when the
+    # series first moves on. A name for the series rather than a key: the
+    # series goes on when its first task is purged.
+    series_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True, index=True)
+    )
+    # What an edit of just this task changed from, by field; the next task in
+    # the series is made with these (``app.services.tenant.task_series``).
+    recurrence_carry: Optional[dict] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
+    )
     position: float = Field(
         default=0,
         sa_column=Column(
@@ -177,10 +187,6 @@ class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
             "primaryjoin": "foreign(Task.created_by) == MemberProfile.id",
             "viewonly": True,
         }
-    )
-    property_values: List["TaskPropertyValue"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
 

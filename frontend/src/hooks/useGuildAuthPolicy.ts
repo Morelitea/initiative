@@ -7,17 +7,9 @@ import {
   listLoginProvidersApiV1AuthProvidersGet,
 } from "@/api/generated/auth/auth";
 import {
-  getGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGetQueryKey,
   getGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGetQueryKey,
-  getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryKey,
-  getGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGet,
   getGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet,
-  getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet,
-  setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut,
-  setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut,
-  setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut,
-  setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut,
-  setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut,
+  updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch,
 } from "@/api/generated/communities/communities";
 import {
   createGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPost,
@@ -34,19 +26,13 @@ import {
 } from "@/api/generated/community-provider-connections/community-provider-connections";
 import type {
   ConnectableProviderRead,
-  GuildApiAccessUpdate,
-  GuildAuthPolicyRead,
-  GuildAuthPolicyUpdate,
   GuildAuthSettingsRead,
+  GuildAuthSettingsUpdate,
   GuildClaimRuleCreate,
   GuildClaimRulesResponse,
-  GuildNotificationPolicyRead,
-  GuildNotificationPolicyUpdate,
   GuildProviderConnectionCreate,
   GuildProviderConnectionRead,
   GuildProviderConnectionUpdate,
-  GuildSecondFactorUpdate,
-  GuildSessionLimitUpdate,
   LoginProvidersResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { QueryOpts } from "@/types/query";
@@ -78,16 +64,6 @@ export const useGuildLoginProviders = (
   });
 };
 
-/** The guild's sign-in requirement (guild admins only). */
-export const useGuildAuthPolicy = (guildId: number, options?: QueryOpts<GuildAuthPolicyRead>) => {
-  return useQuery<GuildAuthPolicyRead>({
-    queryKey: getGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGetQueryKey(guildId),
-    queryFn: () => getGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGet(guildId),
-    enabled: guildId > 0,
-    ...options,
-  });
-};
-
 /** The complete Authentication settings available to a settings superadmin. */
 export const useGuildAuthSettings = (
   guildId: number,
@@ -101,75 +77,20 @@ export const useGuildAuthSettings = (
   });
 };
 
-/** Set the guild's sign-in requirement; refreshes the policy query on success. */
-export const useUpdateGuildAuthPolicy = (guildId: number) => {
+/**
+ * Change any of the seat page's rules, then read them all back. Two switches
+ * saved together can answer out of order, so the page rereads what the server
+ * holds rather than taking either answer as the latest.
+ */
+export const useUpdateGuildAuthSettings = (guildId: number) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: GuildAuthPolicyUpdate) =>
-      setGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyPut(guildId, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: getGetGuildAuthPolicyApiV1CommunitiesGuildIdAuthPolicyGetQueryKey(guildId),
-      });
-    },
-  });
-};
-
-/**
- * Whether the guild accepts personal API keys.
- *
- * The value itself rides on the guild list (`GuildRead.allow_api_keys`), so
- * there is no query of its own to invalidate — the caller refreshes the guilds
- * it already has.
- */
-export const useUpdateGuildApiAccess = (guildId: number) => {
-  return useMutation({
-    mutationFn: (data: GuildApiAccessUpdate) =>
-      setGuildApiAccessApiV1CommunitiesGuildIdApiAccessPut(guildId, data),
-  });
-};
-
-/**
- * Whether the community holds its members to the twelve-hour session standard.
- * Rides on the guild list the same way API access does.
- */
-export const useUpdateGuildSessionLimit = (guildId: number) => {
-  return useMutation({
-    mutationFn: (data: GuildSessionLimitUpdate) =>
-      setGuildSessionLimitApiV1CommunitiesGuildIdSessionLimitPut(guildId, data),
-  });
-};
-
-/**
- * What this community's notifications may leave the app carrying, beside what
- * the deployment already asks of every community.
- */
-export const useGuildNotificationPolicy = (
-  guildId: number,
-  options?: QueryOpts<GuildNotificationPolicyRead>
-) => {
-  return useQuery<GuildNotificationPolicyRead>({
-    queryKey:
-      getGetGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGetQueryKey(guildId),
-    queryFn: () => getGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyGet(guildId),
-    enabled: guildId > 0,
-    ...options,
-  });
-};
-
-/** Set the three answers; the page refetches to pick up the deployment's. */
-export const useUpdateGuildNotificationPolicy = (guildId: number) => {
-  return useMutation({
-    mutationFn: (data: GuildNotificationPolicyUpdate) =>
-      setGuildNotificationPolicyApiV1CommunitiesGuildIdNotificationPolicyPut(guildId, data),
-  });
-};
-
-/** Whether reaching this community asks for a second factor. */
-export const useUpdateGuildSecondFactor = (guildId: number) => {
-  return useMutation({
-    mutationFn: (data: GuildSecondFactorUpdate) =>
-      setGuildSecondFactorApiV1CommunitiesGuildIdSecondFactorPut(guildId, data),
+    mutationFn: (data: GuildAuthSettingsUpdate) =>
+      updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch(guildId, data),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: getGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGetQueryKey(guildId),
+      }),
   });
 };
 

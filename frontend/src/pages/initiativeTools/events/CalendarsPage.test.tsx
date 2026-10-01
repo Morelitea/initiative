@@ -1,6 +1,6 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { endOfMonth, startOfMonth } from "date-fns";
+import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
@@ -10,6 +10,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import type { FilterCondition, FilterGroup } from "@/api/generated/initiativeAPI.schemas";
 import { CALENDAR_VIEW_MODE_KEY } from "@/components/calendar";
+import { dateRangeParams } from "@/components/ui/date-range-field";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 
 import { CalendarsView } from "./CalendarsPage";
@@ -160,6 +161,68 @@ describe("CalendarsView calendar-entries query", () => {
     await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
     await waitFor(() => expect(screen.queryByText("Apollo task")).toBeNull());
   });
+
+  it("fetches where the date range meets the month on screen, and exports the range", async () => {
+    const calendar = {
+      id: 3,
+      name: "Team",
+      description: null,
+      color: "#6366f1",
+      initiative_id: INITIATIVE_ID,
+      guild_id: 1,
+      created_by: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      can: writerCan(),
+      comments_enabled: true,
+      archived_at: null,
+      tags: [],
+      grants: [],
+    };
+    const requests = stubEntries({}, undefined, [calendar]);
+    const exports: URLSearchParams[] = [];
+    server.use(
+      guildHttp.get("/exports/events", ({ request }) => {
+        exports.push(new URL(request.url).searchParams);
+        return new HttpResponse("BEGIN:VCALENDAR", {
+          headers: { "Content-Type": "text/calendar" },
+        });
+      })
+    );
+    const user = userEvent.setup();
+    renderCalendars();
+    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+
+    // The 10th to the 20th of the month the list shows.
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth(), 10);
+    const until = new Date(now.getFullYear(), now.getMonth(), 20);
+    await user.click(screen.getByLabelText("Dates"));
+    const picker = await screen.findByRole("dialog");
+    for (const day of [from, until]) {
+      await user.click(
+        within(picker).getByRole("button", { name: new RegExp(format(day, "MMMM do, yyyy")) })
+      );
+    }
+    await waitFor(() =>
+      expect(requests.at(-1)?.get("start_before")).toBe(endOfDay(until).toISOString())
+    );
+    expect(requests.at(-1)?.get("start_after")).toBe(startOfDay(from).toISOString());
+
+    // The export takes the range itself, not the window on screen.
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    await waitFor(() => expect(exports).toHaveLength(1));
+    const range = dateRangeParams({ from, until });
+    expect(exports[0].get("start_after")).toBe(range.start_after);
+    expect(exports[0].get("start_before")).toBe(range.start_before);
+
+    // A range that misses the month on screen has nothing to fetch.
+    const fetched = requests.length;
+    await user.click(screen.getByLabelText("Dates"));
+    await user.click(await screen.findByRole("button", { name: "Last month" }));
+    expect(requests).toHaveLength(fetched);
+  });
 });
 
 describe("CalendarsView on a guild calendar", () => {
@@ -178,6 +241,7 @@ describe("CalendarsView on a guild calendar", () => {
     comments_enabled: true,
     archived_at: null,
     tags: [],
+    properties: [],
     grants: [],
   };
 
@@ -332,7 +396,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     end_at: inFocusMonth(3),
     all_day: true,
     attendee_previews: [],
-    property_values: [],
+    properties: [],
     tags: [],
     can: writerCan(),
   };

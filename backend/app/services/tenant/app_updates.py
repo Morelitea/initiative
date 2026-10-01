@@ -298,7 +298,7 @@ async def notify_pending_updates(
     the community's schema, on the bell's own rows in ``public``; the caller
     commits.
     """
-    from app.services.platform import user_notifications
+    from app.services.platform import notice_outbox
 
     waiting = list(asked)
     if not waiting:
@@ -312,13 +312,14 @@ async def notify_pending_updates(
             )
         )
     ).all()
-    for user_id in holders:
-        for one in waiting:
-            await user_notifications.create_notification(
-                session,
-                user_id=user_id,
-                notification_type=NotificationType.app_update_pending,
-                data={
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(
+                user_id,
+                guild_id,
+                NotificationType.app_update_pending,
+                {
                     "guild_id": guild_id,
                     "app_id": one.app_id,
                     "app_name": one.app_name,
@@ -326,6 +327,10 @@ async def notify_pending_updates(
                     "target_path": UPDATES_TARGET_PATH,
                 },
             )
+            for user_id in holders
+            for one in waiting
+        ],
+    )
 
 
 async def _update_guild(

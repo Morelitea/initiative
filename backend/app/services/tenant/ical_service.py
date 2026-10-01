@@ -20,7 +20,8 @@ from app.core.relationships import Related
 from app.core.user_input_validators import resolve_zone
 from app.models.tenant.calendar_event import CalendarEvent
 from app.schemas.tenant.ical import ICalEventPreview, ICalParseResult
-from app.services.export.property_values import property_export_dict
+from app.services.export.property_values import exported_properties
+from app.services.tenant import calendar_occurrences
 from app.core.user_display import display_name
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,12 @@ def event_export_dict(
         "all_day": bool(event.all_day),
         "recurrence": event.recurrence,
         "recurrence_shift": event.recurrence_shift,
+        # An occurrence with a row of its own: its series and its start there.
+        "series_id": event.series_id,
+        "series_ref": f"calendar_event:{event.series_id}" if event.series_id else None,
+        "original_start": event.original_start.isoformat()
+        if event.original_start
+        else None,
         "created_at": event.created_at.isoformat(),
         "updated_at": event.updated_at.isoformat(),
         "attendees": [
@@ -87,11 +94,7 @@ def event_export_dict(
         "documents": sorted(
             related.entity.name for related in documents if related.entity is not None
         ),
-        "properties": [
-            property_export_dict(pv)
-            for pv in event.property_values or []
-            if pv.property_definition is not None
-        ],
+        "properties": exported_properties(event),
     }
 
 
@@ -113,7 +116,15 @@ def ical_from_export_dicts(events: List[dict]) -> bytes:
 
     for event in events:
         vevent = icalendar.Event()
-        vevent.add("uid", f"event-{event.get('id')}@initiative")
+        # An occurrence is its series' UID at the start it replaces.
+        vevent.add(
+            "uid", f"event-{event.get('series_id') or event.get('id')}@initiative"
+        )
+        if event.get("original_start"):
+            original = _dt(event["original_start"]).astimezone(timezone.utc)
+            vevent.add(
+                "recurrence-id", original.date() if event.get("all_day") else original
+            )
         vevent.add("summary", event.get("title") or "")
 
         start_at = _dt(event["start_at"]).astimezone(timezone.utc)
@@ -358,10 +369,15 @@ def build_calendar_events(
     events: List[CalendarEvent] = []
     errors: List[str] = []
     skipped = 0
+    # A repeating event by its UID, for the occurrences the file changed
+    # (a VEVENT with its UID and a RECURRENCE-ID), which follow it.
+    series: dict[str, CalendarEvent] = {}
+    changed: List[Tuple[CalendarEvent, str, date | datetime]] = []
 
-    for component in cal.walk():
-        if component.name != "VEVENT":
-            continue
+    components = [c for c in cal.walk() if c.name == "VEVENT"]
+    # Each series before the occurrences that point at it.
+    components.sort(key=lambda c: c.get("recurrence-id") is not None)
+    for component in components:
         try:
             data = _extract_vevent(component, zone)
             if not data:
@@ -381,6 +397,11 @@ def build_calendar_events(
                 recurrence_shift=data["recurrence_shift"],
                 created_by=created_by,
             )
+            uid = str(component.get("uid") or "")
+            if (original := component.get("recurrence-id")) is not None and uid:
+                changed.append((event, uid, original.dt))
+            elif event.recurrence and uid:
+                series[uid] = event
             events.append(event)
         except Exception:
             summary = str(component.get("summary", "Unknown"))
@@ -388,4 +409,17 @@ def build_calendar_events(
             errors.append(f"Failed to import '{summary}'")
             skipped += 1
 
+    for event, uid, original in changed:
+        if (parent := series.get(uid)) is None:
+            continue  # its series isn't in the file: an event of its own
+        if isinstance(original, datetime):
+            at = original if original.tzinfo else original.replace(tzinfo=zone)
+        else:
+            at = datetime.combine(original, parent.start_at.timetz())
+        event.series = parent
+        event.original_start = at.astimezone(timezone.utc)
+        # What the file says differently for this occurrence stays its own.
+        event.overridden_fields = sorted(
+            calendar_occurrences.differences(event, parent)
+        )
     return events, errors, skipped

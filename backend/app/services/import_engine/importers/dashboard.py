@@ -25,13 +25,14 @@ from app.services.import_engine.common import unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
 )
 
 
-class DashboardImporter(QuotesNobody):
+class DashboardImporter(NamesPeopleInPassing):
     envelope_type = "initiative-dashboard"
     permission = PermissionKey(Tool.dashboard.create_permission)
 
@@ -90,11 +91,16 @@ class DashboardImporter(QuotesNobody):
             importer=importer,
         )
 
-        await session.flush()
+        props = PropertyRestore(
+            session, initiative_id=target_initiative.id, context=context
+        )
+        await props.attach(dashboard, env.properties)
         return EnvelopeImportResult(
             entity_id=dashboard.id,
             entity_title=dashboard.name,
-            created={"dashboards": 1},
+            created={"dashboards": 1, "properties": props.created},
+            matched={"properties": props.matched},
+            unmatched_handles=await props.settle(dashboard),
         )
 
 

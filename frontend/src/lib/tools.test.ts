@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   EntityType,
   PermissionKey,
+  PropertyTarget,
   RecentEntityType,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -376,6 +377,33 @@ describe("tool relations", () => {
   });
 });
 
+describe("tool properties", () => {
+  it("every tool and sub-tool has somewhere its properties are set", () => {
+    const set = new Set<string>();
+    for (const source of Object.values(componentSources)) {
+      for (const [, target] of source.matchAll(
+        /<PropertyPanel[^>]*?target=\{PropertyTarget\.(\w+)\}/gs
+      )) {
+        set.add(target);
+      }
+    }
+    // A tool's are on its settings page, which every tool shares.
+    if (
+      /<PropertyPanel[^>]*?target=\{PropertyTarget\[tool\]\}/s.test(
+        componentSources["../pages/toolSettings/ToolSettingsDetailsPage.tsx"]
+      )
+    ) {
+      for (const tool of TOOLS) set.add(tool);
+    }
+    // A task's are part of its form, and saved with the task.
+    if (componentSources["../components/tasks/TaskForm.tsx"].includes("<PropertyFields")) {
+      set.add(PropertyTarget.task);
+    }
+    const missing = Object.values(PropertyTarget).filter((target) => !set.has(target));
+    expect(missing, `nowhere sets the properties of ${missing.join(", ")}`).toEqual([]);
+  });
+});
+
 describe("tool surfaces are wired, not just typed", () => {
   // Both of these shipped broken because the shape they fill is keyed by Tool
   // but every key was optional: the guild home's table asked for posts, got a
@@ -395,20 +423,6 @@ describe("tool surfaces are wired, not just typed", () => {
         buildToolRows(tool, empty, ((key: string) => key) as never, 1),
         `buildToolRows has no case for ${tool}`
       ).toEqual([]);
-    }
-  });
-
-  it("the sidebar asks for a count per tool", async () => {
-    // The sidebar fans out over the hook table rather than naming nine hooks,
-    // so the table is what has to carry a counts query addressed at each
-    // tool's own endpoint.
-    const { TOOL_HOOKS } = await import("@/hooks/toolHooks");
-    const { toolRouteSegment } = await import("@/lib/tools");
-    for (const tool of TOOLS) {
-      const { queryKey } = TOOL_HOOKS[tool].countsQuery(1);
-      expect(JSON.stringify(queryKey), `no counts query for ${tool}`).toContain(
-        `/${toolRouteSegment(tool)}/counts/by-initiative`
-      );
     }
   });
 });
@@ -445,14 +459,6 @@ describe("tool exports", () => {
         ).toBeUndefined();
       }
     }
-  });
-
-  it("derives the engine endpoint and selector params from the enum", async () => {
-    const { toolExportEndpoint, toolExportIdsParam, toolIdParam } = await import("@/lib/tools");
-    expect(toolExportEndpoint(Tool.counter_group)).toBe("/exports/counter-group");
-    expect(toolExportEndpoint(Tool.document)).toBe("/exports/document");
-    expect(toolIdParam(Tool.queue)).toBe("queue_id");
-    expect(toolExportIdsParam(Tool.counter_group)).toBe("counter_group_ids");
   });
 });
 

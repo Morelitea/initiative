@@ -164,7 +164,7 @@ const NativeBody = ({
         providerFactory={collaboration.providerFactory}
         // Always track changes so the page's copy stays updated for periodic saves
         trackChanges={true}
-        isSynced={collaboration.isSynced}
+        hasSynced={collaboration.hasSynced}
         initiativeId={document.initiative_id}
         subject={referenceRef(SearchEntityType.document, document.id)}
         supportsEntityMentions={supportsEntityMentions(document.document_type)}
@@ -293,6 +293,7 @@ const SpreadsheetBody = ({
       readOnly={!canEdit}
       yDoc={room?.doc ?? null}
       isSynced={collaboration.isSynced}
+      hasSynced={collaboration.hasSynced}
       awareness={room?.awareness ?? null}
       currentUser={currentUser}
       onImportFile={canEdit ? importSheets : undefined}

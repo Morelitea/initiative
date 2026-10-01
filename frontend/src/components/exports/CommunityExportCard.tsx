@@ -177,7 +177,7 @@ export function CommunityExportCard() {
       </CardContent>
       {/* Mounted outside the open check so a job started here keeps polling
           (and delivers its download) after the dialog closes. */}
-      <ExportWizard scope="guild" open={wizardOpen} onOpenChange={closeWizard} />
+      <ExportWizard scope={{ kind: "guild" }} open={wizardOpen} onOpenChange={closeWizard} />
     </Card>
   );
 }

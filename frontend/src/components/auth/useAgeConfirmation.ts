@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import { invalidate, q } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 
 /**
  * Answering the age question, wherever it is asked.
@@ -45,6 +45,8 @@ export const useAgeConfirmation = (onConfirmed?: () => void) => {
       setBirthdate("");
       onConfirmed?.();
     } catch (err) {
+      // An answer under the minimum is recorded before it is refused.
+      if (getErrorCode(err) === "USER_AGE_BELOW_MINIMUM") await refreshUser();
       setError(getErrorMessage(err, "auth:confirmAge.error"));
     } finally {
       setSubmitting(false);

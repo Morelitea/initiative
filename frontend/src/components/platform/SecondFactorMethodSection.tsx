@@ -23,7 +23,7 @@ import type { LoginMethod } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { usePlatformAuthSettings, useUpdateLoginMethods } from "@/hooks/useSettings";
+import { usePlatformAuthSettings, useUpdatePlatformAuthSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -31,7 +31,7 @@ export const SecondFactorMethodSection = () => {
   const { t } = useTranslation("settings");
   const query = usePlatformAuthSettings();
 
-  const updateMethods = useUpdateLoginMethods({
+  const updateMethods = useUpdatePlatformAuthSettings({
     onSuccess: () => toast.success(t("auth.factorMethods.saved")),
     onError: (err) => toast.error(getErrorMessage(err, "settings:auth.factorMethods.saveError")),
   });

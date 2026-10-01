@@ -30,12 +30,15 @@ from sqlmodel import Field, SQLModel
 class BillingOp(str, Enum):
     """Operations recorded in ``billing_event_log.op``.
 
-    This boundary has exactly one write verb; ``initiative_auto`` carries the
-    money-side verbs (``provision`` / ``set_subscription`` / ``add_seat`` /
+    This boundary has two write verbs: the tier write, and a notice billing
+    asks to be delivered to a community's seat, which changes nothing but
+    the notifications it writes. ``initiative_auto`` carries the money-side
+    verbs (``provision`` / ``set_subscription`` / ``add_seat`` /
     ``add_credits``) in its own log with the same source vocabulary.
     """
 
     guild_tier = "guild_tier"
+    community_notice = "community_notice"
 
 
 class BillingSource(str, Enum):

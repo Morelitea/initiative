@@ -16,10 +16,27 @@
   "submit": "Enviar",
   "reset": "Restablecer",
   "done": "Listo",
-  "toolArchiveFilter": {
+  "toolViewFilter": {
     "label": "Mostrar",
+    "all": "Todos",
     "active": "Activos",
+    "templates": "Plantillas",
     "archived": "Archivados"
+  },
+  "dateRange": {
+    "any": "Cualquier fecha",
+    "fromOnly": "Desde el {{date}}",
+    "untilOnly": "Hasta el {{date}}",
+    "thisMonth": "Este mes",
+    "lastMonth": "El mes pasado",
+    "thisQuarter": "Este trimestre",
+    "thisYear": "Este año",
+    "fromLabel": "Desde",
+    "untilLabel": "Hasta",
+    "open": "Abierto",
+    "fromRemove": "Quitar la fecha de inicio",
+    "untilRemove": "Quitar la fecha de fin",
+    "clear": "Borrar fechas"
   },
   "yes": "Sí",
   "no": "No",
@@ -109,8 +126,7 @@
     },
     "export": {
       "title": "Exportar",
-      "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo.",
-      "button": "Exportar"
+      "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo."
     },
     "title": "Configuración",
     "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",
@@ -124,6 +140,7 @@
     "tags": "Etiquetas",
     "tagsDescription": "Agrega etiquetas para organizar y filtrar.",
     "tagsNoAccess": "Necesitas acceso de escritura para administrar etiquetas.",
+    "propertiesDescription": "Valores de las propiedades personalizadas que define esta iniciativa.",
     "comments": "Comentarios",
     "commentsDescription": "Permite que se comente esto. Si desactivas los comentarios, se conserva todo lo ya publicado y vuelve a aparecer cuando los actives de nuevo.",
     "commentsToggle": "Activar comentarios",

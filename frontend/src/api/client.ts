@@ -40,7 +40,7 @@ const resolveApiBaseUrl = (): string => {
     const browserIsLocalhost = LOCAL_HOSTNAMES.has(window.location.hostname.toLowerCase());
 
     if (envIsLocalhost && !browserIsLocalhost) {
-      // Avoid leaking localhost API URLs when the SPA is served from a remote host.
+      // A localhost API URL is unreachable when the SPA is served from a remote host.
       return DEFAULT_API_BASE_URL;
     }
 

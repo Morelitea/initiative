@@ -34,6 +34,7 @@ const state = (over: Partial<SmartChipState>): SmartChipState => ({
   color: null,
   date: null,
   number: null,
+  writable: false,
   ...over,
 });
 

@@ -46,15 +46,20 @@ const MEMBER_ROLE = {
   is_manager: false,
 };
 
-/** The roster the picker offers, and the roles it resolves against. */
-function stubTable(members: ReturnType<typeof buildInitiativeMember>[]) {
+/** The initiative's managers, as the picker asks for them, and the roles it
+ *  resolves against. */
+function stubTable(managers: ReturnType<typeof buildInitiativeMember>[]) {
   const calls: { method: string; url: string; body?: unknown }[] = [];
   server.use(
     guildHttp.get("/initiatives/", () =>
-      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo" })])
+      HttpResponse.json([buildInitiative({ id: INITIATIVE_ID, name: "Apollo", member_count: 3 })])
     ),
-    guildHttp.get("/initiatives/:id", () =>
-      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, name: "Apollo", members }))
+    // Only the managers: an answer to anything wider would hand the picker
+    // people who are not.
+    guildHttp.get("/initiatives/:id/members", ({ request }) =>
+      new URL(request.url).searchParams.get("is_manager") === "true"
+        ? HttpResponse.json(buildPage(managers))
+        : HttpResponse.json({ detail: "unexpected roster read" }, { status: 400 })
     ),
     guildHttp.get("/initiatives/:id/roles", () => HttpResponse.json([PM_ROLE, MEMBER_ROLE])),
     // The guild's member search — what the picker offers, and how it learns
@@ -114,8 +119,41 @@ describe("SettingsInitiativesPage project managers", () => {
     expect(await screen.findByRole("combobox", { name: "Project managers" })).toHaveTextContent(
       "None"
     );
+    // The headcount is the row's own, not a roster read per row.
+    expect(screen.getByText("3 members")).toBeInTheDocument();
   });
 
+  it("reads every manager, starting again when the roster changes between pages", async () => {
+    stubTable([]);
+    const ada = buildInitiativeMember({
+      user: buildUserPublic({ id: ADMIN_ID, full_name: "Ada Lovelace" }),
+    });
+    const bo = buildInitiativeMember({
+      user: buildUserPublic({ id: MEMBER_ID, full_name: "Bo Diddley" }),
+    });
+    const asked: number[] = [];
+    server.use(
+      guildHttp.get("/initiatives/:id/members", ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        asked.push(page);
+        // The first ask for page 2 lands after a change: past the end, so the
+        // server answers with page 1 again.
+        const served = page === 2 && asked.filter((p) => p === 2).length > 1 ? 2 : 1;
+        return HttpResponse.json(
+          buildPage(served === 1 ? [ada] : [bo], { page: served, has_next: served === 1 })
+        );
+      })
+    );
+    render();
+
+    expect(await screen.findByRole("combobox", { name: "Project managers" })).toHaveTextContent(
+      "2 managers"
+    );
+    expect(asked).toEqual([1, 2, 2]);
+  });
+
+  // The same call promotes someone already in it: the server moves an existing
+  // member onto the role it names rather than adding them twice.
   it("adds a guild admin who is in no initiative as its project manager", async () => {
     const calls = stubTable([]);
     const user = userEvent.setup();
@@ -127,28 +165,6 @@ describe("SettingsInitiativesPage project managers", () => {
     expect(calls[0]).toMatchObject({
       method: "POST",
       body: { user_id: ADMIN_ID, role_id: PM_ROLE.id },
-    });
-  });
-
-  it("promotes an existing member rather than adding them twice", async () => {
-    const calls = stubTable([
-      buildInitiativeMember({
-        user: buildUserPublic({ id: MEMBER_ID, username: "bo" }),
-        role_id: MEMBER_ROLE.id,
-        role_name: "member",
-        is_manager: false,
-      }),
-    ]);
-    const user = userEvent.setup();
-    render();
-
-    await pick(user, "Bo Diddley");
-
-    await waitFor(() => expect(calls).toHaveLength(1));
-    expect(calls[0]).toMatchObject({
-      method: "PATCH",
-      url: String(MEMBER_ID),
-      body: { role_id: PM_ROLE.id },
     });
   });
 

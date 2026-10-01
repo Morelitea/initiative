@@ -127,9 +127,10 @@ class GuildAppConnectionRead(SanitizedBaseModel):
     fields: List[Dict[str, Any]] = []
     #: What the connection says it will use the credential for. Display-only.
     access_hint: Optional[Dict[str, Any]] = None
-    #: The non-secret values, so a form can show what is currently set. Secret
-    #: fields are absent from this by construction — they live in a column this
-    #: never reads.
+    #: The non-secret values, so a form can show what is currently set: a
+    #: member's own on a per-member connection, and on a guild-wide one only
+    #: for the seat, which sets them. Secret fields are absent from this by
+    #: construction — they live in a column this never reads.
     values: Dict[str, Any] = {}
     #: Which fields hold a value, secret ones included. Never the values.
     has_value: Dict[str, bool] = {}
@@ -557,13 +558,17 @@ def serialize_connection(
     connection: Dict[str, Any],
     *,
     member_row: Any = None,
+    holds_seat: bool = False,
 ) -> GuildAppConnectionRead:
     """One connection block for the viewer looking at it.
 
     A guild-scoped connection reads its presence off the install row; a
-    per-member one reads it off the viewer's own row, which is why an unrelated
-    member's state can never leak through this payload — there is no branch that
-    could reach another row.
+    per-member one reads it off the viewer's own row, so the payload carries
+    only the viewer's own state — there is no branch that could reach another
+    row.
+
+    A guild-scoped connection's values go to ``holds_seat`` alone: the seat is
+    who sets them, and everybody else is told only whether they are there.
     """
     connection_id = connection.get("id") or ""
     scope = connection.get("scope") or "static"
@@ -582,6 +587,7 @@ def serialize_connection(
         for field in connection.get("fields") or []
         if isinstance(field, dict)
     }
+    readable = scope != "static" or holds_seat
     return GuildAppConnectionRead(
         id=connection_id,
         scope=scope,
@@ -590,7 +596,11 @@ def serialize_connection(
         access_hint=connection.get("access_hint"),
         # Declared fields only: a flow's tokens and their expiry sit beside
         # them under reserved keys, and are nobody's to read here.
-        values={key: value for key, value in stored_config.items() if key in declared},
+        values=(
+            {key: value for key, value in stored_config.items() if key in declared}
+            if readable
+            else {}
+        ),
         has_value=app_config_service.has_value_map(
             connection, stored_config, stored_secrets
         ),
@@ -632,7 +642,10 @@ def serialize_guild_app_detail(
     )
     connections = [
         serialize_connection(
-            app, connection, member_row=member_rows.get(connection.get("id") or "")
+            app,
+            connection,
+            member_row=member_rows.get(connection.get("id") or ""),
+            holds_seat=context.guild_seat,
         )
         for connection in app_config_service.definition_connections(app.definition)
     ]

@@ -9,6 +9,7 @@
   "creating": "Création en cours…",
   "createGuildSubmit": "Créer la communauté",
   "unableToCreateGuild": "Impossible de créer la communauté",
+  "freeCommunityHeldInApp": "Vous avez déjà une communauté gratuite. Une autre ne peut pas être créée dans l’application.",
   "switchTo": "Passer à {{name}}",
   "guildsHeading": "Communautés",
   "expandGuilds": "Développer la liste des communautés",
@@ -228,22 +229,16 @@
     "readOnly": "En attendant, les membres peuvent tout lire ici, mais ne peuvent rien modifier.",
     "paymentTitle": "Le paiement pour {{name}} a été refusé",
     "paymentDescription": "Mettez à jour votre carte pour rétablir la communauté.",
+    "paymentDescriptionInApp": "Les informations de paiement ne peuvent pas être modifiées dans l’application.",
     "updatePayment": "Mettre à jour le moyen de paiement",
     "notNow": "Pas maintenant",
     "contactSupport": "Contacter le support"
   },
   "noGuild": {
-    "title": "Aucune appartenance à une communauté",
-    "description": "Vous n'êtes encore membre d'aucune communauté. Demandez à un administrateur un lien d'invitation, ou créez un nouvelle communauté pour commencer.",
-    "guildNamePlaceholder": "Nom de la communauté",
-    "create": "Créer",
-    "inviteCodePlaceholder": "Code d'invitation",
-    "redeem": "Utiliser",
     "accountSettings": "Paramètres du compte",
     "platformSettings": "Paramètres de la plateforme",
     "shellBackToStart": "Retour à l'accueil",
-    "logOut": "Se déconnecter",
-    "browseCommunities": "Parcourir les communautés"
+    "logOut": "Se déconnecter"
   },
   "notifications": {
     "title": "Notifications",
@@ -302,6 +297,14 @@
     "appConsentRequested": "{{app}} demande à agir en votre nom : « {{label}} »",
     "appUpdatePending": "{{app}} version {{version}} demande plus d'accès",
     "guildOnHoldWithContact": "{{community}} est en attente. Contactez {{contact}} pour régler la situation.",
+    "guildOnHoldDeleting": "{{community}} est en attente et sera supprimée le {{date}}. Contactez la personne qui gère ce serveur pour régler la situation.",
+    "guildOnHoldDeletingWithContact": "{{community}} est en attente et sera supprimée le {{date}}. Contactez {{contact}} pour régler la situation.",
+    "guildTrialEnding": "L’essai de {{community}} se termine le {{date}}. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier.",
+    "guildTrialEndingInApp": "L’essai de {{community}} se termine le {{date}}. Ensuite, elle passera en lecture seule.",
+    "guildTrialEnded": "L’essai de {{community}} est terminé et elle est désormais en lecture seule. Choisissez un forfait dans le portail de facturation pour continuer à modifier.",
+    "guildTrialEndedInApp": "L’essai de {{community}} est terminé et elle est désormais en lecture seule.",
+    "guildWelcome": "{{community}} est prête. Configurez son forfait pour commencer.",
+    "guildWelcomeInApp": "{{community}} est prête.",
     "defaultNotification": "Vous avez une nouvelle notification.",
     "push": {
       "enableTitle": "Activer les notifications push",
@@ -384,18 +387,52 @@
   "billingSetup": {
     "opening": "Ouverture de la facturation pour choisir un forfait pour {{guild}}."
   },
+  "billingForward": {
+    "opening": "Ouverture du portail de facturation…",
+    "notConfiguredTitle": "Aucun portail de facturation",
+    "notConfiguredDescription": "Ce serveur n’a pas de portail de facturation, il n’y a donc aucun forfait à configurer ici.",
+    "errorTitle": "Impossible d’ouvrir la facturation",
+    "error": "Le portail de facturation n’a pas pu être ouvert. Réessayez le lien dans un instant.",
+    "nativeTitle": "Indisponible dans l’application",
+    "nativeDescription": "Les changements de forfait ne sont pas disponibles dans l’application."
+  },
   "usagePanel": {
     "title": "Utilisation",
     "storage": "Stockage",
     "members": "Membres",
     "usedOfMax": "{{used}} sur {{max}}",
     "usedOfUnlimited": "{{used}} utilisé · Illimité",
+    "storageUnavailable": "Indisponible pour le moment",
     "membersOfMax": "{{used}} sur {{max}}",
     "membersOfUnlimited": "{{used}} · Illimité",
     "currentPlan": "Forfait actuel :",
     "selfHosted": "Auto-hébergé",
     "upgrade": "Mettre à niveau",
     "manageBilling": "Gérer la facturation"
+  },
+  "billingPanel": {
+    "title": "Forfait",
+    "unavailable": "Les détails de facturation sont indisponibles pour le moment.",
+    "updatePaymentMethod": "Mettre à jour le moyen de paiement",
+    "changeInPortal": "Changez de forfait ou de moyen de paiement, ou résiliez, dans le portail de facturation.",
+    "notInApp": "Les changements de forfait ne sont pas disponibles dans l’application.",
+    "cancelAnytime": "Résiliez à tout moment dans le portail de facturation. Votre forfait reste actif jusqu'à la fin de la période déjà payée. Ensuite, votre communauté est en lecture seule pendant 30 jours pour que vous puissiez l’exporter, puis mise en attente et supprimée 30 jours plus tard.",
+    "status": {
+      "paymentFailed": "Échec du paiement",
+      "paymentFailedDetail": "Mettez à jour votre moyen de paiement pour continuer à modifier : la communauté passe en lecture seule 14 jours après l’échec du paiement.",
+      "paymentFailedDetailInApp": "La communauté passe en lecture seule 14 jours après l’échec du paiement.",
+      "ends": "Se termine le {{date}}",
+      "endsDetail": "Votre forfait se termine le {{date}}. Ensuite, la communauté est en lecture seule pendant 30 jours, puis mise en attente.",
+      "pauses": "En pause le {{date}}",
+      "resumes": "Reprend le {{date}}",
+      "trial_one": "Essai · {{count}} jour restant",
+      "trial_other": "Essai · {{count}} jours restants",
+      "trialLastDay": "Essai · dernier jour",
+      "trialDetail": "L'essai se termine le {{date}}. Abonnez-vous avant pour continuer à modifier.",
+      "trialDetailInApp": "L’essai se termine le {{date}}. Ensuite, la communauté sera en lecture seule.",
+      "renews": "Renouvelé le {{date}}",
+      "renewsWithAmount": "Renouvelé le {{date}} · {{amount}}"
+    }
   },
   "transferOwnership": {
     "title": "Transférer la propriété",

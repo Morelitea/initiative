@@ -1,8 +1,8 @@
-from typing import Annotated, List, Optional, Sequence
+from typing import Annotated, List, Optional, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func
-from sqlalchemy.orm import selectinload, undefer
+from sqlalchemy import ColumnElement, Select, func
+from sqlalchemy.orm import contains_eager, selectinload, undefer
 from sqlmodel import select
 
 from app.db.session import routed_guild_id
@@ -46,9 +46,9 @@ from app.schemas.tenant.initiative import (
     InitiativeDirectoryEntry,
     InitiativeJoinRequestCreate,
     InitiativeJoinRequestRead,
-    InitiativeListRead,
     InitiativeListScope,
     InitiativeMemberAdd,
+    InitiativeMemberListResponse,
     InitiativeMemberUpdate,
     InitiativeRead,
     InitiativeRoleCreate,
@@ -56,13 +56,10 @@ from app.schemas.tenant.initiative import (
     InitiativeRoleUpdate,
     InitiativeUpdate,
     serialize_initiative,
-    serialize_initiative_listing,
+    serialize_initiative_member,
     serialize_role,
 )
-from app.schemas.platform.user import (
-    UserPublic,
-    UserSummaryListResponse,
-)
+from app.schemas.platform.user import UserSummaryListResponse
 from app.db.query import (
     MAX_ID_FILTER_VALUES,
     build_paginated_response,
@@ -83,27 +80,19 @@ from app.services.membership import initiative_scope_clause
 
 router = APIRouter(route_class=ActorRoute)
 
+_S = TypeVar("_S", bound=Select)
+
 #: The routes an installed app may call, under the initiatives scope.
 InitiativesRead = Annotated[ActorContext, Depends(app_scope("initiatives:read"))]
 
 
-def _roster_options(guild_context: ActorContext) -> tuple:
-    """What an initiative read loads beside the row: what the caller may do in
-    it, its roster, each member's profile, and each member's role with its
-    permissions.
-
-    An installed app is not given what each role permits (the role permission
-    rows are not in its reach), so its read leaves them unloaded and each
-    member's tool flags come from the role's manager fact, the defaults and the
-    initiative's switches."""
-    role = selectinload(Initiative.memberships).selectinload(InitiativeMember.role_ref)
-    return (
-        undefer(Initiative.actions),
-        selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
-        role.noload(InitiativeRoleModel.permissions)
-        if guild_context.user_id is None
-        else role.selectinload(InitiativeRoleModel.permissions),
-    )
+#: What an initiative read loads beside the row: what the caller may do in it,
+#: its headcount, and the caller's own role there.
+_READ_OPTIONS = (
+    undefer(Initiative.actions),
+    undefer(Initiative.member_count),
+    undefer(Initiative.role_display_name),
+)
 
 
 def _reaches_whole_guild(guild_context: ActorContext) -> bool:
@@ -170,10 +159,8 @@ async def _get_initiative_or_404(
 async def _read_initiative(
     initiative_id: int, session: SessionDep, guild_context: ActorContext
 ) -> InitiativeRead:
-    """The initiative as a route answers with it, roster included."""
-    initiative = await _get_initiative_or_404(
-        initiative_id, session, *_roster_options(guild_context)
-    )
+    """The initiative as a route answers with it."""
+    initiative = await _get_initiative_or_404(initiative_id, session, *_READ_OPTIONS)
     return serialize_initiative(initiative, context=guild_context)
 
 
@@ -297,13 +284,13 @@ async def _ensure_remaining_manager(
 # ============================================================================
 
 
-@router.get("/", response_model=List[InitiativeListRead])
+@router.get("/", response_model=List[InitiativeRead])
 async def list_initiatives(
     session: ActorSessionDep,
     current_user: ActorUserDep,
     guild_context: InitiativesRead,
     scope: Annotated[InitiativeListScope, Query()] = InitiativeListScope.member,
-) -> List[InitiativeListRead]:
+) -> List[InitiativeRead]:
     """The initiatives the caller belongs to, or — for a guild admin asking for
     ``scope=guild`` — every initiative in the guild.
 
@@ -343,12 +330,12 @@ async def list_initiatives(
         .where(
             scope_clause,
         )
-        .options(undefer(Initiative.actions))
+        .options(*_READ_OPTIONS)
     )
     result = await session.exec(statement)
     initiatives = result.all()
     return [
-        serialize_initiative_listing(initiative, context=guild_context)
+        serialize_initiative(initiative, context=guild_context)
         for initiative in initiatives
     ]
 
@@ -645,33 +632,6 @@ async def create_join_request(
 
 
 @router.get(
-    "/{initiative_id}/join-requests/me",
-    response_model=List[InitiativeJoinRequestRead],
-)
-async def list_my_join_requests(
-    initiative_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
-) -> List[InitiativeJoinRequestRead]:
-    """The caller's own knocks at this door, newest first.
-
-    ``initiative_join_requests`` is a guild-level table — the schema boundary is
-    its only database gate, because a requester is by definition not yet a
-    member and an initiative-membership gate would hide their own row from them.
-    So who may read which rows is decided here: this route is scoped to the
-    caller's ``user_id`` and nothing else, and the queue below is manager-only.
-    """
-    await _get_initiative_or_404(initiative_id, session)
-    return await initiatives_service.list_join_requests(
-        session,
-        initiative_id=initiative_id,
-        status=None,
-        user_id=current_user.id,
-    )
-
-
-@router.get(
     "/{initiative_id}/join-requests",
     response_model=List[InitiativeJoinRequestRead],
 )
@@ -694,8 +654,7 @@ async def list_join_requests(
     """The join-request queue for one initiative.
 
     Manager-only, matching who may answer it; a plain member of the initiative
-    has no more business reading who asked to get in than a non-member does. A
-    requester reads their own rows through ``/join-requests/me`` instead.
+    has no more business reading who asked to get in than a non-member does.
     """
     initiative = await _get_initiative_or_404(initiative_id, session)
     await _require_manager_access(
@@ -777,7 +736,7 @@ async def get_initiative(
         .where(
             Initiative.id == initiative_id,
         )
-        .options(*_roster_options(guild_context))
+        .options(*_READ_OPTIONS)
     )
     result = await session.exec(statement)
     initiative = result.first()
@@ -1227,47 +1186,110 @@ async def delete_initiative_role(
 # ============================================================================
 
 
-@router.get("/{initiative_id}/members", response_model=List[UserPublic])
-async def get_initiative_members(
+async def _require_roster_access(
+    session: SessionDep,
     initiative_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
-) -> Sequence[MemberProfile]:
-    """Get all members of an initiative."""
+    current_user: User,
+    guild_context: GuildContext,
+) -> None:
+    """Who may read an initiative's roster: a member, a guild admin (the same
+    override the RLS admin leg grants), or a PAM / break-glass grantee, who
+    holds no membership row and reads it through the grant."""
     await _get_initiative_or_404(initiative_id, session)
-
-    # Check that user has access to this initiative
     membership = await initiatives_service.get_initiative_membership(
         session,
         initiative_id=initiative_id,
         user_id=current_user.id,
     )
-    # A guild admin sees every initiative in their guild without holding a
-    # membership row (the same override the RLS admin leg grants), and a PAM /
-    # break-glass grantee has guild-wide read access but no membership row;
-    # both may load the member roster (used for assignee and linked-member
-    # pickers). There is no standing ``data.bypass`` bypass — a platform
-    # operator/owner reaches this guild only via a grant, which surfaces as
-    # ``is_pam``.
     if not membership and not guild_context.is_pam and not guild_context.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.NOT_A_MEMBER,
         )
 
-    # Get all initiative members
-    stmt = (
-        select(MemberProfile)
-        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            users_service.visible_to_other_people(),
-        )
-        .order_by(MemberProfile.username, MemberProfile.discriminator, MemberProfile.id)
+
+def _roster_where(
+    statement: _S,
+    *,
+    initiative_id: int,
+    guild_context: GuildContext,
+    search: Optional[str],
+) -> tuple[_S, tuple[ColumnElement, ...]]:
+    """``statement`` (which joins ``InitiativeMember`` to ``MemberProfile``)
+    narrowed to the initiative's listable members matching ``search``, and the
+    order to read them in: nearest first while searching, alphabetical
+    otherwise."""
+    statement = statement.where(
+        InitiativeMember.initiative_id == initiative_id,
+        users_service.visible_to_other_people(),
     )
-    result = await session.exec(stmt)
-    return result.all()
+    shows_names = bool(guild_context.guild.show_member_names)
+    closest = None
+    if search and (term := search.strip()):
+        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        statement = statement.where(matches)
+    order = (
+        *users_service.member_order(closest, shows_names=shows_names),
+        MemberProfile.username.asc(),
+        MemberProfile.discriminator.asc(),
+        MemberProfile.id.asc(),
+    )
+    return statement, order
+
+
+@router.get("/{initiative_id}/members", response_model=InitiativeMemberListResponse)
+async def get_initiative_members(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+    search: Optional[str] = Query(
+        default=None,
+        description="Case-insensitive substring match on the member's name.",
+    ),
+    is_manager: Optional[bool] = Query(
+        default=None,
+        description="Only the members whose role is (or is not) a manager role.",
+    ),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> InitiativeMemberListResponse:
+    """One page of an initiative's roster, each member with their role — the
+    initiative's members settings and the moderation view. A picker wants
+    :func:`search_initiative_members` instead."""
+    await _require_roster_access(session, initiative_id, current_user, guild_context)
+
+    base, order = _roster_where(
+        select(InitiativeMember)
+        .join(MemberProfile, MemberProfile.id == InitiativeMember.user_id)
+        .outerjoin(
+            InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
+        ),
+        initiative_id=initiative_id,
+        guild_context=guild_context,
+        search=search,
+    )
+    if is_manager is not None:
+        base = base.where(
+            func.coalesce(InitiativeRoleModel.is_manager, False).is_(is_manager)
+        )
+
+    count_stmt = select(func.count()).select_from(base.subquery())
+    data_stmt = base.order_by(*order).options(
+        contains_eager(InitiativeMember.user),
+        contains_eager(InitiativeMember.role_ref),
+    )
+    memberships, total_count, actual_page = await paginated_query(
+        session, data_stmt, count_stmt, page=page, page_size=page_size
+    )
+    return InitiativeMemberListResponse(
+        **build_paginated_response(
+            [serialize_initiative_member(m) for m in memberships],
+            total_count,
+            actual_page,
+            page_size,
+        )
+    )
 
 
 @router.get("/{initiative_id}/members/search", response_model=UserSummaryListResponse)
@@ -1289,51 +1311,28 @@ async def search_initiative_members(
     Same authorization as :func:`get_initiative_members` (member, guild
     admin, or PAM/break-glass grantee); the search/id/pagination params are
     additive filters on the already-RLS-gated query. Returns
-    :class:`UserSummary` for typeahead/picker surfaces instead of the full
-    ``UserPublic`` roster.
+    :class:`UserSummary` for typeahead/picker surfaces instead of the roster's
+    member-and-role rows.
 
     Pass ``user_id`` one or more times to resolve a known selection (a picker
     rehydrating stored ids into names/avatars) rather than searching.
     """
-    await _get_initiative_or_404(initiative_id, session)
+    await _require_roster_access(session, initiative_id, current_user, guild_context)
 
-    membership = await initiatives_service.get_initiative_membership(
-        session,
+    base, order = _roster_where(
+        select(MemberProfile).join(
+            InitiativeMember, InitiativeMember.user_id == MemberProfile.id
+        ),
         initiative_id=initiative_id,
-        user_id=current_user.id,
+        guild_context=guild_context,
+        search=search,
     )
-    if not membership and not guild_context.is_pam and not guild_context.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=InitiativeMessages.NOT_A_MEMBER,
-        )
-
-    base = (
-        select(MemberProfile)
-        .join(InitiativeMember, InitiativeMember.user_id == MemberProfile.id)
-        .where(
-            InitiativeMember.initiative_id == initiative_id,
-            users_service.visible_to_other_people(),
-        )
-    )
-    shows_names = bool(guild_context.guild.show_member_names)
-    closest = None
-    if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
-        base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
-    data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
-        MemberProfile.username.asc(),
-        MemberProfile.discriminator.asc(),
-        MemberProfile.id.asc(),
-    )
-
     users, total_count, actual_page = await paginated_query(
-        session, data_stmt, count_stmt, page=page, page_size=page_size
+        session, base.order_by(*order), count_stmt, page=page, page_size=page_size
     )
 
     items = await users_service.summaries_with_guild_role(

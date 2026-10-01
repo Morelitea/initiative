@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import logging
 import secrets
+from typing import TYPE_CHECKING
 
 from sqlalchemy import exists, func, or_, text
 from sqlalchemy.orm import aliased
@@ -36,6 +37,7 @@ from app.models.platform.guild import (
     GuildStatus,
     restore_status_choices,
 )
+from app.models.platform.access_grant import AccessGrant, AccessGrantPurpose
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_setting import GuildSetting
@@ -48,6 +50,9 @@ from app.services.platform import billing_ping
 from app.services.platform import account_stream
 from app.services.platform import contact_grants as contact_grants_service
 from app.db.request_context import Platform, SystemGuild, Unattributed
+
+if TYPE_CHECKING:
+    from app.services.email import EmailPieces
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +192,30 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
 async def get_primary_guild_id(session: AsyncSession) -> int:
     guild = await get_primary_guild(session)
     return guild.id  # ty: ignore[invalid-return-type]
+
+
+async def record_settings_change(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    actor_user_id: int | None,
+    area: str,
+    before: dict[str, object],
+    after: dict[str, object],
+) -> None:
+    """Record one area of a guild's settings, when that area moved."""
+    changes = audit_service.changed_fields(before, after)
+    if not changes["changed"]:
+        return
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_SETTINGS_CHANGED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"area": area, **changes},
+    )
 
 
 async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
@@ -1404,6 +1433,44 @@ async def _deletion_notice(
     )
 
 
+async def _seat_letters(
+    session: AsyncSession, user_ids: Sequence[int]
+) -> dict[str, list[str]]:
+    """Every proved address of these accounts, by the language each reads.
+
+    Sorted and de-duplicated per language: somebody holding two addresses gets
+    one letter at each, and two seat holders are not two letters to one box.
+    """
+    from app.services.auth import addresses
+
+    if not user_ids:
+        return {}
+    locales = (
+        await session.exec(
+            select(User.id, User.locale).where(User.id.in_(list(user_ids)))  # type: ignore[union-attr]
+        )
+    ).all()
+    letters: dict[str, set[str]] = {}
+    for user_id, locale in locales:
+        found = await addresses.proven_addresses(session, user_id=user_id)
+        if found:
+            letters.setdefault(locale or "en", set()).update(found)
+    return {locale: sorted(found) for locale, found in letters.items()}
+
+
+async def _superadmin_ids(session: AsyncSession, guild_id: int) -> list[int]:
+    return list(
+        (
+            await session.exec(
+                select(GuildMembership.user_id).where(
+                    GuildMembership.guild_id == guild_id,
+                    GuildMembership.role == GuildRole.superadmin,
+                )
+            )
+        ).all()
+    )
+
+
 async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     """Tell the community's seat holders, once, that it is on hold and whom to
     contact.
@@ -1412,14 +1479,15 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     told are its superadmins: the hold is about paying for it, which is the
     seat's errand. Each gets one line in their bell — an account notice, not
     one filed under the community, which none of them can open now — and one
-    letter at every proved address, which names the day the community is
-    deleted if the hold is still in place. Neither is allowed to fail the hold.
+    letter at every proved address, in the language they read, which names the
+    day the community is deleted if the hold is still in place. Neither is
+    allowed to fail the hold.
     """
     from app.db.session import set_rls_context
     from app.services import email as email_service
     from app.services.platform import guild_purge
     from app.services.platform import intake as intake_service
-    from app.services.platform import user_notifications
+    from app.services.platform import notice_outbox
 
     await set_rls_context(session, Unattributed())
     guild = (
@@ -1434,38 +1502,206 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
         if days is not None and guild.status_changed_at is not None
         else None
     )
-    seat_holders = (
-        await session.exec(
-            select(GuildMembership.user_id).where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.superadmin,
-            )
-        )
-    ).all()
-    recipients: list[str] = []
-    for user_id in seat_holders:
-        await user_notifications.create_notification(
-            session,
-            user_id=user_id,
-            notification_type=NotificationType.guild_on_hold,
-            data={"community": guild.name, "contact": contact, "target_path": "/"},
-        )
-        recipients.extend(await addresses.proven_addresses(session, user_id=user_id))
+    seat_holders = await _superadmin_ids(session, guild_id)
+    data: dict = {"community": guild.name, "contact": contact, "target_path": "/"}
+    if delete_at is not None:
+        # A calendar day; the bell writes it in the reader's language.
+        data["delete_on"] = delete_at.date().isoformat()
+    await notice_outbox.enqueue(
+        session,
+        [
+            notice_outbox.row(user_id, None, NotificationType.guild_on_hold, data)
+            for user_id in seat_holders
+        ],
+    )
+    letters = await _seat_letters(session, seat_holders)
+    community = guild.name
     await session.commit()
+    for locale, recipients in letters.items():
+        try:
+            await email_service.send_community_on_hold_email(
+                session,
+                recipients=recipients,
+                community=community,
+                contact=contact,
+                guild_id=guild_id,
+                delete_at=delete_at,
+                plan_managed=billing_service.billing_managed(),
+                locale=locale,
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.info("no mail configured; community hold not announced by letter")
+            return
+        except Exception:  # pragma: no cover - delivery is best-effort here
+            logger.exception("could not send the community hold notice")
+
+
+#: The bell line each billing trial notice writes.
+_TRIAL_NOTICE_TYPES = {
+    "trial_ending": NotificationType.guild_trial_ending,
+    "trial_ended": NotificationType.guild_trial_ended,
+}
+
+
+async def queue_trial_notice(
+    session: AsyncSession,
+    guild_id: int,
+    *,
+    kind: str,
+    trial_ends_on: date,
+    owner_user_id: int | None,
+) -> bool:
+    """Write down a notice that a community's trial is ending or has ended.
+
+    On the system engine, before billing's event id is claimed: this commits
+    the bell lines and the letters to the notice outbox, whose worker delivers
+    and retries them, and only then does the caller record the event. A crash
+    between the two repeats the reminder on billing's retry rather than losing
+    it. True when anybody is to be told.
+
+    The owner is the person billing holds the community under, while they
+    still hold its seat; otherwise — billing named nobody, or somebody who has
+    left or been moved off the seat — its current superadmins. A community that
+    is deleted or suspended is told nothing: its members cannot act on a plan
+    through either.
+
+    Each recipient gets a line in their bell and a letter in their own
+    language, both leading to the community's Plan & usage tab. An account
+    notice, like a hold's: filed under no community, so no community's
+    switches apply to it, and the letter is the recipient's to switch off like
+    the rest of their account mail.
+    """
+    from app.db.session import set_rls_context
+    from app.services import email as email_service
+
+    await set_rls_context(session, Unattributed())
+    guild = (
+        await session.exec(select(Guild).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild is None or guild.status in (
+        GuildStatus.deleted.value,
+        GuildStatus.suspended.value,
+    ):
+        return False
+    seats = await _superadmin_ids(session, guild_id)
+    recipients = [owner_user_id] if owner_user_id in seats else seats
     if not recipients:
+        return False
+    await _queue_plan_notice(
+        session,
+        guild,
+        recipients,
+        _TRIAL_NOTICE_TYPES[kind],
+        {"trial_ends_on": trial_ends_on.isoformat()},
+        lambda locale: email_service.community_trial_pieces(
+            kind=kind,
+            community=guild.name,
+            trial_ends_on=trial_ends_on,
+            guild_id=guild_id,
+            locale=locale,
+        ),
+    )
+    return True
+
+
+async def welcome_new_guild(
+    guild_id: int, *, owner_user_id: int, plan: str | None = None
+) -> None:
+    """Once a new community is committed: claim it for its owner and, where
+    billing sets plans, welcome them to set one up. Never fails the creation."""
+    from app.services.platform import billing_claim
+
+    billing_claim.claim_new_guild(user_id=owner_user_id, guild_id=guild_id, plan=plan)
+    if not settings.BILLING_URL:
         return
     try:
-        await email_service.send_community_on_hold_email(
-            session,
-            recipients=sorted(set(recipients)),
-            community=guild.name,
-            contact=contact,
-            delete_at=delete_at,
+        async with cohorts.system_session(guild_id) as notice_session:
+            await queue_welcome_notice(
+                notice_session, guild_id, owner_user_id=owner_user_id
+            )
+    except Exception:
+        logger.exception("could not welcome the owner of guild %s", guild_id)
+
+
+async def queue_welcome_notice(
+    session: AsyncSession, guild_id: int, *, owner_user_id: int
+) -> None:
+    """Welcome the person a community was just made for, and invite them to
+    set up its plan.
+
+    Called once the new community is committed, where billing sets plans, on
+    a system session of its own. The owner is told rather than whoever made
+    it: an operator making one for somebody else holds nothing in it. Told
+    the way a trial notice is — a line in their bell and a letter in their
+    own language — and committed to the notice outbox, whose worker sends it.
+    """
+    from app.db.session import set_rls_context
+    from app.services import email as email_service
+
+    await set_rls_context(session, Unattributed())
+    guild = (
+        await session.exec(select(Guild).where(Guild.id == guild_id))
+    ).one_or_none()
+    if guild is None:
+        return
+    await _queue_plan_notice(
+        session,
+        guild,
+        [owner_user_id],
+        NotificationType.guild_welcome,
+        # The bell line leads to Plan & usage like the trial ones, not to the
+        # portal: in the phone app, which may not sell, that tab shows the plan
+        # and offers nothing. The letter is the way straight to the portal.
+        {},
+        lambda locale: email_service.community_welcome_pieces(
+            community=guild.name, guild_id=guild_id, locale=locale
+        ),
+    )
+
+
+async def _queue_plan_notice(
+    session: AsyncSession,
+    guild: Guild,
+    recipients: list[int],
+    notification_type: NotificationType,
+    data: dict[str, str],
+    letter_for: Callable[[str], EmailPieces],
+) -> None:
+    """Write one account notice about a community's plan to each recipient: a
+    bell line leading to its Plan & usage tab unless ``data`` names another
+    ``target_path``, and a letter in the recipient's language. Commits."""
+    from app.services.platform import notice_outbox
+
+    locales = dict(
+        (
+            await session.exec(
+                select(User.id, User.locale).where(User.id.in_(recipients))  # type: ignore[union-attr]
+            )
+        ).all()
+    )
+    rows = []
+    for user_id in recipients:
+        letter = letter_for(locales.get(user_id) or "en")
+        rows.append(
+            notice_outbox.row(
+                user_id,
+                None,
+                notification_type,
+                {
+                    "community": guild.name,
+                    "guild_id": guild.id,
+                    "target_path": "/settings/usage",
+                    **data,
+                },
+                email_subject=letter.subject,
+                email_headline=letter.headline,
+                email_body=letter.body,
+                email_link=letter.link,
+                email_link_label=letter.link_label,
+            )
         )
-    except email_service.EmailNotConfiguredError:
-        logger.info("no mail configured; community hold not announced by letter")
-    except Exception:  # pragma: no cover - delivery is best-effort here
-        logger.exception("could not send the community hold notice")
+    await notice_outbox.enqueue(session, rows)
+    await session.commit()
 
 
 async def soft_delete_guild(
@@ -1682,6 +1918,22 @@ async def redeem_invite_for_user(
     user: User,
 ) -> Guild:
     invite = await _live_invite(session, code=code)
+
+    # A grant reaches the community for its window and makes nobody a
+    # member; joining waits until the grant has ended. A billing grant
+    # reaches the billing account alone.
+    live_grant = await session.exec(
+        select(AccessGrant.id)
+        .where(
+            AccessGrant.user_id == user.id,
+            AccessGrant.guild_id == invite.guild_id,
+            AccessGrant.purpose != AccessGrantPurpose.billing.value,
+            AccessGrant.live(datetime.now(timezone.utc)),
+        )
+        .limit(1)
+    )
+    if live_grant.first() is not None:
+        raise GuildInviteError(GuildMessages.INVITE_DURING_ACCESS_GRANT)
 
     # Email binding. An invite with no bound address
     # (``invitee_email_encrypted`` is NULL) is a shareable link that any
@@ -1950,7 +2202,7 @@ async def list_community_guilds(
     *,
     user_id: int,
     query: str | None = None,
-    category: str | None = None,
+    categories: list[str] | None = None,
     page: int = 1,
     page_size: int = 24,
 ) -> tuple[list[tuple[Guild, int, bool]], int]:
@@ -1990,8 +2242,9 @@ async def list_community_guilds(
     )
 
     filters = community_listing_filters()
-    if category:
-        filters.append(Guild.categories.contains([category]))
+    if categories:
+        # On any of the shelves asked for.
+        filters.append(Guild.categories.overlap(categories))
     if query and query.strip():
         # Case-insensitive across the two fields a card actually shows.
         needle = f"%{query.strip()}%"

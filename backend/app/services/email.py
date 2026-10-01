@@ -7,11 +7,11 @@ import re
 import smtplib
 import ssl
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 from functools import lru_cache
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Literal, Mapping, Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -896,19 +896,39 @@ async def announce_community_deleted(
         logger.exception("could not send the community deletion receipt")
 
 
+def email_date(value: date | datetime, locale: str = "en") -> str:
+    """A calendar day as a letter in ``locale`` writes one ("24 October 2026",
+    "24. Oktober 2026"). Month names come from the locale files, so a
+    language without them falls back to English like every other string."""
+    month = email_t(f"dates.months.m{value.month}", locale=locale, escape=False)
+    return email_t(
+        "dates.long",
+        locale=locale,
+        day=value.day,
+        month=month,
+        year=value.year,
+        escape=False,
+    )
+
+
 async def send_community_on_hold_email(
     session: AsyncSession,
     *,
     recipients: list[str],
     community: str,
     contact: str | None,
+    guild_id: int,
     delete_at: datetime | None = None,
+    plan_managed: bool = False,
     locale: str = "en",
 ) -> None:
     """Tell the people who hold a community's seat that it is on hold, whom
     to contact about it, and, where the hold runs out, when it is deleted.
 
     ``delete_at`` is None where this deployment never deletes a held community.
+    ``plan_managed`` says what lifts the hold: on a deployment whose plans the
+    billing service sets, restoring the plan, which the letter's button leads
+    to; elsewhere, whoever put it there, and the letter has no button.
     """
     settings_obj, accent = await _email_context(session)
     next_step = (
@@ -916,16 +936,29 @@ async def send_community_on_hold_email(
         if contact
         else email_t("communityOnHold.contactNobody", locale=locale)
     )
-    date = delete_at.strftime("%-d %B %Y") if delete_at is not None else None
-    deadline = (
-        f"<p>{email_t('communityOnHold.deletion', locale=locale, date=date)}</p>"
-        if date
-        else ""
-    )
+    day = email_date(delete_at, locale) if delete_at is not None else None
+    if day is None:
+        body_key = "body"
+    elif plan_managed:
+        body_key = "bodyDeleting"
+    else:
+        body_key = "bodyDeletingUnlessLifted"
+    text_key = "textB" + body_key[1:]
+    # Where billing sets plans, restoring the plan lifts the hold, so the
+    # letter leads there.
+    button = text_link = ""
+    if plan_managed:
+        link = community_billing_link(guild_id, "manage")
+        label = email_t("communityOnHold.buttonLabel", locale=locale)
+        button = f'<p style="margin:24px 0;">{_cta_button(label, link, accent)}</p>'
+        plain_label = email_t(
+            "communityOnHold.buttonLabel", locale=locale, escape=False
+        )
+        text_link = f"\n\n{plain_label}: {link}"
     body = f"""
     <p>{email_t("communityOnHold.greeting", locale=locale)}</p>
-    <p>{email_t("communityOnHold.body", locale=locale, community=community)}</p>
-    {deadline}
+    <p>{email_t(f"communityOnHold.{body_key}", locale=locale, community=community, date=day or "")}</p>
+    {button}
     <p>{next_step}</p>
     """
     html_body = _build_html_layout(
@@ -949,28 +982,83 @@ async def send_community_on_hold_email(
         ),
         html_body=html_body,
         text_body=" ".join(
-            part
-            for part in (
+            (
                 email_t(
-                    "communityOnHold.textBody",
+                    f"communityOnHold.{text_key}",
                     locale=locale,
                     community=community,
+                    date=day or "",
                     escape=False,
                 ),
-                email_t(
-                    "communityOnHold.textDeletion",
-                    locale=locale,
-                    date=date,
-                    escape=False,
-                )
-                if date
-                else None,
                 text_next,
             )
-            if part
-        ),
+        )
+        + text_link,
         settings_obj=settings_obj,
     )
+
+
+#: The section of ``email.json`` each trial notice is written from.
+_TRIAL_NOTICE_SECTIONS = {
+    "trial_ending": "communityTrialEnding",
+    "trial_ended": "communityTrialEnded",
+}
+
+
+def community_trial_pieces(
+    *, kind: str, community: str, trial_ends_on: date, guild_id: int, locale: str
+) -> EmailPieces:
+    """A trial notice as notification mail, in ``locale``.
+
+    ``kind`` is one of the billing notice kinds; the words are this
+    deployment's. Written into the notice outbox beside the bell line, so the
+    outbox worker sends it and retries it; the button leads to the community's
+    billing page, which signs the reader in and forwards them to the billing
+    portal to choose a plan.
+    """
+    section = _TRIAL_NOTICE_SECTIONS[kind]
+    day = email_date(trial_ends_on, locale)
+    return EmailPieces(
+        subject=email_t(
+            f"{section}.subject",
+            locale=locale,
+            community=community,
+            date=day,
+            escape=False,
+        ),
+        headline=email_t(
+            f"{section}.title", locale=locale, community=community, date=day
+        ),
+        body=email_t(f"{section}.body", locale=locale, community=community, date=day),
+        link=community_billing_link(guild_id, "upgrade"),
+        link_label=email_t(f"{section}.buttonLabel", locale=locale),
+    )
+
+
+def community_welcome_pieces(
+    *, community: str, guild_id: int, locale: str
+) -> EmailPieces:
+    """A newly made community's welcome as notification mail, in ``locale``.
+
+    Written into the notice outbox beside the bell line, like a trial notice;
+    the button leads to the community's billing page, where its plan is set up.
+    """
+    return EmailPieces(
+        subject=email_t(
+            "communityWelcome.subject", locale=locale, community=community, escape=False
+        ),
+        headline=email_t("communityWelcome.title", locale=locale, community=community),
+        body=email_t("communityWelcome.body", locale=locale, community=community),
+        link=community_billing_link(guild_id, "upgrade"),
+        link_label=email_t("communityWelcome.buttonLabel", locale=locale),
+    )
+
+
+def community_billing_link(guild_id: int, page: Literal["upgrade", "manage"]) -> str:
+    """The community's billing page, for a letter's button. It signs the
+    reader in and forwards them to the billing portal's ``page``: ``upgrade``
+    to choose a plan, ``manage`` to look after the one it has."""
+    return _frontend_url(f"/c/{guild_id}/billing?page={page}")
 
 
 async def _queue_account_notice(

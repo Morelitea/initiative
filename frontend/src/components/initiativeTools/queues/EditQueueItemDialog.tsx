@@ -2,10 +2,16 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { type QueueItemRead, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  PropertyTarget,
+  type QueueItemRead,
+  SearchEntityType,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { EntityLinkField } from "@/components/entities/EntityLinkField";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
 import { MemberSelect } from "@/components/members/MemberSearchSelect";
+import { PropertyPanel } from "@/components/properties";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { Button } from "@/components/ui/button";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
@@ -22,12 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  useDeleteQueueItem,
-  useSetQueueItemLinks,
-  useSetQueueItemTags,
-  useUpdateQueueItem,
-} from "@/hooks/useQueues";
+import { useDeleteQueueItem, useSetQueueItemLinks, useUpdateQueueItem } from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
 import { sameIds } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
@@ -49,7 +50,7 @@ export const EditQueueItemDialog = ({
   readOnly = false,
   onSuccess,
 }: EditQueueItemDialogProps) => {
-  const { t } = useTranslation(["queues", "common", "relations"]);
+  const { t } = useTranslation(["queues", "common", "relations", "properties"]);
 
   const {
     label,
@@ -75,27 +76,15 @@ export const EditQueueItemDialog = ({
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  const setTags = useSetQueueItemTags(queueId);
   const setLinksMutation = useSetQueueItemLinks(queueId);
 
   const updateItem = useUpdateQueueItem(queueId, {
     onSuccess: async (_data, vars) => {
-      // Tags are compared as sets: the rows are rebuilt on every read, so the
-      // order they arrive in says nothing about whether they changed.
-      const newTagIds = selectedTags.map((tg) => tg.id);
-      // Awaited, both of them: an item's tags and its links are saved by
-      // requests of their own, and reporting the save before those land would
-      // call it done while part of it may still fail. A failure leaves the
-      // dialog open with the change still in it, to be tried again.
+      // Awaited: an item's links are saved by a request of their own, and
+      // reporting the save before it lands would call it done while part of it
+      // may still fail. A failure leaves the dialog open with the change still
+      // in it, to be tried again.
       try {
-        if (
-          !sameIds(
-            newTagIds,
-            item.tags.map((tg) => tg.id)
-          )
-        ) {
-          await setTags.mutateAsync({ itemId: vars.itemId, tagIds: newTagIds });
-        }
         // One call for every kind of link, which works out per kind what moved.
         await setLinksMutation.mutateAsync({
           itemId: vars.itemId,
@@ -132,6 +121,13 @@ export const EditQueueItemDialog = ({
   const handleSubmit = () => {
     const trimmedLabel = label.trim();
     if (!trimmedLabel) return;
+    // Tags are compared as sets: the rows are rebuilt on every read, so the
+    // order they arrive in says nothing about whether they changed.
+    const tagIds = selectedTags.map((tg) => tg.id);
+    const tagsChanged = !sameIds(
+      tagIds,
+      item.tags.map((tg) => tg.id)
+    );
     updateItem.mutate({
       itemId: item.id,
       data: {
@@ -141,6 +137,7 @@ export const EditQueueItemDialog = ({
         notes: notes.trim() || undefined,
         is_visible: isVisible,
         user_id: userId,
+        ...(tagsChanged ? { tag_ids: tagIds } : {}),
       },
     });
   };
@@ -239,6 +236,20 @@ export const EditQueueItemDialog = ({
                 selectedTags={selectedTags}
                 onChange={setSelectedTags}
                 placeholder={t("tags")}
+                disabled={readOnly}
+              />
+            </div>
+
+            {/* Saved as they change, like the links below — the dialog's Save
+                is about the item itself. */}
+            <div className="space-y-2">
+              <Label>{t("properties:title")}</Label>
+              <PropertyPanel
+                target={PropertyTarget.queue_item}
+                entityId={item.id}
+                saved={item.properties}
+                initiativeId={initiativeId}
+                canOpen={{ tool: Tool.queue, id: queueId }}
                 disabled={readOnly}
               />
             </div>

@@ -109,10 +109,11 @@ async def test_create_queue_non_pm_forbidden(client: AsyncClient, acting_user):
     assert response.status_code == 403
 
 
-async def test_list_queues(client: AsyncClient, acting_user):
-    """Admin can list queues."""
+async def test_list_queues(client: AsyncClient, acting_user, session):
+    """Admin can list queues, narrowed to the running or the stopped ones."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _create_queue_via_api(client, a, "Listed Queue")
+    await create_queue(session, a.initiative, a.user, name="Running", is_active=True)
 
     response = await client.get(a.g("/queues/"), headers=a.headers)
 
@@ -120,7 +121,13 @@ async def test_list_queues(client: AsyncClient, acting_user):
     data = response.json()
     assert data["total_count"] >= 1
     names = [q["name"] for q in data["items"]]
-    assert "Listed Queue" in names
+    assert {"Listed Queue", "Running"} <= set(names)
+
+    for is_active, expected in ((True, ["Running"]), (False, ["Listed Queue"])):
+        narrowed = await client.get(
+            a.g("/queues/"), headers=a.headers, params={"is_active": is_active}
+        )
+        assert [q["name"] for q in narrowed.json()["items"]] == expected
 
 
 async def test_get_queue(client: AsyncClient, acting_user):
@@ -230,31 +237,6 @@ async def test_delete_queue_item(client: AsyncClient, acting_user):
         headers=a.headers,
     )
     assert response.status_code == 204
-
-
-async def test_reorder_queue_items(client: AsyncClient, acting_user):
-    """Owner can bulk-reorder items."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    queue_data = await _create_queue_via_api(client, a)
-    item_a = await _add_item_via_api(client, a, queue_data["id"], "A", position=1)
-    item_b = await _add_item_via_api(client, a, queue_data["id"], "B", position=2)
-
-    response = await client.put(
-        a.g(f"/queues/{queue_data['id']}/items/reorder"),
-        headers=a.headers,
-        json={
-            "items": [
-                {"id": item_a["id"], "position": 20},
-                {"id": item_b["id"], "position": 10},
-            ]
-        },
-    )
-
-    assert response.status_code == 200
-    data = response.json()
-    items_by_id = {i["id"]: i for i in data["items"]}
-    assert items_by_id[item_a["id"]]["position"] == 20
-    assert items_by_id[item_b["id"]]["position"] == 10
 
 
 async def test_fractional_positions(client: AsyncClient, acting_user):
@@ -822,8 +804,8 @@ async def test_set_queue_item_tags(
     # Create a tag
     tag = await create_tag(session, a.guild, name="Priority")
 
-    response = await client.put(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}/tags"),
+    response = await client.patch(
+        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
         headers=a.headers,
         json={"tag_ids": [tag.id]},
     )
@@ -909,10 +891,10 @@ async def test_queue_counts_by_initiative(
     # the reader — the admin's own queue in each, not the member's beside it.
     # The disabled initiative is absent either way.
     response = await client.get(
-        admin.g("/queues/counts/by-initiative"), headers=admin.headers
+        admin.g("/tools/counts/by-initiative"), headers=admin.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {
+    assert response.json()["counts"]["queue"] == {
         str(admin.initiative.id): 1,
         str(other_initiative.id): 1,
     }
@@ -920,10 +902,10 @@ async def test_queue_counts_by_initiative(
     # Member: only queues shared with them, and no entry for initiatives
     # they are not in.
     response = await client.get(
-        member.g("/queues/counts/by-initiative"), headers=member.headers
+        member.g("/tools/counts/by-initiative"), headers=member.headers
     )
     assert response.status_code == 200
-    assert response.json()["counts"] == {str(admin.initiative.id): 1}
+    assert response.json()["counts"]["queue"] == {str(admin.initiative.id): 1}
 
 
 async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user):

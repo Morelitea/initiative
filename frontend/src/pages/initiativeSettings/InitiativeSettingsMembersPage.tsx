@@ -94,7 +94,6 @@ export const InitiativeSettingsMembersPage = () => {
     <>
       <InitiativeSettingsMembersTab
         initiativeId={initiativeId}
-        members={initiative.members}
         roles={rolesQuery.data}
         canManageMembers={canManageMembers}
         joinPolicy={initiative.join_policy}

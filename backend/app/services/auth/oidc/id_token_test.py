@@ -1,8 +1,7 @@
-"""Adversarial tests for the OIDC id_token verifier.
+"""Tests for the OIDC id_token verifier.
 
-A bug in this module is an authentication bypass, so the suite is written as
-attacks: for every way a forged or malformed token could sneak through, assert
-it is rejected. Tokens are minted with locally-generated RSA/EC keys (no
+For every way a token can be invalid or malformed, assert it is rejected.
+Tokens are minted with locally-generated RSA/EC keys (no
 network), so the verification logic is exercised in complete isolation.
 """
 
@@ -106,8 +105,8 @@ def _forge_hs256(claims: dict, secret: str) -> str:
     """Hand-roll an HS256 token with ``secret`` as the HMAC key.
 
     Done manually because PyJWT's ``encode`` refuses to HMAC-sign with a PEM
-    public key (its own confusion guard) — we need the malicious token to exist
-    so the *verifier's* asymmetric-only allowlist is what rejects it. Claims use
+    public key — we need the token to exist so the *verifier's*
+    asymmetric-only allowlist is what rejects it. Claims use
     integer timestamps so they're plain-JSON serializable.
     """
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
@@ -159,9 +158,9 @@ def test_accepts_pyjwk_signing_key():
 
 
 def test_pyjwk_signing_key_still_rejects_alg_confusion():
-    """Even when the key is a ``PyJWK`` bound to RS256 (the CVE-2026-48523 shape),
-    an HS256-forged token is rejected by our allowlist — the header alg is checked
-    against the allowlist regardless of the key object's bound alg."""
+    """Even when the key is a ``PyJWK`` bound to RS256, an HS256 token is
+    rejected by our allowlist — the header alg is checked against the allowlist
+    regardless of the key object's bound alg."""
     now = int(datetime.now(timezone.utc).timestamp())
     claims = {
         "iss": ISSUER,
@@ -176,7 +175,7 @@ def test_pyjwk_signing_key_still_rejects_alg_confusion():
         _verify(forged, signing_key=_rsa_pyjwk())
 
 
-# --- signature / algorithm attacks -----------------------------------------
+# --- signature / algorithm -------------------------------------------------
 
 
 def test_alg_none_rejected():
@@ -187,9 +186,9 @@ def test_alg_none_rejected():
 
 
 def test_hs256_confusion_rejected():
-    """Algorithm confusion: attacker forges an HS256 token using the *public*
-    key as the shared secret. HS256 isn't in the asymmetric allowlist, so it's
-    refused before any signature check."""
+    """An HS256 token signed with the *public* key as the shared secret.
+    HS256 isn't in the asymmetric allowlist, so it's refused before any
+    signature check."""
     now = int(datetime.now(timezone.utc).timestamp())
     claims = {
         "iss": ISSUER,
@@ -227,7 +226,7 @@ def test_token_alg_outside_narrowed_allowlist_rejected():
         _verify(_encode(_claims()), algorithms=["ES256"])
 
 
-# --- claim attacks ----------------------------------------------------------
+# --- claims ----------------------------------------------------------------
 
 
 def test_expired_token_rejected():
@@ -256,7 +255,7 @@ def test_missing_exp_rejected():
         _verify(_encode(_claims(exp=_DROP)))
 
 
-# --- nonce (replay / token injection) --------------------------------------
+# --- nonce -----------------------------------------------------------------
 
 
 def test_nonce_mismatch_rejected():

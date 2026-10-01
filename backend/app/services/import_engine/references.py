@@ -317,6 +317,19 @@ async def resolve_references(
             setattr(row, field, after)
             session.add(row)
             changed += 1
+        # What an edit of just this task kept back names things the same way.
+        carry = (
+            getattr(row, "recurrence_carry", None)
+            if kind == SearchEntityType.task
+            else None
+        )
+        if carry and has_source_references(carry.get("description")):
+            setattr(
+                row,
+                "recurrence_carry",
+                {**carry, "description": _settle(carry["description"], resolve)},
+            )
+            session.add(row)
         owner = (
             content_references.comment_parent(row)
             if kind == SearchEntityType.comment

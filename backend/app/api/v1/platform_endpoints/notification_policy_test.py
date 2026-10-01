@@ -15,7 +15,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.push_token import PushToken
 from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
-from app.services.platform import push_tokens
+from app.services.platform import notification_policy, push_tokens
 from app.testing import (
     create_guild,
     create_user,
@@ -27,8 +27,8 @@ from app.testing import (
 PLATFORM = "/api/v1/settings/notifications"
 
 
-def _guild_url(guild_id: int) -> str:
-    return f"/api/v1/communities/{guild_id}/notification-policy"
+def _settings(guild_id: int) -> str:
+    return f"/api/v1/communities/{guild_id}/auth-settings"
 
 
 def _all(**overrides: bool) -> dict:
@@ -162,8 +162,8 @@ async def test_the_seat_sets_its_communitys_answers(
     seat = await acting_user(guild_role=GuildRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
 
-    written = await client.put(
-        _guild_url(seat.guild.id),
+    written = await client.patch(
+        _settings(seat.guild.id),
         json={
             "allow_push_notifications": False,
             "allow_email_notifications": True,
@@ -179,40 +179,13 @@ async def test_the_seat_sets_its_communitys_answers(
     await session.refresh(seat.guild)
     assert seat.guild.allow_push_notifications is False
     assert seat.guild.redact_notification_content is True
+    assert not (await notification_policy.resolve(session, seat.guild.id)).push
 
-
-async def test_an_admin_below_the_seat_is_refused(client, session, acting_user) -> None:
-    """The same seat as the three controls beside it on this page."""
-    admin = await acting_user(guild_role=GuildRole.admin)
-    await guild_administration(session, admin.guild, auth_options=["restrictions"])
-
-    assert (
-        await client.get(_guild_url(admin.guild.id), headers=admin.headers)
-    ).status_code == 403
-    assert (
-        await client.put(
-            _guild_url(admin.guild.id),
-            json={
-                "allow_push_notifications": False,
-                "allow_email_notifications": True,
-                "redact_notification_content": False,
-            },
-            headers=admin.headers,
-        )
-    ).status_code == 403
-
-
-async def test_a_community_without_the_entitlement_has_no_surface(
-    client, session, acting_user
-) -> None:
-    """The same 404 the three controls beside it give: the operator has not
-    opened this community's own configuration, so the page is not there."""
-    seat = await acting_user(guild_role=GuildRole.superadmin)
+    # They apply while it holds the ``restrictions`` option they need.
     await guild_administration(session, seat.guild, auth_options=[])
-
-    refused = await client.get(_guild_url(seat.guild.id), headers=seat.headers)
-    assert refused.status_code == 404
-    assert refused.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+    assert await notification_policy.resolve(
+        session, seat.guild.id
+    ) == await notification_policy.resolve(session, None)
 
 
 async def test_the_page_is_told_what_the_deployment_already_asks(
@@ -228,7 +201,7 @@ async def test_the_page_is_told_what_the_deployment_already_asks(
     session.add(row)
     await session.commit()
 
-    body = (await client.get(_guild_url(seat.guild.id), headers=seat.headers)).json()
+    body = (await client.get(_settings(seat.guild.id), headers=seat.headers)).json()
 
     assert body["push_allowed_by_platform"] is False
     assert body["email_allowed_by_platform"] is True
@@ -246,8 +219,8 @@ async def test_one_communitys_answer_does_not_reach_another(
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
     elsewhere = await create_guild(session)
 
-    await client.put(
-        _guild_url(seat.guild.id),
+    await client.patch(
+        _settings(seat.guild.id),
         json={
             "allow_push_notifications": False,
             "allow_email_notifications": False,

@@ -111,9 +111,10 @@ async def test_posting_a_notice_tells_the_room(
         assert all(c["resource"] == {"type": "posts", "id": post_id} for c in changes)
         # A notice sits directly in its initiative, so it names no parents.
         assert all(c["parents"] == [] for c in changes)
-        # Identifiers and an action. The notice itself is not on the bus.
+        # Identifiers, an action and the columns it changed. The notice itself
+        # is not on the bus.
         assert all(
-            set(c) == {"resource", "parents", "initiative_id", "action"}
+            set(c) == {"resource", "parents", "initiative_id", "action", "changed"}
             for c in changes
         )
 

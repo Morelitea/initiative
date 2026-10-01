@@ -5,7 +5,7 @@ that call into one of these. They come in two kinds. The four in
 :data:`GUILD_AUTHORIZATION_FUNCTIONS` read only guild tables and are rendered
 into each guild schema beside the policies that call them (``guild_ddl``), so
 a community's access rules live inside its own boundary and a change rolls
-out schema by schema with the provisioning stamp. The six in
+out schema by schema with the provisioning stamp. The seven in
 :data:`AUTHORIZATION_FUNCTIONS` read shared tables and live in ``public``,
 applied once at boot. Both kinds name the tables they read unqualified, so the
 routed ``search_path`` binds ``initiative_members`` to the caller's own schema
@@ -86,6 +86,7 @@ __all__ = [
     "Legs",
     "STANDING",
     "STANDING_FIELDS",
+    "READ_FUNCTIONS",
     "GUILD_FUNCTION_SIGNATURES",
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
@@ -256,6 +257,29 @@ $function$
 """
 
 
+#: Whether a rule that needs an operator-granted option applies to the
+#: community: true unless its row shows the option withdrawn. A role that
+#: reads no settings sees no row, and is asked the rule as it stands. The
+#: sign-in gate asks it here, and the app's queries ask the same function.
+GUILD_HOLDS_OPTION = """\
+CREATE OR REPLACE FUNCTION public.guild_holds_option(p_guild_id integer, p_option text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN NOT EXISTS (
+        SELECT 1
+        FROM public.guild_administration a
+        WHERE a.guild_id = p_guild_id
+          AND NOT p_option::public.guild_auth_option = ANY(a.auth_options)
+    );
+END
+$function$
+
+"""
+
+
 #: Gate 0: the guild's sign-in policy, satisfied by this session.
 GUILD_AUTH_SATISFIED = f"""\
 CREATE OR REPLACE FUNCTION public.guild_auth_satisfied()
@@ -289,9 +313,12 @@ AS $function$
                   -- Or the account's own second factor, where the community
                   -- asks for one. The session records it when a code is
                   -- presented and the request carries that here.
+                  -- Both factor legs apply while the community holds
+                  -- ``providers``; the arrival legs apply whatever it holds.
                   OR (
                       'totp' = ANY(p.require_methods)
                       AND NOT ('mfa' = ANY(public.session_amr()))
+                      AND public.guild_holds_option(p.guild_id, 'providers')
                   )
                   -- Or a passkey, where the community asks for one. Its own
                   -- leg rather than the factor's: an assertion records the
@@ -300,6 +327,7 @@ AS $function$
                   OR (
                       'passkey' = ANY(p.require_methods)
                       AND NOT (public.session_amr() && ARRAY['hwk', 'swk'])
+                      AND public.guild_holds_option(p.guild_id, 'providers')
                   )
                   -- Or any of its own, whichever provider served it. Named
                   -- rather than counted, so a list holding some other method
@@ -314,13 +342,15 @@ AS $function$
             -- Asked of everybody reaching this community, whatever it says
             -- about how they arrive. Its own row rather than the policy's,
             -- because a community that asks nothing about arrival holds no
-            -- policy row and still asks this. Unsatisfied is what this finds,
-            -- like the leg above it.
+            -- policy row and still asks this, while it holds
+            -- ``restrictions``. Unsatisfied is what this finds, like the leg
+            -- above it.
             SELECT 1
             FROM public.guilds g
             WHERE g.id = {gucs.ROUTED_GUILD_ID}
               AND g.require_second_factor
               AND NOT ('mfa' = ANY(public.session_amr()))
+              AND public.guild_holds_option(g.id, 'restrictions')
         ))
 $function$
 
@@ -467,8 +497,36 @@ $function$
 """
 
 
-_STANDING_EXPRS = {name: expr for name, _type, expr in STANDING_FIELDS}
 _STANDING_TYPES = {name: sqltype for name, sqltype, _expr in STANDING_FIELDS}
+
+
+def _read_function(name: str, sqltype: str, expr: str) -> str:
+    """One value a policy reads once per statement, as a function. A policy
+    stores the call instead of the expression; ``plpgsql`` like the gates, so
+    its plan is kept and the planner has nothing to inline."""
+    return f"""\
+CREATE OR REPLACE FUNCTION {name}()
+ RETURNS {sqltype}
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN ({expr})::{sqltype};
+END
+$function$
+
+"""
+
+
+#: ``standing_<field>()`` for each standing field, and ``setting_<bind>()`` for
+#: each variable a policy reads with ``Guc.once``.
+READ_FUNCTIONS: tuple[tuple[str, str], ...] = tuple(
+    (f"standing_{name}", _read_function(f"standing_{name}", sqltype, expr))
+    for name, sqltype, expr in STANDING_FIELDS
+) + tuple(
+    (g.once_function, _read_function(g.once_function, g.kind.value, g.sql))
+    for g in gucs.READ_ONCE
+)
 
 
 @dataclass(frozen=True)
@@ -480,7 +538,8 @@ class Legs:
     standing: str
     #: Inside a policy, a field is its own once-per-statement sub-select
     #: rather than a field of the whole standing, which would compute every
-    #: other field alongside it.
+    #: other field alongside it. The sub-select calls the field's
+    #: ``standing_<field>()``, so the policy stores a call, not the expression.
     per_field: bool = False
 
     def field(self, name: str) -> str:
@@ -489,7 +548,7 @@ class Legs:
         if self.per_field:
             # Cast to the field's type: ``x = ANY ((SELECT a))`` would otherwise
             # read as a comparison against a sub-query's rows, not an array.
-            return f"((SELECT {_STANDING_EXPRS[name]})::{_STANDING_TYPES[name]})"
+            return f"((SELECT standing_{name}())::{_STANDING_TYPES[name]})"
         return f"({self.standing}).{name}"
 
     @property
@@ -1183,7 +1242,8 @@ $function$
 """
 
 
-#: Name -> definition, in dependency order: ``guild_connection_satisfied``
+#: Name -> definition, in dependency order: ``guild_auth_satisfied`` calls
+#: ``guild_holds_option``, ``guild_connection_satisfied``
 #: calls ``guild_connection_admits``, ``guild_auth_satisfied`` calls
 #: ``guild_connection_satisfied``, ``session_amr`` and
 #: ``platform_factor_satisfied``, and
@@ -1191,6 +1251,7 @@ $function$
 #: ``guild_auth_satisfied``. Applied in this order, a fresh database never
 #: sees a dangling call.
 AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
+    ("guild_holds_option", GUILD_HOLDS_OPTION),
     ("guild_connection_admits", GUILD_CONNECTION_ADMITS),
     ("guild_connection_satisfied", GUILD_CONNECTION_SATISFIED),
     ("session_amr", SESSION_AMR),
@@ -1199,11 +1260,12 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("guild_superadmin", GUILD_SUPERADMIN),
 )
 
-#: The five that read only guild tables. Rendered into every guild schema by
+#: The ones that read only guild tables. Rendered into every guild schema by
 #: ``guild_ddl.render_guild_rls_ddl`` ahead of the policies that call them,
 #: in this order: the SQL bodies are checked at creation, and each names only
 #: tables and the ``public`` functions above.
 GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
+    *READ_FUNCTIONS,
     ("current_standing", CURRENT_STANDING),
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),
@@ -1222,6 +1284,7 @@ GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
 #: above plus the three ``frozen`` and ``initiative_rls`` render there. What
 #: ``DROP FUNCTION`` and ``pg_get_functiondef`` need to name one.
 GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
+    **{name: "()" for name, _sql in READ_FUNCTIONS},
     "current_standing": "()",
     "initiative_access": "(integer, integer, boolean, public.standing)",
     "initiative_full_access": "(integer, boolean, public.standing)",
@@ -1237,6 +1300,7 @@ GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     "resource_frozen": "(text, bigint, boolean)",
     "resource_frozen_for_grant": "(text, bigint, boolean)",
     "entity_access": "(text, integer, boolean, boolean, public.standing)",
+    "entity_initiative": "(text, integer)",
 }
 
 #: Functions an earlier render put in a guild schema under a name or
@@ -1280,7 +1344,7 @@ def authorization_functions_digest() -> str:
 async def apply_authorization_functions(conn: "AsyncConnection") -> None:
     """Create or replace every function in :data:`AUTHORIZATION_FUNCTIONS`.
 
-    Idempotent, and cheap enough to run unconditionally on boot: six
+    Idempotent, and cheap enough to run unconditionally on boot: seven
     ``CREATE OR REPLACE`` statements against ``public``. ``CREATE OR REPLACE``
     keeps each function's OID, so the policies that reference it are untouched
     and no guild schema needs re-rendering.

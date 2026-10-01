@@ -23,6 +23,7 @@ import {
   detectRecurrencePreset,
   getReferenceDate,
   type MonthlyMode,
+  maxOccurrences,
   type RecurrenceFrequency,
   type RecurrencePreset,
   type RecurrenceRule,
@@ -120,7 +121,7 @@ const Chips = <T extends string | number>({
  */
 export const RecurrenceEditor = ({
   value,
-  onChange,
+  onChange: setRule,
   kind,
   referenceDate,
   allDay = false,
@@ -140,6 +141,16 @@ export const RecurrenceEditor = ({
   }, [detected, rule]);
   const preset: RecurrencePreset = building ? "custom" : detected;
   const anchor = getReferenceDate(referenceDate);
+  // A count stays within what the rule's frequency and interval allow.
+  const onChange = (next: RecurrenceRule | null) =>
+    setRule(
+      next?.end_after_occurrences
+        ? {
+            ...next,
+            end_after_occurrences: Math.min(next.end_after_occurrences, maxOccurrences(next)),
+          }
+        : next
+    );
 
   const choosePreset = (next: RecurrencePreset) => {
     if (next === "custom") {
@@ -459,14 +470,14 @@ export const RecurrenceEditor = ({
               <Input
                 type="number"
                 min={1}
-                max={10000}
+                max={maxOccurrences(rule)}
                 value={rule.end_after_occurrences ?? 5}
                 onChange={(event) =>
                   onChange({
                     ...rule,
                     end_after_occurrences: Math.max(
                       1,
-                      Math.min(10000, Number(event.target.value) || 1)
+                      Math.min(maxOccurrences(rule), Number(event.target.value) || 1)
                     ),
                   })
                 }

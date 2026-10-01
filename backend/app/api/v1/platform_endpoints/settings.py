@@ -7,7 +7,6 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from app.api.deps import (
-    SessionDep,
     UserSessionDep,
     SystemSessionDep,
 )
@@ -42,11 +41,9 @@ from app.schemas.platform.settings import (
     InterfaceSettingsUpdate,
     LoginMethodStatus,
     AccountsWithoutFactor,
-    LoginMethodsUpdate,
-    SecondFactorRequirementUpdate,
-    SessionLifetimeUpdate,
     OIDCSettingsResponse,
     PlatformAuthSettingsResponse,
+    PlatformAuthSettingsUpdate,
     StorageBackfillStatusResponse,
     CaptchaSettingsResponse,
     CaptchaSettingsUpdate,
@@ -86,7 +83,6 @@ from app.core.login_methods import (
     LoginMethod,
     SecondFactorRequirement,
 )
-from app.services.auth import session_lifetime
 from app.services.platform import auth_posture
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import push_config
@@ -96,7 +92,6 @@ from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
-from app.services.platform import push_tokens
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
@@ -105,22 +100,6 @@ logger = logging.getLogger(__name__)
 
 # Reason stamped on a grant self-issued by the Guilds tab's billing button.
 BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
-
-# Which columns of the settings singleton this page moves itself; the other
-# areas are recorded by the service that writes them. A value rides along in
-# the record only where its type rules out a secret.
-_SESSION_LIFETIME_FIELDS: tuple[str, ...] = (
-    "session_max_hours",
-    "session_idle_minutes",
-)
-
-#: What this deployment permits a notification to leave the app carrying, for
-#: the record.
-_NOTIFICATION_FIELDS: tuple[str, ...] = (
-    "push_notifications_enabled",
-    "email_notifications_enabled",
-    "redact_notification_content",
-)
 
 #: What the operator's caps and entitlements for one community consist of.
 _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
@@ -200,6 +179,9 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
     """
     row = await app_settings_service.get_app_settings(session)
     permitted = auth_posture.methods_from_row(row)
+    stranding, without_factor = await auth_posture.account_figures(
+        session, permitted=permitted
+    )
     return PlatformAuthSettingsResponse(
         methods=[
             LoginMethodStatus(
@@ -207,9 +189,7 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
                 enabled=method in permitted,
                 primary=method in PRIMARY_LOGIN_METHODS,
                 answers_factor=method in FACTOR_METHODS,
-                would_strand=await auth_posture.stranded_between(
-                    session, current=permitted, requested=permitted - {method}
-                ),
+                would_strand=stranding[method],
             )
             for method in LoginMethod
         ],
@@ -219,12 +199,8 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
         session_idle_minutes=row.session_idle_minutes,
         second_factor_requirement=auth_posture.requirement_from_row(row),
         accounts_without_factor=AccountsWithoutFactor(
-            platform_roles=await auth_posture.accounts_without_factor(
-                session, level=SecondFactorRequirement.platform_roles
-            ),
-            everyone=await auth_posture.accounts_without_factor(
-                session, level=SecondFactorRequirement.everyone
-            ),
+            platform_roles=without_factor[SecondFactorRequirement.platform_roles],
+            everyone=without_factor[SecondFactorRequirement.everyone],
         ),
     )
 
@@ -240,89 +216,42 @@ async def get_platform_auth_settings(
     return await _platform_auth_payload(session)
 
 
-@router.put("/auth/methods", response_model=PlatformAuthSettingsResponse)
-async def update_login_methods(
-    payload: LoginMethodsUpdate,
+@router.patch("/auth/platform", response_model=PlatformAuthSettingsResponse)
+async def update_platform_auth_settings(
+    payload: PlatformAuthSettingsUpdate,
     session: SystemSessionDep,
     owner: ConfigManageDep,
 ) -> PlatformAuthSettingsResponse:
-    """Set which ways in this deployment permits — at least one.
+    """Change how somebody reaches this deployment: the ways in it permits,
+    who it asks for a second factor, and how long a session lasts.
 
-    Withdrawing one that is somebody's only way in is refused (409) with the
-    count in ``X-Affected-Count``, and proceeds only when the caller echoes
-    that exact number back in ``acknowledge_stranded``. Nobody is signed out
-    either way."""
-    await auth_posture.set_login_methods(
-        session,
-        methods=payload.methods,
-        acknowledge_stranded=payload.acknowledge_stranded,
-        actor_user_id=owner.id,
-    )
-    return await _platform_auth_payload(session)
+    Loosening a rule is never refused. Tightening one is refused when the
+    deployment permits nothing that could answer it (409), and when the
+    account writing it does not meet it itself (400, naming the unmet
+    method). Withdrawing a way in that is somebody's only one is refused (409)
+    with the count in ``X-Affected-Count``, and proceeds only when the caller
+    echoes that exact number back in ``acknowledge_stranded``.
 
-
-@router.put(
-    "/auth/second-factor-requirement", response_model=PlatformAuthSettingsResponse
-)
-async def update_second_factor_requirement(
-    payload: SecondFactorRequirementUpdate,
-    session: SystemSessionDep,
-    owner: ConfigManageDep,
-) -> PlatformAuthSettingsResponse:
-    """Set who this deployment asks to hold a second factor.
-
-    Two refusals on the way up, and none coming down. Asking for one while the
-    deployment permits nothing that presents one is refused (409); so is
-    asking while the account writing it does not meet the rule itself (400,
-    naming the unmet method), which is the same "prove it before it binds
-    anybody" a community's requirement makes.
-
-    Nobody is signed out. An account the rule covers is asked at its next
-    request and can answer it where it stands; a credential that cannot
-    present one — the app on a phone, a personal API key — works again once
-    its owner holds a factor.
+    Nobody is signed out. A session already open keeps the terms it was
+    opened under; a device token is brought under a new session limit now,
+    measured from when it was issued, so shortening the limit can end one on
+    the spot.
     """
-    await auth_posture.set_second_factor_requirement(
-        session, level=payload.level, actor=owner
+    changes: dict[str, object] = {
+        key: getattr(payload, key)
+        for key in ("session_max_hours", "session_idle_minutes")
+        if key in payload.model_fields_set
+    }
+    if payload.methods is not None:
+        changes["login_methods"] = frozenset(payload.methods)
+    if payload.second_factor_requirement is not None:
+        changes["second_factor_requirement"] = payload.second_factor_requirement
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(
+            session, owner, acknowledge_stranded=payload.acknowledge_stranded
+        ),
+        changes,
     )
-    return await _platform_auth_payload(session)
-
-
-@router.put("/auth/session-lifetime", response_model=PlatformAuthSettingsResponse)
-async def update_session_lifetime(
-    payload: SessionLifetimeUpdate,
-    session: SystemSessionDep,
-    owner: ConfigManageDep,
-) -> PlatformAuthSettingsResponse:
-    """Set how long somebody may stay signed in before signing in again.
-
-    Separate from how long a session may be left alone, which the deployment's
-    own configuration holds. A session already open keeps the terms it was
-    opened under and takes the new figure at the next sign-in; a device token
-    is brought under the new figure now, measured from when it was issued, so
-    shortening the limit can end one on the spot.
-    """
-    row = await app_settings_service.get_app_settings(session)
-    before = audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
-    row.session_max_hours = payload.session_max_hours
-    row.session_idle_minutes = payload.session_idle_minutes
-    session.add(row)
-    await session.flush()
-    # A device token carries its deadline in its own expiry, so the new figure
-    # is written into the ones already issued rather than read back on every
-    # native request.
-    await session_lifetime.apply_to_device_tokens(session)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(row, _SESSION_LIFETIME_FIELDS)
-    )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-            actor_user_id=owner.id,
-            detail={"area": "session_lifetime", **changed},
-        )
-    await session.commit()
     return await _platform_auth_payload(session)
 
 
@@ -366,43 +295,15 @@ async def update_notification_settings(
     gets about itself keep going, because this must not lock anybody out of
     their account.
     """
-    row = await app_settings_service.ensure_settings_row(session)
-    before = audit_service.snapshot(row, _NOTIFICATION_FIELDS)
-    dropping_push = row.push_notifications_enabled and not (
-        payload.push_notifications_enabled
+    await auth_posture.change(
+        auth_posture.RuleContext.platform(session, owner),
+        {
+            "push_notifications_enabled": payload.push_notifications_enabled,
+            "email_notifications_enabled": payload.email_notifications_enabled,
+            "redact_notification_content": payload.redact_notification_content,
+        },
     )
-    row.push_notifications_enabled = payload.push_notifications_enabled
-    row.email_notifications_enabled = payload.email_notifications_enabled
-    row.redact_notification_content = payload.redact_notification_content
-    session.add(row)
-    await session.flush()
-    if dropping_push:
-        dropped = await push_tokens.purge_all(session)
-        logger.info("push notifications switched off; dropped %d token(s)", dropped)
-    changed = audit_service.changed_fields(
-        before, audit_service.snapshot(row, _NOTIFICATION_FIELDS)
-    )
-    if changed["changed"]:
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.PLATFORM_SETTINGS_CHANGED,
-            actor_user_id=owner.id,
-            detail={"area": "notifications", **changed},
-        )
-    await session.commit()
     return await _notification_payload(session)
-
-
-@router.get("/interface", response_model=InterfaceSettingsResponse)
-async def get_interface_settings(
-    session: SessionDep,
-) -> InterfaceSettingsResponse:
-    settings_obj = await app_settings_service.get_app_settings(session)
-    return InterfaceSettingsResponse(
-        light_accent_color=settings_obj.light_accent_color,
-        dark_accent_color=settings_obj.dark_accent_color,
-        cookie_consent_enabled=settings_obj.cookie_consent_enabled,
-    )
 
 
 @router.put("/interface", response_model=InterfaceSettingsResponse)
@@ -584,8 +485,7 @@ async def send_test_email(
         ) from None
     except RuntimeError as exc:
         # Log the real cause (may include SMTP host/port/server banner) for the
-        # operator, but return only a generic machine-readable code so the
-        # response never leaks internal mail-server details (pentest SEC-16).
+        # operator, but return only a generic machine-readable code.
         logger.warning("Test email delivery failed: %s", str(exc))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -609,7 +509,6 @@ def _storage_settings_payload(
         s3_access_key_id=settings_obj.s3_access_key_id,
         has_secret_access_key=bool(secrets.s3_secret_access_key_encrypted),
         s3_use_path_style=settings_obj.s3_use_path_style,
-        s3_kms_key_id=settings_obj.s3_kms_key_id,
         s3_local_fallback=settings_obj.s3_local_fallback,
     )
 
@@ -649,7 +548,6 @@ async def update_storage_settings(
         s3_secret_access_key=payload.s3_secret_access_key,
         secret_provided=secret_provided,
         s3_use_path_style=payload.s3_use_path_style,
-        s3_kms_key_id=payload.s3_kms_key_id,
         s3_local_fallback=payload.s3_local_fallback,
         actor_user_id=owner.id,
     )
@@ -676,7 +574,6 @@ async def test_storage_connection(
         access_key_id=(payload.s3_access_key_id or "").strip() or None,
         secret_access_key=secret,
         use_path_style=bool(payload.s3_use_path_style),
-        kms_key_id=(payload.s3_kms_key_id or "").strip() or None,
         local_fallback=bool(payload.s3_local_fallback),
     )
     ok, message = await storage_config.test_connection(candidate)

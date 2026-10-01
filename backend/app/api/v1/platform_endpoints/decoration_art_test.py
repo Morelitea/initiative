@@ -1,8 +1,8 @@
 """A profile pack carries its own artwork.
 
 The owner uploads a picture to the marketplace and names it in a pack's
-listing file; the pack's contents, the library of whoever installs it, and the
-lookup a profile uses to draw somebody else's decorations all answer with it.
+listing file; the pack's contents and the library of whoever installs it both
+answer with it.
 """
 
 from app.testing import png_bytes
@@ -80,19 +80,3 @@ class TestAPackCarriesItsArt:
 
         [star] = [item for item in library.json()["items"] if item["id"] == "ours.star"]
         assert star["image_url"] == path
-
-    async def test_anyone_can_look_up_the_art_a_profile_names(
-        self, client, acting_user
-    ):
-        owner = await acting_user("owner")
-        path = await _publish_pack(client, owner)
-        viewer = await acting_user("member")
-
-        response = await client.get(
-            "/api/v1/users/decoration-art",
-            params=[("ids", "ours.star"), ("ids", "nobody.has.this")],
-            headers=viewer.headers,
-        )
-
-        assert response.status_code == 200, response.text
-        assert response.json()["art"] == {"ours.star": path}

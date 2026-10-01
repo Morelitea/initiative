@@ -32,6 +32,8 @@
   "wizard": {
     "titleInitiative": "Exportar iniciativa",
     "titleGuild": "Exportar comunidad",
+    "titleEntities_one": "Exportar {{count}} elemento",
+    "titleEntities_other": "Exportar {{count}} elementos",
     "back": "Atrás",
     "next": "Siguiente",
     "start": "Iniciar exportación",
@@ -61,12 +63,50 @@
       "documentSpreadsheet": "Hojas de cálculo",
       "documentOthersNote": "Las pizarras y los enlaces se exportan como JSON; los archivos subidos van sin cambios."
     },
+    "format": {
+      "prompt": "Elige un formato"
+    },
+    "content": {
+      "prompt": "Elige qué eventos exportar",
+      "allDatesNote": "Deja las fechas vacías para exportar todos los eventos.",
+      "tasksPrompt": "Elige qué tareas exportar",
+      "allTasksNote": "Sin filtros se exportan todas las tareas, también las archivadas."
+    },
+    "filter": {
+      "toggle": "Filtrar",
+      "toggleFor": "Filtrar {{tool}}",
+      "eventDates": "Fechas de los eventos",
+      "tasks": "Tareas de cada proyecto",
+      "templates": "Plantillas",
+      "withoutTemplates": "Sin plantillas",
+      "templatesOnly": "Solo plantillas",
+      "untaggedOnly": "Solo sin etiquetas"
+    },
+    "filterSummary": {
+      "search": "«{{search}}»",
+      "tags_one": "{{count}} etiqueta",
+      "tags_other": "{{count}} etiquetas",
+      "statuses_one": "{{count}} estado",
+      "statuses_other": "{{count}} estados",
+      "assignees_one": "{{count}} asignado",
+      "assignees_other": "{{count}} asignados",
+      "activeOnly": "Solo activos",
+      "archivedOnly": "Solo archivados",
+      "withoutArchived": "sin archivadas",
+      "withArchived": "con archivadas",
+      "more_one": "{{count}} filtro más",
+      "more_other": "{{count}} filtros más",
+      "tasks": "Tareas ({{filters}})"
+    },
     "confirm": {
       "prompt": "Listo para exportar",
       "modeBackup": "Copia de seguridad importable",
       "modeReport": "Informe",
       "uploadsIncluded": "Archivos subidos incluidos",
       "uploadsExcluded": "Archivos subidos excluidos",
+      "toolFilters": "{{tool}}: {{filters}}",
+      "selected_one": "{{count}} seleccionado",
+      "selected_other": "{{count}} seleccionados",
       "note": "La exportación se ejecuta en segundo plano — puedes seguir trabajando y te avisaremos cuando esté lista."
     },
     "progress": {
@@ -75,7 +115,8 @@
     },
     "done": {
       "title": "Exportación lista",
-      "note": "Tu descarga ha comenzado. Puedes volver a descargarla desde la configuración de la comunidad hasta que caduque."
+      "note": "Tu descarga ha comenzado. Puedes volver a descargarla desde la configuración de la comunidad hasta que caduque.",
+      "noteInline": "Tu descarga ha comenzado."
     },
     "failed": {
       "title": "La exportación falló",

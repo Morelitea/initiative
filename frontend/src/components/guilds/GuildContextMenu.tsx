@@ -1,7 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import {
   Copy,
-  FolderOpen,
+  CreditCard,
   GripVertical,
   LogOut,
   Plus,
@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import { createGuildInviteApiV1CommunitiesGuildIdInvitesPost } from "@/api/generated/communities/communities";
 import type { GuildInviteRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/context-menu";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuilds } from "@/hooks/useGuilds";
+import { holdsBillingSeat } from "@/lib/billingSummary";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -44,7 +46,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const router = useRouter();
   const { t } = useTranslation(["guilds", "nav"]);
   const { switchGuild, activeGuildId } = useGuilds();
-  const { billing, openPortal } = useBillingPortal();
+  const { canSell, openPortal } = useBillingPortal();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
   const isAdmin = guild.can.administer;
@@ -58,8 +60,9 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const atUserLimit = guild.max_users != null && guild.member_count >= guild.max_users;
   // Where a billing portal exists the cap travels with the plan, so a full
   // guild leads there — for the seat, which is who the portal answers. An
-  // ordinary admin sees the plain "community is full" wording instead.
-  const upgradeForSeats = atUserLimit && billing != null && guild.can.seat;
+  // ordinary admin, or anyone in the phone app, sees the plain "community is
+  // full" wording instead.
+  const upgradeForSeats = atUserLimit && canSell && guild.can.seat;
 
   const handleInviteMembers = async () => {
     if (creatingInvite || atUserLimit) return;
@@ -136,7 +139,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
             <>
               <ContextMenuSeparator />
               <ContextMenuItem onClick={handleViewInitiatives}>
-                <FolderOpen className="mr-2 h-4 w-4" />
+                <InitiativeMark className="mr-2 h-4 w-4" />
                 {t("viewInitiatives")}
               </ContextMenuItem>
               <ContextMenuItem onClick={handleViewMembers}>
@@ -171,6 +174,15 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
                 <Settings className="mr-2 h-4 w-4" />
                 {t("nav:guildSettings")}
               </ContextMenuItem>
+              {/* The portal is where every change to the plan is made — this
+                  only opens it. The seat's own holder's, which is who the
+                  portal answers; never a grantee lent the seat. */}
+              {canSell && holdsBillingSeat(guild) && (
+                <ContextMenuItem onClick={() => void openPortal(guild.id, "manage")}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  {t("usagePanel.manageBilling")}
+                </ContextMenuItem>
+              )}
             </>
           )}
           <ContextMenuSeparator />

@@ -306,9 +306,15 @@ preflight() {
     git fetch origin --quiet
     info "  Fetched latest from origin"
 
-    # Check code owner
+    # Check code owner: whoever runs it, or in the Release workflow whoever
+    # started this attempt of the run, a re-run included (the app's token
+    # belongs to no user).
     local login
-    login=$(gh api user --jq '.login' 2>/dev/null) || die "Could not determine GitHub user"
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+        login="${GITHUB_TRIGGERING_ACTOR:-${GITHUB_ACTOR:?}}"
+    else
+        login=$(gh api user --jq '.login' 2>/dev/null) || die "Could not determine GitHub user"
+    fi
     local is_owner=false
     local login_lower
     login_lower=$(echo "$login" | tr '[:upper:]' '[:lower:]')

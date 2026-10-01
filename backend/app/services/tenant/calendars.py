@@ -12,14 +12,11 @@ any initiative and reaching into none. Its ``initiative_id`` is NULL, so
 anything derived from an initiative has nothing to derive from and refuses.
 """
 
-from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import session as db_session
-from app.core.tools import Tool
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
@@ -27,8 +24,8 @@ from app.models.tenant.calendar_event import (
     CalendarEventAttendee,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
 
@@ -72,13 +69,18 @@ async def get_calendar(
     calendar_id: int,
     *,
     populate_existing: bool = False,
+    with_events: bool = False,
 ) -> Calendar | None:
     """Fetch a calendar with the relationships authorization + serialization
-    need. RLS scopes the row to the request's guild."""
+    need, and with ``with_events`` its events as an export serializes them.
+    RLS scopes the row to the request's guild."""
     stmt = (
         select(Calendar)
         .where(Calendar.id == calendar_id)
-        .options(*calendar_loader_options())
+        .options(
+            *calendar_loader_options(),
+            *(_event_export_loader_options() if with_events else ()),
+        )
     )
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
@@ -86,6 +88,10 @@ async def get_calendar(
     calendar = result.one_or_none()
     if calendar is not None:
         await tags_service.annotate_tags(session, [calendar])
+        await properties_service.annotate_properties(session, [calendar])
+        if with_events:
+            await tags_service.annotate_tags(session, calendar.events or [])
+            await properties_service.annotate_properties(session, calendar.events or [])
     return calendar
 
 
@@ -98,62 +104,7 @@ def _event_export_loader_options() -> list:
         selectinload(Calendar.events)
         .selectinload(CalendarEvent.attendees)
         .selectinload(CalendarEventAttendee.user),
-        selectinload(Calendar.events)
-        .selectinload(CalendarEvent.property_values)
-        .selectinload(CalendarEventPropertyValue.property_definition),
-        selectinload(Calendar.events)
-        .selectinload(CalendarEvent.property_values)
-        .selectinload(CalendarEventPropertyValue.value_user),
     ]
-
-
-async def get_calendar_for_export(
-    session: AsyncSession,
-    current_user: User,
-    guild_id: int,
-    *,
-    calendar_id: int,
-    access: str = "owner",
-) -> Calendar:
-    """The calendar-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. It takes the owner
-    rung, or ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``). The guild role is resolved here
-    rather than taken from a request context, so the seam works transport-free.
-    Events are eager-loaded with everything export serialization needs."""
-    from app.services import permissions as permissions_service
-
-    stmt = (
-        select(Calendar)
-        .where(Calendar.id == calendar_id)
-        .options(*calendar_loader_options(), *_event_export_loader_options())
-    )
-    calendar = (await session.exec(stmt)).one_or_none()
-    if calendar is None:
-        from app.services import reachability
-
-        raise await reachability.missing_or_denied(
-            "calendars",
-            calendar_id,
-            int(current_user.id or 0),
-            guild_id,
-            not_found=Tool.calendar.not_found_code,
-            denied=Tool.calendar.no_access_code,
-        )
-    if calendar.initiative is not None and not calendar.initiative.calendars_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=Tool.calendar.feature_disabled_code,
-        )
-    permissions_service.require_export_access(
-        permissions_service.DAC_RESOURCES[Tool.calendar],
-        calendar,
-        context=db_session.guild_context(session),
-        access=access,
-    )
-    await tags_service.annotate_tags(session, [calendar])
-    await tags_service.annotate_tags(session, calendar.events or [])
-    return calendar
 
 
 async def list_calendar_ids_for_export(

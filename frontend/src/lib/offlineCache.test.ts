@@ -70,7 +70,6 @@ describe("isPersistablePath", () => {
   it("never persists message surfaces, whose plaintext has its own erase contract", () => {
     expect(isPersistablePath("/api/v1/me/dm-settings")).toBe(false);
     expect(isPersistablePath("/api/v1/me/connections")).toBe(false);
-    expect(isPersistablePath("/api/v1/users/8/dm-permission")).toBe(false);
     expect(isPersistablePath("/api/v1/users/8/dm/devices")).toBe(false);
   });
 

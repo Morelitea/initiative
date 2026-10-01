@@ -16,10 +16,27 @@
   "submit": "Envoyer",
   "reset": "Réinitialiser",
   "done": "Terminé",
-  "toolArchiveFilter": {
+  "toolViewFilter": {
     "label": "Afficher",
+    "all": "Tous",
     "active": "Actifs",
+    "templates": "Modèles",
     "archived": "Archivés"
+  },
+  "dateRange": {
+    "any": "Toutes les dates",
+    "fromOnly": "À partir du {{date}}",
+    "untilOnly": "Jusqu’au {{date}}",
+    "thisMonth": "Ce mois-ci",
+    "lastMonth": "Le mois dernier",
+    "thisQuarter": "Ce trimestre",
+    "thisYear": "Cette année",
+    "fromLabel": "Du",
+    "untilLabel": "Au",
+    "open": "Ouvert",
+    "fromRemove": "Retirer la date de début",
+    "untilRemove": "Retirer la date de fin",
+    "clear": "Effacer les dates"
   },
   "yes": "Oui",
   "no": "Non",
@@ -109,8 +126,7 @@
     },
     "export": {
       "title": "Exporter",
-      "description": "Téléchargez une copie : un fichier à importer ici ou sur un autre serveur, ou un rapport à lire. Seule la personne qui peut supprimer ceci peut l’exporter.",
-      "button": "Exporter"
+      "description": "Téléchargez une copie : un fichier à importer ici ou sur un autre serveur, ou un rapport à lire. Seule la personne qui peut supprimer ceci peut l’exporter."
     },
     "title": "Paramètres",
     "description": "Gérez les détails, l'accès et les options avancées.",
@@ -124,6 +140,7 @@
     "tags": "Étiquettes",
     "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer.",
     "tagsNoAccess": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes.",
+    "propertiesDescription": "Valeurs des propriétés personnalisées définies par cette initiative.",
     "comments": "Commentaires",
     "commentsDescription": "Autorisez les commentaires sur cet élément. Si vous les désactivez, tout ce qui a déjà été publié est conservé et réapparaît lorsque vous les réactivez.",
     "commentsToggle": "Activer les commentaires",

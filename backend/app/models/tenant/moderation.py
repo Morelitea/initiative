@@ -8,7 +8,6 @@ thing: one row per reported target, holding what it is, why, and what was done.
 
 Platform-handled reports are different work and keep their own shape — they are
 intake cases (tasks) in the operations guild, triaged and assigned by staff.
-See ``history/moderation-surface-design.md``.
 """
 
 from __future__ import annotations

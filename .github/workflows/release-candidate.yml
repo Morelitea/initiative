@@ -1,0 +1,106 @@
+name: Release Candidate
+
+# A release's image, built once from its release branch and signed with the
+# release key. It is published as unchecked-<tree>, walked from every release
+# in both setups (upgrade.yml), and tagged candidate-<tree> once that passes.
+# The walk and the tag name the build by its digest, so another build of the
+# same tree moving unchecked-<tree> cannot change what is checked or tagged.
+# At tag time Build and Release retags candidate-<tree> as the release when the
+# tag holds the same tree, so the image users pull is the one checked here.
+
+on:
+  push:
+    branches: ['release/v*']
+
+permissions:
+  contents: read
+
+# A new push to the release branch replaces the candidate in progress.
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  identify:
+    name: Name the candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.name.outputs.version }}
+      tree: ${{ steps.name.outputs.tree }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read the version and the tree
+        id: name
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          VERSION="${BRANCH#release/v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release branch does not name a version (expected release/vX.Y.Z)."
+            exit 1
+          fi
+          # The tree, not the commit: the release's tag is on the merge into
+          # main, a different commit with the same tree.
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse 'HEAD^{tree}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build
+    needs: identify
+    permissions:
+      contents: read
+      id-token: write  # the image's signature
+    uses: ./.github/workflows/docker-image.yml
+    with:
+      name: candidate
+      labels: true
+      signing-environment: ota-release
+      build-args: |
+        VERSION=${{ needs.identify.outputs.version }}
+        VITE_API_URL=/api/v1
+      tags: type=raw,value=unchecked-${{ needs.identify.outputs.tree }}
+    # inherit, not a list: the called job's environment secrets
+    # (OTA_SIGNING_KEY) read as empty without it.
+    secrets: inherit
+
+  walk:
+    name: Walk
+    needs: [identify, build]
+    uses: ./.github/workflows/upgrade.yml
+    with:
+      mode: walk
+      image: docker.io/morelitea/initiative@${{ needs.build.outputs.digest }}
+
+  journeys:
+    name: Journeys
+    needs: build
+    uses: ./.github/workflows/journeys.yml
+    with:
+      image: docker.io/morelitea/initiative@${{ needs.build.outputs.digest }}
+
+  checked:
+    name: Mark it checked
+    needs: [identify, build, walk, journeys]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag it candidate-<tree>
+        env:
+          IMAGE: docker.io/morelitea/initiative
+          TREE: ${{ needs.identify.outputs.tree }}
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |
+          [[ "$DIGEST" == sha256:* ]] || { echo "::error::The build reported no digest."; exit 1; }
+          docker buildx imagetools create -t "$IMAGE:candidate-$TREE" "$IMAGE@$DIGEST"
+          docker buildx imagetools inspect "$IMAGE:candidate-$TREE"

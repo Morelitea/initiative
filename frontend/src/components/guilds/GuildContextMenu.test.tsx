@@ -12,7 +12,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
+import { buildGuild, guildCan } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 
@@ -104,5 +104,96 @@ describe("GuildContextMenu invite action", () => {
       )
     );
     openSpy.mockRestore();
+  });
+});
+
+describe("GuildContextMenu billing action", () => {
+  beforeEach(() => {
+    state.billing = null;
+    mintHandoff.mockReset();
+  });
+
+  it("opens the billing portal for the seat of a hosted install", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    mintHandoff.mockResolvedValue({ handoff_token: "TOK", expires_in_seconds: 60 });
+    const tab = { location: { href: "" }, opener: {} as unknown };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+    setup({ id: 42 });
+
+    await openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Manage billing" }));
+
+    await waitFor(() =>
+      expect(tab.location.href).toBe(
+        "https://billing.example.com/manage?guild=42&lang=en#handoff=TOK"
+      )
+    );
+    openSpy.mockRestore();
+  });
+
+  it("is not offered on a self-hosted install", async () => {
+    setup({ id: 42 });
+
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: /settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage billing" })).not.toBeInTheDocument();
+  });
+
+  it("is offered to support holding the seat with write access", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    const guild = {
+      ...buildGuild({
+        role: "superadmin",
+        name: "Alpha",
+        can: guildCan("superadmin", { configure: true }),
+      }),
+      accessType: "grant",
+      grantSettingsLevel: "superadmin",
+    } as GuildRead;
+    renderPage(
+      () => (
+        <GuildContextMenu guild={guild}>
+          <button type="button">Alpha</button>
+        </GuildContextMenu>
+      ),
+      { guilds: { guilds: [], activeGuildId: guild.id } }
+    );
+
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: "Manage billing" })).toBeInTheDocument();
+  });
+
+  it("is not offered to support whose grant only reads", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    const guild = {
+      ...buildGuild({
+        role: "superadmin",
+        name: "Alpha",
+        can: guildCan("superadmin", { configure: false }),
+      }),
+      accessType: "grant",
+      grantSettingsLevel: "superadmin",
+    } as GuildRead;
+    renderPage(
+      () => (
+        <GuildContextMenu guild={guild}>
+          <button type="button">Alpha</button>
+        </GuildContextMenu>
+      ),
+      { guilds: { guilds: [], activeGuildId: guild.id } }
+    );
+
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: /settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage billing" })).not.toBeInTheDocument();
+  });
+
+  it("is not offered to an ordinary admin", async () => {
+    state.billing = { url: "https://billing.example.com" };
+    setup({ id: 42, role: "admin", can: guildCan("admin") });
+
+    await openMenu();
+    expect(await screen.findByRole("menuitem", { name: /settings/i })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Manage billing" })).not.toBeInTheDocument();
   });
 });

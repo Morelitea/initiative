@@ -1,130 +1,60 @@
-import { Outlet, useLocation, useParams, useRouter } from "@tanstack/react-router";
-import { Suspense, useMemo } from "react";
+import { Outlet, useLocation, useRouter } from "@tanstack/react-router";
+import { type ReactNode, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Badge } from "@/components/ui/badge";
+import { useGuildBillingSummary } from "@/hooks/useGuildBillingSummary";
+import { useGuildSettingsTabs } from "@/hooks/useGuildSettingsTabs";
 import { useGuilds } from "@/hooks/useGuilds";
-import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
+import { trialDaysLeft } from "@/lib/billingSummary";
+import { extractSubPath, isGuildScopedPath } from "@/lib/guildUrl";
 import { matchActiveTab } from "@/lib/tabs";
 
 export const GuildSettingsLayout = () => {
   const { t } = useTranslation(["settings"]);
-  const { activeGuild, activeGuildId } = useGuilds();
+  const { activeGuild } = useGuilds();
   // Running the community: held as its admin, or lent by a settings grant at
-  // either rung. Separate from reaching the work inside it, which a settings
-  // grant does not — the tabs built on content are dropped below rather than
-  // rendered into refusals.
+  // either rung.
   const administers = Boolean(activeGuild?.can.administer);
   // Whether what the rung reaches may also be changed — the server's answer.
   // Without it every control on these pages is shown disabled.
   const changesSettings = Boolean(activeGuild?.can.configure);
-  const reachesContent = Boolean(activeGuild?.can.content);
-  // The seat above admin, which holds this community's sign-in and its
-  // integrations — held outright, or lent for a window by a settings grant.
-  const onTheGrantedSeat = activeGuild?.grantSettingsLevel === "superadmin";
-  const isSuperadmin = Boolean(activeGuild?.can.seat);
-  // Where the community has a sign-in of its own to configure, that is. Most
-  // never do: the operator grants each half of the surface separately, and
-  // with neither there is nothing on the tab to show anybody. A grantee's
-  // entry carries no options — the page reads the real ones and shows nothing
-  // where there are none.
-  const authOptions = activeGuild?.auth_options ?? [];
-  const configuresItsOwnSignIn =
-    isSuperadmin &&
-    (onTheGrantedSeat || authOptions.includes("providers") || authOptions.includes("restrictions"));
   const location = useLocation();
   const router = useRouter();
-  const params = useParams({ strict: false }) as { guildId?: string };
-  // Get guild ID from URL params or active guild
-  const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
+  const tabs = useGuildSettingsTabs();
 
-  // Define tabs with guild-scoped paths
+  // The Usage tab says when the plan wants a look: a failed payment, or a
+  // trial running out. Hosted only — the query never runs without a portal —
+  // and the query the tab's own panel reads, so opening it is one request.
+  const { data: summary } = useGuildBillingSummary(activeGuild);
   const guildSettingsTabs = useMemo(() => {
-    const tabs = [
-      {
-        value: "guild",
-        label: t("guildLayout.tabs.guild"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings") : "/settings",
-      },
-      {
-        value: "users",
-        label: t("guildLayout.tabs.users"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
-      },
-      ...(configuresItsOwnSignIn
-        ? [
-            {
-              // Everything on this tab is the superadmin's to set, so the
-              // tab is theirs too — an ordinary admin has nothing to do on it.
-              value: "security",
-              label: t("guildLayout.tabs.security"),
-              path: urlGuildId ? guildPath(urlGuildId, "/settings/security") : "/settings/security",
-            },
-          ]
-        : []),
-      ...(reachesContent
-        ? [
-            {
-              value: "initiatives",
-              label: t("guildLayout.tabs.initiatives"),
-              path: urlGuildId
-                ? guildPath(urlGuildId, "/settings/initiatives")
-                : "/settings/initiatives",
-            },
-          ]
-        : []),
-      // What the community hands to somebody outside it — an AI provider, an
-      // app — is the seat's to decide, the way its sign-in is. An ordinary
-      // admin runs the community; these say who else gets to see it.
-      ...(isSuperadmin
-        ? [
-            {
-              value: "integrations",
-              label: t("guildLayout.tabs.integrations"),
-              path: urlGuildId
-                ? guildPath(urlGuildId, "/settings/integrations")
-                : "/settings/integrations",
-            },
-          ]
-        : []),
-      ...(reachesContent
-        ? [
-            {
-              value: "trash",
-              label: t("guildLayout.tabs.trash"),
-              path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
-            },
-          ]
-        : []),
-      // Taking the community's every initiative out in one file, or putting
-      // one back, reaches as far as deleting it does — so it sits with the
-      // same seat. An ordinary admin runs the community; this one moves it.
-      ...(isSuperadmin
-        ? [
-            {
-              value: "data",
-              label: t("guildLayout.tabs.data"),
-              path: urlGuildId ? guildPath(urlGuildId, "/settings/data") : "/settings/data",
-            },
-          ]
-        : []),
-    ];
-    // Danger zone lives last — destructive guild deletion is deliberately
-    // tucked behind its own tab rather than the first screen — and only the
-    // seat sees it. Deleting a community is the one action an admin could not
-    // undo and could not have undone for them; it belongs with the seat a
-    // restore needs, which is also the seat the receipt is written to.
-    if (isSuperadmin) {
-      tabs.push({
-        value: "danger-zone",
-        label: t("guildLayout.tabs.dangerZone"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
-      });
+    let usageMark: ReactNode = null;
+    const daysLeft = trialDaysLeft(summary);
+    if (summary?.available && summary.payment_failed) {
+      const label = t("guildLayout.tabBadge.paymentFailed");
+      usageMark = (
+        <span
+          role="img"
+          aria-label={label}
+          title={label}
+          className="h-2 w-2 rounded-full bg-destructive"
+        />
+      );
+    } else if (daysLeft != null) {
+      usageMark = (
+        <Badge variant="secondary" className="px-1.5 py-0 font-medium">
+          {daysLeft === 0
+            ? t("guildLayout.tabBadge.trialLastDay")
+            : t("guildLayout.tabBadge.trial", { count: daysLeft })}
+        </Badge>
+      );
     }
-    return tabs;
-  }, [urlGuildId, t, configuresItsOwnSignIn, isSuperadmin, reachesContent]);
+    return usageMark
+      ? tabs.map((tab) => (tab.value === "usage" ? { ...tab, adornment: usageMark } : tab))
+      : tabs;
+  }, [tabs, summary, t]);
 
   const canViewSettings = administers;
 

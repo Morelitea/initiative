@@ -29,6 +29,7 @@ from app.testing import (
     create_guild_calendar,
     guild_of,
     route_session_to_guild,
+    drain_notices,
 )
 from app.testing.app_clients import (
     assert_names_nobody,
@@ -325,6 +326,7 @@ async def test_invites_attendees_by_reference_in_its_own_name(
     assert [p["user_id"] for p in body["attendee_previews"]] == [reference]
     assert_names_nobody(response.text, [seat.user.id, attendee.user.id, guild_id])
 
+    await drain_notices()
     invitations = (
         await session.exec(
             select(Notification).where(
@@ -344,6 +346,7 @@ async def test_invites_attendees_by_reference_in_its_own_name(
         json={"title": "Planning (moved)", **_window()},
     )
     assert edited.status_code == 200, edited.text
+    await drain_notices()
     updates = (
         await session.exec(
             select(Notification).where(

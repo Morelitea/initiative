@@ -1,0 +1,85 @@
+name: Promote Stable
+
+# Moves the stable image tag to a release that has soaked: published at least
+# 72 hours ago, with no open issue labelled regression against its version
+# (issue-version.yml labels bug reports by version). A security fix may skip
+# the wait. It retags the release's digest and builds nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The release to promote (X.Y.Z)
+        required: true
+        type: string
+      skip-wait:
+        description: Promote before 72 hours have passed (a security fix)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: promote-stable
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.version }} to stable
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Approved by a code owner before it runs.
+    environment: stable
+    steps:
+      - name: Check the release has soaked
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          SKIP_WAIT: ${{ inputs.skip-wait }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Not a release version (expected X.Y.Z)."
+            exit 1
+          fi
+          if ! published=$(gh release view "v$VERSION" -R "$REPO" --json publishedAt -q .publishedAt); then
+            echo "::error::There is no release v$VERSION."
+            exit 1
+          fi
+          hours=$(( ($(date +%s) - $(date -d "$published" +%s)) / 3600 ))
+          if (( hours < 72 )); then
+            if [[ "$SKIP_WAIT" != "true" ]]; then
+              echo "::error::v$VERSION was published $hours hours ago; stable waits 72."
+              exit 1
+            fi
+            echo "::warning::v$VERSION was published $hours hours ago; promoting without the wait, as asked."
+          fi
+          open=$(gh issue list -R "$REPO" --state open --label regression --label "version: $VERSION" \
+            --json number -q '[.[].number | "#\(.)"] | join(", ")')
+          if [[ -n "$open" ]]; then
+            echo "::error::Open regressions against $VERSION: $open"
+            exit 1
+          fi
+          echo "v$VERSION: published $hours hours ago, no open regression."
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag it stable
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          digest=$(docker buildx imagetools inspect "$IMAGE_NAME:$VERSION" --format '{{json .Manifest}}' | jq -er .digest)
+          docker buildx imagetools create -t "$IMAGE_NAME:stable" "$IMAGE_NAME@$digest"
+          echo "stable is now $VERSION ($digest)" | tee -a "$GITHUB_STEP_SUMMARY"

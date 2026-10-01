@@ -30,7 +30,7 @@ name) and custom ``properties`` (flat, by name — the shared encoding in
 ``export/property_values.py``), so backups don't shed metadata.
 
 Access: READ suffices (exporting is a formatted read), enforced by the
-``get_document_for_export`` seam at both count and build time under the
+``ToolExportAdapter.fetch`` seam at both count and build time under the
 caller's RLS session.
 """
 
@@ -49,7 +49,6 @@ from app.services.export.adapters._common import (
 )
 from app.services.export.contract import RenderItem
 from app.services.export.engine import ExportError
-from app.services.permissions import EXPORT_ACCESS
 
 # Ordered, so the union the route publishes reads in one stable order.
 _TYPE_FORMATS: dict[str, tuple[str, ...]] = {
@@ -72,22 +71,6 @@ class DocumentAdapter(ToolExportAdapter):
         dict.fromkeys(fmt for fmts in _TYPE_FORMATS.values() for fmt in fmts)
     )
 
-    async def fetch(
-        self,
-        session: AsyncSession,
-        user: User,
-        guild_id: int,
-        document_id: int,
-        /,
-        *,
-        access: str = EXPORT_ACCESS,
-    ) -> Document:
-        from app.services.tenant.documents import get_document_for_export
-
-        return await get_document_for_export(
-            session, document_id=document_id, access=access
-        )
-
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
     ) -> list[int]:
@@ -105,16 +88,13 @@ class DocumentAdapter(ToolExportAdapter):
         params: dict,
         format: str,
     ) -> list[Document]:
-        """Fetch + authorize every selected document (read suffices), and
-        enforce the per-type format rule on each — a selection is only
-        exportable in a format every member of it supports."""
-        documents = []
-        for document_id in self.selection(params):
-            document = await self.fetch(session, user, guild_id, document_id)
-            allowed = _TYPE_FORMATS.get(doc_type_of(document), ())
-            if format not in allowed:
+        """The selection, as every tool loads it (fetched, authorized and
+        narrowed by the filters), held to the per-type format rule: a selection
+        is only exportable in a format every document in it supports."""
+        documents = await super().load(session, user, guild_id, params, format)
+        for document in documents:
+            if format not in _TYPE_FORMATS.get(doc_type_of(document), ()):
                 raise ExportError(ExportMessages.EXPORT_INVALID_FORMAT)
-            documents.append(document)
         return documents
 
     def rows(self, document: Document, /) -> int:
@@ -229,7 +209,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
     discriminate the file for a future import; tags (by name) and custom
     properties (flat, by name) ride along so a backup keeps the document's
     metadata."""
-    from app.services.export.property_values import property_export_dict
+    from app.services.export.property_values import exported_properties
 
     return {
         "type": "initiative-document",
@@ -238,11 +218,7 @@ def _envelope(document: Document, *, content: dict) -> dict:
         "name": document.name,
         "content": content,
         "tags": sorted(tag.name for tag in document.tags or []),
-        "properties": [
-            property_export_dict(pv)
-            for pv in document.property_values or []
-            if pv.property_definition is not None
-        ],
+        "properties": exported_properties(document),
     }
 
 

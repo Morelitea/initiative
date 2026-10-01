@@ -1,6 +1,6 @@
 """Access-matrix tests for guild lifecycle status (suspension).
 
-The matrix under test (see history/guild-suspension-design.md):
+The matrix under test:
 
 - ``read_only``: members keep content READS but writes are denied at the
   Postgres role level (routed into ``guild_<id>_ro``); initiative isolation
@@ -111,10 +111,13 @@ async def test_admin_of_suspended_guild_reaches_nothing(
             json={"name": "Still Ours"},
         ),
         await client.get(
-            f"/api/v1/communities/{a.guild.id}/auth-policy", headers=a.headers
+            f"/api/v1/communities/{a.guild.id}/auth/connections", headers=a.headers
         ),
         await client.get(
             f"/api/v1/communities/{a.guild.id}/billing/payment-issue", headers=a.headers
+        ),
+        await client.post(
+            f"/api/v1/communities/{a.guild.id}/billing/handoff", headers=a.headers
         ),
         await client.delete(
             f"/api/v1/communities/{a.guild.id}/leave", headers=a.headers
@@ -134,16 +137,29 @@ async def test_admin_of_suspended_guild_reaches_nothing(
     "role", [GuildRole.member, GuildRole.admin, GuildRole.superadmin]
 )
 async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
-    client: AsyncClient, session: AsyncSession, acting_user, role: GuildRole
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    monkeypatch,
+    handoff_signing_key,
+    role: GuildRole,
 ):
-    """On hold refuses every surface and leaves every list, admins' included."""
+    """On hold refuses every surface and leaves every list, admins' included.
+    The billing handoff is the one way back in, and only for the seat: paying
+    is what lifts the hold, and paying is the seat's errand."""
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
     a = await acting_user(guild_role=role, initiative=True)
     await _set_status(session, a.guild, GuildStatus.on_hold)
 
     for resp in (
         await client.get(a.g("/initiatives/"), headers=a.headers),
         await client.get(
-            f"/api/v1/communities/{a.guild.id}/auth-policy", headers=a.headers
+            f"/api/v1/communities/{a.guild.id}/auth/connections", headers=a.headers
+        ),
+        await client.get(
+            f"/api/v1/communities/{a.guild.id}/billing/summary", headers=a.headers
         ),
         await client.delete(
             f"/api/v1/communities/{a.guild.id}/leave", headers=a.headers
@@ -151,6 +167,16 @@ async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
     ):
         assert resp.status_code == 403, (resp.request.url, resp.text)
         assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+
+    handoff = await client.post(
+        f"/api/v1/communities/{a.guild.id}/billing/handoff", headers=a.headers
+    )
+    if role is GuildRole.superadmin:
+        assert handoff.status_code == 200, handoff.text
+        assert handoff.json()["handoff_token"]
+    else:
+        assert handoff.status_code == 403, handoff.text
+        assert handoff.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
 
     listed = (await client.get("/api/v1/communities/", headers=a.headers)).json()
     assert a.guild.id not in [g["id"] for g in listed]
@@ -376,9 +402,9 @@ async def test_read_only_caps_serialized_permission_level(
     assert (can["edit"], can["delete"], can["share"]) == (False, False, False)
     assert can["export"] is True
 
-    resp = await client.get(a.g("/projects/writable"), headers=a.headers)
+    resp = await client.get(a.g("/projects/?writable=true"), headers=a.headers)
     assert resp.status_code == 200
-    assert resp.json() == []
+    assert resp.json()["items"] == []
 
 
 @pytest.mark.parametrize(
@@ -487,7 +513,7 @@ async def test_break_glass_reads_a_suspended_guild(
     # The settings grant beside it reaches the community's configuration,
     # which its own administrators no longer do.
     resp = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=headers
     )
     assert resp.status_code == 200, resp.text
 
@@ -674,7 +700,7 @@ async def test_guild_admin_patch_cannot_touch_enforcement_fields(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The guild-facing PATCH no longer carries cap/status fields — a payload
-    that smuggles them is ignored (unknown fields), never applied."""
+    that carries them is ignored (unknown fields), never applied."""
     a = await acting_user(guild_role=GuildRole.admin)
 
     resp = await client.patch(

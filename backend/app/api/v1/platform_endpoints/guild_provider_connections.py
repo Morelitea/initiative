@@ -32,7 +32,6 @@ from app.api.deps import (
     get_current_active_user,
     SystemSessionDep,
 )
-from app.api.v1.platform_endpoints.guilds import _require_guild_auth_option
 from app.core.guild_auth_options import GuildAuthOption
 from app.models.platform.user import User
 from app.schemas.platform.settings import (
@@ -46,6 +45,7 @@ from app.schemas.platform.settings import (
 )
 from app.services.auth import guild_claim_rules as claim_rules
 from app.services.auth import guild_provider_connections as connections
+from app.services.platform import guild_entitlements
 from app.services.platform import guilds as guilds_service
 
 router = APIRouter()
@@ -58,7 +58,7 @@ async def _require_connection_option(
     """Changing it: the operator's grant of the option. The seat itself is
     :data:`~app.api.deps.SeatWriteSessionDep`, which routed the request here — who
     may enter a community is that seat's to decide."""
-    await _require_guild_auth_option(
+    await guild_entitlements.require_auth_option(
         system_session, guild_id, GuildAuthOption.providers
     )
 
@@ -71,7 +71,7 @@ async def list_guild_provider_connections(
     _guild_context: SettingsAdminContextDep,
     system_session: SystemSessionDep,
 ) -> List[GuildProviderConnectionRead]:
-    await _require_guild_auth_option(
+    await guild_entitlements.require_auth_option(
         system_session, guild_id, GuildAuthOption.providers
     )
     return await connections.list_connections(system_session, guild_id=guild_id)
@@ -90,7 +90,7 @@ async def list_connectable_providers(
     the ones it already connects to. Names only — a community picks a provider
     by name, and one registered for a single customer is nobody else's to
     see."""
-    await _require_guild_auth_option(
+    await guild_entitlements.require_auth_option(
         system_session, guild_id, GuildAuthOption.providers
     )
     return await connections.list_connectable(system_session, guild_id=guild_id)
@@ -171,7 +171,7 @@ async def list_guild_claim_rules(
     system_session: SystemSessionDep,
 ) -> GuildClaimRulesResponse:
     """Where this community places the people its providers vouch for."""
-    await _require_guild_auth_option(
+    await guild_entitlements.require_auth_option(
         system_session, guild_id, GuildAuthOption.providers
     )
     return await claim_rules.list_rules(system_session, guild_id=guild_id)

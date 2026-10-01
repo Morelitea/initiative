@@ -16,6 +16,7 @@ from app.api.deps import (
 from app.models.platform.user import User
 from app.schemas.tenant.comment import (
     CommentCreate,
+    CommentListResponse,
     CommentRead,
     CommentUpdate,
     RecentActivityEntry,
@@ -87,7 +88,7 @@ async def recent_comments(
     )
 
 
-@router.get("/", response_model=List[CommentRead])
+@router.get("/", response_model=CommentListResponse)
 async def list_comments(
     session: ActorSessionDep,
     current_user: ActorUserDep,
@@ -103,9 +104,13 @@ async def list_comments(
     gallery_id: Optional[int] = Query(default=None, gt=0),
     wiki_id: Optional[int] = Query(default=None, gt=0),
     wiki_page_id: Optional[int] = Query(default=None, gt=0),
-) -> List[CommentRead]:
+    limit: int = Query(default=20, ge=1, le=100),
+    cursor: Optional[str] = Query(default=None),
+) -> CommentListResponse:
+    """One page of a thread: ``limit`` conversations, newest first, each with
+    every reply under it. Follow ``next_cursor`` for older conversations."""
     try:
-        comments = await comments_service.list_comments(
+        comments, next_cursor = await comments_service.list_comments(
             session,
             user=current_user,
             guild_id=guild_context.guild_id,
@@ -120,6 +125,8 @@ async def list_comments(
             gallery_id=gallery_id,
             wiki_id=wiki_id,
             wiki_page_id=wiki_page_id,
+            limit=limit,
+            cursor=cursor,
         )
     except comments_service.CommentNotFoundError as exc:
         raise HTTPException(
@@ -134,10 +141,13 @@ async def list_comments(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
-    return [
-        comments_service.serialize_comment(comment, viewer_id=guild_context.user_id)
-        for comment in comments
-    ]
+    return CommentListResponse(
+        comments=[
+            comments_service.serialize_comment(comment, viewer_id=guild_context.user_id)
+            for comment in comments
+        ],
+        next_cursor=next_cursor,
+    )
 
 
 @router.get("/{comment_id}", response_model=CommentRead)

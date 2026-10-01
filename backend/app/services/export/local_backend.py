@@ -212,8 +212,8 @@ def _read_passthrough(
 
 
 def _compile(template: Path, format: str, item: RenderItem) -> bytes:
-    # Data crosses into the template ONLY as a sys.inputs string (the
-    # typst-injection guard): the template decodes it with
+    # Data crosses into the template ONLY as a sys.inputs string: the
+    # template decodes it with
     # json(bytes(sys.inputs.data)) — user text is data, never Typst markup.
     return typst.compile(
         str(template),

@@ -75,9 +75,34 @@ Good for the tasks that are secretly three tasks wearing a coat.
 
 For the things that keep coming back: the weekly report, the monthly review, the bins.
 
-Pick the rhythm — daily, every weekday, weekly on a chosen day, monthly on a date, annually, or a **custom** pattern.
+Pick the rhythm — daily, every weekday, weekly, monthly, annually, or **Custom…** for the second Tuesday, the last weekday of the month and their friends. The next few dates are listed under the form.
 
-Then pick *when* the next one appears: on a fixed **schedule**, or only **after you complete** the current one. Choose the second for anything you'd hate to return from holiday to fourteen copies of.
+Finishing one makes the next, so there's only ever one to deal with. The strategy decides its date:
+
+| | |
+|---|---|
+| **On schedule** | Counted from the dates. Pay the rent on the 1st, even if last month's went in on the 9th. |
+| **After completion** | Counted from when you finished. Water the plants a week after you last did, not a week after you meant to. |
+
+Upcoming dates show on calendars too, and open the task you're on now.
+
+To change the repeat or stop it, edit the current task. That counts from here on, and the finished ones are left alone.
+
+#### Changing one of them
+
+Edit or delete a repeating task and Initiative asks which ones you mean:
+
+| | |
+|---|---|
+| **Just this task** | This one changes. The next comes back the way the series was. |
+| **Tasks after this point** | This one and every one after it. |
+| **All tasks in the series** | Every one, finished ones included. It reaches the title, description, priority, assignees and tags. Dates stay each task's own. |
+
+Dragging a repeating task on a calendar asks too, minus the last option.
+
+**Skip this occurrence**, in the task's menu, moves it on to its next date without finishing it. That's the week the bins weren't collected because of the bank holiday. Deleting just this task does the same, so the series carries on — unless it was the last one, in which case it's simply deleted.
+
+Deleting from here on ends the repeat. Deleting all of them sends the finished ones to the trash as well, where they can be recovered.
 
 ### The bit where you get confetti
 

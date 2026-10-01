@@ -37,11 +37,7 @@ from app.models.tenant.document import (
 from app.models.platform.notification import Notification
 from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
 from app.models.tenant.tag import Tag
-from app.models.tenant.property import (
-    DocumentPropertyValue,
-    PropertyDefinition,
-    TaskPropertyValue,
-)
+from app.models.tenant.property import PropertyDefinition, PropertyValue
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
@@ -49,6 +45,7 @@ from app.models.tenant.queue import (
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import (
     CalendarEvent,
+    CalendarEventAnswer,
     CalendarEventAttendee,
 )
 from app.models.tenant.event_outbox import EventOutbox
@@ -78,6 +75,7 @@ from app.models.platform.user_view_preference import UserViewPreference
 from app.models.platform.user_dm_settings import UserDmSettings
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.email_outbox import EmailOutboxItem
+from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.legal_acceptance import LegalAcceptance
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
 from app.models.platform.contact_grant import ContactGrant
@@ -185,12 +183,12 @@ __all__ = [
     "OIDCClaimMapping",
     "Tag",
     "PropertyDefinition",
-    "DocumentPropertyValue",
-    "TaskPropertyValue",
+    "PropertyValue",
     "Queue",
     "QueueItem",
     "Calendar",
     "CalendarEvent",
+    "CalendarEventAnswer",
     "CalendarEventAttendee",
     "EventOutbox",
     "AppEventOutbox",
@@ -219,6 +217,7 @@ __all__ = [
     "UserDmSettings",
     "UserNotificationPrefs",
     "EmailOutboxItem",
+    "NoticeOutboxItem",
     "UserDmGuildOptout",
     "ContactGrant",
     "UserIgnore",

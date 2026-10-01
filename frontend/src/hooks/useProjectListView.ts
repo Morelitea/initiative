@@ -1,7 +1,14 @@
+import { keepPreviousData } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { useTags } from "@/hooks/useTags";
+import type {
+  ListProjectsApiV1CGuildIdProjectsGetParams,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
+import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
+import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useProjects } from "@/hooks/useProjects";
 import { useViewPreference } from "@/hooks/useViewPreference";
 
 export type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
@@ -15,8 +22,9 @@ const SORT_MODES: ProjectSortMode[] = [
 ];
 
 type UseProjectListViewOptions = {
-  /** The raw list for this tab — active, template, or archived projects. */
-  projects: ProjectRead[];
+  /** Which list this tab reads — its initiative, and active, template, or
+   *  archived projects. The search and tags are added here. */
+  params: ListProjectsApiV1CGuildIdProjectsGetParams;
   /** View-preference namespace, e.g. `project:list` or `project:archive`. */
   storagePrefix: string;
   /**
@@ -26,21 +34,19 @@ type UseProjectListViewOptions = {
   allowCustomSort?: boolean;
   /** Pull pinned projects into their own section above the list. */
   separatePinned?: boolean;
-  /** Initiatives whose projects the viewer may see; others are dropped. */
-  viewableInitiativeIds?: Set<number> | null;
 };
 
 /**
- * Search / tag / favorite filtering, sorting, and the persisted view state
- * behind a project listing. Every projects tab runs the same pipeline through
- * this hook so their filters behave identically and only their data differs.
+ * The list behind a project listing: read with its search and tags, then
+ * narrowed to favourites and sorted here, with the persisted view state. Every
+ * projects tab runs the same pipeline through this hook so their filters
+ * behave identically and only their data differs.
  */
 export const useProjectListView = ({
-  projects,
+  params,
   storagePrefix,
   allowCustomSort = false,
   separatePinned = false,
-  viewableInitiativeIds,
 }: UseProjectListViewOptions) => {
   const defaultSortMode: ProjectSortMode = allowCustomSort ? "custom" : "updated";
 
@@ -59,6 +65,9 @@ export const useProjectListView = ({
   );
 
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  // The list's `property_filters` param. Not a saved preference: a property
+  // condition is one person's question of one list.
+  const [propertyFilters, setPropertyFilters] = useState<string | undefined>(undefined);
   const [customOrder, setCustomOrder] = useState<number[]>([]);
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
@@ -92,50 +101,57 @@ export const useProjectListView = ({
     [setPersistedTagFilters]
   );
 
-  const { data: allTags = [] } = useTags();
-  const selectedTagsForFilter = useMemo(() => {
-    const tagMap = new Map(allTags.map((tag) => [tag.id, tag]));
-    return tagFilters
-      .map((id) => tagMap.get(id))
-      .filter((tag): tag is TagRead => tag !== undefined);
-  }, [allTags, tagFilters]);
-
-  const handleTagFiltersChange = useCallback(
-    (nextTags: TagSummary[]) => setTagFilters(nextTags.map((tag) => tag.id)),
-    [setTagFilters]
+  const search = useDebouncedValue(searchQuery, 300).trim();
+  const query = useProjects(
+    {
+      ...params,
+      ...(search ? { search } : {}),
+      ...(tagFilters.length > 0 ? { tag_ids: tagFilters } : {}),
+      ...(propertyFilters ? { property_filters: propertyFilters } : {}),
+    },
+    // The cards stay on screen while a changed search is in flight.
+    { placeholderData: keepPreviousData }
   );
+  const projects = useMemo(() => query.data?.items ?? [], [query.data]);
+
+  // The search and the tags are both saved preferences, so the filter fields'
+  // answer writes back only what changed (the fields hand back this render's
+  // values for everything they didn't touch).
+  const filterValue: ToolListFilters<typeof Tool.project> = {
+    search: searchQuery,
+    tag_ids: tagFilters,
+    property_filters: propertyFilters,
+  };
+  const handleFilterChange = (next: ToolListFilters<typeof Tool.project>) => {
+    if (next.search !== filterValue.search) setSearchQuery(next.search ?? "");
+    if (next.tag_ids !== filterValue.tag_ids) setTagFilters(next.tag_ids ?? []);
+    if (next.property_filters !== filterValue.property_filters) {
+      setPropertyFilters(next.property_filters ?? undefined);
+    }
+  };
 
   // What the filter button reports while the panel is closed. Sort order is
   // deliberately excluded — it reorders the list, it doesn't narrow it, so
   // counting it would badge a list that is showing everything.
   const activeFilterCount =
-    (searchQuery.trim() ? 1 : 0) + tagFilters.length + (favoritesOnly ? 1 : 0);
+    (searchQuery.trim() ? 1 : 0) +
+    tagFilters.length +
+    parsePropertyFilters(propertyFilters).length +
+    (favoritesOnly ? 1 : 0);
 
   const clearFilters = useCallback(() => {
     setSearchQuery("");
     setTagFilters([]);
+    setPropertyFilters(undefined);
     setFavoritesOnly(false);
   }, [setSearchQuery, setTagFilters]);
 
-  const filteredProjects = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const tagFilterSet = new Set(tagFilters);
-    return projects.filter((project) => {
-      const projectInitiativeId = project.initiative?.id ?? project.initiative_id ?? null;
-      if (
-        viewableInitiativeIds &&
-        projectInitiativeId !== null &&
-        !viewableInitiativeIds.has(projectInitiativeId)
-      ) {
-        return false;
-      }
-      const matchesSearch = !query ? true : project.name.toLowerCase().includes(query);
-      const matchesFavorites = !favoritesOnly ? true : Boolean(project.is_favorited);
-      const matchesTags =
-        tagFilterSet.size === 0 || (project.tags?.some((tag) => tagFilterSet.has(tag.id)) ?? false);
-      return matchesSearch && matchesFavorites && matchesTags;
-    });
-  }, [projects, searchQuery, favoritesOnly, tagFilters, viewableInitiativeIds]);
+  // Favourites are the reader's own, so they narrow here rather than on the
+  // server, which has already left out what the reader cannot see.
+  const filteredProjects = useMemo(
+    () => (favoritesOnly ? projects.filter((project) => project.is_favorited) : projects),
+    [projects, favoritesOnly]
+  );
 
   const pinnedProjects = useMemo(() => {
     if (!separatePinned) return [];
@@ -210,6 +226,11 @@ export const useProjectListView = ({
   }, [unpinnedProjects, sortMode, customOrder]);
 
   return {
+    isLoading: query.isLoading,
+    isError: query.isError,
+    /** The list shows only some of the projects a manual order covers:
+     *  narrowed by the server's search or tags, or to favourites. */
+    narrowed: Boolean(search) || tagFilters.length > 0 || Boolean(propertyFilters) || favoritesOnly,
     filteredProjects,
     pinnedProjects,
     sortedProjects,
@@ -223,19 +244,18 @@ export const useProjectListView = ({
     activeFilterCount,
     /** Spread straight into `<ProjectsFilterBar />`. */
     filterBarProps: {
-      searchQuery,
-      onSearchQueryChange: setSearchQuery,
+      value: filterValue,
+      onChange: handleFilterChange,
       filtersOpen,
       onFiltersOpenChange: setFiltersOpen,
       sortMode,
       onSortModeChange: setSortMode,
       favoritesOnly,
       onFavoritesOnlyChange: setFavoritesOnly,
-      tagFilters: selectedTagsForFilter,
-      onTagFiltersChange: handleTagFiltersChange,
       allowCustomSort,
       onClear: clearFilters,
       activeCount: activeFilterCount,
+      initiativeId: params.initiative_id ?? undefined,
     },
   };
 };

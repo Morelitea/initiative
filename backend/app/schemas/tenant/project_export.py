@@ -11,13 +11,14 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, List, Optional
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from app.schemas.base import SanitizedBaseModel
 
 from app.core.relationships import RelationshipType
 from app.models.tenant.property import PropertyType
 from app.models.tenant.task import TaskPriority, TaskStatusCategory
+from app.schemas.tenant.import_envelopes import EnvelopePropertyValue
 
 
 SCHEMA_VERSION = 1
@@ -25,6 +26,11 @@ SCHEMA_VERSION = 1
 
 MIN_SUPPORTED_IMPORT_VERSION = 1
 """Imports below this version are rejected. Future migrations may bridge older versions."""
+
+
+#: Where a row's property values are read from. ``property_values`` is what
+#: project exports called them before every envelope said ``properties``.
+_PROPERTIES = AliasChoices("properties", "property_values")
 
 
 class ProjectExportProject(SanitizedBaseModel):
@@ -35,6 +41,11 @@ class ProjectExportProject(SanitizedBaseModel):
     archived_at: Optional[datetime] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    # The project's own values, encoded as every envelope's are. Empty in an
+    # export taken before projects carried them.
+    properties: List[EnvelopePropertyValue] = Field(
+        default=[], validation_alias=_PROPERTIES
+    )
 
 
 class ProjectExportTag(SanitizedBaseModel):
@@ -59,33 +70,6 @@ class ProjectExportPropertyDefinition(SanitizedBaseModel):
     position: float = 0.0
     color: Optional[str] = None
     options: Optional[List[dict]] = None
-
-
-class ProjectExportPropertyValue(SanitizedBaseModel):
-    """Typed property value snapshot.
-
-    ``property_type`` is repeated alongside the value so the importer can
-    validate against the target initiative's property *without* re-reading
-    the definitions array, and so a property type collision rename can be
-    routed to the correct renamed definition.
-
-    Encoding per type (writes to one of these fields, others ``None``):
-    - text/url/select       → ``value_text``
-    - number                → ``value_number``
-    - checkbox              → ``value_boolean``
-    - date                  → ``value_text`` (ISO 8601 date)
-    - datetime              → ``value_text`` (ISO 8601 datetime)
-    - multi_select          → ``value_json`` (list[str])
-    - user_reference        → ``value_handle``
-    """
-
-    property_name: str
-    property_type: PropertyType
-    value_text: Optional[str] = None
-    value_number: Optional[float] = None
-    value_boolean: Optional[bool] = None
-    value_handle: Optional[str] = None
-    value_json: Optional[Any] = None
 
 
 class ProjectExportChecklistItem(SanitizedBaseModel):
@@ -146,6 +130,13 @@ class ProjectExportTask(SanitizedBaseModel):
     recurrence_shift: int = 0
     recurrence_strategy: str = "fixed"
     recurrence_occurrence_count: int = 0
+    #: The repeating series the task is in, as a number the tasks of one series
+    #: share in this export; the import gives each series a new one.
+    series: Optional[int] = None
+    #: What an edit of just this task changed from (``Task.recurrence_carry``),
+    #: its tags as ``{"name", "color"}`` under ``tags`` and its assignees under
+    #: ``assignee_handles``, as the rest of the envelope names them.
+    recurrence_carry: Optional[dict[str, Any]] = None
     position: float = 0.0
     archived_at: Optional[datetime] = None
     # Absent in exports taken before completion timestamps existed; the
@@ -170,7 +161,7 @@ class ProjectExportTask(SanitizedBaseModel):
     tags: List[ProjectExportTag]
     assignee_handles: List[str]
     checklist: List[ProjectExportChecklistItem]
-    property_values: List[ProjectExportPropertyValue]
+    properties: List[EnvelopePropertyValue] = Field(validation_alias=_PROPERTIES)
     # Both default to empty: an envelope written before they existed is a
     # task with nothing said on it and nothing pointing anywhere, which is
     # exactly what an absent field means here.

@@ -30,8 +30,8 @@ Sharing is a fact about who is in *this* community. The home page crosses as a
 slug for the same reason the tree does.
 
 Access rule: READ on the wiki (exporting is a formatted read), enforced by the
-``get_wiki_for_export`` seam at both count and build time, under the caller's
-RLS session.
+``ToolExportAdapter.fetch`` seam at both count and build time, under the
+caller's RLS session.
 """
 
 from __future__ import annotations
@@ -55,7 +55,9 @@ from app.services.export.adapters._common import (
     envelope_key,
     export_stem,
 )
+from app.services.export.adapters.document import DocumentAdapter
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.permissions import EXPORT_ACCESS
 
 #: What one wiki contributes to a batch: its row, its pages, and the documents
@@ -83,18 +85,18 @@ class WikiAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> Loaded:
-        from app.services.tenant.documents import get_document_for_export
         from app.services.tenant.wikis import linked_documents
 
         wiki, pages, _ = await self.fetch_pages(
             session, user, guild_id, wiki_id, access=access
         )
+        document_adapter = DocumentAdapter()
         documents: list[Document] = []
         for linked in await linked_documents(session, wiki.id):
             try:
                 documents.append(
-                    await get_document_for_export(
-                        session, document_id=linked.id, access=access
+                    await document_adapter.fetch(
+                        session, user, guild_id, linked.id, access=access
                     )
                 )
             except HTTPException:
@@ -114,12 +116,15 @@ class WikiAdapter(ToolExportAdapter):
     ) -> Loaded:
         """The wiki and its pages, with no filed documents. An initiative or
         community backup writes those as entries of their own and places them
-        in the wiki from there."""
-        from app.services.tenant.wikis import get_wiki_for_export
+        in the wiki from there. The pages come in reading order."""
+        from app.services.tenant import properties as properties_service
+        from app.services.tenant import tags as tags_service
+        from app.services.tenant.wikis import load_pages
 
-        wiki, pages = await get_wiki_for_export(
-            session, user, guild_id, wiki_id=wiki_id, access=access
-        )
+        wiki = await super().fetch(session, user, guild_id, wiki_id, access=access)
+        pages = await load_pages(session, wiki.id, page_order=wiki.page_order)
+        await tags_service.annotate_tags(session, pages)
+        await properties_service.annotate_properties(session, pages)
         return wiki, pages, []
 
     async def initiative_ids(
@@ -358,6 +363,7 @@ def filed_document_records(
                 "original_filename": document.original_filename,
                 "content_type": document.file_content_type,
                 "tags": sorted(tag.name for tag in document.tags or []),
+                "properties": exported_properties(document),
             }
             uploads.append(
                 RenderItem(
@@ -388,6 +394,7 @@ def _envelope(wiki: Wiki, pages: list[WikiPage]) -> dict[str, Any]:
         "description": wiki.description,
         "home_page": home.slug if home is not None else None,
         "tags": sorted(tag.name for tag in getattr(wiki, "tags", None) or []),
+        "properties": exported_properties(wiki),
         "pages": [_page_envelope(page, by_id) for page in pages],
     }
 
@@ -406,6 +413,7 @@ def _page_envelope(page: WikiPage, by_id: dict[int, WikiPage]) -> dict[str, Any]
         "is_draft": page.is_draft,
         "content": page.content or {},
         "tags": sorted(tag.name for tag in getattr(page, "tags", None) or []),
+        "properties": exported_properties(page),
         # When it was written, and when it was last edited. A restore that
         # dated every page to the day it was restored lost the one thing a
         # wiki's reading order is usually checked against.

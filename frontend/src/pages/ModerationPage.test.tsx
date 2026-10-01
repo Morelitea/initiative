@@ -7,9 +7,17 @@
  */
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
+import {
+  buildInitiativeMember,
+  buildPage,
+  buildUser,
+  buildUserPublic,
+} from "@/__tests__/factories";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
 const settleMutate = vi.fn();
@@ -248,6 +256,39 @@ describe("ModerationPage", () => {
     expect(screen.getByRole("button", { name: "Newer" })).toBeEnabled();
     // Running off the end of the list is not proof that nothing was reported.
     expect(screen.queryByText("Nothing has been reported.")).not.toBeInTheDocument();
+  });
+
+  it("reads the initiative's roster a page at a time, each member with their role", async () => {
+    server.use(
+      guildHttp.get("/initiatives/:id/members", ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        const member =
+          page === 2
+            ? buildInitiativeMember({
+                user: buildUserPublic({ full_name: "Bea Second" }),
+                role_display_name: "Member",
+              })
+            : buildInitiativeMember({
+                user: buildUserPublic({ full_name: "Ada First" }),
+                role_display_name: "Moderator",
+                override_share_restrictions: true,
+              });
+        return HttpResponse.json(
+          buildPage([member], { page, has_next: page === 1, has_prev: page === 2 })
+        );
+      })
+    );
+    render();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("tab", { name: "Members" }));
+    expect(await screen.findByText("Ada First")).toBeInTheDocument();
+    expect(screen.getByText("Full access")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(await screen.findByText("Bea Second")).toBeInTheDocument();
+    expect(screen.queryByText("Ada First")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled();
   });
 
   it("gathers what a moderator acts with beside what they act on", async () => {

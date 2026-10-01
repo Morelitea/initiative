@@ -19,6 +19,7 @@ from app.testing import (
     create_resource_grant,
     create_task,
     create_user,
+    drain_notices,
     route_session_to_guild,
 )
 from app.db.request_context import SystemGuild, Unattributed
@@ -26,6 +27,8 @@ from app.db.request_context import SystemGuild, Unattributed
 
 async def _mentions(user_id: int) -> list[Notification]:
     from app.db.session import SystemSessionLocal
+
+    await drain_notices()
 
     async with SystemSessionLocal() as system_session:
         rows = (
@@ -79,6 +82,7 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
         headers=owner.headers,
     )
     assert plain.status_code in (200, 201), plain.text
+    await drain_notices()
 
     opened = await client.post(
         "/api/v1/notifications/read-subject",
@@ -113,22 +117,40 @@ async def test_a_mention_of_somebody_outside_the_community_tells_nobody(
     assert await _mentions(stranger.id) == []
 
 
-async def test_a_community_admin_is_among_the_readers(session, acting_user):
+async def test_a_community_admin_is_among_the_readers(
+    session, acting_user, monkeypatch
+):
+    """…and another member is not. A notice with nobody left to tell looks
+    nothing up."""
     owner = await acting_user(
         guild_role=GuildRole.member, initiative=True, project=True
     )
     admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    member = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
     # Routed the way a request or a sweep is, which is what names the community.
     await set_rls_context(session, SystemGuild(owner.guild.id))
+    about = (Tool.project.value, owner.project.id)
 
-    subject = await notifications.resolve_subject(
-        session, (Tool.project.value, owner.project.id)
-    )
+    subject = await notifications.resolve_subject(session, about)
 
     assert subject is not None
     assert admin.user.id not in subject.shared_with
     assert admin.user.id in subject.readers
     assert owner.user.id in subject.shared_with
+    assert member.user.id not in subject.readers
+
+    async def refuse(*_args, **_kwargs):
+        raise AssertionError("resolved a notice nobody was to hear")
+
+    monkeypatch.setattr(notifications, "resolve_subject", refuse)
+    await notifications.notify(
+        session,
+        NotificationType.mention,
+        [owner.user.id, None],
+        about=about,
+        key="mention.comment",
+        actor=owner.user,
+    )
 
 
 async def test_repeated_document_mentions_fold_into_one_line(

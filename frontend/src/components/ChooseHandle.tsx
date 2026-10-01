@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
-import { UsernameField } from "@/components/UsernameField";
+import { type HandleCheck, UsernameField } from "@/components/UsernameField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,6 +19,7 @@ export const ChooseHandle = () => {
   const { t } = useTranslation(["auth", "common"]);
   const { user, refreshUser } = useAuth();
   const [username, setUsername] = useState("");
+  const [handle, setHandle] = useState<HandleCheck>({ usable: true, offer: null });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +30,10 @@ export const ChooseHandle = () => {
     setSubmitting(true);
     setError(null);
     try {
-      await apiClient.patch("/users/me/username", { username: username.trim().toLowerCase() });
+      await apiClient.patch("/users/me/username", {
+        username: username.trim().toLowerCase(),
+        offer: handle.offer ?? undefined,
+      });
       await refreshUser();
     } catch (err) {
       setError(getErrorMessage(err, "auth:chooseHandle.error"));
@@ -52,10 +56,15 @@ export const ChooseHandle = () => {
               value={username}
               onChange={setUsername}
               suggestion={suggestion}
+              onChecked={setHandle}
               disabled={submitting}
             />
             {error && <p className="text-destructive text-sm">{error}</p>}
-            <Button type="submit" className="w-full" disabled={submitting || !username.trim()}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={submitting || !username.trim() || !handle.usable}
+            >
               {submitting ? t("common:submitting") : t("chooseHandle.submit")}
             </Button>
           </form>

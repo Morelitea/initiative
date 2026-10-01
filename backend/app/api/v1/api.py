@@ -42,6 +42,7 @@ from app.api.v1.tenant_endpoints import (
     posts,
     projects,
     property_definitions,
+    property_values,
     queues,
     reactions,
     recents,
@@ -55,7 +56,6 @@ from app.api.v1.tenant_endpoints import (
     tool_grants,
     tool_lifecycle,
     tool_lists,
-    tool_views,
     tools,
     trash,
     wikis,
@@ -134,12 +134,6 @@ api_router.include_router(users.router, prefix="/users", tags=["users"])
 # Direct messages, both halves, gated on the platform switch in one place: a
 # deployment that does not offer messaging refuses the whole surface rather
 # than each route deciding for itself.
-api_router.include_router(
-    dm.user_router,
-    prefix="/users",
-    tags=["direct-messages"],
-    dependencies=[DirectMessagesEnabledDep],
-)
 api_router.include_router(
     dm_transport.user_router,
     prefix="/users",
@@ -250,10 +244,9 @@ api_router.include_router(
 # ---------------------------------------------------------------------------
 guild_router = APIRouter(prefix="/c/{guild_id}")
 guild_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])
-# Every tool's list and its sidebar counts, mounted once per Tool at each
-# tool's own path (see tenant_endpoints/tool_lists.py). Included FIRST so each
-# literal ``/counts/by-initiative`` wins the match against the ``/{id}`` route
-# its tool's own router declares below. The routes carry their own tags.
+# Every tool's list, mounted once per Tool at each tool's own path, and the
+# one sidebar-counts route beside them (see tenant_endpoints/tool_lists.py).
+# The routes carry their own tags.
 guild_router.include_router(tool_lists.router)
 guild_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
@@ -335,10 +328,6 @@ guild_router.include_router(
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 # Generic per-tool surfaces addressed by the Tool enum ({tool} path param).
 guild_router.include_router(tools.router, prefix="/tools", tags=["tools"])
-# Recent views: POST /{tool}/{id}/view, mounted once per Tool at each
-# tool's own path. The routes carry their own tags (see tenant_endpoints/
-# tool_views.py), so none is added here.
-guild_router.include_router(tool_views.router)
 # Sharing: PUT /{tool}/{id}/grants, mounted once per Tool at each tool's own
 # path. The routes carry their own tags (see tenant_endpoints/tool_grants.py),
 # so none is added here.
@@ -353,6 +342,9 @@ guild_router.include_router(
     property_definitions.router,
     prefix="/property-definitions",
     tags=["property-definitions"],
+)
+guild_router.include_router(
+    property_values.router, prefix="/properties", tags=["properties"]
 )
 guild_router.include_router(trash.router, prefix="/trash", tags=["trash"])
 # No prefix: the two routes are /archive/{kind}/{id} and /unarchive/{kind}/{id},
@@ -384,7 +376,6 @@ me_router.include_router(moderation.me_router, tags=["moderation"])
 # MY_TOOL_LISTS, plus the tab counts. One tag, because they are one page rather
 # than nine domains reaching across guilds for their own reasons.
 me_router.include_router(me_tools.me_router, tags=["my-tools"])
-me_router.include_router(calendar_events.me_router, tags=["calendar-events"])
 me_router.include_router(calendar_entries.me_router, tags=["calendar-entries"])
 me_router.include_router(me_trash.me_router, tags=["trash"])
 me_router.include_router(me_ai.me_router, tags=["ai-settings"])

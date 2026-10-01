@@ -5,6 +5,8 @@
  * record). One implementation: a line must read the same wherever it is shown,
  * and a second copy is how the two drift apart.
  */
+import { Capacitor } from "@capacitor/core";
+
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   entityRefTypeFor,
@@ -12,6 +14,7 @@ import {
   normalizeAppTarget,
   normalizeLegacyTarget,
 } from "@/lib/entityResolver";
+import { formatDate } from "@/lib/formatDate";
 import { guildPath } from "@/lib/guildUrl";
 import { entityRefRoute } from "@/lib/tools";
 
@@ -457,10 +460,44 @@ export const notificationText = (
       });
     case "guild_on_hold": {
       const community = typeof data.community === "string" ? data.community : "";
-      return typeof data.contact === "string" && data.contact.trim()
-        ? t("notifications.guildOnHoldWithContact", { community, contact: data.contact.trim() })
+      // The day it is deleted, where this deployment deletes a held community.
+      const date = formatDate(data.delete_on);
+      const contact = typeof data.contact === "string" ? data.contact.trim() : "";
+      if (date) {
+        return contact
+          ? t("notifications.guildOnHoldDeletingWithContact", { community, date, contact })
+          : t("notifications.guildOnHoldDeleting", { community, date });
+      }
+      return contact
+        ? t("notifications.guildOnHoldWithContact", { community, contact })
         : t("notifications.guildOnHold", { community });
     }
+    // The plan lines ask the reader to choose a plan, which the phone app may
+    // not; there each says only what happens to the community.
+    case "guild_trial_ending":
+      return t(
+        Capacitor.isNativePlatform()
+          ? "notifications.guildTrialEndingInApp"
+          : "notifications.guildTrialEnding",
+        {
+          community: typeof data.community === "string" ? data.community : "",
+          date: formatDate(data.trial_ends_on),
+        }
+      );
+    case "guild_trial_ended":
+      return t(
+        Capacitor.isNativePlatform()
+          ? "notifications.guildTrialEndedInApp"
+          : "notifications.guildTrialEnded",
+        { community: typeof data.community === "string" ? data.community : "" }
+      );
+    case "guild_welcome":
+      return t(
+        Capacitor.isNativePlatform()
+          ? "notifications.guildWelcomeInApp"
+          : "notifications.guildWelcome",
+        { community: typeof data.community === "string" ? data.community : "" }
+      );
     default:
       return t("notifications.defaultNotification");
   }

@@ -214,7 +214,7 @@ The surface is curated and **default-deny** — only the following are exposed. 
 | List / read documents (+ versions, backlinks) | `GET /c/{guild}/documents…` |
 | List / read queues and their items | `GET /c/{guild}/queues…` |
 | List / read counter groups and counters | `GET /c/{guild}/counter-groups…` |
-| List / read calendars and their events | `GET /c/{guild}/calendars…`, `GET /c/{guild}/calendar-events…` |
+| List / read calendars and their events | `GET /c/{guild}/calendars…`, `GET /c/{guild}/calendar-entries/` (a window, repeats expanded), `GET /c/{guild}/calendar-events/{id}` |
 | List / read notices | `GET /c/{guild}/posts…` |
 | List / read dashboards, and what a tile currently shows | `GET /c/{guild}/dashboards…` |
 | Read a comment thread, or one comment | `GET /c/{guild}/comments…` |
@@ -229,7 +229,7 @@ The surface is curated and **default-deny** — only the following are exposed. 
 | Create / edit a document | `POST /c/{guild}/documents/`, `PATCH …/documents/{id}` |
 | Create / edit a queue, and its items | `POST /c/{guild}/queues/`, `PATCH …/queues/{id}`, `POST …/queues/{id}/items`, `PATCH …/items/{id}` |
 | Create / edit a counter group, and its counters | `POST /c/{guild}/counter-groups/`, `PATCH …/{id}`, `POST …/counters`, `PATCH …/counters/{id}` |
-| Move a counter's count | `POST …/counters/{id}/set`, `/increment`, `/decrement` |
+| Move a counter's count | `POST /c/{guild}/counters/{id}/set`, `POST /c/{guild}/counters/{id}/step` |
 | Create / edit a calendar, and its events | `POST /c/{guild}/calendars/`, `PATCH …/{id}`, `POST /c/{guild}/calendar-events/`, `PATCH …/{id}` |
 | Create / edit a notice | `POST /c/{guild}/posts/`, `PATCH …/posts/{id}` |
 | Create / edit a dashboard | `POST /c/{guild}/dashboards/`, `PATCH …/dashboards/{id}` |

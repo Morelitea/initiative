@@ -12,10 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as ServerRequiredRouteImport } from './routes/_serverRequired'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ServerRequiredAuthenticatedRouteImport } from './routes/_serverRequired/_authenticated'
+import { Route as ServerRequiredDownloadRouteImport } from './routes/_serverRequired/download'
 import { Route as ServerRequiredForgotPasswordRouteImport } from './routes/_serverRequired/forgot-password'
 import { Route as ServerRequiredLoginRouteImport } from './routes/_serverRequired/login'
+import { Route as ServerRequiredPricingRouteImport } from './routes/_serverRequired/pricing'
 import { Route as ServerRequiredRegisterRouteImport } from './routes/_serverRequired/register'
 import { Route as ServerRequiredResetPasswordRouteImport } from './routes/_serverRequired/reset-password'
+import { Route as ServerRequiredStartRouteImport } from './routes/_serverRequired/start'
 import { Route as ServerRequiredVerifyEmailRouteImport } from './routes/_serverRequired/verify-email'
 import { Route as ServerRequiredWelcomeRouteImport } from './routes/_serverRequired/welcome'
 import { Route as AppsConnectedRouteImport } from './routes/apps.connected'
@@ -33,6 +36,8 @@ import { Route as ServerRequiredAuthenticatedUserStatsRouteImport } from './rout
 import { Route as ServerRequiredInviteCodeRouteImport } from './routes/_serverRequired/invite.$code'
 import { Route as ServerRequiredLegalSlugRouteImport } from './routes/_serverRequired/legal.$slug'
 import { Route as ServerRequiredOidcCallbackRouteImport } from './routes/_serverRequired/oidc.callback'
+import { Route as ServerRequiredWhatsNewIndexRouteImport } from './routes/_serverRequired/whats-new.index'
+import { Route as ServerRequiredWhatsNewVersionRouteImport } from './routes/_serverRequired/whats-new.$version'
 import { Route as ServerRequiredAuthenticatedCGuildIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId'
 import { Route as ServerRequiredAuthenticatedProfileIndexRouteImport } from './routes/_serverRequired/_authenticated/profile/index'
 import { Route as ServerRequiredAuthenticatedProfileAccountRouteImport } from './routes/_serverRequired/_authenticated/profile/account'
@@ -52,6 +57,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdMarketplaceRouteImport } fr
 import { Route as ServerRequiredAuthenticatedCGuildIdMembersRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/members'
 import { Route as ServerRequiredAuthenticatedCGuildIdSearchRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/search'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings'
+import { Route as ServerRequiredAuthenticatedCGuildIdBillingRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId_.billing'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/index'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/access'
 import { Route as ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRouteImport } from './routes/_serverRequired/_authenticated/settings/operator/announcements'
@@ -73,12 +79,14 @@ import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsIndexRouteImport }
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId'
 import { Route as ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/marketplace_.$publicId'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/index'
+import { Route as ServerRequiredAuthenticatedCGuildIdSettingsCommunityRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/community'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsDataRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/data'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/initiatives'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/integrations'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsSecurityRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/security'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsTrashRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/trash'
+import { Route as ServerRequiredAuthenticatedCGuildIdSettingsUsageRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/usage'
 import { Route as ServerRequiredAuthenticatedCGuildIdSettingsUsersRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/settings/users'
 import { Route as ServerRequiredAuthenticatedCGuildIdTagsTagIdRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/tags_.$tagId'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/index'
@@ -178,6 +186,11 @@ const ServerRequiredAuthenticatedRoute =
     id: '/_authenticated',
     getParentRoute: () => ServerRequiredRoute,
   } as any)
+const ServerRequiredDownloadRoute = ServerRequiredDownloadRouteImport.update({
+  id: '/download',
+  path: '/download',
+  getParentRoute: () => ServerRequiredRoute,
+} as any)
 const ServerRequiredForgotPasswordRoute =
   ServerRequiredForgotPasswordRouteImport.update({
     id: '/forgot-password',
@@ -187,6 +200,11 @@ const ServerRequiredForgotPasswordRoute =
 const ServerRequiredLoginRoute = ServerRequiredLoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => ServerRequiredRoute,
+} as any)
+const ServerRequiredPricingRoute = ServerRequiredPricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => ServerRequiredRoute,
 } as any)
 const ServerRequiredRegisterRoute = ServerRequiredRegisterRouteImport.update({
@@ -200,6 +218,11 @@ const ServerRequiredResetPasswordRoute =
     path: '/reset-password',
     getParentRoute: () => ServerRequiredRoute,
   } as any)
+const ServerRequiredStartRoute = ServerRequiredStartRouteImport.update({
+  id: '/start',
+  path: '/start',
+  getParentRoute: () => ServerRequiredRoute,
+} as any)
 const ServerRequiredVerifyEmailRoute =
   ServerRequiredVerifyEmailRouteImport.update({
     id: '/verify-email',
@@ -297,6 +320,18 @@ const ServerRequiredOidcCallbackRoute =
   ServerRequiredOidcCallbackRouteImport.update({
     id: '/oidc/callback',
     path: '/oidc/callback',
+    getParentRoute: () => ServerRequiredRoute,
+  } as any)
+const ServerRequiredWhatsNewIndexRoute =
+  ServerRequiredWhatsNewIndexRouteImport.update({
+    id: '/whats-new/',
+    path: '/whats-new/',
+    getParentRoute: () => ServerRequiredRoute,
+  } as any)
+const ServerRequiredWhatsNewVersionRoute =
+  ServerRequiredWhatsNewVersionRouteImport.update({
+    id: '/whats-new/$version',
+    path: '/whats-new/$version',
     getParentRoute: () => ServerRequiredRoute,
   } as any)
 const ServerRequiredAuthenticatedCGuildIdRoute =
@@ -412,6 +447,12 @@ const ServerRequiredAuthenticatedCGuildIdSettingsRoute =
     id: '/settings',
     path: '/settings',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdBillingRoute =
+  ServerRequiredAuthenticatedCGuildIdBillingRouteImport.update({
+    id: '/c/$guildId_/billing',
+    path: '/c/$guildId/billing',
+    getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsOperatorIndexRoute =
   ServerRequiredAuthenticatedSettingsOperatorIndexRouteImport.update({
@@ -539,6 +580,12 @@ const ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute =
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
   } as any)
+const ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute =
+  ServerRequiredAuthenticatedCGuildIdSettingsCommunityRouteImport.update({
+    id: '/community',
+    path: '/community',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
+  } as any)
 const ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute =
   ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRouteImport.update({
     id: '/danger-zone',
@@ -573,6 +620,12 @@ const ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute =
   ServerRequiredAuthenticatedCGuildIdSettingsTrashRouteImport.update({
     id: '/trash',
     path: '/trash',
+    getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
+  } as any)
+const ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute =
+  ServerRequiredAuthenticatedCGuildIdSettingsUsageRouteImport.update({
+    id: '/usage',
+    path: '/usage',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdSettingsRoute,
   } as any)
 const ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute =
@@ -1304,10 +1357,13 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsE
 export interface FileRoutesByFullPath {
   '/': typeof ServerRequiredAuthenticatedIndexRoute
   '/connect': typeof ConnectRoute
+  '/download': typeof ServerRequiredDownloadRoute
   '/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/login': typeof ServerRequiredLoginRoute
+  '/pricing': typeof ServerRequiredPricingRoute
   '/register': typeof ServerRequiredRegisterRoute
   '/reset-password': typeof ServerRequiredResetPasswordRoute
+  '/start': typeof ServerRequiredStartRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
@@ -1324,6 +1380,8 @@ export interface FileRoutesByFullPath {
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
+  '/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
+  '/whats-new/': typeof ServerRequiredWhatsNewIndexRoute
   '/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
@@ -1342,6 +1400,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/members': typeof ServerRequiredAuthenticatedCGuildIdMembersRoute
   '/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
   '/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteWithChildren
+  '/c/$guildId/billing': typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
@@ -1362,12 +1421,14 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/apps/$appId': typeof ServerRequiredAuthenticatedCGuildIdAppsAppIdRoute
   '/c/$guildId/i/$initiativeId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteWithChildren
   '/c/$guildId/marketplace/$publicId': typeof ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRoute
+  '/c/$guildId/settings/community': typeof ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute
   '/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
   '/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   '/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
+  '/c/$guildId/settings/usage': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute
   '/c/$guildId/settings/users': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   '/c/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedCGuildIdTagsTagIdRoute
   '/c/$guildId/calendars/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsIndexRoute
@@ -1458,10 +1519,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof ServerRequiredAuthenticatedIndexRoute
   '/connect': typeof ConnectRoute
+  '/download': typeof ServerRequiredDownloadRoute
   '/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/login': typeof ServerRequiredLoginRoute
+  '/pricing': typeof ServerRequiredPricingRoute
   '/register': typeof ServerRequiredRegisterRoute
   '/reset-password': typeof ServerRequiredResetPasswordRoute
+  '/start': typeof ServerRequiredStartRoute
   '/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
@@ -1477,6 +1541,8 @@ export interface FileRoutesByTo {
   '/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/oidc/callback': typeof ServerRequiredOidcCallbackRoute
+  '/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
+  '/whats-new': typeof ServerRequiredWhatsNewIndexRoute
   '/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
   '/profile/danger': typeof ServerRequiredAuthenticatedProfileDangerRoute
@@ -1491,6 +1557,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/marketplace': typeof ServerRequiredAuthenticatedCGuildIdMarketplaceRoute
   '/c/$guildId/members': typeof ServerRequiredAuthenticatedCGuildIdMembersRoute
   '/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
+  '/c/$guildId/billing': typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
   '/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
@@ -1510,12 +1577,14 @@ export interface FileRoutesByTo {
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
   '/c/$guildId/apps/$appId': typeof ServerRequiredAuthenticatedCGuildIdAppsAppIdRoute
   '/c/$guildId/marketplace/$publicId': typeof ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRoute
+  '/c/$guildId/settings/community': typeof ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute
   '/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
   '/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   '/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
+  '/c/$guildId/settings/usage': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute
   '/c/$guildId/settings/users': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   '/c/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedCGuildIdTagsTagIdRoute
   '/c/$guildId/calendars': typeof ServerRequiredAuthenticatedCGuildIdCalendarsIndexRoute
@@ -1597,10 +1666,13 @@ export interface FileRoutesById {
   '/_serverRequired': typeof ServerRequiredRouteWithChildren
   '/connect': typeof ConnectRoute
   '/_serverRequired/_authenticated': typeof ServerRequiredAuthenticatedRouteWithChildren
+  '/_serverRequired/download': typeof ServerRequiredDownloadRoute
   '/_serverRequired/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/_serverRequired/login': typeof ServerRequiredLoginRoute
+  '/_serverRequired/pricing': typeof ServerRequiredPricingRoute
   '/_serverRequired/register': typeof ServerRequiredRegisterRoute
   '/_serverRequired/reset-password': typeof ServerRequiredResetPasswordRoute
+  '/_serverRequired/start': typeof ServerRequiredStartRoute
   '/_serverRequired/verify-email': typeof ServerRequiredVerifyEmailRoute
   '/_serverRequired/welcome': typeof ServerRequiredWelcomeRoute
   '/apps/connected': typeof AppsConnectedRoute
@@ -1617,7 +1689,9 @@ export interface FileRoutesById {
   '/_serverRequired/invite/$code': typeof ServerRequiredInviteCodeRoute
   '/_serverRequired/legal/$slug': typeof ServerRequiredLegalSlugRoute
   '/_serverRequired/oidc/callback': typeof ServerRequiredOidcCallbackRoute
+  '/_serverRequired/whats-new/$version': typeof ServerRequiredWhatsNewVersionRoute
   '/_serverRequired/_authenticated/': typeof ServerRequiredAuthenticatedIndexRoute
+  '/_serverRequired/whats-new/': typeof ServerRequiredWhatsNewIndexRoute
   '/_serverRequired/_authenticated/c/$guildId': typeof ServerRequiredAuthenticatedCGuildIdRouteWithChildren
   '/_serverRequired/_authenticated/profile/account': typeof ServerRequiredAuthenticatedProfileAccountRoute
   '/_serverRequired/_authenticated/profile/ai': typeof ServerRequiredAuthenticatedProfileAiRoute
@@ -1636,6 +1710,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/members': typeof ServerRequiredAuthenticatedCGuildIdMembersRoute
   '/_serverRequired/_authenticated/c/$guildId/search': typeof ServerRequiredAuthenticatedCGuildIdSearchRoute
   '/_serverRequired/_authenticated/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteWithChildren
+  '/_serverRequired/_authenticated/c/$guildId_/billing': typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
   '/_serverRequired/_authenticated/settings/operator/access': typeof ServerRequiredAuthenticatedSettingsOperatorAccessRoute
   '/_serverRequired/_authenticated/settings/operator/announcements': typeof ServerRequiredAuthenticatedSettingsOperatorAnnouncementsRoute
   '/_serverRequired/_authenticated/settings/operator/communities': typeof ServerRequiredAuthenticatedSettingsOperatorCommunitiesRoute
@@ -1656,12 +1731,14 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/apps_/$appId': typeof ServerRequiredAuthenticatedCGuildIdAppsAppIdRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRouteWithChildren
   '/_serverRequired/_authenticated/c/$guildId/marketplace_/$publicId': typeof ServerRequiredAuthenticatedCGuildIdMarketplacePublicIdRoute
+  '/_serverRequired/_authenticated/c/$guildId/settings/community': typeof ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/data': typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/integrations': typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/security': typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/trash': typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
+  '/_serverRequired/_authenticated/c/$guildId/settings/usage': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute
   '/_serverRequired/_authenticated/c/$guildId/settings/users': typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   '/_serverRequired/_authenticated/c/$guildId/tags_/$tagId': typeof ServerRequiredAuthenticatedCGuildIdTagsTagIdRoute
   '/_serverRequired/_authenticated/c/$guildId/calendars/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsIndexRoute
@@ -1754,10 +1831,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/connect'
+    | '/download'
     | '/forgot-password'
     | '/login'
+    | '/pricing'
     | '/register'
     | '/reset-password'
+    | '/start'
     | '/verify-email'
     | '/welcome'
     | '/apps/connected'
@@ -1774,6 +1854,8 @@ export interface FileRouteTypes {
     | '/invite/$code'
     | '/legal/$slug'
     | '/oidc/callback'
+    | '/whats-new/$version'
+    | '/whats-new/'
     | '/c/$guildId'
     | '/profile/account'
     | '/profile/ai'
@@ -1792,6 +1874,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/members'
     | '/c/$guildId/search'
     | '/c/$guildId/settings'
+    | '/c/$guildId/billing'
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
@@ -1812,12 +1895,14 @@ export interface FileRouteTypes {
     | '/c/$guildId/apps/$appId'
     | '/c/$guildId/i/$initiativeId'
     | '/c/$guildId/marketplace/$publicId'
+    | '/c/$guildId/settings/community'
     | '/c/$guildId/settings/danger-zone'
     | '/c/$guildId/settings/data'
     | '/c/$guildId/settings/initiatives'
     | '/c/$guildId/settings/integrations'
     | '/c/$guildId/settings/security'
     | '/c/$guildId/settings/trash'
+    | '/c/$guildId/settings/usage'
     | '/c/$guildId/settings/users'
     | '/c/$guildId/tags/$tagId'
     | '/c/$guildId/calendars/'
@@ -1908,10 +1993,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/connect'
+    | '/download'
     | '/forgot-password'
     | '/login'
+    | '/pricing'
     | '/register'
     | '/reset-password'
+    | '/start'
     | '/verify-email'
     | '/welcome'
     | '/apps/connected'
@@ -1927,6 +2015,8 @@ export interface FileRouteTypes {
     | '/invite/$code'
     | '/legal/$slug'
     | '/oidc/callback'
+    | '/whats-new/$version'
+    | '/whats-new'
     | '/profile/account'
     | '/profile/ai'
     | '/profile/danger'
@@ -1941,6 +2031,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/marketplace'
     | '/c/$guildId/members'
     | '/c/$guildId/search'
+    | '/c/$guildId/billing'
     | '/settings/operator/access'
     | '/settings/operator/announcements'
     | '/settings/operator/communities'
@@ -1960,12 +2051,14 @@ export interface FileRouteTypes {
     | '/settings/platform'
     | '/c/$guildId/apps/$appId'
     | '/c/$guildId/marketplace/$publicId'
+    | '/c/$guildId/settings/community'
     | '/c/$guildId/settings/danger-zone'
     | '/c/$guildId/settings/data'
     | '/c/$guildId/settings/initiatives'
     | '/c/$guildId/settings/integrations'
     | '/c/$guildId/settings/security'
     | '/c/$guildId/settings/trash'
+    | '/c/$guildId/settings/usage'
     | '/c/$guildId/settings/users'
     | '/c/$guildId/tags/$tagId'
     | '/c/$guildId/calendars'
@@ -2046,10 +2139,13 @@ export interface FileRouteTypes {
     | '/_serverRequired'
     | '/connect'
     | '/_serverRequired/_authenticated'
+    | '/_serverRequired/download'
     | '/_serverRequired/forgot-password'
     | '/_serverRequired/login'
+    | '/_serverRequired/pricing'
     | '/_serverRequired/register'
     | '/_serverRequired/reset-password'
+    | '/_serverRequired/start'
     | '/_serverRequired/verify-email'
     | '/_serverRequired/welcome'
     | '/apps/connected'
@@ -2066,7 +2162,9 @@ export interface FileRouteTypes {
     | '/_serverRequired/invite/$code'
     | '/_serverRequired/legal/$slug'
     | '/_serverRequired/oidc/callback'
+    | '/_serverRequired/whats-new/$version'
     | '/_serverRequired/_authenticated/'
+    | '/_serverRequired/whats-new/'
     | '/_serverRequired/_authenticated/c/$guildId'
     | '/_serverRequired/_authenticated/profile/account'
     | '/_serverRequired/_authenticated/profile/ai'
@@ -2085,6 +2183,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/members'
     | '/_serverRequired/_authenticated/c/$guildId/search'
     | '/_serverRequired/_authenticated/c/$guildId/settings'
+    | '/_serverRequired/_authenticated/c/$guildId_/billing'
     | '/_serverRequired/_authenticated/settings/operator/access'
     | '/_serverRequired/_authenticated/settings/operator/announcements'
     | '/_serverRequired/_authenticated/settings/operator/communities'
@@ -2105,12 +2204,14 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/apps_/$appId'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId'
     | '/_serverRequired/_authenticated/c/$guildId/marketplace_/$publicId'
+    | '/_serverRequired/_authenticated/c/$guildId/settings/community'
     | '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
     | '/_serverRequired/_authenticated/c/$guildId/settings/data'
     | '/_serverRequired/_authenticated/c/$guildId/settings/initiatives'
     | '/_serverRequired/_authenticated/c/$guildId/settings/integrations'
     | '/_serverRequired/_authenticated/c/$guildId/settings/security'
     | '/_serverRequired/_authenticated/c/$guildId/settings/trash'
+    | '/_serverRequired/_authenticated/c/$guildId/settings/usage'
     | '/_serverRequired/_authenticated/c/$guildId/settings/users'
     | '/_serverRequired/_authenticated/c/$guildId/tags_/$tagId'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/'
@@ -2228,6 +2329,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
+    '/_serverRequired/download': {
+      id: '/_serverRequired/download'
+      path: '/download'
+      fullPath: '/download'
+      preLoaderRoute: typeof ServerRequiredDownloadRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
     '/_serverRequired/forgot-password': {
       id: '/_serverRequired/forgot-password'
       path: '/forgot-password'
@@ -2242,6 +2350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredLoginRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
+    '/_serverRequired/pricing': {
+      id: '/_serverRequired/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof ServerRequiredPricingRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
     '/_serverRequired/register': {
       id: '/_serverRequired/register'
       path: '/register'
@@ -2254,6 +2369,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ServerRequiredResetPasswordRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/start': {
+      id: '/_serverRequired/start'
+      path: '/start'
+      fullPath: '/start'
+      preLoaderRoute: typeof ServerRequiredStartRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/verify-email': {
@@ -2373,6 +2495,20 @@ declare module '@tanstack/react-router' {
       path: '/oidc/callback'
       fullPath: '/oidc/callback'
       preLoaderRoute: typeof ServerRequiredOidcCallbackRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/whats-new/': {
+      id: '/_serverRequired/whats-new/'
+      path: '/whats-new'
+      fullPath: '/whats-new/'
+      preLoaderRoute: typeof ServerRequiredWhatsNewIndexRouteImport
+      parentRoute: typeof ServerRequiredRoute
+    }
+    '/_serverRequired/whats-new/$version': {
+      id: '/_serverRequired/whats-new/$version'
+      path: '/whats-new/$version'
+      fullPath: '/whats-new/$version'
+      preLoaderRoute: typeof ServerRequiredWhatsNewVersionRouteImport
       parentRoute: typeof ServerRequiredRoute
     }
     '/_serverRequired/_authenticated/c/$guildId': {
@@ -2507,6 +2643,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/c/$guildId/settings'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId_/billing': {
+      id: '/_serverRequired/_authenticated/c/$guildId_/billing'
+      path: '/c/$guildId/billing'
+      fullPath: '/c/$guildId/billing'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdBillingRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/settings/operator/': {
       id: '/_serverRequired/_authenticated/settings/operator/'
@@ -2655,6 +2798,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
     }
+    '/_serverRequired/_authenticated/c/$guildId/settings/community': {
+      id: '/_serverRequired/_authenticated/c/$guildId/settings/community'
+      path: '/community'
+      fullPath: '/c/$guildId/settings/community'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsCommunityRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
+    }
     '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone': {
       id: '/_serverRequired/_authenticated/c/$guildId/settings/danger-zone'
       path: '/danger-zone'
@@ -2695,6 +2845,13 @@ declare module '@tanstack/react-router' {
       path: '/trash'
       fullPath: '/c/$guildId/settings/trash'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/c/$guildId/settings/usage': {
+      id: '/_serverRequired/_authenticated/c/$guildId/settings/usage'
+      path: '/usage'
+      fullPath: '/c/$guildId/settings/usage'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsUsageRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/settings/users': {
@@ -3328,18 +3485,22 @@ const ServerRequiredAuthenticatedProfileRouteWithChildren =
   )
 
 interface ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren {
+  ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute
   ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute
   ServerRequiredAuthenticatedCGuildIdSettingsDataRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsDataRoute
   ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsInitiativesRoute
   ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIntegrationsRoute
   ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute
   ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute
+  ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute
   ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute
   ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute: typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
 }
 
 const ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren: ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren =
   {
+    ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute:
+      ServerRequiredAuthenticatedCGuildIdSettingsCommunityRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsDangerZoneRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsDataRoute:
@@ -3352,6 +3513,8 @@ const ServerRequiredAuthenticatedCGuildIdSettingsRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedCGuildIdSettingsSecurityRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsTrashRoute,
+    ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute:
+      ServerRequiredAuthenticatedCGuildIdSettingsUsageRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute:
       ServerRequiredAuthenticatedCGuildIdSettingsUsersRoute,
     ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute:
@@ -3883,6 +4046,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedSettingsOperatorRoute: typeof ServerRequiredAuthenticatedSettingsOperatorRouteWithChildren
   ServerRequiredAuthenticatedSettingsPlatformRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
   ServerRequiredAuthenticatedUHandleRoute: typeof ServerRequiredAuthenticatedUHandleRoute
+  ServerRequiredAuthenticatedCGuildIdBillingRoute: typeof ServerRequiredAuthenticatedCGuildIdBillingRoute
 }
 
 const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRouteChildren =
@@ -3917,6 +4081,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren,
     ServerRequiredAuthenticatedUHandleRoute:
       ServerRequiredAuthenticatedUHandleRoute,
+    ServerRequiredAuthenticatedCGuildIdBillingRoute:
+      ServerRequiredAuthenticatedCGuildIdBillingRoute,
   }
 
 const ServerRequiredAuthenticatedRouteWithChildren =
@@ -3926,30 +4092,40 @@ const ServerRequiredAuthenticatedRouteWithChildren =
 
 interface ServerRequiredRouteChildren {
   ServerRequiredAuthenticatedRoute: typeof ServerRequiredAuthenticatedRouteWithChildren
+  ServerRequiredDownloadRoute: typeof ServerRequiredDownloadRoute
   ServerRequiredForgotPasswordRoute: typeof ServerRequiredForgotPasswordRoute
   ServerRequiredLoginRoute: typeof ServerRequiredLoginRoute
+  ServerRequiredPricingRoute: typeof ServerRequiredPricingRoute
   ServerRequiredRegisterRoute: typeof ServerRequiredRegisterRoute
   ServerRequiredResetPasswordRoute: typeof ServerRequiredResetPasswordRoute
+  ServerRequiredStartRoute: typeof ServerRequiredStartRoute
   ServerRequiredVerifyEmailRoute: typeof ServerRequiredVerifyEmailRoute
   ServerRequiredWelcomeRoute: typeof ServerRequiredWelcomeRoute
   ServerRequiredInviteCodeRoute: typeof ServerRequiredInviteCodeRoute
   ServerRequiredLegalSlugRoute: typeof ServerRequiredLegalSlugRoute
   ServerRequiredOidcCallbackRoute: typeof ServerRequiredOidcCallbackRoute
+  ServerRequiredWhatsNewVersionRoute: typeof ServerRequiredWhatsNewVersionRoute
+  ServerRequiredWhatsNewIndexRoute: typeof ServerRequiredWhatsNewIndexRoute
   ServerRequiredCommunityGuildIdLoginRoute: typeof ServerRequiredCommunityGuildIdLoginRoute
 }
 
 const ServerRequiredRouteChildren: ServerRequiredRouteChildren = {
   ServerRequiredAuthenticatedRoute:
     ServerRequiredAuthenticatedRouteWithChildren,
+  ServerRequiredDownloadRoute: ServerRequiredDownloadRoute,
   ServerRequiredForgotPasswordRoute: ServerRequiredForgotPasswordRoute,
   ServerRequiredLoginRoute: ServerRequiredLoginRoute,
+  ServerRequiredPricingRoute: ServerRequiredPricingRoute,
   ServerRequiredRegisterRoute: ServerRequiredRegisterRoute,
   ServerRequiredResetPasswordRoute: ServerRequiredResetPasswordRoute,
+  ServerRequiredStartRoute: ServerRequiredStartRoute,
   ServerRequiredVerifyEmailRoute: ServerRequiredVerifyEmailRoute,
   ServerRequiredWelcomeRoute: ServerRequiredWelcomeRoute,
   ServerRequiredInviteCodeRoute: ServerRequiredInviteCodeRoute,
   ServerRequiredLegalSlugRoute: ServerRequiredLegalSlugRoute,
   ServerRequiredOidcCallbackRoute: ServerRequiredOidcCallbackRoute,
+  ServerRequiredWhatsNewVersionRoute: ServerRequiredWhatsNewVersionRoute,
+  ServerRequiredWhatsNewIndexRoute: ServerRequiredWhatsNewIndexRoute,
   ServerRequiredCommunityGuildIdLoginRoute:
     ServerRequiredCommunityGuildIdLoginRoute,
 }

@@ -16,7 +16,13 @@ from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant.relationships import Endpoint
 from app.services.tenant.task_description import newly_mentioned
-from app.testing import create_document, create_resource_grant, create_task, create_user
+from app.testing import (
+    create_document,
+    create_resource_grant,
+    create_task,
+    create_user,
+    drain_notices,
+)
 from app.testing.schema_harness import route_session_to_guild
 
 
@@ -28,6 +34,7 @@ def test_only_a_name_the_last_save_did_not_have_is_new():
 
 
 async def _mentions_for(session: AsyncSession, user_id: int) -> list[dict]:
+    await drain_notices()
     rows = (
         await session.exec(
             select(Notification).where(

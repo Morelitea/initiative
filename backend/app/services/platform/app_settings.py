@@ -151,7 +151,6 @@ def _build_default_app_settings() -> AppSetting:
         s3_endpoint_url=_normalize_optional_string(app_config.S3_ENDPOINT_URL),
         s3_access_key_id=_normalize_optional_string(app_config.S3_ACCESS_KEY_ID),
         s3_use_path_style=bool(app_config.S3_USE_PATH_STYLE),
-        s3_kms_key_id=_normalize_optional_string(app_config.S3_KMS_KEY_ID),
         s3_local_fallback=bool(app_config.S3_LOCAL_FALLBACK),
         captcha_provider=_normalize_optional_string(app_config.CAPTCHA_PROVIDER),
         captcha_site_key=_normalize_optional_string(app_config.CAPTCHA_SITE_KEY),
@@ -465,7 +464,6 @@ STORAGE_FIELDS: tuple[str, ...] = (
     "s3_endpoint_url",
     "s3_access_key_id",
     "s3_use_path_style",
-    "s3_kms_key_id",
     "s3_local_fallback",
 )
 CAPTCHA_SECRET_FIELD = "captcha_secret_key_encrypted"
@@ -483,7 +481,7 @@ PUSH_FIELDS: tuple[str, ...] = (
 )
 
 
-async def _record_settings_area(
+async def record_settings_area(
     session: AsyncSession,
     *,
     actor_user_id: int | None,
@@ -535,7 +533,7 @@ async def update_interface_settings(
     if cookie_consent_enabled is not None:
         settings_row.cookie_consent_enabled = bool(cookie_consent_enabled)
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="interface",
@@ -603,7 +601,7 @@ async def update_marketplace_settings(
     before = audit_service.snapshot(settings_row, MARKETPLACE_FIELDS)
     settings_row.marketplace_members_publish_directly = bool(members_publish_directly)
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="marketplace",
@@ -637,7 +635,7 @@ async def update_marketplace_registry_settings(
     before = audit_service.snapshot(settings_row, MARKETPLACE_REGISTRY_FIELDS)
     settings_row.marketplace_registry_enabled = bool(enabled)
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="marketplace_registry",
@@ -715,7 +713,7 @@ async def update_community_settings(
     if hold_deletion_provided:
         settings_row.on_hold_community_deletion_days = on_hold_community_deletion_days
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="community",
@@ -772,7 +770,7 @@ async def update_email_settings(
     settings_row.smtp_from_address = _normalize_optional_string(from_address)
     settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="email",
@@ -804,7 +802,6 @@ async def update_storage_settings(
     s3_secret_access_key: str | None,
     secret_provided: bool,
     s3_use_path_style: bool,
-    s3_kms_key_id: str | None,
     s3_local_fallback: bool,
     actor_user_id: int | None = None,
 ) -> tuple[AppSetting, AppSettingSecret]:
@@ -833,10 +830,9 @@ async def update_storage_settings(
     settings_row.s3_endpoint_url = _normalize_optional_string(s3_endpoint_url)
     settings_row.s3_access_key_id = _normalize_optional_string(s3_access_key_id)
     settings_row.s3_use_path_style = bool(s3_use_path_style)
-    settings_row.s3_kms_key_id = _normalize_optional_string(s3_kms_key_id)
     settings_row.s3_local_fallback = bool(s3_local_fallback)
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="storage",
@@ -895,7 +891,7 @@ async def update_captcha_settings(
     settings_row.captcha_provider = _normalize_optional_string(provider)
     settings_row.captcha_site_key = _normalize_optional_string(site_key)
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="captcha",
@@ -954,7 +950,7 @@ async def update_push_settings(
     settings_row.fcm_api_key = _normalize_optional_string(api_key)
     settings_row.fcm_sender_id = _normalize_optional_string(sender_id)
     session.add(settings_row)
-    await _record_settings_area(
+    await record_settings_area(
         session,
         actor_user_id=actor_user_id,
         area="push",

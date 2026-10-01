@@ -9,8 +9,6 @@ name, so the reaches that must not work are the subject: a caller with no
 secret, a reference that is not the caller's own, and an app sector — which
 belongs to one install and is the one translation that would let an app learn
 another's names.
-
-See ``history/opaque-identity-design.md`` §15.
 """
 
 from __future__ import annotations

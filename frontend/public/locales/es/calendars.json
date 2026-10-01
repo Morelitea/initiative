@@ -40,7 +40,10 @@
   "dangerZone": "Zona de peligro",
   "detailsUpdated": "Detalles actualizados",
   "filters": {
-    "heading": "Filtros"
+    "heading": "Filtros",
+    "dates": "Fechas",
+    "searchLabel": "Nombre o descripción",
+    "searchCalendars": "Buscar calendarios..."
   },
   "loading": "Cargando...",
   "loadError": "Error al cargar eventos",
@@ -103,5 +106,33 @@
     "title": "Calendario de la comunidad",
     "empty": "Aún no hay calendarios.",
     "emptyHint": "Crea uno para los días festivos, para una reunión periódica o solo para ti."
+  },
+  "scope": {
+    "title": {
+      "edit": "Cambiar un evento periódico",
+      "delete": "Eliminar un evento periódico"
+    },
+    "description": "Este evento se repite. ¿A qué eventos se aplica?",
+    "this": "Solo este evento",
+    "following": "Los eventos a partir de este",
+    "all": "Todos los eventos de la serie",
+    "confirm": {
+      "edit": "Guardar",
+      "delete": "Eliminar"
+    }
+  },
+  "occurrence": {
+    "partOfSeries": "Una ocurrencia de un evento periódico.",
+    "openSeries": "Abrir la serie",
+    "detach": "Convertir en evento propio",
+    "detached": "Esta ocurrencia ahora es un evento propio.",
+    "followsSeries": "Esta ocurrencia se repite con su serie. Cambia la repetición desde la serie.",
+    "skipped": "Fechas omitidas",
+    "extra": "Fechas adicionales",
+    "restore": "Restaurar",
+    "restored": "Fecha restaurada.",
+    "addDate": "Añadir una fecha",
+    "added": "Fecha añadida.",
+    "openAlone": "Cambiar solo esta ocurrencia"
   }
 }

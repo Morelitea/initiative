@@ -129,7 +129,7 @@ export const MentionPopover = ({
     types,
     initiative_id: initiativeId,
     // A mention points at work, not at the blueprint work is started from.
-    template: false,
+    is_template: false,
     subject,
     limit: MENTION_LIMIT,
     enabled: !active.user && inInitiative,

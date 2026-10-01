@@ -31,7 +31,7 @@ from app.testing import (
     create_user,
     get_auth_headers,
 )
-from app.services.tenant.my_tools import tool_model
+from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
 
 per_tool = pytest.mark.parametrize("tool", list(Tool), ids=lambda t: t.value)
 
@@ -91,6 +91,53 @@ async def _second_guild(client, session: AsyncSession, actor: Actor) -> Actor:
 # ---------------------------------------------------------------------------
 # What every tool's list does
 # ---------------------------------------------------------------------------
+
+
+@per_tool
+async def test_each_list_is_its_tools_live_view_in_every_guild(
+    client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
+):
+    """Inside each community a My Tools list is the tool's own list, asked for
+    its live view: the same rows, serialized the same way, and the tab counts
+    the same totals. What the live view leaves out — the archive, templates, a
+    tool switched off, what was never shared — is the guild list's to say, and
+    is tested there."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _enable_tools(client, a)
+    b = await _second_guild(client, session, a)
+    for actor in (a, b):
+        await create_tool_entity(session, tool, actor.initiative, a.user, name="Live")
+        await create_tool_entity(
+            session,
+            tool,
+            actor.initiative,
+            a.user,
+            name="Archived",
+            archived_at=datetime.now(timezone.utc),
+        )
+        if "templates" in TOOL_LISTS[tool].views:
+            await create_tool_entity(
+                session, tool, actor.initiative, a.user, name="Kit", is_template=True
+            )
+
+    in_guilds: dict[tuple[int, int], dict] = {}
+    for actor in (a, b):
+        response = await client.get(
+            actor.g(f"/{tool.route_segment}/"),
+            headers=a.headers,
+            params={**TOOL_LISTS[tool].views["active"], "page_size": 50},
+        )
+        assert response.status_code == 200, response.text
+        for item in response.json()["items"]:
+            in_guilds[(item["guild_id"], item["id"])] = item
+
+    mine = await client.get(_path(tool), headers=a.headers, params={"page_size": 50})
+    assert mine.status_code == 200, mine.text
+    assert {(i["guild_id"], i["id"]): i for i in mine.json()["items"]} == in_guilds
+    assert mine.json()["total_count"] == len(in_guilds) == 2
+
+    counts = await client.get("/api/v1/me/tools/counts", headers=a.headers)
+    assert counts.json()["counts"][tool.value] == len(in_guilds)
 
 
 @per_tool
@@ -238,27 +285,6 @@ async def test_pagination_walks_the_merged_list(
     ]
 
 
-@per_tool
-async def test_the_initiatives_switch_takes_a_row_off_the_list(
-    client: AsyncClient, acting_user, tool: Tool
-):
-    """A row in an initiative with its tool switched off is not listed."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    await _enable_tools(client, a)
-    row = await _create(client, a, tool, "Switched Off Later")
-
-    response = await client.patch(
-        a.g(f"/initiatives/{a.initiative.id}"),
-        headers=a.headers,
-        json={tool.view_permission: False},
-    )
-    assert response.status_code == 200
-
-    response = await client.get(_path(tool), headers=a.headers)
-    assert response.status_code == 200
-    assert row["id"] not in {item["id"] for item in response.json()["items"]}
-
-
 async def test_a_co_member_reads_what_was_shared_with_the_initiative(
     client: AsyncClient, acting_user
 ):
@@ -282,49 +308,6 @@ async def test_a_co_member_reads_what_was_shared_with_the_initiative(
 # ---------------------------------------------------------------------------
 # What belongs to one tool
 # ---------------------------------------------------------------------------
-
-
-async def test_my_projects_excludes_archived(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """Archived work is off the working list."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    live = await create_project(session, a.initiative, a.user, name="Project")
-    archived = await create_project(session, a.initiative, a.user, name="Archived")
-    archived.archived_at = datetime.now(timezone.utc)
-    session.add(archived)
-    await session.commit()
-
-    response = await client.get("/api/v1/me/projects", headers=a.headers)
-
-    assert response.status_code == 200
-    project_ids = {p["id"] for p in response.json()["items"]}
-    assert live.id in project_ids
-    assert archived.id not in project_ids
-
-
-@pytest.mark.parametrize(
-    "tool",
-    [t for t in Tool if "is_template" in tool_model(t).model_fields],
-    ids=lambda t: t.value,
-)
-async def test_my_tools_exclude_templates(
-    client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
-):
-    """A blueprint is a tool's own second state, and not work — for every tool
-    whose model carries one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    live = await create_tool_entity(session, tool, a.initiative, a.user, name="Live")
-    template = await create_tool_entity(
-        session, tool, a.initiative, a.user, name="Template", is_template=True
-    )
-
-    response = await client.get(_path(tool), headers=a.headers)
-
-    assert response.status_code == 200
-    ids = {row["id"] for row in response.json()["items"]}
-    assert live.id in ids
-    assert template.id not in ids
 
 
 async def test_my_projects_follows_grants_not_guild_admin_standing(

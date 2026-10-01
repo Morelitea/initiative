@@ -11,7 +11,7 @@ import { AddWikiDocumentDialog } from "./AddWikiDocumentDialog";
 
 describe("AddWikiDocumentDialog", () => {
   it("offers every kind of document, and leaves out what the wiki already holds", async () => {
-    let asked: URLSearchParams | null = null;
+    let asked = null as URLSearchParams | null;
     const items = [
       buildDocumentSummary({ id: 1, name: "Minutes", document_type: "native" }),
       buildDocumentSummary({

@@ -9,6 +9,7 @@
   "creating": "Wird erstellt…",
   "createGuildSubmit": "Community erstellen",
   "unableToCreateGuild": "Community konnte nicht erstellt werden",
+  "freeCommunityHeldInApp": "Du hast bereits eine kostenlose Community. Eine weitere lässt sich nicht in der App einrichten.",
   "switchTo": "Zu {{name}} wechseln",
   "guildsHeading": "Communitys",
   "expandGuilds": "Community-Liste erweitern",
@@ -228,22 +229,16 @@
     "readOnly": "Bis das geklärt ist, können Mitglieder hier alles lesen, aber nichts ändern.",
     "paymentTitle": "Die Zahlung für {{name}} wurde abgelehnt",
     "paymentDescription": "Aktualisiere deine Karte, um die Community wiederherzustellen.",
+    "paymentDescriptionInApp": "Zahlungsdaten lassen sich nicht in der App ändern.",
     "updatePayment": "Zahlungsmethode aktualisieren",
     "notNow": "Nicht jetzt",
     "contactSupport": "Support kontaktieren"
   },
   "noGuild": {
-    "title": "Keine Community-Mitgliedschaft",
-    "description": "Du bist noch kein Mitglied einer Community. Bitte einen Community-Administrator um einen Einladungslink oder erstelle eine neue Community, um loszulegen.",
-    "guildNamePlaceholder": "Community-Name",
-    "create": "Erstellen",
-    "inviteCodePlaceholder": "Einladungscode",
-    "redeem": "Einlösen",
     "accountSettings": "Kontoeinstellungen",
     "platformSettings": "Plattformeinstellungen",
     "shellBackToStart": "Zurück zum Start",
-    "logOut": "Abmelden",
-    "browseCommunities": "Communitys durchsuchen"
+    "logOut": "Abmelden"
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -302,6 +297,14 @@
     "appConsentRequested": "{{app}} möchte in deinem Namen handeln: „{{label}}“",
     "appUpdatePending": "{{app}} Version {{version}} fragt nach mehr Zugriff",
     "guildOnHoldWithContact": "{{community}} ist pausiert. Wende dich an {{contact}}, um das zu klären.",
+    "guildOnHoldDeleting": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an die Betreiber dieses Servers, um das zu klären.",
+    "guildOnHoldDeletingWithContact": "{{community}} ist pausiert und wird am {{date}} gelöscht. Wende dich an {{contact}}, um das zu klären.",
+    "guildTrialEnding": "Die Testphase von {{community}} endet am {{date}}. Schließe vorher im Abrechnungsportal ein Abo ab, um weiter bearbeiten zu können.",
+    "guildTrialEndingInApp": "Die Testphase von {{community}} endet am {{date}}. Danach ist die Community schreibgeschützt.",
+    "guildTrialEnded": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt. Wähle im Abrechnungsportal einen Tarif, um weiter bearbeiten zu können.",
+    "guildTrialEndedInApp": "Die Testphase von {{community}} ist beendet, die Community ist jetzt schreibgeschützt.",
+    "guildWelcome": "{{community}} ist bereit. Richte den Tarif ein, um loszulegen.",
+    "guildWelcomeInApp": "{{community}} ist bereit.",
     "defaultNotification": "Du hast eine neue Benachrichtigung.",
     "push": {
       "enableTitle": "Push-Benachrichtigungen aktivieren",
@@ -384,18 +387,52 @@
   "billingSetup": {
     "opening": "Abrechnung wird geöffnet, damit du einen Tarif für {{guild}} wählen kannst."
   },
+  "billingForward": {
+    "opening": "Abrechnungsportal wird geöffnet…",
+    "notConfiguredTitle": "Kein Abrechnungsportal",
+    "notConfiguredDescription": "Dieser Server hat kein Abrechnungsportal, daher gibt es hier keinen Tarif einzurichten.",
+    "errorTitle": "Abrechnung konnte nicht geöffnet werden",
+    "error": "Das Abrechnungsportal konnte nicht geöffnet werden. Versuche es gleich noch einmal über den Link.",
+    "nativeTitle": "In der App nicht verfügbar",
+    "nativeDescription": "Tarifänderungen sind in der App nicht verfügbar."
+  },
   "usagePanel": {
     "title": "Nutzung",
     "storage": "Speicher",
     "members": "Mitglieder",
     "usedOfMax": "{{used}} von {{max}}",
     "usedOfUnlimited": "{{used}} verwendet · Unbegrenzt",
+    "storageUnavailable": "Gerade nicht verfügbar",
     "membersOfMax": "{{used}} von {{max}}",
     "membersOfUnlimited": "{{used}} · Unbegrenzt",
     "currentPlan": "Aktueller Tarif:",
     "selfHosted": "Selbst gehostet",
     "upgrade": "Upgrade",
     "manageBilling": "Abrechnung verwalten"
+  },
+  "billingPanel": {
+    "title": "Tarif",
+    "unavailable": "Abrechnungsdetails sind gerade nicht verfügbar.",
+    "updatePaymentMethod": "Zahlungsmethode aktualisieren",
+    "changeInPortal": "Tarif oder Zahlungsmethode ändern oder kündigen kannst du im Abrechnungsportal.",
+    "notInApp": "Tarifänderungen sind in der App nicht verfügbar.",
+    "cancelAnytime": "Jederzeit im Abrechnungsportal kündbar. Dein Tarif läuft bis zum Ende des bezahlten Zeitraums weiter. Danach ist deine Community 30 Tage lang schreibgeschützt, damit du sie exportieren kannst, wird dann pausiert und 30 Tage später gelöscht.",
+    "status": {
+      "paymentFailed": "Zahlung fehlgeschlagen",
+      "paymentFailedDetail": "Aktualisiere deine Zahlungsmethode, um weiter bearbeiten zu können – die Community wird 14 Tage nach der fehlgeschlagenen Zahlung schreibgeschützt.",
+      "paymentFailedDetailInApp": "Die Community wird 14 Tage nach der fehlgeschlagenen Zahlung schreibgeschützt.",
+      "ends": "Endet am {{date}}",
+      "endsDetail": "Dein Tarif endet am {{date}}. Danach ist die Community 30 Tage lang schreibgeschützt und wird dann pausiert.",
+      "pauses": "Pausiert ab {{date}}",
+      "resumes": "Läuft wieder ab {{date}}",
+      "trial_one": "Testphase · noch {{count}} Tag",
+      "trial_other": "Testphase · noch {{count}} Tage",
+      "trialLastDay": "Testphase · letzter Tag",
+      "trialDetail": "Die Testphase endet am {{date}}. Schließe vorher ein Abo ab, um weiter bearbeiten zu können.",
+      "trialDetailInApp": "Die Testphase endet am {{date}}. Danach ist die Community schreibgeschützt.",
+      "renews": "Verlängert am {{date}}",
+      "renewsWithAmount": "Verlängert am {{date}} · {{amount}}"
+    }
   },
   "transferOwnership": {
     "title": "Besitz übertragen",

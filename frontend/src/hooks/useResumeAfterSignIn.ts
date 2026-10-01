@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import { guildIdFromPath } from "@/lib/guildUrl";
+import { guildIdFromPath, isBillingForwardPath } from "@/lib/guildUrl";
 import { returnPath } from "@/lib/returnPath";
 
 /** Takes somebody who has just signed in to the page they were headed for. */
@@ -20,7 +20,8 @@ export type ResumeAfterSignIn = (next: string | null | undefined) => Promise<voi
  * expired, or the one a step-up ended, may not be the account now signing in.
  * A path inside a community is only theirs to resume if that community is in
  * their list, so the list is asked for before going there, and they start at
- * home if it is not.
+ * home if it is not. The billing forwarder is the exception: it asks the
+ * server for itself (see `isBillingForwardPath`).
  */
 export const useResumeAfterSignIn = (): ResumeAfterSignIn => {
   const router = useRouter();
@@ -60,6 +61,10 @@ export const useResumeAfterSignIn = (): ResumeAfterSignIn => {
         return;
       }
       await untilSignedIn();
+      if (isBillingForwardPath(returnTo)) {
+        router.navigate({ to: returnTo, replace: true });
+        return;
+      }
       const reachable = await refreshGuildsRef.current();
       router.navigate({
         to: reachable.some((guild) => guild.id === wanted) ? returnTo : "/",

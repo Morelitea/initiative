@@ -17,8 +17,8 @@ from somebody who failed it.
 
 **The token carries the minimum.** Guild, install, surface, who is opening it,
 whether they administer the community, and — where the surface was opened
-inside an initiative — which one. Nothing about their name or their address,
-and no other role. What an app may do with a person is a function of what the
+inside an initiative — which one and whether they moderate it. Nothing about
+their name or their address, and no other role. What an app may do with a person is a function of what the
 manifest declared and the guild accepted, not of anything it can read out of a
 claim set.
 
@@ -34,6 +34,10 @@ The claims an app receives:
   still decided by that call's own token;
 * ``initiative_id`` — present only when the surface was opened inside an
   initiative;
+* ``initiative_moderator`` — present with ``initiative_id``: ``true`` when the
+  viewer's role there manages it with "Full access", as a moderator's does. An
+  app uses it the way it uses ``guild_admin``, such as to let only a
+  moderator set something up that acts with a moderator's standing;
 * ``jti``, ``iat``, ``exp``, ``iss`` and ``aud`` — the envelope.
 
 **Where a surface was opened is the route's to say.** A surface declares the
@@ -88,7 +92,7 @@ __all__ = [
 ]
 
 #: Single source for the handoff's lifetime, so the response advertises exactly
-#: what the ``exp`` claim encodes. Short by design: a leaked handoff is worth a
+#: what the ``exp`` claim encodes. Short by design: the handoff is spent within a
 #: minute, and the long-lived session belongs to the app, not to this token.
 APP_EMBED_HANDOFF_LIFETIME = timedelta(seconds=60)
 
@@ -258,6 +262,10 @@ async def mint_embed_handoff(
     # answer instead of two shapes that both mean none.
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
+        payload["initiative_moderator"] = (
+            initiative_id in context.manager_initiatives
+            and initiative_id in context.override_initiatives
+        )
     headers: dict[str, Any] = {"typ": APP_HANDOFF_TOKEN_TYPE}
     if kid:
         headers["kid"] = kid

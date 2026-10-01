@@ -30,6 +30,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
 from app.models.platform.guild import GuildRole  # noqa: E402
 from app.models.tenant.task import Task  # noqa: E402
+import app.testing as testing  # noqa: E402
 from app.testing import (  # noqa: E402
     TOOL_FACTORIES,
     checklist_items,
@@ -47,7 +48,6 @@ from app.testing import (  # noqa: E402
     create_reaction,
     create_tag,
     create_task,
-    create_task_property_value,
     create_upload,
     create_user,
     create_wiki_page,
@@ -85,7 +85,12 @@ async def seed(session: AsyncSession) -> None:
         checklist=checklist_items("first", "second"),
     )
     definition = await create_property_definition(session, initiative)
-    await create_task_property_value(session, task, definition, value_text="seeded")
+    # A release before property values became one table has one factory per
+    # tool; this one has a single factory for every target.
+    set_value = getattr(testing, "create_property_value", None) or getattr(
+        testing, "create_task_property_value"
+    )
+    await set_value(session, task, definition, value_text="seeded")
 
     document = await create_document(session, initiative, member)
     comment = await create_comment(session, member, task=task)

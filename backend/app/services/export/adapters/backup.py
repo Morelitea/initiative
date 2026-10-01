@@ -75,6 +75,7 @@ from app.core.tools import (
     tool_export_source,
 )
 from app.services.export.engine import ExportError
+from app.services.export.filters import narrow, parse_filters
 from app.services.export import delivery
 from app.services.platform.csv_export import safe_filename_component
 from app.services.export import limits as export_limits
@@ -182,7 +183,7 @@ async def _resolve_scope(
     )
     initiative = (await session.exec(statement)).one_or_none()
     if initiative is None:
-        # Unreachable initiative — indistinguishable from absent (no leak).
+        # Unreachable initiative — indistinguishable from absent.
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS, status_code=404)
     return [initiative]
 
@@ -199,6 +200,12 @@ def _validate_params(params: dict, *, scope_kind: str) -> None:
             or not all(isinstance(v, bool) for v in include.values())
         ):
             raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+    filters = params.get("filters")
+    if filters is not None:
+        if not isinstance(filters, dict) or not set(filters) <= set(_TOOLS):
+            raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+        for tool, raw in filters.items():
+            parse_filters(Tool(tool), raw)
     if mode == "report":
         for tool, fmt in (params.get("formats") or {}).items():
             section = _SECTIONS_BY_KEY.get(tool)
@@ -224,6 +231,29 @@ def _included(params: dict, tool: str) -> bool:
     return bool(include.get(tool, False))
 
 
+def _filters(params: dict, section: BackupSection):
+    return parse_filters(section.tool, (params.get("filters") or {}).get(section.key))
+
+
+async def _section_ids(
+    session: AsyncSession,
+    user: User,
+    guild_id: int,
+    params: dict,
+    section: BackupSection,
+    initiative_id: int,
+) -> list[int]:
+    """One tool's entities in one initiative that the creator may export and
+    the tool's filters leave."""
+    return await narrow(
+        session,
+        user,
+        section.tool,
+        _filters(params, section),
+        await section.adapter.initiative_ids(session, user, guild_id, initiative_id),
+    )
+
+
 def _include_uploads(params: dict) -> bool:
     mode = params.get("mode") or "backup"
     if mode == "report":
@@ -247,8 +277,8 @@ async def _enumerate(
         for section in _SECTIONS:
             if not _included(params, section.key):
                 continue
-            ids[section.key][initiative.id] = await section.adapter.initiative_ids(
-                session, user, guild_id, initiative.id
+            ids[section.key][initiative.id] = await _section_ids(
+                session, user, guild_id, params, section, initiative.id
             )
     return ids
 
@@ -270,25 +300,13 @@ async def _count_scope(
     — the blobs documents reference plus the ones nothing points at. Counting
     only the referenced ones here would let an over-cap export through to the
     worker and fail it there instead of answering now."""
-    from sqlalchemy import func
-    from sqlmodel import select
-
-    from app.models.tenant.task import Task
 
     ids = await _enumerate(session, user, guild_id, params, initiatives)
     total = sum(
         len(v) for per_initiative in ids.values() for v in per_initiative.values()
     )
 
-    project_ids = [pid for per in ids["project"].values() for pid in per]
-    if project_ids:
-        total += (
-            await session.exec(
-                select(func.count())
-                .select_from(Task)
-                .where(Task.project_id.in_(project_ids))
-            )
-        ).one()
+    total += await _task_rows(session, user, params, ids["project"])
 
     if _include_uploads(params) and (
         scope_kind == "guild" or _included(params, "document")
@@ -303,6 +321,35 @@ async def _count_scope(
             raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
         total += upload_bytes // _MIB
     return total
+
+
+async def _task_rows(
+    session: AsyncSession,
+    user: User,
+    params: dict,
+    project_ids: dict[int, list[int]],
+) -> int:
+    """How many tasks the projects' exports carry: every one, or those the
+    project task filter leaves."""
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from app.models.tenant.task import Task
+    from app.services.export.adapters.project import count_matching_tasks
+
+    ids = [project_id for per in project_ids.values() for project_id in per]
+    if not ids:
+        return 0
+    tasks = getattr(_filters(params, _SECTIONS_BY_KEY["project"]), "tasks", None)
+    if tasks is None:
+        return (
+            await session.exec(
+                select(func.count()).select_from(Task).where(Task.project_id.in_(ids))
+            )
+        ).one()
+    return await count_matching_tasks(
+        session, user, ids, tasks, resolve_zone(params.get("tz")).key
+    )
 
 
 async def _known_upload_bytes(
@@ -528,8 +575,8 @@ class _ScopeBuilder:
         if self.mode != "backup" and not section.in_reports:
             return
         adapter = section.adapter
-        ids = await adapter.initiative_ids(
-            self.session, self.user, self.guild_id, initiative.id
+        ids = await _section_ids(
+            self.session, self.user, self.guild_id, self.params, section, initiative.id
         )
         if ids:
             batched = adapter.prepares or section.preload is not None
@@ -543,7 +590,10 @@ class _ScopeBuilder:
                     user=self.user,
                     guild_id=self.guild_id,
                     now=self.now,
-                    prepared=await adapter.prepare(self.session, entities),
+                    filters=_filters(self.params, section),
+                )
+                ctx = replace(
+                    ctx, prepared=await adapter.prepare(self.session, entities, ctx)
                 )
                 self.reach |= await adapter.prepared_reach(
                     self.session, replace(ctx, format=self._tool_format(section))
@@ -1310,15 +1360,11 @@ class _ScopeBuilder:
 
 
 def _document_metadata(document) -> dict:
-    from app.services.export.property_values import property_export_dict
+    from app.services.export.property_values import exported_properties
 
     return {
         "tags": sorted(tag.name for tag in document.tags or []),
-        "properties": [
-            property_export_dict(pv)
-            for pv in document.property_values or []
-            if pv.property_definition is not None
-        ],
+        "properties": exported_properties(document),
     }
 
 
@@ -1465,16 +1511,21 @@ async def estimate_backup(
     scope: str,
     initiative_id: int | None,
     include_uploads: bool,
+    filters: dict | None = None,
 ):
     from sqlalchemy import func
     from sqlmodel import select
 
     from app.models.tenant.document import Document, DocumentType
-    from app.models.tenant.task import Task
     from app.schemas.tenant.backup_export import BackupEstimate, BackupToolEstimate
     from app.services.tenant.attachments import get_guild_storage_usage
 
-    params = {"initiative_id": initiative_id, "include_uploads": include_uploads}
+    params = {
+        "initiative_id": initiative_id,
+        "include_uploads": include_uploads,
+        "filters": filters,
+    }
+    _validate_params(params, scope_kind=scope)
     initiatives = await _resolve_scope(
         session, user, guild_id, params, scope_kind=scope
     )
@@ -1488,15 +1539,7 @@ async def estimate_backup(
         tools[tool] = BackupToolEstimate(count=count, disabled=disabled)
         estimated_rows += count
 
-    project_ids = [pid for per in ids["project"].values() for pid in per]
-    if project_ids:
-        estimated_rows += (
-            await session.exec(
-                select(func.count())
-                .select_from(Task)
-                .where(Task.project_id.in_(project_ids))
-            )
-        ).one()
+    estimated_rows += await _task_rows(session, user, params, ids["project"])
 
     uploads_count = 0
     uploads_bytes = 0

@@ -16,6 +16,7 @@ import type {
   TaskReorderRequest,
   TaskStatusCategory,
   TaskStatusRead,
+  TaskUpdateScope,
 } from "@/api/generated/initiativeAPI.schemas";
 import { getReadSmartChipsApiV1CGuildIdSmartChipsGetQueryKey } from "@/api/generated/smart-chips/smart-chips";
 import {
@@ -35,6 +36,7 @@ import {
   moveTaskApiV1CGuildIdTasksTaskIdMovePost,
   readTaskApiV1CGuildIdTasksTaskIdGet,
   reorderTasksApiV1CGuildIdTasksReorderPost,
+  skipTaskApiV1CGuildIdTasksTaskIdSkipPost,
   toggleChecklistItemApiV1CGuildIdTasksTaskIdChecklistItemIdPatch,
   updateTaskApiV1CGuildIdTasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
@@ -323,12 +325,27 @@ export const useUpdateTaskInGuild = (
   });
 };
 
-export const useDeleteTask = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
+/** Which tasks of a repeating series a delete is for; `this` skips it. */
+type DeleteTaskVariables = { taskId: number; scope?: TaskUpdateScope };
+
+export const useDeleteTask = (options?: MutationOpts<void, DeleteTaskVariables>) =>
+  useGuildMutation<void, DeleteTaskVariables>(
     {
-      mutationFn: (guildId, taskId) => deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId),
+      mutationFn: (guildId, { taskId, scope }) =>
+        deleteTaskApiV1CGuildIdTasksTaskIdDelete(guildId, taskId, scope ? { scope } : undefined),
       invalidate: () => invalidate(q.allTasks()),
       errorKey: "projects:tasks.bulkDeleteError",
+    },
+    options
+  );
+
+/** Move a repeating task on to its next occurrence without completing it. */
+export const useSkipTask = (options?: MutationOpts<TaskRead, number>) =>
+  useGuildMutation<TaskRead, number>(
+    {
+      mutationFn: (guildId, taskId) => skipTaskApiV1CGuildIdTasksTaskIdSkipPost(guildId, taskId),
+      invalidate: (_data, taskId) => invalidate(q.allTasks(), q.task(taskId)),
+      errorKey: "tasks:edit.skipError",
     },
     options
   );

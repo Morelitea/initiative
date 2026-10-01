@@ -26,7 +26,7 @@ decided there rather than here.
 A subscription is therefore the community's integration configuration, not the
 personal property of whoever registered it: it outlives their membership, their
 role and their account, and ending it is a decision somebody makes rather than a
-side effect of an unrelated one. See ``history/webhook-scope-not-principal-design.md``.
+side effect of an unrelated one.
 
 Progress is a ledger row per ``(subscription, transaction)``, not a cursor, and
 that is a correctness decision rather than a tuning one. Outbox ids come from a

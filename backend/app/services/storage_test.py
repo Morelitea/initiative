@@ -181,11 +181,9 @@ class FakeS3Client:
         return {"Errors": errors} if errors else {}
 
 
-def _s3(prefix="guild_7/", kms_key_id=None):
+def _s3(prefix="guild_7/"):
     client = FakeS3Client()
-    return client, S3Storage(
-        bucket="bucket", client=client, prefix=prefix, kms_key_id=kms_key_id
-    )
+    return client, S3Storage(bucket="bucket", client=client, prefix=prefix)
 
 
 def test_s3_write_applies_guild_prefix_and_content_type():
@@ -193,22 +191,10 @@ def test_s3_write_applies_guild_prefix_and_content_type():
     storage.write("abc.png", b"img", content_type="image/png")
     # Keyed under the resolver-supplied guild prefix.
     assert ("bucket", "guild_7/abc.png") in client.objects
-    assert client.objects[("bucket", "guild_7/abc.png")]["extra"]["ContentType"] == (
-        "image/png"
-    )
-    # No KMS params unless configured.
-    assert (
-        "ServerSideEncryption"
-        not in client.objects[("bucket", "guild_7/abc.png")]["extra"]
-    )
-
-
-def test_s3_write_adds_kms_sse_when_configured():
-    client, storage = _s3(kms_key_id="arn:aws:kms:key/abc")
-    storage.write("x.bin", b"data")
-    extra = client.objects[("bucket", "guild_7/x.bin")]["extra"]
-    assert extra["ServerSideEncryption"] == "aws:kms"
-    assert extra["SSEKMSKeyId"] == "arn:aws:kms:key/abc"
+    # The content type is the only parameter sent; encryption is the bucket's.
+    assert client.objects[("bucket", "guild_7/abc.png")]["extra"] == {
+        "ContentType": "image/png"
+    }
 
 
 def test_s3_key_reduces_to_basename():
@@ -233,7 +219,7 @@ def test_s3_copy_same_namespace():
     client, storage = _s3()
     storage.write("src.bin", b"payload")
     assert storage.copy("src.bin", "dst.bin") is True
-    assert ("bucket", "guild_7/dst.bin") in client.objects
+    assert client.objects[("bucket", "guild_7/dst.bin")]["extra"] == {}
     # Copying a missing source fails cleanly.
     assert storage.copy("missing.bin", "dst2.bin") is False
 
@@ -301,7 +287,6 @@ def test_build_upload_response_escapes_quote_in_filename():
 def test_resolver_namespaces_by_guild_for_s3(monkeypatch):
     monkeypatch.setattr(storage_module.settings, "STORAGE_BACKEND", "s3")
     monkeypatch.setattr(storage_module.settings, "S3_BUCKET", "bucket")
-    monkeypatch.setattr(storage_module.settings, "S3_KMS_KEY_ID", None)
     monkeypatch.setattr(storage_module, "_get_s3_client", lambda: FakeS3Client())
 
     scoped = get_guild_storage(42)
@@ -492,4 +477,4 @@ def test_dualread_copy_cross_store(tmp_path):
     assert dual.copy("src.png", "dst.png") is True
     obj = client.objects[("bucket", "guild_7/dst.png")]
     # Content-type recovered from the extension so it isn't served as octet-stream.
-    assert obj["extra"]["ContentType"] == "image/png"
+    assert obj["extra"] == {"ContentType": "image/png"}

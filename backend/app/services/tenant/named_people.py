@@ -54,11 +54,7 @@ from app.models.tenant.initiative import (
     InitiativeRolePermission,
 )
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
-from app.models.tenant.property import (
-    CalendarEventPropertyValue,
-    DocumentPropertyValue,
-    TaskPropertyValue,
-)
+from app.models.tenant.property import PropertyValue
 from app.models.tenant.queue import QueueItem
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task, TaskAssignee
@@ -236,7 +232,9 @@ class PersonRef:
     clears: bool = False
 
 
-#: Every person column, by the tool whose sharing decides who it may name.
+#: Every person column, by the tool whose sharing decides who it may name —
+#: beside a person-valued property, which :func:`person_refs` adds for every
+#: tool from the properties seam.
 PERSON_REFS: dict[Tool, tuple[PersonRef, ...]] = {
     Tool.project: (
         PersonRef(
@@ -245,13 +243,6 @@ PERSON_REFS: dict[Tool, tuple[PersonRef, ...]] = {
                 sa_select(Task.id).where(Task.project_id == pid)
             ),
         ),
-        PersonRef(
-            TaskPropertyValue.value_user_id,
-            lambda pid: TaskPropertyValue.task_id.in_(
-                sa_select(Task.id).where(Task.project_id == pid)
-            ),
-            clears=True,
-        ),
     ),
     Tool.calendar: (
         PersonRef(
@@ -259,20 +250,6 @@ PERSON_REFS: dict[Tool, tuple[PersonRef, ...]] = {
             lambda cid: CalendarEventAttendee.calendar_event_id.in_(
                 sa_select(CalendarEvent.id).where(CalendarEvent.calendar_id == cid)
             ),
-        ),
-        PersonRef(
-            CalendarEventPropertyValue.value_user_id,
-            lambda cid: CalendarEventPropertyValue.event_id.in_(
-                sa_select(CalendarEvent.id).where(CalendarEvent.calendar_id == cid)
-            ),
-            clears=True,
-        ),
-    ),
-    Tool.document: (
-        PersonRef(
-            DocumentPropertyValue.value_user_id,
-            lambda did: DocumentPropertyValue.document_id == did,
-            clears=True,
         ),
     ),
     Tool.queue: (
@@ -283,10 +260,45 @@ PERSON_REFS: dict[Tool, tuple[PersonRef, ...]] = {
 }
 
 
+def _property_ref(tool: Tool) -> PersonRef | None:
+    """A person-valued property on anything ``tool`` governs: the tool row
+    itself and every sub-tool row inside it, read from the properties seam."""
+    from app.services.tenant.properties import PROPERTY_LINKS
+
+    specs = [spec for spec in PROPERTY_LINKS.values() if spec.tool is tool]
+    if not specs:
+        return None
+
+    def within(gid: int) -> ColumnElement[bool]:
+        return or_(
+            *(
+                and_(
+                    PropertyValue.entity_type == spec.target,
+                    PropertyValue.entity_id == gid
+                    if spec.via is None
+                    else PropertyValue.entity_id.in_(
+                        sa_select(spec.model.id).where(
+                            getattr(spec.model, spec.via) == gid
+                        )
+                    ),
+                )
+                for spec in specs
+            )
+        )
+
+    return PersonRef(PropertyValue.value_user_id, within, clears=True)
+
+
+def person_refs(tool: Tool) -> tuple[PersonRef, ...]:
+    """Every person column on content inside ``tool``'s rows."""
+    prop = _property_ref(tool)
+    return (*PERSON_REFS.get(tool, ()), *((prop,) if prop is not None else ()))
+
+
 async def named_on(session: AsyncSession, governing: Governing) -> set[int]:
     """Everyone the content inside the governing row names."""
     named: set[int] = set()
-    for ref in PERSON_REFS.get(governing.tool, ()):
+    for ref in person_refs(governing.tool):
         named.update(
             (
                 await session.exec(
@@ -306,7 +318,7 @@ async def sweep(session: AsyncSession, governing: Governing) -> set[int]:
     gone = named - await readers(session, governing, named)
     if not gone:
         return gone
-    for ref in PERSON_REFS.get(governing.tool, ()):
+    for ref in person_refs(governing.tool):
         table = ref.column.class_
         where = (ref.within(governing.resource_id), ref.column.in_(gone))
         await session.exec(

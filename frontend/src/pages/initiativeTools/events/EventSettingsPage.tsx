@@ -1,14 +1,10 @@
-import { Link, useParams, useRouter } from "@tanstack/react-router";
+import { Link, useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { Loader2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  PropertyDefinitionRead,
-  PropertySummary,
-  TagSummary,
-} from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import type { CalendarEventRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { utcDateKey } from "@/components/calendar/eventCalendarEntry";
 import {
   EventDateTimeFields,
@@ -16,7 +12,8 @@ import {
 } from "@/components/initiativeTools/events/EventDateTimeFields";
 import { toDateKey, toTimeSlotRounded } from "@/components/initiativeTools/events/eventDateTime";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { AddPropertyButton, PropertyList } from "@/components/properties";
+import { PropertyPanel } from "@/components/properties";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
 import {
   DetailPageSkeleton,
@@ -28,22 +25,24 @@ import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,
+  useOccurrenceAction,
   useSetEventAttendees,
-  useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
 import { toast } from "@/lib/chesterToast";
+import { formatDate, formatDateTime } from "@/lib/formatDate";
 import { useGuildPath } from "@/lib/guildUrl";
 import { allDayReference, fromStored, rulePayload } from "@/lib/recurrence";
-import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
+import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendars", "common", "access"]);
@@ -55,6 +54,10 @@ export function EventSettingsPage() {
   };
   const eventId = Number(eventIdParam);
   const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
+  // Opened from one occurrence of a repeating event, which a change names.
+  const { occurrence: occurrenceParam } = useSearch({ strict: false }) as { occurrence?: string };
+  const occurrence =
+    occurrenceParam && !Number.isNaN(Date.parse(occurrenceParam)) ? occurrenceParam : undefined;
 
   const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
   // The path supplies the initiative while this loads; the event is the
@@ -67,16 +70,24 @@ export function EventSettingsPage() {
   const details = useServerForm(
     event,
     (loaded) => {
-      const start = loaded ? new Date(loaded.start_at) : null;
-      const end = loaded ? new Date(loaded.end_at) : null;
+      // One occurrence of a series shows its own times: the series' length
+      // from the start it has.
+      const shift =
+        loaded?.recurrence && occurrence ? Date.parse(occurrence) - Date.parse(loaded.start_at) : 0;
+      const start = loaded ? new Date(Date.parse(loaded.start_at) + shift) : null;
+      const end = loaded ? new Date(Date.parse(loaded.end_at) + shift) : null;
       return {
         title: loaded?.title ?? "",
         description: loaded?.description ?? "",
         location: loaded?.location ?? "",
         // An all-day event's dates are UTC dates.
-        startDate: start ? (loaded?.all_day ? utcDateKey(loaded.start_at) : toDateKey(start)) : "",
+        startDate: start
+          ? loaded?.all_day
+            ? utcDateKey(start.toISOString())
+            : toDateKey(start)
+          : "",
         startTime: start ? toTimeSlotRounded(start) : "09:00",
-        endDate: end ? (loaded?.all_day ? utcDateKey(loaded.end_at) : toDateKey(end)) : "",
+        endDate: end ? (loaded?.all_day ? utcDateKey(end.toISOString()) : toDateKey(end)) : "",
         endTime: end ? toTimeSlotRounded(end) : "10:00",
         allDay: loaded?.all_day ?? false,
       };
@@ -113,11 +124,6 @@ export function EventSettingsPage() {
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
-  // Custom properties — staging pattern: newly-attached definitions land in
-  // ``pendingProperties`` as stub summaries so they show up immediately in
-  // the PropertyList. The list's debounced save handles persistence.
-  const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
-
   // Attendee candidates come from whatever the event's calendar belongs to
   // (MemberMultiSelect below): every member of its initiative, or every member
   // of the guild when the calendar belongs to no initiative. Event DAC (the
@@ -127,51 +133,6 @@ export function EventSettingsPage() {
     () => (event?.attendees ?? []).flatMap((a) => (a.user ? [a.user] : [])),
     [event?.attendees]
   );
-
-  // Merge server-side property values with freshly-attached (pending) defs —
-  // mirrors the DocumentDetailPage / TaskEditPage pattern. Pending defs are
-  // rendered as stubs so the input shows immediately; the PropertyList's
-  // debounced PUT persists them (even with null values so attached-empty
-  // rows survive a refresh).
-  const serverProperties: PropertySummary[] = useMemo(
-    () => event?.property_values ?? [],
-    [event?.property_values]
-  );
-  const serverPropertyIds = useMemo(
-    () => new Set(serverProperties.map((p) => p.property_id)),
-    [serverProperties]
-  );
-  const combinedProperties = useMemo<PropertySummary[]>(() => {
-    const stubs: PropertySummary[] = pendingProperties
-      .filter((def) => !serverPropertyIds.has(def.id))
-      .map((def) => ({
-        property_id: def.id,
-        name: def.name,
-        type: def.type,
-        options: def.options ?? null,
-        value: null,
-      }));
-    return [...serverProperties, ...stubs];
-  }, [serverProperties, pendingProperties, serverPropertyIds]);
-  const combinedPropertyIds = useMemo(
-    () => combinedProperties.map((p) => p.property_id),
-    [combinedProperties]
-  );
-
-  // Drop pending stubs once the server snapshot confirms they exist.
-  useEffect(() => {
-    setPendingProperties((prev) => {
-      if (prev.length === 0) return prev;
-      const filtered = prev.filter((def) => !serverPropertyIds.has(def.id));
-      return filtered.length === prev.length ? prev : filtered;
-    });
-  }, [serverPropertyIds]);
-
-  const handleAddProperty = (definition: PropertyDefinitionRead) => {
-    setPendingProperties((prev) =>
-      prev.some((p) => p.id === definition.id) ? prev : [...prev, definition]
-    );
-  };
 
   useEffect(() => {
     if (event) {
@@ -189,7 +150,9 @@ export function EventSettingsPage() {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
-  const setEventTags = useSetEventTags(eventId);
+  // Its own instance of the update, so a tag change saves without the
+  // details toast.
+  const saveTags = useUpdateCalendarEvent(eventId);
 
   // Tags persist immediately on change (like tasks/documents), no Save button.
   // Optimistically update, then roll back to the prior selection if the save
@@ -197,7 +160,7 @@ export function EventSettingsPage() {
   const handleTagsChange = (newTags: TagSummary[]) => {
     const previous = tags;
     setTags(newTags);
-    setEventTags.mutate(
+    saveTags.mutate(
       { tag_ids: newTags.map((tag) => tag.id) },
       { onError: () => setTags(previous) }
     );
@@ -216,11 +179,34 @@ export function EventSettingsPage() {
     },
   });
 
-  const handleSave = () => {
+  // A change to a repeating event, or to one occurrence of it, asks which
+  // occurrences it is for. "Just this" and "from here on" answer with another
+  // row (the occurrence's own, or the new series), which the page moves to.
+  const scopePrompt = useScopePrompt();
+  const repeating = Boolean(event?.recurrence) || event?.series_id != null;
+  const askScope = async (action: "edit" | "delete") => {
+    if (!repeating) return {};
+    const scope = await scopePrompt.ask(action);
+    if (!scope) return null;
+    return event?.series_id != null
+      ? { scope }
+      : { scope, occurrence: occurrence ?? event?.start_at };
+  };
+  const followRow = (saved: CalendarEventRead) => {
+    if (saved.id !== eventId) {
+      void router.navigate({
+        to: gp(eventSettingsRoute(initiativeId, saved.calendar_id, saved.id)),
+      });
+    }
+  };
+
+  const handleSave = async () => {
     if (!range) return;
     // What is being sent, so anything changed while this is in flight is not
     // counted as saved by it.
     const sent = details.values;
+    const target = await askScope("edit");
+    if (target === null) return;
     updateEvent.mutate(
       {
         title: sent.title.trim() || undefined,
@@ -228,8 +214,14 @@ export function EventSettingsPage() {
         location: sent.location.trim() || undefined,
         ...range,
         all_day: sent.allDay,
+        ...target,
       },
-      { onSuccess: () => details.settle(sent) }
+      {
+        onSuccess: (saved) => {
+          details.settle(sent);
+          followRow(saved);
+        },
+      }
     );
   };
 
@@ -241,10 +233,41 @@ export function EventSettingsPage() {
     });
   };
 
-  const handleSaveAttendees = () => {
+  const handleSaveAttendees = async () => {
     const sent = attendees.values;
-    setAttendees.mutate(sent.ids, { onSuccess: () => attendees.settle(sent) });
+    const target = await askScope("edit");
+    if (target === null) return;
+    setAttendees.mutate(
+      { userIds: sent.ids, ...target },
+      {
+        onSuccess: (saved) => {
+          attendees.settle(sent);
+          followRow(saved);
+        },
+      }
+    );
   };
+
+  const handleDelete = async () => {
+    if (!repeating) {
+      setDeleteConfirmOpen(true);
+      return;
+    }
+    const target = await askScope("delete");
+    if (target) deleteEvent.mutate({ eventId, ...target });
+  };
+
+  // A series' skipped and extra dates.
+  const restoreDate = useOccurrenceAction(eventId, "restore", {
+    onSuccess: () => toast.success(t("occurrence.restored")),
+  });
+  const addDate = useOccurrenceAction(eventId, "add", {
+    onSuccess: () => {
+      toast.success(t("occurrence.added"));
+      setExtraDate("");
+    },
+  });
+  const [extraDate, setExtraDate] = useState("");
 
   if (isLoading) {
     return (
@@ -310,7 +333,7 @@ export function EventSettingsPage() {
 
           <EventDateTimeFields value={details.values} onChange={details.set} />
 
-          <Button onClick={handleSave} disabled={updateEvent.isPending || !range}>
+          <Button onClick={() => void handleSave()} disabled={updateEvent.isPending || !range}>
             {updateEvent.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -329,22 +352,99 @@ export function EventSettingsPage() {
           <CardTitle>{t("repeat")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RecurrenceEditor
-            kind="event"
-            value={repeat.values.rule}
-            onChange={(rule) => repeat.set({ rule })}
-            referenceDate={event.all_day ? allDayReference(event.start_at) : event.start_at}
-            allDay={event.all_day}
-            stored={
-              event.recurrence ? { rule: event.recurrence, shift: event.recurrence_shift } : null
-            }
-          />
-          <Button
-            onClick={handleSaveRepeat}
-            disabled={updateEvent.isPending || !repeat.edited || repeat.values.rule === "custom"}
-          >
-            {t("common:save")}
-          </Button>
+          {event.series_id != null ? (
+            <div className="space-y-1 text-sm">
+              <p className="text-muted-foreground">{t("occurrence.followsSeries")}</p>
+              <Link
+                className="text-primary underline-offset-4 hover:underline"
+                to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.series_id))}
+              >
+                {t("occurrence.openSeries")}
+              </Link>
+            </div>
+          ) : (
+            <>
+              <RecurrenceEditor
+                kind="event"
+                value={repeat.values.rule}
+                onChange={(rule) => repeat.set({ rule })}
+                referenceDate={event.all_day ? allDayReference(event.start_at) : event.start_at}
+                allDay={event.all_day}
+                stored={
+                  event.recurrence
+                    ? { rule: event.recurrence, shift: event.recurrence_shift }
+                    : null
+                }
+              />
+              <Button
+                onClick={handleSaveRepeat}
+                disabled={
+                  updateEvent.isPending || !repeat.edited || repeat.values.rule === "custom"
+                }
+              >
+                {t("common:save")}
+              </Button>
+            </>
+          )}
+
+          {event.recurrence &&
+            (
+              [
+                ["skipped", event.skipped_starts, true],
+                ["extra", event.extra_starts, false],
+              ] as const
+            ).map(([kind, starts, restorable]) =>
+              starts.length ? (
+                <div key={kind} className="space-y-2">
+                  <Label>{t(`occurrence.${kind}`)}</Label>
+                  <ul className="space-y-1 text-sm">
+                    {starts.map((start) => (
+                      <li key={start} className="flex items-center justify-between gap-2">
+                        <span>
+                          {event.all_day ? formatDate(start.slice(0, 10)) : formatDateTime(start)}
+                        </span>
+                        {restorable ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => restoreDate.mutate(start)}
+                            disabled={restoreDate.isPending}
+                          >
+                            {t("occurrence.restore")}
+                          </Button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null
+            )}
+
+          {event.recurrence ? (
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-2">
+                <Label>{t("occurrence.addDate")}</Label>
+                <DateTimePicker
+                  value={extraDate}
+                  onChange={setExtraDate}
+                  includeTime={!event.all_day}
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={!extraDate || addDate.isPending}
+                onClick={() =>
+                  addDate.mutate(
+                    event.all_day
+                      ? `${extraDate.slice(0, 10)}T00:00:00Z`
+                      : new Date(extraDate).toISOString()
+                  )
+                }
+              >
+                {t("occurrence.addDate")}
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -362,7 +462,7 @@ export function EventSettingsPage() {
             emptyMessage={t("noAttendees")}
           />
 
-          <Button onClick={handleSaveAttendees} disabled={setAttendees.isPending}>
+          <Button onClick={() => void handleSaveAttendees()} disabled={setAttendees.isPending}>
             {setAttendees.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -392,18 +492,13 @@ export function EventSettingsPage() {
           <CardHeader>
             <CardTitle>{t("properties")}</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <PropertyList
-              entityKind="event"
+          <CardContent>
+            <PropertyPanel
+              target={PropertyTarget.calendar_event}
               entityId={eventId}
-              properties={combinedProperties}
+              saved={event.properties}
               initiativeId={event.initiative_id}
               canOpen={{ tool: Tool.calendar, id: event.calendar_id }}
-            />
-            <AddPropertyButton
-              initiativeId={event.initiative_id}
-              currentPropertyIds={combinedPropertyIds}
-              onAdd={handleAddProperty}
             />
           </CardContent>
         </Card>
@@ -418,7 +513,7 @@ export function EventSettingsPage() {
         <CardContent>
           <Button
             variant="destructive"
-            onClick={() => setDeleteConfirmOpen(true)}
+            onClick={() => void handleDelete()}
             disabled={deleteEvent.isPending}
           >
             <Trash2 className="h-4 w-4" />
@@ -434,9 +529,10 @@ export function EventSettingsPage() {
         description={t("deleteEventConfirm")}
         confirmLabel={t("deleteEvent")}
         destructive
-        onConfirm={() => deleteEvent.mutate(eventId)}
+        onConfirm={() => deleteEvent.mutate({ eventId })}
         isLoading={deleteEvent.isPending}
       />
+      {scopePrompt.dialog}
     </div>
   );
 }

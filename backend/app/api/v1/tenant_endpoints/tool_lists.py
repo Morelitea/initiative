@@ -1,11 +1,12 @@
-"""Tool lists and their sidebar counts — one pair of routes per tool, mounted once.
+"""Tool lists and their sidebar counts — a list per tool, and one count for all.
 
-``GET /`` and ``GET /counts/by-initiative`` were nine copies each of the same
-hundred lines: scope the guild, honour the tool's switch, apply sharing, narrow
-by the search box and the tag filter, count, order, page, annotate, serialize.
-None of that depends on which tool it is beyond the model, what to eager-load
-and how a row becomes a summary — so the pair is mounted per ``Tool`` out of
-:data:`TOOL_LISTS` rather than written nine times over. The query itself is
+``GET /`` was nine copies of the same hundred lines: scope the guild, honour
+the tool's switch, apply sharing, narrow by the search box and the tag filter,
+count, order, page, annotate, serialize. None of that depends on which tool it
+is beyond the model, what to eager-load and how a row becomes a summary — so
+the list is mounted per ``Tool`` out of :data:`TOOL_LISTS` rather than written
+nine times over, and ``GET /tools/counts/by-initiative`` answers every tool's
+sidebar badge from the same registry in one statement. The query itself is
 :mod:`app.services.tenant.tool_listing`; the per-tool differences that survive
 are the registry's fields, and each is commented where it sits.
 
@@ -19,9 +20,8 @@ is what has been *granted* to the reader — the same rule their sidebar and the
 community front page list initiatives by. A badge that counted an admin's whole
 guild would not be a badge about them.
 
-Each route keeps the path, method, tag, name, summary and parameters its tool
-already had, so the published surface and the generated client are unchanged
-but for the ``tag_ids`` filter every tool now accepts.
+Each list keeps the path, method, tag, name, summary and parameters its tool
+already had.
 
 :data:`TOOL_LISTS` also carries each tool's **single-row** answer — its Read
 model and its own re-read-and-serialize — because that is the same per-tool
@@ -34,13 +34,15 @@ keep in step. :mod:`app.api.v1.tenant_endpoints.tool_grants` reads it.
 # have to be real objects for FastAPI to read them.
 
 import inspect
-from dataclasses import dataclass
+from functools import lru_cache
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any, Awaitable, Callable, List, Literal, Optional
+from typing import Annotated, Any, Awaitable, Callable, List, Literal, Mapping, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_
+from pydantic import BaseModel, ConfigDict, ValidationError, create_model
+from sqlalchemy import and_, func, literal, select, union_all
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.actor_route import ActorRoute
@@ -76,8 +78,6 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post
 from app.models.tenant.project import Project
 from app.models.tenant.project_order import ProjectOrder
-from app.models.tenant.property import PropertyType
-from app.schemas.query import FilterOp
 from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki
 from app.schemas.tenant.calendar import (
@@ -104,7 +104,10 @@ from app.schemas.tenant.gallery import (
     GalleryRead,
     GallerySummary,
 )
-from app.schemas.tenant.initiative import InitiativeGroupedCountsResponse
+from app.schemas.tenant.initiative import (
+    ToolCountsByInitiativeResponse,
+    ToolCountsResponse,
+)
 from app.schemas.tenant.post import PostListResponse, PostRead
 from app.schemas.tenant.project import ProjectListResponse, ProjectRead
 from app.schemas.tenant.queue import (
@@ -118,6 +121,7 @@ from app.schemas.tenant.wiki import (
     WikiSummary,
 )
 from app.schemas.tenant.tool import ToolSummaryBase, serialize_tool
+from app.services.permissions import Action
 from app.services.tenant import archive as archive_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
@@ -228,6 +232,24 @@ def _tag_ids(tool: Tool, description: Optional[str] = None) -> ListParam:
     )
 
 
+def _property_filters() -> ListParam:
+    """Every tool carries properties, so every list narrows by them — ALL-of,
+    each a typed comparison against one property's value."""
+    return ListParam(
+        "property_filters",
+        Optional[str],
+        Query(
+            default=None,
+            description=(
+                "JSON-encoded list of property-value filters, e.g. "
+                '`[{"property_id": 12, "op": "eq", "value": "live"}]`. '
+                f"Maximum {properties_service.MAX_PROPERTY_FILTERS} "
+                "conditions per request."
+            ),
+        ),
+    )
+
+
 def _archived(described: bool = True) -> ListParam:
     return ListParam(
         "archived",
@@ -237,6 +259,22 @@ def _archived(described: bool = True) -> ListParam:
             description=archive_service.ARCHIVED_QUERY_DESCRIPTION
             if described
             else None,
+        ),
+    )
+
+
+def _is_template(tool: Tool) -> ListParam:
+    """The template filter of a tool that has templates."""
+    plural = tool.plural.replace("_", " ")
+    return ListParam(
+        "is_template",
+        Optional[bool],
+        Query(
+            default=None,
+            description=(
+                f"Only templates (true) or only {plural} that are not templates "
+                "(false). Omit for both."
+            ),
         ),
     )
 
@@ -262,6 +300,72 @@ def page_size_param(
 # ---------------------------------------------------------------------------
 # The registry
 # ---------------------------------------------------------------------------
+
+
+#: List params that say where, in what order and in what shape a page is
+#: served, or which rows the reader may change: the caller's, not filters.
+_NOT_FILTERS = frozenset(
+    {
+        "initiative_id",
+        "ids",
+        "scope",
+        "slim",
+        "writable",
+        "page",
+        "page_size",
+        "sort_by",
+        "sort_dir",
+    }
+)
+
+
+@lru_cache(maxsize=None)
+def list_filter_model(tool: Tool) -> type[BaseModel]:
+    """What one tool's list can be narrowed by: its params, less the ones that
+    place and order a page. Derived, so a filter the list gains is one every
+    caller narrowing that list (its counts, its export) takes."""
+    return create_model(
+        f"{tool.value}_list_filters",
+        __config__=ConfigDict(extra="forbid"),
+        **{
+            param.name: (param.annotation, param.default.default)
+            for param in TOOL_LISTS[tool].params
+            if param.name not in _NOT_FILTERS
+        },
+    )
+
+
+def _list_filters(tool: Tool, raw: Optional[str]) -> dict[str, Any]:
+    """The list filters a request sent as JSON, checked against the tool's
+    list; the ones it left out are not narrowing."""
+    if not raw:
+        return {}
+    try:
+        return (
+            list_filter_model(tool)
+            .model_validate_json(raw)
+            .model_dump(exclude_unset=True)
+        )
+    except ValidationError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+
+
+#: Live rows and the archive: the views every tool has.
+DEFAULT_VIEWS: Mapping[str, Mapping[str, Any]] = {
+    "active": {},
+    "archived": {"archived": True},
+}
+
+#: The views of a tool with templates: its live rows without them, the
+#: templates on their own, and an archive holding both.
+TEMPLATE_VIEWS: Mapping[str, Mapping[str, Any]] = {
+    "active": {"is_template": False},
+    "templates": {"is_template": True},
+    "archived": {"archived": True},
+}
 
 
 @dataclass(frozen=True)
@@ -308,12 +412,14 @@ class ToolListSpec:
     extra_sort_fields: Optional[dict[str, Any]] = None
     #: (req) -> statement transform applied before ORDER BY reads it.
     refine: Optional[Callable[["ListRequest"], Callable[[Any], Any]]] = None
-    #: (user, guild_context) -> extra WHERE legs for the counts route.
-    counts_conditions: Optional[Callable[..., list]] = None
-    #: (req) -> extra fields on the list response.
-    response_extras: Optional[Callable[["ListRequest"], dict]] = None
+    #: The views the tool's page shows one at a time, each as the list
+    #: parameters that select it. Every count is a count of one of these lists.
+    views: Mapping[str, Mapping[str, Any]] = field(
+        default_factory=lambda: dict(DEFAULT_VIEWS)
+    )
+    #: (the request's values) -> extra fields on the list response.
+    response_extras: Optional[Callable[[dict], dict]] = None
     list_doc: Optional[str] = None
-    counts_doc: Optional[str] = None
     #: The OpenAPI tag, where it is not the tool's own plural.
     tag: Optional[str] = None
     #: Whether an installed app may list this tool, under its read scope.
@@ -355,11 +461,27 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     ]
 
 
+async def list_conditions(spec: ToolListSpec, req: ListRequest) -> list:
+    """The WHERE one tool's list answers ``req`` with — what an export of the
+    tool narrows by, too. Every tool carries properties, so every list
+    narrows by them the same way."""
+    return [
+        *await (spec.conditions or _default_conditions)(spec, req),
+        *await properties_service.property_filter_clauses(
+            req.session,
+            spec.tool.value,
+            req.values.get("property_filters"),
+            names_people=req.user is not None,
+        ),
+    ]
+
+
 def _summaries(schema: type[ToolSummaryBase]) -> Callable[..., Awaitable[list]]:
     """The ordinary page: tag the rows, then turn each into its summary."""
 
     async def serialize(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
         await tags_service.annotate_tags(req.session, rows)
+        await properties_service.annotate_properties(req.session, rows)
         return [
             serialize_tool(schema, row, context=req.guild_context, user_id=req.user_id)
             for row in rows
@@ -384,18 +506,19 @@ def _order(*columns: Any) -> Callable[[ListRequest], list]:
 
 
 async def _project_conditions(spec: ToolListSpec, req: ListRequest) -> list:
-    # ``template`` is the projects list's own filter: a blueprint is not work
-    # in progress, so it is left out unless it is asked for by name.
     values = req.values
-    return projects_endpoints.visible_project_conditions(
+    conditions = projects_endpoints.visible_project_conditions(
         req.user_id,
         context=req.guild_context,
         archived=values.get("archived"),
-        template=values.get("template"),
+        is_template=values.get("is_template"),
         search=values.get("search"),
         tag_ids=values.get("tag_ids"),
         initiative_id=values.get("initiative_id"),
     )
+    if values.get("writable"):
+        conditions.append(Project.actions.any(Action.edit.value))
+    return conditions
 
 
 def _project_refine(req: ListRequest) -> Callable[[Any], Any]:
@@ -461,52 +584,7 @@ async def _document_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     conditions.append(
         archive_service.archive_filter_clause(Document, values.get("archived"))
     )
-    conditions.extend(
-        await _property_filter_clauses(
-            req.session,
-            values.get("property_filters"),
-            names_people=req.user is not None,
-        )
-    )
     return conditions
-
-
-async def _property_filter_clauses(
-    session: AsyncSession, raw: Optional[str], *, names_people: bool
-) -> list:
-    """WHERE clauses for the typed property filters a document list may carry.
-
-    Loads the definitions the caller can see, then hands the compilation to the
-    shared helper so documents, tasks and events agree about what each operator
-    means. A filter on a person-valued property takes row ids, which an
-    installed app does not hold, so it is left to people (``names_people``),
-    as the task list does.
-    """
-    try:
-        parsed = properties_service.parse_property_filters(raw)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=QueryMessages.INVALID_CONDITIONS,
-        )
-    if not parsed:
-        return []
-    definitions = await properties_service.load_definitions_by_ids(
-        session, [condition.property_id for condition in parsed]
-    )
-    if not names_people and any(
-        condition.op is not FilterOp.is_null
-        and (definition := definitions.get(condition.property_id)) is not None
-        and definition.type is PropertyType.user_reference
-        for condition in parsed
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=QueryMessages.INVALID_CONDITIONS,
-        )
-    return properties_service.build_property_filter_clauses(
-        "document", parsed, definitions
-    )
 
 
 async def _serialize_documents(
@@ -537,6 +615,14 @@ async def _calendar_conditions(spec: ToolListSpec, req: ListRequest) -> list:
 # ---------------------------------------------------------------------------
 
 
+async def _queue_conditions(spec: ToolListSpec, req: ListRequest) -> list:
+    """The shared set, and whether the queue is running."""
+    conditions = await _default_conditions(spec, req)
+    if req.values.get("is_active") is not None:
+        conditions.append(Queue.is_active.is_(req.values["is_active"]))
+    return conditions
+
+
 async def _post_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     values = req.values
     conditions = posts_endpoints.board_conditions(
@@ -546,9 +632,7 @@ async def _post_conditions(spec: ToolListSpec, req: ListRequest) -> list:
         search=values.get("search"),
         tag_ids=values.get("tag_ids"),
         unread=bool(values.get("unread")),
-    )
-    conditions.append(
-        archive_service.archive_filter_clause(Post, values.get("archived"))
+        archived=values.get("archived"),
     )
     if values.get("until") is not None:
         conditions.append(posts_service.anchored_clause(values["until"]))
@@ -562,10 +646,8 @@ def _post_order(req: ListRequest) -> list:
 async def _serialize_posts(spec: ToolListSpec, req: ListRequest, rows: list) -> list:
     # One grouped query each for the page, so a board of twenty asks a handful
     # of times rather than forty.
-    session = req.session
-    await tags_service.annotate_tags(session, rows)
     # An installed app's page carries no reactions, read state or ballots.
-    await posts_endpoints.annotate_post_rows(session, rows, user_id=req.user_id)
+    await posts_endpoints.annotate_post_rows(req.session, rows, user_id=req.user_id)
     return [
         serialize_tool(PostRead, post, context=req.guild_context, user_id=req.user_id)
         for post in rows
@@ -628,10 +710,10 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         conditions=_project_conditions,
         refine=_project_refine,
         clamp_page=True,
-        counts_conditions=lambda user, guild_context: [Project.is_template.is_(False)],
+        views=TEMPLATE_VIEWS,
         params=(
-            _archived(described=False),
-            ListParam("template", Optional[bool], Query(default=None)),
+            _archived(),
+            _is_template(Tool.project),
             search_param(),
             _initiative_id(
                 "Only projects in this initiative. Omit for every initiative "
@@ -650,21 +732,26 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
                     ),
                 ),
             ),
+            ListParam(
+                "writable",
+                bool,
+                Query(
+                    default=False,
+                    description=(
+                        "Only projects the caller may edit — the pickers that "
+                        "move work into a project."
+                    ),
+                ),
+            ),
             sort_by_param(
                 "Order by one of: name, initiative, updated_at. Omit to keep "
                 "the reader's own manual order."
             ),
             sort_dir_param(),
             _tag_ids(Tool.project),
+            _property_filters(),
             page_param(),
             page_size_param(0, ge=0, le=100),
-        ),
-        counts_doc=(
-            "Visible-project counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for initiative landing-card badges — same\n"
-            "visibility rules as the default project list (non-archived,\n"
-            "non-template), one GROUP BY instead of walking the full corpus."
         ),
     ),
     Tool.document: ToolListSpec(
@@ -683,12 +770,13 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         default_order=_order(Document.updated_at.desc(), Document.id.desc()),
         serialize=_serialize_documents,
         conditions=_document_conditions,
+        views=TEMPLATE_VIEWS,
         # The one tool that also sorts by when a row was written — a document
         # list is a filing cabinet, and "newest first" is how you read one.
         extra_sort_fields={"created_at": Document.created_at},
-        response_extras=lambda req: {
-            "sort_by": req.values.get("sort_by"),
-            "sort_dir": req.values.get("sort_dir"),
+        response_extras=lambda values: {
+            "sort_by": values.get("sort_by"),
+            "sort_dir": values.get("sort_dir"),
         },
         params=(
             _initiative_id(),
@@ -706,36 +794,17 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             search_param(description=None),
             _tag_ids(Tool.document, description="Filter by tag IDs"),
+            _property_filters(),
             ListParam(
                 "untagged",
                 Optional[bool],
                 Query(default=None, description="Filter to documents with no tags"),
             ),
-            ListParam(
-                "is_template",
-                Optional[bool],
-                Query(
-                    default=None,
-                    description="Filter to template (or non-template) documents",
-                ),
-            ),
+            _is_template(Tool.document),
             ListParam(
                 "document_type",
                 Optional[DocumentType],
                 Query(default=None, description="Filter by document type"),
-            ),
-            ListParam(
-                "property_filters",
-                Optional[str],
-                Query(
-                    default=None,
-                    description=(
-                        "JSON-encoded list of property-value filters, e.g. "
-                        '`[{"property_id": 12, "op": "eq", "value": "live"}]`. '
-                        f"Maximum {properties_service.MAX_PROPERTY_FILTERS} "
-                        "conditions per request."
-                    ),
-                ),
             ),
             page_param(),
             page_size_param(20, ge=0, le=100),
@@ -756,13 +825,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             'Cross-guild "my documents" lives under /me/documents (see '
             "list_my_documents)."
         ),
-        counts_doc=(
-            "Visible-document counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar and initiative landing-card\n"
-            "badges — same visibility filters as the document list, one GROUP BY\n"
-            "instead of walking the full corpus."
-        ),
     ),
     Tool.queue: ToolListSpec(
         tool=Tool.queue,
@@ -779,13 +841,23 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
         loader_options=_loads(queues_service.list_loader_options),
         default_order=_order(Queue.updated_at.desc(), Queue.id.desc()),
         serialize=_summaries(QueueSummary),
+        conditions=_queue_conditions,
         params=(
             _initiative_id(),
             search_param(),
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.queue),
+            _property_filters(),
             _archived(),
+            ListParam(
+                "is_active",
+                Optional[bool],
+                Query(
+                    default=None,
+                    description="Only running queues, or only stopped ones.",
+                ),
+            ),
             page_param(),
             page_size_param(20, ge=1, le=100),
         ),
@@ -794,13 +866,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "\n"
             "DAC: Queues with explicit QueuePermission or role-based permission.\n"
             "Guild admins see all queues."
-        ),
-        counts_doc=(
-            "Visible-queue counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules\n"
-            "as the queue list (queues-enabled initiatives, DAC), one GROUP BY\n"
-            "instead of a capped list page."
         ),
     ),
     Tool.counter_group: ToolListSpec(
@@ -827,16 +892,10 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.counter_group),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(20, ge=1, le=100),
-        ),
-        counts_doc=(
-            "Visible counter-group counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules\n"
-            "as the counter-group list (counters-enabled initiatives, DAC), one\n"
-            "GROUP BY instead of a capped list page."
         ),
     ),
     Tool.calendar: ToolListSpec(
@@ -865,6 +924,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.calendar),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=1, le=200),
@@ -879,17 +939,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "unfiltered list, which is everything in scope, so it is asked for by "
             "name\n"
             "rather than inferred from an absent ``initiative_id``."
-        ),
-        counts_doc=(
-            "Visible-calendar counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules "
-            "as the\n"
-            "calendar list (calendars-enabled initiatives, DAC), one GROUP BY "
-            "instead of\n"
-            "a capped list page. Guild calendars belong to no initiative, so they "
-            "fall\n"
-            "outside every group here — the sidebar rows are initiative rows."
         ),
     ),
     Tool.dashboard: ToolListSpec(
@@ -918,20 +967,12 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             sort_by_param(),
             sort_dir_param(),
             _tag_ids(Tool.dashboard),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=1, le=200),
         ),
         list_doc="List dashboards visible to the current user (guild admins see all).",
-        counts_doc=(
-            "Visible-dashboard counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules "
-            "as the\n"
-            "dashboard list (dashboards-enabled initiatives, DAC), one GROUP BY "
-            "instead\n"
-            "of a capped list page."
-        ),
     ),
     Tool.post: ToolListSpec(
         tool=Tool.post,
@@ -962,6 +1003,7 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             sort_dir_param(),
             _tag_ids(Tool.post),
+            _property_filters(),
             _archived(),
             ListParam(
                 "unread",
@@ -1007,13 +1049,6 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             "who\n"
             "could edit it; for everyone else the board starts when it goes up."
         ),
-        counts_doc=(
-            "Visible-post counts grouped by initiative.\n"
-            "\n"
-            "Lightweight endpoint for the sidebar badges — same visibility rules "
-            "as the\n"
-            "post list, one GROUP BY instead of a capped list page."
-        ),
     ),
     Tool.gallery: ToolListSpec(
         tool=Tool.gallery,
@@ -1041,14 +1076,12 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             sort_dir_param(),
             _tag_ids(Tool.gallery),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=0, le=500),
         ),
         list_doc="List galleries visible to the current user (guild admins see all).",
-        counts_doc=(
-            "Visible-gallery counts grouped by initiative, for the sidebar badges."
-        ),
     ),
     Tool.wiki: ToolListSpec(
         tool=Tool.wiki,
@@ -1071,14 +1104,12 @@ TOOL_LISTS: dict[Tool, ToolListSpec] = {
             ),
             sort_dir_param(),
             _tag_ids(Tool.wiki),
+            _property_filters(),
             _archived(),
             page_param(),
             page_size_param(100, ge=0, le=500),
         ),
         list_doc="List wikis visible to the current user (guild admins see all).",
-        counts_doc=(
-            "Visible-wiki counts grouped by initiative, for the sidebar badges."
-        ),
     ),
 }
 
@@ -1143,8 +1174,7 @@ def _mount_list(spec: ToolListSpec) -> None:
 
     async def list_rows(session, current_user, guild_context, **values):
         request = ListRequest(session, current_user, guild_context, values)
-        build_conditions = spec.conditions or _default_conditions
-        conditions = await build_conditions(spec, request)
+        conditions = await list_conditions(spec, request)
         rows, total_count, page = await tool_listing.list_tool_rows(
             session,
             spec.model,
@@ -1161,7 +1191,7 @@ def _mount_list(spec: ToolListSpec) -> None:
         )
         items = await spec.serialize(spec, request, rows)
         page_size = values["page_size"]
-        extras = spec.response_extras(request) if spec.response_extras else {}
+        extras = spec.response_extras(values) if spec.response_extras else {}
         return spec.response_model(
             **build_paginated_response(items, total_count, page, page_size, **extras)
         )
@@ -1181,43 +1211,155 @@ def _mount_list(spec: ToolListSpec) -> None:
     )
 
 
-def _mount_counts(spec: ToolListSpec) -> None:
-    """Mount ``GET /counts/by-initiative`` for one tool."""
+async def _view_conditions(
+    spec: ToolListSpec,
+    session: AsyncSession,
+    current_user: User,
+    guild_context: ActorContext,
+    **values: Any,
+) -> list:
+    """The WHERE the tool's own list answers ``values`` with."""
+    return await list_conditions(
+        spec, ListRequest(session, current_user, guild_context, values)
+    )
 
-    async def counts_by_initiative(
-        session: RLSSessionDep,
-        current_user: CurrentUserDep,
-        guild_context: GuildContextDep,
-    ) -> InitiativeGroupedCountsResponse:
-        extra = (
-            spec.counts_conditions(current_user, guild_context)
-            if spec.counts_conditions
-            else ()
+
+@router.get(
+    "/tools/counts/by-initiative",
+    response_model=ToolCountsByInitiativeResponse,
+    tags=["tools"],
+)
+async def get_tool_counts_by_initiative(
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+) -> ToolCountsByInitiativeResponse:
+    """Every tool's live rows, grouped by initiative.
+
+    What the sidebar and the initiative directory badge: each tool's ``active``
+    view, counted by the same conditions as its list, in one statement for
+    every tool rather than a request per tool. Rows belonging to the guild
+    rather than an initiative fall outside every group.
+    """
+    selects = [
+        select(literal(spec.tool.value), spec.model.initiative_id, func.count())
+        .where(
+            *await _view_conditions(
+                spec, session, current_user, guild_context, **spec.views["active"]
+            )
         )
-        counts = await tool_listing.count_tool_rows_by_initiative(
+        .group_by(spec.model.initiative_id)
+        for spec in TOOL_LISTS.values()
+    ]
+    counts: dict[Tool, dict[int, int]] = {tool: {} for tool in TOOL_LISTS}
+    for tool, initiative_id, count in (await session.exec(union_all(*selects))).all():
+        if initiative_id is not None:
+            counts[Tool(tool)][initiative_id] = count
+    return ToolCountsByInitiativeResponse(counts=counts)
+
+
+@router.get("/tools/{tool}/counts", response_model=ToolCountsResponse, tags=["tools"])
+async def get_tool_counts(
+    tool: Tool,
+    session: RLSSessionDep,
+    current_user: CurrentUserDep,
+    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
+    view: str = Query(
+        default="active",
+        description="The view the tag counts are for: active, archived, or "
+        "templates for a tool that has them",
+    ),
+    filters: Optional[str] = Query(
+        default=None,
+        description="JSON object of the tool's own list filters, as its list "
+        'route takes them (``{"search": "notes", "document_type": "native"}``), '
+        "that the tag counts are for",
+    ),
+    include_tags: bool = Query(
+        default=False, description="Also count the tag tree beside ``view``"
+    ),
+) -> ToolCountsResponse:
+    """How many rows sit in each of one tool's views, and, when asked, the tag
+    tree beside the one being shown.
+
+    Every figure is a count of the tool's own list. ``views`` counts each view
+    in the initiative (or the guild) whatever the page's filters, so a toggle
+    says how much sits behind each view before it is opened. The tag counts
+    are for ``view`` after ``search`` and the tool's own filters, so the tree
+    and the list beside it agree; tags are not a filter here, because the tree
+    shows every one. A page with no tree leaves ``include_tags`` off and its
+    request runs the view counts alone.
+    """
+    spec = TOOL_LISTS[tool]
+    if view not in spec.views:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=QueryMessages.UNKNOWN_VIEW,
+        )
+    scope = {"initiative_id": initiative_id}
+    # Checked whether or not the tag counts are asked for. The tree shows
+    # every tag, so tags are what it counts, not what it narrows by; and what
+    # the views select by (the archive, templates) is the view's to say.
+    set_aside = {
+        "tag_ids",
+        "untagged",
+        *(key for v in spec.views.values() for key in v),
+    }
+    narrowing = {
+        name: value
+        for name, value in _list_filters(tool, filters).items()
+        if name not in set_aside
+    }
+
+    view_counts = (
+        await session.exec(
+            union_all(
+                *[
+                    select(literal(name), func.count()).where(
+                        *await _view_conditions(
+                            spec,
+                            session,
+                            current_user,
+                            guild_context,
+                            **scope,
+                            **params,
+                        )
+                    )
+                    for name, params in spec.views.items()
+                ]
+            )
+        )
+    ).all()
+    if not include_tags:
+        return ToolCountsResponse(views=dict(view_counts))
+
+    shown = select(spec.model.id).where(
+        *await _view_conditions(
+            spec,
             session,
-            spec.tool,
-            spec.model,
-            spec.enabled_column,
-            user_id=current_user.id,
-            extra_conditions=extra,
-            context=guild_context,
+            current_user,
+            guild_context,
+            **scope,
+            **narrowing,
+            **spec.views[view],
         )
-        return InitiativeGroupedCountsResponse(counts=counts)
+    )
+    link = tags_service.TOOL_TAG_LINKS[tool]
+    tag_rows = (await session.exec(tags_service.tag_counts_for(link, shown))).all()
+    shown_subq = shown.subquery()
+    untagged_count = await session.scalar(
+        select(func.count())
+        .select_from(shown_subq)
+        .where(tags_service.untagged_clause(link, shown_subq.c.id))
+    )
 
-    router.add_api_route(
-        # Declared before the tools' own ``/{id}`` routes, so the literal path
-        # wins the match: this router is included first (see api.py).
-        f"/{spec.tool.route_segment}/counts/by-initiative",
-        counts_by_initiative,
-        methods=["GET"],
-        response_model=InitiativeGroupedCountsResponse,
-        name=f"get_{spec.tool.value}_counts_by_initiative",
-        description=spec.counts_doc,
-        tags=_tags(spec),
+    return ToolCountsResponse(
+        views=dict(view_counts),
+        tag_counts=dict(tag_rows),
+        untagged_count=untagged_count,
     )
 
 
 for _spec in TOOL_LISTS.values():
-    _mount_counts(_spec)
     _mount_list(_spec)

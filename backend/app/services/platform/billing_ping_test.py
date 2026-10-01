@@ -264,6 +264,117 @@ async def test_payment_issue_unreachable_is_false(
     assert await billing_ping.guild_payment_failed(7) is False
 
 
+_SUMMARY = {
+    "tier_name": "Gold",
+    "trial_ends_on": None,
+    "renews_on": "2026-11-01",
+    "next_charge": {"total": 1250, "currency": "USD"},
+    "scheduled_change": {"action": "cancel", "on": "2026-11-01"},
+    "payment_failed": False,
+}
+
+
+async def test_plan_summary_unconfigured_makes_no_call(monkeypatch, known_ref):
+    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json=_SUMMARY))
+    assert await billing_ping.guild_plan_summary(7) is None
+    assert seen == []
+
+
+async def test_plan_summary_without_a_ref_is_empty_and_mints_nothing(
+    session, billing_configured, monkeypatch
+):
+    guild = await create_guild(session)
+    await session.commit()
+    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json=_SUMMARY))
+    assert await billing_ping.guild_plan_summary(guild.id) == (
+        billing_ping.PlanSummary()
+    )
+    assert seen == []
+    assert (
+        await existing_ref(
+            entity_type=IdentityEntity.guild,
+            entity_id=guild.id,
+            purpose=IdentityPurpose.billing,
+        )
+        is None
+    )
+
+
+async def test_plan_summary_sends_only_the_ref_signed(
+    billing_configured, known_ref, monkeypatch
+):
+    seen = _answering(monkeypatch, lambda r: httpx.Response(200, json=_SUMMARY))
+    summary = await billing_ping.guild_plan_summary(7)
+    assert summary is not None
+    assert summary.model_dump(mode="json") == _SUMMARY
+    (request,) = seen
+    assert request.method == "POST"
+    assert str(request.url) == "https://billing.internal/api/v1/plan-summary"
+    body = request.content
+    assert json.loads(body) == {"guild_ref": "gbil_known"}
+    ts = request.headers["X-Billing-Timestamp"]
+    message = "\n".join(
+        ["POST", "/api/v1/plan-summary", ts, hashlib.sha256(body).hexdigest()]
+    ).encode()
+    expected = hmac.new(_SECRET.encode(), message, hashlib.sha256).hexdigest()
+    assert request.headers["X-Billing-Signature"] == expected
+
+
+async def test_plan_summary_ignores_fields_it_does_not_know(
+    billing_configured, known_ref, monkeypatch
+):
+    _answering(
+        monkeypatch,
+        lambda r: httpx.Response(200, json={**_SUMMARY, "later": "field"}),
+    )
+    summary = await billing_ping.guild_plan_summary(7)
+    assert summary is not None and summary.tier_name == "Gold"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, json={**_SUMMARY, "payment_failed": "true"}),
+        httpx.Response(200, json={**_SUMMARY, "renews_on": "next month"}),
+        httpx.Response(200, json={**_SUMMARY, "renews_on": 20261101}),
+        httpx.Response(
+            200, json={**_SUMMARY, "next_charge": {"total": "12.50", "currency": "USD"}}
+        ),
+        httpx.Response(
+            200, json={**_SUMMARY, "next_charge": {"total": -1, "currency": "USD"}}
+        ),
+        httpx.Response(
+            200, json={**_SUMMARY, "next_charge": {"total": 1250, "currency": "usd"}}
+        ),
+        httpx.Response(
+            200,
+            json={**_SUMMARY, "scheduled_change": {"action": "x", "on": "2026-11-01"}},
+        ),
+        httpx.Response(200, json={**_SUMMARY, "tier_name": "x" * 65}),
+        httpx.Response(200, json=[_SUMMARY]),
+        httpx.Response(200, content=b"not json"),
+        httpx.Response(200, json={**_SUMMARY, "pad": "x" * 1100}),
+        httpx.Response(302, headers={"Location": "https://elsewhere"}),
+        httpx.Response(500, json=_SUMMARY),
+    ],
+)
+async def test_plan_summary_anything_malformed_is_none(
+    billing_configured, known_ref, monkeypatch, response
+):
+    _answering(monkeypatch, lambda r: response)
+    assert await billing_ping.guild_plan_summary(7) is None
+
+
+async def test_plan_summary_unreachable_is_none(
+    billing_configured, known_ref, monkeypatch
+):
+    def _down(request):
+        raise httpx.ConnectError("down")
+
+    _answering(monkeypatch, _down)
+    assert await billing_ping.guild_plan_summary(7) is None
+
+
 async def test_a_lifecycle_ping_names_only_a_guild_billing_already_knows(
     session, billing_configured, monkeypatch
 ):

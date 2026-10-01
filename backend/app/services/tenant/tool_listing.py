@@ -39,7 +39,6 @@ from app.db.guild_standing import ActorContext
 from app.db.query import apply_pagination, clamp_page
 from app.models.tenant.initiative import Initiative
 from app.services import permissions as permissions_service
-from app.services.tenant import archive as archive_service
 from app.services.tenant import search as search_service
 from app.services.tenant import tags as tags_service
 
@@ -217,39 +216,3 @@ async def list_tool_rows(
     statement = apply_pagination(statement, page, page_size)
     rows = list((await session.exec(statement)).unique().all())
     return rows, total_count, page
-
-
-async def count_tool_rows_by_initiative(
-    session: AsyncSession,
-    tool: Tool,
-    model,
-    enabled_column,
-    *,
-    user_id: int | None,
-    context: ActorContext,
-    extra_conditions: Sequence[Any] = (),
-) -> dict[int, int]:
-    """How many of this tool each initiative holds for this reader.
-
-    What the sidebar badge shows, so it counts what is on the board: live rows
-    only, and whatever else that tool's own list leaves out by default (a
-    project template is not a project anybody is working on). Rows belonging to
-    the guild rather than an initiative fall outside every group, because the
-    rows this answers are initiative rows.
-    """
-    conditions = [
-        initiative_switch_clause(model, enabled_column),
-        archive_service.archive_filter_clause(model, None),
-        permissions_service.granted_scope_clause(
-            tool, model.id, user_id, context=context
-        ),
-        *extra_conditions,
-    ]
-    rows = (
-        await session.exec(
-            select(model.initiative_id, func.count(model.id))
-            .where(*conditions)
-            .group_by(model.initiative_id)
-        )
-    ).all()
-    return {initiative_id: count for initiative_id, count in rows}

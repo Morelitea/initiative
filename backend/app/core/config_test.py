@@ -84,7 +84,7 @@ def test_role_prefix_accepts_identifier_safe(field, ok_prefix):
     ],
 )
 def test_secret_key_rejects_weak_values(bad_key):
-    # SEC-3: known placeholders and short keys must fail closed at startup —
+    # Known placeholders and short keys must fail closed at startup —
     # this one key signs JWTs and the OIDC state HMAC and roots all Fernet
     # field encryption.
     with pytest.raises(ValidationError, match="SECRET_KEY"):
@@ -367,8 +367,7 @@ def _directive(policy: str, name: str) -> str:
 def test_csp_confines_scripts_and_locks_down_vectors():
     csp = _csp(_settings())
 
-    # Scripts are same-origin only — NO unsafe-inline/eval, so injected markup
-    # can't execute even if it reaches the DOM.
+    # Scripts are same-origin only — NO unsafe-inline/eval.
     assert _directive(csp, "script-src") == "script-src 'self'"
     assert "'unsafe-eval'" not in csp
 
@@ -472,14 +471,14 @@ def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     assert "cdn.jsdelivr.net" not in _directive(main, "script-src")
     assert "cloudflareinsights.com" not in main
     assert "'unsafe-inline'" not in _directive(main, "script-src")
-    # Docs page keeps the high-value vectors locked down.
+    # Docs page keeps the remaining directives strict.
     assert "object-src 'none'" in docs
     assert "frame-ancestors 'none'" in docs
     assert "form-action 'self'" in docs
 
 
 def test_app_url_is_https_true_for_https():
-    # Drives both the Secure cookie flag and the HSTS header (pentest SEC-16).
+    # Drives both the Secure cookie flag and the HSTS header.
     assert _settings(APP_URL="https://app.example.com").app_url_is_https is True
     assert _settings(APP_URL="https://app.example.com").cookie_secure is True
 

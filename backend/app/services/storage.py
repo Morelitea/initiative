@@ -1,6 +1,6 @@
 """Pluggable blob storage backend.
 
-Storage rebuild (see ``history/blob-storage-tenancy-design.md``): a single seam
+Storage rebuild: a single seam
 over blob I/O so the local filesystem (FOSS / self-host / dev) and an
 S3-compatible object store (cloud, or a self-hosted Garage) become interchangeable
 behind one config flag — ``STORAGE_BACKEND=local|s3``.
@@ -9,8 +9,7 @@ The backend is *dumb about tenancy*: it operates on opaque object keys (today,
 the stored filename — a UUID-hex basename). Tenancy is owned by the **resolver**
 (:func:`get_guild_storage`), the storage twin of ``set_rls_context``: it hands
 back a backend whose keys are namespaced to the guild (``guild_<id>/`` for S3 —
-the object-store expression of the schema-per-guild boundary, and what the
-per-request IAM prefix scopes to; design §6). Callers still pass the flat
+the object-store expression of the schema-per-guild boundary; design §6). Callers still pass the flat
 filename and own the ``/uploads/{guild_id}/{filename}`` URL scheme.
 
 Phases delivered here:
@@ -268,7 +267,7 @@ class LocalFilesystemStorage:
 
 
 class S3Storage:
-    """S3-compatible object store (AWS S3, Garage, R2, …) via boto3.
+    """S3-compatible object store (Garage, MinIO, R2, …) via boto3.
 
     Dumb about tenancy: it reads/writes keys within the ``(bucket, client,
     prefix)`` the resolver handed it. ``prefix`` is the guild namespace
@@ -282,23 +281,16 @@ class S3Storage:
         bucket: str,
         client: "BaseClient",
         prefix: str = "",
-        kms_key_id: str | None = None,
     ) -> None:
         self._bucket = bucket
         self._client = client
         self._prefix = prefix
-        self._kms_key_id = kms_key_id
 
     def _object_key(self, key: str) -> str:
         name = Path(key).name
         if not name:
             raise ValueError(f"Invalid storage key: {key!r}")
         return f"{self._prefix}{name}"
-
-    def _sse_params(self) -> dict[str, str]:
-        if self._kms_key_id:
-            return {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": self._kms_key_id}
-        return {}
 
     def _head(self, object_key: str) -> bool:
         from botocore.exceptions import ClientError
@@ -312,9 +304,7 @@ class S3Storage:
             raise
 
     def write(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
-        extra = self._sse_params()
-        if content_type:
-            extra["ContentType"] = content_type
+        extra = {"ContentType": content_type} if content_type else {}
         self._client.put_object(
             Bucket=self._bucket, Key=self._object_key(key), Body=data, **extra
         )
@@ -322,13 +312,13 @@ class S3Storage:
     def write_file(
         self, key: str, path: Path, *, content_type: str | None = None
     ) -> None:
-        extra = self._sse_params()
-        if content_type:
-            extra["ContentType"] = content_type
         # upload_file chunks large objects into a multipart upload itself, so
         # the body never has to fit in memory.
         self._client.upload_file(
-            str(path), self._bucket, self._object_key(key), ExtraArgs=extra or None
+            str(path),
+            self._bucket,
+            self._object_key(key),
+            ExtraArgs={"ContentType": content_type} if content_type else None,
         )
 
     def delete(self, key: str) -> bool:
@@ -350,7 +340,6 @@ class S3Storage:
             Bucket=self._bucket,
             Key=dst,
             CopySource={"Bucket": self._bucket, "Key": src},
-            **self._sse_params(),
         )
         return True
 
@@ -582,19 +571,18 @@ def build_s3_client(cfg: "ResolvedStorageConfig | None" = None) -> "BaseClient":
 
     config_kwargs: dict = {
         "signature_version": "s3v4",
-        # botocore >=1.36 turns on AWS "flexible checksums" by default
+        # botocore >=1.36 turns on "flexible checksums" by default
         # (request_checksum_calculation / response_checksum_validation =
         # "when_supported"), which sends extra checksum headers/trailers that many
         # S3-compatible stores (Garage, MinIO, R2, Ceph) don't implement — they
         # reject them with a signature/`AccessDenied` error, classically on
         # GetObject response validation. Restore the pre-1.36 behavior so we only
-        # use checksums when an operation strictly requires them; this is a no-op
-        # against real AWS S3 and the documented fix for non-AWS stores.
+        # use checksums when an operation strictly requires them.
         "request_checksum_calculation": "when_required",
         "response_checksum_validation": "when_required",
     }
     if cfg.use_path_style:
-        # Garage and most non-AWS stores require path-style addressing.
+        # Garage and most self-hosted stores require path-style addressing.
         config_kwargs["s3"] = {"addressing_style": "path"}
 
     client_kwargs: dict = {
@@ -603,8 +591,8 @@ def build_s3_client(cfg: "ResolvedStorageConfig | None" = None) -> "BaseClient":
     }
     if cfg.endpoint_url:
         client_kwargs["endpoint_url"] = cfg.endpoint_url
-    # Explicit keys for a self-hosted store; leave unset on AWS so the ambient
-    # chain (IRSA / instance role / env) supplies credentials.
+    # Explicit keys when configured; otherwise boto3's ambient credential chain
+    # (environment, shared config) supplies them.
     if cfg.access_key_id and cfg.secret_access_key:
         client_kwargs["aws_access_key_id"] = cfg.access_key_id
         client_kwargs["aws_secret_access_key"] = cfg.secret_access_key
@@ -636,7 +624,6 @@ def _make(prefix: str) -> StorageBackend:
             bucket=_require_bucket(),
             client=_get_s3_client(),
             prefix=prefix,
-            kms_key_id=cfg.kms_key_id,
         )
         # Cutover window: serve blobs the backfill hasn't copied yet from local.
         if cfg.local_fallback:
@@ -666,11 +653,9 @@ def get_guild_storage(guild_id: int) -> StorageBackend:
     """Return a content-plane backend scoped to ``guild_id`` (the resolver).
 
     Both backends namespace the guild's blobs under ``guild_<id>/`` — the
-    object-store twin of the schema-per-guild boundary, and exactly what the
-    per-request IAM prefix scopes to on S3 (design §6). Local writes them under
-    ``UPLOADS_DIR/guild_<id>/``. Pooled-cloud per-request STS downscope plugs in
-    here; today the resolver uses the ambient credential (works for Garage,
-    siloed IRSA, dev).
+    object-store twin of the schema-per-guild boundary (design §6). Local writes
+    them under ``UPLOADS_DIR/guild_<id>/``. Every guild shares the one configured
+    credential.
     """
     return _make(f"guild_{int(guild_id)}/")
 

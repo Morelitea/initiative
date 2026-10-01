@@ -6,20 +6,45 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildGuild, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
-import type { GuildAuthOption, GuildRole } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  GuildAuthOption,
+  GuildAuthPolicyRead,
+  GuildAuthSettingsRead,
+  GuildRole,
+} from "@/api/generated/initiativeAPI.schemas";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
 // What the server says about this community and this member. Flipped per test.
 let guildRole: GuildRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let guildId = 4;
-let authOptions: GuildAuthOption[] | null = ["restrictions", "providers"];
-let allowApiKeys: boolean | null = true;
-let sessionLimit: boolean | null = false;
-let grantedAuthSettings = {
+const openPolicy: GuildAuthPolicyRead = {
+  policy: "open",
+  provider_id: null,
+  provider_slug: null,
+  provider_display_name: null,
+  require_methods: [],
+  factor_required_by_platform: false,
+};
+/** Every control on the page, and the deployment's answers beside them.
+ *  Undefined while it is still loading. */
+let settings: GuildAuthSettingsRead | undefined;
+const baseSettings = (): GuildAuthSettingsRead => ({
   auth_options: ["restrictions", "providers"],
+  auth_policy: openPolicy,
   allow_api_keys: true,
   enforce_compliance_session: false,
+  require_second_factor: false,
+  allow_push_notifications: true,
+  allow_email_notifications: true,
+  redact_notification_content: false,
+  push_allowed_by_platform: true,
+  email_allowed_by_platform: true,
+  redacted_by_platform: false,
+});
+/** Change what the server says, for a case that varies it. */
+const stored = (patch: Partial<GuildAuthSettingsRead>) => {
+  settings = { ...(settings ?? baseSettings()), ...patch };
 };
 const connection = (id: number, providerId: number, slug: string, name: string) => ({
   id,
@@ -42,27 +67,9 @@ let connections = [
 let connectable: { id: number; slug: string; display_name: string }[] = [
   { id: 11, slug: "corp", display_name: "Corp SSO" },
 ];
-let policy: {
-  policy: "open" | "required";
-  provider_id: number | null;
-  provider_slug: string | null;
-  provider_display_name: string | null;
-  require_methods: string[];
-  factor_required_by_platform: boolean;
-} = {
-  policy: "open",
-  provider_id: null,
-  provider_slug: null,
-  provider_display_name: null,
-  require_methods: [],
-  factor_required_by_platform: false,
-};
 
-const savePolicy = vi.fn();
-const saveApiAccess = vi.fn();
-const saveSessionLimit = vi.fn();
-const saveSecondFactor = vi.fn();
-let requireSecondFactor: boolean | null = false;
+// Every control saves through the same PATCH, one field at a time.
+const save = vi.fn();
 let secondFactorAvailable = true;
 const refreshGuilds = vi.fn(() => Promise.resolve<GuildEntry[]>([]));
 
@@ -71,15 +78,7 @@ vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
   ...(await importOriginal()),
   useGuilds: () => {
     const activeGuild: GuildEntry = {
-      ...buildGuild({
-        id: guildId,
-        name: "Test Community",
-        role: guildRole,
-        auth_options: authOptions,
-        allow_api_keys: allowApiKeys,
-        enforce_compliance_session: sessionLimit,
-        require_second_factor: requireSecondFactor,
-      }),
+      ...buildGuild({ id: guildId, name: "Test Community", role: guildRole }),
       grantSettingsLevel,
     };
     return {
@@ -109,27 +108,9 @@ vi.mock("@/hooks/useAppConfig", () => ({
 // ``useServer`` is left real: the render helper provides its context, and
 // mocking the module would take ``ServerContext`` with it.
 
-// What this community answers about notifications, and the deployment's own
-// answer above it. Read by the section the page renders at the bottom.
-const notificationPolicy = {
-  allow_push_notifications: true,
-  allow_email_notifications: true,
-  redact_notification_content: false,
-  push_allowed_by_platform: true,
-  email_allowed_by_platform: true,
-  redacted_by_platform: false,
-};
-const saveNotificationPolicy = vi.fn();
-
 vi.mock("@/hooks/useGuildAuthPolicy", () => ({
-  useGuildAuthPolicy: () => ({ data: policy, isLoading: false }),
-  useGuildAuthSettings: () => ({ data: grantedAuthSettings, refetch: vi.fn() }),
-  useUpdateGuildAuthPolicy: () => ({ mutate: savePolicy, isPending: false }),
-  useUpdateGuildApiAccess: () => ({ mutate: saveApiAccess, isPending: false }),
-  useUpdateGuildSessionLimit: () => ({ mutate: saveSessionLimit, isPending: false }),
-  useUpdateGuildSecondFactor: () => ({ mutate: saveSecondFactor, isPending: false }),
-  useGuildNotificationPolicy: () => ({ data: notificationPolicy, isLoading: false }),
-  useUpdateGuildNotificationPolicy: () => ({ mutate: saveNotificationPolicy, isPending: false }),
+  useGuildAuthSettings: () => ({ data: settings }),
+  useUpdateGuildAuthSettings: () => ({ mutate: save, isPending: false }),
   useGuildProviderConnections: () => ({ data: connections, isLoading: false }),
   useConnectableProviders: () => ({ data: connectable, isLoading: false }),
   useGuildLoginProviders: () => ({ data: { providers: [] } }),
@@ -165,16 +146,8 @@ const mounted = () => {
 };
 
 /** A rule already saved on the community, with only what a case varies named. */
-const savedPolicy = (overrides: Partial<typeof policy>) => {
-  policy = {
-    policy: "required",
-    provider_id: null,
-    provider_slug: null,
-    provider_display_name: null,
-    require_methods: [],
-    factor_required_by_platform: false,
-    ...overrides,
-  };
+const savedPolicy = (overrides: Partial<GuildAuthPolicyRead>) => {
+  stored({ auth_policy: { ...openPolicy, policy: "required", ...overrides } });
 };
 
 /** The provider picker lists the same names the registry below does, so
@@ -186,36 +159,18 @@ const chooseOption = async (user: ReturnType<typeof userEvent.setup>, name: stri
 
 describe("SettingsGuildSecurityPage", () => {
   beforeEach(() => {
-    savePolicy.mockClear();
-    saveApiAccess.mockClear();
-    saveSessionLimit.mockClear();
+    save.mockClear();
     refreshGuilds.mockClear();
     guildRole = "superadmin";
     grantSettingsLevel = null;
     guildId = 4;
-    authOptions = ["restrictions", "providers"];
-    allowApiKeys = true;
-    sessionLimit = false;
-    requireSecondFactor = false;
+    settings = baseSettings();
     secondFactorAvailable = true;
     connections = [
       connection(1, 11, "corp", "Corp SSO"),
       connection(2, 12, "contractors", "Contractors"),
     ];
     connectable = [{ id: 11, slug: "corp", display_name: "Corp SSO" }];
-    grantedAuthSettings = {
-      auth_options: ["restrictions", "providers"],
-      allow_api_keys: true,
-      enforce_compliance_session: false,
-    };
-    policy = {
-      policy: "open",
-      provider_id: null,
-      provider_slug: null,
-      provider_display_name: null,
-      require_methods: [],
-      factor_required_by_platform: false,
-    };
   });
 
   describe("how the page is laid out", () => {
@@ -325,8 +280,8 @@ describe("SettingsGuildSecurityPage", () => {
       for (const tick of ticks) await user.click(screen.getByLabelText(tick));
       await user.click(screen.getByRole("button", { name: /save/i }));
 
-      expect(savePolicy).toHaveBeenCalledTimes(1);
-      expect(savePolicy.mock.calls[0][0]).toEqual({ policy: "required", ...sent });
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(save.mock.calls[0][0]).toEqual({ auth_policy: { policy: "required", ...sent } });
     });
 
     it("switches back from 'any of ours' to a named provider", async () => {
@@ -336,10 +291,8 @@ describe("SettingsGuildSecurityPage", () => {
       await chooseOption(user, "Corp SSO");
       await user.click(screen.getByRole("button", { name: /save/i }));
 
-      expect(savePolicy.mock.calls[0][0]).toEqual({
-        policy: "required",
-        provider_id: 11,
-        require_methods: [],
+      expect(save.mock.calls[0][0]).toEqual({
+        auth_policy: { policy: "required", provider_id: 11, require_methods: [] },
       });
     });
 
@@ -367,22 +320,21 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("gives a superadmin settings grantee the current controls", () => {
-      guildRole = "superadmin";
       grantSettingsLevel = "superadmin";
-      authOptions = null;
-      allowApiKeys = null;
-      sessionLimit = null;
-      grantedAuthSettings = {
-        auth_options: ["restrictions", "providers"],
-        allow_api_keys: false,
-        enforce_compliance_session: true,
-      };
+      stored({ allow_api_keys: false, enforce_compliance_session: true });
 
       render();
 
       expect(requirementRadio()).toBeInTheDocument();
       expect(screen.getByLabelText(/allow personal api keys/i)).not.toBeChecked();
       expect(screen.getByLabelText(/sign in again every twelve hours/i)).toBeChecked();
+    });
+
+    it("waits for the settings rather than reading 'granted nothing' off a pending answer", () => {
+      settings = undefined;
+      const { container } = render();
+
+      expect(container).toBeEmptyDOMElement();
     });
   });
 
@@ -393,28 +345,24 @@ describe("SettingsGuildSecurityPage", () => {
     const factorSwitch = () => screen.getByLabelText(/require a second factor/i);
 
     it("is offered without asking anything about how people arrive", () => {
-      policy = { ...policy, policy: "open" };
       render();
 
       expect(factorSwitch()).toBeInTheDocument();
       expect(factorSwitch()).not.toBeChecked();
     });
 
-    it("saves through its own endpoint, naming no method", async () => {
+    it("saves on its own, naming no method", async () => {
       const user = mounted();
 
       await user.click(factorSwitch());
 
-      expect(saveSecondFactor).toHaveBeenCalledWith(
-        { require_second_factor: true },
-        expect.anything()
-      );
       // Not folded into the sign-in rule, which is a separate save.
-      expect(savePolicy).not.toHaveBeenCalled();
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(save).toHaveBeenCalledWith({ require_second_factor: true }, expect.anything());
     });
 
     it("reads what the community already asks for", () => {
-      requireSecondFactor = true;
+      stored({ require_second_factor: true });
       render();
 
       expect(factorSwitch()).toBeChecked();
@@ -423,7 +371,7 @@ describe("SettingsGuildSecurityPage", () => {
     it("is held where the deployment already asks everybody", () => {
       // Its own answer has nothing to add, so it shows the deployment's and
       // stops rather than offering a tick that would change nothing.
-      policy = { ...policy, factor_required_by_platform: true };
+      savedPolicy({ policy: "open", factor_required_by_platform: true });
       render();
 
       expect(factorSwitch()).toBeChecked();
@@ -441,7 +389,7 @@ describe("SettingsGuildSecurityPage", () => {
 
   describe("when the admin's own session does not meet the rule", () => {
     /** The save's refusal, as the server names what is missing. */
-    const refuse = (unmet?: string, detail = "GUILD_AUTH_POLICY_SELF_UNSATISFIED") => {
+    const refuse = (unmet?: string, detail = "AUTH_RULE_SELF_UNSATISFIED") => {
       // Lower-cased, as axios hands a response's headers back.
       const headers = new AxiosHeaders(unmet ? { "x-auth-policy-unmet": unmet } : {});
       const error = new AxiosError("refused", "ERR_BAD_REQUEST");
@@ -452,7 +400,7 @@ describe("SettingsGuildSecurityPage", () => {
         headers,
         config: { headers: new AxiosHeaders() },
       };
-      const sent = savePolicy.mock.calls[0][1] as { onError: (err: unknown) => void };
+      const sent = save.mock.calls[0][1] as { onError: (err: unknown) => void };
       act(() => sent.onError(error));
     };
 
@@ -512,7 +460,7 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("still says something when the server names nothing", async () => {
-      // An older server answers the same refusal with no header on it.
+      // A refusal that names nothing still gets its own line.
       const user = mounted();
 
       await user.click(requirementRadio());
@@ -521,7 +469,7 @@ describe("SettingsGuildSecurityPage", () => {
       refuse();
 
       expect(
-        screen.getByText(/sign in with that provider yourself before requiring it/i)
+        screen.getByText(/meet this requirement yourself before asking it of others/i)
       ).toBeInTheDocument();
       expect(screen.getByLabelText(/require a passkey/i)).toBeChecked();
       expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
@@ -552,7 +500,7 @@ describe("SettingsGuildSecurityPage", () => {
         [ON_WHAT_TERMS, API_KEYS],
       ],
     ])("shows %s where that is what the operator granted", (_label, granted, shown, hidden) => {
-      authOptions = granted;
+      stored({ auth_options: granted });
       const { container } = render();
 
       if (shown.length === 0) expect(container).toBeEmptyDOMElement();
@@ -568,10 +516,7 @@ describe("SettingsGuildSecurityPage", () => {
       what: "declining personal API keys",
       control: () => screen.queryByLabelText(/allow personal api keys/i),
       startsOn: true,
-      stored: (value: boolean) => {
-        allowApiKeys = value;
-      },
-      save: saveApiAccess,
+      store: (value: boolean) => stored({ allow_api_keys: value }),
       sends: { allow_api_keys: false },
       explains: /no key can be created for this community/i,
     },
@@ -579,14 +524,11 @@ describe("SettingsGuildSecurityPage", () => {
       what: "how often members sign in again",
       control: () => screen.queryByLabelText(/sign in again every twelve hours/i),
       startsOn: false,
-      stored: (value: boolean) => {
-        sessionLimit = value;
-      },
-      save: saveSessionLimit,
+      store: (value: boolean) => stored({ enforce_compliance_session: value }),
       sends: { enforce_compliance_session: true },
       explains: /cap how long people stay signed in/i,
     },
-  ])("$what", ({ control, startsOn, stored, save, sends, explains }) => {
+  ])("$what", ({ control, startsOn, store, sends, explains }) => {
     it("saves as it is switched, with no button to press", async () => {
       const user = mounted();
 
@@ -599,7 +541,7 @@ describe("SettingsGuildSecurityPage", () => {
     });
 
     it("shows what the community chose, and says in one line what it means", () => {
-      stored(!startsOn);
+      store(!startsOn);
       render();
 
       if (startsOn) expect(control()).not.toBeChecked();
@@ -623,12 +565,11 @@ describe("SettingsGuildSecurityPage", () => {
       const view = render();
 
       await user.click(limitSwitch());
-      const pending = saveSessionLimit.mock.calls[0]?.[1] as {
+      const pending = save.mock.calls[0]?.[1] as {
         onError: (error: unknown) => void;
       };
 
       guildId = 5;
-      sessionLimit = false;
       view.rerender(<SettingsGuildSecurityPage />);
 
       expect(limitSwitch()).not.toBeChecked();

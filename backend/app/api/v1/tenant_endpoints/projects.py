@@ -55,7 +55,6 @@ from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.models.tenant.document import Document
 from app.api import resource_access
-from app.core.user_display import handle_of
 from app.core.tools import Tool
 from app.db.session import require_actor_context, require_guild_context
 from app.services import email as email_service
@@ -64,6 +63,7 @@ from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
 from app.services import reachability
 from app.services.tenant import named_people
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import archive as archive_service
 from app.services.tenant import tool_listing
@@ -73,7 +73,6 @@ from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_completion
 from app.services.tenant import task_description as task_description_service
 from app.core.messages import ProjectMessages
-from app.core.config import settings as app_settings
 from app.schemas.tenant.project import (
     ProjectCan,
     ProjectCreate,
@@ -96,11 +95,8 @@ from app.schemas.tenant.document import (
     ProjectDocumentSummary,
     serialize_project_document_link,
 )
-from app.schemas.tenant.project_export import (
-    ProjectExportEnvelope,
-)
-from app.services.tenant import project_export as project_export_service
 from app.services.tenant import project_grants
+from app.schemas.tenant.property import annotated_properties
 from app.schemas.tenant.tag import annotated_tags
 
 router = APIRouter(route_class=ActorRoute)
@@ -348,6 +344,11 @@ async def _copy_task_relationships(
     that is itself a source task is remapped to its copy, so a dependency
     between two template tasks becomes a dependency between the two new tasks;
     any other end (a document, a task outside the template) is kept as-is.
+
+    Each copy is a link made on the creator's behalf, so it goes through
+    ``relationships.link_many`` like any other, and one it refuses is left behind:
+    a far end the creator cannot open, one in another initiative than the new
+    project, an archived one, or a source they cannot edit.
     """
     if not task_mapping or not content_references.records_edges(session):
         return
@@ -376,18 +377,22 @@ async def _copy_task_relationships(
             entity_id = task_mapping.get(entity_id, entity_id)
         return relationships.Endpoint(entity_kind, entity_id)
 
-    for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0)):
-        relationship_type = RelationshipType(row.relationship_type)
-        if relationship_type in _UNCOPIED_RELATIONSHIP_TYPES:
-            continue
-        await relationships.create(
-            session,
-            source=remapped(row.source_type, row.source_id),
-            relationship_type=relationship_type,
-            target=remapped(row.target_type, row.target_id),
-            provenance=Provenance(row.provenance),
-            confidence=row.confidence,
-        )
+    await relationships.link_many(
+        session,
+        [
+            relationships.Link(
+                source=remapped(row.source_type, row.source_id),
+                relationship_type=RelationshipType(row.relationship_type),
+                target=remapped(row.target_type, row.target_id),
+                provenance=Provenance(row.provenance),
+                confidence=row.confidence,
+            )
+            for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0))
+            if RelationshipType(row.relationship_type)
+            not in _UNCOPIED_RELATIONSHIP_TYPES
+        ],
+        user_id=require_actor_context(session).user_id,
+    )
 
 
 def project_load_options(*, slim: bool = False) -> list:
@@ -419,7 +424,7 @@ def visible_project_conditions(
     *,
     context: ActorContext,
     archived: Optional[bool],
-    template: Optional[bool],
+    is_template: Optional[bool],
     search: Optional[str] = None,
     tag_ids: Optional[List[int]] = None,
     initiative_id: Optional[int] = None,
@@ -427,10 +432,10 @@ def visible_project_conditions(
     """WHERE clauses for the guild's DAC-visible projects.
 
     The guild, the projects switch, sharing, the search box and the tag filter
-    are the shared set (:func:`tool_listing.base_conditions`). What is the
-    projects list's own is the pair of boolean flags, where ``None`` means
-    "exclude": a blueprint is not work in progress and an archived project is
-    not on the board, so neither shows unless it is asked for by name.
+    are the shared set (:func:`tool_listing.base_conditions`). An archived
+    project shows only when asked for, as on every tool list; ``is_template``
+    narrows to templates or to the rest, and unset leaves both, as it does for
+    documents.
     """
     conditions = tool_listing.base_conditions(
         Tool.project,
@@ -442,24 +447,20 @@ def visible_project_conditions(
         search=search,
         tag_ids=tag_ids,
     )
-    conditions.append(Project.is_template.is_(bool(template)))
+    if is_template is not None:
+        conditions.append(Project.is_template.is_(is_template))
     conditions.append(archive_service.archive_filter_clause(Project, archived))
     return conditions
 
 
-async def _visible_projects(
-    session: SessionDep, current_user: User, *, action: Action | None = None
-) -> List[Project]:
-    """The live, non-template projects the user's sharing reaches — only those
-    the request may take ``action`` on, when it names one."""
+async def _visible_projects(session: SessionDep, current_user: User) -> List[Project]:
+    """The live, non-template projects the user's sharing reaches."""
     conditions = visible_project_conditions(
         current_user.id,
         context=require_guild_context(session),
         archived=None,
-        template=None,
+        is_template=False,
     )
-    if action is not None:
-        conditions.append(Project.actions.any(action.value))
     base_statement = select(Project).where(*conditions).options(*project_load_options())
     result = await session.exec(base_statement)
     return list(result.all())
@@ -482,6 +483,7 @@ async def _project_reads_with_order(
 
     await _attach_task_summaries(session, projects)
     await tags_service.annotate_tags(session, projects)
+    await properties_service.annotate_properties(session, projects)
     await ownership_service.annotate_owner_apps(session, projects)
     order_map: dict[int, float] = {}
     favorite_ids: set[int] = set()
@@ -493,19 +495,9 @@ async def _project_reads_with_order(
             project_ids,
         )
 
-    if preserve_order:
-        sorted_projects = projects
-    else:
-
-        def sort_key(project: Project) -> tuple[bool, float, int]:
-            order_value = order_map.get(project.id)
-            return (
-                order_value is None,
-                float(order_value) if order_value is not None else 0.0,
-                project.id or 0,
-            )
-
-        sorted_projects = sorted(projects, key=sort_key)
+    sorted_projects = (
+        projects if preserve_order else _in_reader_order(projects, order_map)
+    )
 
     attached = await _documents_for_projects(session, sorted_projects)
     context = require_actor_context(session)
@@ -596,6 +588,23 @@ async def serialize_project_page(
     )
 
 
+def _in_reader_order(
+    projects: List[Project], order_map: dict[int, float]
+) -> List[Project]:
+    """The projects in the reader's own order: those they have placed first,
+    then the rest by id."""
+
+    def sort_key(project: Project) -> tuple[bool, float, int]:
+        order_value = order_map.get(project.id)
+        return (
+            order_value is None,
+            float(order_value) if order_value is not None else 0.0,
+            project.id or 0,
+        )
+
+    return sorted(projects, key=sort_key)
+
+
 async def _project_metadata_for_user(
     session: SessionDep,
     user_id: int,
@@ -683,6 +692,7 @@ def _build_project_payload(
             "task_summary": summary,
             "task_statuses": _project_task_statuses(project),
             "tags": annotated_tags(project),
+            "properties": annotated_properties(project),
             "grants": permissions_service.serialize_grants(project, context=context),
             "can": _project_can(project, user_id, context=context),
             "owner_id": ownership_service.owner_user_id_of(project),
@@ -724,19 +734,6 @@ async def _project_read_for_user(
 ) -> ProjectRead:
     payloads = await _project_reads_with_order(session, user_id, [project])
     return payloads[0]
-
-
-@router.get("/writable", response_model=List[ProjectRead])
-async def list_writable_projects(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[ProjectRead]:
-    return await _project_reads_with_order(
-        session,
-        current_user.id,
-        await _visible_projects(session, current_user, action=Action.edit),
-    )
 
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -851,6 +848,7 @@ async def create_project(
     # One claim for the project and its tasks, so a file they share is copied
     # into another initiative once.
     await attachments_service.claim_uploads(session, project, *copied)
+    await properties_service.write_on_create(session, project, project_in.properties)
     await session.commit()
 
     project = await _get_project_or_404(
@@ -998,13 +996,14 @@ async def favorite_projects(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> List[ProjectRead]:
-    """The reader's favorite projects, most recently favorited first."""
+    """The reader's favorite projects, most recently favorited first, in the
+    slim projection the projects list returns for ``slim=true``."""
     favorites = await session.exec(
         select(Project)
         .join(ProjectFavorite, ProjectFavorite.project_id == Project.id)
         .where(ProjectFavorite.user_id == current_user.id)
         .order_by(ProjectFavorite.created_at.desc())
-        .options(*project_load_options())
+        .options(*project_load_options(slim=True))
     )
     readable: List[Project] = []
     for project in favorites.all():
@@ -1015,9 +1014,9 @@ async def favorite_projects(
         except HTTPException:
             continue
         readable.append(project)
-    return await _project_reads_with_order(
-        session, current_user.id, readable, preserve_order=True
-    )
+    reads = await serialize_project_page(session, current_user.id, readable, slim=True)
+    # Every row here is a favorite, so the flag is known without a lookup.
+    return [read.model_copy(update={"is_favorited": True}) for read in reads]
 
 
 @router.post("/{project_id}/favorite", response_model=ProjectFavoriteStatus)
@@ -1170,12 +1169,29 @@ async def reorder_projects(
     if not visible_projects:
         return []
 
-    current_payloads = await _project_reads_with_order(
-        session, current_user.id, visible_projects
-    )
-    current_ids = [project.id for project in current_payloads if project.id is not None]
-    if not current_ids:
-        return current_payloads
+    # The order as it stands, from the order rows alone: the projects are
+    # serialized once, after the write.
+    existing_orders = {
+        order.project_id: order
+        for order in (
+            await session.exec(
+                select(ProjectOrder).where(
+                    ProjectOrder.user_id == current_user.id,
+                    ProjectOrder.project_id.in_(
+                        [project.id for project in visible_projects]
+                    ),
+                )
+            )
+        ).all()
+    }
+    current_ids = [
+        project.id
+        for project in _in_reader_order(
+            visible_projects,
+            {pid: order.sort_order for pid, order in existing_orders.items()},
+        )
+        if project.id is not None
+    ]
 
     valid_ids = set(current_ids)
     seen: set[int] = set()
@@ -1191,30 +1207,20 @@ async def reorder_projects(
             seen.add(project_id)
             final_order.append(project_id)
 
-    if final_order == current_ids or not final_order:
-        return current_payloads
-
-    order_stmt = select(ProjectOrder).where(
-        ProjectOrder.user_id == current_user.id,
-        ProjectOrder.project_id.in_(tuple(final_order)),
-    )
-    existing_orders_result = await session.exec(order_stmt)
-    existing_orders = {
-        order.project_id: order for order in existing_orders_result.all()
-    }
-
-    for index, project_id in enumerate(final_order):
-        sort_value = float(index)
-        order = existing_orders.get(project_id)
-        if order:
-            order.sort_order = sort_value
-        else:
-            order = ProjectOrder(
-                user_id=current_user.id, project_id=project_id, sort_order=sort_value
-            )
-        session.add(order)
-
-    await session.commit()
+    if final_order != current_ids:
+        for index, project_id in enumerate(final_order):
+            sort_value = float(index)
+            order = existing_orders.get(project_id)
+            if order:
+                order.sort_order = sort_value
+            else:
+                order = ProjectOrder(
+                    user_id=current_user.id,
+                    project_id=project_id,
+                    sort_order=sort_value,
+                )
+            session.add(order)
+        await session.commit()
     return await _project_reads_with_order(
         session,
         current_user.id,
@@ -1237,73 +1243,3 @@ async def read_after_write(
         project_id, session, guild_context.guild_id, user_id=guild_context.user_id
     )
     return await _project_read_for_user(session, guild_context.user_id, project)
-
-
-# ── Export ───────────────────────────────────────────────────────
-
-
-async def _project_for_export(
-    session, current_user: User, guild_id: int, project_id: int, access: str
-) -> Project:
-    """The project, once the request may export it: its owner rung, as every
-    tool's export takes (``permissions.require_export_access``), or read for
-    an initiative/guild aggregate export passing ``access="read"``.
-
-    The standing is the session's own: an export replays on a worker, where
-    the routing it ran under is what answers.
-    """
-    project = await _get_project_or_404(
-        project_id, session, guild_id, user_id=current_user.id
-    )
-    context = require_guild_context(session)
-    resource_access.authorize(Tool.project, project, current_user, context=context)
-    permissions_service.require_export_access(
-        permissions_service.DAC_RESOURCES[Tool.project],
-        project,
-        context=context,
-        access=access,
-    )
-    return project
-
-
-async def count_project_export_rows(
-    session,
-    current_user: User,
-    guild_id: int,
-    *,
-    project_id: int,
-    access: str = permissions_service.EXPORT_ACCESS,
-) -> int:
-    """The project-export adapter's pre-render signal: the task count, as the
-    size proxy for inline-vs-job selection, behind the same gate as the build."""
-    project = await _project_for_export(
-        session, current_user, guild_id, project_id, access
-    )
-    return (
-        await session.exec(
-            select(func.count()).select_from(Task).where(Task.project_id == project.id)
-        )
-    ).one()
-
-
-async def build_project_export_for_user(
-    session,
-    current_user: User,
-    guild_id: int,
-    *,
-    project_id: int,
-    access: str = permissions_service.EXPORT_ACCESS,
-) -> ProjectExportEnvelope:
-    """The project-export adapter's build seam. Cross-row references (tags,
-    statuses, properties, assignees) are encoded by string keys (name /
-    handle) so the file imports cleanly on another instance."""
-    project = await _project_for_export(
-        session, current_user, guild_id, project_id, access
-    )
-    return await project_export_service.build_project_export(
-        session,
-        project_id=project.id,
-        exported_by_handle=handle_of(current_user),
-        source_instance_url=app_settings.APP_URL,
-        source_guild_id=guild_id,
-    )

@@ -7,9 +7,10 @@ import type {
   GalleryImageVersionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ReportButton } from "@/components/moderation/ReportButton";
+import { PropertyPanel } from "@/components/properties";
 import { LazyImage } from "@/components/shared/LazyImage";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { UserHandle } from "@/components/UserHandle";
@@ -76,7 +77,7 @@ export const GalleryImageSheet = ({
   onSetCover,
   onRemoved,
 }: GalleryImageSheetProps) => {
-  const { t } = useTranslation(["galleries", "common"]);
+  const { t } = useTranslation(["galleries", "common", "properties"]);
   const imageId = image?.id ?? null;
 
   const [title, setTitle] = useState("");
@@ -208,6 +209,22 @@ export const GalleryImageSheet = ({
               </div>
             )}
           </div>
+
+          {/* Saved as they change, apart from the Save above. Definitions
+              belong to an initiative, so a guild-level gallery has none. */}
+          {initiativeId !== null && (
+            <div className="space-y-1.5">
+              <Label>{t("properties:title")}</Label>
+              <PropertyPanel
+                target={PropertyTarget.gallery_image}
+                entityId={image.id}
+                saved={image.properties}
+                initiativeId={initiativeId}
+                canOpen={{ tool: Tool.gallery, id: galleryId }}
+                disabled={!canEdit}
+              />
+            </div>
+          )}
 
           {/* Where it came from. */}
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">

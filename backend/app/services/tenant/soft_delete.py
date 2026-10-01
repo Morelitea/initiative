@@ -242,19 +242,35 @@ async def restore_entity(
         await _write_level(session, level, cleared)
 
 
-async def _purge_relationships(session: AsyncSession, doomed: Level) -> None:
-    """Drop every edge naming one of these, whichever end it names them on."""
-    from app.core.relationships import ENDPOINT_KINDS
-    from app.services.tenant import relationships
+async def _purge_references(session: AsyncSession, doomed: Level) -> None:
+    """Drop every row that names one of these by ``(kind, id)``: edges,
+    reactions, recent views and custom property values.
 
-    # Derived from the endpoint registry rather than a second list of model
-    # classes: a kind that can sit on an edge is a kind whose table is named
-    # there, and the model already knows its table.
-    kind_by_table = {endpoint.table: kind for kind, endpoint in ENDPOINT_KINDS.items()}
+    Nothing carries those out with the row they name, and once it is gone
+    their policies have nothing to ask, so they go first. Each kind is read
+    from the registry that lets the table name it, and the model already
+    knows its table.
+    """
+    from app.core.reactions import ReactionTarget
+    from app.core.relationships import ENDPOINT_KINDS
+    from app.db.initiative_rls import RECENT_ENTITY_TABLES
+    from app.services.tenant import properties, reactions, recent_views, relationships
+
+    edge_kinds = {endpoint.table: kind for kind, endpoint in ENDPOINT_KINDS.items()}
+    reaction_targets = {target.table: target for target in ReactionTarget}
+    recent_kinds = {table: kind for kind, table in RECENT_ENTITY_TABLES.items()}
     for model, ids in doomed.items():
-        kind = kind_by_table.get(getattr(model, "__tablename__", ""))
-        if kind is not None and ids:
+        table = getattr(model, "__tablename__", "")
+        if not ids:
+            continue
+        if (kind := edge_kinds.get(table)) is not None:
             await relationships.purge_for_entities(session, kind, ids)
+        if (target := reaction_targets.get(table)) is not None:
+            await reactions.purge_reactions_for(session, target=target, target_ids=ids)
+        if (recent := recent_kinds.get(table)) is not None:
+            await recent_views.purge_for_entities(session, recent, ids)
+        if (spec := properties.PROPERTY_LINKS_BY_MODEL.get(model)) is not None:
+            await properties.drop_values(session, spec.target, ids)
 
 
 #: The tables whose rows the purge hooks read, not just their ids, with the
@@ -303,7 +319,6 @@ async def hard_purge_entities(
         purge_initiative_uploads,
         purge_pasted_images,
     )
-    from app.services.tenant.reactions import purge_comment_reactions
 
     roots = list(entities)
     if not roots:
@@ -334,11 +349,6 @@ async def hard_purge_entities(
                 ).all()
             )
 
-    # Reactions name their target polymorphically, so no foreign key carries
-    # them out with the comment. Cleared explicitly, before the row goes.
-    if loaded.get(Comment):
-        await purge_comment_reactions(session, loaded[Comment])
-
     # A picture's blobs — every version and its thumbnail — go with it, the
     # way a file document's do.
     released: set[str] = set()
@@ -364,12 +374,11 @@ async def hard_purge_entities(
     if doomed.get(Initiative):
         released |= await purge_initiative_uploads(session, doomed[Initiative])
 
-    # Edges name both ends polymorphically, so nothing carries them out with
-    # the thing they connect. Tombstones go too: what one remembers is a link
-    # between two things, and one of them is about to stop existing. Last of
-    # the sweeps, because the step above reads the edges pointing at a doomed
-    # document to find the documents whose links have to be blanked.
-    await _purge_relationships(session, doomed)
+    # Tombstones go with the edges: what one remembers is a link between two
+    # things, and one of them is about to stop existing. Last of the sweeps,
+    # because the step above reads the edges pointing at a doomed document to
+    # find the documents whose links have to be blanked.
+    await _purge_references(session, doomed)
     await session.flush()
 
     # Leaves before parents: most of the keys between these tables do not

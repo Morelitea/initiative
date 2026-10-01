@@ -21,8 +21,8 @@ A notice that has not gone up is not exported at all — see
 said, and a scheduled draft has said nothing yet.
 
 Access rule: READ on the post (exporting is a formatted read), enforced by the
-``get_post_for_export`` seam at both count and build time, under the caller's
-RLS session.
+``ToolExportAdapter.fetch`` seam at both count and build time, under the
+caller's RLS session.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ from app.services.export.adapters._common import (
     envelope_key,
 )
 from app.services.export.contract import RenderItem
+from app.services.export.property_values import exported_properties
 from app.services.permissions import EXPORT_ACCESS
 
 
@@ -57,11 +58,13 @@ class PostAdapter(ToolExportAdapter):
         *,
         access: str = EXPORT_ACCESS,
     ) -> Post:
-        from app.services.tenant.posts import get_post_for_export
+        from app.services.tenant import properties as properties_service
+        from app.services.tenant import tags as tags_service
 
-        return await get_post_for_export(
-            session, user, guild_id, post_id=post_id, access=access
-        )
+        post = await super().fetch(session, user, guild_id, post_id, access=access)
+        await tags_service.annotate_tags(session, [post])
+        await properties_service.annotate_properties(session, [post])
+        return post
 
     async def initiative_ids(
         self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
@@ -92,6 +95,7 @@ def _envelope(post: Post) -> dict[str, Any]:
         "name": post.name,
         "body": post.body or {},
         "tags": sorted(tag.name for tag in post.tags or []),
+        "properties": exported_properties(post),
         "poll": _poll_envelope(post),
     }
 

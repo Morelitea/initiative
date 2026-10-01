@@ -61,8 +61,7 @@ class TestIsPasswordBreached:
 
     async def test_sends_k_anonymity_prefix(self, enable_hibp, monkeypatch):
         """The first 5 hex chars of the SHA-1 hash MUST be all that
-        leaves the server. Without this guarantee, the breach check
-        becomes a credential-leak vector."""
+        leaves the server."""
         password = "correct-horse-battery-staple"
         expected_prefix = _sha1(password)[:5]
         captured: dict[str, object] = {}

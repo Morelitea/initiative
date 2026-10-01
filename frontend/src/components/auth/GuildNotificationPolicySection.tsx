@@ -15,51 +15,35 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { GuildAuthSettingsUpdate } from "@/api/generated/initiativeAPI.schemas";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  useGuildNotificationPolicy,
-  useUpdateGuildNotificationPolicy,
-} from "@/hooks/useGuildAuthPolicy";
+import { useGuildAuthSettings, useUpdateGuildAuthSettings } from "@/hooks/useGuildAuthPolicy";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 export const GuildNotificationPolicySection = ({ guildId }: { guildId: number }) => {
   const { t } = useTranslation("settings");
-  const query = useGuildNotificationPolicy(guildId);
-  const update = useUpdateGuildNotificationPolicy(guildId);
+  const query = useGuildAuthSettings(guildId);
+  const update = useUpdateGuildAuthSettings(guildId);
   const [error, setError] = useState<string | null>(null);
 
   const saved = query.data;
   if (!saved) return null;
 
-  // Each switch saves as it is flipped and the three go in one write, so the
-  // other two are sent as they stand.
-  const flip = (patch: {
-    allow_push_notifications?: boolean;
-    allow_email_notifications?: boolean;
-    redact_notification_content?: boolean;
-  }) => {
+  // Each switch saves as it is flipped, sending only its own answer.
+  const flip = (patch: GuildAuthSettingsUpdate) => {
     setError(null);
-    update.mutate(
-      {
-        allow_push_notifications: saved.allow_push_notifications,
-        allow_email_notifications: saved.allow_email_notifications,
-        redact_notification_content: saved.redact_notification_content,
-        ...patch,
+    update.mutate(patch, {
+      onSuccess: () => {
+        toast.success(t("guildNotifications.saved"));
       },
-      {
-        onSuccess: async () => {
-          await query.refetch();
-          toast.success(t("guildNotifications.saved"));
-        },
-        onError: (err: unknown) => {
-          setError(getErrorMessage(err, "settings:guildNotifications.error"));
-        },
-      }
-    );
+      onError: (err: unknown) => {
+        setError(getErrorMessage(err, "settings:guildNotifications.error"));
+      },
+    });
   };
 
   const rows = [

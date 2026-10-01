@@ -48,7 +48,7 @@
   },
   "manager": {
     "title": "Benutzerdefinierte Eigenschaften",
-    "description": "Definiere wiederverwendbare Metadaten für Dokumente, Aufgaben und Termine in dieser Initiative.",
+    "description": "Definiere wiederverwendbare Metadaten für alles in dieser Initiative.",
     "newDefinition": "Neue Eigenschaft",
     "editDefinition": "Eigenschaft bearbeiten",
     "nameLabel": "Name",
@@ -60,7 +60,7 @@
     "colorLabel": "Farbe",
     "delete": "Eigenschaft löschen",
     "deleteConfirmTitle": "Diese Eigenschaft löschen?",
-    "deleteConfirmBody": "Dadurch werden die Eigenschaft und alle Werte entfernt, die mit Dokumenten, Aufgaben und Terminen verknüpft sind.",
+    "deleteConfirmBody": "Dadurch werden die Eigenschaft und alle ihre Werte in dieser Initiative entfernt.",
     "orphanedWarning": "{{count}} vorhandene Werte verweisen auf entfernte Optionen. Sie werden als „Unbekannte Option“ angezeigt, bis sie aktualisiert werden.",
     "createError": "Eigenschaft konnte nicht erstellt werden",
     "updateError": "Eigenschaft konnte nicht aktualisiert werden",

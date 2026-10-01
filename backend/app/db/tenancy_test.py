@@ -3,8 +3,7 @@
 These tests fail if any ``table=True`` model is missing a placement decision,
 or if the manifest names a table that does not exist. They are the safety net
 that keeps ``tenancy.py`` honest as the schema evolves: adding a new table
-without classifying it (the dangerous case — an unclassified guild-scoped
-table would leak across tenants) breaks CI here.
+without classifying it breaks CI here.
 
 Pure metadata checks — no database required.
 """

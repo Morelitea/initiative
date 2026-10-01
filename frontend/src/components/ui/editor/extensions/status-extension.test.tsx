@@ -10,6 +10,7 @@ import {
   $createTextNode,
   $getRoot,
   defineExtension,
+  type ElementNode,
   type LexicalEditor,
 } from "lexical";
 import { useMemo } from "react";
@@ -90,7 +91,7 @@ describe("a status", () => {
       discrete: true,
     });
     restored.getEditorState().read(() => {
-      const node = $getRoot().getFirstChild()?.getLastChild?.() ?? null;
+      const node = $getRoot().getFirstChild<ElementNode>()?.getLastChild?.() ?? null;
       expect($isStatusNode(node) && [node.getText(), node.getColor()]).toEqual([
         "In progress",
         "blue",
@@ -139,7 +140,7 @@ describe("a status on the page", () => {
 
     await waitFor(() =>
       editor.getEditorState().read(() => {
-        const node = $getRoot().getFirstChild()?.getFirstChild?.() ?? null;
+        const node = $getRoot().getFirstChild<ElementNode>()?.getFirstChild?.() ?? null;
         expect($isStatusNode(node) && node.getColor()).toBe("red");
       })
     );
@@ -171,7 +172,7 @@ describe("a status on the page", () => {
     await userEvent.type(field, "Waiting{Enter}");
     await waitFor(() =>
       editor.getEditorState().read(() => {
-        const node = $getRoot().getFirstChild()?.getFirstChild?.() ?? null;
+        const node = $getRoot().getFirstChild<ElementNode>()?.getFirstChild?.() ?? null;
         expect($isStatusNode(node) && node.getText()).toBe("Waiting");
       })
     );
@@ -201,7 +202,7 @@ describe("a status on the page", () => {
 
     await waitFor(() =>
       editor.getEditorState().read(() => {
-        const node = $getRoot().getFirstChild()?.getFirstChild?.() ?? null;
+        const node = $getRoot().getFirstChild<ElementNode>()?.getFirstChild?.() ?? null;
         expect($isStatusNode(node) && [node.getText(), node.getColor()]).toEqual(["Done", "blue"]);
       })
     );

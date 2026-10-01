@@ -14,15 +14,21 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
+    select,
     text,
 )
+from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
+from app.models.platform.user import ABSENT_STATUSES
+from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant._mixins import (
     ArchiveMixin,
     CreatedByMixin,
     SoftDeleteMixin,
+    _reader,
     attach_initiative_actions,
 )
 
@@ -171,8 +177,7 @@ class InitiativeRoleModel(CreatedByMixin, table=True):
     # initiative regardless of how each item is shared, and may manage sharing
     # (the gate-4 / DAC override, scoped to this one initiative). Off by
     # default; the built-in moderator role is the one that carries it, and a
-    # guild admin joining an initiative lands on that role. See
-    # history/initiative-admin-override-design.md.
+    # guild admin joining an initiative lands on that role.
     override_share_restrictions: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
@@ -441,3 +446,37 @@ class Initiative(
 
 
 attach_initiative_actions(Initiative)
+
+# How many people the initiative holds, and the role the request's user holds
+# in it. Deferred like ``actions``; the loaders that serialize an initiative ask
+# for them with ``undefer``. The count is of the people its roster lists: an
+# account that is suspended or awaiting erasure is absent from both.
+Initiative.__mapper__.add_property(  # type: ignore[attr-defined]
+    "member_count",
+    column_property(
+        select(func.count())
+        .select_from(InitiativeMember)
+        .join(MemberProfile, MemberProfile.id == InitiativeMember.user_id)
+        .where(
+            InitiativeMember.initiative_id == Initiative.id,
+            MemberProfile.status.notin_(sorted(ABSENT_STATUSES, key=lambda s: s.value)),
+        )
+        .correlate_except(InitiativeMember, MemberProfile)
+        .scalar_subquery(),
+        deferred=True,
+    ),
+)
+Initiative.__mapper__.add_property(  # type: ignore[attr-defined]
+    "role_display_name",
+    column_property(
+        select(InitiativeRoleModel.display_name)
+        .join(InitiativeMember, InitiativeMember.role_id == InitiativeRoleModel.id)
+        .where(
+            InitiativeMember.initiative_id == Initiative.id,
+            InitiativeMember.user_id == _reader(),
+        )
+        .correlate_except(InitiativeMember, InitiativeRoleModel)
+        .scalar_subquery(),
+        deferred=True,
+    ),
+)

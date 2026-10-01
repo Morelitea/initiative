@@ -104,10 +104,10 @@ async def test_a_settings_grant_reaches_settings_and_no_content(
     headers = get_auth_headers(support)
 
     # The community's own configuration: reachable.
-    policy = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+    rules = await client.get(
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=headers
     )
-    assert policy.status_code == 200, policy.text
+    assert rules.status_code == 200, rules.text
 
     # Its content: not. A settings grant carries no content level at all, so
     # the guild's initiatives are not this grantee's to read.
@@ -242,12 +242,23 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
     assert response.status_code == 200, response.text
     assert response.json() == {
         "auth_options": ["providers", "restrictions"],
+        "auth_policy": {
+            "policy": "open",
+            "provider_id": None,
+            "provider_slug": None,
+            "provider_display_name": None,
+            "require_methods": [],
+            "factor_required_by_platform": False,
+        },
         "allow_api_keys": False,
         "enforce_compliance_session": True,
         "require_second_factor": False,
         "allow_email_notifications": True,
         "allow_push_notifications": True,
         "redact_notification_content": False,
+        "push_allowed_by_platform": True,
+        "email_allowed_by_platform": True,
+        "redacted_by_platform": False,
     }
 
 
@@ -264,8 +275,8 @@ async def test_the_admin_rung_does_not_reach_the_seat(
     )
     headers = get_auth_headers(support)
 
-    refused = await client.put(
-        f"/api/v1/communities/{guild.id}/api-access",
+    refused = await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
         json={"allow_api_keys": False},
     )
@@ -405,7 +416,7 @@ async def test_a_combined_conflict_sends_no_external_notification(
     assert existing.status_code == 201, existing.text
 
     send = AsyncMock()
-    monkeypatch.setattr(access_grants_service, "_push_and_email", send)
+    monkeypatch.setattr(access_grants_service, "_tell", send)
     response = await client.post(
         "/api/v1/access-grants/",
         headers=headers,
@@ -460,6 +471,13 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
     assert renamed.status_code == 403, renamed.text
     assert renamed.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
 
+    # Invites are handed out, not read: listing them takes the write too.
+    invites = await client.get(
+        f"/api/v1/communities/{guild.id}/invites", headers=headers
+    )
+    assert invites.status_code == 403, invites.text
+    assert invites.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
+
     roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
     assert roster.status_code == 200, roster.text
     assert {row["id"] for row in roster.json()["items"]} == {owner.id}
@@ -512,6 +530,20 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
 
+    # Running the roster is not joining it: the grant cannot accept an invite
+    # into the community it reaches, even one it minted.
+    minted = await client.post(
+        f"/api/v1/communities/{guild.id}/invites", headers=headers, json={}
+    )
+    assert minted.status_code == 201, minted.text
+    joined = await client.post(
+        "/api/v1/communities/invite/accept",
+        headers=headers,
+        json={"code": minted.json()["code"]},
+    )
+    assert joined.status_code == 400, joined.text
+    assert joined.json()["detail"] == "INVITE_DURING_ACCESS_GRANT"
+
 
 async def test_the_lent_seat_lifts_the_communitys_sign_in_requirement(
     client: AsyncClient, session: AsyncSession
@@ -537,22 +569,23 @@ async def test_the_lent_seat_lifts_the_communitys_sign_in_requirement(
         rung="superadmin",
     )
 
-    cleared = await client.put(
-        f"/api/v1/communities/{guild.id}/auth-policy",
+    cleared = await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=get_auth_headers(support),
-        json={"policy": "open"},
+        json={"auth_policy": {"policy": "open"}},
     )
 
     assert cleared.status_code == 200, cleared.text
-    assert cleared.json()["policy"] == "open"
+    assert cleared.json()["auth_policy"]["policy"] == "open"
 
     # Read back through the surface rather than the setup session, which is
     # holding its own view of the row this just removed.
     after = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=get_auth_headers(support)
+        f"/api/v1/communities/{guild.id}/auth-settings",
+        headers=get_auth_headers(support),
     )
     assert after.status_code == 200, after.text
-    assert after.json()["policy"] == "open"
+    assert after.json()["auth_policy"]["policy"] == "open"
 
 
 async def test_a_lent_seat_reads_the_sign_in_rule_and_does_not_change_it(
@@ -571,15 +604,15 @@ async def test_a_lent_seat_reads_the_sign_in_rule_and_does_not_change_it(
     headers = get_auth_headers(support)
 
     read = await client.get(
-        f"/api/v1/communities/{guild.id}/auth-policy", headers=headers
+        f"/api/v1/communities/{guild.id}/auth-settings", headers=headers
     )
     assert read.status_code == 200, read.text
-    assert read.json()["policy"] != "open"
+    assert read.json()["auth_policy"]["policy"] != "open"
 
-    refused = await client.put(
-        f"/api/v1/communities/{guild.id}/auth-policy",
+    refused = await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
-        json={"policy": "open"},
+        json={"auth_policy": {"policy": "open"}},
     )
     assert refused.status_code == 403, refused.text
     assert refused.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
@@ -635,13 +668,13 @@ async def test_the_pair_one_request_asks_for_reaches_both_axes(
 
     # The settings axis: the rule this session cannot itself satisfy is still
     # theirs to lift, which is the errand.
-    cleared = await client.put(
-        f"/api/v1/communities/{guild.id}/auth-policy",
+    cleared = await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
-        json={"policy": "open"},
+        json={"auth_policy": {"policy": "open"}},
     )
     assert cleared.status_code == 200, cleared.text
-    assert cleared.json()["policy"] == "open"
+    assert cleared.json()["auth_policy"]["policy"] == "open"
 
     # And the content axis, which the same request asked for separately.
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)

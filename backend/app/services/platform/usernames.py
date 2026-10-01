@@ -8,6 +8,7 @@ table.
 from __future__ import annotations
 
 import secrets
+from collections.abc import Iterator
 
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -87,25 +88,52 @@ async def allocate_from_seed(
             continue
 
 
-async def has_free_slot(session: AsyncSession, *, name: str) -> bool:
-    """Whether ``name`` can still be handed out.
+async def suggest(
+    session: AsyncSession, *, seed: str | None = None, count: int = 4
+) -> list[str]:
+    """Name parts nobody holds yet, to offer somebody choosing one.
 
-    The availability check behind registration. It answers about the name part
-    only, and answers yes unless the name is reserved, malformed, or has all
-    10,000 of its numbers taken.
+    The first comes from ``seed`` (what they typed) where that is usable,
+    then from it with a word added, then generated names. Asked of the table
+    in one query.
     """
-    try:
-        validated = usernames.validate(name)
-    except UsernameError:
-        return False
-    return len(await _taken(session, validated)) < usernames.DISCRIMINATOR_SPACE
+    base = usernames.slugify(seed)
+    candidates: list[str] = []
+    if base is not None:
+        candidates.append(base)
+        candidates += [
+            f"{base[: usernames.MAX_LENGTH - len(noun) - 1].rstrip('-')}-{noun}"
+            for noun in usernames.random_nouns(3)
+        ]
+    candidates += [usernames.random_name() for _ in range(count * 3)]
+    candidates = [c for c in dict.fromkeys(candidates) if usernames.is_valid(c)]
+    held = set(
+        (
+            await session.exec(
+                select(func.lower(User.username)).where(
+                    func.lower(User.username).in_(candidates)
+                )
+            )
+        ).all()
+    )
+    return [c for c in candidates if c not in held][:count]
 
 
 # How many numbers to try when the caller cannot read what is taken.
 _CLAIM_ATTEMPTS = 12
 
 
-async def claim_for_user(session: AsyncSession, *, user: User, name: str) -> None:
+def _draws(prefer: int | None) -> Iterator[int]:
+    """The numbers to try in order: the one offered first, then random ones."""
+    if prefer is not None:
+        yield prefer
+    for _ in range(_CLAIM_ATTEMPTS):
+        yield usernames.random_discriminator()
+
+
+async def claim_for_user(
+    session: AsyncSession, *, user: User, name: str, prefer: int | None = None
+) -> None:
     """Give ``user`` a handle behind ``name``, and mark it chosen.
 
     Unlike :func:`allocate`, this does not read which numbers are taken: an
@@ -114,8 +142,7 @@ async def claim_for_user(session: AsyncSession, *, user: User, name: str) -> Non
     draws again if the pair was spoken for.
     """
     validated = usernames.validate(name)
-    for _ in range(_CLAIM_ATTEMPTS):
-        candidate = usernames.random_discriminator()
+    for candidate in _draws(prefer):
         try:
             async with session.begin_nested():
                 user.username = validated
@@ -129,7 +156,9 @@ async def claim_for_user(session: AsyncSession, *, user: User, name: str) -> Non
     raise UsernameError("USERNAME_UNAVAILABLE")
 
 
-async def insert_with_handle(session: AsyncSession, *, user: User, name: str) -> None:
+async def insert_with_handle(
+    session: AsyncSession, *, user: User, name: str, prefer: int | None = None
+) -> None:
     """Stage ``user`` with a free handle behind ``name``, redrawing on a clash.
 
     ``allocate`` reads which numbers are taken and then picks one, so two
@@ -140,8 +169,7 @@ async def insert_with_handle(session: AsyncSession, *, user: User, name: str) ->
     """
     validated = usernames.validate(name)
     taken = await _taken(session, validated)
-    for _ in range(_CLAIM_ATTEMPTS):
-        candidate = usernames.random_discriminator()
+    for candidate in _draws(prefer):
         if candidate in taken:
             continue
         user.username = validated

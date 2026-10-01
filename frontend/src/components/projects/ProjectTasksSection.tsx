@@ -30,6 +30,7 @@ import type {
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
@@ -37,6 +38,8 @@ import {
   type CalendarEntryReschedule,
   CalendarView,
   type CalendarViewMode,
+  rescheduledDates,
+  type TaskEntryMeta,
 } from "@/components/calendar";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
@@ -56,6 +59,7 @@ import {
   shouldInsertAfter,
 } from "@/components/projects/taskOrdering";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialog";
 import { ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
@@ -64,6 +68,7 @@ import {
   emptyTaskFormValue,
   serializeTaskFormValue,
   type TaskFormValue,
+  taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -244,8 +249,8 @@ export const ProjectTasksSection = ({
   }, [taskStatuses]);
   // Single source of truth for the aligned create dialog's fields (title,
   // description, status, priority, assignees, dates, recurrence, tags, and
-  // custom properties). TaskForm mutates it via onChange; submit batches it
-  // all into one create POST.
+  // custom properties). TaskForm mutates it via onChange; submit creates the
+  // task and its property values in one request.
   const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const filterStorageKey = `project:${projectId}:view-filters`;
   // `null` fallback on purpose: "nothing saved yet" has to stay distinguishable
@@ -644,8 +649,9 @@ export const ProjectTasksSection = ({
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
         if (stillMatchesFilters(updatedTask)) {
-          const row = taskReadToListRow(updatedTask, guildId);
-          return base.map((task) => (task.id === row.id ? row : task));
+          return base.map((task) =>
+            task.id === updatedTask.id ? taskReadToListRow(updatedTask, guildId, task) : task
+          );
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
@@ -808,25 +814,23 @@ export const ProjectTasksSection = ({
   // Drag-to-reschedule on the calendar. Uses the silent date-update mutation
   // (patches the local list so the dropped entry moves immediately, no toast).
   // A start/due marker patches only that field; a same-day span shifts both
-  // endpoints (CalendarView preserved the duration).
+  // endpoints (CalendarView preserved the duration). A repeating task asks
+  // whether the tasks after it move too.
+  const scopePrompt = useScopePrompt();
   const handleCalendarReschedule = useCallback(
-    ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
-      const meta = entry.meta as
-        | { type?: string; taskId?: number; kind?: "start" | "due" | "span" }
-        | undefined;
+    async ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
+      const meta = entry.meta as Partial<TaskEntryMeta> | undefined;
       if (meta?.type !== "task" || !meta.taskId) return;
-      if (meta.kind === "start") {
-        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { start_date: startAt } });
-      } else if (meta.kind === "due") {
-        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { due_date: startAt } });
-      } else {
-        rescheduleTaskDates.mutate({
-          taskId: meta.taskId,
-          data: { start_date: startAt, due_date: endAt },
-        });
-      }
+      const scope = meta.repeating
+        ? await scopePrompt.ask("edit", { tool: "tasks", scopes: ["this", "following"] })
+        : undefined;
+      if (scope === null) return;
+      rescheduleTaskDates.mutate({
+        taskId: meta.taskId,
+        data: { ...rescheduledDates(meta.kind, startAt, endAt), ...(scope ? { scope } : {}) },
+      });
     },
-    [rescheduleTaskDates]
+    [rescheduleTaskDates, scopePrompt.ask]
   );
 
   // Count of archivable done tasks (non-archived tasks in done category)
@@ -1068,6 +1072,7 @@ export const ProjectTasksSection = ({
 
   return (
     <div className="space-y-4">
+      {scopePrompt.dialog}
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
         <ToolListToolbar
           heading={<h2 className="truncate font-semibold text-xl">{t("tasks.projectTasks")}</h2>}
@@ -1190,9 +1195,8 @@ export const ProjectTasksSection = ({
           }
         >
           <ProjectTasksFilters
+            memberScope={{ type: "canOpen", tool: Tool.project, id: projectId }}
             taskStatuses={sortedTaskStatuses}
-            projectId={projectId}
-            tags={tags}
             value={appliedSpec}
             onChange={applySpec}
           />
@@ -1340,10 +1344,7 @@ export const ProjectTasksSection = ({
                     : null,
                   task_status_id: selectedStatusId,
                   tag_ids: composerValue.tags.map((tg) => tg.id),
-                  property_values: composerValue.properties.map((property) => ({
-                    property_id: property.property_id,
-                    value: composerValue.propertyValues[property.property_id] ?? null,
-                  })),
+                  properties: taskFormPropertyValues(composerValue),
                 };
                 Object.assign(payload, rulePayload(composerValue.recurrence));
                 payload.recurrence_strategy = composerValue.recurrence

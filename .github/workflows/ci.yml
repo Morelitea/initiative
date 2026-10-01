@@ -46,6 +46,10 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          # Whether the pull request's branch is in this repository, where
+          # Release Candidate runs, rather than in a fork.
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           BEFORE: ${{ github.event.before }}
         run: |
           # A pull request diffs against its base branch. A push diffs against
@@ -80,7 +84,7 @@ jobs:
 
             # This workflow file is in scope for itself: it defines the roles,
             # URLs and services the backend job runs against.
-            if [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/)" ]]; then
+            if [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/ .github/actions/test-database/)" ]]; then
               out backend true; out alembic true; out backend_mode full
               echo "CI workflow changed — running every backend test"
               return
@@ -184,21 +188,28 @@ jobs:
             fi
           }
 
-          # Upgrading a database a release wrote. A pull request into dev
-          # upgrades from the newest release; a release pull request and every
-          # integration push walk each release since WALK_FROM in turn.
+          # Upgrading a database a release wrote, by booting the images. A pull
+          # request into dev upgrades from the newest release; every
+          # integration push walks each release since WALK_FROM in turn. A
+          # release pull request is walked by Release Candidate, on the image
+          # it will publish.
           upgrade() {
-            if [[ "$EVENT" != "pull_request" || "$BASE_REF" == "main" ]]; then
+            if [[ "$EVENT" == "pull_request" && "$BASE_REF" == "main" && "$HEAD_REF" == release/v* \
+                && "$SAME_REPO" == "true" ]]; then
+              out upgrade false
+              echo "Release — Release Candidate walks every release on the image it publishes"
+            elif [[ "$EVENT" != "pull_request" || "$BASE_REF" == "main" ]]; then
               out upgrade walk
-              echo "Integration push or release — walking every release"
+              echo "Integration push or pull request into main — walking every release"
             elif [[ -n "$(changed .github/workflows/ci.yml .github/actions/setup-backend/ \
-                backend/alembic/ \
+                Dockerfile .dockerignore backend/entrypoint.sh backend/start.sh \
+                backend/app/main.py backend/alembic/ \
                 backend/app/db/ backend/app/models/ backend/app/core/ \
                 backend/app/testing/ backend/scripts/upgrade_seed.py \
                 backend/scripts/upgrade_from_release.py backend/pyproject.toml \
                 backend/uv.lock scripts/seed/ scripts/seed_dev_data.py)" ]]; then
               out upgrade hop
-              echo "Schema or boot changed — upgrading from the newest release"
+              echo "Schema, boot or image changed — upgrading from the newest release"
             else
               out upgrade false
             fi
@@ -239,6 +250,14 @@ jobs:
       - name: Test the test-run summary
         if: steps.diff.outputs.tooling == 'true'
         run: python3 scripts/ci/pytest_summary_test.py
+
+      - name: Test the change detection
+        if: steps.diff.outputs.tooling == 'true'
+        run: python3 scripts/ci/change_detection_test.py
+
+      - name: Test the monthly report
+        if: steps.diff.outputs.tooling == 'true'
+        run: python3 scripts/ci/monthly_report_test.py
 
   backend-tests:
     name: Backend Lint & Tests
@@ -298,17 +317,9 @@ jobs:
           BASE_REF: origin/${{ github.base_ref }}
         run: scripts/ci/check migrations
 
-      - name: Bootstrap database roles
-        # The same module a deployment runs at startup, over the same kind of
-        # owner connection: it creates the three login roles, hands the app's
-        # schema to app_provisioner, and installs the guild-search match
-        # operator. Runs after dependency install because it is app code, and
-        # before the migrations below, which connect as app_provisioner.
-        env:
-          DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
-        run: |
-          cd backend
-          uv run python -m app.db.bootstrap
+      - name: Set up the test database
+        # Before the migrations below, which connect as app_provisioner.
+        uses: ./.github/actions/test-database
 
       - name: Run Alembic migrations
         # conftest.py auto-applies migrations before tests run, so this
@@ -331,34 +342,22 @@ jobs:
         # ([tool.ty.rules]), which is the single source of truth for the gate.
         run: scripts/ci/check ty
 
-      - name: Start PgBouncer (transaction mode)
-        # Runs as a step (not a service) so the committed reference config is
-        # available post-checkout. edoburu/pgbouncer is pinned; PgBouncer
-        # >= 1.21 is required for max_prepared_statements (asyncpg keeps its
-        # normal prepared-statement cache — there is no app-side pooler mode).
-        run: |
-          printf '"app_user" "app_user"\n"app_admin" "app_admin"\n' > /tmp/pgb-userlist.txt
-          docker run -d --name ci-pgbouncer --network host \
-            -v "$GITHUB_WORKSPACE/backend/scripts/ci/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro" \
-            -v /tmp/pgb-userlist.txt:/etc/pgbouncer/userlist.txt:ro \
-            edoburu/pgbouncer:v1.24.1-p1
-          timeout 30 bash -c 'until (echo > /dev/tcp/127.0.0.1/6432) 2>/dev/null; do sleep 1; done'
-          echo "PgBouncer up on :6432 (transaction mode)"
-
       - name: Fetch the test selection data dev last recorded
-        # Which code each test ran, recorded by the newest dev run that passed.
-        # Without it, every test runs.
+        # Which code each test ran, as dev's newest run recorded it. Every file
+        # dev changed since then counts as changed, so the newest recording
+        # selects the fewest tests. Without one, every test runs.
         if: needs.changes.outputs.backend_mode == 'select'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_id=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --branch dev \
-            --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          run_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=test-selection-data&per_page=20" \
+            --jq '[.artifacts[] | select(.workflow_run.head_branch == "dev" and (.expired | not))][0].workflow_run.id')
           gh run download "$run_id" -R "$GITHUB_REPOSITORY" -n test-selection-data -D backend
           echo "Selecting from dev run $run_id"
 
       - name: Run tests (through the pooler)
+        id: tests
         env:
           MODE: ${{ needs.changes.outputs.backend_mode || 'full' }}
           # Per-test recording needs the tracer that reports every line each
@@ -375,9 +374,13 @@ jobs:
           if [[ "$MODE" == "full" ]]; then
             # Every test, recording which code each ran. dev's recording is
             # the one published for pull requests to select from.
+            status=0
             uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 --testmon-noselect \
-              | tee "$RUNNER_TEMP/pytest.log"
-            exit
+              | tee "$RUNNER_TEMP/pytest.log" || status=$?
+            # 0 every test passed, 1 some failed: either way each one ran, so
+            # the recording is complete.
+            if (( status <= 1 )); then echo "recorded=true" >> "$GITHUB_OUTPUT"; fi
+            exit $status
           fi
           # The core runs on every pull request; then the tests the change
           # reaches, by the code each ran on dev. Both run even if one fails.
@@ -386,12 +389,16 @@ jobs:
             | tee "$RUNNER_TEMP/pytest-core.log" || status=1
           [[ "$MODE" == "core" ]] && exit $status
           uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 \
-            -m "not always and not seam" --testmon-nocollect --testmon-forceselect \
+            -m "not always and not seam and not budget" --testmon-nocollect --testmon-forceselect \
             | tee "$RUNNER_TEMP/pytest.log" || [[ $? -eq 5 ]] || status=1
           exit $status
 
       - name: Publish the test selection data
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
+        # A run with failures records too: a test that failed is selected
+        # again until it passes. A run that stopped part way does not.
+        if: >-
+          ${{ !cancelled() && steps.tests.outputs.recorded == 'true'
+          && github.event_name == 'push' && github.ref == 'refs/heads/dev' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-selection-data
@@ -424,116 +431,9 @@ jobs:
     needs: changes
     # A failed change detection leaves the outputs empty, which runs the job.
     if: ${{ !cancelled() && needs.changes.outputs.upgrade != 'false' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    # Two servers per setup, because roles are cluster-wide: the release's
-    # database and a fresh install of this tree, compared once both are built.
-    # The explicit-logins run uses 5432/5433, the one-URL run 5434/5435.
-    services:
-      upgraded:
-        image: postgres:17
-        env:
-          POSTGRES_USER: initiative
-          POSTGRES_PASSWORD: initiative
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U initiative"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      fresh:
-        image: postgres:17
-        env:
-          POSTGRES_USER: initiative
-          POSTGRES_PASSWORD: initiative
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U initiative"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      upgraded-one-url:
-        image: postgres:17
-        env:
-          POSTGRES_USER: initiative
-          POSTGRES_PASSWORD: initiative
-        ports:
-          - 5434:5432
-        options: >-
-          --health-cmd "pg_isready -U initiative"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      fresh-one-url:
-        image: postgres:17
-        env:
-          POSTGRES_USER: initiative
-          POSTGRES_PASSWORD: initiative
-        ports:
-          - 5435:5432
-        options: >-
-          --health-cmd "pg_isready -U initiative"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
-      SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # Every release tag, which the check checks out and boots.
-          fetch-depth: 0
-
-      - uses: ./.github/actions/setup-backend
-
-      - name: Upgrade a release's database to this tree (explicit logins)
-        id: explicit
-        env:
-          MODE: ${{ needs.changes.outputs.upgrade }}
-        run: |
-          cd backend
-          uv run python scripts/upgrade_from_release.py \
-            $([[ "$MODE" == "walk" ]] && echo --walk) \
-            --server postgresql://initiative:initiative@localhost:5432 \
-            --fresh-server postgresql://initiative:initiative@localhost:5433
-
-      - name: Upgrade a release's database to this tree (one DATABASE_URL)
-        # How docker-compose.example.yml runs it: the app derives its logins
-        # from one owner URL. Its fresh install must be the same database as the
-        # explicit run's, roles and privileges included, so a fix reaches both
-        # setups alike. Runs even when the explicit run failed, so each setup
-        # reports on its own, and compares with it only when it passed.
-        if: ${{ !cancelled() }}
-        env:
-          MODE: ${{ needs.changes.outputs.upgrade }}
-          EXPLICIT: ${{ steps.explicit.outcome }}
-        run: |
-          cd backend
-          uv run python scripts/upgrade_from_release.py --one-url \
-            $([[ "$MODE" == "walk" ]] && echo --walk) \
-            $([[ "$EXPLICIT" == "success" ]] && echo --same-as postgresql://initiative:initiative@localhost:5433) \
-            --server postgresql://initiative:initiative@localhost:5434 \
-            --fresh-server postgresql://initiative:initiative@localhost:5435
-
-      - name: The dev seed fills a fresh install
-        # The fresh install the step above built, with a first owner for the
-        # seed to sign its data with.
-        env:
-          DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5433/initiative
-          DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5433/initiative
-          DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5433/initiative
-          DATABASE_URL_BOOTSTRAP: postgresql+asyncpg://initiative:initiative@localhost:5433/initiative
-          FIRST_OWNER_EMAIL: admin@example.com
-          FIRST_OWNER_PASSWORD: changeme
-        run: |
-          cd backend
-          uv run python -m app.db.init_db
-          uv run python ../scripts/seed_dev_data.py
+    uses: ./.github/workflows/upgrade.yml
+    with:
+      mode: ${{ needs.changes.outputs.upgrade || 'hop' }}
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
@@ -591,6 +491,9 @@ jobs:
       && github.event_name == 'push' && github.ref == 'refs/heads/dev'
       && !contains(needs.*.result, 'failure')
       && !contains(needs.*.result, 'cancelled') }}
+    permissions:
+      contents: read
+      id-token: write  # the image's signature
     uses: ./.github/workflows/dev-build.yml
     # inherit, not a list: the build's environment secrets (OTA_SIGNING_KEY)
     # read as empty without it.

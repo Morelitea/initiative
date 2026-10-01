@@ -16,9 +16,7 @@ kinds:
 - an **installed app** (``app_install_id`` set), the install acting as its
   community.
 
-Replaces the per-resource ``*_permissions`` / ``*_role_permissions`` tables (see
-history/resource-grants-consolidation-design.md). General access:
-history/general-access-sharing-design.md.
+Replaces the per-resource ``*_permissions`` / ``*_role_permissions`` tables.
 """
 
 from datetime import datetime, timezone

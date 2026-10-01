@@ -281,15 +281,15 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
     headers = get_auth_headers(admin)
     capfd.readouterr()
 
-    api_access = await client.put(
-        f"/api/v1/communities/{guild_id}/api-access",
+    api_access = await client.patch(
+        f"/api/v1/communities/{guild_id}/auth-settings",
         headers=headers,
         json={"allow_api_keys": False},
     )
     assert api_access.status_code == 200, api_access.text
 
-    session_limit = await client.put(
-        f"/api/v1/communities/{guild_id}/session-limit",
+    session_limit = await client.patch(
+        f"/api/v1/communities/{guild_id}/auth-settings",
         headers=headers,
         json={"enforce_compliance_session": True},
     )
@@ -314,8 +314,8 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
     ]
 
     # Setting a switch to what it already reads changed nothing.
-    again = await client.put(
-        f"/api/v1/communities/{guild_id}/api-access",
+    again = await client.patch(
+        f"/api/v1/communities/{guild_id}/auth-settings",
         headers=headers,
         json={"allow_api_keys": False},
     )
@@ -338,8 +338,10 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
     body = {"policy": "required", "provider_id": provider_id}
     capfd.readouterr()
 
-    required = await client.put(
-        f"/api/v1/communities/{guild_id}/auth-policy", headers=headers, json=body
+    required = await client.patch(
+        f"/api/v1/communities/{guild_id}/auth-settings",
+        headers=headers,
+        json={"auth_policy": body},
     )
     assert required.status_code == 200, required.text
 
@@ -355,16 +357,18 @@ async def test_setting_and_clearing_a_sign_in_requirement_is_recorded(
     }
 
     # Restating the same requirement moved nothing.
-    restated = await client.put(
-        f"/api/v1/communities/{guild_id}/auth-policy", headers=headers, json=body
+    restated = await client.patch(
+        f"/api/v1/communities/{guild_id}/auth-settings",
+        headers=headers,
+        json={"auth_policy": body},
     )
     assert restated.status_code == 200, restated.text
     assert emitted(capfd, AuditEventType.GUILD_AUTH_POLICY_CHANGED) == []
 
-    cleared = await client.put(
-        f"/api/v1/communities/{guild_id}/auth-policy",
+    cleared = await client.patch(
+        f"/api/v1/communities/{guild_id}/auth-settings",
         headers=headers,
-        json={"policy": "open"},
+        json={"auth_policy": {"policy": "open"}},
     )
     assert cleared.status_code == 200, cleared.text
     rows = emitted(capfd, AuditEventType.GUILD_AUTH_POLICY_CHANGED)

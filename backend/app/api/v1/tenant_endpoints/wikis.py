@@ -68,6 +68,7 @@ from app.services.tenant import comments as comments_service
 from app.services.tenant import content_references
 from app.services.tenant import relationships as relationships_service
 from app.services.tenant import soft_delete as soft_delete_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import wikis as wikis_service
 
@@ -91,6 +92,7 @@ async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
     """Everything a wiki row carries beyond its columns, one grouped query
     each for the page."""
     await tags_service.annotate_tags(session, wikis)
+    await properties_service.annotate_properties(session, wikis)
     await comments_service.annotate_comment_counts(session, wikis, column="wiki_id")
     await wikis_service.annotate_page_counts(session, wikis)
 
@@ -199,6 +201,7 @@ async def create_wiki(
             tag_ids=wiki_in.tag_ids,
         )
     await attachments_service.claim_uploads(session, wiki)
+    await properties_service.write_on_create(session, wiki, wiki_in.properties)
     await session.commit()
     hydrated = await _refetch_wiki(session, wiki.id, user_id=guild_context.user_id)
     return serialize_tool(
@@ -301,24 +304,25 @@ async def list_wiki_pages(
         session, Tool.wiki, wiki_id, current_user, guild_context
     )
     rows = await wikis_service.load_list(session, wiki)
-    await tags_service.annotate_tags(
-        session, [row for row in rows if isinstance(row, WikiPage)]
-    )
+    pages = [row for row, _ in rows if isinstance(row, WikiPage)]
+    await tags_service.annotate_tags(session, pages)
+    await properties_service.annotate_properties(session, pages)
     # The position each row is SERVED with is its place in the list as drawn —
     # a document's is kept on the wiki and a page's in its own column, and
     # neither is what a client counts with.
-    known = {row.id for row in rows if isinstance(row, WikiPage)}
+    known = {page.id for page in pages}
     items = [
-        serialize_wiki_page_summary(row, context=guild_context)
+        serialize_wiki_page_summary(row, context=guild_context, heading_nodes=nodes)
         if isinstance(row, WikiPage)
         else serialize_document_as_page(
             row,
             wiki_id=wiki.id,
             position=spot,
+            heading_nodes=nodes,
             parent_page_id=wikis_service.visible_document_parent(wiki, row.id, known),
             context=guild_context,
         )
-        for spot, row in enumerate(rows)
+        for spot, (row, nodes) in enumerate(rows)
     ]
     return WikiPageTree(items=items)
 
@@ -510,36 +514,21 @@ async def create_wiki_page(
         author_id=current_user.id,
     )
     await attachments_service.claim_uploads(session, page)
+    await properties_service.write_on_create(session, page, page_in.properties)
     await session.commit()
     await session.refresh(page)
     return serialize_wiki_page(page, context=guild_context)
 
 
-@router.get("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)
-async def read_wiki_page(
-    wiki_id: int,
-    page_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
-) -> WikiPageRead:
-    _wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context
-    )
-    await tags_service.annotate_tags(session, [page])
-    return serialize_wiki_page(page, context=guild_context)
-
-
 @pages_router.get("/wiki-pages/{page_id}", response_model=WikiPageRead)
-async def read_wiki_page_by_id(
+async def read_wiki_page(
     page_id: int,
     session: RLSSessionDep,
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
-    """One page by its own id — the read-back for a link that names only the
-    page, such as a mention in a document or a stored notification. Answered
-    exactly as the page's address inside its wiki is."""
+    """One page by its own id, which is all a link to it, a mention or a
+    stored notification names."""
     wiki_id = (
         await session.exec(select(WikiPage.wiki_id).where(WikiPage.id == page_id))
     ).first()
@@ -548,7 +537,12 @@ async def read_wiki_page_by_id(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=WikiMessages.PAGE_NOT_FOUND,
         )
-    return await read_wiki_page(wiki_id, page_id, session, current_user, guild_context)
+    _wiki, page = await _load_page(
+        session, wiki_id, page_id, current_user, guild_context
+    )
+    await tags_service.annotate_tags(session, [page])
+    await properties_service.annotate_properties(session, [page])
+    return serialize_wiki_page(page, context=guild_context)
 
 
 @router.patch("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)
@@ -604,6 +598,7 @@ async def update_wiki_page(
             entity_id=page.id,
             tag_ids=data["tag_ids"],
         )
+    await properties_service.write_on_update(session, page, page_in.properties)
     if "content" in data:
         await content_references.sync_for_entity(
             session,
@@ -621,6 +616,7 @@ async def update_wiki_page(
         )
     await session.refresh(page)
     await tags_service.annotate_tags(session, [page])
+    await properties_service.annotate_properties(session, [page])
     return serialize_wiki_page(page, context=guild_context)
 
 

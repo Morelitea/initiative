@@ -3,18 +3,16 @@ import { describe, expect, it } from "vitest";
 import { sanitizeUrl, validateUrl } from "./url";
 
 /**
- * Editor documents are cross-user stored content, so a link URL persisted by
- * one user is later rendered (and potentially opened) in another user's
- * browser. These cases pin the strict-allowlist contract that neutralizes
- * stored-XSS vectors (javascript:/data:/vbscript:) at every choke point.
+ * These cases pin the strict-allowlist contract: only allowlisted schemes pass,
+ * and javascript:/data:/vbscript: URLs are neutralized at every choke point.
  */
 describe("sanitizeUrl", () => {
   it("neutralizes javascript: URLs to about:blank", () => {
     expect(sanitizeUrl("javascript:alert(1)")).toBe("about:blank");
     expect(sanitizeUrl("JavaScript:alert(1)")).toBe("about:blank");
-    // Leading/trailing whitespace must not smuggle the scheme through.
+    // Leading/trailing whitespace is ignored when matching the scheme.
     expect(sanitizeUrl("  javascript:alert(1)  ")).toBe("about:blank");
-    // Tab/newline obfuscation inside the scheme name.
+    // Tab/newline inside the scheme name.
     expect(sanitizeUrl("java\tscript:alert(1)")).toBe("about:blank");
   });
 

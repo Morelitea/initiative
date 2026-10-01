@@ -81,3 +81,7 @@ docker-compose.yml
 
 # testmon test-selection data (CI restores it from the latest dev run)
 backend/.testmondata*
+
+# Browser journeys (frontend/e2e): reports and failure traces
+frontend/playwright-report/
+frontend/test-results/

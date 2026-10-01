@@ -325,7 +325,7 @@ async def test_renders_markdown_numbered_layout():
             rows=[
                 # member=None must be skipped BEFORE stringifying — str(None)
                 # passes a truthiness guard, and its empty rendering would
-                # smuggle a spurious "( · Current)" into the detail trail.
+                # add a spurious "( · Current)" to the detail trail.
                 {
                     "order": 1,
                     "title": "Alice | piped",

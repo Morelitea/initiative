@@ -162,6 +162,19 @@ async def proven_addresses(session: AsyncSession, *, user_id: int) -> list[str]:
     where its mail has always gone. Reset mail is how somebody in that position
     gets back in, so it has somewhere to arrive.
     """
+    proved = await proved_only(session, user_id=user_id)
+    if proved:
+        return proved
+    sole = await primary_address(session, user_id=user_id)
+    return [sole] if sole else []
+
+
+async def proved_only(session: AsyncSession, *, user_id: int) -> list[str]:
+    """The addresses this account has proved, primary first — with no fallback.
+
+    Where a code that confirms the account may go: an address somebody added
+    and never proved is not known to be theirs.
+    """
     rows = (
         await session.exec(
             select(UserEmail)
@@ -173,10 +186,7 @@ async def proven_addresses(session: AsyncSession, *, user_id: int) -> list[str]:
             .order_by(UserEmail.is_primary.desc(), UserEmail.id)
         )
     ).all()
-    if rows:
-        return [decrypt_field(row.email_encrypted, SALT_EMAIL) for row in rows]
-    sole = await primary_address(session, user_id=user_id)
-    return [sole] if sole else []
+    return [decrypt_field(row.email_encrypted, SALT_EMAIL) for row in rows]
 
 
 def _primary_clause(

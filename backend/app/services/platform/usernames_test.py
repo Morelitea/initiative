@@ -58,23 +58,16 @@ class TestAllocateFromSeed:
         assert 0 <= number <= 9999
 
 
-class TestFreeSlots:
-    async def test_a_fresh_name_is_free(self, session):
-        assert await username_service.has_free_slot(session, name="brandnewname")
-
-    @pytest.mark.parametrize("name", ["admin", "ab", "foo bar"])
-    async def test_a_name_it_cannot_store_is_not_free(self, session, name):
-        assert not await username_service.has_free_slot(session, name=name)
-
-
 class TestClaim:
     async def test_sets_the_handle_and_marks_it_chosen(self, session):
         user = await create_user(session, username_chosen=False)
 
-        await username_service.claim_for_user(session, user=user, name="Picked")
+        await username_service.claim_for_user(
+            session, user=user, name="Picked", prefer=4821
+        )
         await session.commit()
 
-        assert user.username == "picked"
+        assert (user.username, user.discriminator) == ("picked", 4821)
         assert user.username_chosen is True
 
     async def test_the_pair_is_unique(self, session):

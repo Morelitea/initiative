@@ -99,11 +99,11 @@ def test_plural_selection_uses_count():
     assert other == "You have <strong>3</strong> overdue tasks:"
 
 
-# --- HTML escaping of interpolated values (SEC-5) -------------------------
+# --- HTML escaping of interpolated values -------------------------------
 
 
 def test_email_namespace_escapes_interpolated_values_by_default():
-    # An attacker-controlled display name containing markup must render as
+    # A display name containing markup must render as
     # literal text inside the HTML email body — the template's own <strong>
     # tags stay intact, only the substituted VALUE is escaped.
     body = translate(

@@ -80,8 +80,7 @@
     "loadError": "No se pudieron cargar los proyectos archivados.",
     "unarchive": "Desarchivar",
     "noArchived": "No hay proyectos archivados",
-    "noArchivedDescription": "Los proyectos activos están en la pestaña Activos.",
-    "sharingUnavailable": "No se puede cambiar el uso compartido de un proyecto archivado."
+    "noArchivedDescription": "Los proyectos activos están en la pestaña Activos."
   },
   "createDialog": {
     "title": "Crear proyecto",
@@ -414,11 +413,5 @@
     "noComments": "Aún no hay comentarios.",
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
-  },
-  "status": {
-    "label": "Mostrar",
-    "active": "Activos",
-    "templates": "Plantillas",
-    "archived": "Archivados"
   }
 }

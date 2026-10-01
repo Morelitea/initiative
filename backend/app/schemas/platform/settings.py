@@ -542,7 +542,7 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Whether anything this deployment permits could answer a second-factor
     #: requirement — the authenticator app or a passkey, either will do. False
     #: means the requirement below cannot be raised, and the server refuses it
-    #: with ``SETTINGS_FACTOR_REQUIREMENT_NO_METHOD``. Answered here so the
+    #: with ``AUTH_RULE_NOT_OFFERED``. Answered here so the
     #: surface can say so before the write, and so it never has to work out
     #: which methods count.
     factor_methods_permitted: bool = True
@@ -560,43 +560,37 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     accounts_without_factor: AccountsWithoutFactor
 
 
-class SessionLifetimeUpdate(SanitizedBaseModel):
-    """The absolute limit on staying signed in, in hours.
+class PlatformAuthSettingsUpdate(SanitizedBaseModel):
+    """The rules to change. An omitted field is left as it is.
 
-    ``None`` asks for no limit. It has to be longer than the idle window to
-    mean anything: set shorter, it is the only thing ending a session and the
-    idle window stops mattering — which is a fair thing to ask for, and the
-    reason the field is free rather than a list of blessed figures.
+    The whole request is one change: it is applied together or refused
+    together, and a rule it loosens is loosened before one it tightens is
+    checked. Nobody is signed out by any of it.
     """
 
-    session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
-    #: The idle window, in minutes. ``None`` asks for no limit of its own and
-    #: leaves ``AUTH_REFRESH_TTL_DAYS``. Floored at a minute — anything less
-    #: ends a session while somebody is still reading the page.
-    session_idle_minutes: Optional[int] = Field(default=None, ge=1, le=525600)
-
-
-class SecondFactorRequirementUpdate(SanitizedBaseModel):
-    """Who to ask for a second factor from now on.
-
-    Nobody is signed out by the change. An account the level covers is asked
-    at its next request and answers it where it stands; one that cannot
-    present a factor — the app on a phone, a personal API key — works again
-    once its owner holds one.
-    """
-
-    level: SecondFactorRequirement
-
-
-class LoginMethodsUpdate(SanitizedBaseModel):
-    """The methods to permit from now on. Order and repetition are ignored."""
-
-    methods: List[LoginMethod] = Field(min_length=1)
-    #: Set to proceed with a change that strands accounts. It must equal the
-    #: number the server currently computes, so it cannot be sent blind or
-    #: replayed once the number has moved — an operator acknowledges a figure
-    #: they were actually shown.
+    #: The ways in to permit from now on, at least one. Order and repetition
+    #: are ignored.
+    methods: Optional[List[LoginMethod]] = Field(default=None, min_length=1)
+    #: Set to proceed with a change to ``methods`` that strands accounts. It
+    #: must equal the number the server currently computes, so it cannot be
+    #: sent blind or replayed once the number has moved — an operator
+    #: acknowledges a figure they were actually shown.
     acknowledge_stranded: Optional[int] = Field(default=None, ge=0)
+    #: Who to ask for a second factor. An account the level covers is asked at
+    #: its next request and answers it where it stands; one that cannot
+    #: present a factor — the app on a phone, a personal API key — works again
+    #: once its owner holds one.
+    second_factor_requirement: Optional[SecondFactorRequirement] = None
+    #: The absolute limit on staying signed in, in hours. Sent as ``null``, no
+    #: limit. It has to be longer than the idle window to mean anything: set
+    #: shorter, it is the only thing ending a session — which is a fair thing
+    #: to ask for, and the reason the field is free rather than a list of
+    #: blessed figures.
+    session_max_hours: Optional[int] = Field(default=None, ge=1, le=87600)
+    #: The idle window, in minutes. Sent as ``null``, no limit of its own,
+    #: which leaves ``AUTH_REFRESH_TTL_DAYS``. Floored at a minute — anything
+    #: less ends a session while somebody is still reading the page.
+    session_idle_minutes: Optional[int] = Field(default=None, ge=1, le=525600)
 
 
 class InterfaceSettingsResponse(SanitizedBaseModel):
@@ -605,8 +599,7 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
     light_accent_color: str
     dark_accent_color: str
     #: Whether arriving visitors are asked what this deployment may keep in
-    #: their browser. Also on ``GET /config``, which is where the SPA reads it;
-    #: served here for the page that writes it.
+    #: their browser. Read, like the colours, from ``GET /config``.
     cookie_consent_enabled: bool
 
 
@@ -769,7 +762,6 @@ class StorageSettingsResponse(SanitizedBaseModel):
     s3_access_key_id: Optional[str] = None
     has_secret_access_key: bool = False
     s3_use_path_style: bool = False
-    s3_kms_key_id: Optional[str] = None
     s3_local_fallback: bool = False
 
 
@@ -781,7 +773,6 @@ class StorageSettingsUpdate(SanitizedBaseModel):
     s3_access_key_id: Optional[str] = None
     s3_secret_access_key: Optional[RawTextStr] = None
     s3_use_path_style: bool = False
-    s3_kms_key_id: Optional[str] = None
     s3_local_fallback: bool = False
 
 

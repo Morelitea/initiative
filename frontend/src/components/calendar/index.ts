@@ -5,6 +5,11 @@ export {
   buildEventCalendarEntry,
   DEFAULT_CALENDAR_COLOR,
 } from "./eventCalendarEntry";
-export { buildTaskCalendarEntries, buildTaskOccurrenceEntries } from "./taskCalendarEntries";
+export {
+  buildTaskCalendarEntries,
+  buildTaskOccurrenceEntries,
+  rescheduledDates,
+  type TaskEntryMeta,
+} from "./taskCalendarEntries";
 export { useCalendarVisibility } from "./useCalendarVisibility";
 export { calendarVisibleRange } from "./visibleRange";

@@ -10,11 +10,7 @@
  * Derived from the tool enum, so a seventh is linkable the day it exists.
  */
 
-import type {
-  InitiativeListRead,
-  SearchEntityType,
-  Tool,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { isToolEnabled, TOOLS } from "@/lib/tools";
 
 /**
@@ -41,13 +37,13 @@ export const referenceTypeFor = (tool: Tool | "task" | "wiki_page"): SearchEntit
  * separately.
  */
 export const linkableToolTypes = (
-  initiative: InitiativeListRead | null | undefined
+  initiative: InitiativeRead | null | undefined
 ): SearchEntityType[] =>
   TOOLS.filter((tool) => !initiative || isToolEnabled(tool, initiative)).map(referenceTypeFor);
 
 /** Whether `[[ ]]` can make one of these from a name alone. */
 export const isCreatableFromName = (
   entityType: SearchEntityType,
-  initiative: InitiativeListRead | null | undefined
+  initiative: InitiativeRead | null | undefined
 ): boolean =>
   Boolean(initiative) && (linkableToolTypes(initiative) as string[]).includes(entityType);

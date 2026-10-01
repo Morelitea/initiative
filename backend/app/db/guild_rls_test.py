@@ -410,6 +410,7 @@ _NO_SINGLE_PARENT = {
     "reactions": "one of eight tools, per row",
     "reaction_digest_items": "gated exactly like the reaction it describes",
     "recent_views": "one of eight tools, per row",
+    "property_values": "any tool or sub-tool, per row: read through its own table, written through entity_access",
     "search_entries": "names its tool in dac_tool",
     # One tool, two parents: a link must clear the gate on BOTH documents, so
     # there is no single row to authorize against.
@@ -547,8 +548,8 @@ _GID_QUERY_TRASH = 990_412
 #: normalises it the same way for every table, which is what makes that stable
 #: to compare.
 _QUERY_TRASH_QUAL = (
-    "((deleted_at IS NULL) OR (( SELECT (current_setting('app.query'::text, true)"
-    " = 'true'::text)) IS NOT TRUE))"
+    "((deleted_at IS NULL) OR (( SELECT {schema}.setting_query() AS setting_query)"
+    " IS NOT TRUE))"
 )
 
 
@@ -590,9 +591,10 @@ async def test_soft_delete_tables_keep_the_trash_out_of_reader_written_sql(engin
                 f"{tbl}.query_excludes_trash must be RESTRICTIVE FOR SELECT, got "
                 f"{permissive} FOR {cmd}."
             )
-            assert qual == _QUERY_TRASH_QUAL, (
+            expected = _QUERY_TRASH_QUAL.format(schema=schema)
+            assert qual == expected, (
                 f"{tbl}.query_excludes_trash does not say what it must.\n"
-                f"  expected: {_QUERY_TRASH_QUAL}\n"
+                f"  expected: {expected}\n"
                 f"  got:      {qual}"
             )
     finally:

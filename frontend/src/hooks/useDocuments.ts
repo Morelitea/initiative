@@ -6,10 +6,7 @@ import {
   createDocumentApiV1CGuildIdDocumentsPost,
   deleteDocumentApiV1CGuildIdDocumentsDocumentIdDelete,
   deleteDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsVersionIdDelete,
-  duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost,
   generateSummaryApiV1CGuildIdDocumentsDocumentIdAiSummaryPost,
-  getDocumentCountsApiV1CGuildIdDocumentsCountsGet,
-  getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey,
   getListDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGetQueryKey,
   getReadDocumentApiV1CGuildIdDocumentsDocumentIdGetQueryKey,
   listDocumentVersionsApiV1CGuildIdDocumentsDocumentIdVersionsGet,
@@ -21,14 +18,12 @@ import {
 import type {
   BodyUploadDocumentFileApiV1CGuildIdDocumentsUploadPost,
   BodyUploadDocumentVersionApiV1CGuildIdDocumentsDocumentIdVersionsPost,
-  DocumentCountsResponse,
   DocumentCreate,
   DocumentFileVersionRead,
   DocumentListResponse,
   DocumentRead,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
-  GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
   ListDocumentsApiV1CGuildIdDocumentsGetParams,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -69,18 +64,6 @@ export const useDocumentsList = (
   return useQuery<DocumentListResponse>({
     ...documents.listQuery(guildId, params),
     placeholderData: keepPreviousData,
-    ...options,
-  });
-};
-
-export const useDocumentCounts = (
-  params: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams,
-  options?: QueryOpts<DocumentCountsResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<DocumentCountsResponse>({
-    queryKey: getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey(guildId, params),
-    queryFn: () => getDocumentCountsApiV1CGuildIdDocumentsCountsGet(guildId, params),
     ...options,
   });
 };
@@ -476,6 +459,7 @@ export const useCopyDocument = (
 
 // ── Document-scoped mutations ───────────────────────────────────────────────
 
+/** A copy beside the original, in its own initiative. */
 export const useDuplicateDocument = (
   documentId: number,
   options?: MutationOpts<DocumentRead, { name: string }>
@@ -483,9 +467,7 @@ export const useDuplicateDocument = (
   useGuildMutation<DocumentRead, { name: string }>(
     {
       mutationFn: (guildId, { name }) =>
-        duplicateDocumentApiV1CGuildIdDocumentsDocumentIdDuplicatePost(guildId, documentId, {
-          name,
-        }),
+        copyDocumentApiV1CGuildIdDocumentsDocumentIdCopyPost(guildId, documentId, { name }),
       invalidate: () => invalidate(q.allDocuments()),
     },
     options

@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -74,7 +73,6 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const { t } = useTranslation(["initiatives", "common"]);
-  const { user } = useAuth();
   const { activeGuild } = useGuilds();
   const guildAdminLabel = t("settings.guildAdminRole");
 
@@ -84,7 +82,6 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
   const isGuildAdmin = Boolean(activeGuild?.can.administer_content);
-  const membership = initiative?.members.find((member) => member.user.id === user?.id) ?? null;
   const canManageInitiative = Boolean(initiative?.can.manage);
 
   // A tool's tab renders when its permission allows viewing it (the backend
@@ -105,12 +102,9 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   const activeTab =
     tool && availableTabs.includes(tool) ? tool : (availableTabs[0] ?? Tool.project);
 
-  const memberCount = initiative?.members.length ?? 0;
+  const memberCount = initiative?.member_count ?? 0;
 
-  const roleBadgeLabel =
-    membership?.role_display_name ??
-    membership?.role_name ??
-    (isGuildAdmin ? guildAdminLabel : null);
+  const roleBadgeLabel = initiative?.role_display_name ?? (isGuildAdmin ? guildAdminLabel : null);
 
   if (!hasValidInitiativeId) {
     return <Navigate to={gp("/")} replace />;

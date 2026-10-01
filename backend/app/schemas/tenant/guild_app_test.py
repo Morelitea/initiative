@@ -10,8 +10,8 @@ makes that answer true of the install rather than of the listing.
 
 **Stored values never do.** The definition describes the form; what was typed
 into it lives in columns this payload does not read. Serializing one alongside
-the other would be the single most natural way to leak a credential, so the test
-reads the whole payload rather than checking the field somebody remembered.
+the other would put a stored credential in the payload, so the test reads the
+whole payload rather than checking the field somebody remembered.
 """
 
 from datetime import datetime, timezone

@@ -72,20 +72,43 @@ class TestRegistration:
 
 
 class TestAvailability:
-    async def test_a_fresh_name_is_available(self, client: AsyncClient):
-        response = await client.get(
-            "/api/v1/auth/username-available", params={"username": "unclaimedname"}
-        )
+    async def test_the_number_shown_is_the_one_the_account_gets(
+        self, client: AsyncClient
+    ):
+        """The check shows a number and signs it; registering with that offer
+        keeps it, and the offer names that name only."""
+        from app.core.security import read_handle_offer
 
-        assert response.status_code == 200
-        assert response.json() == {"available": True, "reason": None}
+        response = await client.get(
+            "/api/v1/auth/username-available", params={"username": "UnclaimedName"}
+        )
+        shown = response.json()
+        assert shown["available"] is True
+        assert 0 <= shown["discriminator"] <= 9999
+        assert read_handle_offer(shown["offer"], "someoneelse") is None
+
+        registered = await client.post(
+            "/api/v1/auth/register",
+            json={
+                **REGISTRATION,
+                "username": "unclaimedname",
+                "username_offer": shown["offer"],
+            },
+        )
+        assert registered.status_code == 201
+        assert registered.json()["discriminator"] == shown["discriminator"]
 
     async def test_a_reserved_name_says_why(self, client: AsyncClient):
         response = await client.get(
             "/api/v1/auth/username-available", params={"username": "admin"}
         )
 
-        assert response.json() == {"available": False, "reason": "USERNAME_RESERVED"}
+        assert response.json() == {
+            "available": False,
+            "reason": "USERNAME_RESERVED",
+            "discriminator": None,
+            "offer": None,
+        }
 
     async def test_a_name_someone_holds_is_still_available(
         self, client: AsyncClient, session: AsyncSession
@@ -99,6 +122,38 @@ class TestAvailability:
         )
 
         assert response.json()["available"] is True
+
+    async def test_suggestions_are_names_nobody_holds(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        """Suggestions start from what was typed, and skip a name in use."""
+        await create_user(session, username="popular", discriminator=1)
+
+        response = await client.get(
+            "/api/v1/auth/username-suggestions", params={"seed": "Popular"}
+        )
+
+        suggestions = response.json()["suggestions"]
+        assert len(suggestions) == 4
+        assert "popular" not in suggestions
+        assert suggestions[0].startswith("popular-")
+
+        fresh = await client.get(
+            "/api/v1/auth/username-suggestions", params={"seed": "Quiet Otter"}
+        )
+        assert fresh.json()["suggestions"][0] == "quiet-otter"
+
+        # A long name that is held still yields alternatives built on it.
+        long_name = "a-rather-long-handle-for-a-test"
+        await create_user(session, username=long_name, discriminator=1)
+        long = await client.get(
+            "/api/v1/auth/username-suggestions", params={"seed": long_name}
+        )
+        built_on_it = [
+            s for s in long.json()["suggestions"] if s.startswith("a-rather")
+        ]
+        assert built_on_it
+        assert all(len(s) <= 32 and s != long_name for s in built_on_it)
 
 
 class TestClaimingAHandle:

@@ -75,24 +75,22 @@ async def test_any_guild_member_can_manage_the_tag_dictionary(
 # ---------------------------------------------------------------------------
 
 
-async def test_set_task_tags_replaces_and_dedups(
-    client: AsyncClient, acting_user, session
-):
+async def test_task_tags_replace_and_dedup(client: AsyncClient, acting_user, session):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
     tag = await create_tag(session, a.guild)
     other = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
 
-    response = await client.put(
-        a.g(f"/tasks/{task.id}/tags"),
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
         headers=a.headers,
         json={"tag_ids": [tag.id, other.id, tag.id]},
     )
     assert response.status_code == 200
     assert {t["id"] for t in response.json()["tags"]} == {tag.id, other.id}
 
-    response = await client.put(
-        a.g(f"/tasks/{task.id}/tags"), headers=a.headers, json={"tag_ids": [other.id]}
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"tag_ids": [other.id]}
     )
     assert response.status_code == 200
     assert await _task_tag_ids(session, a.guild.id, task.id) == {other.id}
@@ -108,8 +106,8 @@ async def test_set_tags_rejects_trashed_tag(client: AsyncClient, acting_user, se
     delete = await client.delete(a.g(f"/tags/{tag.id}"), headers=a.headers)
     assert delete.status_code == 204
 
-    response = await client.put(
-        a.g(f"/tasks/{task.id}/tags"), headers=a.headers, json={"tag_ids": [tag.id]}
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"tag_ids": [tag.id]}
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "INVALID_TAG_IDS"
@@ -123,8 +121,8 @@ async def test_set_tags_rejects_other_guilds_tag(
     foreign_tag = await create_tag(session, b.guild)
     task = await create_task(session, a.project)
 
-    response = await client.put(
-        a.g(f"/tasks/{task.id}/tags"),
+    response = await client.patch(
+        a.g(f"/tasks/{task.id}"),
         headers=a.headers,
         json={"tag_ids": [foreign_tag.id]},
     )
@@ -199,8 +197,8 @@ async def test_bulk_add_and_remove_task_tags(client: AsyncClient, acting_user, s
     tasks = [await create_task(session, a.project) for _ in range(3)]
     first = tasks[0]
 
-    seed = await client.put(
-        a.g(f"/tasks/{first.id}/tags"), headers=a.headers, json={"tag_ids": [keep.id]}
+    seed = await client.patch(
+        a.g(f"/tasks/{first.id}"), headers=a.headers, json={"tag_ids": [keep.id]}
     )
     assert seed.status_code == 200
 
@@ -371,8 +369,8 @@ async def test_cross_initiative_member_cannot_touch_tags(
     b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
     await create_initiative(session, a.guild, b.user)
 
-    response = await client.put(
-        b.g(f"/tasks/{task.id}/tags"), headers=b.headers, json={"tag_ids": [tag.id]}
+    response = await client.patch(
+        b.g(f"/tasks/{task.id}"), headers=b.headers, json={"tag_ids": [tag.id]}
     )
     assert response.status_code == 404
 

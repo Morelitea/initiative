@@ -33,7 +33,7 @@ import { useAppConfig } from "@/hooks/useAppConfig";
 import { useCommunityGuilds } from "@/hooks/useCommunities";
 import { renderableBanner } from "@/lib/banner";
 import { getErrorCode } from "@/lib/errorMessage";
-import { asGuildCategory } from "@/lib/guildCategories";
+import { asGuildCategories } from "@/lib/guildCategories";
 
 /** Stable keys for the loading placeholders — an index key on a list that can
  *  change is the lint rule this avoids. */
@@ -46,7 +46,7 @@ export function CommunitiesPage() {
   // run the route's `validateSearch`, so anywhere this page is mounted another
   // way an unrecognized value would otherwise filter the grid down to nothing.
   const rawSearch = useSearch({ strict: false }) as { category?: unknown; q?: unknown };
-  const category = asGuildCategory(rawSearch.category);
+  const categories = asGuildCategories(rawSearch.category);
   const search = typeof rawSearch.q === "string" ? rawSearch.q : "";
 
   const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
@@ -54,7 +54,7 @@ export function CommunitiesPage() {
   const directory = useCommunityGuilds(
     {
       q: search.trim() || undefined,
-      category: category ?? undefined,
+      category: categories.length ? categories : undefined,
     },
     { enabled: communityDirectoryEnabled }
   );

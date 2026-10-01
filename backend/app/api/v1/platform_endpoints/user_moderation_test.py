@@ -16,11 +16,18 @@ from app.main import app
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import UserRole, UserStatus
-from app.testing import create_guild, create_guild_membership, create_user, emitted
+from app.testing import (
+    create_guild,
+    create_guild_membership,
+    create_user,
+    emitted,
+    drain_notices,
+)
 from app.testing.factories import get_auth_headers
 
 
 async def _notification_types(session: AsyncSession, user_id: int) -> set[str]:
+    await drain_notices()
     rows = (
         await session.exec(select(Notification).where(Notification.user_id == user_id))
     ).all()
@@ -617,20 +624,29 @@ class TestTimeOut:
         assert body["contact_email"] == "trust@example.com"
         assert body["since"] is not None
 
-    async def test_the_screen_gives_the_reason(self, client, session):
+    async def test_the_screen_gives_this_suspensions_reason(self, client, session):
         moderator = await create_user(session, role=UserRole.moderator)
         subject = await create_user(session)
-        await client.post(
-            f"/api/v1/operator/users/{subject.id}/suspension",
-            headers=get_auth_headers(moderator),
-            json={"suspended": True, "reason": "Spam in three communities"},
-        )
-        body = (
-            await client.get(
+        path = f"/api/v1/operator/users/{subject.id}/suspension"
+        moderating = get_auth_headers(moderator)
+
+        async def _reason():
+            screen = await client.get(
                 "/api/v1/users/me/time-out", headers=get_auth_headers(subject)
             )
-        ).json()
-        assert body["reason"] == "Spam in three communities"
+            return screen.json()["reason"]
+
+        await client.post(
+            path,
+            headers=moderating,
+            json={"suspended": True, "reason": "Spam in three communities"},
+        )
+        assert await _reason() == "Spam in three communities"
+
+        # A later suspension that gives no reason does not show the last one's.
+        await client.post(path, headers=moderating, json={"suspended": False})
+        await client.post(path, headers=moderating, json={"suspended": True})
+        assert await _reason() is None
 
 
 class TestPlatformRole:

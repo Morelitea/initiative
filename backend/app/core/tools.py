@@ -60,16 +60,6 @@ class Tool(str, Enum):
         return f"create_{self.plural}"
 
     @property
-    def member_view_field(self) -> str:
-        """``InitiativeMemberRead`` computed view flag for this tool."""
-        return f"can_view_{self.plural}"
-
-    @property
-    def member_create_field(self) -> str:
-        """``InitiativeMemberRead`` computed create flag for this tool."""
-        return f"can_create_{self.plural}"
-
-    @property
     def code_prefix(self) -> str:
         """The SCREAMING_SNAKE stem every error code for this tool derives from
         (``counter_group`` -> ``COUNTER_GROUP``)."""
@@ -145,11 +135,10 @@ DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
 # hand-built here and are ordinary content.
 NON_EXPORTABLE_TOOLS: frozenset[Tool] = frozenset()
 
-# Tools with an export-engine source (single-entity + bulk selection export).
-# The engine's source name / endpoint segment is the KEBAB SINGULAR of the
-# tool ("counter_group" -> "counter-group"); the bulk selector param is
-# ``{tool}_ids``. The frontend mirrors this as TOOL_REGISTRY's ``bulkExport``
-# flag.
+# Tools with an export-engine source (single-entity + bulk selection export),
+# all served by ``GET /exports/{tool}``. The engine's source name is the KEBAB
+# SINGULAR of the tool ("counter_group" -> "counter-group"). The frontend
+# mirrors this as TOOL_REGISTRY's ``bulkExport`` flag.
 BULK_EXPORT_TOOLS = tuple(t for t in Tool if t not in NON_EXPORTABLE_TOOLS)
 
 
@@ -212,9 +201,24 @@ TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
 ARCHIVABLE_EXTRAS: tuple[str, ...] = ("task", "initiative")
 ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXTRAS
 
+# Property surfaces: EVERY tool carries custom properties, plus every sub-tool —
+# the rows inside a tool that are things in their own right. The properties
+# seam (app.services.tenant.properties.PROPERTY_LINKS), the value table's
+# CHECK, its policies and the ``PropertyTarget`` schema enum all derive from
+# PROPERTY_TARGETS, so a new Tool carries properties with no per-surface edit.
+PROPERTY_EXTRAS: tuple[str, ...] = (
+    "task",
+    "queue_item",
+    "calendar_event",
+    "counter",
+    "gallery_image",
+    "wiki_page",
+)
+PROPERTY_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + PROPERTY_EXTRAS
+
 
 def tool_export_source(tool: Tool) -> str:
-    """The export adapter registry key / endpoint segment for a tool."""
+    """The export adapter registry key for a tool."""
     return tool.value.replace("_", "-")
 
 

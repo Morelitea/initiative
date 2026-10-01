@@ -71,8 +71,8 @@ async def test_each_area_of_the_settings_page_records_its_own_change(
         json={"community_directory_enabled": True},
     )
     assert community.status_code == 200, community.text
-    lifetime = await client.put(
-        "/api/v1/settings/auth/session-lifetime",
+    lifetime = await client.patch(
+        "/api/v1/settings/auth/platform",
         headers=headers,
         json={"session_max_hours": 72},
     )

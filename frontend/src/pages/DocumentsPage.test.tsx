@@ -44,15 +44,14 @@ function stubDocuments(items: DocumentSummary[] = []) {
         sort_dir: null,
       });
     }),
-    guildHttp.get("/documents/counts", ({ request }) => {
-      const params = new URL(request.url).searchParams;
-      return HttpResponse.json({
-        // Distinct totals so the toggle's two badges are told apart.
-        total_count: params.get("is_template") === "true" ? 2 : 7,
+    guildHttp.get("/tools/document/counts", () =>
+      HttpResponse.json({
+        // Distinct totals so the toggle's badges are told apart.
+        views: { active: 7, templates: 2, archived: 0 },
         untagged_count: 0,
         tag_counts: {},
-      });
-    })
+      })
+    )
   );
   return requests;
 }
@@ -127,7 +126,7 @@ describe("DocumentsView documents/templates states", () => {
     await user.click(await screen.findByRole("radio", { name: "Templates" }));
     await waitFor(() => expect(latest(requests).get("is_template")).toBe("true"));
 
-    await user.click(screen.getByRole("radio", { name: "Documents" }));
+    await user.click(screen.getByRole("radio", { name: "Active" }));
     await waitFor(() => expect(latest(requests).get("is_template")).toBe("false"));
   });
 
@@ -135,8 +134,12 @@ describe("DocumentsView documents/templates states", () => {
     stubDocuments();
     renderDocuments();
 
-    expect(await screen.findByRole("radio", { name: "Documents" })).toHaveTextContent("7");
-    expect(await screen.findByRole("radio", { name: "Templates" })).toHaveTextContent("2");
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: "Active" })).toHaveTextContent("7")
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: "Templates" })).toHaveTextContent("2")
+    );
   });
 
   it("offers no create action in the empty templates state", async () => {

@@ -10,7 +10,7 @@ from app.core.login_methods import LoginMethod
 
 
 class GuildAuthPolicy(SQLModel, table=True):
-    """Per-guild sign-in requirement (history/auth-detailed-design.md §2.4).
+    """Per-guild sign-in requirement.
 
     Lives in ``public`` — the guild-access gate reads it before any guild
     context exists. No row means ``open``: any authenticated session reaches

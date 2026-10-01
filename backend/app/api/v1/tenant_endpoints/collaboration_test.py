@@ -30,6 +30,7 @@ from app.testing import (
     get_auth_token,
 )
 from app.core.search import SearchEntityType
+from app.services.tenant.collaboration import collaboration_manager
 from app.services.tenant.collaborative_resources import resource_for
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import UserRole
@@ -191,6 +192,52 @@ async def test_an_unreadable_update_is_refused(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "DOCUMENT_COLLABORATION_UPDATE_INVALID"
+    # The room it opened to try is not left behind for the next caller.
+    key = (owner.guild.id, SearchEntityType.document.value, doc.id)
+    assert key not in collaboration_manager._rooms
+
+
+async def test_a_refused_handover_leaves_the_next_one_the_saved_document(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    """A handover that is refused loads the room and takes nothing; the next one
+    still merges into what the row holds, not into a room left behind."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(
+        session,
+        owner.initiative,
+        owner.user,
+        yjs_state=_typed("from a peer. ").get_update(),
+    )
+    headers = {"Authorization": f"Bearer {get_auth_token(owner.user)}"}
+
+    refused = await client.post(
+        _document_url(owner.guild.id, doc.id),
+        json={"update": _b64(b"not yjs"), "state_vector": _b64(b"\x00")},
+        headers=headers,
+    )
+    assert refused.status_code == 400
+    # The row changes underneath, as another tab's save would change it.
+    doc.yjs_state = _typed("saved since. ").get_update()
+    session.add(doc)
+    await session.commit()
+
+    taken = await client.post(
+        _document_url(owner.guild.id, doc.id),
+        json=_handover(_typed("offline")),
+        headers=headers,
+    )
+
+    assert taken.status_code == 204, taken.text
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.yjs_state))
+        )
+    ).one()
+    merged = _text_of(saved.yjs_state or b"")
+    assert "saved since." in merged and "offline" in merged
 
 
 async def test_a_token_in_the_query_is_refused(

@@ -228,7 +228,8 @@
       "tags": "Etiquetas",
       "sharing": "Uso compartido",
       "members": "Miembros",
-      "initiatives": "Iniciativas"
+      "initiatives": "Iniciativas",
+      "guild": "Comunidad"
     },
     "sentences": {
       "projects": {
@@ -287,7 +288,11 @@
         "read": "Ver quién está en tu comunidad"
       },
       "initiatives": {
-        "read": "Ver las iniciativas de tu comunidad"
+        "read": "Ver las iniciativas de tu comunidad",
+        "moderate": "Actuar como moderador en las iniciativas donde está ubicada"
+      },
+      "guild": {
+        "admin": "Actuar como administrador en toda tu comunidad"
       },
       "fallback": {
         "read": "Leer: {{resource}}",

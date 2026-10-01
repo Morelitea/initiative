@@ -9,7 +9,6 @@ import {
   Settings,
   Star,
   Tag,
-  Users,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -18,6 +17,7 @@ import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { DIRECTORY_SECTION_ID } from "@/components/guildHome/InitiativeDirectory";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
+import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import { AppsSection } from "@/components/sidebar/AppsSection";
 import { CommunityDirectorySidebar } from "@/components/sidebar/CommunityDirectorySidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
@@ -54,11 +54,11 @@ import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiativeDirectory, useInitiatives } from "@/hooks/useInitiatives";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
-import { useToolCountsByInitiative } from "@/hooks/useToolCountsByInitiative";
+import { useToolCountsByInitiative } from "@/hooks/useToolCounts";
 import { guildPath } from "@/lib/guildUrl";
 import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
-import { TOOLS, toolDetailRoute } from "@/lib/tools";
+import { TOOLS, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 export const AppSidebar = () => {
   const { user, logout, refreshUser } = useAuth();
@@ -141,10 +141,15 @@ export const AppSidebar = () => {
     staleTime: 60_000,
   });
 
-  const projectsQuery = useProjects(undefined, {
-    enabled: guildTreeEnabled,
-    staleTime: 60_000,
-  });
+  // The slim projection carries everything a row reads (id, name, icon,
+  // initiative, archived state, `can`) without the per-project summaries.
+  const projectsQuery = useProjects(
+    { slim: true, ...toolViewParams(Tool.project, "active") },
+    {
+      enabled: guildTreeEnabled,
+      staleTime: 60_000,
+    }
+  );
 
   const favoritesQuery = useFavoriteProjects({
     enabled: guildTreeEnabled,
@@ -338,7 +343,7 @@ export const AppSidebar = () => {
                   {/* <div className="border-b px-2"> */}
                   <TabsBar className="h-9 rounded-none">
                     <TabsTrigger value="initiatives" className="text-xs">
-                      <Users className="mr-2 h-3.5 w-3.5" />
+                      <InitiativeMark className="mr-2 h-3.5 w-3.5" />
                       {t("initiatives")}
                     </TabsTrigger>
                     <TabsTrigger value="tags" className="text-xs">
@@ -410,7 +415,7 @@ export const AppSidebar = () => {
                         {/* Initiatives Section */}
                         <SidebarGroup>
                           <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                            <Users className="h-4 w-4" />
+                            <InitiativeMark className="h-4 w-4" />
                             <span className="flex-1">{t("initiatives")}</span>
                             {visibleInitiatives.length > 0 && (
                               <Tooltip delayDuration={300}>

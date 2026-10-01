@@ -1,0 +1,204 @@
+name: Nightly
+
+# What the gates don't vary, on dev every night (a schedule starts from the
+# workflow on main, so this begins once it ships): the oldest and newest
+# Postgres the app runs on, a timezone ahead of UTC for both suites, a
+# non-English locale for the backend's, tests in a random order, the
+# quarantined tests, what a community costs the database, and the browser
+# journeys. A failed night opens an issue labelled nightly; the next good night
+# closes it.
+
+on:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+  # A change to the nightly runs it on its own pull request.
+  pull_request:
+    branches: [dev]
+    paths:
+      - .github/workflows/nightly.yml
+      - backend/app/testing/run_options.py
+      - backend/app/db/budgets_test.py
+
+permissions:
+  contents: read
+
+# Every night reports to the same issue, whichever branch started it, so a
+# newer run replaces an older one rather than racing it to that issue.
+concurrency:
+  group: nightly-${{ github.event.pull_request.number || 'dev' }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Postgres 16
+            postgres: "16"
+          - name: Postgres 18
+            postgres: "18"
+          - name: Auckland, German, shuffled
+            postgres: "17"
+            tz: Pacific/Auckland
+            lang: de_DE.UTF-8
+            shuffle: true
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: initiative
+          POSTGRES_PASSWORD: initiative
+          POSTGRES_DB: initiative_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U initiative -d initiative_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # As ci.yml's backend job: migrations direct, requests through PgBouncer.
+    env:
+      DATABASE_URL: postgresql+asyncpg://app_provisioner:app_provisioner@localhost:5432/initiative_test
+      DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:6432/initiative_test
+      DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:6432/initiative_test
+      # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
+      SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A schedule runs from the default branch, main; the night tests dev.
+          ref: ${{ github.event_name == 'schedule' && 'dev' || '' }}
+
+      - uses: ./.github/actions/setup-backend
+
+      - name: Move to another timezone and locale
+        if: matrix.tz
+        env:
+          TZ_NAME: ${{ matrix.tz }}
+          LANG_NAME: ${{ matrix.lang }}
+        run: |
+          sudo locale-gen "$LANG_NAME"
+          { echo "TZ=$TZ_NAME"; echo "LANG=$LANG_NAME"; echo "LC_ALL=$LANG_NAME"; } >> "$GITHUB_ENV"
+          # The database server too: per-worker test databases inherit it.
+          PGPASSWORD=initiative psql -h localhost -U initiative -d initiative_test \
+            -c "ALTER SYSTEM SET timezone = '$TZ_NAME'" -c "SELECT pg_reload_conf()"
+
+      - uses: ./.github/actions/test-database
+
+      - name: Run tests (through the pooler)
+        env:
+          SHUFFLE: ${{ matrix.shuffle && github.run_number || '' }}
+        run: |
+          cd backend
+          set -o pipefail
+          uv run python -m pytest app/ alembic/ -n auto --tb=short --durations=15 \
+            ${SHUFFLE:+--shuffle=$SHUFFLE} | tee "$RUNNER_TEMP/pytest.log"
+
+      - name: Run the quarantined tests
+        # Their failures are expected and only reported; a quarantine older
+        # than two weeks fails the night.
+        if: ${{ !cancelled() && matrix.postgres == '17' }}
+        run: |
+          cd backend
+          status=0
+          uv run python -m pytest app/ alembic/ -n 0 --tb=short -m quarantine --quarantined \
+            > "$RUNNER_TEMP/pytest-quarantined.log" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/pytest-quarantined.log"
+          # 0 passed, 1 failed, 5 none quarantined; anything else is a refusal.
+          [[ $status == 0 || $status == 1 || $status == 5 ]]
+
+      - name: Hold the performance budgets
+        # Memory differs between major versions; the budgets are 17's, the
+        # version the example deployment ships.
+        if: ${{ !cancelled() && matrix.postgres == '17' }}
+        run: |
+          cd backend
+          set -o pipefail
+          uv run python -m pytest -m budget app/db/budgets_test.py -n 0 --tb=short \
+            | tee "$RUNNER_TEMP/pytest-budgets.log"
+
+      - name: Summarise the test run
+        if: ${{ !cancelled() }}
+        env:
+          TITLE: Backend tests (${{ matrix.name }})
+        run: |
+          {
+            python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest.log" "$TITLE"
+            python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-quarantined.log" "Quarantined tests"
+            python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-budgets.log" "Performance budgets"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  frontend:
+    name: Frontend (Auckland, shuffled)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The tests pin their own locale (vitest.config.ts), so only the timezone
+    # varies here.
+    env:
+      TZ: Pacific/Auckland
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # A schedule runs from the default branch, main; the night tests dev.
+          ref: ${{ github.event_name == 'schedule' && 'dev' || '' }}
+
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Check Node sees the timezone
+        run: |
+          node -e '
+            const { timeZone } = Intl.DateTimeFormat().resolvedOptions();
+            console.log(timeZone);
+            if (timeZone !== process.env.TZ) process.exit(1);
+          '
+
+      - name: Run tests
+        env:
+          SEED: ${{ github.run_number }}
+        run: |
+          cd frontend
+          pnpm test:run --sequence.shuffle --sequence.seed="$SEED"
+
+  journeys:
+    name: Journeys
+    uses: ./.github/workflows/journeys.yml
+    with:
+      # A schedule runs from the default branch, main; the night tests dev.
+      ref: ${{ github.event_name == 'schedule' && 'dev' || '' }}
+
+  report:
+    name: Report
+    needs: [backend, frontend, journeys]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or close the nightly issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FAILED: ${{ contains(needs.*.result, 'failure') }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          open=$(gh issue list --state open --label nightly --json number --jq '.[0].number // empty')
+          if [[ "$FAILED" == true ]]; then
+            if [[ -n "$open" ]]; then
+              gh issue comment "$open" --body "Failed again: $RUN"
+            else
+              gh label create nightly --color B60205 \
+                --description "The nightly checks on dev are failing" --force
+              gh issue create --label nightly --title "Nightly checks are failing" \
+                --body "The nightly run on dev failed: $RUN"
+            fi
+          elif [[ -n "$open" ]]; then
+            gh issue close "$open" --comment "Passing again: $RUN"
+          fi

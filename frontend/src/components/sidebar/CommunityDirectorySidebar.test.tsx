@@ -31,7 +31,7 @@ const setup = (search: Record<string, unknown> = {}) =>
   );
 
 const addressSearch = (router: ReturnType<typeof setup>["router"]) =>
-  router.state.location.search as { q?: string; category?: string };
+  router.state.location.search as { q?: string; category?: string[] };
 
 describe("the community directory's sidebar", () => {
   it("puts what was typed in the address, once typing settles", async () => {
@@ -53,7 +53,7 @@ describe("the community directory's sidebar", () => {
 
     await userEvent.click(await screen.findByRole("link", { name: "Tabletop RPG" }));
 
-    await waitFor(() => expect(addressSearch(router).category).toBe("ttrpg"));
+    await waitFor(() => expect(addressSearch(router).category).toEqual(["ttrpg"]));
     expect(addressSearch(router).q).toBe("dice");
   });
 
@@ -75,7 +75,7 @@ describe("the community directory's sidebar", () => {
 
     await act(async () => {
       // A link into a shelf, carrying no search of its own.
-      await router.navigate({ to: "/communities", search: { category: "ttrpg" } });
+      await router.navigate({ to: "/communities", search: { category: ["ttrpg"] } });
     });
 
     await waitFor(() => expect(screen.getByLabelText("Search communities")).toHaveValue(""));
@@ -84,13 +84,15 @@ describe("the community directory's sidebar", () => {
     expect(addressSearch(router).q).toBeUndefined();
   });
 
-  it("marks the shelf that is showing", async () => {
-    setup({ category: "ttrpg" });
+  it("marks every shelf that is showing", async () => {
+    setup({ category: ["ttrpg", "gaming"] });
 
     expect(await screen.findByRole("link", { name: "Tabletop RPG" })).toHaveAttribute(
       "data-active",
       "true"
     );
+    expect(screen.getByRole("link", { name: "Gaming" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByRole("link", { name: "Music" })).toHaveAttribute("data-active", "false");
     expect(screen.getByRole("link", { name: "All" })).toHaveAttribute("data-active", "false");
   });
 });

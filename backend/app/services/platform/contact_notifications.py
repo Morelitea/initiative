@@ -23,16 +23,13 @@ import logging
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
-from app.core.notification_categories import Channel
 from app.core.user_display import handle_of
 from app.models.platform.contact_grant import ContactGrantKind
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
 from app.services.platform import (
-    notification_prefs,
-    push_notifications,
+    notice_outbox,
     user_ignores,
-    user_notifications,
 )
 
 logger = logging.getLogger(__name__)
@@ -131,29 +128,17 @@ async def _write(
         "target_path": target_path,
     }
 
-    prefs = await notification_prefs.load_prefs_for_delivery(recipient.id)
-    await user_notifications.create_notification(
+    await notice_outbox.enqueue(
         session,
-        user_id=recipient.id,
-        notification_type=notification_type,
-        data=data,
-        prefs=prefs,
-    )
-
-    if not notification_prefs.reachable(
-        prefs,
-        notification_type=notification_type,
-        channel=Channel.push,
-        tz_name=recipient.timezone,
-        last_active_at=recipient.last_active_at,
-    ):
-        return
-    await push_notifications.send_push_to_user(
-        session,
-        recipient.id,
-        notification_type,
-        title,
-        body,
-        data={"type": notification_type.value, **data},
-        locale=getattr(recipient, "locale", None) or "en",
+        [
+            await notice_outbox.notice(
+                session,
+                recipient,
+                notification_type,
+                data,
+                guild_id=None,
+                push=(title, body),
+                push_data={"type": notification_type.value, **data},
+            )
+        ],
     )

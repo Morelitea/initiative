@@ -12,8 +12,7 @@ member) and matching the fact that apps are guild-pinned everywhere else.
 That is the same thing ``services.platform.identity_refs`` provides for every
 other sector, so this module is a thin scoping layer over it rather than a
 second implementation — an install is ``(guild_id, app_install_id)``, because
-install ids are per-guild-schema and not unique on their own. See
-``history/opaque-identity-design.md`` §10.
+install ids are per-guild-schema and not unique on their own.
 
 Two things to keep in mind here.
 

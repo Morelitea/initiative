@@ -1,6 +1,7 @@
 """Pydantic schemas for custom property definitions and values."""
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, List, Optional
 
 from pydantic import (
@@ -12,6 +13,7 @@ from pydantic import (
 )
 
 from app.core.identity_boundary import responding_to_install, serialize_person_id
+from app.core.tools import PROPERTY_TARGETS
 from app.schemas.base import SanitizedBaseModel
 from app.services.platform.user_avatars import is_avatar_url
 
@@ -20,6 +22,16 @@ from app.models.tenant.property import PropertyType
 _SLUG_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_\-]*$"
 _HEX_COLOR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
 _SELECT_TYPES = {PropertyType.select, PropertyType.multi_select}
+
+# Derived, never re-declared: every Tool value plus every sub-tool (see
+# PROPERTY_TARGETS in app.core.tools). A new Tool lands here — and in the
+# OpenAPI spec / generated frontend types — automatically.
+PropertyTarget = Enum(
+    "PropertyTarget", {name: name for name in PROPERTY_TARGETS}, type=str
+)
+PropertyTarget.__doc__ = (
+    "What can carry custom property values: every tool and sub-tool."
+)
 
 
 class PropertyOption(SanitizedBaseModel):
@@ -137,12 +149,27 @@ class PropertyValueInput(SanitizedBaseModel):
 
 
 class PropertyValuesSetRequest(SanitizedBaseModel):
-    """Replace-all payload for PUT /{entity}/{id}/properties.
+    """Replace-all payload for ``PUT /properties/{target}/{entity_id}``.
 
     An empty list clears every property value on the entity.
     """
 
     values: List[PropertyValueInput] = Field(default_factory=list)
+
+
+class PropertiesOnCreate(SanitizedBaseModel):
+    """What every tool and sub-tool's create takes beside its own fields: the
+    custom property values to write with the row, in the same transaction."""
+
+    properties: List[PropertyValueInput] = Field(default_factory=list)
+
+
+class PropertiesOnUpdate(SanitizedBaseModel):
+    """What a sub-tool's update takes beside its tags: the custom property
+    values to replace, in the same transaction. Omitted, they stay as they
+    are; a list (empty included) replaces them all."""
+
+    properties: Optional[List[PropertyValueInput]] = None
 
 
 class PropertySummary(SanitizedBaseModel):
@@ -181,3 +208,10 @@ class PropertySummary(SanitizedBaseModel):
         if isinstance(avatar, str) and is_avatar_url(avatar):
             person["avatar_url"] = None
         return person
+
+
+def annotated_properties(entity: Any) -> List[PropertySummary]:
+    """The summaries ``properties_service.annotate_properties`` put on this
+    entity — read rather than recomputed, since a page's values are fetched for
+    the whole page at once."""
+    return list(getattr(entity, "properties", None) or [])

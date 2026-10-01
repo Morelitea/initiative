@@ -36,7 +36,15 @@
       "data": "Datos",
       "dangerZone": "Zona de peligro",
       "security": "Seguridad",
-      "integrations": "Integraciones"
+      "integrations": "Integraciones",
+      "usage": "Uso",
+      "planAndUsage": "Plan y uso"
+    },
+    "tabBadge": {
+      "paymentFailed": "Pago fallido",
+      "trial_one": "Prueba · {{count}} día",
+      "trial_other": "Prueba · {{count}} días",
+      "trialLastDay": "Prueba · último día"
     }
   },
   "profile": {
@@ -812,6 +820,10 @@
     "signInLockedUntil": "Hasta el {{time}}",
     "liftSignInLock": "Reactivar el inicio de sesión con contraseña",
     "signInLockLifted": "Ya puede volver a iniciar sesión con contraseña.",
+    "clearSecondFactor": "Quitar la autenticación en dos pasos",
+    "clearSecondFactorDescription": "¿Quitar el autenticador de la cuenta de {{handle}}? Es para cuando ha perdido el teléfono y los códigos de recuperación. Se cerrarán todas sus sesiones y recibirá un correo; después inicia sesión como de costumbre y puede configurarlo de nuevo.",
+    "clearSecondFactorConfirm": "Quitar",
+    "secondFactorCleared": "Autenticación en dos pasos quitada. Ya puede iniciar sesión como de costumbre.",
     "sheet": {
       "open": "Gestionar",
       "openLabel": "Gestionar la cuenta {{handle}}",
@@ -1240,7 +1252,7 @@
     "backendLabel": "Backend de almacenamiento",
     "backendLocal": "Sistema de archivos local",
     "backendS3": "Compatible con S3",
-    "backendHelp": "Local guarda los archivos en el disco del servidor. S3 funciona con AWS S3, una instancia autoalojada de Garage/MinIO, Cloudflare R2 y similares.",
+    "backendHelp": "Local guarda los archivos en el disco del servidor. S3 funciona con cualquier almacén compatible con S3, como una instancia autoalojada de Garage o MinIO, o Cloudflare R2.",
     "cutoverTitle": "Cambiar a S3 no mueve los archivos existentes",
     "cutoverHelp": "Guarda esta configuración, ejecuta Probar conexión y luego usa Migración a continuación para copiar los archivos locales existentes al bucket. Cambia el backend a S3 solo cuando termine la migración; opcionalmente deja activado «Servir objetos faltantes desde local» durante un periodo de verificación.",
     "bucketLabel": "Bucket",
@@ -1248,16 +1260,14 @@
     "regionLabel": "Región",
     "endpointLabel": "URL del endpoint",
     "endpointPlaceholder": "https://s3.example.com",
-    "endpointHelp": "Déjalo en blanco para AWS S3. Configúralo para Garage, MinIO, R2 o cualquier almacén que no sea de AWS.",
+    "endpointHelp": "La dirección de la API S3 de tu almacén.",
     "accessKeyLabel": "ID de clave de acceso",
     "accessKeyPlaceholder": "Déjalo en blanco para usar la cadena de credenciales del entorno",
     "secretKeyLabel": "Clave de acceso secreta",
     "secretKeySet": "•••••••• (sin cambios)",
     "secretKeyHelp": "Déjalo en blanco para conservar la clave guardada. Se guarda cifrada; nunca se muestra.",
-    "kmsLabel": "ID de clave KMS (opcional)",
-    "kmsPlaceholder": "Para cifrado del lado del servidor SSE-KMS",
     "pathStyleLabel": "Direccionamiento de tipo ruta",
-    "pathStyleHelp": "Requerido para Garage y la mayoría de almacenes que no son de AWS.",
+    "pathStyleHelp": "Requerido para Garage y la mayoría de almacenes autoalojados.",
     "localFallbackLabel": "Servir objetos faltantes desde local",
     "localFallbackHelp": "Durante la migración, lee desde el disco local los blobs aún no copiados a S3.",
     "save": "Guardar",
@@ -1678,6 +1688,7 @@
     "identityDescription": "Tu nombre, tu dirección, tu identificador y el reloj con el que vas.",
     "passwordTitle": "Contraseña",
     "passwordDescription": "Cámbiala aquí. Seguirás con la sesión iniciada en este dispositivo.",
+    "passwordsOffDescription": "El inicio de sesión con contraseña está desactivado en este servidor, así que aquí no hay contraseña que establecer ni cambiar.",
     "fullNameHelp": "Solo lo usan las comunidades configuradas para mostrar nombres reales. En el resto eres tu identificador.",
     "setPasswordTitle": "Establecer una contraseña",
     "setPasswordDescription": "Tu cuenta inicia sesión sin contraseña. Establece una aquí para tener otra forma de entrar.",

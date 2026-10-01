@@ -20,13 +20,14 @@ from app.services.import_engine.common import unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
 )
 
 
-class CounterGroupImporter(QuotesNobody):
+class CounterGroupImporter(NamesPeopleInPassing):
     envelope_type = "initiative-counter-group"
     permission = PermissionKey.create_counter_groups
 
@@ -75,6 +76,11 @@ class CounterGroupImporter(QuotesNobody):
             importer=importer,
         )
 
+        props = PropertyRestore(
+            session, initiative_id=target_initiative.id, context=context
+        )
+        await props.attach(group, env.properties)
+
         for c in env.counters:
             try:
                 view_mode = CounterViewMode(c.view_mode)
@@ -93,17 +99,23 @@ class CounterGroupImporter(QuotesNobody):
                 position=_dec(c.position),
             )
             session.add(counter)
-            if context is not None and c.external_ref:
-                await session.flush()
+            await session.flush()
+            if context is not None:
                 context.links.register(
                     c.external_ref, SearchEntityType.counter, counter.id
                 )
+            await props.attach(counter, c.properties)
 
-        await session.flush()
         return EnvelopeImportResult(
             entity_id=group.id,
             entity_title=group.name,
-            created={"counter_groups": 1, "counters": len(env.counters)},
+            created={
+                "counter_groups": 1,
+                "counters": len(env.counters),
+                "properties": props.created,
+            },
+            matched={"properties": props.matched},
+            unmatched_handles=await props.settle(group),
         )
 
 

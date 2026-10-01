@@ -146,8 +146,6 @@ async def list_reports(
     previews = await moderation_service.target_previews(
         session,
         [report for report, _, _ in rows],
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
     )
     return ModerationReportList(
         items=[
@@ -186,8 +184,6 @@ async def settle_report(
     previews = await moderation_service.target_previews(
         session,
         [report],
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
     )
     return _read(
         report,

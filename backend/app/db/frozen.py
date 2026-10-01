@@ -48,12 +48,13 @@ from sqlmodel import SQLModel
 import app.db.base  # noqa: F401 — registers every model's table on the metadata
 from app.core.reactions import ReactionTarget
 from app.core.relationships import ENDPOINT_KINDS
-from app.core.tools import Tool
+from app.core.tools import PROPERTY_TARGETS, Tool
 from app.db import gucs
 from app.db.initiative_rls import (
     COMMENT_PARENTS,
     INITIATIVE_PATHS,
     NAMED_PEOPLE,
+    entity_tables,
     governing_path,
 )
 from app.db.errors import (
@@ -824,6 +825,17 @@ def _reactions_leg(alias: str, trashed_ok: str) -> str:
     return f"COALESCE((CASE {alias}.target_type {arms} ELSE false END), false)"
 
 
+def _property_values_leg(alias: str, trashed_ok: str) -> str:
+    """A property value freezes with the thing it is on."""
+    tables = entity_tables()
+    arms = " ".join(
+        f"WHEN '{target}' THEN resource_frozen("
+        f"'{tables[target]}', {alias}.entity_id, {trashed_ok})"
+        for target in PROPERTY_TARGETS
+    )
+    return f"COALESCE((CASE {alias}.entity_type {arms} ELSE false END), false)"
+
+
 def _edge_leg(alias: str, trashed_ok: str) -> str:
     """An edge freezes with EITHER end.
 
@@ -878,6 +890,7 @@ _UNFROZEN_ROWS: dict[str, Callable[[str], str]] = {
 _FREEZE_DEVIATIONS: dict[str, Callable[[str, str], str]] = {
     "comments": _comments_leg,
     "reactions": _reactions_leg,
+    "property_values": _property_values_leg,
     "relationships": _edge_leg,
     "resource_grants": _resource_grants_leg,
 }

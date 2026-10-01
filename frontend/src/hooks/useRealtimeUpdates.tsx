@@ -3,8 +3,8 @@ import { useEffect } from "react";
 
 import { apiClient, getAuthToken } from "@/api/client";
 import type { DashboardDataResponse } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q, type Spec } from "@/api/query-keys";
+import { syncComments } from "@/hooks/useComments";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { queryClient } from "@/lib/queryClient";
@@ -36,6 +36,8 @@ export type RealtimeChange = {
   /** The initiative the change is in, or null for the guild's own. */
   initiative_id?: number | null;
   action?: string;
+  /** The columns an update touched, by name. Empty on create and delete. */
+  changed?: string[];
 };
 
 /**
@@ -47,35 +49,52 @@ export type RealtimeChange = {
 const FRAME_DEBOUNCE_MS = 250;
 
 /**
+ * The columns whose update moves a tool row onto or off a count: which
+ * initiative it is in, whether it is archived or a template, and who it is
+ * shared with. Any other update leaves every count where it was.
+ */
+const COUNTED_COLUMNS = new Set(["initiative_id", "archived_at", "is_template", "sharing"]);
+
+/** Whether a change can move the counts: a row arriving or leaving, or an
+ *  update to one of the columns above. */
+const recounts = (change: RealtimeChange) =>
+  change.action !== "updated" ||
+  (change.changed ?? []).some((column) => COUNTED_COLUMNS.has(column));
+
+/**
  * What a change to one kind of resource makes stale — as a description, not an
- * action.
+ * action. `recount` says whether the change can have moved the counts.
  *
  * Tools come from the registry, so a new tool's events are live the day it
  * ships. The rest are the things the bus can name that are not a tool of their
  * own. A type nothing here claims is ignored on purpose: its parents carry the
  * surfaces that matter, and a queue item is refreshed by refreshing its queue.
  */
-const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
+const RESOURCE_SPECS: Record<string, (id: number, recount: boolean) => Spec[]> = {
   ...Object.fromEntries(
-    TOOLS.map((tool) => [toolPlural(tool), (id: number) => [q.tool(tool, id)]])
+    TOOLS.map((tool) => [
+      toolPlural(tool),
+      (id: number, recount: boolean) => [
+        q.toolSubtree(tool, id),
+        recount ? q.toolList(tool) : q.toolLists(tool),
+      ],
+    ])
   ),
-  // A project's activity feed lists its own comments and its tasks', so it is
-  // stale for anything that happens anywhere inside the project. Declared after
-  // the registry spread, which it extends rather than replaces.
-  projects: (id) => [q.tool(Tool.project, id), q.projectActivity(id)],
   tasks: (id) => [q.task(id), q.allTasks()],
   // The guild's recent-activity list is a comment feed of its own. Which thread
   // moved is a question about the parent, below.
   comments: () => [q.recentComments()],
   calendar_events: (id) => [q.calendarEvent(id), q.allCalendarEvents()],
-  // An initiative's roster, its roles and what those roles permit all report
-  // against the initiative itself — a membership row and a role row have no
-  // route of their own — so "the initiative changed" has to name all three.
+  // An initiative's roster, its roles, what those roles permit and its
+  // property definitions all report against the initiative itself — none of
+  // those rows has a route of its own — so "the initiative changed" has to
+  // name them all.
   initiatives: (id) => [
     q.initiative(id),
     q.allInitiatives(),
     q.initiativeMembers(id),
     q.initiativeRoles(id),
+    q.allProperties(),
   ],
   tags: (id) => [q.tag(id), q.allTags()],
   // An install belongs to no initiative, so it arrives guild-wide with no
@@ -83,18 +102,29 @@ const RESOURCE_SPECS: Record<string, (id: number) => Spec[]> = {
   // app list and the settings dialog for another admin's install, rename or
   // configuration. Takes no id: the reads are keyed by guild, not by install.
   apps: () => [q.apps()],
-  property_definitions: () => [q.allProperties()],
 };
 
 /**
- * What a change to a child makes stale ON the parent it hangs off.
+ * What a change INSIDE a resource makes stale on it: its own read and the
+ * reads under its address — a project's activity, a gallery's pictures.
  *
- * The one thing naming the parent does not cover: these queries are keyed by
- * the parent rather than by the child, so nothing about the child's own id
- * reaches them.
+ * The resource a change sits directly in (`direct`) also has its lists read
+ * again, because a list row carries what is inside it: a comment count, a
+ * queue's items, a board's reactions and polls. Nothing further out does, and
+ * nothing here touches a count — a task is not a project, and a comment is
+ * not a tool. An initiative is absent on purpose: a change in one of its tools
+ * leaves its own read, its roster and its roles as they were.
  */
-const PARENT_SPECS: Record<string, (parent: ResourceRef) => Spec[]> = {
-  comments: (parent) => [q.commentsOnResource(parent.type, parent.id)],
+const CONTAINER_SPECS: Record<string, (id: number, direct: boolean) => Spec[]> = {
+  ...Object.fromEntries(
+    TOOLS.map((tool) => [
+      toolPlural(tool),
+      (id: number, direct: boolean) =>
+        direct ? [q.toolSubtree(tool, id), q.toolLists(tool)] : [q.toolSubtree(tool, id)],
+    ])
+  ),
+  tasks: (id, direct) => (direct ? [q.task(id), q.allTasks()] : [q.task(id)]),
+  calendar_events: (id) => [q.calendarEvent(id)],
 };
 
 const isRef = (value: unknown): value is ResourceRef => {
@@ -104,56 +134,71 @@ const isRef = (value: unknown): value is ResourceRef => {
 
 const refKey = (ref: ResourceRef) => `${ref.type}:${ref.id}`;
 
+/** Note `ref` with `flag`, keeping a flag an earlier change already raised. */
+const note = (into: Map<string, [ResourceRef, boolean]>, ref: ResourceRef, flag: boolean) => {
+  into.set(refKey(ref), [ref, flag || (into.get(refKey(ref))?.[1] ?? false)]);
+};
+
 /**
  * Refresh everything a batch of changes made stale, in one pass over the cache.
  *
- * Two passes over the same batch collect the description: the resources named
- * (the change itself, and every resource it sits inside), then the parent-keyed
- * queries only a child can point at. Nothing is matched until both are in hand,
- * so three hundred comments on one task cost the same single walk as one — and
- * the repeats among them collapse when the specs merge.
+ * The batch is read once into what changed and what it sits in, and nothing
+ * is matched until both are in hand, so three hundred changes on one task cost
+ * the same single walk as one — and the repeats among them collapse when the
+ * specs merge.
+ *
+ * A comment thread is the exception: it is keyed by the thing it hangs off,
+ * and it is brought up to date rather than read again — the comments the batch
+ * named are read back one by one and put into the pages already open.
  */
-export const applyChanges = (changes: readonly RealtimeChange[], guildId?: number) => {
-  const refs = new Map<string, ResourceRef>();
-  const effects = new Map<string, [string, ResourceRef]>();
+export const applyChanges = (changes: readonly RealtimeChange[], guildId: number) => {
+  const resources = new Map<string, [ResourceRef, boolean]>();
+  const containers = new Map<string, [ResourceRef, boolean]>();
+  const threads = new Map<string, { parent: ResourceRef; commentIds: Set<number> }>();
 
   for (const change of changes) {
     const resource = change.resource;
     const parents = (change.parents ?? []).filter(isRef);
     if (isRef(resource)) {
-      refs.set(refKey(resource), resource);
-      if (parents[0]) {
-        effects.set(`${resource.type}|${refKey(parents[0])}`, [resource.type, parents[0]]);
+      note(resources, resource, recounts(change));
+      // The innermost parent is what the comment's thread hangs off.
+      const parent = parents[0];
+      if (resource.type === "comments" && parent) {
+        const thread = threads.get(refKey(parent)) ?? { parent, commentIds: new Set() };
+        thread.commentIds.add(resource.id);
+        threads.set(refKey(parent), thread);
       }
     }
-    for (const parent of parents) {
-      refs.set(refKey(parent), parent);
+    for (const [index, parent] of parents.entries()) {
+      note(containers, parent, index === 0);
     }
   }
 
   const specs: Spec[] = [];
-  for (const ref of refs.values()) {
-    specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id) ?? []));
+  for (const [ref, recount] of resources.values()) {
+    specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id, recount) ?? []));
   }
-  for (const [childType, parent] of effects.values()) {
-    specs.push(...(PARENT_SPECS[childType]?.(parent) ?? []));
+  for (const [ref, direct] of containers.values()) {
+    specs.push(...(CONTAINER_SPECS[ref.type]?.(ref.id, direct) ?? []));
   }
   if (specs.length > 0) void invalidate(...specs);
+
+  for (const { parent, commentIds } of threads.values()) {
+    void syncComments(guildId, parent, [...commentIds]);
+  }
 
   // A dashboard's answer is keyed by the dashboard, not by anything a change
   // names, so it is matched by what its widgets read: stale when a change is
   // to one of those tables, in its initiative. Initiative ids are per guild,
   // so only this guild's canvases are asked.
-  if (guildId !== undefined) {
-    const [scope, kind] = dashboardDataKey(guildId, 0);
-    void queryClient.invalidateQueries({
-      predicate: (query) =>
-        query.queryKey[0] === scope &&
-        query.queryKey[1] === kind &&
-        query.queryKey[2] === guildId &&
-        canvasIsStale(query.state.data as DashboardDataResponse | undefined, changes),
-    });
-  }
+  const [scope, kind] = dashboardDataKey(guildId, 0);
+  void queryClient.invalidateQueries({
+    predicate: (query) =>
+      query.queryKey[0] === scope &&
+      query.queryKey[1] === kind &&
+      query.queryKey[2] === guildId &&
+      canvasIsStale(query.state.data as DashboardDataResponse | undefined, changes),
+  });
 };
 
 export const useRealtimeUpdates = () => {

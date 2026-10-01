@@ -921,6 +921,15 @@ async def _file(
     if model is Counter:
         return await create_counter(session, parent)
     if model is CalendarEvent:
+        if fk != "calendar_id":
+            # An occurrence of a series, in the series' calendar.
+            on_model, on_fk = _first_way_up(CalendarEvent)
+            return await create_calendar_event(
+                session,
+                built[on_model],
+                user,
+                **{fk: parent.id, "original_start": parent.start_at},
+            )
         return await create_calendar_event(session, parent, user)
     if model is GalleryImage:
         return await create_gallery_image(session, parent, user)

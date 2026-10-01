@@ -5,7 +5,6 @@ guild's own security surface, the mint, and every path that reaches the guild's
 content with a key in hand.
 """
 
-import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -18,6 +17,7 @@ from app.testing.factories import (
     create_project,
     create_user,
     get_auth_headers,
+    guild_administration,
 )
 
 
@@ -46,61 +46,25 @@ async def test_the_seat_switches_api_access_and_the_guild_list_reads_it(
     listed = await client.get("/api/v1/communities/", headers=headers)
     assert [g["allow_api_keys"] for g in listed.json() if g["id"] == guild.id] == [True]
 
-    off = await client.put(
-        f"/api/v1/communities/{guild.id}/api-access",
+    off = await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
         json={"allow_api_keys": False},
     )
     assert off.status_code == 200, off.text
-    assert off.json() == {"allow_api_keys": False}
+    assert off.json()["allow_api_keys"] is False
 
     listed = await client.get("/api/v1/communities/", headers=headers)
     assert [g["allow_api_keys"] for g in listed.json() if g["id"] == guild.id] == [
         False
     ]
 
-    on = await client.put(
-        f"/api/v1/communities/{guild.id}/api-access",
+    on = await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
         json={"allow_api_keys": True},
     )
-    assert on.json() == {"allow_api_keys": True}
-
-
-@pytest.mark.parametrize("role", [GuildRole.admin, GuildRole.member])
-async def test_only_the_seat_switches_api_access(
-    client: AsyncClient, session: AsyncSession, role: GuildRole
-):
-    """Running a community is not deciding what may be used to reach it."""
-    user = await create_user(session)
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=role)
-
-    response = await client.put(
-        f"/api/v1/communities/{guild.id}/api-access",
-        headers=get_auth_headers(user),
-        json={"allow_api_keys": False},
-    )
-    assert response.status_code == 403
-
-
-async def test_api_access_waits_on_the_master_entitlement(
-    client: AsyncClient, session: AsyncSession
-):
-    """A community that configures no part of its own sign-in is not asked
-    about API keys either."""
-    admin = await create_user(session)
-    guild = await create_guild(session, creator=admin, auth_options=[])
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
-    )
-
-    response = await client.put(
-        f"/api/v1/communities/{guild.id}/api-access",
-        headers=get_auth_headers(admin),
-        json={"allow_api_keys": False},
-    )
-    assert response.status_code == 404, response.text
+    assert on.json()["allow_api_keys"] is True
 
 
 # --- The mint ---------------------------------------------------------------
@@ -130,7 +94,8 @@ async def test_no_key_is_minted_into_a_guild_that_declines_them(
 async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     client: AsyncClient, session: AsyncSession
 ):
-    """The answer is decided when the key is used, not when it was made."""
+    """The answer is decided when the key is used, not when it was made, and
+    applies while the guild holds the ``restrictions`` option it needs."""
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -142,8 +107,8 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     before = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
     assert before.status_code == 200
 
-    await client.put(
-        f"/api/v1/communities/{guild.id}/api-access",
+    await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
         json={"allow_api_keys": False},
     )
@@ -151,6 +116,11 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
     after = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
     assert after.status_code == 403
     assert after.json()["detail"] == "GUILD_API_KEYS_REFUSED"
+
+    await guild_administration(session, guild, auth_options=[])
+    lapsed = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
+    assert lapsed.status_code == 200
+    await guild_administration(session, guild, auth_options=["restrictions"])
 
     # The same account's own sign-in still reaches it, so what was refused was
     # the credential rather than the membership.
@@ -218,8 +188,8 @@ async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
 
     assert (await client.get(path, headers=key_headers)).status_code == 200
 
-    await client.put(
-        f"/api/v1/communities/{guild.id}/api-access",
+    await client.patch(
+        f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
         json={"allow_api_keys": False},
     )
@@ -257,6 +227,11 @@ async def test_the_cross_guild_aggregate_leaves_out_a_guild_that_declines_keys(
 
     by_key = await client.get("/api/v1/me/projects", headers=key_headers)
     assert {p["name"] for p in by_key.json()["items"]} == {names[open_guild.id]}
+
+    # Without the ``restrictions`` option the switch needs, it declines nothing.
+    await guild_administration(session, closed, auth_options=[])
+    by_key = await client.get("/api/v1/me/projects", headers=key_headers)
+    assert {p["name"] for p in by_key.json()["items"]} == set(names.values())
 
 
 async def test_a_key_limited_to_one_guild_reads_only_that_guild_across_guilds(

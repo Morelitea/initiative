@@ -10,7 +10,6 @@ import {
   buildInitiative,
   buildInitiativeDirectoryEntry,
   buildInitiativeJoinRequest,
-  buildInitiativeMember,
   buildProject,
   buildRecentActivityEntry,
   buildUser,
@@ -28,8 +27,7 @@ import { GuildHomePage } from "./GuildHomePage";
 
 const INITIATIVE_ID = 7;
 
-/** Whoever is reading the page. Pinned so the stubbed listing can carry their
- *  membership row — which is what the endpoint returns, guild admin or not. */
+/** Whoever is reading the page. */
 const READER = buildUser({ id: 42 });
 
 const page = (items: unknown[], totalCount = items.length) =>
@@ -65,12 +63,13 @@ function stubTools({
 }
 
 /** The listing is the reader's own memberships, guild admin or not, so the
- *  stub carries their row, and may view every tool the initiative has on. */
+ *  stub carries their role, and may view every tool the initiative has on. */
 function stubInitiatives(overrides: Record<string, boolean> = {}) {
   const initiative = buildInitiative({
     id: INITIATIVE_ID,
     name: "Apollo",
-    members: [buildInitiativeMember({ user: { ...READER } })],
+    member_count: 1,
+    role_display_name: "Member",
     ...overrides,
   });
   initiative.can = initiativeCan({ view: TOOLS.filter((tool) => isToolEnabled(tool, initiative)) });
@@ -401,6 +400,29 @@ describe("GuildHomePage", () => {
     expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
     expect(sought(asked, "sort_by")).toBe("updated_at");
     expect(sought(asked, "sort_dir")).toBe("desc");
+  });
+
+  it("shows the tool's own views with the community's totals", async () => {
+    stubInitiatives();
+    const asked = watchProjects();
+    server.use(
+      guildHttp.get("/tools/project/counts", () =>
+        HttpResponse.json({
+          views: { active: 4, templates: 2, archived: 1 },
+          tag_counts: {},
+          untagged_count: 0,
+        })
+      )
+    );
+
+    renderHome();
+
+    const templates = await screen.findByRole("radio", { name: "Templates" });
+    await waitFor(() => expect(templates).toHaveTextContent("2"));
+    expect(screen.getByRole("radio", { name: "Active" })).toHaveTextContent("4");
+
+    await userEvent.click(templates);
+    await waitFor(() => expect(sought(asked, "is_template")).toBe("true"));
   });
 
   it("searches the whole community rather than the page in hand", async () => {

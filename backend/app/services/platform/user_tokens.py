@@ -311,6 +311,12 @@ async def get_device_token(
     the cap. The write is throttled (only once the remaining lifetime falls below
     ``DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD``, i.e. at most ~once/day) to avoid
     a DB write on every call.
+
+    The absolute limit is read at the same rate, and it moves the window in as
+    well as out: a limit that applies now and did not when the token was
+    issued (a community's standard, or its option granted back) reaches the
+    token within a day of its last slide, and a token already past it is
+    refused.
     """
     record = await get_valid_token(
         session, token=token, purpose=UserTokenPurpose.device_auth
@@ -326,7 +332,7 @@ async def get_device_token(
             await session_lifetime.resolve_max_hours(session, user_id=record.user_id),
             created_at=record.created_at,
         )
-        if slid <= record.expires_at:
+        if slid == record.expires_at:
             # The limit has been reached: the window stops moving and the token
             # expires where it stands.
             return record
@@ -341,6 +347,10 @@ async def get_device_token(
         )
         await session.commit()
         await session.refresh(record)
+        # Moved in past now, the token is spent: stored, so everything that
+        # reads its expiry (push delivery, the content sockets) agrees.
+        if slid <= now:
+            return None
         if result.rowcount:
             await _record_device_token_use(user_id=record.user_id)
     return record
@@ -512,10 +522,9 @@ async def revoke_user_sessions(
 
     Bumps ``token_version`` (which the JWT/WS authenticators compare against,
     invalidating any still-unexpired access token), bulk-revokes the user's
-    active ``device_auth`` tokens, deactivates their API keys (a leaked PAT must
-    not survive a compromise response), and revokes their rotating **refresh
-    sessions** — without which a captured refresh token would keep minting valid
-    access tokens *at the new ``token_version``* right past the reset. Shared by
+    active ``device_auth`` tokens, deactivates their API keys, and revokes their
+    rotating **refresh sessions** — a refresh would otherwise keep minting access
+    tokens *at the new ``token_version``* after the reset. Shared by
     the self-service password change, the forgot-password reset, and the operator
     password reset so the three paths can't drift.
 

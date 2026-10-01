@@ -4,11 +4,20 @@
  * here lands on three surfaces at once — and the states differ in exactly two
  * ways that are easy to get wrong: only the active list can be dragged into a
  * manual order, and only it lifts pinned projects out of the list.
+ *
+ * The search and tags narrow on the server, so they are asserted as the
+ * request the hook makes; favourites and the sort are the hook's own.
  */
-import { renderHook } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import { HttpResponse } from "msw";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildProject, buildTagSummary } from "@/__tests__/factories";
+import { buildPage, buildProject } from "@/__tests__/factories";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { server } from "@/__tests__/helpers/msw-server";
+import { createTestQueryClient } from "@/__tests__/helpers/render";
 import { useProjectListView } from "@/hooks/useProjectListView";
 
 /** Stands in for the server-backed preference map. */
@@ -22,12 +31,36 @@ vi.mock("@/hooks/useViewPreference", () => ({
   ],
 }));
 vi.mock("@/hooks/useTags", () => ({ useTags: () => ({ data: [] }) }));
+vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 1 }));
 
 const PREFIX = "project:list";
 
-const render = (projects: ReturnType<typeof buildProject>[], options = {}) =>
-  renderHook(() => useProjectListView({ projects, storagePrefix: PREFIX, ...options })).result
-    .current;
+type Options = Omit<Parameters<typeof useProjectListView>[0], "params" | "storagePrefix">;
+
+/** Serve the list, and mount the hook over it once it has loaded. */
+const mount = async (projects: ReturnType<typeof buildProject>[], options: Options = {}) => {
+  const requests: URLSearchParams[] = [];
+  server.use(
+    guildHttp.get("/projects/", ({ request }) => {
+      requests.push(new URL(request.url).searchParams);
+      return HttpResponse.json(buildPage(projects));
+    })
+  );
+  const client = createTestQueryClient();
+  const hook = renderHook(
+    () => useProjectListView({ params: { initiative_id: 1 }, storagePrefix: PREFIX, ...options }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    }
+  );
+  await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
+  return { ...hook, requests };
+};
+
+const render = async (projects: ReturnType<typeof buildProject>[], options: Options = {}) =>
+  (await mount(projects, options)).result.current;
 
 const names = (projects: { name: string }[]) => projects.map((p) => p.name);
 
@@ -36,51 +69,64 @@ beforeEach(() => {
 });
 
 describe("useProjectListView filtering", () => {
-  it("matches the search query against the name, case-insensitively", () => {
+  it("asks the list for the stored search and tags, and says the list is narrowed", async () => {
     prefs.set(`${PREFIX}:search`, "  RAVEN ");
-    const view = render([
-      buildProject({ name: "Castle Ravenloft" }),
-      buildProject({ name: "Barovia Arc" }),
-    ]);
-    expect(names(view.filteredProjects)).toEqual(["Castle Ravenloft"]);
+    prefs.set(`${PREFIX}:tag-filters`, [42, 7]);
+
+    const { result, requests } = await mount([buildProject({ name: "Castle Ravenloft" })]);
+
+    const params = requests.at(-1)!;
+    expect(params.get("initiative_id")).toBe("1");
+    expect(params.get("search")).toBe("RAVEN");
+    expect(params.getAll("tag_ids")).toEqual(["42", "7"]);
+    // What the server answered is shown as is, not matched again here.
+    expect(names(result.current.filteredProjects)).toEqual(["Castle Ravenloft"]);
+    expect(result.current.narrowed).toBe(true);
   });
 
-  it("narrows to favorites and to the selected tags", () => {
-    const tag = buildTagSummary({ id: 42 });
-    const favoritedAndTagged = buildProject({
-      name: "Both",
-      is_favorited: true,
-      tags: [tag],
-    });
-    const projects = [
-      favoritedAndTagged,
-      buildProject({ name: "Favorite only", is_favorited: true }),
-      buildProject({ name: "Tag only", tags: [tag] }),
-      buildProject({ name: "Neither" }),
-    ];
+  it("asks for the whole list when nothing is set", async () => {
+    const { result, requests } = await mount([]);
 
-    prefs.set(`${PREFIX}:tag-filters`, [42]);
-    expect(names(render(projects).filteredProjects)).toEqual(["Both", "Tag only"]);
+    const params = requests.at(-1)!;
+    expect(params.has("search")).toBe(false);
+    expect(params.has("tag_ids")).toBe(false);
+    expect(result.current.narrowed).toBe(false);
+  });
+
+  it("narrows to favorites itself, which a manual order cannot span", async () => {
+    const { result, rerender } = await mount([
+      buildProject({ name: "Favorite", is_favorited: true }),
+      buildProject({ name: "Not" }),
+    ]);
 
     // Favorites is component state rather than a preference, so drive it the
     // way the filter bar does.
-    const { result, rerender } = renderHook(() =>
-      useProjectListView({ projects, storagePrefix: PREFIX })
-    );
     result.current.filterBarProps.onFavoritesOnlyChange(true);
     rerender();
-    expect(names(result.current.filteredProjects)).toEqual(["Both"]);
+    expect(names(result.current.filteredProjects)).toEqual(["Favorite"]);
+    expect(result.current.narrowed).toBe(true);
   });
+});
 
-  it("drops projects from initiatives the viewer cannot see", () => {
-    const view = render(
-      [
-        buildProject({ name: "Visible", initiative_id: 1 }),
-        buildProject({ name: "Hidden", initiative_id: 2 }),
-      ],
-      { viewableInitiativeIds: new Set([1]) }
-    );
-    expect(names(view.filteredProjects)).toEqual(["Visible"]);
+describe("useProjectListView property filters", () => {
+  it("asks the list for them, scoped to its initiative, and says the list is narrowed", async () => {
+    const conditions = JSON.stringify([{ property_id: 5, op: "eq", value: "live" }]);
+    const { result, rerender, requests } = await mount([]);
+    expect(result.current.filterBarProps.initiativeId).toBe(1);
+
+    const { onChange, value } = result.current.filterBarProps;
+    onChange({ ...value, property_filters: conditions });
+    rerender();
+
+    await waitFor(() => expect(requests.at(-1)?.get("property_filters")).toBe(conditions));
+    // A manual order spans the whole list, so a narrowed one cannot be dragged.
+    expect(result.current.narrowed).toBe(true);
+    expect(result.current.activeFilterCount).toBe(1);
+
+    result.current.filterBarProps.onClear();
+    rerender();
+    await waitFor(() => expect(requests.at(-1)?.has("property_filters")).toBe(false));
+    expect(result.current.narrowed).toBe(false);
   });
 });
 
@@ -91,29 +137,29 @@ describe("useProjectListView sorting", () => {
     buildProject({ name: "Bravo", updated_at: "2026-02-01T00:00:00.000Z" }),
   ];
 
-  it("sorts alphabetically when asked", () => {
+  it("sorts alphabetically when asked", async () => {
     prefs.set(`${PREFIX}:sort`, "alphabetical");
-    expect(names(render(projects).sortedProjects)).toEqual(["Alpha", "Bravo", "Charlie"]);
+    expect(names((await render(projects)).sortedProjects)).toEqual(["Alpha", "Bravo", "Charlie"]);
   });
 
-  it("defaults to recently updated on a list that cannot be dragged", () => {
-    const view = render(projects);
+  it("defaults to recently updated on a list that cannot be dragged", async () => {
+    const view = await render(projects);
     expect(view.sortMode).toBe("updated");
     expect(names(view.sortedProjects)).toEqual(["Charlie", "Bravo", "Alpha"]);
   });
 
-  it("refuses a stored manual order where nothing can be dragged", () => {
+  it("refuses a stored manual order where nothing can be dragged", async () => {
     prefs.set(`${PREFIX}:sort`, "custom");
     // The active list keeps it…
-    expect(render(projects, { allowCustomSort: true }).sortMode).toBe("custom");
+    expect((await render(projects, { allowCustomSort: true })).sortMode).toBe("custom");
     // …templates and archived fall back rather than showing an arbitrary order.
-    expect(render(projects).sortMode).toBe("updated");
+    expect((await render(projects)).sortMode).toBe("updated");
   });
 
-  it("seeds the manual order from the list it can reorder", () => {
+  it("seeds the manual order from the list it can reorder", async () => {
     prefs.set(`${PREFIX}:sort`, "custom");
-    const view = render(projects, { allowCustomSort: true });
-    expect(view.customOrder).toEqual(projects.map((p) => p.id));
+    const { result } = await mount(projects, { allowCustomSort: true });
+    await waitFor(() => expect(result.current.customOrder).toEqual(projects.map((p) => p.id)));
   });
 });
 
@@ -121,14 +167,14 @@ describe("useProjectListView pinned projects", () => {
   const pinned = buildProject({ name: "Pinned", pinned_at: "2026-04-01T00:00:00.000Z" });
   const plain = buildProject({ name: "Plain" });
 
-  it("lifts pinned projects into their own section for the active list", () => {
-    const view = render([pinned, plain], { separatePinned: true });
+  it("lifts pinned projects into their own section for the active list", async () => {
+    const view = await render([pinned, plain], { separatePinned: true });
     expect(names(view.pinnedProjects)).toEqual(["Pinned"]);
     expect(names(view.sortedProjects)).toEqual(["Plain"]);
   });
 
-  it("leaves them in place everywhere else", () => {
-    const view = render([pinned, plain]);
+  it("leaves them in place everywhere else", async () => {
+    const view = await render([pinned, plain]);
     expect(view.pinnedProjects).toEqual([]);
     expect(names(view.sortedProjects)).toHaveLength(2);
   });

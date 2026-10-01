@@ -10,8 +10,9 @@ Grouped by what they defend:
 * whose rows a refresh may not touch: other sources' listings, an operator's
   publisher, another listing's registration, the deployment facts on a
   registry row;
-* what a refusal leaves behind: an expired or tampered repository keeps the
-  last verified catalog, and a tampered file costs its own listing only;
+* what a refusal leaves behind: an expired or unverifiable repository keeps
+  the last verified catalog, and a file that fails verification costs its own
+  listing only;
 * withdrawal, the switch, the root, and the offline bundle.
 """
 

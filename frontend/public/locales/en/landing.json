@@ -1,72 +1,307 @@
 {
   "nav": {
-    "signIn": "Sign in",
+    "home": "Initiative home",
+    "download": "Download",
     "pricing": "Pricing",
-    "help": "Help"
+    "docs": "Docs",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "menu": "Menu",
+    "mainAria": "Main",
+    "skip": "Skip to content"
   },
   "hero": {
-    "eyebrow": "Open source. Community first.",
     "titleLine1": "Out of the group chat.",
     "titleLine2": "Into one place.",
     "titleAria": "Out of the group chat. Into one place.",
-    "subtitle": "Projects, tasks, documents, the calendar — and every conversation about them, sitting on the thing it's about. The next person finds it without being told where to look.",
-    "ctaSignIn": "Sign in",
-    "ctaStart": "Start a community",
-    "invited": "Been sent an invite link? Open it. It does the rest.",
-    "scroll": "Have a look round",
-    "loading": "Loading…",
-    "screenshotAlt": "A week's tasks across every community you're in"
+    "subtitle": "Your group's projects, tasks, documents and plans, in one place. Instead of across a group chat, two spreadsheets, an email thread from March, and the head of whoever's been doing this the longest.",
+    "freeTitle": "Free to sign up",
+    "freeBody": "Your account is free, and every community you start gets a 30 day free trial.",
+    "signUp": "Sign up",
+    "signIn": "Sign in",
+    "download": "Download",
+    "haveAccount": "Already have an account?",
+    "loading": "Loading…"
   },
-  "ribbon": {
-    "aria": "The kinds of groups that run on Initiative",
-    "fete": "the fete",
-    "rota": "the rota",
-    "pta": "the PTA",
-    "dnd": "Tuesday night D&D",
-    "shop": "the shop",
-    "band": "the band",
-    "festival": "the festival crew",
-    "committee": "the volunteer committee",
-    "dayJob": "the day job",
-    "family": "the family calendar",
-    "bookClub": "the book club",
-    "fiveASide": "the five-a-side team"
-  },
-  "invited": {
-    "sectionLabel": "New here?",
-    "title": "Somebody added you. Now what?",
-    "description": "Most people arrive because their group already lives here and somebody sent a link. There's nothing to set up, and you don't need to know what a Kanban board is. If you've ever written a shopping list, you're overqualified.",
-    "step1Title": "Open the link you were sent",
-    "step1Body": "It makes your account and drops you into your group. Already have one? It just adds the community to it.",
-    "step2Title": "Have a look round",
-    "step2Body": "Everything's already there. Click things. Open menus. Drag stuff about.",
-    "step3Title": "You cannot break this",
-    "step3Body": "Deleted something? It's in the Trash, sulking. Moved a task somewhere daft? Move it back. Nobody saw.",
-    "cta": "Take the five-minute tour"
+  "communities": {
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
+    "toolsAria": "Tools",
+    "dnd": {
+      "name": "Tuesday night D&D",
+      "activity": "Your turn to bring snacks",
+      "pill": "You're up"
+    },
+    "band": {
+      "name": "The band",
+      "activity": "Rehearsal moved to Thursday"
+    },
+    "pta": {
+      "name": "Hillside PTA",
+      "activity": "Cakes promised: 41 of 60"
+    },
+    "alsoGoodFor": "Also good for",
+    "marquee": {
+      "soccer": "Northside Sunday League",
+      "pta": "Maple Street PTA",
+      "business": "Rosie's Bakery",
+      "books": "Second Chapter Book Club",
+      "breakfast": "154 Breakfast Club Restaurant",
+      "neighborhood": "Oak Hill Neighbors",
+      "theater": "Riverside Community Players",
+      "faith": "Grace Chapel Volunteers",
+      "robotics": "Lincoln High Robotics",
+      "family": "The Parker Family"
+    },
+    "pause": "Pause",
+    "play": "Play"
   },
   "tools": {
-    "sectionLabel": "What's inside",
     "title": "Learn one tool, know the rest",
-    "description": "Everything inside a community is a tool. They're shared the same way, tagged the same way, commented on the same way — so the second one feels familiar before you've opened it.",
-    "projects": "Boards, lists and a calendar of the same tasks. Due dates, subtasks, and the tasks that are secretly three tasks wearing a coat.",
-    "documents": "Pages, spreadsheets and whiteboards, edited together, with the conversation about them sitting right on them.",
-    "queues": "Whose turn it is to email the council. Nobody's turn. It's always nobody's turn. Put it in a queue.",
-    "counterGroups": "Tally the things you'd otherwise count on your fingers. Tickets sold, cakes promised, chairs still missing.",
-    "calendars": "Rehearsals, match days, the AGM. With reminders, so the reminder isn't you.",
-    "dashboards": "One screen with the numbers on it, readable from the far end of a draughty hall.",
-    "wikis": "What the group knows, rather than what it's doing. The thing somebody explained in a message once, written down where the next person will actually find it.",
-    "posts": "Announcements that stay put, instead of scrolling away under forty replies.",
-    "galleries": "Photos from the day, kept with the day, not in six people's camera rolls."
+    "description": "Everything in a community is a tool. They're shared, tagged and commented on the same way, so the second one feels familiar before you've opened it.",
+    "note": "Switch on the ones your group needs. Switching one off later deletes nothing.",
+    "projects": "Boards, tables and calendars of the same tasks, with confetti if you want it.",
+    "documents": "Pages, spreadsheets and whiteboards you edit together live.",
+    "queues": "Keep track of whose turn it is, since apparently it's always nobody's.",
+    "counterGroups": "Tickets sold, cakes promised, chairs still missing.",
+    "calendars": "Events with RSVPs and reminders, so you're not the one reminding everyone.",
+    "dashboards": "Your numbers on one screen, and people only see what they have access to.",
+    "wikis": "Write down what the group knows, with links that keep working after a rename.",
+    "posts": "Announcements that don't get buried, with polls and read receipts.",
+    "galleries": "The photos from the day, together instead of in six people's camera rolls."
   },
-  "gallery": {
-    "sectionLabel": "See it",
-    "title": "This is what it looks like",
-    "tasksAlt": "Everything assigned to you, across every community",
-    "tasksCaption": "Your week, across every community you're in",
-    "projectAlt": "A project board",
-    "projectCaption": "The same tasks as a board, a table or a calendar",
-    "documentAlt": "A document being edited together",
-    "documentCaption": "Documents with the conversation on them"
+  "hangout": {
+    "titleStart": "This is where your community",
+    "titleHighlight": "hangs out",
+    "titleEnd": ", too",
+    "description": "Post the news, run a poll, plan Saturday's game and see who's coming, all in the same place you keep the stuff that needs doing. It works the same for a rec league, a volunteer crew or the group that's been meeting for coffee since 2009.",
+    "drawingAria": "A drawing of a community on Initiative",
+    "community": {
+      "name": "Eastside Rec Soccer",
+      "tagline": "Sunday league, all ages, all skill levels",
+      "online": "12 online"
+    },
+    "online": "Online",
+    "away": "Away",
+    "people": {
+      "maya": "Maya",
+      "mayaStatus": "setting up the poll",
+      "dev": "Dev",
+      "devStatus": "has the big grill",
+      "priya": "Priya",
+      "priyaStatus": "at work, ask later",
+      "luis": "Luis",
+      "sam": "Sam",
+      "hana": "Hana"
+    },
+    "post": {
+      "where": "in Announcements",
+      "pinned": "Pinned till Sat",
+      "body": "Season kickoff cookout this Saturday right after the game. Bring a chair and whoever you live with.",
+      "burgers": "Burgers",
+      "hotDogs": "Hot dogs",
+      "veggie": "Veggie skewers",
+      "votes": "29 votes",
+      "read": "41 read, 7 haven't"
+    },
+    "reply": "I can bring the big grill if someone helps me lift it",
+    "event": {
+      "day": "Sat",
+      "date": "14",
+      "title": "Pickup game",
+      "where": "Riverside Park, field 3, 10am",
+      "going": "14 going",
+      "maybe": "3 maybe",
+      "rsvpGoing": "Going",
+      "rsvpMaybe": "Maybe",
+      "rsvpNo": "Can't",
+      "reminder": "Reminder an hour before"
+    },
+    "rota": {
+      "title": "Snack duty",
+      "detail": "Round 6, it's Luis this week"
+    },
+    "points": {
+      "planTitle": "Plan things together",
+      "planBody": "Make an event, see who's going, and let the reminders do the nagging. A weekly game and a once-a-year fundraiser work the same way.",
+      "loopTitle": "Keep everyone in the loop",
+      "loopBody": "Posts that stay pinned, polls people actually answer, and a list of who still hasn't read the announcement.",
+      "aroundTitle": "See who's around",
+      "aroundBody": "Online, idle or busy at a glance, with private messages that are end-to-end encrypted."
+    }
+  },
+  "directory": {
+    "title": "Looking for a new crowd?",
+    "description": "Some communities list themselves publicly. Once you've got an account you can browse them by category, see how many people are around, and join one straight from the card.",
+    "peek": "Have a peek",
+    "deckAria": "Communities in the directory",
+    "signUp": "Sign up to browse them all",
+    "signIn": "Sign in to browse them all",
+    "age": "You need to be 16 or over to join a listed community.",
+    "join": "Join",
+    "dice": {
+      "name": "Dice & Dragons",
+      "description": "Weekly one-shots for people who can't commit to a whole campaign.",
+      "category": "Tabletop RPG",
+      "members": "212 members",
+      "online": "31 online"
+    },
+    "producers": {
+      "name": "Bedroom Producers",
+      "description": "Share what you're working on and borrow each other's drum sounds.",
+      "category": "Music",
+      "category2": "Art & design",
+      "members": "1,380 members",
+      "online": "96 online"
+    },
+    "volleyball": {
+      "name": "Saturday Beach Volleyball",
+      "description": "Pickup games every Saturday morning, all levels welcome.",
+      "category": "Sports & fitness",
+      "category2": "Community & social",
+      "members": "540 members",
+      "online": "22 online"
+    }
+  },
+  "between": {
+    "title": "And the bits in between",
+    "description": "These work the same way in every tool.",
+    "comments": {
+      "title": "The conversation sits on the thing",
+      "body": "Comments, replies and reactions live on the task or doc they're about, so the next person can actually find them.",
+      "author": "Sam",
+      "on": "on Float checklist",
+      "mention": "@Priya",
+      "text": "can you check the float still has a wheel",
+      "replies": "2 replies"
+    },
+    "mine": {
+      "title": "Everything with your name on it",
+      "body": "One account for the band, the PTA and the day job, and one list of everything you've said you'd do.",
+      "task1": "Book the hall",
+      "where1": "PTA",
+      "task2": "Learn the bridge, properly",
+      "where2": "The band",
+      "task3": "Print the character sheets",
+      "where3": "D&D",
+      "task4": "Q3 report",
+      "where4": "Day job"
+    },
+    "search": {
+      "title": "Find the thing you half remember",
+      "body": "Ctrl K searches docs, spreadsheets, whiteboards and comments, and it's fine if you spell it wrong.",
+      "query": "flaot",
+      "result1": "Float checklist",
+      "result2": "Fix the float wheel",
+      "result3": "\"is the float insured?\"",
+      "doc": "Doc",
+      "task": "Task",
+      "comment": "Comment",
+      "match": "float"
+    },
+    "relations": {
+      "title": "Things know what they're connected to",
+      "body": "Link anything with #, mark what's blocking what, and backlinks show up on their own.",
+      "blockedBy": "Blocked by",
+      "partOf": "Part of",
+      "mentionedIn": "Mentioned in",
+      "item1": "Pay the hall deposit",
+      "item2": "Summer fair",
+      "item3": "Committee minutes, May"
+    },
+    "notify": {
+      "title": "Notifications that know when to shut up",
+      "body": "Bell, email or push, set per group, with quiet hours because nobody needs the PTA at 2am.",
+      "toastTitle": "Rehearsal moved to Thursday",
+      "toastWhere": "The band, Calendar",
+      "quiet": "Quiet hours",
+      "quietHours": "10pm to 8am"
+    },
+    "messages": {
+      "title": "Messages nobody else can read",
+      "body": "One-to-one or group chats, end-to-end encrypted so the server can't read them either.",
+      "e2e": "End-to-end encrypted",
+      "m1": "did you tell them about the thing",
+      "m2": "which thing",
+      "m3": "you know which thing"
+    },
+    "imports": "Moving in from somewhere else?",
+    "cardsAria": "Features every tool shares"
+  },
+  "safe": {
+    "title": "You cannot break this",
+    "body": "Deleted something? It goes to the Trash and you can get it back. Moved a task somewhere daft? Move it back, nobody saw.",
+    "item": "Book the hall",
+    "deleted": "Deleted 2 minutes ago by you",
+    "restore": "Restore"
+  },
+  "closer": {
+    "title": "Your group's not on here yet?",
+    "body": "Starting a community takes about a minute. Make one board, add a few tasks, and send people the link.",
+    "start": "Start a community",
+    "selfHost": "Run it on your own server",
+    "docs": "Read the docs"
+  },
+  "download": {
+    "title": "Download",
+    "titleHighlight": "Initiative",
+    "description": "It runs in a browser, and using it that way forever is a completely respectable life choice. But it can also have its own icon and its own window.",
+    "detected": "Looks like you're on {{platform}}",
+    "platformAndroid": "Android",
+    "platformIos": "an iPhone or iPad",
+    "platformDesktop": "a computer",
+    "androidTitle": "Initiative for Android",
+    "androidBody": "Installs like anything else, no app store needed.",
+    "iosTitle": "Initiative for iPhone and iPad",
+    "iosBody": "Tap Share, then Add to Home Screen. It's the same Initiative, but iPhones don't get push notifications yet.",
+    "desktopTitle": "Initiative for your computer",
+    "desktopBody": "Its own window and its own icon in the dock or taskbar. It installs straight from the browser.",
+    "androidButton": "Download for Android",
+    "iosButton": "Add to your iPhone",
+    "windowsButton": "Download for Windows",
+    "macButton": "Download for Mac",
+    "linuxButton": "Download for Linux",
+    "desktopButton": "Download for your computer",
+    "version": "Version {{version}}, the one this server runs",
+    "releases": "See every release",
+    "desktopMeta": "Windows, Mac and Linux",
+    "cardsAria": "Every way to get Initiative",
+    "android": {
+      "title": "Android",
+      "sub": "Phones and tablets",
+      "body": "Let <1>Obtainium</1> keep it updated for you.",
+      "button": "Download APK",
+      "bodyPush": "Push notifications included. Or let <1>Obtainium</1> keep it updated for you."
+    },
+    "ios": {
+      "title": "iPhone and iPad",
+      "sub": "From Safari",
+      "step1": "Open this page in Safari",
+      "step2": "Tap the Share button",
+      "step3": "Tap Add to Home Screen",
+      "button": "Show me"
+    },
+    "desktop": {
+      "title": "Computer",
+      "sub": "Windows, Mac, Linux",
+      "body": "Chrome and Edge install it in one click. In Safari it's File, then Add to Dock.",
+      "button": "Install Initiative"
+    },
+    "browser": {
+      "title": "Browser",
+      "sub": "Anything with a screen",
+      "body": "Nothing to install, just bookmark it.",
+      "button": "Open in your browser"
+    },
+    "factsAria": "Good to know",
+    "updatesTitle": "Updates install themselves",
+    "updatesBody": "Initiative keeps itself up to date, so you won't need to come back here.",
+    "accountTitle": "One account, every device",
+    "accountBody": "Sign in on your phone, laptop or the library computer and everything's there.",
+    "passkeysTitle": "Passkeys welcome",
+    "passkeysBody": "Sign in with a passkey if you'd rather not type a password.",
+    "descriptionPush": "It runs in a browser, and using it that way forever is a completely respectable life choice. But it can also have its own icon, its own window and, on Android, notifications that turn up while you aren't looking.",
+    "androidBodyPush": "Installs like anything else, push notifications included, no app store needed."
   },
   "pricing": {
     "sectionLabel": "Plans",
@@ -76,65 +311,56 @@
     "members": "People",
     "support": "Support",
     "loading": "Fetching the price book…",
-    "tierListAria": "Plans"
-  },
-  "download": {
-    "sectionLabel": "Take it with you",
-    "title": "Get the app",
-    "description": "It runs in a browser, and using it that way forever is a completely respectable life choice. But it can also have its own icon, its own window, and — on Android — notifications that arrive while you aren't looking.",
-    "detected": "Looks like you're on {{platform}}",
-    "platformAndroid": "Android",
-    "platformIos": "iPhone and iPad",
-    "platformDesktop": "a computer",
-    "androidTitle": "Android",
-    "androidButton": "Download for Android",
-    "androidReleases": "See every release",
-    "androidNote": "Or let <1>Obtainium</1> keep it updated for you.",
-    "iosTitle": "iPhone and iPad",
-    "iosButton": "Add to Home Screen",
-    "iosNote": "Share button, then Add to Home Screen. Same app, no store.",
-    "desktopTitle": "Computer",
-    "desktopButton": "Install from your browser",
-    "desktopNote": "The install icon at the right-hand end of the address bar. Or don't, and use the tab. Also fine.",
-    "guide": "How installing works"
-  },
-  "docs": {
-    "sectionLabel": "Help",
-    "title": "Find your way around",
-    "description": "Written for the person who got volunteered to organise something and is quietly worried it'll be complicated. It won't be.",
-    "gettingStartedTitle": "Getting started",
-    "gettingStartedBody": "Make an account, find your way around, join your group.",
-    "tourTitle": "A quick tour",
-    "tourBody": "Five minutes on where everything lives.",
-    "guidesTitle": "Using Initiative",
-    "guidesBody": "How-to guides for every tool.",
-    "faqTitle": "FAQ",
-    "faqBody": "Quick answers to the things people ask most.",
-    "serverTitle": "Running a server",
-    "serverBody": "Installing, configuring and looking after your own server.",
-    "securityTitle": "Security & privacy",
-    "securityBody": "What secure means for you, and how your group's stuff stays yours."
-  },
-  "principles": {
-    "openSourceTitle": "Open source",
-    "openSourceBody": "Read it, change it, run it.",
-    "sameAppTitle": "Every feature, both ways",
-    "sameAppBody": "Nothing held back for the paying customers.",
-    "oneLoginTitle": "One login",
-    "oneLoginBody": "Every community you're in, from the same account.",
-    "yourDataTitle": "Your data stays yours",
-    "yourDataBody": "Export it, delete it, take it somewhere else."
-  },
-  "cta": {
-    "title": "Ready when you are.",
-    "description": "Sign in if your group's already here. Start a community if it isn't.",
-    "signIn": "Sign in"
+    "tierListAria": "Plans",
+    "selfHostBody": "Rather run it on your own server? It's free and open source.",
+    "everyPlanAria": "Every plan",
+    "sameTitle": "Same Initiative either way",
+    "sameBody": "Hosted or on your own server, you're using the same software.",
+    "openTitle": "Open source",
+    "openBody": "Read it, change it, run it.",
+    "dataTitle": "Your data stays yours",
+    "dataBody": "Export it, delete it, take it somewhere else.",
+    "unavailableTitle": "Plans aren't available right now",
+    "unavailableBody": "The price book didn't load. Give it a minute and try again.",
+    "back": "Back to the front page"
   },
   "footer": {
-    "copyright": "© {{year}} Initiative. Open source, and staying that way.",
-    "docs": "Help center",
-    "source": "Source",
+    "tagline": "Open source, and staying that way.",
+    "getIt": "Get it",
+    "docs": "Docs",
+    "download": "Download",
+    "pricing": "Pricing",
     "changelog": "What's new",
-    "cookies": "Cookies"
+    "gettingStarted": "Getting started",
+    "faq": "FAQ",
+    "server": "Running a server",
+    "security": "Security & privacy",
+    "cookies": "Cookies",
+    "copyright": "© {{year}} Initiative",
+    "socials": "Socials",
+    "github": "GitHub"
+  },
+  "whatsNew": {
+    "title": "What's new",
+    "description": "Everything that's changed in Initiative, newest first.",
+    "metaTitle": "What's new · Initiative",
+    "postTitle": "Initiative {{version}}",
+    "postMetaTitle": "Initiative {{version}} · What's new",
+    "readMore": "Read the whole post",
+    "readMoreAria": "Read the whole post about Initiative {{version}}",
+    "older": "Show older posts",
+    "back": "All posts",
+    "loading": "Loading…",
+    "empty": "Nothing here yet.",
+    "notFound": "Couldn't find that release. It may not have shipped yet.",
+    "error": "Couldn't load what's new. Give it a minute and try again."
+  },
+  "meta": {
+    "homeTitle": "Initiative: out of the group chat, into one place",
+    "homeDescription": "Your group's projects, tasks, documents, events and conversations in one place, on the web, Android, iPhone and your computer.",
+    "downloadTitle": "Download Initiative",
+    "downloadDescription": "Get Initiative on Android, iPhone, iPad or your computer, or keep using it in the browser.",
+    "pricingTitle": "Pricing · Initiative",
+    "pricingDescription": "Plans for Initiative, and what each one includes."
   }
 }

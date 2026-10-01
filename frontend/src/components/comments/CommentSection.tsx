@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommentCreate, CommentRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
@@ -38,6 +39,10 @@ interface CommentSectionProps {
   onCommentUpdated?: (comment: CommentRead) => void;
   title?: string;
   isLoading?: boolean;
+  /** Older conversations the thread has not loaded yet. */
+  hasOlder?: boolean;
+  isLoadingOlder?: boolean;
+  onLoadOlder?: () => void;
   canModerate?: boolean;
   initiativeId: number;
 }
@@ -81,6 +86,9 @@ export const CommentSection = ({
   onCommentUpdated,
   title,
   isLoading = false,
+  hasOlder = false,
+  isLoadingOlder = false,
+  onLoadOlder,
   canModerate = false,
   initiativeId,
 }: CommentSectionProps) => {
@@ -302,6 +310,17 @@ export const CommentSection = ({
             ) : (
               <p className="text-muted-foreground text-sm">{t("empty")}</p>
             )}
+            {hasOlder && onLoadOlder ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={onLoadOlder}
+                disabled={isLoadingOlder}
+              >
+                {isLoadingOlder ? t("loading") : t("loadOlder")}
+              </Button>
+            ) : null}
             {deleteError && !deleteComment.variables && (
               <p className="text-destructive text-sm">{deleteError}</p>
             )}

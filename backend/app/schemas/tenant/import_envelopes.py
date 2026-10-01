@@ -104,6 +104,7 @@ class WikiPageEnvelope(SanitizedBaseModel):
     is_draft: bool = False
     content: dict[str, Any] = {}
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
     #: When the page was written and when it was last edited. Absent in an
     #: export taken before they were carried, and absent is not "now" — the
     #: importer only uses a value it was actually given.
@@ -137,6 +138,7 @@ class WikiFiledUpload(SanitizedBaseModel):
     original_filename: Optional[str] = None
     content_type: Optional[str] = None
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
 
 
 class WikiFiledDocument(SanitizedBaseModel):
@@ -171,6 +173,7 @@ class WikiEnvelope(_EnvelopeBase):
     description: Optional[str] = None
     home_page: Optional[str] = None
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
     pages: list[WikiPageEnvelope] = []
     #: The documents filed in the wiki, when its export carried them.
     documents: list[WikiFiledDocument] = []
@@ -196,6 +199,7 @@ class GalleryImageEnvelope(SanitizedBaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
     #: What this picture was called where it came from — a thing a reference
     #: elsewhere in the same import can name. Refs live for one job.
     external_ref: Optional[str] = None
@@ -214,6 +218,7 @@ class GalleryEnvelope(_EnvelopeBase):
     description: Optional[str] = None
     cover: Optional[str] = None
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
     images: list[GalleryImageEnvelope] = []
 
 
@@ -228,6 +233,7 @@ class QueueEnvelopeItem(SanitizedBaseModel):
     held_at_round: Optional[int] = None
     is_current: bool = False
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
     # `member`, `documents`, `tasks` are informational display text in the
     # export — ignored here (extra="ignore"), counted as a warning on apply.
     member: Optional[str] = None
@@ -242,6 +248,7 @@ class QueueEnvelope(_EnvelopeBase):
     description: Optional[str] = None
     is_active: bool = False
     current_round: int = 1
+    properties: list[EnvelopePropertyValue] = []
     items: list[QueueEnvelopeItem] = []
 
 
@@ -257,6 +264,7 @@ class CounterEnvelopeItem(SanitizedBaseModel):
     initial_count: float = 0
     view_mode: str = "number"
     position: float = 0
+    properties: list[EnvelopePropertyValue] = []
     #: What this counter was called where it came from — a thing a reference
     #: elsewhere in the same import can name. Refs live for one job.
     external_ref: Optional[str] = None
@@ -266,6 +274,7 @@ class CounterGroupEnvelope(_EnvelopeBase):
     type: Literal["initiative-counter-group"]
     name: str
     description: Optional[str] = None
+    properties: list[EnvelopePropertyValue] = []
     counters: list[CounterEnvelopeItem] = []
 
 
@@ -291,6 +300,7 @@ class DashboardEnvelope(_EnvelopeBase):
     definition: dict[str, Any] = {}
     config: dict[str, Any] = {}
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
 
 
 class PostPollEnvelope(SanitizedBaseModel):
@@ -356,6 +366,7 @@ class PostEnvelope(_EnvelopeBase):
     name: str
     body: dict[str, Any] = {}
     tags: list[str] = []
+    properties: list[EnvelopePropertyValue] = []
     poll: Optional[PostPollEnvelope] = None
     #: The handles the body's mention nodes name, as a document's are.
     mention_handles: list[str] = []
@@ -406,6 +417,10 @@ class EventEnvelopeItem(SanitizedBaseModel):
     #: When the event was written down (not when it happens — that is
     #: ``start_at``). The export has always emitted it; it is read now.
     created_at: Optional[str] = None
+    #: An occurrence with a row of its own: its series' ``external_ref``, and
+    #: its start there.
+    series_ref: Optional[str] = None
+    original_start: Optional[str] = None
 
 
 class CalendarEnvelope(_EnvelopeBase):
@@ -413,4 +428,5 @@ class CalendarEnvelope(_EnvelopeBase):
     name: str
     description: Optional[str] = None
     color: Optional[str] = None
+    properties: list[EnvelopePropertyValue] = []
     events: list[EventEnvelopeItem] = []

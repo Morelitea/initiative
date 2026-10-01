@@ -3,7 +3,7 @@
  *
  * The single reason a widget names a `Tone` instead of a color: every value
  * here resolves to a theme token, so a widget cannot paint itself invisible on
- * a dark background, cannot imitate app chrome, and cannot smuggle a `url()`
+ * a dark background, cannot imitate app chrome, and never puts a `url()`
  * into a style. It also means a themed install restyles widget output for free,
  * including widgets we have never seen.
  */

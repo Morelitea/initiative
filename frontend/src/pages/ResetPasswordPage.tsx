@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 
@@ -22,6 +23,7 @@ export const ResetPasswordPage = () => {
   // like ``PASSWORD_BREACHED`` without the namespace having to
   // lazy-load mid-submit.
   const { t } = useTranslation(["auth", "errors"]);
+  const { passwordLoginEnabled } = useAppConfig();
   const searchParams = useSearch({ strict: false }) as { token?: string };
   const router = useRouter();
   const token = searchParams.token ?? "";
@@ -59,6 +61,26 @@ export const ResetPasswordPage = () => {
       setStatus("idle");
     }
   };
+
+  // A link mailed before passwords were withdrawn still arrives here, and
+  // the server refuses the reset it asks for.
+  if (!passwordLoginEnabled) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+        <Card className="w-full max-w-md shadow-lg">
+          <CardHeader>
+            <CardTitle>{t("passwordsOff.title")}</CardTitle>
+            <CardDescription>{t("passwordsOff.description")}</CardDescription>
+          </CardHeader>
+          <CardFooter className="text-muted-foreground text-sm">
+            <Link className="text-primary underline-offset-4 hover:underline" to="/login">
+              {t("forgotPassword.backToSignIn")}
+            </Link>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   if (!token) {
     return (

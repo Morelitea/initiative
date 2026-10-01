@@ -429,8 +429,6 @@ async def test_dashboard_counts_by_initiative(
     await create_dashboard(session, a.initiative, a.user, name="Flow")
     await create_dashboard(session, disabled_initiative, a.user, name="Hidden")
 
-    response = await client.get(
-        a.g("/dashboards/counts/by-initiative"), headers=a.headers
-    )
+    response = await client.get(a.g("/tools/counts/by-initiative"), headers=a.headers)
     assert response.status_code == 200, response.text
-    assert response.json()["counts"] == {str(a.initiative.id): 2}
+    assert response.json()["counts"]["dashboard"] == {str(a.initiative.id): 2}

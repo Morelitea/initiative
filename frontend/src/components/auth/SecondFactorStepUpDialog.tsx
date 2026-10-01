@@ -1,11 +1,12 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { isAxiosError } from "axios";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Mail } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
 import {
+  sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost,
   useListPasskeysApiV1AuthPasskeysGet,
   useReadSecondFactorApiV1AuthTotpGet,
 } from "@/api/generated/auth/auth";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useAuthChallenge } from "@/hooks/useAuthChallenge";
 import { isAnsweredVisitRead } from "@/hooks/useNotifications";
@@ -46,8 +48,9 @@ import { compactCode } from "@/lib/secondFactorAnswer";
  *
  * A third ask arrives from the account's own settings rather than a community:
  * a change to how it signs in wants a session opened a moment ago. A passkey
- * opens one, and so does signing in again — which is the whole offer for an
- * account that holds no passkey because a provider signs it in.
+ * opens one, so does a code sent to the account's proved address where the
+ * deployment sends them, and so does signing in again — which is the whole
+ * offer for an account that holds no passkey because a provider signs it in.
  *
  * A fourth comes from the deployment: it asks this account to hold a second
  * factor, and it holds none. The same answer — a code, or a passkey — with two
@@ -59,7 +62,8 @@ export const SecondFactorStepUpDialog = () => {
   // The array form, so the line a put-down prompt deserves — named by
   // `describePasskeyPromptError` as a fully qualified key — is one `t` accepts.
   const { t } = useTranslation(["auth", "common"]);
-  const { logout, stepUpWithFactor, stepUpWithPasskey } = useAuth();
+  const { logout, stepUpWithFactor, stepUpWithPasskey, stepUpWithEmailCode } = useAuth();
+  const { emailOtpLoginEnabled } = useAppConfig();
   const { isNativePlatform } = useServer();
   const location = useLocation();
   const navigate = useNavigate();
@@ -79,6 +83,11 @@ export const SecondFactorStepUpDialog = () => {
   /** Both asks are answered by presenting a passkey, so both read the same
    *  side of this dialog and ask the account the same question. */
   const presentsPasskey = wantsPasskey || wantsProof;
+  /** A code to the account's address answers the proof, where the deployment
+   *  sends them. Typed back, so it works in the app as well as a browser. */
+  const offersEmailCode = wantsProof && emailOtpLoginEnabled;
+  // The handle the send route handed back; set once a code is on its way.
+  const [emailChallenge, setEmailChallenge] = useState<string | null>(null);
 
   const [code, setCode] = useState("");
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
@@ -116,6 +125,7 @@ export const SecondFactorStepUpDialog = () => {
     clear();
     setCode("");
     setUseRecoveryCode(false);
+    setEmailChallenge(null);
     setError(null);
   };
 
@@ -165,6 +175,35 @@ export const SecondFactorStepUpDialog = () => {
     }
   };
 
+  const sendEmailCode = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const sent = await sendStepUpCodeApiV1AuthStepUpEmailOtpSendPost();
+      setCode("");
+      setEmailChallenge(sent.challenge);
+    } catch (err) {
+      setError(getErrorMessage(err, "auth:factorStepUp.emailCodeError"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submitEmailCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!emailChallenge) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await stepUpWithEmailCode({ challenge: emailChallenge, code: code.trim() });
+      await settle();
+    } catch (err) {
+      setError(getErrorMessage(err, "auth:factorStepUp.emailCodeError"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   /** The other way to open a fresh session, for an account with no passkey to
    *  present: start one over, and come back to the page this was raised on. */
   const signInAgain = async () => {
@@ -179,16 +218,59 @@ export const SecondFactorStepUpDialog = () => {
     }
   };
 
-  const presentDescription = isNativePlatform
-    ? t(wantsProof ? "factorStepUp.proofNative" : "factorStepUp.passkeyNative")
-    : hasNoPasskey
-      ? t(wantsProof ? "factorStepUp.proofSignIn" : "factorStepUp.passkeyNone")
-      : t(wantsProof ? "factorStepUp.proofDescription" : "factorStepUp.passkeyDescription");
+  const presentDescription = offersEmailCode
+    ? t("factorStepUp.proofEmail")
+    : isNativePlatform
+      ? t(wantsProof ? "factorStepUp.proofNative" : "factorStepUp.passkeyNative")
+      : hasNoPasskey
+        ? t(wantsProof ? "factorStepUp.proofSignIn" : "factorStepUp.passkeyNone")
+        : t(wantsProof ? "factorStepUp.proofDescription" : "factorStepUp.passkeyDescription");
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && dismiss()}>
       <DialogContent>
-        {presentsPasskey ? (
+        {emailChallenge ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{t("factorStepUp.proofTitle")}</DialogTitle>
+              <DialogDescription>{t("factorStepUp.emailCodeSent")}</DialogDescription>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={submitEmailCode}>
+              <div className="space-y-2">
+                <Label htmlFor="step-up-email-code">{t("factorStepUp.emailCodeLabel")}</Label>
+                <Input
+                  id="step-up-email-code"
+                  name="step-up-email-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  required
+                />
+              </div>
+              {error && <p className="text-destructive text-sm">{error}</p>}
+              {/* A code lasts minutes and a few tries; a spent one is replaced
+                  here rather than by starting the change over. */}
+              <button
+                type="button"
+                className="text-primary text-sm underline-offset-4 hover:underline"
+                onClick={sendEmailCode}
+                disabled={submitting}
+              >
+                {t("factorStepUp.emailCodeResend")}
+              </button>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={dismiss}>
+                  {t("factorStepUp.dismiss")}
+                </Button>
+                <Button type="submit" disabled={submitting || !code.trim()}>
+                  {submitting ? t("login.submitting") : t("factorStepUp.submit")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        ) : presentsPasskey ? (
           <>
             <DialogHeader>
               <DialogTitle>
@@ -203,6 +285,12 @@ export const SecondFactorStepUpDialog = () => {
               <Button variant="outline" onClick={dismiss}>
                 {t("factorStepUp.dismiss")}
               </Button>
+              {offersEmailCode && (
+                <Button type="button" onClick={sendEmailCode} disabled={submitting}>
+                  <Mail className="h-4 w-4" aria-hidden="true" />
+                  {t("factorStepUp.emailCode")}
+                </Button>
+              )}
               {!isNativePlatform &&
                 (hasNoPasskey ? (
                   wantsProof ? (

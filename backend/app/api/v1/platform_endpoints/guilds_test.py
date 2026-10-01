@@ -20,6 +20,7 @@ from sqlmodel import select
 
 from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.models.tenant.initiative import Initiative, InitiativeMember
@@ -32,6 +33,7 @@ from app.testing.factories import (
     create_user,
     get_auth_token,
 )
+from app.testing import drain_notices
 
 
 async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
@@ -353,12 +355,32 @@ async def test_staff_standing_a_community_up_for_somebody_are_not_refused(
 # --- creating a guild for another account ----------------------------------
 
 
+@pytest.mark.parametrize(
+    "billing_url", [None, "https://billing.example.com"], ids=["unbilled", "billed"]
+)
 async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
-    client: AsyncClient, session: AsyncSession, acting_user
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    monkeypatch,
+    billing_url: str | None,
 ):
     """The named account holds the seat and the creator holds nothing in it.
     Who did it and who it was for are both in the row, not only in a log line.
+    Where billing sets plans, the owner — not the creator — is welcomed and
+    invited to set one up; elsewhere nobody is.
     """
+    from app.core.config import settings as app_settings
+    from app.services.platform import email_outbox
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", billing_url)
+    letters: list = []
+
+    async def _letter(_session, recipient, *, pieces, **_kwargs):
+        letters.append((recipient.id, pieces))
+        return True
+
+    monkeypatch.setattr(email_outbox, "enqueue", _letter)
     staff = await acting_user(UserRole.owner)
     customer = await acting_user("member")
 
@@ -379,6 +401,29 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     assert [(m.user_id, m.role) for m in memberships] == [
         (customer.user.id, GuildRole.superadmin)
     ]
+
+    await drain_notices()
+    welcomed = (
+        await session.exec(
+            select(Notification).where(
+                Notification.type == NotificationType.guild_welcome
+            )
+        )
+    ).all()
+    if billing_url is None:
+        assert welcomed == [] and letters == []
+        return
+    (line,) = welcomed
+    assert line.user_id == customer.user.id
+    assert line.data == {
+        "community": "Acme",
+        "guild_id": guild.id,
+        "target_path": "/settings/usage",
+    }
+    ((recipient_id, pieces),) = letters
+    assert recipient_id == customer.user.id
+    assert pieces.subject == "Acme is ready"
+    assert pieces.link.endswith(f"/c/{guild.id}/billing?page=upgrade")
 
 
 @pytest.mark.parametrize(

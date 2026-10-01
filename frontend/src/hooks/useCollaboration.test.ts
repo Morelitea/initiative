@@ -32,8 +32,6 @@ describe("useCollaboration", () => {
     calls.length = 0;
     provider.connected = true;
     provider.unsentEdits.mockReturnValue(null);
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
   });
 
   it("hands the room the last rendering before the socket closes", () => {
@@ -99,5 +97,44 @@ describe("useCollaboration", () => {
     window.dispatchEvent(new Event("pagehide"));
 
     expect(calls).toEqual(['send {"a":2}']);
+  });
+
+  it("counts a body as synced from its first sync on, through a reconnect", () => {
+    const { result } = renderHook(() =>
+      useCollaboration({ socketPath: "documents/7/collaborate", finalContent: () => undefined })
+    );
+    act(() => {
+      result.current.providerFactory?.("7", new Map());
+    });
+    const onSync = provider.on.mock.calls.filter(([type]) => type === "sync").at(-1)?.[1] as (
+      synced: boolean
+    ) => void;
+    expect(result.current.hasSynced).toBe(false);
+
+    act(() => onSync(true));
+    expect(result.current).toMatchObject({ isSynced: true, hasSynced: true });
+
+    // The socket dropped and is reconnecting: not in step with the room right
+    // now, but the editor already holds the document.
+    act(() => onSync(false));
+    expect(result.current).toMatchObject({ isSynced: false, hasSynced: true });
+  });
+
+  it("starts over when the page moves to another body", () => {
+    const { result, rerender } = renderHook(
+      ({ path }) => useCollaboration({ socketPath: path, finalContent: () => undefined }),
+      { initialProps: { path: "documents/7/collaborate" } }
+    );
+    act(() => {
+      result.current.providerFactory?.("7", new Map());
+    });
+    const onSync = provider.on.mock.calls.filter(([type]) => type === "sync").at(-1)?.[1] as (
+      synced: boolean
+    ) => void;
+    act(() => onSync(true));
+    expect(result.current.hasSynced).toBe(true);
+
+    rerender({ path: "documents/8/collaborate" });
+    expect(result.current.hasSynced).toBe(false);
   });
 });

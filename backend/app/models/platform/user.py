@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     String,
+    Text,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -212,6 +213,11 @@ class User(SQLModel, table=True):
     # as ``guilds.status_changed_at``.
     status_changed_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    #: Why the account was suspended, when whoever suspended it said; the
+    #: time-out screen shows it. Cleared when the suspension is lifted.
+    status_reason: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

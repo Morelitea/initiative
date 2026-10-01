@@ -29,7 +29,9 @@ class NotificationListResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     notifications: List[NotificationRead]
-    unread_count: int
+    #: Every unread notification the reader has, on the first page; null on
+    #: the pages after it.
+    unread_count: int | None = None
     #: The next page, or null at the end of the list.
     next_cursor: str | None = None
 

@@ -255,3 +255,11 @@
 .ContentEditable__root[contenteditable="false"] .EditorTheme__code[data-mermaid-drawn="true"] {
   display: none;
 }
+
+/* The right-click menu opens inside a full-window overlay that is fixed in
+   place, which makes the overlay its own stacking context with no z-index of
+   its own: whatever the menu sets, the editor's sticky bars (z-10) still draw
+   over it. Lifting the overlay to the popover layer puts the menu above them. */
+:has(> .EditorContextMenu) {
+  z-index: 50;
+}

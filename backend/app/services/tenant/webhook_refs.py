@@ -2,7 +2,7 @@
 
 A delivery leaves this deployment, so the guild it came from and the member
 whose write caused it are named by reference rather than by row id — the same
-rule every other boundary follows (``history/opaque-identity-design.md``).
+rule every other boundary follows.
 
 Which reference depends on who is receiving, because a reference is pairwise:
 

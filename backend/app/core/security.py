@@ -238,7 +238,7 @@ def mint_access_token(
 ) -> tuple[str, int]:
     """Mint a short-lived, stateless access token for one session.
 
-    Claims (history/auth-detailed-design.md §3.1): ``sub`` (the account, named
+    Claims: ``sub`` (the account, named
     by its ``client``-sector reference — ``services.auth.subject``), ``sid``
     (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
     out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
@@ -271,7 +271,7 @@ def mint_access_token(
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Decode a session credential (history/auth-detailed-design.md §3.1).
+    """Decode a session credential.
 
     One shape: the access token ``mint_access_token`` issues —
     ``aud=initiative:access`` / ``iss=initiative``, carrying ``sub``, ``ver``
@@ -298,11 +298,10 @@ def decode_session_token(token: str) -> dict[str, Any]:
 #
 # Native (Capacitor) WebViews can't attach an Authorization header or send the
 # HttpOnly session cookie to <img>/<iframe> media loads, so the URL has to carry
-# the credential as a ``?token=`` query param. Putting the 7-day session JWT
-# there leaks a full-API credential into logs, history, and Referer headers.
-# Instead the app mints one of these: a short-lived, uploads-only JWT that the
-# /uploads route (and document download routes) accept via ``?token=`` but that
-# is useless for any other API call (it carries no ``ver`` and a distinct
+# the credential as a ``?token=`` query param. The 7-day session JWT never goes
+# in a URL; instead the app mints one of these: a short-lived, uploads-only JWT
+# that the /uploads route (and document download routes) accept via ``?token=``
+# but that is useless for any other API call (it carries no ``ver`` and a distinct
 # ``aud``/``scope``, so ``get_current_user`` rejects it).
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -313,8 +312,8 @@ UPLOAD_TOKEN_AUDIENCE = "initiative:uploads"
 UPLOAD_TOKEN_SCOPE = "uploads"
 
 # Short lifetime: long enough to render a page's worth of media after the SPA
-# fetches one, short enough that a leak (history, Referer, proxy log) is stale
-# fast. The SPA refreshes it transparently when it expires.
+# fetches one, short enough that a copy kept in history or a log expires soon.
+# The SPA refreshes it transparently when it expires.
 UPLOAD_TOKEN_LIFETIME = timedelta(minutes=10)
 
 
@@ -406,6 +405,46 @@ def verify_upload_token(
         # token says about itself is not what decides which markers count.
         frozenset(str(v) for v in payload.get("amr") or ()),
     )
+
+
+HANDLE_OFFER_AUDIENCE = "initiative:handle-offer"
+#: How long a number shown beside a name stays the one an account gets: long
+#: enough to outlast a sign-up left open, since it is used only while free.
+HANDLE_OFFER_LIFETIME = timedelta(days=1)
+
+
+def create_handle_offer(name: str, discriminator: int) -> str:
+    """Sign the number shown beside ``name`` while somebody picks a handle."""
+    now = datetime.now(timezone.utc)
+    payload = {
+        "aud": HANDLE_OFFER_AUDIENCE,
+        "name": name.lower(),
+        "num": discriminator,
+        "iat": int(now.timestamp()),
+        "exp": now + HANDLE_OFFER_LIFETIME,
+    }
+    return jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
+
+
+def read_handle_offer(token: str | None, name: str) -> int | None:
+    """The number a handle offer signed for ``name``; ``None`` for anything
+    else: no offer, another name, expired, or not one this server signed."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_signing_key,
+            algorithms=[JWT_ALGORITHM],
+            audience=HANDLE_OFFER_AUDIENCE,
+            options={"require": ["exp", "aud"]},
+        )
+    except jwt.PyJWTError:
+        return None
+    number = payload.get("num")
+    if payload.get("name") != name.lower() or not isinstance(number, int):
+        return None
+    return number
 
 
 class HandoffSigningNotConfiguredError(RuntimeError):

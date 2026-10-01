@@ -21,14 +21,15 @@ from app.services.import_engine.common import ensure_tag, unique_name
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
-    QuotesNobody,
+    NamesPeopleInPassing,
+    PropertyRestore,
     grant_ownership,
     parse_envelope,
 )
 from app.services.tenant import tags as tags_service
 
 
-class QueueImporter(QuotesNobody):
+class QueueImporter(NamesPeopleInPassing):
     envelope_type = "initiative-queue"
     permission = PermissionKey.create_queues
 
@@ -80,6 +81,11 @@ class QueueImporter(QuotesNobody):
             importer=importer,
         )
 
+        props = PropertyRestore(
+            session, initiative_id=target_initiative.id, context=context
+        )
+        await props.attach(queue, env.properties)
+
         tags_created = 0
         tags_matched = 0
         dropped_members = 0
@@ -115,6 +121,7 @@ class QueueImporter(QuotesNobody):
                         tags_service.TAG_LINKS["queue_item"], row.id, resolved.id
                     )
                 )
+            await props.attach(row, item.properties)
 
         if current_item_id is not None:
             queue.current_item_id = current_item_id
@@ -122,11 +129,16 @@ class QueueImporter(QuotesNobody):
         if dropped_members:
             warnings.append(f"dropped_member_links:{dropped_members}")
 
-        await session.flush()
         return EnvelopeImportResult(
             entity_id=queue.id,
             entity_title=queue.name,
-            created={"queues": 1, "items": len(env.items), "tags": tags_created},
-            matched={"tags": tags_matched},
+            created={
+                "queues": 1,
+                "items": len(env.items),
+                "tags": tags_created,
+                "properties": props.created,
+            },
+            matched={"tags": tags_matched, "properties": props.matched},
+            unmatched_handles=await props.settle(queue),
             warnings=warnings,
         )

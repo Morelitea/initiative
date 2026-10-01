@@ -41,7 +41,9 @@ from app.services.auth.assurance import (
 )
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
+from app.core.guild_auth_options import GuildAuthOption
 from app.services.platform import auth_posture
+from app.services.platform import guild_entitlements
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
 from app.core import audit_context
 from app.core.messages import (
@@ -479,7 +481,7 @@ async def _enforce_guild_auth_policy(
     *,
     require_second_factor: bool = False,
 ) -> None:
-    """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
+    """Gate 0 of guild access: the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
     grants alike. No policy row (or ``open``) admits any authenticated
     session.
@@ -494,13 +496,23 @@ async def _enforce_guild_auth_policy(
     are one question to ``guild_connection_admits``, which also applies the
     narrowing a community put on the connection.
 
-    ``policy`` is the guild's row, read under the routed session.
+    ``policy`` is the guild's row, read under the routed session. A second
+    factor the community asks for applies while it holds the option it needs,
+    read as the database gate reads it.
     """
+    restricts, factors_apply = (
+        await session.exec(
+            select(
+                guild_entitlements.holds_option(guild_id, GuildAuthOption.restrictions),
+                guild_entitlements.holds_option(guild_id, GuildAuthOption.providers),
+            )
+        )
+    ).one()
     # Asked of everybody reaching this community, whatever it says about how
     # they arrive — so it is read before a community with no sign-in rule
     # returns. The answer names no provider and no kind of factor: the
     # step-up says a factor is what is wanted.
-    if require_second_factor and SECOND_FACTOR_AMR not in markers:
+    if require_second_factor and restricts and SECOND_FACTOR_AMR not in markers:
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
@@ -535,7 +547,11 @@ async def _enforce_guild_auth_policy(
     # And the account's own second factor, where the community asks for one.
     # The answer names no provider, so the step-up says a factor is what is
     # wanted rather than pointing at a sign-in page.
-    if LoginMethod.totp in policy.require_methods and SECOND_FACTOR_AMR not in markers:
+    if (
+        factors_apply
+        and LoginMethod.totp in policy.require_methods
+        and SECOND_FACTOR_AMR not in markers
+    ):
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
@@ -544,25 +560,41 @@ async def _enforce_guild_auth_policy(
     # And a passkey, where the community asks for one. Read from the passkey
     # markers rather than the factor's, so each method is answered by itself:
     # an assertion records the second factor as well as the key.
-    if LoginMethod.passkey in policy.require_methods and not carries_passkey(markers):
+    if (
+        factors_apply
+        and LoginMethod.passkey in policy.require_methods
+        and not carries_passkey(markers)
+    ):
         raise GuildAccessError(
             GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
             step_up_guild_id=guild_id,
         )
 
 
-def declines_this_credential(guild: Guild) -> bool:
+async def refuses_api_keys(session: AsyncSession, guild: Guild) -> bool:
+    """Whether ``guild`` refuses personal API keys: switched off, while it
+    holds the ``restrictions`` option that switch needs."""
+    if guild.allow_api_keys:
+        return False
+    return bool(
+        await session.scalar(
+            select(
+                guild_entitlements.holds_option(guild.id, GuildAuthOption.restrictions)
+            )
+        )
+    )
+
+
+async def declines_this_credential(session: AsyncSession, guild: Guild) -> bool:
     """Whether ``guild`` declines the credential this request was made with.
 
-    True only for a personal API key against a community that has switched them
-    off. The key's own ``guild_id`` says nothing here: a key pinned elsewhere
-    and a key pinned nowhere both address this guild the same way.
-
-    The rule itself, so the two places that apply it read the same line — the
-    guild-context gate below and the cross-guild aggregates, which visit each
-    guild in turn (see ``app.services.cross_guild``).
+    True only for a personal API key against a community that refuses them.
+    The key's own ``guild_id`` says nothing here: a key pinned elsewhere and a
+    key pinned nowhere both address this guild the same way. The cross-guild
+    aggregates, which pick their guilds in one query, ask the same question
+    there (see ``app.services.cross_guild``).
     """
-    return not guild.allow_api_keys and auth_context.api_key_credential()
+    return auth_context.api_key_credential() and await refuses_api_keys(session, guild)
 
 
 def pinned_elsewhere(guild_id: int) -> bool:
@@ -573,7 +605,7 @@ def pinned_elsewhere(guild_id: int) -> bool:
     return pinned is not None and pinned != guild_id
 
 
-def _enforce_guild_api_access(guild: Guild) -> None:
+async def _enforce_guild_api_access(session: AsyncSession, guild: Guild) -> None:
     """A community that declines personal API keys is not reached with one.
 
     Runs beside the sign-in gate and binds the same callers — members and
@@ -585,7 +617,7 @@ def _enforce_guild_api_access(guild: Guild) -> None:
     realtime sockets and the keepalive. The cross-guild aggregates, which pick
     their guilds themselves, ask the same question where they do it.
     """
-    if declines_this_credential(guild):
+    if await declines_this_credential(session, guild):
         raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
 
 
@@ -657,6 +689,8 @@ async def _load_guild_context(
     guild_id: int,
     *,
     for_settings: bool = False,
+    for_payment: bool = False,
+    factor_asked: bool = False,
 ) -> GuildContext:
     """Resolve and validate the guild context for one guild.
 
@@ -680,6 +714,15 @@ async def _load_guild_context(
     membership and grant. The rung guard on those routes has already refused
     anyone who does not administer it; what this establishes is the standing
     the database reads.
+
+    ``for_payment`` is the billing handoff, the one way a community held for
+    a late payment is paid out of the hold: it admits the seat's own
+    membership into an ``on_hold`` community as well as a live one. Every
+    other status, and every other member, is refused as before.
+
+    ``factor_asked`` says this request's :func:`get_current_active_user`
+    already put the deployment's second-factor question, so it is not put
+    twice. Only a REST dependency that takes that one passes it.
     """
     # A suspended account reaches no guild. Ahead of the branches below so it
     # holds for membership and for a grant alike, and it answers with the same
@@ -719,13 +762,13 @@ async def _load_guild_context(
             ),
         )
         guild, asked = await _read_grant_gate(session, guild_id)
-        _enforce_guild_api_access(guild)
+        await _enforce_guild_api_access(session, guild)
         # What the deployment asks of the account, before what this community
         # asks of the session. Asked here as well as in the dependency above
         # because the sockets, the keepalive and the stream re-check resolve
         # their guild through this function and never run that one — off the
         # row the read above already carried.
-        if await platform_factor_unmet(
+        if not factor_asked and await platform_factor_unmet(
             session, current_user, guild_id=guild_id, level=asked
         ):
             raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
@@ -747,10 +790,17 @@ async def _load_guild_context(
     # Membership access respects the guild's lifecycle status: the statuses
     # that serve members are named, and every other one is refused, on every
     # surface. A suspended community is in time out — its administrators are
-    # members like any other until the platform lifts it.
-    if guild.status not in LIVE_STATUS_VALUES:
+    # members like any other until the platform lifts it. The seat of a
+    # community on hold is let through to pay its way out, on the route that
+    # asks for that and no other.
+    held_for_payment = (
+        for_payment
+        and guild.status == GuildStatus.on_hold.value
+        and membership.role == GuildRole.superadmin
+    )
+    if guild.status not in LIVE_STATUS_VALUES and not held_for_payment:
         raise GuildAccessError()
-    _enforce_guild_api_access(guild)
+    await _enforce_guild_api_access(session, guild)
     # A listed community is open to anyone signed in, so the deployment's age
     # question is owed by the people in it — and the ways in that had nobody at
     # a keyboard could not put it to them. It is put here instead: at the door
@@ -771,7 +821,7 @@ async def _load_guild_context(
             else GuildMessages.AGE_CONFIRMATION_REQUIRED
         )
     # And the deployment's own question, off the row the gate read carried.
-    if await platform_factor_unmet(
+    if not factor_asked and await platform_factor_unmet(
         session, current_user, guild_id=guild_id, level=asked
     ):
         raise GuildAccessError(GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED)
@@ -808,7 +858,9 @@ async def get_guild_membership(
     caches a dependency per request, so it hands back the session this routed.
     """
     try:
-        return await establish_guild_access(session, current_user, guild_id)
+        return await establish_guild_access(
+            session, current_user, guild_id, factor_asked=True
+        )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
 
@@ -1080,7 +1132,7 @@ async def get_guild_settings_context(
     """
     try:
         return await establish_guild_access(
-            session, current_user, guild_id, for_settings=True
+            session, current_user, guild_id, for_settings=True, factor_asked=True
         )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
@@ -1128,6 +1180,8 @@ async def establish_guild_access(
     on_behalf: bool = False,
     for_settings: bool = False,
     for_seat: bool = False,
+    for_payment: bool = False,
+    factor_asked: bool = False,
 ) -> GuildContext:
     """Resolve guild access AND apply the session context — the single entry
     point for callers that can't use the REST dependency chain.
@@ -1151,6 +1205,8 @@ async def establish_guild_access(
     own request met the community's sign-in rule when it was made, so the
     routing answers that rule for them; membership, grants and the standing
     are resolved exactly as for the person themselves.
+
+    ``for_payment`` and ``factor_asked`` are :func:`_load_guild_context`'s.
     """
     satisfied = (
         auth_context.satisfied_providers()
@@ -1158,7 +1214,12 @@ async def establish_guild_access(
         else satisfied_providers
     )
     guild_context = await _load_guild_context(
-        session, current_user, guild_id, for_settings=for_settings
+        session,
+        current_user,
+        guild_id,
+        for_settings=for_settings,
+        for_payment=for_payment,
+        factor_asked=factor_asked,
     )
     looked_up = save_rls_context(session)
     guild_context = await apply_guild_session_context(
@@ -1435,7 +1496,7 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
     installation token is admitted only here: :func:`get_current_user` refuses
     one, so a route that names no scope cannot be reached by an app. For an
     install, the guild comes from the token and the path's ``{guild_id}`` is
-    not read (``history/opaque-identity-design.md`` §13); a token whose scopes
+    not read; a token whose scopes
     do not cover ``scope`` gets 403 (``APP_SCOPE_REQUIRED``).
 
     Either way the request's session — the one :data:`SessionDep` hands out,
@@ -1660,9 +1721,27 @@ async def get_guild_seat_context(
     ``guild_<id>_superadmin`` — the one role whose floor carries those tables.
     Every other route by the same person routes as an ordinary member.
     """
+    return await _establish_seat(session, current_user, guild_id)
+
+
+async def _establish_seat(
+    session: AsyncSession,
+    current_user: User,
+    guild_id: int,
+    *,
+    for_payment: bool = False,
+) -> GuildContext:
+    """:func:`get_guild_seat_context`'s work, with the one flag a dependency
+    cannot take as a parameter (FastAPI would read it from the query)."""
     try:
         context = await establish_guild_access(
-            session, current_user, guild_id, for_settings=True, for_seat=True
+            session,
+            current_user,
+            guild_id,
+            for_settings=True,
+            for_seat=True,
+            for_payment=for_payment,
+            factor_asked=True,
         )
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
@@ -1716,6 +1795,29 @@ async def get_guild_seat_write_session(
     return session
 
 
+async def get_guild_seat_payment_context(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GuildContext:
+    """The seat, for the billing handoff: :func:`get_guild_seat_write_context`
+    that also reaches a community on hold, so its seat can pay its way out.
+
+    Established ``for_payment``; the handoff is the only route that takes it.
+    """
+    return await get_guild_seat_write_context(
+        await _establish_seat(session, current_user, guild_id, for_payment=True)
+    )
+
+
+async def get_guild_seat_payment_session(
+    session: SessionDep,
+    _context: Annotated[GuildContext, Depends(get_guild_seat_payment_context)],
+) -> AsyncSession:
+    """The session :func:`get_guild_seat_payment_context` routed."""
+    return session
+
+
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
 SettingsContextDep = Annotated[GuildContext, Depends(get_guild_settings_context)]
@@ -1742,6 +1844,7 @@ SeatContextDep = Annotated[GuildContext, Depends(get_guild_seat_context)]
 SeatWriteContextDep = Annotated[GuildContext, Depends(get_guild_seat_write_context)]
 SeatSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_session)]
 SeatWriteSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_write_session)]
+SeatPaymentSessionDep = Annotated[AsyncSession, Depends(get_guild_seat_payment_session)]
 
 
 async def _include_deleted_flag(
@@ -1873,7 +1976,7 @@ async def _resolve_upload_user(
 
       * Authorization header or HttpOnly cookie — not exposed in URLs, so what
         every other route accepts is accepted here.
-      * ``?token=`` query param — leaks via logs/history/Referer, so only a
+      * ``?token=`` query param — part of the URL, so only a
         short-lived uploads-scoped token or a device token is accepted. A
         session token or API key there is refused; native clients fetch a
         scoped token from ``POST /auth/upload-token`` instead.

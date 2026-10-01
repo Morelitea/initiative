@@ -89,7 +89,7 @@ export function EntityMentionsPlugin({
   const { items, isFetching, stale } = useGuildPickerSuggestions(debouncedQuery, {
     types: active?.types ?? MENTIONABLE_TYPES,
     initiative_id: initiativeId ?? undefined,
-    template: false,
+    is_template: false,
     subject,
     limit: SUGGESTION_LIMIT,
     enabled: active !== null && (initiativeId ?? 0) > 0,

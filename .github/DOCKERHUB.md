@@ -15,9 +15,10 @@ Full feature list, screenshots, and security architecture: **[github.com/Morelit
 ## Supported tags
 
 - `latest` — the most recent release
+- `stable` — a release promoted by hand after at least three days out with no open regression reported against it
 - `MAJOR`, `MAJOR.MINOR`, `MAJOR.MINOR.PATCH` — pin to a version (e.g. `0`, `0.49`, `0.49.9`)
 
-Images are multi-arch: `linux/amd64` and `linux/arm64`.
+Images are multi-arch: `linux/amd64` and `linux/arm64`. Each is signed with [cosign](https://docs.sigstore.dev/) by the workflow that built it, and carries an SBOM and build provenance. The command to check one is in the [installation guide](https://github.com/Morelitea/initiative/blob/main/docs/en/running-a-server/installation.md#checking-an-image-is-ours).
 
 ## Quick start (Docker Compose)
 

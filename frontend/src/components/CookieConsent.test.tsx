@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import {
   ConsentCategory,
+  dismissReopenedConsent,
   hasConsent,
   KNOWN_CONSENT_CATEGORIES,
   reopenConsent,
@@ -62,6 +63,8 @@ describe("CookieConsent", () => {
       isLoading: false,
     };
     mocks.legal = { enabled: false, documents: [] };
+    // A chooser a test reopened stays open for the next one otherwise.
+    dismissReopenedConsent();
   });
 
   it("puts the question to somebody arriving for the first time", async () => {

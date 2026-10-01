@@ -14,7 +14,7 @@ from app.models.platform.notification import Notification, NotificationType
 from app.services import notifications as notifications_service
 from app.services.notifications import MAX_ROLLED_UP_COMMENTERS
 from app.services.notifications import _rolled_up_comment
-from app.testing import create_user
+from app.testing import create_user, drain_notices
 
 
 async def _comment_on_task(session: AsyncSession, owner, talker, task_id: int) -> None:
@@ -82,7 +82,8 @@ async def test_many_comments_on_one_task_are_one_line(session: AsyncSession):
     ) as email:
         for index, talker in enumerate(talkers):
             await _comment_on_task(session, owner, talker, 42)
-    await session.commit()
+        await session.commit()
+        await drain_notices()
 
     lines = await _lines(session, owner.id)
     assert len(lines) == 1
@@ -99,7 +100,8 @@ async def test_a_different_task_gets_its_own_line(session: AsyncSession):
     with patch("app.services.platform.email_outbox.enqueue", new_callable=AsyncMock):
         for task_id in (1, 2):
             await _comment_on_task(session, owner, talker, task_id)
-    await session.commit()
+        await session.commit()
+        await drain_notices()
 
     assert len(await _lines(session, owner.id)) == 2
 
@@ -118,6 +120,7 @@ async def test_reading_the_line_starts_a_fresh_one(session: AsyncSession):
     ) as email:
         await _comment(1)
         await session.commit()
+        await drain_notices()
         from app.services.platform import user_notifications
 
         line = (await _lines(session, owner.id))[0]
@@ -126,6 +129,7 @@ async def test_reading_the_line_starts_a_fresh_one(session: AsyncSession):
         )
         await _comment(2)
         await session.commit()
+        await drain_notices()
 
     assert len(await _lines(session, owner.id)) == 2
     assert email.await_count == 2

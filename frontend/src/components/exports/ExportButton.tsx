@@ -24,6 +24,13 @@ export interface ExportFormatOption {
   filenameStem?: string;
 }
 
+/** A client-side rendering offered beside the engine formats (a whiteboard's
+ *  PNG/SVG, which only Excalidraw's own renderer can produce). */
+export interface ExportExtraAction {
+  labelKey: string;
+  onSelect: () => void;
+}
+
 export interface ExportButtonProps {
   /** Source create route, e.g. "/exports/tasks" — relative to /c/{guildId}. */
   endpoint: string;
@@ -42,7 +49,7 @@ export interface ExportButtonProps {
   /** Client-side entries appended to the menu (e.g. whiteboard PNG/SVG,
    * which only Excalidraw's own renderer can produce — the server never
    * renders scenes). Forces the menu even with a single engine format. */
-  extraActions?: { labelKey: string; onSelect: () => void }[];
+  extraActions?: ExportExtraAction[];
 }
 
 export function ExportButton({

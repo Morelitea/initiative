@@ -17,16 +17,16 @@ from app.models.tenant.document import (
     DocumentType,
 )
 from app.models.tenant.initiative import Initiative
-from app.models.tenant.property import DocumentPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.core.references import unresolve_wikilinks_to
 from app.core.tools import Tool
 from app.core.messages import DocumentMessages
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import ownership as ownership_service
+from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
-from app.db.session import guild_context, routed_guild_id
+from app.db.session import routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
@@ -141,12 +141,6 @@ def list_loader_options() -> list:
         selectinload(Document.grants).options(
             selectinload(ResourceGrant.role), selectinload(ResourceGrant.user)
         ),
-        selectinload(Document.property_values).selectinload(
-            DocumentPropertyValue.property_definition
-        ),
-        selectinload(Document.property_values).selectinload(
-            DocumentPropertyValue.value_user
-        ),
     ]
 
 
@@ -172,38 +166,9 @@ async def get_document_hydrated(
     document = (await session.exec(statement)).one_or_none()
     if document:
         await tags_service.annotate_tags(session, [document])
+        await properties_service.annotate_properties(session, [document])
         await annotate_comment_counts(session, [document])
         await ownership_service.annotate_owner_apps(session, [document])
-    return document
-
-
-async def get_document_for_export(
-    session: AsyncSession, *, document_id: int, access: str = "owner"
-) -> Document:
-    """The document-export adapter's seam: fetch + authorize in one place so
-    the rule holds on the worker's render-time replay too. The initiative must
-    have documents switched on, and the reader must hold the owner rung, or
-    ``access="read"`` from an initiative or community backup
-    (``permissions.require_export_access``). The standing is the session's own,
-    so the seam works transport-free."""
-    from fastapi import HTTPException, status as http_status
-
-    from app.api.resource_access import require_tool_enabled
-    from app.services import permissions as permissions_service
-
-    document = await get_document_hydrated(session, document_id)
-    if document is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=Tool.document.not_found_code,
-        )
-    require_tool_enabled(Tool.document, document.initiative)
-    permissions_service.require_export_access(
-        permissions_service.DAC_RESOURCES[Tool.document],
-        document,
-        context=guild_context(session),
-        access=access,
-    )
     return document
 
 
@@ -336,30 +301,7 @@ async def duplicate_document(
     # source's — definitions are initiative-scoped, so cross-initiative
     # copies would produce orphaned values the target can't resolve.
     if initiative_id == source.initiative_id:
-        source_value_stmt = select(DocumentPropertyValue).where(
-            DocumentPropertyValue.document_id == source.id
-        )
-        source_values_result = await session.exec(source_value_stmt)
-        source_values = source_values_result.all()
-        if source_values:
-            session.add_all(
-                [
-                    DocumentPropertyValue(
-                        document_id=duplicated.id,
-                        property_id=row.property_id,
-                        value_text=row.value_text,
-                        value_number=row.value_number,
-                        value_boolean=row.value_boolean,
-                        value_date=row.value_date,
-                        value_datetime=row.value_datetime,
-                        value_user_id=row.value_user_id,
-                        value_json=deepcopy(row.value_json)
-                        if row.value_json is not None
-                        else None,
-                    )
-                    for row in source_values
-                ]
-            )
+        await properties_service.copy_values(session, source, duplicated)
     return duplicated
 
 

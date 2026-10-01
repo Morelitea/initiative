@@ -334,13 +334,20 @@ async def test_grantee_sees_guild_content(
     )
     assert members.status_code == 200, members.text
 
-    events = await client.get(host.g("/calendar-events/"), headers=headers)
+    events = await client.get(
+        host.g("/calendar-entries/"),
+        params={
+            "start_after": "2026-01-01T00:00:00Z",
+            "start_before": "2026-02-01T00:00:00Z",
+        },
+        headers=headers,
+    )
     assert events.status_code == 200, events.text
 
     # Recording a recent view answers rather than faulting: a grantee's own
     # view is simply not persisted.
     viewed = await client.post(
-        host.g(f"/projects/{host.project.id}/view"), headers=headers
+        host.g(f"/recents/project/{host.project.id}"), headers=headers
     )
     assert viewed.status_code == 200, viewed.text
 
