@@ -255,6 +255,10 @@ jobs:
         if: steps.diff.outputs.tooling == 'true'
         run: python3 scripts/ci/change_detection_test.py
 
+      - name: Test the monthly report
+        if: steps.diff.outputs.tooling == 'true'
+        run: python3 scripts/ci/monthly_report_test.py
+
   backend-tests:
     name: Backend Lint & Tests
     needs: changes

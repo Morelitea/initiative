@@ -1,0 +1,36 @@
+name: Monthly CI Report
+
+# A month of CI on the run's summary page: releases that needed a fix (the
+# change failure rate), time from a push to dev until dev is green, runs only a
+# re-run turned green, and how long each gate takes
+# (scripts/ci/monthly_report.py). On the 1st for the month before; Run workflow
+# reports any month.
+
+on:
+  schedule:
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: The month to report, as YYYY-MM (blank for last month)
+        required: false
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
+  issues: read
+
+jobs:
+  report:
+    name: Report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Write the report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MONTH: ${{ inputs.month }}
+        run: python3 scripts/ci/monthly_report.py "$MONTH" >> "$GITHUB_STEP_SUMMARY"
