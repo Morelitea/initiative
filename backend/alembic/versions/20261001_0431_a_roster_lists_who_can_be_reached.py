@@ -1,12 +1,15 @@
 """A roster lists who can be reached
 
 The sidebar's people roster leaves out anyone whose direct message policy is
-``private``. That policy is the account holder's own row, which no guild role
-reads, so this adds a function that answers the one question the roster asks:
-which members of the routed guild are not private.
+``private``, and anyone on ``community`` who switched this community off. Both
+are the account holder's own rows, which no guild role reads, so this adds a
+function that answers the one question the roster asks: which members of the
+routed guild take messages from it. The opt-out counts only under
+``community``, as it does in ``dm_can_ask``.
 
-Owned by ``app_dm_reader``, which already reads ``guild_memberships`` and
-``user_dm_settings``, so nothing new is granted to it. Which guild is not a
+Owned by ``app_dm_reader``, which already reads ``guild_memberships``,
+``user_dm_settings`` and ``user_dm_guild_optouts``, so nothing new is granted
+to it. Which guild is not a
 parameter: it is the one the request is routed into, read the way
 ``current_guild_members`` (0244) reads it. Unset, it matches nothing.
 
@@ -53,6 +56,13 @@ def upgrade() -> None:
           JOIN public.user_dm_settings s ON s.user_id = m.user_id
           WHERE m.guild_id = {_GUILD}
             AND s.dm_policy <> 'private'
+            AND NOT (
+              s.dm_policy = 'community'
+              AND EXISTS (
+                SELECT 1 FROM public.user_dm_guild_optouts o
+                WHERE o.user_id = m.user_id AND o.guild_id = m.guild_id
+              )
+            )
         $fn$
         """
     )

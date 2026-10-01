@@ -17,7 +17,10 @@ import { PeopleSection } from "./PeopleSection";
 const mocks = vi.hoisted(() => ({
   roster: vi.fn(),
   dmPolicy: "community" as string,
+  communities: [] as { guild_id: number; enabled: boolean }[],
 }));
+
+vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 7 }));
 
 vi.mock("@/hooks/useUsers", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -26,7 +29,9 @@ vi.mock("@/hooks/useUsers", async (importOriginal) => ({
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useDirectMessagesEnabled: () => true,
-  useDmSettings: () => ({ data: { dm_policy: mocks.dmPolicy } }),
+  useDmSettings: () => ({
+    data: { dm_policy: mocks.dmPolicy, communities: mocks.communities },
+  }),
 }));
 
 const member = (overrides: Partial<GuildRosterMember>): GuildRosterMember => ({
@@ -75,6 +80,7 @@ const render = () =>
 
 beforeEach(() => {
   mocks.dmPolicy = "community";
+  mocks.communities = [];
 });
 
 describe("PeopleSection", () => {
@@ -117,11 +123,33 @@ describe("PeopleSection", () => {
 
     render();
 
-    expect(await screen.findByText(/your direct messages are private/)).toBeInTheDocument();
+    expect(await screen.findByText(/people here can.t message you/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Change it" })).toHaveAttribute(
       "href",
       "/profile/privacy"
     );
+  });
+
+  it("tells a reader who switched this community off why they are not listed", async () => {
+    mocks.communities = [
+      { guild_id: 7, enabled: false },
+      { guild_id: 8, enabled: true },
+    ];
+    page([], { online: 0, idle: 0, busy: 0, offline: 0 });
+
+    render();
+
+    expect(await screen.findByText(/people here can.t message you/)).toBeInTheDocument();
+  });
+
+  it("does not tell a reader this community can message", async () => {
+    mocks.communities = [{ guild_id: 8, enabled: false }];
+    page([], { online: 0, idle: 0, busy: 0, offline: 0 });
+
+    render();
+
+    await screen.findByText(/Nobody is listed here yet/);
+    expect(screen.queryByText(/people here can.t message you/)).not.toBeInTheDocument();
   });
 
   it("says so when nobody is listed", async () => {

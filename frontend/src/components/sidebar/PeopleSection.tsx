@@ -20,6 +20,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { UserHoverLink } from "@/components/user/UserHoverLink";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDirectMessagesEnabled, useDmSettings } from "@/hooks/useDirectMessages";
 import { useGuildRoster } from "@/hooks/useUsers";
 import { isAdminRole } from "@/lib/permissions";
@@ -72,15 +73,21 @@ const RosterRow = ({ member }: { member: GuildRosterMember }) => {
 /**
  * Who is in this community, by who is here.
  *
- * Somebody whose direct messages are private is not listed, so a reader in
+ * Somebody this community cannot message is not listed: their direct messages
+ * are private, or on "My communities" with this one switched off. A reader in
  * that position is told why they are missing from it.
  */
 export const PeopleSection = () => {
   const { t } = useTranslation(["nav", "profiles"]);
   const roster = useGuildRoster();
+  const guildId = useActiveGuildId();
   const dmEnabled = useDirectMessagesEnabled();
-  const dmSettings = useDmSettings();
-  const readerHidden = dmEnabled && dmSettings.data?.dm_policy === "private";
+  const dmSettings = useDmSettings().data;
+  const readerHidden =
+    dmEnabled &&
+    (dmSettings?.dm_policy === "private" ||
+      (dmSettings?.dm_policy === "community" &&
+        dmSettings.communities.some((c) => c.guild_id === guildId && !c.enabled)));
 
   const pages = roster.data?.pages;
   const counts = pages?.[0]?.presence_counts;

@@ -1705,7 +1705,7 @@
       "public": "Alle",
       "publicHint": "Alle auf Initiative.",
       "communitiesTitle": "Welche Communities zählen",
-      "communitiesHint": "Standardmäßig zählen alle.",
+      "communitiesHint": "Standardmäßig zählen alle. In Communitys, die du ausschaltest, stehst du nicht auf der Personenliste.",
       "ageLocked": "Nachrichten sind ab 16 Jahren verfügbar. Du hast uns noch nicht gesagt, ob du das bist.",
       "confirmAge": "Alter bestätigen",
       "saved": "Gespeichert.",

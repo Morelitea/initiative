@@ -1705,7 +1705,7 @@
       "public": "Tout le monde",
       "publicHint": "Tout le monde sur Initiative.",
       "communitiesTitle": "Quelles communautés comptent",
-      "communitiesHint": "Toutes comptent par défaut.",
+      "communitiesHint": "Toutes comptent par défaut. Vous n'apparaissez pas dans la liste des personnes de celles que vous désactivez.",
       "ageLocked": "La messagerie est réservée aux personnes de 16 ans et plus. Vous ne nous avez pas dit si c'est votre cas.",
       "confirmAge": "Confirmer mon âge",
       "saved": "Enregistré.",

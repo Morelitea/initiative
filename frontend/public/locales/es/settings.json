@@ -1705,7 +1705,7 @@
       "public": "Cualquiera",
       "publicHint": "Cualquiera en Initiative.",
       "communitiesTitle": "Qué comunidades cuentan",
-      "communitiesHint": "Todas cuentan de forma predeterminada.",
+      "communitiesHint": "Todas cuentan de forma predeterminada. No apareces en la lista de personas de las que desactives.",
       "ageLocked": "Los mensajes están disponibles para mayores de 16 años. Aún no nos has dicho si lo eres.",
       "confirmAge": "Confirmar mi edad",
       "saved": "Guardado.",

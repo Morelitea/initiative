@@ -436,15 +436,24 @@ async def _dm_policy(session, policy: DmPolicy, *users) -> None:
 async def test_roster_groups_by_presence_and_leaves_out_private_accounts(
     client, session, acting_user
 ):
-    """Who is here comes first, a group at a time, and somebody whose direct
-    messages are private is not listed at all, the reader included."""
+    """Who is here comes first, a group at a time. Somebody whose direct
+    messages are private is not listed at all, the reader included, and nor is
+    somebody on "My communities" who switched this one off."""
     reader = await acting_user(guild_role=GuildRole.member, username="reader")
     here = await acting_user(guild=reader.guild, username="zed-here")
     busy = await acting_user(guild=reader.guild, username="amy-busy")
     away = await acting_user(guild=reader.guild, username="bob-away")
     hidden = await acting_user(guild=reader.guild, username="cat-hidden")
-    await _dm_policy(session, DmPolicy.community, here.user, busy.user)
+    opted_out = await acting_user(guild=reader.guild, username="dan-opted-out")
+    await _dm_policy(session, DmPolicy.community, here.user, busy.user, opted_out.user)
     await _dm_policy(session, DmPolicy.public, away.user)
+    await session.exec(
+        text(
+            "INSERT INTO public.user_dm_guild_optouts (user_id, guild_id, created_at) "
+            "VALUES (:u, :g, now())"
+        ).bindparams(u=opted_out.user.id, g=reader.guild.id)
+    )
+    await session.commit()
 
     sockets = [
         open_account_socket(here.user.id),

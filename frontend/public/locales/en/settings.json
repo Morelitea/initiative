@@ -1705,7 +1705,7 @@
       "public": "Anyone",
       "publicHint": "Anyone on Initiative.",
       "communitiesTitle": "Which communities count",
-      "communitiesHint": "All count by default.",
+      "communitiesHint": "All count by default. You're left off the People list of any you switch off.",
       "ageLocked": "Messaging is available to people aged 16 and over. You have not told us whether you are.",
       "confirmAge": "Confirm my age",
       "saved": "Saved.",
