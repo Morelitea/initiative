@@ -4,13 +4,11 @@ import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { BulkExportUnavailable } from "@/components/exports/BulkExportButton";
-import { ExportButton } from "@/components/exports/ExportButton";
+import { BulkExportUnavailable, EntitiesExportButton } from "@/components/exports/BulkExportButton";
 import { documentSelectionFormats } from "@/components/exports/formats";
 import { Button } from "@/components/ui/button";
 import { exportFilenameStem } from "@/lib/exportDownload";
 import { everyCan } from "@/lib/permissions";
-import { toolExportEndpoint } from "@/lib/tools";
 
 interface DocumentsBulkBarProps {
   selectedDocuments: DocumentSummary[];
@@ -62,9 +60,9 @@ export function DocumentsBulkBar({
           (!canExportSelected ? (
             <BulkExportUnavailable title={t("exports:export.ownerRequired")} />
           ) : exportFormats.length > 0 ? (
-            <ExportButton
-              endpoint={toolExportEndpoint(Tool.document)}
-              params={{ ids: selectedDocuments.map((d) => d.id) }}
+            <EntitiesExportButton
+              tool={Tool.document}
+              ids={selectedDocuments.map((d) => d.id)}
               formats={exportFormats}
               filenameStem={exportFilenameStem("documents", "documents")}
             />

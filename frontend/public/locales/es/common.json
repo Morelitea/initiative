@@ -18,8 +18,24 @@
   "done": "Listo",
   "toolArchiveFilter": {
     "label": "Mostrar",
+    "all": "Todos",
     "active": "Activos",
     "archived": "Archivados"
+  },
+  "dateRange": {
+    "any": "Cualquier fecha",
+    "fromOnly": "Desde el {{date}}",
+    "untilOnly": "Hasta el {{date}}",
+    "thisMonth": "Este mes",
+    "lastMonth": "El mes pasado",
+    "thisQuarter": "Este trimestre",
+    "thisYear": "Este año",
+    "fromLabel": "Desde",
+    "untilLabel": "Hasta",
+    "open": "Abierto",
+    "fromRemove": "Quitar la fecha de inicio",
+    "untilRemove": "Quitar la fecha de fin",
+    "clear": "Borrar fechas"
   },
   "yes": "Sí",
   "no": "No",
@@ -109,8 +125,7 @@
     },
     "export": {
       "title": "Exportar",
-      "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo.",
-      "button": "Exportar"
+      "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo."
     },
     "title": "Configuración",
     "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",

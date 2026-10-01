@@ -22,7 +22,6 @@ import { Plus } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { BulkAccessSection } from "@/components/access/BulkAccessSection";
@@ -47,10 +46,9 @@ import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateAc
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { PaginationBar } from "@/components/PaginationBar";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
-import { TagPicker } from "@/components/tags/TagPicker";
+import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -71,7 +69,7 @@ import { useQueuesList } from "@/hooks/useQueues";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useWikisList } from "@/hooks/useWikis";
 import { useGuildPath } from "@/lib/guildUrl";
-import { toolDetailRoute, toolKebabSingular } from "@/lib/tools";
+import { toolDetailRoute } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 // ---------------------------------------------------------------------------
@@ -143,13 +141,10 @@ export type ToolIndexEntry = {
     create: string;
     /** The line under the create dialog's title. */
     createDescription: string;
-    searchPlaceholder: string;
     noMatches: string;
     emptyTitle: string;
     emptyBody: string;
   };
-  /** Every tool list takes `tag_ids`; the flag exists so an entry can opt out. */
-  tagFilter?: boolean;
   /** Its list arrives a page at a time, and the page is carried in the URL. */
   paginated?: boolean;
 };
@@ -356,12 +351,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
   [Tool.queue]: {
     useList: useQueueRows,
-    tagFilter: true,
     text: {
       ns: "queues",
       create: "createQueue",
       createDescription: "noQueuesDescription",
-      searchPlaceholder: "filters.searchQueues",
       noMatches: "filters.noMatchingQueues",
       emptyTitle: "noQueues",
       emptyBody: "noQueuesDescription",
@@ -371,12 +364,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
   [Tool.counter_group]: {
     useList: useCounterGroupRows,
-    tagFilter: true,
     text: {
       ns: "counterGroups",
       create: "createGroup",
       createDescription: "noGroupsDescription",
-      searchPlaceholder: "filters.searchGroups",
       noMatches: "filters.noMatchingGroups",
       emptyTitle: "noGroups",
       emptyBody: "noGroupsDescription",
@@ -385,12 +376,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
   [Tool.dashboard]: {
     useList: useDashboardRows,
-    tagFilter: true,
     text: {
       ns: "dashboards",
       create: "createDashboard",
       createDescription: "noDashboardsDescription",
-      searchPlaceholder: "filters.searchDashboards",
       noMatches: "filters.noMatchingDashboards",
       emptyTitle: "noDashboards",
       emptyBody: "noDashboardsDescription",
@@ -399,12 +388,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
 
   [Tool.gallery]: {
     useList: useGalleryRows,
-    tagFilter: true,
     text: {
       ns: "galleries",
       create: "createGallery",
       createDescription: "createGalleryDescription",
-      searchPlaceholder: "filters.searchGalleries",
       noMatches: "filters.noMatchingGalleries",
       emptyTitle: "noGalleries",
       emptyBody: "noGalleriesDescription",
@@ -417,12 +404,10 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
       ns: "wikis",
       create: "createWiki",
       createDescription: "createWikiDescription",
-      searchPlaceholder: "filters.searchWikis",
       noMatches: "filters.noMatchingWikis",
       emptyTitle: "noWikis",
       emptyBody: "noWikisDescription",
     },
-    tagFilter: true,
   },
 };
 
@@ -485,8 +470,9 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const guildId = useActiveGuildId();
   const unread = useUnreadTree();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [tagFilters, setTagFilters] = useState<TagSummary[]>([]);
+  const [filters, setFilters] = useState<ToolListFilters>({});
+  const searchQuery = filters.search ?? "";
+  const tagIds = filters.tag_ids ?? [];
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
@@ -502,7 +488,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   const list = entry.useList(fixedInitiativeId, {
     search,
     searchQuery,
-    tagIds: tagFilters.map((tag) => tag.id),
+    tagIds,
     archived: archivedParam(archiveState),
     page,
     pageSize,
@@ -536,18 +522,12 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
   // Counted from the box as typed rather than from the debounced value, so the
   // badge and "Clear all" answer the keystroke instead of trailing it by a beat.
   const activeFilterCount =
-    (searchQuery.trim() ? 1 : 0) +
-    (tagFilters.length > 0 ? 1 : 0) +
-    (list.extraFilter?.active ? 1 : 0);
+    (searchQuery.trim() ? 1 : 0) + (tagIds.length > 0 ? 1 : 0) + (list.extraFilter?.active ? 1 : 0);
 
   const clearFilters = () => {
-    setSearchQuery("");
-    setTagFilters([]);
+    setFilters({});
     list.extraFilter?.clear();
   };
-
-  const searchId = `${toolKebabSingular(tool)}-search`;
-  const tagsId = `${toolKebabSingular(tool)}-tags`;
 
   return (
     <div className="space-y-6">
@@ -591,35 +571,9 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         onClear={clearFilters}
         activeCount={activeFilterCount}
       >
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="w-full space-y-2 lg:flex-1">
-            <Label htmlFor={searchId} className="block font-medium text-muted-foreground text-xs">
-              {t("filters.searchLabel")}
-            </Label>
-            <Input
-              id={searchId}
-              placeholder={t(entry.text.searchPlaceholder)}
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="min-w-60"
-            />
-          </div>
-          {entry.tagFilter ? (
-            <div className="w-full space-y-2 sm:w-64">
-              <Label htmlFor={tagsId} className="block font-medium text-muted-foreground text-xs">
-                {t("tags:picker.filterLabel")}
-              </Label>
-              <TagPicker
-                id={tagsId}
-                variant="filter"
-                selectedTags={tagFilters}
-                onChange={setTagFilters}
-                placeholder={t("tags:picker.anyTag")}
-              />
-            </div>
-          ) : null}
+        <ToolFilterFields tool={tool} value={filters} onChange={setFilters}>
           {list.extraFilter?.field}
-        </div>
+        </ToolFilterFields>
       </ToolFilterPanel>
 
       {list.isLoading ? (

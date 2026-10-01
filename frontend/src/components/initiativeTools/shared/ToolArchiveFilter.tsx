@@ -10,9 +10,12 @@
  * Lives in {@link ToolListToolbar}'s `leading` slot — the scope the list is
  * showing — beside the filter and view controls rather than inside the filter
  * panel, because it changes what the list *is* rather than narrowing it.
+ *
+ * An export asks a third thing — both — so it offers "All" as well, and that is
+ * the export's default.
  */
 
-import { Archive } from "lucide-react";
+import { Archive, Layers } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -34,16 +37,35 @@ export const isToolArchiveState = (value: unknown): value is ToolArchiveState =>
 export const archivedParam = (state: ToolArchiveState): true | undefined =>
   state === "archived" ? true : undefined;
 
-type ToolArchiveFilterProps = {
-  tool: Tool;
-  value: ToolArchiveState;
-  onChange: (value: ToolArchiveState) => void;
-};
+/** What an export takes: either state, or both ("all"). */
+export type ToolArchiveChoice = ToolArchiveState | "all";
 
-export const ToolArchiveFilter = ({ tool, value, onChange }: ToolArchiveFilterProps) => {
+type ToolArchiveFilterProps =
+  | {
+      tool: Tool;
+      includeAll?: false;
+      value: ToolArchiveState;
+      onChange: (value: ToolArchiveState) => void;
+    }
+  | {
+      tool: Tool;
+      includeAll: true;
+      value: ToolArchiveChoice;
+      onChange: (value: ToolArchiveChoice) => void;
+    };
+
+export const ToolArchiveFilter = ({
+  tool,
+  includeAll,
+  value,
+  onChange,
+}: ToolArchiveFilterProps) => {
   const { t } = useTranslation("common");
 
-  const icons = { active: TOOL_ICONS[tool], archived: Archive } as const;
+  const icons = { all: Layers, active: TOOL_ICONS[tool], archived: Archive } as const;
+  const states: readonly ToolArchiveChoice[] = includeAll
+    ? ["all", ...TOOL_ARCHIVE_STATES]
+    : TOOL_ARCHIVE_STATES;
 
   return (
     <ToggleGroup
@@ -51,12 +73,14 @@ export const ToolArchiveFilter = ({ tool, value, onChange }: ToolArchiveFilterPr
       value={value}
       // Radix clears a single-select group when the active item is clicked
       // again; the list is always showing one of the two.
-      onValueChange={(next) => next && onChange(next as ToolArchiveState)}
+      onValueChange={(next) =>
+        next && (onChange as (value: ToolArchiveChoice) => void)(next as ToolArchiveChoice)
+      }
       variant="outline"
       aria-label={t("toolArchiveFilter.label")}
       className="h-9 shrink-0 justify-start"
     >
-      {TOOL_ARCHIVE_STATES.map((state) => {
+      {states.map((state) => {
         const Icon = icons[state];
         return (
           <ToggleGroupItem

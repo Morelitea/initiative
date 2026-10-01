@@ -228,9 +228,10 @@ export function useExportTasksApiV1CGuildIdExportsTasksGet<
 
 /**
  * Export calendar events (the same visibility and filters as ``GET
- * /calendar-events/``) as one iCalendar file, every date included. Small
- * results return the file directly; large results return ``202`` with a
- * queued job to poll and download.
+ * /calendar-events/``) as one iCalendar file: every date, unless a range is
+ * given. A repeating event starting in the range travels whole, with its
+ * changed occurrences. Small results return the file directly; large results
+ * return ``202`` with a queued job to poll and download.
  * @summary Export Events
  */
 export const exportEventsApiV1CGuildIdExportsEventsGet = (

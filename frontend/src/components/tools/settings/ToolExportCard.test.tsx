@@ -35,12 +35,13 @@ const renderCard = (tool: Tool) =>
   );
 
 describe("ToolExportCard", () => {
-  it("names the file on a button with only one thing to download", async () => {
+  it("opens the export wizard on the tool's one format, with nothing to choose", async () => {
     renderCard(Tool.gallery);
 
-    expect(
-      await screen.findByRole("button", { name: "Importable file with pictures (.zip)" })
-    ).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Export" }));
+
+    expect(await screen.findByText("Importable file with pictures (.zip)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /start export/i })).toBeInTheDocument();
   });
 
   it("says a wiki's every download is a zip", async () => {
@@ -49,7 +50,7 @@ describe("ToolExportCard", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Export" }));
 
     for (const name of ["PDF (.zip)", "Markdown (.zip)", "Word (.zip)", "Importable file (.zip)"]) {
-      expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name })).toBeInTheDocument();
     }
   });
 });

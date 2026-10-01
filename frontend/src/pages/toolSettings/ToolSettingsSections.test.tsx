@@ -213,7 +213,8 @@ describe("ToolSettingsAdvancedPage", () => {
 
     expect(await screen.findByText("Download a copy", { exact: false })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Export" }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
+    await userEvent.click(await screen.findByRole("button", { name: "CSV" }));
+    await userEvent.click(screen.getByRole("button", { name: /start export/i }));
 
     await waitFor(() => expect(sent).toEqual({ format: "csv", ids: "7" }));
   });

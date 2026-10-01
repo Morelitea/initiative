@@ -1,0 +1,143 @@
+/**
+ * One filter panel per tool, over that tool's list params.
+ *
+ * The fields a tool's index page narrows its list with are the fields an
+ * export narrows that tool by, so both render them from here: each is a
+ * controlled component over the params its list route takes. Controls only a
+ * page offers (a sort order, a read state, a favourites switch) are passed in
+ * as children and sit in the same row.
+ */
+
+import type { FlatNamespace } from "i18next";
+import { type ComponentType, type ReactNode, useId } from "react";
+import { useTranslation } from "react-i18next";
+
+import type {
+  ListCalendarsApiV1CGuildIdCalendarsGetParams,
+  ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams,
+  ListDashboardsApiV1CGuildIdDashboardsGetParams,
+  ListDocumentsApiV1CGuildIdDocumentsGetParams,
+  ListGalleriesApiV1CGuildIdGalleriesGetParams,
+  ListPostsApiV1CGuildIdPostsGetParams,
+  ListProjectsApiV1CGuildIdProjectsGetParams,
+  ListQueuesApiV1CGuildIdQueuesGetParams,
+  ListWikisApiV1CGuildIdWikisGetParams,
+} from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { DocumentFilterFields } from "@/components/documents/DocumentsFilterBar";
+import { TagFilterPicker } from "@/components/tags/TagFilterPicker";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toolCamelPlural } from "@/lib/tools";
+import type { TranslateFn } from "@/types/i18n";
+
+/** Each tool's list params, as its list route takes them. */
+type ToolListParams = {
+  [Tool.project]: ListProjectsApiV1CGuildIdProjectsGetParams;
+  [Tool.document]: ListDocumentsApiV1CGuildIdDocumentsGetParams;
+  [Tool.queue]: ListQueuesApiV1CGuildIdQueuesGetParams;
+  [Tool.counter_group]: ListCounterGroupsApiV1CGuildIdCounterGroupsGetParams;
+  [Tool.calendar]: ListCalendarsApiV1CGuildIdCalendarsGetParams;
+  [Tool.dashboard]: ListDashboardsApiV1CGuildIdDashboardsGetParams;
+  [Tool.post]: ListPostsApiV1CGuildIdPostsGetParams;
+  [Tool.gallery]: ListGalleriesApiV1CGuildIdGalleriesGetParams;
+  [Tool.wiki]: ListWikisApiV1CGuildIdWikisGetParams;
+};
+
+/** The params the list's caller decides rather than the person filtering:
+ *  where the list is, which page of it, and in what order. */
+type NotAFilter = "initiative_id" | "ids" | "page" | "page_size" | "sort_by" | "sort_dir" | "scope";
+
+/** What a tool's list can be narrowed by. */
+export type ToolListFilters<T extends Tool = Tool> = Omit<ToolListParams[T], NotAFilter>;
+
+export type ToolFilterFieldsProps<T extends Tool = Tool> = {
+  value: ToolListFilters<T>;
+  onChange: (next: ToolListFilters<T>) => void;
+  /** Controls only the page offers, in the same row as the shared fields. */
+  children?: ReactNode;
+};
+
+type SearchTagFieldsProps = ToolFilterFieldsProps & {
+  tool: Tool;
+  /** Placeholder key in the tool's own namespace. */
+  placeholder: string;
+  tags: boolean;
+};
+
+/** A search box and a tag picker — what most tool lists narrow by. */
+const SearchTagFields = ({
+  tool,
+  placeholder,
+  tags,
+  value,
+  onChange,
+  children,
+}: SearchTagFieldsProps) => {
+  // The tool's own namespace is named after it, so the loose translate
+  // signature rather than the statically-typed one.
+  const { t: translate } = useTranslation([toolCamelPlural(tool) as FlatNamespace, "tags"]);
+  const t = translate as TranslateFn;
+  const id = useId();
+
+  return (
+    <div className="flex flex-wrap items-end gap-4">
+      <div className="w-full space-y-2 lg:flex-1">
+        <Label htmlFor={`${id}-search`} className="block font-medium text-muted-foreground text-xs">
+          {t("filters.searchLabel")}
+        </Label>
+        <Input
+          id={`${id}-search`}
+          placeholder={t(placeholder)}
+          value={value.search ?? ""}
+          onChange={(event) => onChange({ ...value, search: event.target.value })}
+          className="min-w-60"
+        />
+      </div>
+      {tags ? (
+        <div className="w-full space-y-2 sm:w-64">
+          <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
+            {t("tags:picker.filterLabel")}
+          </Label>
+          <TagFilterPicker
+            id={`${id}-tags`}
+            tagIds={value.tag_ids ?? []}
+            onChange={(tagIds) => onChange({ ...value, tag_ids: tagIds })}
+            placeholder={t("tags:picker.anyTag")}
+          />
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
+};
+
+const searchAndTags =
+  (tool: Tool, placeholder: string, tags = true) =>
+  (props: ToolFilterFieldsProps) => (
+    <SearchTagFields tool={tool} placeholder={placeholder} tags={tags} {...props} />
+  );
+
+/** Every tool's filter fields. A mapped type over the tool enum, so a new tool
+ *  has to say how its list is narrowed. */
+const TOOL_FILTER_FIELDS: { [T in Tool]: ComponentType<ToolFilterFieldsProps<T>> } = {
+  [Tool.project]: searchAndTags(Tool.project, "filters.searchProjects"),
+  [Tool.document]: DocumentFilterFields,
+  [Tool.queue]: searchAndTags(Tool.queue, "filters.searchQueues"),
+  [Tool.counter_group]: searchAndTags(Tool.counter_group, "filters.searchGroups"),
+  [Tool.calendar]: searchAndTags(Tool.calendar, "filters.searchCalendars"),
+  [Tool.dashboard]: searchAndTags(Tool.dashboard, "filters.searchDashboards"),
+  // The board's list takes tags, but its filter bar doesn't offer them yet.
+  [Tool.post]: searchAndTags(Tool.post, "filters.searchPosts", false),
+  [Tool.gallery]: searchAndTags(Tool.gallery, "filters.searchGalleries"),
+  [Tool.wiki]: searchAndTags(Tool.wiki, "filters.searchWikis"),
+};
+
+/** A tool's filter fields, by tool. */
+export const ToolFilterFields = <T extends Tool>({
+  tool,
+  ...props
+}: ToolFilterFieldsProps<T> & { tool: T }) => {
+  const Fields = TOOL_FILTER_FIELDS[tool] as ComponentType<ToolFilterFieldsProps<T>>;
+  return <Fields {...props} />;
+};

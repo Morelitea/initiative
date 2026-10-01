@@ -40,7 +40,10 @@
   "dangerZone": "Gefahrenzone",
   "detailsUpdated": "Details aktualisiert",
   "filters": {
-    "heading": "Filter"
+    "heading": "Filter",
+    "dates": "Zeitraum",
+    "searchLabel": "Name oder Beschreibung",
+    "searchCalendars": "Kalender durchsuchen..."
   },
   "loading": "Wird geladen...",
   "loadError": "Termine konnten nicht geladen werden",

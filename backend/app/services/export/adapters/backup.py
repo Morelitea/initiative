@@ -75,6 +75,7 @@ from app.core.tools import (
     tool_export_source,
 )
 from app.services.export.engine import ExportError
+from app.services.export.filters import narrow, parse_filters
 from app.services.export import delivery
 from app.services.platform.csv_export import safe_filename_component
 from app.services.export import limits as export_limits
@@ -199,6 +200,12 @@ def _validate_params(params: dict, *, scope_kind: str) -> None:
             or not all(isinstance(v, bool) for v in include.values())
         ):
             raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+    filters = params.get("filters")
+    if filters is not None:
+        if not isinstance(filters, dict) or not set(filters) <= set(_TOOLS):
+            raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+        for tool, raw in filters.items():
+            parse_filters(Tool(tool), raw)
     if mode == "report":
         for tool, fmt in (params.get("formats") or {}).items():
             section = _SECTIONS_BY_KEY.get(tool)
@@ -224,6 +231,30 @@ def _included(params: dict, tool: str) -> bool:
     return bool(include.get(tool, False))
 
 
+def _filters(params: dict, section: BackupSection):
+    return parse_filters(section.tool, (params.get("filters") or {}).get(section.key))
+
+
+async def _section_ids(
+    session: AsyncSession,
+    user: User,
+    guild_id: int,
+    params: dict,
+    section: BackupSection,
+    initiative_id: int,
+) -> list[int]:
+    """One tool's entities in one initiative that the creator may export and
+    the tool's filters leave."""
+    return await narrow(
+        session,
+        user,
+        section.tool,
+        _filters(params, section),
+        await section.adapter.initiative_ids(session, user, guild_id, initiative_id),
+        initiative_id=initiative_id,
+    )
+
+
 def _include_uploads(params: dict) -> bool:
     mode = params.get("mode") or "backup"
     if mode == "report":
@@ -247,8 +278,8 @@ async def _enumerate(
         for section in _SECTIONS:
             if not _included(params, section.key):
                 continue
-            ids[section.key][initiative.id] = await section.adapter.initiative_ids(
-                session, user, guild_id, initiative.id
+            ids[section.key][initiative.id] = await _section_ids(
+                session, user, guild_id, params, section, initiative.id
             )
     return ids
 
@@ -528,8 +559,8 @@ class _ScopeBuilder:
         if self.mode != "backup" and not section.in_reports:
             return
         adapter = section.adapter
-        ids = await adapter.initiative_ids(
-            self.session, self.user, self.guild_id, initiative.id
+        ids = await _section_ids(
+            self.session, self.user, self.guild_id, self.params, section, initiative.id
         )
         if ids:
             batched = adapter.prepares or section.preload is not None
@@ -543,7 +574,10 @@ class _ScopeBuilder:
                     user=self.user,
                     guild_id=self.guild_id,
                     now=self.now,
-                    prepared=await adapter.prepare(self.session, entities),
+                    filters=_filters(self.params, section),
+                )
+                ctx = replace(
+                    ctx, prepared=await adapter.prepare(self.session, entities, ctx)
                 )
                 self.reach |= await adapter.prepared_reach(
                     self.session, replace(ctx, format=self._tool_format(section))
@@ -1465,6 +1499,7 @@ async def estimate_backup(
     scope: str,
     initiative_id: int | None,
     include_uploads: bool,
+    filters: dict | None = None,
 ):
     from sqlalchemy import func
     from sqlmodel import select
@@ -1474,7 +1509,12 @@ async def estimate_backup(
     from app.schemas.tenant.backup_export import BackupEstimate, BackupToolEstimate
     from app.services.tenant.attachments import get_guild_storage_usage
 
-    params = {"initiative_id": initiative_id, "include_uploads": include_uploads}
+    params = {
+        "initiative_id": initiative_id,
+        "include_uploads": include_uploads,
+        "filters": filters,
+    }
+    _validate_params(params, scope_kind=scope)
     initiatives = await _resolve_scope(
         session, user, guild_id, params, scope_kind=scope
     )

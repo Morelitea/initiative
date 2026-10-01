@@ -57,6 +57,13 @@ import {
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
+import {
+  DateRangeField,
+  dateRangeBounds,
+  dateRangeParams,
+  isDateRangeSet,
+  type LocalDateRange,
+} from "@/components/ui/date-range-field";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
@@ -195,6 +202,10 @@ export const CalendarsView = ({
   const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
     () => storedPrefs.propertyFilters
   );
+  // Which days to show and export. Kept for this visit only, like a search:
+  // a saved range would leave the grid empty on a later month with no
+  // obvious cause.
+  const [dateRange, setDateRange] = useState<LocalDateRange>({});
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
@@ -219,6 +230,16 @@ export const CalendarsView = ({
     () => calendarVisibleRange(focusDate, viewMode, weekStartsOn),
     [focusDate, viewMode, weekStartsOn]
   );
+
+  // What the grid fetches: the span it renders, narrowed to the date range.
+  // Null when the two don't overlap — there is nothing to fetch, the grid is
+  // empty, and the lit filter badge says why.
+  const entriesWindow = useMemo(() => {
+    const { start: from, end: until } = dateRangeBounds(dateRange);
+    const start = from && from > visibleRange.start ? from : visibleRange.start;
+    const end = until && until < visibleRange.end ? until : visibleRange.end;
+    return start < end ? { start, end } : null;
+  }, [dateRange, visibleRange]);
 
   // Serialize property filters into the query-param shape the backend
   // expects. Empty list drops the param entirely so the URL stays clean.
@@ -283,6 +304,7 @@ export const CalendarsView = ({
 
   // --- One request: events + task markers over the visible window. ---
   const entriesParams = useMemo((): ListCalendarEntriesApiV1CGuildIdCalendarEntriesGetParams => {
+    const span = entriesWindow ?? visibleRange;
     // A guild surface: guild-level events, and nothing task- or
     // initiative-shaped at all. The app asks by scope rather than by naming its
     // calendars — the calendars below arrive one page at a time, and an event
@@ -290,8 +312,8 @@ export const CalendarsView = ({
     if (guildOnly) {
       return {
         ...(solo ? { calendar_ids: [soloCalendar.id] } : { scope: "guild" as const }),
-        start_after: visibleRange.start.toISOString(),
-        start_before: visibleRange.end.toISOString(),
+        start_after: span.start.toISOString(),
+        start_before: span.end.toISOString(),
         tz: userTimezone,
         include_events: true,
         include_tasks: false,
@@ -299,8 +321,8 @@ export const CalendarsView = ({
     }
     return {
       ...(initiativeId ? { initiative_id: initiativeId } : {}),
-      start_after: visibleRange.start.toISOString(),
-      start_before: visibleRange.end.toISOString(),
+      start_after: span.start.toISOString(),
+      start_before: span.end.toISOString(),
       ...(propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
       conditions: taskConditions,
       tz: userTimezone,
@@ -312,17 +334,21 @@ export const CalendarsView = ({
     solo,
     soloCalendar?.id,
     initiativeId,
+    entriesWindow,
     visibleRange,
     propertyFiltersParam,
     taskConditions,
     userTimezone,
   ]);
 
-  const entriesQuery = useCalendarEntries(entriesParams);
+  const entriesQuery = useCalendarEntries(entriesParams, { enabled: entriesWindow != null });
+  // Kept-previous data belongs to a window the grid no longer shows.
+  const entriesData = entriesWindow ? entriesQuery.data : undefined;
 
-  // Export every date of the calendars on screen, through the same scope and
-  // filters as the grid. Hidden calendars are left out by their saved ids, so
-  // one past the loaded page of calendars stays out too.
+  // Export the calendars on screen, through the same scope and filters as the
+  // grid: the date range when one is set, and every date when not. Hidden
+  // calendars are left out by their saved ids, so one past the loaded page of
+  // calendars stays out too.
   const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
     const allHidden = calendars.every((calendar) =>
       visibility.isCalendarHidden(guildId, calendar.id)
@@ -341,6 +367,7 @@ export const CalendarsView = ({
             : {}),
       ...(!solo && hidden.length > 0 ? { exclude_calendar_ids: hidden } : {}),
       ...(!guildOnly && propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
+      ...dateRangeParams(dateRange),
     };
   }, [
     calendars,
@@ -353,6 +380,7 @@ export const CalendarsView = ({
     guildOnly,
     initiativeId,
     propertyFiltersParam,
+    dateRange,
   ]);
 
   // Same param shape the sidebar and dashboard filters use, so this shares their cache.
@@ -367,7 +395,7 @@ export const CalendarsView = ({
   // fully derived from the entries payload, never stored.
   const projectCalendars = useMemo<ProjectTaskCalendar[]>(() => {
     const seen = new Map<number, ProjectTaskCalendar>();
-    const data = entriesQuery.data;
+    const data = entriesData;
     for (const task of [...(data?.tasks ?? []), ...(data?.task_occurrences ?? [])]) {
       if (task.project_id == null || seen.has(task.project_id)) continue;
       seen.set(task.project_id, {
@@ -378,7 +406,7 @@ export const CalendarsView = ({
       });
     }
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [entriesQuery.data, projectNamesById, guildId]);
+  }, [entriesData, projectNamesById, guildId]);
 
   // Creating a CALENDAR is the role-permission gate; creating an EVENT is
   // write access on at least one calendar (the project→task pattern). An
@@ -404,7 +432,7 @@ export const CalendarsView = ({
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
 
-    for (const event of entriesQuery.data?.events ?? []) {
+    for (const event of entriesData?.events ?? []) {
       if (visibility.isCalendarHidden(guildId, event.calendar_id)) continue;
       entries.push(
         buildEventCalendarEntry(
@@ -415,7 +443,7 @@ export const CalendarsView = ({
       );
     }
 
-    for (const task of entriesQuery.data?.tasks ?? []) {
+    for (const task of entriesData?.tasks ?? []) {
       if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
         continue;
       }
@@ -423,7 +451,7 @@ export const CalendarsView = ({
       // across the visible projects; the task page is the editing surface.
       entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id), false));
     }
-    for (const task of entriesQuery.data?.task_occurrences ?? []) {
+    for (const task of entriesData?.task_occurrences ?? []) {
       if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
         continue;
       }
@@ -431,7 +459,7 @@ export const CalendarsView = ({
     }
 
     return entries;
-  }, [entriesQuery.data, visibility, guildId, calendarsById, unread]);
+  }, [entriesData, visibility, guildId, calendarsById, unread]);
 
   // Create dialog state
   const {
@@ -473,13 +501,18 @@ export const CalendarsView = ({
   // Hidden calendars count too: the reader has narrowed what the grid shows,
   // and nothing else on screen says so once the panel is closed.
   const activeFilterCount =
-    visibility.hiddenCount + statusFilters.length + priorityFilters.length + propertyFilters.length;
+    visibility.hiddenCount +
+    statusFilters.length +
+    priorityFilters.length +
+    propertyFilters.length +
+    (isDateRangeSet(dateRange) ? 1 : 0);
 
   const clearFilters = () => {
     visibility.clear();
     setStatusFilters([]);
     setPriorityFilters([]);
     setPropertyFilters([]);
+    setDateRange({});
   };
 
   const handleEventCreated = (event: { id: number; calendar_id: number }) => {
@@ -662,6 +695,16 @@ export const CalendarsView = ({
             {/* Calendar visibility — real calendars + per-project task
                 calendars behind one dropdown, so the grid keeps full width. */}
             <div className="flex items-end">{calendarPicker}</div>
+
+            <div className="w-full sm:w-64">
+              <Label
+                htmlFor="calendar-date-range"
+                className="mb-2 block font-medium text-muted-foreground text-xs"
+              >
+                {t("filters.dates")}
+              </Label>
+              <DateRangeField id="calendar-date-range" value={dateRange} onChange={setDateRange} />
+            </div>
 
             {/* Status filter (for tasks) */}
             <div className="w-full sm:w-48 lg:flex-1">

@@ -355,6 +355,12 @@ async def _default_conditions(spec: ToolListSpec, req: ListRequest) -> list:
     ]
 
 
+async def list_conditions(spec: ToolListSpec, req: ListRequest) -> list:
+    """The WHERE one tool's list answers ``req`` with — what an export of the
+    tool narrows by, too."""
+    return await (spec.conditions or _default_conditions)(spec, req)
+
+
 def _summaries(schema: type[ToolSummaryBase]) -> Callable[..., Awaitable[list]]:
     """The ordinary page: tag the rows, then turn each into its summary."""
 
@@ -1096,8 +1102,7 @@ def _mount_list(spec: ToolListSpec) -> None:
 
     async def list_rows(session, current_user, guild_context, **values):
         request = ListRequest(session, current_user, guild_context, values)
-        build_conditions = spec.conditions or _default_conditions
-        conditions = await build_conditions(spec, request)
+        conditions = await list_conditions(spec, request)
         rows, total_count, page = await tool_listing.list_tool_rows(
             session,
             spec.model,

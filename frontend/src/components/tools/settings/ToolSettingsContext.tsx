@@ -16,7 +16,7 @@ import type {
   Tool,
   ToolCan,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { ExportFormatOption } from "@/components/exports/ExportButton";
+import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
 
 /**
  * The slice of a tool's read schema its settings need. Every tool — queues,
@@ -56,7 +56,7 @@ export interface ToolSettingsEntity {
  */
 export interface ToolExportOptions {
   formats?: ExportFormatOption[];
-  extraActions?: { labelKey: string; onSelect: () => void }[];
+  extraActions?: ExportExtraAction[];
 }
 
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */

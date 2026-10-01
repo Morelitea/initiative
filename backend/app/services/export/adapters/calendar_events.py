@@ -7,22 +7,26 @@ iCalendar file. Anyone who can see a calendar's events can export them, the
 way anyone who can see a project's tasks can export those.
 
 ``params`` is the calendar page's own selector: ``{"initiative_id", "scope",
-"calendar_ids", "exclude_calendar_ids", "property_filters"}``. It is what an ExportJob row persists,
+"calendar_ids", "exclude_calendar_ids", "property_filters", "start_after",
+"start_before"}``. It is what an ExportJob row persists,
 and what the worker replays here at render time.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import ExportMessages
 from app.db.session import require_guild_context
 from app.models.platform.user import User
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.calendar_event import CalendarEvent
 from app.services.export.contract import RenderItem, RenderRequest
+from app.services.export.engine import ExportError
 from app.services.tenant.ical_service import documents_for_events, event_export_dict
 
 
@@ -96,6 +100,22 @@ async def _query(
         calendar_ids=params.get("calendar_ids"),
         exclude_calendar_ids=params.get("exclude_calendar_ids"),
         property_filters=params.get("property_filters"),
+        start_after=_instant(params.get("start_after")),
+        start_before=_instant(params.get("start_before")),
+        tz=params.get("tz"),
+        whole_series=True,
         page=page,
         page_size=1,
     )
+
+
+def _instant(value: str | None) -> datetime | None:
+    """A window bound from the job's params, which hold it as ISO text."""
+    if value is None:
+        return None
+    try:
+        instant = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
+    # A bound without a zone is read as UTC, as the calendar's own window is.
+    return instant if instant.tzinfo else instant.replace(tzinfo=timezone.utc)
