@@ -21,12 +21,15 @@ from app.core.messages import CalendarEventMessages, CommonMessages
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.property import CalendarEventPropertyValue
 from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
+    create_calendar_event_property_value,
     create_document,
     create_guild_calendar,
+    create_initiative,
     create_property_definition,
     create_tag,
     get_auth_headers,
@@ -672,6 +675,68 @@ async def test_move_event_between_calendars_requires_write_on_both(
         json={"calendar_id": dest.id},
     )
     assert denied.status_code == 403
+
+
+async def test_a_move_into_another_initiative_drops_property_values(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The definitions stay behind, so the values go with a move into another
+    initiative, the series' overrides' too. A move inside the initiative keeps
+    them."""
+    a, guild, initiative, source, _ = await _setup_event(session, acting_user)
+    start = datetime(2026, 10, 5, 18, tzinfo=timezone.utc)
+    series = await create_calendar_event(
+        session,
+        source,
+        a.user,
+        start_at=start,
+        end_at=start + timedelta(hours=1),
+        recurrence="RRULE:FREQ=WEEKLY",
+    )
+    override = await create_calendar_event(
+        session,
+        source,
+        a.user,
+        start_at=start + timedelta(days=7, hours=1),
+        end_at=start + timedelta(days=7, hours=2),
+        series_id=series.id,
+        original_start=start + timedelta(days=7),
+    )
+    definition = await create_property_definition(session, initiative, name="Table")
+    for event in (series, override):
+        await create_calendar_event_property_value(
+            session, event, definition, value_text="3"
+        )
+    nearby = await create_calendar(session, initiative, a.user, name="Nearby")
+    elsewhere = await _enable_calendars(
+        session, await create_initiative(session, guild, a.user), a.user
+    )
+
+    async def holding_values() -> list[int]:
+        await route_session_to_guild(session, guild.id)
+        rows = await session.exec(
+            select(CalendarEventPropertyValue.event_id).where(
+                CalendarEventPropertyValue.event_id.in_([series.id, override.id])
+            )
+        )
+        return sorted(rows.all())
+
+    kept = await client.patch(
+        a.g(f"/calendar-events/{series.id}"),
+        headers=a.headers,
+        json={"calendar_id": nearby.id},
+    )
+    assert kept.status_code == 200
+    assert await holding_values() == sorted([series.id, override.id])
+
+    moved = await client.patch(
+        a.g(f"/calendar-events/{series.id}"),
+        headers=a.headers,
+        json={"calendar_id": elsewhere.id},
+    )
+    assert moved.status_code == 200
+    assert moved.json()["property_values"] == []
+    assert await holding_values() == []
 
 
 async def test_update_event_time_notifies_attendees_as_rescheduled(
