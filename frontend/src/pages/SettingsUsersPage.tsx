@@ -88,7 +88,7 @@ export const SettingsUsersPage = () => {
   const { t } = useTranslation("guilds");
 
   const { activeGuild } = useGuilds();
-  const { billing, openPortal } = useBillingPortal();
+  const { canSell, openPortal } = useBillingPortal();
   // Running the community, not reaching its work: the roster and its
   // invites answer to the guild's own ladder, and to a settings grant
   // standing in on it. Platform role has nothing to do with it.
@@ -433,7 +433,7 @@ export const SettingsUsersPage = () => {
                 </Button>
               </div>
             </form>
-            {atUserLimit && billing && activeGuildId && activeGuild?.can.seat ? (
+            {atUserLimit && canSell && activeGuildId && activeGuild?.can.seat ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-muted-foreground text-sm">
                   {planName

@@ -48,7 +48,7 @@ import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { guildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
@@ -64,7 +64,7 @@ const FLYOUT_TRANSITION_MS = 300; // keep in sync with the inline transform tran
 
 const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
   const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
-  const { billing, openPortal, reserveTab } = useBillingPortal();
+  const { canSell, openPortal, reserveTab } = useBillingPortal();
   const { t } = useTranslation("guilds");
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -81,8 +81,8 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
-    // Reserved inside the submit gesture (null when the deployment has no
-    // billing portal) so the hop below isn't treated as an unsolicited popup.
+    // Reserved inside the submit gesture (null when nothing may be sold here)
+    // so the hop below isn't treated as an unsolicited popup.
     const billingTab = reserveTab();
     try {
       const newGuild = await createGuild({ name, description });
@@ -100,14 +100,19 @@ const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
         params: { guildId: String(newGuild.id) },
         search: { create: "true" },
       });
-      if (billing) {
+      if (canSell) {
         toast.info(t("billingSetup.opening", { guild: newGuild.name }));
         await openPortal(newGuild.id, "upgrade", billingTab);
       }
     } catch (err) {
       billingTab?.close();
       console.error(err);
-      const message = getErrorMessage(err, "guilds:unableToCreateGuild");
+      // The server's own line for this sends them to choose a plan, which the
+      // phone app may not do; there it only says why.
+      const message =
+        !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
+          ? t("freeCommunityHeldInApp")
+          : getErrorMessage(err, "guilds:unableToCreateGuild");
       setError(message);
       toast.error(message);
     } finally {

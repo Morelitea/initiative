@@ -1,5 +1,5 @@
 import { useParams, useSearch } from "@tanstack/react-router";
-import { CreditCard, Globe, Loader2, ShieldAlert } from "lucide-react";
+import { CreditCard, Loader2, ShieldAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,8 +12,9 @@ import { getErrorMessage } from "@/lib/errorMessage";
  * `/c/$guildId/billing?page=…`: mints a portal handoff for the community and
  * replaces this tab with the portal, so Back does not land here again.
  *
- * The app on a phone shows where to go instead of going there: plans are
- * bought in a browser, not in the app.
+ * The app on a phone goes nowhere and says only that plans are not changed
+ * there: the app stores refuse an app that points anyone to a purchase
+ * outside their own checkout, so it names no browser, portal or link.
  */
 export const BillingForwardPage = () => {
   const { t } = useTranslation("guilds");
@@ -56,7 +57,7 @@ export const BillingForwardPage = () => {
 
   if (isNativePlatform) {
     return message(
-      <Globe />,
+      <CreditCard />,
       t("billingForward.nativeTitle"),
       t("billingForward.nativeDescription")
     );

@@ -32,7 +32,7 @@ type Stage = "notice" | "help" | "closed";
 
 export const GuildStatusNotice = ({ guild }: { guild: GuildEntry }) => {
   const { t } = useTranslation(["guilds", "common"]);
-  const { billing, openPortal } = useBillingPortal();
+  const { billing, canSell, openPortal } = useBillingPortal();
   const seenKey = `${guild.id}:${guild.status}`;
   const [stage, setStage] = useState<Stage>(() =>
     guildStatusNoticeApplies(guild) && !seenThisSession(seenKey) ? "notice" : "closed"
@@ -76,12 +76,16 @@ export const GuildStatusNotice = ({ guild }: { guild: GuildEntry }) => {
               : t("statusNotice.title")}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {paymentFailed ? t("statusNotice.paymentDescription") : t("statusNotice.description")}
+            {paymentFailed
+              ? canSell
+                ? t("statusNotice.paymentDescription")
+                : t("statusNotice.paymentDescriptionInApp")
+              : t("statusNotice.description")}
           </AlertDialogDescription>
           <AlertDialogDescription>{t("statusNotice.readOnly")}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          {paymentFailed ? (
+          {paymentFailed && canSell ? (
             <>
               <AlertDialogCancel onClick={dismiss}>{t("statusNotice.notNow")}</AlertDialogCancel>
               <AlertDialogAction

@@ -5,6 +5,8 @@
  * record). One implementation: a line must read the same wherever it is shown,
  * and a second copy is how the two drift apart.
  */
+import { Capacitor } from "@capacitor/core";
+
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   entityRefTypeFor,
@@ -470,19 +472,32 @@ export const notificationText = (
         ? t("notifications.guildOnHoldWithContact", { community, contact })
         : t("notifications.guildOnHold", { community });
     }
+    // The plan lines ask the reader to choose a plan, which the phone app may
+    // not; there each says only what happens to the community.
     case "guild_trial_ending":
-      return t("notifications.guildTrialEnding", {
-        community: typeof data.community === "string" ? data.community : "",
-        date: formatDate(data.trial_ends_on),
-      });
+      return t(
+        Capacitor.isNativePlatform()
+          ? "notifications.guildTrialEndingInApp"
+          : "notifications.guildTrialEnding",
+        {
+          community: typeof data.community === "string" ? data.community : "",
+          date: formatDate(data.trial_ends_on),
+        }
+      );
     case "guild_trial_ended":
-      return t("notifications.guildTrialEnded", {
-        community: typeof data.community === "string" ? data.community : "",
-      });
+      return t(
+        Capacitor.isNativePlatform()
+          ? "notifications.guildTrialEndedInApp"
+          : "notifications.guildTrialEnded",
+        { community: typeof data.community === "string" ? data.community : "" }
+      );
     case "guild_welcome":
-      return t("notifications.guildWelcome", {
-        community: typeof data.community === "string" ? data.community : "",
-      });
+      return t(
+        Capacitor.isNativePlatform()
+          ? "notifications.guildWelcomeInApp"
+          : "notifications.guildWelcome",
+        { community: typeof data.community === "string" ? data.community : "" }
+      );
     default:
       return t("notifications.defaultNotification");
   }

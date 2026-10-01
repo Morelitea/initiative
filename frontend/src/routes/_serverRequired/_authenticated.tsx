@@ -52,7 +52,7 @@ import {
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { isJustSignedIn } from "@/lib/authTransition";
 import { toast } from "@/lib/chesterToast";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorCode, getErrorMessage } from "@/lib/errorMessage";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { canAccessPlatformAreas } from "@/lib/permissions";
 import { getActiveRecentKey } from "@/lib/recentRoute";
@@ -457,7 +457,7 @@ function NoGuildState({
   reachesPlatformAreas: boolean;
 }) {
   const { t } = useTranslation("guilds");
-  const { billing, openPortal, reserveTab } = useBillingPortal();
+  const { canSell, openPortal, reserveTab } = useBillingPortal();
   const { communityDirectoryEnabled } = useAppConfig();
   const [guildName, setGuildName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -467,18 +467,24 @@ function NoGuildState({
     const trimmed = guildName.trim();
     if (!trimmed) return;
     setCreating(true);
-    // Reserved inside the click gesture (null when the deployment has no
-    // billing portal) so the hop below isn't treated as an unsolicited popup.
+    // Reserved inside the click gesture (null when nothing may be sold here)
+    // so the hop below isn't treated as an unsolicited popup.
     const billingTab = reserveTab();
     try {
       const guild = await createGuild({ name: trimmed });
-      if (billing) {
+      if (canSell) {
         toast.info(t("billingSetup.opening", { guild: guild.name }));
         await openPortal(guild.id, "upgrade", billingTab);
       }
     } catch (err) {
       billingTab?.close();
-      toast.error(getErrorMessage(err, "guilds:unableToCreateGuild"));
+      // The server's own line for this sends them to choose a plan, which the
+      // phone app may not do; there it only says why.
+      toast.error(
+        !canSell && getErrorCode(err) === "FREE_COMMUNITY_ALREADY_HELD"
+          ? t("freeCommunityHeldInApp")
+          : getErrorMessage(err, "guilds:unableToCreateGuild")
+      );
       setCreating(false);
     }
   };

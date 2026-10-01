@@ -34,11 +34,14 @@ interface PlanStatus {
 }
 
 /** What the badge says, by what matters most to the seat right now: a charge
- *  that failed, then a plan about to stop, then a trial, then a renewal. */
+ *  that failed, then a plan about to stop, then a trial, then a renewal.
+ *  Where nothing may be sold (`canSell` false — the phone app) it states the
+ *  facts without asking anyone to pay, and names no amount. */
 const planStatus = (
   summary: GuildBillingSummaryRead,
   t: TFunction<["guilds", "common"]>,
-  lang: string
+  lang: string,
+  canSell: boolean
 ): PlanStatus | null => {
   const formatDay = (value: string | null | undefined): string | null => {
     const date = parseDateValue(value);
@@ -49,7 +52,9 @@ const planStatus = (
     return {
       badge: t("billingPanel.status.paymentFailed"),
       variant: "destructive",
-      detail: t("billingPanel.status.paymentFailedDetail"),
+      detail: canSell
+        ? t("billingPanel.status.paymentFailedDetail")
+        : t("billingPanel.status.paymentFailedDetailInApp"),
     };
   }
 
@@ -84,13 +89,15 @@ const planStatus = (
           ? t("billingPanel.status.trialLastDay")
           : t("billingPanel.status.trial", { count: days }),
       variant: "secondary",
-      detail: t("billingPanel.status.trialDetail", { date: trialEndsOn }),
+      detail: canSell
+        ? t("billingPanel.status.trialDetail", { date: trialEndsOn })
+        : t("billingPanel.status.trialDetailInApp", { date: trialEndsOn }),
     };
   }
 
   const renewsOn = formatDay(summary.renews_on);
   if (renewsOn) {
-    const amount = summary.next_charge ? formatCharge(summary.next_charge, lang) : null;
+    const amount = canSell && summary.next_charge ? formatCharge(summary.next_charge, lang) : null;
     return {
       badge: amount
         ? t("billingPanel.status.renewsWithAmount", { date: renewsOn, amount })
@@ -109,12 +116,12 @@ const planStatus = (
  * install shows without it. A grantee lent the seat — support — sees the bars
  * and never this (`holdsBillingSeat`). Nothing here changes billing — every action hands
  * off to the billing portal, and the summary is fetched per view and kept
- * nowhere. */
+ * nowhere. The phone app shows the plan with no actions at all (`canSell`). */
 export const GuildBillingPanel = () => {
   const { t, i18n } = useTranslation(["guilds", "common"]);
   const lang = i18n.resolvedLanguage ?? i18n.language;
   const { activeGuild } = useGuilds();
-  const { billing, openPortal } = useBillingPortal();
+  const { billing, canSell, openPortal } = useBillingPortal();
 
   const { data: summary, isError } = useGuildBillingSummary(activeGuild);
 
@@ -123,7 +130,7 @@ export const GuildBillingPanel = () => {
   }
 
   const unavailable = isError || (summary != null && !summary.available);
-  const status = summary?.available ? planStatus(summary, t, lang) : null;
+  const status = summary?.available ? planStatus(summary, t, lang, canSell) : null;
   const tierLabel =
     (summary?.available ? summary.tier_name : null) ??
     activeGuild.tier_name ??
@@ -149,30 +156,36 @@ export const GuildBillingPanel = () => {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {summary?.payment_failed ? (
-            <Button size="sm" onClick={() => void openPortal(activeGuild.id, "manage")}>
-              {t("billingPanel.updatePaymentMethod")}
-            </Button>
-          ) : (
-            <>
-              <Button size="sm" onClick={() => void openPortal(activeGuild.id, "upgrade")}>
-                {t("usagePanel.upgrade")}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void openPortal(activeGuild.id, "manage")}
-              >
-                {t("usagePanel.manageBilling")}
-              </Button>
-            </>
-          )}
-        </div>
-        <p className="text-muted-foreground text-sm">{t("billingPanel.changeInPortal")}</p>
+        {canSell ? (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {summary?.payment_failed ? (
+                <Button size="sm" onClick={() => void openPortal(activeGuild.id, "manage")}>
+                  {t("billingPanel.updatePaymentMethod")}
+                </Button>
+              ) : (
+                <>
+                  <Button size="sm" onClick={() => void openPortal(activeGuild.id, "upgrade")}>
+                    {t("usagePanel.upgrade")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void openPortal(activeGuild.id, "manage")}
+                  >
+                    {t("usagePanel.manageBilling")}
+                  </Button>
+                </>
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm">{t("billingPanel.changeInPortal")}</p>
 
-        <Separator />
-        <p className="text-muted-foreground text-sm">{t("billingPanel.cancelAnytime")}</p>
+            <Separator />
+            <p className="text-muted-foreground text-sm">{t("billingPanel.cancelAnytime")}</p>
+          </>
+        ) : (
+          <p className="text-muted-foreground text-sm">{t("billingPanel.notInApp")}</p>
+        )}
       </CardContent>
     </Card>
   );
