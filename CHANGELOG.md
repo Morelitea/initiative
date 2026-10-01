@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GET /wikis/{wiki_id}/pages/{page_id}` → `GET /wiki-pages/{page_id}`.
   - `PUT /settings/auth/methods`, `/second-factor-requirement` and `/session-lifetime` → `PATCH /settings/auth/platform`, where a field you leave out is left as it is. The second-factor level is now sent as `second_factor_requirement`.
   - `PUT /communities/{id}/auth-policy`, `/second-factor`, `/session-limit`, `/api-access` and `/notification-policy` → `PATCH /communities/{id}/auth-settings`, with the sign-in requirement as `auth_policy`. It returns the same shape as `GET /communities/{id}/auth-settings`, which now includes the sign-in requirement and your server's own notification answers; `GET /communities/{id}/notification-policy` and `GET /communities/{id}/auth-policy` are gone.
+  - The documents page's up to four `GET /c/{guild_id}/documents/counts` requests → one. It returns `active_count`, `template_count` and `archived_count` for the initiative, plus the tag counts for the view named by `view` (`active`, `templates` or `archived`), in place of `total_count`, `is_template` and `archived`.
 
 ### Fixed
 

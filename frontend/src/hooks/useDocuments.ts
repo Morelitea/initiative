@@ -80,6 +80,8 @@ export const useDocumentCounts = (
   return useQuery<DocumentCountsResponse>({
     queryKey: getGetDocumentCountsApiV1CGuildIdDocumentsCountsGetQueryKey(guildId, params),
     queryFn: () => getDocumentCountsApiV1CGuildIdDocumentsCountsGet(guildId, params),
+    // The view's totals stay on the toggle while the next view's arrive.
+    placeholderData: keepPreviousData,
     ...options,
   });
 };

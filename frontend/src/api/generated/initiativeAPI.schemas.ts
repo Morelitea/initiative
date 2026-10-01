@@ -3365,7 +3365,9 @@ export interface DocumentCopyRequest {
 export type DocumentCountsResponseTagCounts = { [key: string]: number };
 
 export interface DocumentCountsResponse {
-  total_count: number;
+  active_count: number;
+  template_count: number;
+  archived_count: number;
   untagged_count: number;
   tag_counts: DocumentCountsResponseTagCounts;
 }
@@ -10313,20 +10315,25 @@ export type SearchInitiativeMembersApiV1CGuildIdInitiativesInitiativeIdMembersSe
 
 export type GetDocumentCountsApiV1CGuildIdDocumentsCountsGetParams = {
   initiative_id?: number | null;
-  search?: string | null;
   /**
-   * Filter to template (or non-template) documents
+   * The view the tag counts are for
    */
-  is_template?: boolean | null;
+  view?: GetDocumentCountsApiV1CGuildIdDocumentsCountsGetView;
+  search?: string | null;
   /**
    * Filter by document type
    */
   document_type?: DocumentType | null;
-  /**
-   * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
-   */
-  archived?: boolean | null;
 };
+
+export type GetDocumentCountsApiV1CGuildIdDocumentsCountsGetView =
+  (typeof GetDocumentCountsApiV1CGuildIdDocumentsCountsGetView)[keyof typeof GetDocumentCountsApiV1CGuildIdDocumentsCountsGetView];
+
+export const GetDocumentCountsApiV1CGuildIdDocumentsCountsGetView = {
+  active: "active",
+  templates: "templates",
+  archived: "archived",
+} as const;
 
 export type ReadDocumentApiV1CGuildIdDocumentsDocumentIdGetParams = {
   /**

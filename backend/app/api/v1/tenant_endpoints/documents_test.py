@@ -2,6 +2,8 @@
 Integration tests for document endpoints — create with permissions.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel import select
@@ -841,13 +843,13 @@ async def test_list_documents_filters_by_template_and_type(
     assert [item["id"] for item in response.json()["items"]] == [plain.id]
 
 
-async def test_document_counts_filter_by_template_and_type(
+async def test_document_counts_answer_every_view_and_the_one_shown(
     client: AsyncClient, session, acting_user
 ):
-    """The tag-sidebar counts honor the same template/type narrowing as the
-    list, so the two never disagree."""
+    """The three totals count every document whatever the view's filters; the
+    tag tree's counts honor the view, its search and its type, so the tree and
+    the list beside it never disagree."""
     actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
-
     await create_document(session, actor.initiative, actor.user, is_template=True)
     await create_document(
         session,
@@ -857,34 +859,28 @@ async def test_document_counts_filter_by_template_and_type(
         document_type=DocumentType.whiteboard,
     )
     await create_document(session, actor.initiative, actor.user)
-
-    response = await client.get(actor.g("/documents/counts"), headers=actor.headers)
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 3
-
-    response = await client.get(
-        actor.g("/documents/counts"),
-        headers=actor.headers,
-        params={"is_template": True},
+    await create_document(
+        session, actor.initiative, actor.user, archived_at=datetime.now(timezone.utc)
     )
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 2
 
-    response = await client.get(
-        actor.g("/documents/counts"),
-        headers=actor.headers,
-        params={"is_template": True, "document_type": "whiteboard"},
-    )
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 1
+    async def counts(**params) -> dict:
+        response = await client.get(
+            actor.g("/documents/counts"), headers=actor.headers, params=params
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
 
-    response = await client.get(
-        actor.g("/documents/counts"),
-        headers=actor.headers,
-        params={"document_type": "native"},
-    )
-    assert response.status_code == 200
-    assert response.json()["total_count"] == 2
+    shown = await counts(view="templates", document_type="whiteboard")
+    assert (
+        shown["active_count"],
+        shown["template_count"],
+        shown["archived_count"],
+    ) == (1, 2, 1)
+    assert shown["untagged_count"] == 1
+
+    assert (await counts())["untagged_count"] == 1
+    assert (await counts(view="templates"))["untagged_count"] == 2
+    assert (await counts(view="archived"))["untagged_count"] == 1
 
 
 async def test_list_documents_rejects_too_many_ids(client: AsyncClient, acting_user):

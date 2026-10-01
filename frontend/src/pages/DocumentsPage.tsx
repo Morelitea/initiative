@@ -337,28 +337,21 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
 
   const documentsQuery = useDocumentsList(documentsQueryParams);
 
-  // Counts query for tags view sidebar
-  const countsQueryParams = {
+  // One answer for the screen: the tag tree beside the view being shown, and
+  // the totals behind each view, so the toggle says how much sits in the
+  // other ones before they are opened. The totals are scoped to the
+  // initiative only — like the projects list's status counts, they answer
+  // "how many exist", not "how many survive the current filters".
+  const countsQuery = useDocumentCounts({
     ...(lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {}),
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryDocumentType ? { document_type: queryDocumentType } : {}),
-    ...(isArchivedView ? { archived: true } : { is_template: isTemplateView }),
-  };
-
-  const countsQuery = useDocumentCounts(countsQueryParams, { enabled: viewMode === "tags" });
-
-  // Totals behind each state, so the toggle says how much sits in the other one
-  // before it is opened. Scoped to the initiative only — like the projects
-  // list's status counts, these answer "how many exist", not "how many survive
-  // the current filters".
-  const statusCountsBase = lockedInitiativeId ? { initiative_id: lockedInitiativeId } : {};
-  const documentsCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: false });
-  const templatesCountQuery = useDocumentCounts({ ...statusCountsBase, is_template: true });
-  const archivedCountQuery = useDocumentCounts({ ...statusCountsBase, archived: true });
+    view: isArchivedView ? "archived" : isTemplateView ? "templates" : "active",
+  });
   const statusCounts = {
-    documents: documentsCountQuery.data?.total_count,
-    templates: templatesCountQuery.data?.total_count,
-    archived: archivedCountQuery.data?.total_count,
+    documents: countsQuery.data?.active_count,
+    templates: countsQuery.data?.template_count,
+    archived: countsQuery.data?.archived_count,
   };
 
   // Prefetch adjacent page on hover

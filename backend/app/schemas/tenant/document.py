@@ -124,10 +124,20 @@ class DocumentListResponse(PageMeta):
     sort_dir: Optional[str] = None
 
 
+#: The three states the documents page shows one at a time: live documents,
+#: live templates, and everything archived.
+DocumentView = Literal["active", "templates", "archived"]
+
+
 class DocumentCountsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    total_count: int
+    #: How many documents sit in each view, counting every one the reader can
+    #: see in the initiative (or the guild) whatever the view's filters.
+    active_count: int
+    template_count: int
+    archived_count: int
+    #: The tag tree beside the view being shown, after its search and type.
     untagged_count: int
     tag_counts: Dict[int, int]
 

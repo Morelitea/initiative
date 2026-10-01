@@ -64,6 +64,7 @@ from app.models.platform.user import User
 from app.schemas.tenant.document import (
     DocumentCopyRequest,
     DocumentCountsResponse,
+    DocumentView,
     DocumentCreate,
     DocumentFileVersionRead,
     DocumentRead,
@@ -274,65 +275,75 @@ async def get_document_counts(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
-    search: Optional[str] = Query(default=None),
-    is_template: Optional[bool] = Query(
-        default=None, description="Filter to template (or non-template) documents"
+    view: DocumentView = Query(
+        default="active", description="The view the tag counts are for"
     ),
+    search: Optional[str] = Query(default=None),
     document_type: Optional[DocumentType] = Query(
         default=None, description="Filter by document type"
     ),
-    archived: Optional[bool] = Query(
-        default=None, description=archive_service.ARCHIVED_QUERY_DESCRIPTION
-    ),
 ) -> DocumentCountsResponse:
-    """Get per-tag document counts for visible documents.
+    """How many documents sit in each view, and the tag tree beside one.
 
-    Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
-    because counts should reflect all tags. The remaining filters mirror the
-    list endpoint so the sidebar counts match the list beside it.
+    The three view totals count everything visible in the initiative, so the
+    toggle says how much sits behind each state before it is opened. The tag
+    counts are for ``view`` after ``search`` and ``document_type``, matching
+    the list beside them. Tags are not a filter here, because the tree shows
+    every tag.
     """
     if initiative_id is not None:
         await get_initiative_or_404(session, initiative_id=initiative_id)
+
+    live = Document.archived_at.is_(None)
+    active_count, template_count, archived_count = (
+        await session.exec(
+            select(
+                func.count().filter(live, Document.is_template.is_(False)),
+                func.count().filter(live, Document.is_template.is_(True)),
+                func.count().filter(Document.archived_at.isnot(None)),
+            ).where(
+                *visible_document_conditions(
+                    guild_context, current_user.id, initiative_id=initiative_id
+                )
+            )
+        )
+    ).one()
 
     conditions = visible_document_conditions(
         guild_context,
         current_user.id,
         initiative_id=initiative_id,
         search=search,
-        is_template=is_template,
+        is_template=None if view == "archived" else view == "templates",
         document_type=document_type,
     )
-    conditions.append(archive_service.archive_filter_clause(Document, archived))
-
-    # Subquery: IDs of visible documents
+    conditions.append(
+        archive_service.archive_filter_clause(Document, view == "archived")
+    )
     visible_docs_subq = select(Document.id).where(*conditions).subquery()
 
-    # Total count
-    total_stmt = select(func.count()).select_from(visible_docs_subq)
-    total_count = (await session.exec(total_stmt)).one()
-
-    # Per-tag counts. Guild scoping needs no clause of its own — a tag of
-    # another guild lives in another schema, which this query cannot reach.
+    # Guild scoping needs no clause of its own — a tag of another guild lives
+    # in another schema, which this query cannot reach.
     spec = tags_service.TOOL_TAG_LINKS[Tool.document]
     tag_rows = (
         await session.exec(
             tags_service.tag_counts_for(spec, select(visible_docs_subq.c.id))
         )
     ).all()
-    tag_counts = {tag_id: count for tag_id, count in tag_rows}
-
-    # Untagged count
-    untagged_stmt = (
-        select(func.count())
-        .select_from(visible_docs_subq)
-        .where(tags_service.untagged_clause(spec, visible_docs_subq.c.id))
-    )
-    untagged_count = (await session.exec(untagged_stmt)).one()
+    untagged_count = (
+        await session.exec(
+            select(func.count())
+            .select_from(visible_docs_subq)
+            .where(tags_service.untagged_clause(spec, visible_docs_subq.c.id))
+        )
+    ).one()
 
     return DocumentCountsResponse(
-        total_count=total_count,
+        active_count=active_count,
+        template_count=template_count,
+        archived_count=archived_count,
         untagged_count=untagged_count,
-        tag_counts=tag_counts,
+        tag_counts={tag_id: count for tag_id, count in tag_rows},
     )
 
 

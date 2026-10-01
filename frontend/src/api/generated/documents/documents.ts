@@ -340,11 +340,13 @@ export const useCreateDocumentApiV1CGuildIdDocumentsPost = <
   );
 };
 /**
- * Get per-tag document counts for visible documents.
+ * How many documents sit in each view, and the tag tree beside one.
  *
- * Lightweight endpoint for the tag tree sidebar. Does NOT accept tag_ids
- * because counts should reflect all tags. The remaining filters mirror the
- * list endpoint so the sidebar counts match the list beside it.
+ * The three view totals count everything visible in the initiative, so the
+ * toggle says how much sits behind each state before it is opened. The tag
+ * counts are for ``view`` after ``search`` and ``document_type``, matching
+ * the list beside them. Tags are not a filter here, because the tree shows
+ * every tag.
  * @summary Get Document Counts
  */
 export const getDocumentCountsApiV1CGuildIdDocumentsCountsGet = (
