@@ -339,7 +339,8 @@
     "security": "Sécurité et confidentialité",
     "cookies": "Cookies",
     "copyright": "© {{year}} Initiative",
-    "socials": "Réseaux sociaux"
+    "socials": "Réseaux sociaux",
+    "github": "GitHub"
   },
   "whatsNew": {
     "title": "Nouveautés",

@@ -87,7 +87,7 @@ const Header = ({ current }: { current?: Place }) => {
             className="h-11 w-11 md:hidden"
             aria-label={t("nav.menu")}
             aria-expanded={open}
-            aria-controls="landing-menu"
+            aria-controls={open ? "landing-menu" : undefined}
             onClick={() => setOpen((value) => !value)}
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -219,7 +219,7 @@ const Footer = () => {
                   className={`${footerLink} gap-2`}
                 >
                   <GitHubMark />
-                  GitHub
+                  {t("footer.github")}
                 </a>
               </li>
             </ul>
