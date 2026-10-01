@@ -502,6 +502,9 @@ async def copy_values(
     nothing instead.
     """
     src, dst = link_for(source), link_for(destination)
+    # The destination's pending changes first (a series' override takes its
+    # calendar just before), so its values are held to where it now sits.
+    await session.flush()
     await session.exec(delete(PropertyValue).where(_of(dst.target, [destination.id])))
     columns = ("property_id", *VALUE_COLUMNS)
     now = datetime.now(timezone.utc)

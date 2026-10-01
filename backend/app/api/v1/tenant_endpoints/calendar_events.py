@@ -976,10 +976,14 @@ async def _apply_update(
         # series' overrides move with it, so theirs go too. Done before the
         # move, while the values still resolve.
         if destination.initiative_id != event.calendar.initiative_id:
-            moving = [event, *await occurrences_service.overrides(session, event)]
+            overrides = await occurrences_service.overrides(session, event)
             await properties_service.drop_values(
-                session, "calendar_event", [e.id for e in moving]
+                session, "calendar_event", [e.id for e in (event, *overrides)]
             )
+            # With their own values gone, the overrides follow the series'.
+            for override in overrides:
+                occurrences_service.unmark(override, ["properties"])
+                session.add(override)
         event.calendar_id = update_data["calendar_id"]
         # Only those who can open the destination stay on the list.
         await events_service.set_event_attendees(
