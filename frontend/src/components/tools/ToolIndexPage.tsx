@@ -430,10 +430,13 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
 
   // A page past the end (its rows deleted, a link to one that is gone) has
   // nothing on it and no pager to leave by, so the list moves to its last page.
+  // A failed read says nothing about where the end is, so it moves nothing.
   const lastPage = Math.max(1, Math.ceil(list.totalCount / pageSize));
   useEffect(() => {
-    if (!list.isLoading && list.rows.length === 0 && page > lastPage) setPage(lastPage);
-  }, [list.isLoading, list.rows.length, page, lastPage, setPage]);
+    if (!list.isLoading && !list.isError && list.rows.length === 0 && page > lastPage) {
+      setPage(lastPage);
+    }
+  }, [list.isLoading, list.isError, list.rows.length, page, lastPage, setPage]);
 
   // Canonical create answer: this initiative's server-computed create flag. An
   // explicit canCreate prop (e.g. from InitiativeDetailPage) wins.
