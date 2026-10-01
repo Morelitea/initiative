@@ -88,6 +88,11 @@ async def test_list_tasks_in_project(
         a.project,
         description=f"Ask @[Mel]({a.user.id}) about [the budget](https://example.com).",
     )
+    linked = await create_task(
+        session,
+        a.project,
+        description="Read [the brief](https://example.com/" + "a" * 700 + ")",
+    )
     bare = await create_task(session, a.project)
 
     conditions = json.dumps(
@@ -104,7 +109,7 @@ async def test_list_tasks_in_project(
             rows[task.id]["description_excerpt"],
             rows[task.id]["has_description"],
         )
-        for task in (long, short, bare)
+        for task in (long, short, linked, bare)
     } == {
         long.id: (
             "Plan Draft the budget, then share it with everyone. Draft the budget,"
@@ -113,6 +118,7 @@ async def test_list_tasks_in_project(
             True,
         ),
         short.id: ("Ask @Mel about the budget.", True),
+        linked.id: ("Read…", True),
         bare.id: (None, False),
     }
     assert not any("description" in row for row in rows.values())
