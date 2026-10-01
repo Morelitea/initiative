@@ -19,12 +19,13 @@ time, under the caller's RLS session.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import replace
 from datetime import datetime
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, field_validator
+from sqlalchemy import Subquery, func, union_all
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -41,7 +42,7 @@ from app.services.export.adapters._common import (
     export_stem,
 )
 from app.services.export.contract import RenderItem
-from app.services.export.filters import parse_filters
+from app.services.export.filters import narrow, parse_filters
 from app.services.export.i18n import et, export_locale
 from app.services.permissions import EXPORT_ACCESS
 
@@ -103,24 +104,22 @@ class ProjectAdapter(ToolExportAdapter):
         # have to be built to know.
         from app.api.v1.tenant_endpoints.projects import count_project_export_rows
 
-        from app.models.tenant.task import Task
-
-        total = 0
-        for project_id in self.selection(params):
-            total += await count_project_export_rows(
+        # Every selected project is authorized, as the build fetches each; the
+        # size is what the filters leave of them.
+        selection = self.selection(params)
+        rows = {
+            project_id: await count_project_export_rows(
                 session, user, guild_id, project_id=project_id
             )
-        tasks = getattr(parse_filters(self.tool, params.get("filters")), "tasks", None)
+            for project_id in selection
+        }
+        filters = parse_filters(self.tool, params.get("filters"))
+        kept = await narrow(session, user, self.tool, filters, selection)
+        tasks = getattr(filters, "tasks", None)
         if tasks is None:
-            return total
-        # Every project is authorized above; its size is what the filter leaves.
-        task_ids = await session.exec(
-            select(Task.id).where(Task.project_id.in_(self.selection(params)))
-        )
-        return len(
-            await matching_tasks(
-                session, user, list(task_ids), tasks, resolve_zone(params.get("tz")).key
-            )
+            return sum(rows[project_id] for project_id in kept)
+        return await count_matching_tasks(
+            session, user, kept, tasks, resolve_zone(params.get("tz")).key
         )
 
     async def fetch(
@@ -190,14 +189,19 @@ class ProjectAdapter(ToolExportAdapter):
         tasks = getattr(ctx.filters, "tasks", None)
         if tasks is None:
             return None
+        from app.models.tenant.task import Task
+
         ids = [
             int(task.external_ref.removeprefix("task:"))
             for envelope in envelopes
             for task in envelope.tasks
             if task.external_ref
         ]
+        projects = set(
+            await session.exec(select(Task.project_id).where(Task.id.in_(ids)))
+        )
         kept = await matching_tasks(
-            session, ctx.user, ids, tasks, getattr(ctx.now.tzinfo, "key", None)
+            session, ctx.user, projects, tasks, getattr(ctx.now.tzinfo, "key", None)
         )
         return {task_ref(task_id) for task_id in kept}
 
@@ -231,14 +235,15 @@ class ProjectAdapter(ToolExportAdapter):
         )
 
 
-async def matching_tasks(
+async def _matching(
     session: AsyncSession,
     user: User,
-    task_ids: list[int],
+    project_ids: Iterable[int],
     tasks: TaskFilters,
     tz: str | None,
-) -> set[int]:
-    """Which of these tasks the task list shows with ``tasks``.
+) -> Subquery | None:
+    """The ids of these projects' tasks that the task list shows with
+    ``tasks``, as one statement; ``None`` when no project is reachable.
 
     Each project is asked about on its own, as its task list is: a list that
     names its project reads it by the rule for that project, which is what
@@ -246,16 +251,11 @@ async def matching_tasks(
     from app.models.tenant.task import Task
     from app.services.tenant import task_queries
 
-    by_project: dict[int, list[int]] = defaultdict(list)
-    for task_id, project_id in await session.exec(
-        select(Task.id, Task.project_id).where(Task.id.in_(task_ids))
-    ):
-        by_project[project_id].append(task_id)
     query = await task_queries.parse_task_list_query(
         session, tasks.conditions, None, tz
     )
-    kept: set[int] = set()
-    for project_id, ids in by_project.items():
+    statements = []
+    for project_id in project_ids:
         # Confined after parsing, so naming the project is not one more of the
         # conditions a list may hold.
         confined = replace(
@@ -274,10 +274,38 @@ async def matching_tasks(
             include_archived=tasks.include_archived,
         )
         if build is not None:
-            kept.update(
-                await session.exec(build(select(Task.id)).where(Task.id.in_(ids)))
-            )
-    return kept
+            statements.append(build(select(Task.id)))
+    return union_all(*statements).subquery() if statements else None
+
+
+async def matching_tasks(
+    session: AsyncSession,
+    user: User,
+    project_ids: Iterable[int],
+    tasks: TaskFilters,
+    tz: str | None,
+) -> set[int]:
+    """The ids of these projects' tasks that the task list shows with
+    ``tasks``."""
+    matched = await _matching(session, user, project_ids, tasks, tz)
+    if matched is None:
+        return set()
+    return set(await session.exec(select(matched.c.id)))
+
+
+async def count_matching_tasks(
+    session: AsyncSession,
+    user: User,
+    project_ids: Iterable[int],
+    tasks: TaskFilters,
+    tz: str | None,
+) -> int:
+    """How many of these projects' tasks the task list shows with ``tasks``,
+    counted in the database."""
+    matched = await _matching(session, user, project_ids, tasks, tz)
+    if matched is None:
+        return 0
+    return (await session.exec(select(func.count()).select_from(matched))).one()
 
 
 def build_project_item(

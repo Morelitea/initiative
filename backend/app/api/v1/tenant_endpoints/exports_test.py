@@ -2893,9 +2893,10 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
             session, calendar, a.user, title=title, start_at=start, end_at=start
         )
 
-    await create_project(
+    blueprint = await create_project(
         session, a.initiative, a.user, name="Blueprint", is_template=True
     )
+    await create_task(session, blueprint, title="Template step")
     open_task = await create_task(session, a.project, title="Open")
     shipped = await create_task(
         session, a.project, title="Shipped", status_category=TaskStatusCategory.done
@@ -2966,16 +2967,17 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     # that project: a guild admin with no grant on it gets the same tasks. A
     # link to a task the filter left out has nothing to land on, so it goes.
     admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
-    # Counted as the filter leaves it — one task — it is handed back inline.
+    # Counted as the filters leave it — the template set aside, one open task —
+    # it is handed back inline.
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 1)
     own = await _export(
         client,
         a,
         "project",
         headers=admin.headers,
-        ids=[a.project.id],
+        ids=[a.project.id, blueprint.id],
         format="json",
-        filters=json.dumps(open_tasks),
+        filters=json.dumps({"template": False, **open_tasks}),
     )
     [kept] = json.loads(_assert_export(own, "json"))["tasks"]
     assert (kept["title"], kept["links"]) == ("Open", [])

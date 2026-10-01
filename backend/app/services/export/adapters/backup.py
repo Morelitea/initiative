@@ -251,7 +251,6 @@ async def _section_ids(
         section.tool,
         _filters(params, section),
         await section.adapter.initiative_ids(session, user, guild_id, initiative_id),
-        initiative_id=initiative_id,
     )
 
 
@@ -336,24 +335,20 @@ async def _task_rows(
     from sqlmodel import select
 
     from app.models.tenant.task import Task
-    from app.services.export.adapters.project import matching_tasks
+    from app.services.export.adapters.project import count_matching_tasks
 
     ids = [project_id for per in project_ids.values() for project_id in per]
     if not ids:
         return 0
-    in_projects = Task.project_id.in_(ids)
     tasks = getattr(_filters(params, _SECTIONS_BY_KEY["project"]), "tasks", None)
     if tasks is None:
         return (
             await session.exec(
-                select(func.count()).select_from(Task).where(in_projects)
+                select(func.count()).select_from(Task).where(Task.project_id.in_(ids))
             )
         ).one()
-    task_ids = list(await session.exec(select(Task.id).where(in_projects)))
-    return len(
-        await matching_tasks(
-            session, user, task_ids, tasks, resolve_zone(params.get("tz")).key
-        )
+    return await count_matching_tasks(
+        session, user, ids, tasks, resolve_zone(params.get("tz")).key
     )
 
 

@@ -119,16 +119,17 @@ class CalendarAdapter(ToolExportAdapter):
         guild) that the calendar list's filters leave."""
         from app.services.tenant.calendars import list_calendar_ids_for_export
 
-        initiative_id = _optional_int(params, "initiative_id")
         return await narrow(
             session,
             user,
             self.tool,
             filters,
             await list_calendar_ids_for_export(
-                session, user, guild_id, initiative_id=initiative_id
+                session,
+                user,
+                guild_id,
+                initiative_id=_optional_int(params, "initiative_id"),
             ),
-            initiative_id=initiative_id,
         )
 
     async def load(
