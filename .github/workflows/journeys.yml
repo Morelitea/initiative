@@ -81,6 +81,9 @@ jobs:
           cp docker-compose.example.yml "$RUNNER_TEMP/install/docker-compose.yml"
           cd "$RUNNER_TEMP/install"
           printf 'POSTGRES_PASSWORD=%s\nSECRET_KEY=%s\n' "$(openssl rand -hex 16)" "$(openssl rand -hex 32)" > .env
+          # Postgres from its registry; the app only as tagged above, never
+          # the published image of that name.
+          docker compose pull db
           docker compose up -d --pull never
           for _ in $(seq 1 90); do
             if curl -fs http://localhost:8173/api/v1/readyz | grep -q '"status":"ok"'; then exit 0; fi
