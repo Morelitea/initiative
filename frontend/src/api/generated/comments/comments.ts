@@ -22,6 +22,7 @@ import type {
 
 import type {
   CommentCreate,
+  CommentListResponse,
   CommentRead,
   CommentUpdate,
   HTTPValidationError,
@@ -150,6 +151,8 @@ export const useCreateCommentApiV1CGuildIdCommentsPost = <
   );
 };
 /**
+ * One page of a thread: ``limit`` conversations, newest first, each with
+ * every reply under it. Follow ``next_cursor`` for older conversations.
  * @summary List Comments
  */
 export const listCommentsApiV1CGuildIdCommentsGet = (
@@ -158,7 +161,7 @@ export const listCommentsApiV1CGuildIdCommentsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommentRead[]>(
+  return apiMutator<CommentListResponse>(
     { url: `/api/v1/c/${guildId}/comments/`, method: "GET", params, signal },
     options
   );

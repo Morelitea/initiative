@@ -17,8 +17,7 @@ import {
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
-import type { CommentRead, PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
+import type { PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadTaskApiV1CGuildIdTasksTaskIdGetQueryKey,
@@ -61,7 +60,7 @@ import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
-import { useComments } from "@/hooks/useComments";
+import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useReadOnOpen } from "@/hooks/useNotifications";
@@ -216,13 +215,10 @@ export const TaskEditPage = () => {
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
   const commentsQueryParams = { task_id: parsedTaskId };
-  const commentsQueryKey = getListCommentsApiV1CGuildIdCommentsGetQueryKey(
-    guildId,
-    commentsQueryParams
-  );
   const commentsQuery = useComments(commentsQueryParams, {
     enabled: Number.isFinite(parsedTaskId),
   });
+  const commentsCache = useCommentsCache(commentsQueryParams);
 
   // Aliased early so handleSubmit / effective* derivations both see it.
   // The duplicate declaration further down was kept until this fix; the
@@ -487,35 +483,6 @@ export const TaskEditPage = () => {
     enabled: Boolean(canWriteProject && !projectIsArchived),
   });
   const writableProjects = writableProjectsQuery.data?.items ?? [];
-
-  const handleCommentCreated = (comment: CommentRead) => {
-    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return [comment];
-      }
-      return [...previous, comment];
-    });
-  };
-
-  const handleCommentDeleted = (commentId: number) => {
-    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return previous;
-      }
-      return previous.filter((comment) => comment.id !== commentId);
-    });
-  };
-
-  const handleCommentUpdated = (updatedComment: CommentRead) => {
-    queryClient.setQueryData<CommentRead[]>(commentsQueryKey, (previous) => {
-      if (!previous) {
-        return previous;
-      }
-      return previous.map((comment) =>
-        comment.id === updatedComment.id ? updatedComment : comment
-      );
-    });
-  };
 
   // What the unsaved-changes guard asks: do the fields still say what the task
   // says? (Kept before the early returns so the guard hooks below run
@@ -881,9 +848,12 @@ export const TaskEditPage = () => {
         entityId={parsedTaskId}
         comments={commentsQuery.data ?? []}
         isLoading={commentsQuery.isLoading}
-        onCommentCreated={handleCommentCreated}
-        onCommentDeleted={handleCommentDeleted}
-        onCommentUpdated={handleCommentUpdated}
+        hasOlder={commentsQuery.hasNextPage}
+        isLoadingOlder={commentsQuery.isFetchingNextPage}
+        onLoadOlder={() => void commentsQuery.fetchNextPage()}
+        onCommentCreated={commentsCache.putComment}
+        onCommentDeleted={commentsCache.removeComment}
+        onCommentUpdated={commentsCache.putComment}
         canModerate={canModerateComments}
         initiativeId={projectQuery.data?.initiative_id ?? 0}
       />

@@ -24,8 +24,8 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional, cast
 
-from sqlalchemy import ColumnElement, and_, func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy import ColumnElement, and_, func, or_, tuple_
+from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -56,6 +56,7 @@ from app.models.tenant.queue import Queue
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
+from app.services import keyset_cursor
 from app.services import rls as rls_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
@@ -892,7 +893,15 @@ async def list_comments(
     gallery_id: Optional[int] = None,
     wiki_id: Optional[int] = None,
     wiki_page_id: Optional[int] = None,
-) -> Sequence[Comment]:
+    limit: int,
+    cursor: Optional[str] = None,
+) -> tuple[Sequence[Comment], Optional[str]]:
+    """One page of a thread, and the cursor for the next, or None at the end.
+
+    A page is ``limit`` conversations — top-level comments, newest first —
+    with every reply under them, so a conversation is never split across
+    pages. The rows come back in the order they were written.
+    """
     column, entity_id = _single_target(
         {
             "task_id": task_id,
@@ -916,16 +925,45 @@ async def list_comments(
         user=user,
         access="read",
     )
+    roots = select(Comment.id, Comment.created_at).where(
+        getattr(Comment, column) == ctx.entity_id,
+        Comment.parent_comment_id.is_(None),
+    )
+    position = keyset_cursor.decode(cursor)
+    if position is not None:
+        roots = roots.where(tuple_(Comment.created_at, Comment.id) < position)
+    roots = roots.order_by(Comment.created_at.desc(), Comment.id.desc()).limit(
+        limit + 1
+    )
+    root_rows = (await session.exec(roots)).all()
+    # One more than asked for is how "is there another page" is answered
+    # without a second count query.
+    next_cursor = None
+    if len(root_rows) > limit:
+        last_id, last_created_at = root_rows[limit - 1]
+        next_cursor = keyset_cursor.encode(last_created_at, last_id)
+    root_ids = [row[0] for row in root_rows[:limit]]
+    if not root_ids:
+        return [], None
+
+    # The conversations on this page, every reply at any depth included.
+    thread = (
+        select(Comment.id).where(Comment.id.in_(root_ids)).cte("thread", recursive=True)
+    )
+    reply = aliased(Comment)
+    thread = thread.union_all(
+        select(reply.id).where(reply.parent_comment_id == thread.c.id)
+    )
     stmt = (
         select(Comment)
-        .where(getattr(Comment, column) == ctx.entity_id)
+        .where(Comment.id.in_(select(thread.c.id)))
         .order_by(Comment.created_at.asc(), Comment.id.asc())
         .options(selectinload(Comment.author))
     )
     comments = (await session.exec(stmt)).all()
     _stamp_task_project(ctx, *comments)
     await attach_reactions(session, *comments)
-    return comments
+    return comments, next_cursor
 
 
 async def delete_comment(

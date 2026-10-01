@@ -618,6 +618,8 @@ const MemoizedTaskCell = memo(TaskCell, (prevProps, nextProps) => {
   return (
     prevProps.task.id === nextProps.task.id &&
     prevProps.task.title === nextProps.task.title &&
+    prevProps.task.has_description === nextProps.task.has_description &&
+    prevProps.task.description_excerpt === nextProps.task.description_excerpt &&
     prevProps.task.recurrence === nextProps.task.recurrence &&
     prevProps.task.recurrence_shift === nextProps.task.recurrence_shift &&
     prevProps.task.recurrence_strategy === nextProps.task.recurrence_strategy &&

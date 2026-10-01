@@ -7,12 +7,21 @@
  * kind, so these walk `TOOLS`: adding a tool without an invalidation path fails
  * here instead of shipping a thread that only refreshes on reload.
  */
+
+import { InfiniteQueryObserver } from "@tanstack/react-query";
+import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildComment } from "@/__tests__/factories/comment.factory";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { latestSocket, MockWebSocket } from "@/__tests__/helpers/mockWebSocket";
+import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { setAuthToken } from "@/api/client";
+import { getListCommentsApiV1CGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
+import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationGuild } from "@/api/query-keys";
+import { commentThreadQueryOptions } from "@/hooks/useComments";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { dashboardDataKey } from "@/hooks/useSqlQuery";
 import { queryClient } from "@/lib/queryClient";
@@ -36,9 +45,58 @@ const seed = (key: readonly unknown[]) => {
   return () => queryClient.getQueryState(key)?.isInvalidated ?? false;
 };
 
-/** The comment-thread query for one parent, as `useComments` keys it. */
-const seedThread = (param: string, id: number) =>
-  seed([`/api/v1/c/${GUILD}/comments/`, { [param]: id }]);
+/** A comment thread on one parent, as `useComments` keys and holds it; open
+ *  (something on screen watching it) unless `open` is false, and `under` the
+ *  tool entity it answers to when that is not its own parent. */
+const seedThread = (
+  param: string,
+  id: number,
+  {
+    comments = [],
+    open = true,
+    under,
+  }: { comments?: CommentRead[]; open?: boolean; under?: { type: string; id: number } } = {}
+) => {
+  const key = getListCommentsApiV1CGuildIdCommentsGetQueryKey(GUILD, { [param]: id });
+  queryClient.setQueryData(key, {
+    pages: [{ comments, next_cursor: null }],
+    pageParams: [undefined],
+  });
+  if (open) {
+    new InfiniteQueryObserver(queryClient, {
+      ...commentThreadQueryOptions(GUILD, { [param]: id }),
+      meta: under ? { under } : undefined,
+      enabled: false,
+    }).subscribe(() => {});
+  }
+  return {
+    ids: () =>
+      queryClient
+        .getQueryData<{ pages: { comments: CommentRead[] }[] }>(key)
+        ?.pages.flatMap((page) => page.comments.map((c) => c.id)),
+    content: (commentId: number) =>
+      queryClient
+        .getQueryData<{ pages: { comments: CommentRead[] }[] }>(key)
+        ?.pages.flatMap((page) => page.comments)
+        .find((c) => c.id === commentId)?.content,
+    invalidated: () => queryClient.getQueryState(key)?.isInvalidated ?? false,
+  };
+};
+
+/** Answers the read-back of one comment: the comment as it now reads, or 404
+ *  for one that is gone. Returns the ids that were asked for. */
+const serveComments = (byId: Record<number, CommentRead | null>) => {
+  const asked: number[] = [];
+  server.use(
+    guildHttp.get("/comments/:commentId", ({ params }) => {
+      const id = Number(params.commentId);
+      asked.push(id);
+      const found = byId[id];
+      return found ? HttpResponse.json(found) : new HttpResponse(null, { status: 404 });
+    })
+  );
+  return asked;
+};
 
 const comment = (id: number, parents: { type: string; id: number }[]) => ({
   resource: { type: "comments", id },
@@ -57,17 +115,19 @@ describe("realtime comment frames", () => {
     setInvalidationGuild(null);
   });
 
-  it.each(TOOLS)("refreshes a %s's thread and the entity around it", (tool) => {
+  it.each(TOOLS)("puts a new comment into a %s's thread and refreshes the entity", async (tool) => {
     const thread = seedThread(toolIdParam(tool), ENTITY_ID);
     const entity = seed([`/api/v1/c/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
+    serveComments({ 1: buildComment({ id: 1, [toolIdParam(tool)]: ENTITY_ID }) });
 
-    applyChanges([comment(1, [{ type: toolPlural(tool), id: ENTITY_ID }])]);
+    applyChanges([comment(1, [{ type: toolPlural(tool), id: ENTITY_ID }])], GUILD);
 
-    expect(thread(), `${tool} thread`).toBe(true);
+    await vi.waitFor(() => expect(thread.ids(), `${tool} thread`).toEqual([1]));
+    expect(thread.invalidated(), `${tool} thread is not read again`).toBe(false);
     expect(entity(), `${tool} entity`).toBe(true);
   });
 
-  it("refreshes the thread, the task and the task's project, and nothing further out", () => {
+  it("updates the thread, refreshes the task and its project, and nothing further out", async () => {
     const thread = seedThread("task_id", ENTITY_ID);
     const task = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
     // A task list row carries its comment count.
@@ -79,16 +139,20 @@ describe("realtime comment frames", () => {
     const counts = seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
     const initiative = seed([`/api/v1/c/${GUILD}/initiatives/3`]);
     const members = seed([`/api/v1/c/${GUILD}/initiatives/3/members`]);
+    serveComments({ 1: buildComment({ id: 1, task_id: ENTITY_ID }) });
 
-    applyChanges([
-      comment(1, [
-        { type: "tasks", id: ENTITY_ID },
-        { type: "projects", id: 7 },
-        { type: "initiatives", id: 3 },
-      ]),
-    ]);
+    applyChanges(
+      [
+        comment(1, [
+          { type: "tasks", id: ENTITY_ID },
+          { type: "projects", id: 7 },
+          { type: "initiatives", id: 3 },
+        ]),
+      ],
+      GUILD
+    );
 
-    expect(thread(), "thread").toBe(true);
+    await vi.waitFor(() => expect(thread.ids(), "thread").toEqual([1]));
     expect(task(), "task").toBe(true);
     expect(taskList(), "task list").toBe(true);
     expect(activity(), "project activity").toBe(true);
@@ -103,29 +167,67 @@ describe("realtime comment frames", () => {
   it("refreshes the guild's recent activity for any comment", () => {
     const recent = seed([`/api/v1/c/${GUILD}/comments/recent`]);
 
-    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])]);
+    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], GUILD);
 
     expect(recent()).toBe(true);
   });
 
-  it("leaves another entity's thread alone", () => {
+  it("leaves another entity's thread alone, and reads nothing for a thread not open", async () => {
     const other = seedThread("post_id", 99);
+    const closed = seedThread("post_id", ENTITY_ID, { open: false });
+    const asked = serveComments({ 1: buildComment({ id: 1, post_id: ENTITY_ID }) });
 
-    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])]);
+    applyChanges([comment(1, [{ type: "posts", id: ENTITY_ID }])], GUILD);
 
-    expect(other()).toBe(false);
+    // A closed thread is only marked stale; it reads again when it is shown.
+    await vi.waitFor(() => expect(closed.invalidated()).toBe(true));
+    expect(asked).toEqual([]);
+    expect(closed.ids()).toEqual([]);
+    expect(other.ids()).toEqual([]);
+    expect(other.invalidated()).toBe(false);
   });
 
-  it("refreshes each thing once for a batch that names it many times", () => {
-    const thread = seedThread("task_id", ENTITY_ID);
-    const parents = [
-      { type: "tasks", id: ENTITY_ID },
-      { type: "projects", id: 7 },
-    ];
+  it("puts a wiki page's comment into that page's thread, which its wiki names", async () => {
+    const wiki = { type: "wikis", id: ENTITY_ID };
+    const page = seedThread("wiki_page_id", 7, { under: wiki });
+    const siblingPage = seedThread("wiki_page_id", 8, { under: wiki });
+    const otherWikisPage = seedThread("wiki_page_id", 9, { under: { type: "wikis", id: 99 } });
+    const asked = serveComments({ 1: buildComment({ id: 1, wiki_page_id: 7 }) });
 
-    applyChanges([comment(1, parents), comment(2, parents), comment(3, parents)]);
+    applyChanges([comment(1, [wiki])], GUILD);
 
-    expect(thread()).toBe(true);
+    await vi.waitFor(() => expect(page.ids()).toEqual([1]));
+    expect(siblingPage.ids()).toEqual([]);
+    expect(otherWikisPage.ids()).toEqual([]);
+    expect(otherWikisPage.invalidated(), "another wiki's page is not touched").toBe(false);
+    expect(asked).toEqual([1]);
+  });
+
+  it("reads back each comment a batch names and brings the open pages up to date", async () => {
+    const onTask = { task_id: ENTITY_ID };
+    const root = buildComment({ id: 1, ...onTask });
+    const reply = buildComment({ id: 2, parent_comment_id: 1, ...onTask });
+    const edited = buildComment({ id: 4, content: "Before", ...onTask });
+    const thread = seedThread("task_id", ENTITY_ID, { comments: [root, reply, edited] });
+    const parents = [{ type: "tasks", id: ENTITY_ID }];
+    const asked = serveComments({
+      // 1 was deleted, and its reply went with it.
+      1: null,
+      3: buildComment({ id: 3, ...onTask }),
+      4: { ...edited, content: "After" },
+      // A reply to a conversation on a page not loaded yet comes with that page.
+      5: buildComment({ id: 5, parent_comment_id: 99, ...onTask }),
+    });
+
+    applyChanges(
+      [comment(4, parents), comment(1, parents), comment(3, parents), comment(5, parents)],
+      GUILD
+    );
+
+    await vi.waitFor(() => expect(thread.ids()).toEqual([4, 3]));
+    expect(thread.content(4)).toBe("After");
+    expect(asked.sort()).toEqual([1, 3, 4, 5]);
+    expect(thread.invalidated()).toBe(false);
   });
 });
 
@@ -143,9 +245,10 @@ describe("realtime resource frames", () => {
   it.each(TOOLS)("refreshes a %s that changed", (tool) => {
     const entity = seed([`/api/v1/c/${GUILD}/${toolRouteSegment(tool)}/${ENTITY_ID}`]);
 
-    applyChanges([
-      { resource: { type: toolPlural(tool), id: ENTITY_ID }, parents: [], action: "updated" },
-    ]);
+    applyChanges(
+      [{ resource: { type: toolPlural(tool), id: ENTITY_ID }, parents: [], action: "updated" }],
+      GUILD
+    );
 
     expect(entity()).toBe(true);
   });
@@ -160,7 +263,7 @@ describe("realtime resource frames", () => {
       changed,
     });
 
-    applyChanges([queue("updated", ["current_round", "name"])]);
+    applyChanges([queue("updated", ["current_round", "name"])], GUILD);
     expect(list(), "list after a rename").toBe(true);
     expect(counts(), "counts after a rename").toBe(false);
 
@@ -171,7 +274,7 @@ describe("realtime resource frames", () => {
       queue("deleted", []),
     ]) {
       seed([`/api/v1/c/${GUILD}/tools/counts/by-initiative`]);
-      applyChanges([change]);
+      applyChanges([change], GUILD);
       expect(counts(), `counts after ${change.action} ${change.changed}`).toBe(true);
     }
   });
@@ -180,13 +283,16 @@ describe("realtime resource frames", () => {
     const task = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
     const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
 
-    applyChanges([
-      {
-        resource: { type: "tasks", id: ENTITY_ID },
-        parents: [{ type: "projects", id: 7 }],
-        action: "updated",
-      },
-    ]);
+    applyChanges(
+      [
+        {
+          resource: { type: "tasks", id: ENTITY_ID },
+          parents: [{ type: "projects", id: 7 }],
+          action: "updated",
+        },
+      ],
+      GUILD
+    );
 
     expect(task(), "task").toBe(true);
     expect(project(), "project").toBe(true);
@@ -201,9 +307,10 @@ describe("realtime resource frames", () => {
     const roles = seed([`/api/v1/c/${GUILD}/initiatives/${ENTITY_ID}/roles`]);
     const properties = seed([`/api/v1/c/${GUILD}/property-definitions`]);
 
-    applyChanges([
-      { resource: { type: "initiatives", id: ENTITY_ID }, parents: [], action: "updated" },
-    ]);
+    applyChanges(
+      [{ resource: { type: "initiatives", id: ENTITY_ID }, parents: [], action: "updated" }],
+      GUILD
+    );
 
     expect(initiative(), "initiative").toBe(true);
     expect(members(), "members").toBe(true);
@@ -217,7 +324,10 @@ describe("realtime resource frames", () => {
     const detail = seed(["guild-app", GUILD, ENTITY_ID]);
     const members = seed(["guild-app-members", GUILD, ENTITY_ID]);
 
-    applyChanges([{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "updated" }]);
+    applyChanges(
+      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "updated" }],
+      GUILD
+    );
 
     expect(list(), "app list").toBe(true);
     expect(detail(), "app detail").toBe(true);
@@ -227,7 +337,10 @@ describe("realtime resource frames", () => {
   it("leaves another guild's install reads alone", () => {
     const other = seed(["guild-app", GUILD + 1, ENTITY_ID]);
 
-    applyChanges([{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "created" }]);
+    applyChanges(
+      [{ resource: { type: "apps", id: ENTITY_ID }, parents: [], action: "created" }],
+      GUILD
+    );
 
     expect(other()).toBe(false);
   });
@@ -236,25 +349,33 @@ describe("realtime resource frames", () => {
     const untouched = seed([`/api/v1/c/${GUILD}/tasks/${ENTITY_ID}`]);
 
     expect(() =>
-      applyChanges([{ resource: { type: "something_new", id: 1 }, parents: [], action: "created" }])
+      applyChanges(
+        [{ resource: { type: "something_new", id: 1 }, parents: [], action: "created" }],
+        GUILD
+      )
     ).not.toThrow();
     expect(untouched()).toBe(false);
   });
 
   it("ignores a malformed frame rather than throwing", () => {
-    expect(() => applyChanges([{}, { resource: undefined, parents: undefined }])).not.toThrow();
+    expect(() =>
+      applyChanges([{}, { resource: undefined, parents: undefined }], GUILD)
+    ).not.toThrow();
   });
 
   it("still refreshes the parents when the resource itself is unknown", () => {
     const project = seed([`/api/v1/c/${GUILD}/projects/7`]);
 
-    applyChanges([
-      {
-        resource: { type: "queue_items", id: 3 },
-        parents: [{ type: "projects", id: 7 }],
-        action: "updated",
-      },
-    ]);
+    applyChanges(
+      [
+        {
+          resource: { type: "queue_items", id: 3 },
+          parents: [{ type: "projects", id: 7 }],
+          action: "updated",
+        },
+      ],
+      GUILD
+    );
 
     expect(project()).toBe(true);
   });

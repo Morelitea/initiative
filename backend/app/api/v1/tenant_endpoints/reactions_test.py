@@ -123,7 +123,7 @@ class TestReactionToggle:
             a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
         )
         assert listed.status_code == 200
-        [comment] = listed.json()
+        [comment] = listed.json()["comments"]
         group = comment["reactions"][0]
         assert group["count"] == 2
         # "reacted" is answered for the caller, not for whoever reacted last.
@@ -163,7 +163,7 @@ class TestReactionToggle:
             a.g("/comments/"), headers=a.headers, params={"task_id": task.id}
         )
         assert listed.status_code == 200
-        [comment] = listed.json()
+        [comment] = listed.json()["comments"]
         assert [g["emoji"] for g in comment["reactions"]] == [THUMBS]
         assert comment["reactions"][0]["reacted"] is True
 
@@ -393,7 +393,7 @@ class TestReactionAccess:
             a.g("/comments/"), headers=b.headers, params={"task_id": task.id}
         )
         assert listed.status_code == 200
-        [comment] = listed.json()
+        [comment] = listed.json()["comments"]
         assert comment["reactions"][0]["count"] == 1
         # "reacted" answers for the caller, who has not reacted here.
         assert comment["reactions"][0]["reacted"] is False

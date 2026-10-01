@@ -12,7 +12,9 @@ who cannot reach an end gets a 404 from the lookup below, and one who can reach
 but not edit gets nothing written.
 
 Two rules the per-tool endpoints applied that the policy deliberately does not,
-carried over because they belong to the surface rather than to the table:
+carried over because they belong to the surface rather than to the table. They
+live in ``relationships.link``, so a link made anywhere else on a person's
+behalf answers to them too:
 
 * **Both ends of a link made here are in one initiative.** The table permits a
   cross-initiative edge — that is where the graph gets its reach, and content
@@ -36,11 +38,9 @@ from app.api.deps import (
 )
 from app.core.messages import RelationshipMessages
 from app.core.relationships import (
-    DERIVED_TYPES,
     ENDPOINT_KINDS,
     Provenance,
     RelationshipType,
-    is_symmetric,
 )
 from app.core.search import SearchEntityType
 from app.db import reference_targets
@@ -77,84 +77,6 @@ def _parse_ref(value: str) -> EndpointRef:
     return EndpointRef(type=entity_type, id=entity_id)
 
 
-async def _resolve(
-    session: RLSSessionDep, ref: EndpointRef, user_id: int
-) -> reference_targets.Resolved:
-    """The row behind a reference, or 404.
-
-    Asked through ``visible_ids``, which joins the row to whatever governs it
-    and calls ``resource_access`` — the same function the tables' own
-    policies call. A thing the caller cannot open is absent rather than
-    forbidden, which is what every other read here does with one.
-    """
-    resolved = await reference_targets.resolve_one(
-        session, ref.type, ref.id, user_id=user_id
-    )
-    if resolved is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
-        )
-    return resolved
-
-
-def _refuse_across_initiatives(
-    a: reference_targets.Resolved, b: reference_targets.Resolved
-) -> None:
-    """Both ends of a link made here belong to the same place.
-
-    Two things can have no initiative, and they are not the same thing:
-
-    * A **tag** belongs to none by its nature — it is the guild's own
-      vocabulary, which every initiative shares. It pairs with anything the
-      guild holds.
-    * An **event on a guild calendar** belongs to none because that is what a
-      guild calendar is: an event takes its initiative from its calendar, and a
-      guild calendar has none. So it is guild-level content, and initiative
-      content is not its to link. That is the rule the calendar endpoint spelled
-      out as ``GUILD_CALENDAR_NO_DOCUMENTS``, which was never about documents.
-
-    What tells them apart is whether the KIND belongs to initiatives at all:
-    ``calendar_events`` does and this row does not, where ``tags`` never does.
-    """
-    if a.initiative_id == b.initiative_id:
-        return
-    guild_vocabulary = any(
-        end.initiative_id is None and not end.scoped_kind for end in (a, b)
-    )
-    if guild_vocabulary:
-        return
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=RelationshipMessages.CROSS_INITIATIVE,
-    )
-
-
-def _refuse_archived(*ends: reference_targets.Resolved) -> None:
-    """An archived thing is finished with, and its links are part of what it
-    says. Asked of both ends, and of a removal as much as an addition."""
-    for end in ends:
-        if end.archived:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=RelationshipMessages.ENDPOINT_ARCHIVED,
-            )
-
-
-def _refuse_derived(relationship_type: RelationshipType) -> None:
-    """Some links are nobody's to make by hand.
-
-    A ``references`` edge is read out of a body when it is saved, so asserting
-    one here would state something no sentence says — and the next save would
-    take it straight back out. Writing the sentence is how you make one.
-    """
-    if relationship_type in DERIVED_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=RelationshipMessages.DERIVED,
-        )
-
-
 def _endpoint_kind(value: SearchEntityType) -> SearchEntityType:
     """A kind an edge may actually name.
 
@@ -168,37 +90,6 @@ def _endpoint_kind(value: SearchEntityType) -> SearchEntityType:
             detail=RelationshipMessages.BAD_ENDPOINT,
         )
     return value
-
-
-async def _refuse_unwritable_source(
-    session: RLSSessionDep,
-    ref: EndpointRef,
-    relationship_type: RelationshipType,
-    user_id: int,
-) -> None:
-    """A directional link is the source's to make.
-
-    Direction is chosen so the source is the end an edge describes, which is
-    what makes "who may write this" derivable: changing what is said *about*
-    something asks to change that thing. A symmetric link describes neither end
-    and asks only that both be readable, which resolving them already proved.
-
-    The table says the same thing and would refuse the write on its own. Asking
-    here is so the refusal arrives with a name the caller can act on — "you can
-    only read that" — rather than as a bare privilege error.
-    """
-    if is_symmetric(relationship_type):
-        return
-    writable = await session.exec(
-        reference_targets.visible_ids(ref.type, user_id, need_write=True).where(
-            reference_targets.id_column(ref.type) == ref.id
-        )
-    )
-    if writable.first() is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=RelationshipMessages.SOURCE_NOT_WRITABLE,
-        )
 
 
 def _render(
@@ -294,8 +185,8 @@ async def list_relationships(
     ref = _parse_ref(entity)
     if other_type is not None:
         other_type = _endpoint_kind(other_type)
-    await _resolve(session, ref, current_user.id)
     anchor = Endpoint(ref.type, ref.id)
+    await relationships_service.resolve(session, anchor, current_user.id)
 
     rows = await relationships_service.list_for_entity(
         session,
@@ -321,28 +212,15 @@ async def create_relationship(
     guild_context: GuildContextDep,
 ) -> RelationshipRead:
     """Record one edge. 409 if it is already there."""
-    _refuse_derived(body.relationship_type)
-    source = await _resolve(session, body.source, current_user.id)
-    target = await _resolve(session, body.target, current_user.id)
-    _refuse_across_initiatives(source, target)
-    _refuse_archived(source, target)
-    await _refuse_unwritable_source(
-        session, body.source, body.relationship_type, current_user.id
-    )
-
-    try:
-        row = await relationships_service.create(
-            session,
+    row = await relationships_service.link(
+        session,
+        relationships_service.Link(
             source=Endpoint(body.source.type, body.source.id),
             relationship_type=body.relationship_type,
             target=Endpoint(body.target.type, body.target.id),
-            created_by=current_user.id,
-        )
-    except relationships_service.SelfLoop:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=RelationshipMessages.SELF,
-        ) from None
+        ),
+        user_id=current_user.id,
+    )
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -380,11 +258,12 @@ async def replace_relationship_slice(
     remembered: a replace is the surface restating a set, not a person taking
     one link back.
     """
-    _refuse_derived(relationship_type)
+    relationships_service.refuse_derived(relationship_type)
     ref = _parse_ref(entity)
     other_type = _endpoint_kind(other_type)
-    anchor_row = await _resolve(session, ref, current_user.id)
-    _refuse_archived(anchor_row)
+    anchor = Endpoint(ref.type, ref.id)
+    anchor_row = await relationships_service.resolve(session, anchor, current_user.id)
+    relationships_service.refuse_archived(anchor_row)
 
     wanted = list(dict.fromkeys(ids))
     resolved = await reference_targets.resolve_many(
@@ -397,10 +276,8 @@ async def replace_relationship_slice(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
             )
-        _refuse_across_initiatives(anchor_row, found)
-        _refuse_archived(found)
-
-    anchor = Endpoint(ref.type, ref.id)
+        relationships_service.refuse_across_initiatives(anchor_row, found)
+        relationships_service.refuse_archived(found)
 
     # A replace is a bulk removal, so everything it drops answers the same
     # question a single removal does. One edge the caller may not remove fails

@@ -8,19 +8,22 @@ visibility pipeline (:func:`guild_task_query_builder`), so an export always
 matches the list on screen.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from operator import attrgetter
-from typing import Any, List, Optional
+from typing import Any, Final, List, Optional
 
 from fastapi import HTTPException, status
+from markdown_it import MarkdownIt
 from sqlalchemy import and_, exists, func, or_
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import defer, joinedload, selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
 from app.core.messages import QueryMessages
+from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
@@ -321,8 +324,80 @@ def _annotate_task_properties(tasks: list[Task]) -> None:
         object.__setattr__(task, "properties", summaries)
 
 
+#: How long a list row's description excerpt runs: two lines of a board card.
+_DESCRIPTION_EXCERPT_CHARS: Final = 160
+
+#: How much of the stored markdown a list reads to make the excerpt from —
+#: room for the markup (pictures, links, mentions) the excerpt leaves out.
+_DESCRIPTION_SOURCE_CHARS: Final = 4 * _DESCRIPTION_EXCERPT_CHARS
+
+#: What a list row reads in place of the description: its head, one character
+#: past the source length so a cut one can be told apart, and whether there is
+#: any description at all.
+_DESCRIPTION_COLUMNS = (
+    func.left(Task.description, _DESCRIPTION_SOURCE_CHARS + 1).label(
+        "description_head"
+    ),
+    func.coalesce(Task.description != "", False).label("has_description"),
+)
+
+#: Descriptions are the markdown the web UI renders (CommonMark plus GFM
+#: strikethrough and tables), parsed here only for the words they show.
+_MARKDOWN = MarkdownIt("commonmark").enable(["strikethrough", "table"])
+
+#: A link, picture or mention the head ends inside: an opening ``[`` whose
+#: text, or whose ``](`` address, has not closed by the end.
+_UNFINISHED_LINK = re.compile(r"(?:[!@]|#[\w-]+)?\[[^\]]*(?:\]\([^)]*)?$")
+
+#: The task box GFM puts at the start of a checklist item.
+_TASK_BOX = re.compile(r"^\[[ xX]\]\s+")
+
+
+def _description_excerpt(head: str | None) -> str | None:
+    """A list row's plain-text excerpt of a description, from its head.
+
+    ``head`` is the first :data:`_DESCRIPTION_SOURCE_CHARS` + 1 characters of
+    the markdown; one past the source length means the description goes on, so
+    the excerpt is cut even when the text read so far is short. The excerpt is
+    the text of each block's inline content: pictures, HTML and code blocks
+    drop out, a link or a mention keeps the words it shows.
+    """
+    if not head:
+        return None
+    source_cut = len(head) > _DESCRIPTION_SOURCE_CHARS
+    source = head[:_DESCRIPTION_SOURCE_CHARS]
+    if source_cut:
+        # A link, picture or mention the cut goes through is left out whole.
+        source = _UNFINISHED_LINK.sub("", source)
+    source = TEXT_REFERENCE.sub(
+        lambda m: m.group(2) if kind_for_trigger(m.group(1)) else m.group(0), source
+    )
+    words: list[str] = []
+    for token in _MARKDOWN.parse(source):
+        for index, child in enumerate(token.children or ()):
+            if child.type in ("text", "code_inline"):
+                words.append(
+                    _TASK_BOX.sub("", child.content) if index == 0 else child.content
+                )
+            elif child.type in ("softbreak", "hardbreak"):
+                words.append(" ")
+        words.append(" ")
+    text = " ".join("".join(words).split())
+    if not source_cut and len(text) <= _DESCRIPTION_EXCERPT_CHARS:
+        return text or None
+    # Leave room for the ellipsis, and end on a whole word: unless the cut
+    # falls before a space, drop what follows the last one, which is part of a
+    # word or, where the source was cut, of a piece of markup.
+    cut = text[: _DESCRIPTION_EXCERPT_CHARS - 1]
+    if not text[len(cut) :].startswith(" "):
+        cut = cut.rpartition(" ")[0] or cut
+    return cut.rstrip() + "…" if cut else None
+
+
 def _task_to_list_read(
     task: Task,
+    description_head: str | None,
+    has_description: bool,
     *,
     guild_id: int | None = None,
     guild_name: str | None = None,
@@ -331,16 +406,19 @@ def _task_to_list_read(
 
     Read off the row like ``TaskRead``, so a column the schema gains reaches
     every list with nothing added here. What the row does not carry is filled
-    in: the project and initiative names, and ``guild_id`` — the community the
-    row was read in, the route's for a guild-scoped list and for a cross-guild
-    one the schema each row came from, because rows from several are merged
-    after the session has moved on. ``guild_name`` goes with it, for the same
-    reason.
+    in: the description's excerpt, made from the head read beside the row
+    (:data:`_DESCRIPTION_COLUMNS`) rather than the whole text; the project and
+    initiative names; and ``guild_id`` — the community the row was read in, the
+    route's for a guild-scoped list and for a cross-guild one the schema each
+    row came from, because rows from several are merged after the session has
+    moved on. ``guild_name`` goes with it, for the same reason.
     """
     project = task.project
     initiative = project.initiative if project else None
     return TaskListRead.model_validate(task, from_attributes=True).model_copy(
         update={
+            "description_excerpt": _description_excerpt(description_head),
+            "has_description": has_description,
             "guild_id": guild_id,
             "guild_name": guild_name,
             "project_name": project.name if project else None,
@@ -352,17 +430,23 @@ def _task_to_list_read(
 
 
 async def list_reads(
-    session: AsyncSession, tasks: list[Task], guild_id: int | None
+    session: AsyncSession, rows: list[Any], guild_id: int | None
 ) -> list[TaskListRead]:
-    """List rows for tasks loaded with :data:`LIST_ROW_OPTIONS`."""
+    """List rows for the rows a :func:`list_row_statement` returned."""
+    tasks = [row[0] for row in rows]
     await _annotate_tasks(session, tasks)
     await tags_service.annotate_tags(session, tasks)
     _annotate_task_properties(tasks)
-    return [_task_to_list_read(task, guild_id=guild_id) for task in tasks]
+    return [
+        _task_to_list_read(task, head, has_description, guild_id=guild_id)
+        for task, head, has_description in rows
+    ]
 
 
-#: What a list row reads beyond the task itself.
-LIST_ROW_OPTIONS = (
+#: What a list row reads beyond the task itself. The description stays in the
+#: database; the row reads :data:`_DESCRIPTION_COLUMNS` instead.
+_LIST_ROW_OPTIONS = (
+    defer(Task.description),
     selectinload(Task.project).selectinload(Project.initiative),
     selectinload(Task.assignees),
     selectinload(Task.task_status),
@@ -380,15 +464,22 @@ _EXPORT_ROW_OPTIONS = (
 )
 
 
-def list_statement(build, q: "TaskListQuery", *options):
-    """``build``'s tasks in the order ``q`` asked for, loaded with ``options``."""
+def list_statement(build, q: "TaskListQuery", *options, columns=()):
+    """``build``'s tasks, each with ``columns`` beside it, in the order ``q``
+    asked for, loaded with ``options``."""
     return apply_sorting(
-        build(select(Task)).options(*options),
+        build(select(Task, *columns)).options(*options),
         Task,
         sort_fields=q.sort_fields,
         allowed_fields=_task_sort_fields(q.tz),
         default_sort=TASK_DEFAULT_SORT,
     )
+
+
+def list_row_statement(build, q: "TaskListQuery"):
+    """The rows :func:`list_reads` serializes: each task loaded for a list,
+    with its description head and flag beside it."""
+    return list_statement(build, q, *_LIST_ROW_OPTIONS, columns=_DESCRIPTION_COLUMNS)
 
 
 async def load_tasks(session: AsyncSession, task_ids: list[int]) -> list[Task]:
@@ -536,6 +627,7 @@ def _global_task_options():
     ``selectinload``, which is what it is for.
     """
     return (
+        defer(Task.description),
         joinedload(Task.project).joinedload(Project.initiative),
         selectinload(Task.assignees),
         selectinload(Task.task_status),
@@ -650,6 +742,7 @@ async def _gather_global_task_reads(
                 Task,
                 _comment_count_expression(),
                 _open_blocker_count_expression(),
+                *_DESCRIPTION_COLUMNS,
             )
             .where(Task.id.in_(tuple(ids)))
             .options(*_global_task_options())
@@ -670,10 +763,14 @@ async def _gather_global_task_reads(
             (
                 placement[(_guild_id, task.id)],
                 _task_to_list_read(
-                    task, guild_id=_guild_id, guild_name=guild_names.get(_guild_id)
+                    task,
+                    head,
+                    has_description,
+                    guild_id=_guild_id,
+                    guild_name=guild_names.get(_guild_id),
                 ),
             )
-            for task in tasks
+            for task, _comments, _blockers, head, has_description in rows
         ]
 
     hydrated = await gather_across_guilds(
@@ -1183,12 +1280,12 @@ async def query_guild_tasks(
     )
     if build is None:
         return []
-    statement = list_statement(build, q, *LIST_ROW_OPTIONS)
+    statement = list_row_statement(build, q)
     window = _task_calendar_window_clause(start_after, start_before)
     if window is not None:
         statement = statement.where(window)
-    tasks = list((await session.exec(statement)).all())
-    return await list_reads(session, tasks, routed_guild_id(session))
+    rows = list((await session.exec(statement)).all())
+    return await list_reads(session, rows, routed_guild_id(session))
 
 
 async def query_my_tasks_list(
