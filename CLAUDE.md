@@ -588,7 +588,7 @@ Two cross-cutting overrides sit above all four:
 - **PAM** — platform roles may be **temporarily** granted scoped access via the DB tooling (time-bound, audited `access_grants`; `pam_read`/`pam_write` RLS legs). Never a standing bypass.
 - **Guild admin** — **always** has read/write to **every** aspect of their guild, regardless of initiative membership or sharing (`GuildContext.is_admin` / the `app.guild_admin` RLS leg, computed from the membership row by the standing statement).
 
-Two rules follow from this being a **DB-layer** standard: authorization is a property of the *current moment*, not of a connection or a cached snapshot (re-derive it when grant/role/membership/PAM change); and a non-DB-enforced channel (e.g. an out-of-band realtime push) must carry **no content it hasn't continuously authorized** — prefer a content-free signal + an RLS-gated refetch so the gates above are the only decision point. See [`history/realtime-authorization-design.md`](history/realtime-authorization-design.md).
+Two rules follow from this being a **DB-layer** standard: authorization is a property of the *current moment*, not of a connection or a cached snapshot (re-derive it when grant/role/membership/PAM change); and a non-DB-enforced channel (e.g. an out-of-band realtime push) must carry **no content it hasn't continuously authorized** — prefer a content-free signal + an RLS-gated refetch so the gates above are the only decision point.
 
 ### Three engines (Postgres logins) — [`session.py`](backend/app/db/session.py)
 

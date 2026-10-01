@@ -216,9 +216,8 @@ async def lifespan(app: FastAPI):
         await cohorts.settle_all()
 
 
-# Gate the interactive docs + raw OpenAPI schema behind a setting (pentest
-# SEC-16). When disabled, FastAPI serves no /docs and no /openapi.json, so the
-# full route/parameter/error map isn't handed out. Defaults to on for dev
+# Gate the interactive docs + raw OpenAPI schema behind a setting. When
+# disabled, FastAPI serves no /docs and no /openapi.json. Defaults to on for dev
 # ergonomics; recommend ENABLE_API_DOCS=False in production.
 # docs_url is left None even when docs are enabled: the default route would
 # inherit the app-wide CSP and the jsDelivr-hosted Swagger assets get blocked.
@@ -255,7 +254,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Register the middleware so the limiter's `default_limits` actually apply to
 # *every* route, not just the handful with an explicit `@limiter.limit(...)`
-# decorator (SEC-14). Without this the global default was inert. The middleware
+# decorator. Without this the global default was inert. The middleware
 # short-circuits when `limiter.enabled` is False (the test suite sets that), and
 # routes that already carry a decorator are exempted from the default here.
 
@@ -334,8 +333,8 @@ async def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
     """Strip the echoed ``input`` (and the pydantic docs ``url``) from 422
-    bodies so a failed validation can't leak the submitted value — e.g. a
-    password or client secret on an auth/settings endpoint (pentest LOW-001).
+    bodies so a failed validation never echoes the submitted value — e.g. a
+    password or client secret on an auth/settings endpoint.
     Field locations and messages are kept: they're already public via the
     OpenAPI schema and the SPA surfaces them.
     """
@@ -462,7 +461,7 @@ async def insufficient_privilege_handler(
 
 @lru_cache(maxsize=8)
 def _content_security_policy(captcha_provider: str | None) -> str:
-    """The app-wide CSP (pentest MED-001), built once per captcha provider.
+    """The app-wide CSP, built once per captcha provider.
 
     The provider lives in the settings row, so it can change while the process
     runs; everything else in the header is fixed for the process lifetime.
@@ -504,7 +503,7 @@ def _is_wasm_worker_asset(path: str) -> bool:
     )
 
 
-# Emit HSTS only when the public origin is HTTPS (pentest SEC-16): the header is
+# Emit HSTS only when the public origin is HTTPS: the header is
 # inert over plain HTTP and pinning a dev http:// origin to HTTPS would break it.
 # Two years + includeSubDomains is the preload-eligible baseline; computed once
 # since Settings are immutable for the process lifetime.

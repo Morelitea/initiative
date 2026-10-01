@@ -433,8 +433,8 @@ async def create_guild_membership(
 AUTH_SUBJECT_ATTR = "auth_subject"
 
 #: The address the factory gave the account, attached to the object for the
-#: same reason the subject is: a test that asserts an address does not leak
-#: into a response needs to know which address, and ``users`` no longer carries
+#: same reason the subject is: a test that asserts an address is absent from a
+#: response needs to know which address, and ``users`` no longer carries
 #: one. Deliberately not called ``email``: the model has no such field, and a
 #: name shaped like one belongs to the model rather than to the factory.
 SEEDED_ADDRESS_ATTR = "seeded_address"

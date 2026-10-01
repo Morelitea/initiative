@@ -1,11 +1,11 @@
-"""Unit tests: SQL-identifier builders reject hostile input (Tier 3).
+"""Unit tests: SQL-identifier builders reject invalid input (Tier 3).
 
-The tenancy model leans on one property — a request can never cause an
-attacker-chosen string to become a Postgres role/schema name. Two mechanisms
+The tenancy model leans on one property — a request-supplied string never
+becomes a Postgres role/schema name. Two mechanisms
 enforce it: guild identifiers are coerced with ``int()`` inside every name
 builder, and the two string-valued role inputs (guild role, platform tier) are
 allow-listed in :func:`set_rls_context` before they reach the ``SET ROLE`` sink.
-These tests pin both so a regression can't quietly reopen the sink.
+These tests pin both so a regression fails here.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ _GUILD_ID_BUILDERS = {
     },
 }
 
-# Values a path/query param could smuggle if int-coercion were ever dropped.
+# Non-integer values a path/query param could carry.
 _HOSTILE_GUILD_IDS = [
     "3; DROP ROLE app_admin",
     "1 OR 1=1",
@@ -53,9 +53,9 @@ _HOSTILE_GUILD_IDS = [
 )
 @pytest.mark.parametrize("hostile", _HOSTILE_GUILD_IDS, ids=repr)
 def test_guild_name_builders_reject_or_sanitize_hostile_ids(builder, hostile):
-    """A guild-name builder must never emit an injectable identifier from a
+    """A guild-name builder only ever emits a digits-only identifier from a
     non-integer id — it either raises (``int()`` on a string/None) or coerces
-    to a digits-only name (a truncating float can't smuggle characters)."""
+    to a digits-only name (a float truncates to its integer part)."""
     try:
         name = builder(hostile)
     except (ValueError, TypeError):
@@ -96,7 +96,7 @@ async def test_set_rls_context_takes_no_role_to_claim():
 
     A routing says which community it is in. What the reader is there is a row
     the database reads into the request's standing, so there is no parameter to
-    hand a value to — hostile or otherwise.
+    hand a value to.
     """
     import inspect
 

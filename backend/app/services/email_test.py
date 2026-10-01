@@ -1,4 +1,4 @@
-"""Tests for transactional email rendering (SEC-5: HTML escaping)."""
+"""Tests for transactional email rendering (HTML escaping)."""
 
 from dataclasses import replace
 
@@ -14,8 +14,8 @@ EVIL_NAME = '<a href="https://phish.example">Reset your password</a>'
 
 async def test_mention_email_escapes_malicious_display_name(session, monkeypatch):
     """A mention email whose actor display name contains markup must show the
-    literal text in the HTML part (no live phishing link inside the trusted,
-    brand-styled body) while the plain-text alternative keeps the raw text."""
+    literal text in the HTML part (no live link inside the brand-styled body)
+    while the plain-text alternative keeps the raw text."""
     user = await create_user(session, full_name="Victim")
 
     captured: dict = {}
@@ -78,10 +78,10 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     """The manager's copy resolves from the `initiativeJoinRequest` block and
     neutralizes the requester's free-text note in the HTML part.
 
-    The note is the one piece of this mail a stranger writes, and `email_t`
+    The note is the one piece of this mail the requester writes, and `email_t`
     returns the key itself when a template is missing — so this pins both that
-    the keys exist and that the note can't smuggle markup into a brand-styled
-    body.
+    the keys exist and that the note renders as text, not markup, in the
+    brand-styled body.
     """
     manager = await create_user(session, full_name="Grace")
 

@@ -24,7 +24,7 @@ class AuthSession(SQLModel, table=True):
 
     The access JWT is stateless (verified locally, no per-request DB hit); this
     row is what makes the refresh side revocable. ``id`` is the JWT ``sid`` — a
-    uuid, so it is non-enumerable and leaks no session count. ``satisfied_providers``
+    uuid rather than a sequence. ``satisfied_providers``
     / ``amr`` record which providers/factors this session authenticated against,
     mirrored into the access token so the per-guild auth-policy gate and step-up
     read them locally without a lookup. ``provider_auth`` holds each satisfied

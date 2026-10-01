@@ -8767,9 +8767,9 @@ export interface UnreadPlacesResponse {
  * Native (Capacitor) <img>/<iframe> tags can't send the Authorization header
  * or the HttpOnly session cookie, so they carry auth as a ``?token=`` query
  * param. This token is accepted only by the /uploads + document-download
- * routes and expires quickly, so a leak via logs/history/Referer is harmless
- * compared with putting the 7-day session JWT in the URL. ``expires_in`` is
- * the lifetime in seconds so the SPA can refresh before it lapses.
+ * routes and expires quickly; the 7-day session JWT never goes in a URL.
+ * ``expires_in`` is the lifetime in seconds so the SPA can refresh before it
+ * lapses.
  */
 export interface UploadTokenResponse {
   upload_token: string;

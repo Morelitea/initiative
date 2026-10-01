@@ -522,10 +522,9 @@ async def revoke_user_sessions(
 
     Bumps ``token_version`` (which the JWT/WS authenticators compare against,
     invalidating any still-unexpired access token), bulk-revokes the user's
-    active ``device_auth`` tokens, deactivates their API keys (a leaked PAT must
-    not survive a compromise response), and revokes their rotating **refresh
-    sessions** — without which a captured refresh token would keep minting valid
-    access tokens *at the new ``token_version``* right past the reset. Shared by
+    active ``device_auth`` tokens, deactivates their API keys, and revokes their
+    rotating **refresh sessions** — a refresh would otherwise keep minting access
+    tokens *at the new ``token_version``* after the reset. Shared by
     the self-service password change, the forgot-password reset, and the operator
     password reset so the three paths can't drift.
 

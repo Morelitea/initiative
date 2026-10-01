@@ -5,7 +5,7 @@ Exercises the security properties of ``POST /api/v1/billing/*``:
 * the double envelope — HMAC over METHOD/PATH/TIMESTAMP/sha256(body) inside
   a replay window, plus an RS256 service JWT with one-shot jti — with
   negative tests for every layer (unconfigured, missing headers, stale or
-  tampered signatures, wrong key/aud/iss, replayed jti);
+  altered signatures, wrong key/aud/iss, reused jti);
 * exactly-once application via the ``billing_event_log`` claim (a retried
   event id is a no-op; a 404'd attempt does NOT consume its event id);
 * omit-vs-null sentinel semantics on the writable fields;

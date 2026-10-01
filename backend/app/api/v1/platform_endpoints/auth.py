@@ -1086,7 +1086,7 @@ async def logout(
 
     What is revoked here is the refresh side — the rotation chain behind this
     login. The access token it came in on is short-lived and the client drops
-    it (history/auth-detailed-design.md §3.3).
+    it.
 
     A native client authenticating with a device token consumes that row too —
     the token is one installed client's, so consuming it is the same per-device
@@ -1145,7 +1145,7 @@ async def issue_upload_token(
 
     Native (Capacitor) clients call this to load ``/uploads/*`` media and
     document downloads via ``?token=`` without putting the long-lived session
-    JWT in the URL (which would leak through logs, history, and Referer). The
+    JWT in the URL. The
     token is accepted only by the uploads/download routes and is useless as a
     general API credential.
     """
@@ -1600,8 +1600,8 @@ async def _begin_provider_login(
             detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
         ) from exc
     # Discovery validated the authorization endpoint as an absolute https URL
-    # (see app.services.auth.oidc.discovery), so a malformed or tampered
-    # discovery document cannot send the user to a non-TLS location.
+    # (see app.services.auth.oidc.discovery), so this redirect always goes to
+    # an https location.
     response = RedirectResponse(begun.authorization_url)
     response.set_cookie(
         key=OIDC_FLOW_COOKIE,

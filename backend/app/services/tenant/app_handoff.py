@@ -91,7 +91,7 @@ __all__ = [
 ]
 
 #: Single source for the handoff's lifetime, so the response advertises exactly
-#: what the ``exp`` claim encodes. Short by design: a leaked handoff is worth a
+#: what the ``exp`` claim encodes. Short by design: the handoff is spent within a
 #: minute, and the long-lived session belongs to the app, not to this token.
 APP_EMBED_HANDOFF_LIFETIME = timedelta(seconds=60)
 

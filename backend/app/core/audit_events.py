@@ -5,8 +5,8 @@ filters — so adding a newly-audited action is an enum member, a metadata row,
 and one ``record()`` call at the site. There is no second list to keep in step;
 ``audit_events_test`` fails CI if the two here ever disagree.
 
-Tiers come from ``history/pam-audit-sink-design.md``. Tier 1 is the privileged
--access family, which that design writes to immutable storage as well; Tier 2 is
+There are two tiers. Tier 1 is the privileged
+-access family, which is meant for immutable storage as well; Tier 2 is
 everything else Initiative owns. Nothing here ships anywhere yet — the tier is
 recorded now so the shipper does not have to reclassify history later.
 

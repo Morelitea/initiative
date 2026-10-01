@@ -11,7 +11,7 @@ import nh3
 from pydantic import BaseModel, model_validator
 
 # Hard ceiling on any plain-text field. Generous for names/titles/labels/tokens
-# while bounding both the stored size (DoS) and the entity-decode loop in
+# while bounding both the stored size and the entity-decode loop in
 # strip_to_plain_text. Fields that legitimately hold large data (base64 images,
 # import payloads, AI output) opt out via RawTextStr; rich text via RichTextStr.
 MAX_PLAIN_TEXT_LENGTH = 8192

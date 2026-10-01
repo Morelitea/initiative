@@ -103,8 +103,7 @@ interface AuthContextValue {
   /**
    * True when the signed-in user came from a stored snapshot the server has not
    * confirmed — the app opened with no signal. Cleared as soon as any request
-   * succeeds; a rejected one ends the session. See
-   * `history/offline-reading-design.md`.
+   * succeeds; a rejected one ends the session.
    */
   sessionUnverified: boolean;
   login: (payload: LoginPayload) => Promise<void>;

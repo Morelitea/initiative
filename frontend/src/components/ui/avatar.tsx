@@ -20,10 +20,9 @@ const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
 >(({ className, ...props }, ref) => (
-  // ``referrerPolicy="no-referrer"`` so an avatar served from ``/uploads/`` (or a
-  // user-supplied ``avatar_url``) never leaks the current page URL — which can
-  // carry an upload ``?token=`` on native — via the Referer header. Callers may
-  // still override through ``props``.
+  // ``referrerPolicy="no-referrer"`` so loading an avatar from ``/uploads/`` (or
+  // a user-supplied ``avatar_url``) never sends the current page URL as the
+  // Referer header. Callers may still override through ``props``.
   <AvatarPrimitive.Image
     ref={ref}
     referrerPolicy="no-referrer"

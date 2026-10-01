@@ -22,8 +22,6 @@ learn it:
 
 Nothing is minted. A sector that has never named this guild has nothing to
 report, which is a 404 and not a reason to create one.
-
-See ``history/opaque-identity-design.md`` §15.
 """
 
 from __future__ import annotations

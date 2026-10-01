@@ -86,8 +86,7 @@ async def test_unregister_cannot_delete_other_users_token(
     )
     assert register.status_code == 200
 
-    # A different authenticated user who learned the token value must not be
-    # able to silence the owner's device.
+    # Unregistering removes only the caller's own tokens.
     await client.request(
         "DELETE",
         "/api/v1/push/unregister",

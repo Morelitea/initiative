@@ -147,7 +147,7 @@ def _file_download_response(
     """Build a hardened download response for a stored upload blob.
 
     Shared by the current-document download and the per-version download so
-    the path-traversal guard and SVG/HTML stored-XSS hardening can't drift
+    the filename checks and SVG/HTML response hardening can't drift
     between the two endpoints. Serves through the guild's storage backend
     (local FileResponse or S3 streaming proxy) via :func:`build_upload_response`.
     """
@@ -372,7 +372,7 @@ async def upload_document_file(
     )
 
     # Read the body with a hard cap so an over-limit upload is rejected before
-    # the whole payload is buffered into memory (memory-exhaustion DoS guard).
+    # the whole payload is buffered into memory.
     try:
         contents = await attachments_service.read_upload_bounded(
             file, attachments_service.MAX_DOCUMENT_FILE_SIZE
@@ -500,7 +500,7 @@ async def upload_document_version(
     await storage_config.ensure_storage_config_fresh(session)
 
     # Read the body with a hard cap so an over-limit upload is rejected before
-    # the whole payload is buffered into memory (memory-exhaustion DoS guard).
+    # the whole payload is buffered into memory.
     try:
         contents = await attachments_service.read_upload_bounded(
             file, attachments_service.MAX_DOCUMENT_FILE_SIZE

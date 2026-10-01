@@ -11,8 +11,8 @@ Three questions, in order:
 1. **Is it live?** Published, not scheduled for later, not expired.
 2. **Is it for them?** The row's two audience filters — a minimum platform rung
    and "administers a guild somewhere". This is relevance, not confidentiality:
-   an announcement is a notice about the product, and the thing that must not
-   leak is a *draft*, which RLS handles.
+   an announcement is a notice about the product; a *draft* is kept private by
+   RLS.
 3. **Have they finished with it?** Dismissals take it out of the queue once
    there are as many as the notice asked for (normally one); merely having
    seen it does not.

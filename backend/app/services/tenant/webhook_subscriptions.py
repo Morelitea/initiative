@@ -239,7 +239,7 @@ async def get_subscription(
 ) -> WebhookSubscription:
     """Fetch by id, scoped to the caller's guild. Raises
     :class:`WebhookSubscriptionNotFoundError` so cross-guild lookups
-    leak "not found" rather than "forbidden".
+    report "not found" rather than "forbidden".
 
     ``for_update`` locks the row for the rest of the transaction, for callers
     that read it, decide something from it, and write it back.

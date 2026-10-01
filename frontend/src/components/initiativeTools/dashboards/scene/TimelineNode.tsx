@@ -487,7 +487,7 @@ function SpanMark({ span, range, formatDate }: SpanMarkProps) {
 }
 
 /** The triangular end cap on a summary bracket, drawn with borders so it stays
- *  a plain style value — no shape a scene could smuggle something into. */
+ *  a plain style value. */
 const capStyle = (color: string): React.CSSProperties => ({
   width: 0,
   height: 0,

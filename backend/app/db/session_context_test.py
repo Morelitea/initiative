@@ -1,6 +1,6 @@
 """Regression tests for transaction-local RLS context (#784).
 
-The contract under test (see history/transaction-scoped-context-design.md):
+The contract under test:
 
 - Context is applied with ``set_config(..., is_local=true)`` and REPLAYED at
   the start of every transaction by the ``after_begin`` hook — so a

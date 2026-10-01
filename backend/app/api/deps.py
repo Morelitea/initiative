@@ -481,7 +481,7 @@ async def _enforce_guild_auth_policy(
     *,
     require_second_factor: bool = False,
 ) -> None:
-    """Gate 0 of guild access (history/auth-detailed-design.md §5): the guild's
+    """Gate 0 of guild access: the guild's
     sign-in policy must be satisfied by THIS session — membership and PAM
     grants alike. No policy row (or ``open``) admits any authenticated
     session.
@@ -1481,7 +1481,7 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
     installation token is admitted only here: :func:`get_current_user` refuses
     one, so a route that names no scope cannot be reached by an app. For an
     install, the guild comes from the token and the path's ``{guild_id}`` is
-    not read (``history/opaque-identity-design.md`` §13); a token whose scopes
+    not read; a token whose scopes
     do not cover ``scope`` gets 403 (``APP_SCOPE_REQUIRED``).
 
     Either way the request's session — the one :data:`SessionDep` hands out,
@@ -1924,7 +1924,7 @@ async def _resolve_upload_user(
 
       * Authorization header or HttpOnly cookie — not exposed in URLs, so what
         every other route accepts is accepted here.
-      * ``?token=`` query param — leaks via logs/history/Referer, so only a
+      * ``?token=`` query param — part of the URL, so only a
         short-lived uploads-scoped token or a device token is accepted. A
         session token or API key there is refused; native clients fetch a
         scoped token from ``POST /auth/upload-token`` instead.

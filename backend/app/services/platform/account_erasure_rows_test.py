@@ -23,9 +23,8 @@ Three outcomes appear below, and the distinction is the point:
   neighbouring reason — it outlives the membership it was placed on.
 
 ``webhook_subscriptions.created_by`` used to be none of those — it named the
-account a delivery was read as. It is ordinary authorship since
-``history/webhook-scope-not-principal-design.md``, so it belongs to the third
-group with the rest.
+account a delivery was read as. It is ordinary authorship now, so it belongs to
+the third group with the rest.
 
 The two erasure paths are both exercised, because they do not do the same
 things: ``soft_delete_user`` is what the product runs (the deletion request and

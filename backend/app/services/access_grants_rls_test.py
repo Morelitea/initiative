@@ -290,7 +290,7 @@ async def test_request_role_cannot_self_insert_an_access_grant(session: AsyncSes
     PAM/support path cannot be self-granted. Routed as the actor on the
     platform path; the write is denied at the role level."""
     attacker = await create_user(session, email="attacker@example.com")
-    target = await create_guild(session)  # a guild the attacker is not a member of
+    target = await create_guild(session)  # a guild the actor is not a member of
 
     try:
         await set_rls_context(session, Platform(user_id=attacker.id, tier="member"))

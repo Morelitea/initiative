@@ -9,8 +9,6 @@ Forward (entity -> reference) is ``ensure_ref``, which mints on first use, so a
 new purpose needs no migration and no backfill: every existing user and guild
 acquires a reference for it the first time one is asked for. Reverse (reference
 -> entity) is ``resolve_ref``, an indexed lookup.
-
-See ``history/opaque-identity-design.md``.
 """
 
 from __future__ import annotations

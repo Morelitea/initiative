@@ -56,7 +56,7 @@ async def test_storage_usage_requires_membership(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A user who isn't in the guild can't read its usage — RLS hides the
-    guild (404), never leaks another guild's stored-byte total."""
+    guild (404)."""
     owner = await acting_user(guild_role=GuildRole.admin)
     await create_upload(session, owner.guild, owner.user, size_bytes=999)
 

@@ -1,6 +1,6 @@
 """The database privilege posture, asserted as CI invariants.
 
-The actor model (see ``history/remove-superadmin-bypassrls-design.md``) is only
+The actor model is only
 as durable as the catalog state that implements it — a hotfix migration adding
 a broad ``GRANT``, a manually flipped role attribute, or a new RLS table
 without a decision would all land silently. These tests re-derive the posture
@@ -16,7 +16,7 @@ table placement:
   rendered through the capabilities;
 * every RLS-enabled shared table is FORCEd (even table owners obey policies);
 * the retired ``is_superadmin`` GUC appears in no policy anywhere;
-* no app role may CREATE objects in ``public`` (search_path hijack guard);
+* no app role may CREATE objects in ``public`` (it is on every search_path);
 * login-role memberships in scoped roles are INHERIT FALSE (no standing
   access without an explicit ``SET ROLE``).
 """

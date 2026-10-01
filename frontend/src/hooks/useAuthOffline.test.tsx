@@ -4,7 +4,7 @@
  * The distinction these pin down is the whole safety property of offline
  * reading: a server that answered — with anything, a 401 included — ends the
  * session, and only a request that got no answer at all falls back to the
- * stored snapshot. See `history/offline-reading-design.md`.
+ * stored snapshot.
  */
 import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";

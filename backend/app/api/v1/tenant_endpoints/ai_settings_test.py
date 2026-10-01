@@ -4,7 +4,7 @@ Proves the security properties of the refactor end-to-end:
 - A connection's key is never returned by the API (only ``has_api_key``).
 - A member can attach a key + pick a connection, but has NO way to set a
   destination (no member connection-create endpoint; attaching to an unknown
-  connection 404s) — the inherited-key + attacker-base_url exfil is impossible.
+  connection 404s).
 - A member sees only their OWN key state (own-row).
 - A guild admin can never persist a private/internal base_url.
 """
@@ -335,7 +335,7 @@ async def test_my_ai_aggregate_lists_connections_across_guilds(client, acting_us
     assert row["scope"] == "platform"
     assert row["connection_id"] == conn_id
     assert row["label"] == "Shared"
-    # Never leaks the key itself.
+    # The key itself is never returned.
     assert "api_key" not in row
 
 

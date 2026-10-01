@@ -2498,7 +2498,7 @@ async def test_aggregate_export_hides_dac_invisible_rows(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
     """Rows not shared with the exporter are simply ABSENT from the backup —
-    not listed under ``skipped`` (that would leak their existence)."""
+    not listed under ``skipped`` either."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await _all_tools_enabled(session, a.initiative)
     other = await acting_user(

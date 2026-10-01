@@ -2,8 +2,8 @@
 
 Guild-scoped requests address their guild through the ``/c/{guild_id}`` path
 segment. The guild is only a selector, never a trust boundary: membership (or a
-live PAM grant) is validated fresh on every request, so a forged path can never
-read another guild's data. There is no server-held guild context anymore — the
+live PAM grant) is validated fresh on every request, so the path alone never
+opens a guild. There is no server-held guild context anymore — the
 URL is the single source of truth, per request and per tab.
 """
 

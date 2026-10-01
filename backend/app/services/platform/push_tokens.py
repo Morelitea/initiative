@@ -156,8 +156,8 @@ async def delete_push_token(
     push_token: str,
 ) -> bool:
     """Remove one of ``user_id``'s push tokens (on unregister or invalid
-    token error). Scoped to the owner so a leaked token value can't be used
-    to silence another user's devices.
+    token error). Scoped to the owner, so only that user's own token is
+    removed.
 
     Returns True if a token was deleted, False otherwise.
     """

@@ -129,8 +129,8 @@ async def test_a_served_upload_is_cacheable_but_not_indefinitely(
 async def test_upload_session_jwt_rejected_in_query_param(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """The long-lived session JWT must NOT be accepted via ?token= (it would
-    leak a full-API credential through logs/history/Referer). SEC-12."""
+    """The long-lived session JWT must NOT be accepted via ?token=; only a
+    scoped upload token is."""
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_query_session_jwt.txt"
     test_file.write_text("hello")
@@ -148,11 +148,11 @@ async def test_upload_session_jwt_rejected_in_query_param(
 async def test_upload_accessible_with_scoped_upload_token(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """A short-lived, uploads-scoped token IS accepted via ?token=. SEC-12."""
+    """A short-lived, uploads-scoped token IS accepted via ?token=."""
     from app.models.tenant.upload import Upload
 
     user = await create_user(session)
-    # SEC-6 (merged): files are only served with a matching Upload row and
+    # Files are only served with a matching Upload row and
     # guild membership — the scoped token answers "who", not "may".
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
@@ -176,7 +176,7 @@ async def test_upload_accessible_with_scoped_upload_token(
 async def test_scoped_upload_token_rejected_as_general_api_credential(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """A scoped upload token must not authenticate general API calls. SEC-12."""
+    """A scoped upload token must not authenticate general API calls."""
     user = await create_user(session)
     token, _ = create_upload_token(user_id=user.id)
     response = await client.get(
@@ -188,11 +188,11 @@ async def test_scoped_upload_token_rejected_as_general_api_credential(
 async def test_issue_upload_token_endpoint(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """POST /auth/upload-token mints a token that opens /uploads. SEC-12."""
+    """POST /auth/upload-token mints a token that opens /uploads."""
     from app.models.tenant.upload import Upload
 
     user = await create_user(session)
-    # SEC-6 (merged): serving requires a matching Upload row + membership.
+    # Serving requires a matching Upload row + membership.
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     _stage_upload(guild.id, "test_minted_token.txt")
@@ -220,7 +220,7 @@ async def test_issue_upload_token_endpoint(
 
 
 async def test_issue_upload_token_requires_auth(client: AsyncClient) -> None:
-    """The mint endpoint itself requires an authenticated session. SEC-12."""
+    """The mint endpoint itself requires an authenticated session."""
     response = await client.post("/api/v1/auth/upload-token")
     assert response.status_code == 401
 
@@ -319,7 +319,7 @@ async def test_upload_without_db_record_returns_404(
     """A blob on disk with no Upload row fails closed (404), not the bytes.
 
     Without an Upload row there is no owning guild to authorize against, so
-    serving the file would leak it to any authenticated user cross-guild.
+    the file is not served.
     """
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_orphan_file.txt"
@@ -354,7 +354,7 @@ async def test_upload_row_in_guild_schema_is_served(
     request live in guild_<id>.uploads — NOT public.uploads. The serve route
     runs on the system session (search_path=public) and must still find the row
     by routing into the requester's ACTIVE guild schema (server-held context),
-    otherwise every newly uploaded image 404s (fail-closed SEC-6 turned the
+    otherwise every newly uploaded image 404s (failing closed turned the
     old silent fail-open into a visible regression)."""
     from sqlalchemy import text
 

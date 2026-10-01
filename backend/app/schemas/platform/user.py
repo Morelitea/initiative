@@ -81,13 +81,13 @@ class UserCreate(SanitizedBaseModel):
     # itself (first user = owner, everyone else = member) and the guild-admin
     # endpoint forces ``member``; standing platform roles change only via
     # ``/operator/users/{id}/platform-role`` (capability-gated, bounded
-    # delegation). See SEC-1.
+    # delegation).
     email: EmailStr
     # The name part of the handle. The number behind it is drawn server-side —
     # it is never anyone's to choose.
     username: str = Field(max_length=64)
     full_name: Optional[TitleStr] = None
-    # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
+    # ``max_length`` is a cheap bound so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
     # so all policy failures surface with a flat error code from

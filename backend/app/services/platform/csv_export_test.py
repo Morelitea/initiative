@@ -1,10 +1,10 @@
-"""Unit tests for CSV export helpers, focused on CSV (formula) injection.
+"""Unit tests for CSV export helpers, focused on formula neutralization.
 
 ``build_csv`` is the single choke point through which every exported cell
 flows (used by the guild and platform user exports). A cell whose value begins
 with a formula trigger (``=``, ``+``, ``-``, ``@``, tab, or carriage return)
 must be prefixed with a single quote so spreadsheet apps treat it as text
-rather than executing it (e.g. ``=HYPERLINK(...)`` / ``=cmd|...``).
+rather than evaluating it as a formula.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def test_build_csv_neutralizes_formula_triggers(trigger: str) -> None:
 
 
 def test_build_csv_neutralizes_classic_cmd_payload() -> None:
-    """The canonical command-injection payload is neutralized."""
+    """A DDE-style formula value is neutralized."""
     payload = "=cmd|'/c calc'!A1"
     body = csv_export.build_csv(["email"], [[payload]])
     rows = _parse(body)

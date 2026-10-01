@@ -1,6 +1,6 @@
 """Access-matrix tests for guild lifecycle status (suspension).
 
-The matrix under test (see history/guild-suspension-design.md):
+The matrix under test:
 
 - ``read_only``: members keep content READS but writes are denied at the
   Postgres role level (routed into ``guild_<id>_ro``); initiative isolation
@@ -674,7 +674,7 @@ async def test_guild_admin_patch_cannot_touch_enforcement_fields(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The guild-facing PATCH no longer carries cap/status fields — a payload
-    that smuggles them is ignored (unknown fields), never applied."""
+    that carries them is ignored (unknown fields), never applied."""
     a = await acting_user(guild_role=GuildRole.admin)
 
     resp = await client.patch(

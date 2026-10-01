@@ -20,8 +20,8 @@ from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.base import SanitizedBaseModel
 
 # Upper bound on how many resources one bulk grant request may touch. Each item is
-# a load + authorize + rewrite + commit, so an unbounded list is a DoS / slow-query
-# risk; a multi-select bulk-edit UI never needs more than this in one call.
+# a load + authorize + rewrite + commit, so an unbounded list makes a slow
+# request; a multi-select bulk-edit UI never needs more than this in one call.
 MAX_BULK_GRANT_ITEMS = 200
 
 

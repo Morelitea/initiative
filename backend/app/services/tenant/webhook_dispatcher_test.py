@@ -35,9 +35,7 @@ def test_sign_is_deterministic_for_same_inputs():
 
 
 def test_sign_differs_when_body_changes():
-    """Even a single-byte body change must produce a different signature.
-    If this fails, an attacker could replay a captured envelope with
-    edits."""
+    """Even a single-byte body change must produce a different signature."""
     sig1 = _sign("topsecret", "1748000000", b'{"a":1}')
     sig2 = _sign("topsecret", "1748000000", b'{"a":2}')
     assert sig1 != sig2

@@ -333,13 +333,13 @@ class Settings(BaseSettings):
     JWT_SIGNING_KEY: str | None = None
 
     # The JWT algorithm and cookie names are constants in app.core.security
-    # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
-    # JWT algorithm is an alg-confusion hazard, and the cookie names are part
-    # of the auth contract, not deployment configuration.
+    # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — the JWT
+    # algorithm is fixed, and the cookie names are part of the auth contract,
+    # not deployment configuration.
 
-    # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
+    # New login model (auth rewrite, Phase 0).
     # The access token is short-lived + stateless: verified locally with no
-    # per-request DB read (the 10k+ win), so a leak is stale within one TTL. The
+    # per-request DB read (the 10k+ win), and expires within one TTL. The
     # refresh token is long, opaque, rotating, and revocable via ``auth_sessions``.
     #
     # Together these are how long somebody stays signed in: the browser renews
@@ -387,9 +387,8 @@ class Settings(BaseSettings):
     def _validate_secret_key(cls, value: str) -> str:
         # SECRET_KEY signs the OIDC state HMAC and roots all Fernet field encryption
         # (SMTP password, OIDC client secret, AI keys, refresh tokens) plus the
-        # email_hash HMAC. A known placeholder or short key makes every one of those
-        # forgeable/decryptable, so fail closed at startup rather than booting with a
-        # guessable key. The hint points at the safe rotation path because the naive
+        # email_hash HMAC, so a known placeholder or short key fails closed at
+        # startup. The hint points at the safe rotation path because the naive
         # fix — "just set a new key" — silently orphans all encrypted data.
         return _validate_strong_key(value, "SECRET_KEY", rotation_hint=True)
 
@@ -1071,8 +1070,8 @@ class Settings(BaseSettings):
             items = value.split(",")
         else:
             items = value
-        # Drop blanks and any "*": a wildcard combined with credentialed CORS is
-        # the origin-reflection vuln (CRIT-001). APP_URL and the native origins
+        # Drop blanks and any "*": credentialed CORS takes explicit origins
+        # only. APP_URL and the native origins
         # are always allowed via the `cors_origins` property, so the effective
         # allowlist is never empty even when this is.
         return [

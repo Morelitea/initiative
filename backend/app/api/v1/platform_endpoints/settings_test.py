@@ -1,7 +1,7 @@
 """Tests for the platform settings endpoints.
 
 The page is several surfaces behind one router: the SMTP test-email path
-(pentest SEC-16 — a failed delivery answers with a machine-readable code and
+(a failed delivery answers with a machine-readable code and
 keeps the mail host in the server log), the OIDC claim-mapping editor, the
 operator's Guilds tab (caps, lifecycle status, sign-in entitlements, the
 billing handoff), object storage, the community directory and how long a

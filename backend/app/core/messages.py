@@ -546,7 +546,7 @@ class SettingsMessages:
     SMTP_INCOMPLETE = "SETTINGS_SMTP_INCOMPLETE"
     # Generic code for a failed SMTP delivery — the raw exception (which can
     # carry the SMTP host, port, or server banner) is logged server-side only
-    # and never returned to the client (pentest SEC-16).
+    # and never returned to the client.
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
     INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"

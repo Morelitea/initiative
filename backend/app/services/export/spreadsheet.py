@@ -16,12 +16,12 @@ ones.
 
 Formulas: the app's sheets store formulas as ``=``-prefixed cell strings
 (evaluated client-side; the snapshot keeps the raw text). Unlike the tabular
-exports — where a leading ``=`` is FOREIGN text smuggling a formula — a
+exports — where a leading ``=`` is plain text, not a formula — a
 spreadsheet document's ``=`` cells are the user's own first-class content,
 so grid exports preserve them (Excel re-evaluates; the app's function set is
 an Excel subset). Mirrors the frontend's ``isFormula`` exactly: ``=`` prefix
 only. Other trigger prefixes (``+ - @``) are still neutralized in CSV (they
-are smuggling vectors, never app formulas); XLSX needs no guard for them
+are never app formulas); XLSX needs no handling for them
 (openpyxl only ever infers a formula from a ``=`` string).
 
 Style precedence mirrors the editor: column style, then row style, then the

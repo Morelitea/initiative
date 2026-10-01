@@ -238,7 +238,7 @@ def mint_access_token(
 ) -> tuple[str, int]:
     """Mint a short-lived, stateless access token for one session.
 
-    Claims (history/auth-detailed-design.md §3.1): ``sub`` (the account, named
+    Claims: ``sub`` (the account, named
     by its ``client``-sector reference — ``services.auth.subject``), ``sid``
     (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
     out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
@@ -271,7 +271,7 @@ def mint_access_token(
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
-    """Decode a session credential (history/auth-detailed-design.md §3.1).
+    """Decode a session credential.
 
     One shape: the access token ``mint_access_token`` issues —
     ``aud=initiative:access`` / ``iss=initiative``, carrying ``sub``, ``ver``
@@ -298,11 +298,10 @@ def decode_session_token(token: str) -> dict[str, Any]:
 #
 # Native (Capacitor) WebViews can't attach an Authorization header or send the
 # HttpOnly session cookie to <img>/<iframe> media loads, so the URL has to carry
-# the credential as a ``?token=`` query param. Putting the 7-day session JWT
-# there leaks a full-API credential into logs, history, and Referer headers.
-# Instead the app mints one of these: a short-lived, uploads-only JWT that the
-# /uploads route (and document download routes) accept via ``?token=`` but that
-# is useless for any other API call (it carries no ``ver`` and a distinct
+# the credential as a ``?token=`` query param. The 7-day session JWT never goes
+# in a URL; instead the app mints one of these: a short-lived, uploads-only JWT
+# that the /uploads route (and document download routes) accept via ``?token=``
+# but that is useless for any other API call (it carries no ``ver`` and a distinct
 # ``aud``/``scope``, so ``get_current_user`` rejects it).
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -313,8 +312,8 @@ UPLOAD_TOKEN_AUDIENCE = "initiative:uploads"
 UPLOAD_TOKEN_SCOPE = "uploads"
 
 # Short lifetime: long enough to render a page's worth of media after the SPA
-# fetches one, short enough that a leak (history, Referer, proxy log) is stale
-# fast. The SPA refreshes it transparently when it expires.
+# fetches one, short enough that a copy kept in history or a log expires soon.
+# The SPA refreshes it transparently when it expires.
 UPLOAD_TOKEN_LIFETIME = timedelta(minutes=10)
 
 
