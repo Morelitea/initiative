@@ -20,6 +20,8 @@ __all__ = [
     "AppPublisherCreate",
     "AppPublisherRead",
     "AppPublisherUpdate",
+    "AppServiceConnect",
+    "AppServicePublishedKeyRead",
     "AppServiceRegistrationCreate",
     "AppServiceRegistrationRead",
     "AppServiceRegistrationUpdate",
@@ -64,7 +66,7 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     #: public half is meant to be read, and an operator provisioning it needs
     #: to see which ``kid`` landed.
     jwks: Optional[Dict[str, Any]] = None
-    #: Where the app publishes its key set, on its own origin.
+    #: Where the app publishes its key set, on its base URL's origin.
     jwks_uri: Optional[str] = None
     #: The most an install of this app may be granted, from its listing.
     #: Empty means no scope may be granted.
@@ -89,6 +91,8 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     #: returns a person with a code, and where its install page returns them.
     connection_callback_url: str
     connection_setup_url: str
+    #: The address to give the vendor for this app's webhooks.
+    webhook_url: str
     #: Enabled, its publisher enabled, an address, a key set to verify
     #: against, and every required vendor value set.
     live: bool
@@ -116,7 +120,7 @@ class AppServiceRegistrationCreate(_DeploymentFacts):
     deployment calls.
 
     Keys are a pasted ``jwks``, a ``jwks_uri`` on ``base_url``'s own origin
-    over https, or both. A registration with neither is not live.
+    (http only where ``base_url`` is), or both. A registration with neither is not live.
     """
 
     public_id: str = Field(max_length=120)
@@ -152,6 +156,24 @@ class AppServiceRegistrationUpdate(_DeploymentFacts):
     enabled: Optional[bool] = None
     #: Set or clear vendor values, by key.
     vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
+
+
+class AppServicePublishedKeyRead(SanitizedBaseModel):
+    """One key the app serves under its base URL, as Connect shows it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    kid: str
+    #: The key's RFC 7638 SHA-256 thumbprint, base64url without padding: the
+    #: fingerprint the app logs at start.
+    fingerprint: str
+
+
+class AppServiceConnect(SanitizedBaseModel):
+    """Pin the key set the app serves, as the operator confirmed it."""
+
+    #: The fingerprints the operator was shown and confirmed.
+    fingerprints: List[str] = Field(min_length=1, max_length=20)
 
 
 class AppPublisherRead(SanitizedBaseModel):

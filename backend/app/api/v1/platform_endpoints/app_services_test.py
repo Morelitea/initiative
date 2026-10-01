@@ -5,10 +5,12 @@ deployment facts; its app facts come from the app's listing. A registration is
 shown whole, since none of it is secret.
 """
 
+import httpx
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import AppServiceMessages, AuthMessages
 from app.models.platform.app_service_registration import (
@@ -16,6 +18,9 @@ from app.models.platform.app_service_registration import (
     AppServiceRegistration,
 )
 from app.models.platform.user import UserRole
+from app.services.marketplace import app_keys
+from app.testing import emitted
+from app.testing.oidc import IDP_KEY, OTHER_KEY, jwks_doc
 from app.testing.factories import (
     create_app_service_registration,
     create_marketplace_listing,
@@ -85,6 +90,14 @@ async def test_non_owner_tiers_are_refused(
         await client.patch(f"{BASE}{row.id}", headers=headers, json={"enabled": False})
     ).status_code == 403
     assert (await client.delete(f"{BASE}{row.id}", headers=headers)).status_code == 403
+    assert (
+        await client.get(f"{BASE}{row.id}/connect", headers=headers)
+    ).status_code == 403
+    assert (
+        await client.post(
+            f"{BASE}{row.id}/connect", headers=headers, json={"fingerprints": ["x"]}
+        )
+    ).status_code == 403
 
     assert (await client.get(PUBLISHERS, headers=headers)).status_code == 403
     assert (
@@ -188,6 +201,60 @@ async def test_the_key_set_address_round_trips(
     )
     assert elsewhere.status_code == 400
     assert elsewhere.json()["detail"] == AppServiceMessages.INVALID_JWKS_URI
+
+
+async def test_connect_pins_the_key_set_the_operator_confirmed(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch, capfd
+):
+    owner = await acting_user()
+    row = await _seed(session, jwks={})
+    served = [jwks_doc(IDP_KEY, kid="acme.widgets-1")]
+    fetched: list[str] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        fetched.append(str(request.url))
+        return httpx.Response(200, json=served[0])
+
+    real_request = app_keys.request_public_target
+
+    async def through_the_app(*args, **kwargs):
+        return await real_request(
+            *args, **{**kwargs, "transport": httpx.MockTransport(answer)}
+        )
+
+    monkeypatch.setattr(app_keys, "request_public_target", through_the_app)
+
+    shown = await client.get(f"{BASE}{row.id}/connect", headers=owner.headers)
+    assert shown.status_code == 200, shown.text
+    ((kid, fingerprint),) = [(k["kid"], k["fingerprint"]) for k in shown.json()]
+    assert kid == "acme.widgets-1"
+    assert fetched == [f"{APP_URL}/.well-known/jwks.json"]
+    assert (await _listed(client, owner.headers, row.id))["jwks"] is None
+
+    capfd.readouterr()
+    pinned = await client.post(
+        f"{BASE}{row.id}/connect",
+        headers=owner.headers,
+        json={"fingerprints": [fingerprint]},
+    )
+    assert pinned.status_code == 200, pinned.text
+    assert pinned.json()["jwks"] == served[0]
+    assert pinned.json()["live"] is True
+    (record,) = emitted(capfd, AuditEventType.APP_SERVICE_UPDATED)
+    assert record["actor_user_id"] == owner.user.id
+    assert record["detail"]["changed"] == ["jwks"]
+
+    # The app's set moves: nothing follows it until the operator connects again.
+    served[0] = jwks_doc(OTHER_KEY, kid="acme.widgets-1")
+    stale = await client.post(
+        f"{BASE}{row.id}/connect",
+        headers=owner.headers,
+        json={"fingerprints": [fingerprint]},
+    )
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == AppServiceMessages.KEYS_CHANGED
+    listed = await _listed(client, owner.headers, row.id)
+    assert listed["jwks"] == jwks_doc(IDP_KEY, kid="acme.widgets-1")
 
 
 # --- operator-conferred fields ------------------------------------------------
@@ -444,6 +511,9 @@ async def test_the_form_shows_the_fields_the_listing_asks_for(
     )
     assert body["connection_setup_url"] == (
         f"{settings.APP_URL.rstrip('/')}/api/v1/app-connections/setup"
+    )
+    assert body["webhook_url"] == (
+        f"{settings.APP_URL.rstrip('/')}/api/v1/app-hooks/acme.widgets"
     )
 
 

@@ -124,12 +124,15 @@ __all__ = [
     "setup_url",
     "start_url",
     "unseal_tokens",
+    "webhook_url",
 ]
 
 #: Where the vendor returns a person, on this deployment's own address.
 CALLBACK_PATH = "/api/v1/app-connections/callback"
 #: Where an installation-style vendor returns a person from its install page.
 SETUP_PATH = "/api/v1/app-connections/setup"
+#: Where a vendor sends an app's webhooks, followed by the app's public_id.
+WEBHOOK_PATH = "/api/v1/app-hooks"
 
 #: How a flow ended, as the landing page reads it.
 OUTCOMES: frozenset[str] = frozenset(
@@ -213,6 +216,11 @@ def setup_url() -> str:
     """The address an installation-style vendor returns to from its install
     page."""
     return f"{_app_url()}{SETUP_PATH}"
+
+
+def webhook_url(public_id: str) -> str:
+    """The address a vendor sends this app's webhooks to."""
+    return f"{_app_url()}{WEBHOOK_PATH}/{public_id}"
 
 
 def return_path(public_id: str, connection_id: str) -> str:

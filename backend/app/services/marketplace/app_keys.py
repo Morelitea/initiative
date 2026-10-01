@@ -3,15 +3,21 @@
 A registration carries its key set in one of two ways, or both: pasted into the
 registration (``jwks``), or published by the app at ``jwks_uri``. The pasted
 set is parsed with the registration snapshot. A published set is fetched here,
-from the app's own origin over https, and reused for :data:`CACHE_TTL_SECONDS`,
-the same bound the snapshot keeps. A rotation is the app publishing its new key
-beside the old one; the next fetch picks it up.
+from the app's own origin on the same terms as its base URL, and reused for
+:data:`CACHE_TTL_SECONDS`, the same bound the snapshot keeps. A rotation is the
+app publishing its new key beside the old one; the next fetch picks it up.
 
 A key named in both sets is the pasted one.
+
+An operator's **Connect** reads the set the app serves at :data:`KEY_SET_PATH`
+under its base URL with :func:`read_key_set`, shows each key's
+:func:`jwk_thumbprint`, and pastes the set it confirms.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
 import time
@@ -37,11 +43,16 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "JWKS_MAX_BYTES",
+    "KEY_SET_PATH",
+    "KeySetUnreadableError",
     "PRIVATE_JWK_MEMBERS",
     "PUBLIC_JWK_TYPES",
     "clear_fetched_keys",
+    "jwk_thumbprint",
     "jwks_uri_allowed",
     "key_for",
+    "key_set_url",
+    "read_key_set",
 ]
 
 #: The largest key set document read. A key set is a handful of public keys.
@@ -58,8 +69,24 @@ PRIVATE_JWK_MEMBERS: frozenset[str] = frozenset(
     {"d", "p", "q", "dp", "dq", "qi", "oth", "k"}
 )
 
+#: The members a key's RFC 7638 thumbprint is computed over, by key type.
+_THUMBPRINT_MEMBERS: Mapping[str, tuple[str, ...]] = MappingProxyType(
+    {
+        "RSA": ("e", "kty", "n"),
+        "EC": ("crv", "kty", "x", "y"),
+        "OKP": ("crv", "kty", "x"),
+    }
+)
+
+#: Where an app serves its key set, under its base URL.
+KEY_SET_PATH = "/.well-known/jwks.json"
+
 #: Per-fetch budget, connect and read capped separately.
 _TIMEOUT = httpx.Timeout(5.0, connect=5.0)
+
+
+class KeySetUnreadableError(Exception):
+    """A key set address that did not answer 200 with a JSON document."""
 
 
 def _origin(url: str) -> Optional[tuple[str, str, Optional[int]]]:
@@ -70,15 +97,36 @@ def _origin(url: str) -> Optional[tuple[str, str, Optional[int]]]:
 
 
 def jwks_uri_allowed(jwks_uri: str, base_url: str) -> bool:
-    """Whether ``jwks_uri`` is https and on ``base_url``'s own origin.
+    """Whether ``jwks_uri`` is on ``base_url``'s own origin, scheme included.
 
-    Asked when the address is stored and again before every fetch, since the
-    base URL may have moved since.
+    So it is http only where the base URL is, and the fetch holds it to the
+    addresses a call to that base URL may reach. Asked when the address is
+    stored and again before every fetch, since the base URL may have moved
+    since.
     """
     uri_origin = _origin(jwks_uri)
-    if uri_origin is None or uri_origin[0] != "https":
+    if uri_origin is None or uri_origin[0] not in ("http", "https"):
         return False
     return uri_origin == _origin(base_url)
+
+
+def key_set_url(base_url: str) -> str:
+    """Where the app at ``base_url`` serves its key set."""
+    return f"{base_url.rstrip('/')}{KEY_SET_PATH}"
+
+
+def jwk_thumbprint(entry: Mapping[str, Any]) -> str:
+    """A public key's RFC 7638 SHA-256 thumbprint, base64url without padding.
+
+    The fingerprint an app logs for its key, so an operator can match the two.
+    ``entry`` is a public key of a type in :data:`PUBLIC_JWK_TYPES`.
+    """
+    members = _THUMBPRINT_MEMBERS[entry["kty"]]
+    canonical = json.dumps(
+        {name: entry[name] for name in members}, separators=(",", ":"), sort_keys=True
+    )
+    digest = hashlib.sha256(canonical.encode("utf-8")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 @dataclass(frozen=True)
@@ -120,14 +168,18 @@ def _parse(document: Any, source: str) -> Mapping[str, Any]:
     return MappingProxyType(parsed)
 
 
-async def _fetch(
-    jwks_uri: str, transport: httpx.AsyncBaseTransport | None
-) -> Mapping[str, Any]:
-    """Read one published key set. A failure is an empty set, logged."""
+async def read_key_set(
+    url: str, *, transport: httpx.AsyncBaseTransport | None = None
+) -> Any:
+    """The JSON document an app serves at ``url``.
+
+    Fetched the way Initiative calls the app: a private address is allowed,
+    and plain http only to one. Raises :class:`KeySetUnreadableError`.
+    """
     try:
         response = await request_public_target(
             "GET",
-            jwks_uri,
+            url,
             headers={"Accept": "application/json"},
             timeout=_TIMEOUT,
             transport=transport,
@@ -140,15 +192,23 @@ async def _fetch(
         ResponseTooLargeError,
         httpx.HTTPError,
     ) as exc:
-        logger.warning("app keys: %s could not be read (%s)", jwks_uri, exc)
-        return MappingProxyType({})
+        raise KeySetUnreadableError(str(exc) or type(exc).__name__) from exc
     if response.status_code != 200:
-        logger.warning("app keys: %s answered %s", jwks_uri, response.status_code)
-        return MappingProxyType({})
+        raise KeySetUnreadableError(f"answered {response.status_code}")
     try:
-        document = json.loads(response.content.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        logger.warning("app keys: %s did not answer with JSON", jwks_uri)
+        return json.loads(response.content.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise KeySetUnreadableError("did not answer with JSON") from exc
+
+
+async def _fetch(
+    jwks_uri: str, transport: httpx.AsyncBaseTransport | None
+) -> Mapping[str, Any]:
+    """Read one published key set. A failure is an empty set, logged."""
+    try:
+        document = await read_key_set(jwks_uri, transport=transport)
+    except KeySetUnreadableError as exc:
+        logger.warning("app keys: %s could not be read (%s)", jwks_uri, exc)
         return MappingProxyType({})
     return _parse(document, jwks_uri)
 
