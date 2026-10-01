@@ -421,7 +421,8 @@ async def get_guild_app(
 
     Any member may read this: the per-member connection blocks report the
     caller's own state, and a guild-scoped one reports presence rather than
-    values, so there is nothing here that belongs to somebody else.
+    values to everybody but the seat that sets them, so there is nothing here
+    that belongs to somebody else.
     """
     app = await _load(session, app_id)
     return await _detail(session, app, guild_context, current_user.id)
