@@ -120,7 +120,7 @@ async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> N
 
 
 async def cancel_pending_reaction(
-    session: AsyncSession, *, user_id: int, reaction_id: int
+    session: AsyncSession, *, user_id: int, guild_id: int, reaction_id: int
 ) -> bool:
     """Drop a reaction still waiting to be rolled into ``user_id``'s line —
     one whose first attempt failed and is backing off. Returns whether there
@@ -130,6 +130,9 @@ async def cancel_pending_reaction(
         delete(NoticeOutboxItem)
         .where(
             NoticeOutboxItem.user_id == user_id,  # type: ignore[arg-type]
+            # Reaction ids are a community's own, so the community is part of
+            # which reaction this is.
+            NoticeOutboxItem.guild_id == guild_id,  # type: ignore[arg-type]
             NoticeOutboxItem.kind == "reaction",  # type: ignore[arg-type]
             # Not one this pass holds: that one has been rolled in already.
             NoticeOutboxItem.claimed_at.is_(None),  # type: ignore[union-attr]
