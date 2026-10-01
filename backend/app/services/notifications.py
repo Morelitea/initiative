@@ -1615,6 +1615,12 @@ async def _take_back_reaction(
     decremented on a guess.
     """
     data = notice.data
+    # A reaction whose own row is still backing off is taken back there: the
+    # line never held it, and must not when that row comes round again.
+    if await notice_outbox.cancel_pending_reaction(
+        session, user_id=cast(int, recipient.id), reaction_id=data["reaction_id"]
+    ):
+        return
     guild_id = cast(int, notice.guild_id)
     target_type, target_id = data["target_type"], data["target_id"]
     reactor_id = data["reactor_id"]

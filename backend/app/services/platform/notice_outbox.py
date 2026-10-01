@@ -119,6 +119,27 @@ async def enqueue(session: AsyncSession, rows: Sequence[Mapping[str, Any]]) -> N
     await session.exec(select(func.pg_notify(CHANNEL, "")))
 
 
+async def cancel_pending_reaction(
+    session: AsyncSession, *, user_id: int, reaction_id: int
+) -> bool:
+    """Drop a reaction still waiting to be rolled into ``user_id``'s line —
+    one whose first attempt failed and is backing off. Returns whether there
+    was one, in which case the line never held it and there is nothing more
+    to take back."""
+    dropped = await session.exec(
+        delete(NoticeOutboxItem)
+        .where(
+            NoticeOutboxItem.user_id == user_id,  # type: ignore[arg-type]
+            NoticeOutboxItem.kind == "reaction",  # type: ignore[arg-type]
+            # Not one this pass holds: that one has been rolled in already.
+            NoticeOutboxItem.claimed_at.is_(None),  # type: ignore[union-attr]
+            NoticeOutboxItem.data["entry"]["id"].as_integer() == reaction_id,  # type: ignore[index]
+        )
+        .returning(NoticeOutboxItem.id)
+    )
+    return bool(dropped.all())
+
+
 async def _claim(session: AsyncSession, *, now: datetime) -> list[NoticeOutboxItem]:
     """Take every due row of the next batch of recipients.
 
