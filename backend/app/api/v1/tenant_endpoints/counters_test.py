@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.request_context import SystemGuild
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
+from app.models.tenant.counter import COUNTER_LIMIT
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     Actor,
@@ -248,7 +249,16 @@ async def test_a_step_moves_by_the_counter_s_step_or_the_amount_given(
     assert landed == [12, 10, 15, Decimal("14.5"), 100]
 
 
-@pytest.mark.parametrize("amount", ["0", "-1"])
+@pytest.mark.parametrize(
+    "amount",
+    [
+        "0",
+        "-1",
+        # More than a counter can store, before the point or after it.
+        "10000000000",
+        "0.00000000001",
+    ],
+)
 async def test_a_step_moves_by_more_than_nothing(
     client: AsyncClient, session: AsyncSession, acting_user, amount: str
 ):
@@ -262,6 +272,22 @@ async def test_a_step_moves_by_more_than_nothing(
         json={"direction": "up", "amount": amount},
     )
     assert response.status_code == 422
+
+
+async def test_an_open_counter_stops_at_the_largest_number_it_can_store(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await create_counter_group(session, a.initiative, a.user)
+    counter = await create_counter(session, group, count=COUNTER_LIMIT - 1)
+
+    response = await client.post(
+        a.g(f"/counters/{counter.id}/step"),
+        headers=a.headers,
+        json={"direction": "up", "amount": "5"},
+    )
+    assert response.status_code == 200, response.text
+    assert Decimal(response.json()["count"]) == COUNTER_LIMIT
 
 
 async def test_a_deleted_counter_does_not_step(

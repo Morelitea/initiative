@@ -21,6 +21,7 @@ from app.services.permissions import (
     require_export_access,
 )
 from app.models.tenant.counter import (
+    COUNTER_LIMIT,
     Counter,
     CounterGroup,
 )
@@ -187,7 +188,8 @@ async def step_counter(
     One statement, so two steps landing together each count: the new value is
     computed from the row as the database holds it, not from a copy read
     earlier. ``GREATEST`` and ``LEAST`` skip a NULL bound, so an open side needs
-    no case of its own.
+    no case of its own, and the largest number a counter can store bounds both
+    sides, so an open counter stops there rather than overflowing.
     """
     by = Counter.step if amount is None else literal(amount)
     moved = Counter.count + by if up else Counter.count - by
@@ -195,7 +197,11 @@ async def step_counter(
         update(Counter)
         .where(Counter.id == counter_id)
         .values(
-            count=func.least(func.greatest(moved, Counter.min), Counter.max),
+            count=func.least(
+                func.greatest(moved, Counter.min, -COUNTER_LIMIT),
+                Counter.max,
+                COUNTER_LIMIT,
+            ),
             updated_at=datetime.now(timezone.utc),
         )
     )
