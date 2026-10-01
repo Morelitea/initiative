@@ -142,11 +142,7 @@ export function EventSettingsPage() {
     () => event?.properties ?? [],
     [event?.properties]
   );
-  const attachedProperties = usePendingProperties(
-    PropertyTarget.calendar_event,
-    eventId,
-    savedProperties
-  );
+  const attachedProperties = usePendingProperties(savedProperties);
 
   useEffect(() => {
     if (event) {
@@ -511,6 +507,7 @@ export function EventSettingsPage() {
               target={PropertyTarget.calendar_event}
               entityId={eventId}
               properties={attachedProperties.properties}
+              unsaved={attachedProperties.unsavedIds}
               initiativeId={event.initiative_id}
               canOpen={{ tool: Tool.calendar, id: event.calendar_id }}
             />

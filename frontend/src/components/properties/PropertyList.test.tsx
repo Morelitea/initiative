@@ -41,6 +41,58 @@ describe("PropertyList", () => {
     expect(screen.getByText("Owner")).toBeInTheDocument();
   });
 
+  it("attaches an added property without writing over a value just entered", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      guildHttp.put("/properties/:target/:entityId", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json([]);
+      })
+    );
+    const first = buildPropertySummary({
+      property_id: 1,
+      name: "Status",
+      type: PropertyType.text,
+      value: null,
+    });
+    const second = buildPropertySummary({
+      property_id: 2,
+      name: "Owner",
+      type: PropertyType.text,
+      value: null,
+    });
+    const { rerender } = renderWithProviders(
+      <PropertyList
+        target={PropertyTarget.calendar_event}
+        entityId={9}
+        properties={[first]}
+        unsaved={[1]}
+      />
+    );
+    await advanceDebounce();
+    expect(bodies).toEqual([{ values: [{ property_id: 1, value: null }] }]);
+
+    // Filled in, then another added before the row comes back from the server.
+    fireEvent.change(screen.getByPlaceholderText("Empty"), { target: { value: "Ready" } });
+    rerender(
+      <PropertyList
+        target={PropertyTarget.calendar_event}
+        entityId={9}
+        properties={[first, second]}
+        unsaved={[1, 2]}
+      />
+    );
+    await advanceDebounce();
+
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]).toEqual({
+      values: [
+        { property_id: 1, value: "Ready" },
+        { property_id: 2, value: null },
+      ],
+    });
+  });
+
   it("writes the values through the one route after the debounce when a value changes", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     server.use(

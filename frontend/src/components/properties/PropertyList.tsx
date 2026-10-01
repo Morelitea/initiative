@@ -18,6 +18,12 @@ export interface PropertyListProps {
   initiativeId?: number | null;
   /** See `PropertyInput`'s `canOpen`. */
   canOpen?: { tool: Tool; id: number | null | undefined };
+  /**
+   * Properties just added to the list and not yet on the server. The list
+   * saves when one appears, with every value it holds, so it stays the one
+   * writer of this row's values.
+   */
+  unsaved?: number[];
 }
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -64,6 +70,7 @@ export const PropertyList = ({
   className,
   initiativeId,
   canOpen,
+  unsaved,
 }: PropertyListProps) => {
   const { t } = useTranslation("properties");
 
@@ -144,6 +151,16 @@ export const PropertyList = ({
     },
     []
   );
+
+  // An added property is attached by saving the whole list, carrying any
+  // value just entered for another one.
+  const requestedRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    const added = (unsaved ?? []).filter((id) => !requestedRef.current.has(id));
+    if (added.length === 0) return;
+    for (const id of added) requestedRef.current.add(id);
+    scheduleSave();
+  }, [unsaved, scheduleSave]);
 
   const handleChange = useCallback(
     (propertyId: number, value: unknown) => {

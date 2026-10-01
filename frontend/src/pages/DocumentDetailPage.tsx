@@ -602,11 +602,7 @@ export const DocumentDetailPage = () => {
   );
 
   const savedProperties = useMemo<PropertySummary[]>(() => document?.properties ?? [], [document]);
-  const attachedProperties = usePendingProperties(
-    PropertyTarget.document,
-    parsedId,
-    savedProperties
-  );
+  const attachedProperties = usePendingProperties(savedProperties);
 
   if (documentQuery.isLoading) {
     return <DocumentDetailSkeleton label={t("detail.loading")} />;
@@ -846,6 +842,7 @@ export const DocumentDetailPage = () => {
                     target={PropertyTarget.document}
                     entityId={parsedId}
                     properties={attachedProperties.properties}
+                    unsaved={attachedProperties.unsavedIds}
                     disabled={!canEditDocument}
                     initiativeId={document.initiative_id}
                     canOpen={{ tool: Tool.document, id: document.id }}
