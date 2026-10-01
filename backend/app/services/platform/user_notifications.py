@@ -6,8 +6,6 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.notification_categories import PERSONAL_TYPES, Channel
-from app.db import gucs
-from app.db.session import raise_flag
 from app.models.platform.notification import Notification, NotificationType
 from app.services import keyset_cursor
 from app.services.platform import notification_prefs, notification_stream
@@ -45,21 +43,6 @@ def _place(data: Mapping[str, object]) -> dict[str, object]:
     }
 
 
-async def name_recipient(session: AsyncSession, user_id: int) -> None:
-    """Say who the next notification write is for.
-
-    The bell is the one table whose rows are written by somebody other than the
-    person they belong to: a mention is caused by one account and delivered to
-    another. The write path therefore runs under a role that cannot use "the row
-    is mine" as its rule, and names the recipient instead — transaction-local,
-    so it lasts exactly as long as the write that set it.
-
-    Every read and write of a recipient's line goes through here first, which is
-    what lets one policy cover the lookup, the insert and the rollup.
-    """
-    await raise_flag(session, gucs.NOTIFY_TARGET_USER_ID, user_id)
-
-
 async def create_notification(
     session: AsyncSession,
     *,
@@ -72,7 +55,10 @@ async def create_notification(
     for that category.
 
     Every notification in the app is written through here, which is what makes
-    this the one place the in-app channel can be honoured. Returns ``None``
+    this the one place the in-app channel can be honoured. It runs on the
+    system engine: the notice worker calls it, and only a direct message and
+    the suspension notice call it inline. A request that causes a notice writes
+    it to ``notice_outbox`` instead, and holds no right to the bell. Returns ``None``
     when the recipient does not want it, so a caller can tell the difference
     between "wrote a line" and "there is nothing to point at".
 
@@ -81,7 +67,6 @@ async def create_notification(
     None and this reads it.
     """
     place = _place(data)
-    await name_recipient(session, user_id)
     if prefs is None:
         prefs = await notification_prefs.load_prefs_for_delivery(user_id)
     if not notification_prefs.wants(
@@ -124,7 +109,6 @@ async def find_unread_by_data(
     has seen a line, the next event starts a fresh one, which is what keeps
     "new" meaning something.
     """
-    await name_recipient(session, user_id)
     stmt = select(Notification).where(
         Notification.user_id == user_id,
         Notification.type == notification_type,
@@ -163,7 +147,6 @@ async def refresh_notification(
     A withdrawal passes ``bump=False``: taking something away is not news, and
     must not resurrect a line the recipient has already dealt with.
     """
-    await name_recipient(session, notification.user_id)
     notification.data = dict(data)
     if bump:
         notification.created_at = datetime.now(timezone.utc)
@@ -185,7 +168,6 @@ async def delete_notification(
     """Remove a notification outright — used when every event it rolled up has
     been taken back, so the line has nothing left to say."""
     user_id = notification.user_id
-    await name_recipient(session, user_id)
     await session.delete(notification)
     await session.flush()
     # Read the recipient off before the delete — the instance is expunged, and
