@@ -188,6 +188,49 @@ class PropertyRestore:
         self.named: dict[int, str] = {}
         #: Person values whose handle landed on nobody.
         self.unmatched: set[str] = set()
+        #: The target initiative's definitions by name, read once.
+        self._existing: dict[str, PropertyDefinition] | None = None
+        #: What each envelope property became in the target, so every row
+        #: naming it shares one definition — a renamed one included.
+        self._resolved: dict[tuple[str, PropertyType], PropertyDefinition] = {}
+
+    async def _definition_for(self, pv: EnvelopePropertyValue) -> PropertyDefinition:
+        """The target's definition for ``pv``'s name and type, matched or made
+        once for the whole import."""
+        key = (pv.property_name, pv.property_type)
+        if (known := self._resolved.get(key)) is not None:
+            self.matched += 1
+            return known
+        if self._existing is None:
+            self._existing = await load_initiative_properties(
+                self._session, initiative_id=self._initiative_id
+            )
+        definition = self._existing.get(pv.property_name)
+        if definition is not None and definition.type != pv.property_type:
+            name = await unique_property_name(
+                self._session,
+                initiative_id=self._initiative_id,
+                desired_name=f"{pv.property_name}_{pv.property_type.value}",
+            )
+            definition = None
+        else:
+            name = pv.property_name
+        if definition is None:
+            definition = PropertyDefinition(
+                initiative_id=self._initiative_id,
+                name=name,
+                type=pv.property_type,
+                position=len(self._existing),
+                options=_options_for_value(pv),
+            )
+            self._session.add(definition)
+            await self._session.flush()
+            self._existing[name] = definition
+            self.created += 1
+        else:
+            self.matched += 1
+        self._resolved[key] = definition
+        return definition
 
     async def attach(self, row: Any, values: list[EnvelopePropertyValue]) -> None:
         """Write ``values`` onto ``row``, a persisted property target."""
@@ -198,36 +241,10 @@ class PropertyRestore:
             self._member_handles = await load_initiative_member_handles(
                 self._session, initiative_id=self._initiative_id
             )
-        existing = await load_initiative_properties(
-            self._session, initiative_id=self._initiative_id
-        )
         # One value per definition: the last one named wins.
         column_kwargs_by_id: dict[int, dict[str, Any]] = {}
         for pv in values:
-            definition = existing.get(pv.property_name)
-            if definition is not None and definition.type != pv.property_type:
-                name = await unique_property_name(
-                    self._session,
-                    initiative_id=self._initiative_id,
-                    desired_name=f"{pv.property_name}_{pv.property_type.value}",
-                )
-                definition = None
-            else:
-                name = pv.property_name
-            if definition is None:
-                definition = PropertyDefinition(
-                    initiative_id=self._initiative_id,
-                    name=name,
-                    type=pv.property_type,
-                    position=len(existing),
-                    options=_options_for_value(pv),
-                )
-                self._session.add(definition)
-                await self._session.flush()
-                existing[name] = definition
-                self.created += 1
-            else:
-                self.matched += 1
+            definition = await self._definition_for(pv)
             column_kwargs = decode_property_value(
                 pv, self._member_handles, people=self._people
             )

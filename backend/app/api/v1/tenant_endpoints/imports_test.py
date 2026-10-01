@@ -420,6 +420,56 @@ async def test_a_tools_properties_survive_export_and_import(
         ]
 
 
+async def test_a_renamed_property_is_one_definition_for_every_row(
+    client, acting_user, session
+):
+    """A property whose name the target already uses for another type is
+    renamed once, and every imported row naming it shares that one."""
+    from sqlmodel import select
+
+    from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
+    from app.models.tenant.property import (
+        PropertyDefinition,
+        PropertyType,
+        PropertyValue,
+    )
+    from app.testing.factories import (
+        create_property_definition,
+        create_property_value,
+        create_queue,
+        create_queue_item,
+    )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    await _all_tools_enabled(session, a.initiative)
+    target = await _second_initiative(session, a)
+    await _all_tools_enabled(session, target)
+    status = await create_property_definition(session, a.initiative, name="Status")
+    await create_property_definition(
+        session, target, name="Status", type=PropertyType.number
+    )
+    queue = await create_queue(session, a.initiative, a.user)
+    for label in ("First", "Second"):
+        item = await create_queue_item(session, queue, label=label)
+        await create_property_value(session, item, status, value_text=label)
+
+    envelope = await _export_json(client, a, "/exports/queue", {"ids": [queue.id]})
+    resp = await _import_envelope(client, a, envelope, target.id)
+    assert resp.status_code == 201, resp.text
+
+    names = (
+        await session.exec(
+            select(PropertyDefinition.name)
+            .join(PropertyValue)
+            .where(
+                PropertyValue.entity_type == "queue_item",
+                PropertyDefinition.initiative_id == target.id,
+            )
+        )
+    ).all()
+    assert names == ["Status_text", "Status_text"]
+
+
 async def test_envelope_import_project_replaces_legacy_route(
     client, acting_user, session
 ):
