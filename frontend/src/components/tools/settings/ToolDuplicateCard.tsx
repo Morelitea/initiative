@@ -12,7 +12,7 @@ import { Copy } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   type ToolSettingsEntity,
   useToolSettings,
@@ -43,9 +43,12 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute } from "@/lib/tools";
 
 /** Whether this viewer may copy it: write on it, or read on a template, which
- *  is made to be copied. Where the copy may go is the dialog's question. */
+ *  is made to be copied. Where the copy may go is the dialog's question. A
+ *  notice is published rather than reused, so posts offer no copy here. */
 export const canUseDuplicateCard = (tool: Tool, entity: ToolSettingsEntity): boolean =>
-  Boolean(TOOL_HOOKS[tool].duplicate) && (entity.can.edit || Boolean(entity.is_template));
+  tool !== Tool.post &&
+  Boolean(TOOL_HOOKS[tool].duplicate) &&
+  (entity.can.edit || Boolean(entity.is_template));
 
 export const ToolDuplicateCard = () => {
   const { t } = useTranslation("common");

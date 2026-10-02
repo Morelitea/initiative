@@ -994,3 +994,68 @@ async def test_an_items_attachment_count_covers_every_kind(
     # The typed lists still only know about their own two kinds, which is why
     # the count is asked for separately.
     assert len(row["documents"]) + len(row["tasks"]) == 2
+
+
+async def test_a_copy_starts_its_rotation_over_with_its_items(
+    client: AsyncClient, acting_user, session: AsyncSession
+):
+    """Items come along in order with their tags and attachments; the turn
+    state does not, and a person the copy's readers do not include is let go."""
+    from app.core.relationships import RelationshipType
+    from app.core.search import SearchEntityType
+    from app.testing import (
+        assign_tag,
+        create_queue_item,
+        create_relationship,
+        create_resource_grant,
+        create_tag,
+        enable_all_tools,
+    )
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await enable_all_tools(session, a.initiative)
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    queue = await create_queue(
+        session, a.initiative, a.user, is_active=True, current_round=3
+    )
+    await create_resource_grant(session, queue, all_initiative_members=True)
+    mine = await create_queue_item(
+        session,
+        queue,
+        label="Mine",
+        position=0,
+        user_id=member.user.id,
+        held_at_round=3,
+    )
+    await create_queue_item(
+        session, queue, label="Theirs", position=1, user_id=outsider.user.id
+    )
+    await assign_tag(session, mine, await create_tag(session, a.guild), commit=True)
+    document = await create_document(session, a.initiative, a.user)
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.queue_item, mine.id),
+        target=(SearchEntityType.document, document.id),
+        relationship_type=RelationshipType.attached,
+    )
+
+    response = await client.post(
+        a.g(f"/queues/{queue.id}/duplicate"), headers=a.headers
+    )
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert (copy["is_active"], copy["current_round"]) == (False, 1)
+    first, second = sorted(copy["items"], key=lambda item: item["position"])
+    assert (first["label"], first["user_id"], first["held_at_round"]) == (
+        "Mine",
+        member.user.id,
+        None,
+    )
+    assert len(first["tags"]) == 1
+    assert [d["document_id"] for d in first["documents"]] == [document.id]
+    assert (second["label"], second["user_id"]) == ("Theirs", None)

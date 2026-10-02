@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Mapping
 from typing import Iterable, Literal, Sequence
 
 from fastapi import HTTPException, status
@@ -42,6 +43,7 @@ from app.core.relationships import (
 )
 from app.core.search import SearchEntityType
 from app.db import reference_targets
+from app.db.session import install_context, require_actor_context
 from app.models.tenant.relationship import EntityRelationship
 
 #: How deep a walk may go, whatever it is asked for. A graph that permits cycles
@@ -842,3 +844,74 @@ __all__ = [
     "walk",
     "would_close_a_cycle",
 ]
+
+
+def records_edges(session: AsyncSession) -> bool:
+    """Whether this request writes ``references`` edges. An installed app
+    writes relationships only under its ``relationships:write`` scope; without
+    it, what its content points at is left unrecorded."""
+    context = install_context(session)
+    return context is None or "relationships" in context.install_write
+
+
+#: Edge types a copy does not carry. Tags travel through ``copy_entity_tags``,
+#: and a derived edge is read out of a body on save rather than asserted, so
+#: neither is copied here.
+_UNCOPIED_TYPES = frozenset({RelationshipType.tagged_with}) | DERIVED_TYPES
+
+
+async def copy_links(
+    session: AsyncSession, kind: SearchEntityType, copies: Mapping[int, int]
+) -> None:
+    """Carry the links of rows of ``kind`` onto their copies
+    (``{source_id: copy_id}``).
+
+    Every live edge touching a source is re-created on its copy. An end that is
+    itself one of the sources is remapped to its copy, so a dependency between
+    two copied tasks joins the two copies; any other end is kept as it is.
+
+    Each is a link made on the copier's behalf, through :func:`link_many`, so
+    one it would refuse is left behind: a far end the copier cannot open, one
+    in another initiative than the copy, an archived one.
+    """
+    if not copies or not records_edges(session):
+        return
+    nodes = [node_id(kind, source_id) for source_id in copies]
+    live = EntityRelationship.removed_at.is_(None)  # type: ignore[union-attr]
+    rows = [
+        *await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.source_node.in_(nodes),  # type: ignore[union-attr]
+                live,
+            )
+        ),
+        *await session.exec(
+            select(EntityRelationship).where(
+                EntityRelationship.target_node.in_(nodes),  # type: ignore[union-attr]
+                live,
+            )
+        ),
+    ]
+    edges = {row.id: row for row in rows if row.id is not None}
+
+    def remapped(end_kind: str, entity_id: int) -> Endpoint:
+        resolved = SearchEntityType(end_kind)
+        if resolved is kind:
+            entity_id = copies.get(entity_id, entity_id)
+        return Endpoint(resolved, entity_id)
+
+    await link_many(
+        session,
+        [
+            Link(
+                source=remapped(row.source_type, row.source_id),
+                relationship_type=RelationshipType(row.relationship_type),
+                target=remapped(row.target_type, row.target_id),
+                provenance=Provenance(row.provenance),
+                confidence=row.confidence,
+            )
+            for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0))
+            if RelationshipType(row.relationship_type) not in _UNCOPIED_TYPES
+        ],
+        user_id=require_actor_context(session).user_id,
+    )

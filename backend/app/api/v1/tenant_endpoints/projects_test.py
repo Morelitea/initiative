@@ -684,7 +684,8 @@ async def test_duplicate_project_copies_task_relations(
 ):
     """Duplicating a project carries its task relations, ids remapped, and
     a symmetric relation to something outside the project is kept as-is; each
-    task's tags land on its own copy. A live project's checklists start over."""
+    task's tags land on its own copy, and so does the project's attached
+    document. A live project's checklists start over."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     source, first, second = await _template_with_dependency(session, admin)
     source.is_template = False
@@ -712,12 +713,22 @@ async def test_duplicate_project_copies_task_relations(
         relationship_type=RelationshipType.related_to,
     )
 
+    attached = await create_document(session, admin.initiative, admin.user)
+    await create_relationship(
+        session,
+        admin.guild,
+        source=(SearchEntityType.project, source.id),
+        target=(SearchEntityType.document, attached.id),
+        relationship_type=RelationshipType.attached,
+    )
+
     response = await client.post(
         admin.g(f"/projects/{source.id}/duplicate"),
         headers=admin.headers,
         json={"name": "Copy"},
     )
     assert response.status_code == 201
+    assert [d["document_id"] for d in response.json()["documents"]] == [attached.id]
 
     tasks = await _tasks_by_title(client, admin, response.json()["id"])
     new_first, new_second = tasks["Design"], tasks["Build"]

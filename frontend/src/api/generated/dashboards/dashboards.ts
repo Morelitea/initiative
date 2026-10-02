@@ -33,6 +33,7 @@ import type {
   QueryResponse,
   ReadDashboardApiV1CGuildIdDashboardsDashboardIdGetParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
   WidgetCatalog,
 } from "../initiativeAPI.schemas";
 
@@ -1897,6 +1898,117 @@ export const useSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut = 
 > => {
   return useMutation(
     getSetDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Dashboard
+ */
+export const duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost = (
+  guildId: number,
+  dashboardId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DashboardRead>(
+    {
+      url: `/api/v1/c/${guildId}/dashboards/${dashboardId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationKey = () =>
+  ["duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost"] as const;
+
+export const getDuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost>>,
+    TError,
+    DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost>>,
+  TError,
+  DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getDuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost>>,
+    DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, dashboardId, data } = props ?? {};
+
+    return duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost(
+      guildId,
+      dashboardId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost>>
+  >;
+export type DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationVariables = {
+  guildId: number;
+  dashboardId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Dashboard
+ */
+export const useDuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost>>,
+      TError,
+      DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost>>,
+  TError,
+  DuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };

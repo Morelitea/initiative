@@ -815,3 +815,30 @@ async def test_an_unanswered_poll_is_not_locked(
     ]
 
     assert seen["is_locked"] is False
+
+
+async def test_a_copy_is_a_draft_with_the_poll_and_none_of_its_votes(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(
+        session, a.initiative, a.user, pinned_at=datetime.now(timezone.utc)
+    )
+    await create_post_poll(session, post)
+    read = await client.get(a.g(f"/posts/{post.id}"), headers=a.headers)
+    voted = await client.put(
+        a.g(f"/posts/{post.id}/poll/vote"),
+        headers=a.headers,
+        json={"option_ids": [_option_id(read.json(), "Tuesday")]},
+    )
+    assert voted.status_code == 200, voted.text
+
+    response = await client.post(a.g(f"/posts/{post.id}/duplicate"), headers=a.headers)
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert (copy["published_at"], copy["pinned_at"]) == (None, None)
+    options = copy["poll"]["options"]
+    assert [o["text"] for o in options] == ["Tuesday", "Thursday"]
+    assert not any(o["voted_by_me"] for o in options)

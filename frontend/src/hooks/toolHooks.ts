@@ -52,6 +52,7 @@ import {
 import {
   createDashboardApiV1CGuildIdDashboardsPost,
   deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete,
+  duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost,
   getListDashboardsApiV1CGuildIdDashboardsGetQueryKey,
   getReadDashboardApiV1CGuildIdDashboardsDashboardIdGetQueryKey,
   listDashboardsApiV1CGuildIdDashboardsGet,
@@ -72,6 +73,7 @@ import {
 import {
   createGalleryApiV1CGuildIdGalleriesPost,
   deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete,
+  duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost,
   getListGalleriesApiV1CGuildIdGalleriesGetQueryKey,
   getReadGalleryApiV1CGuildIdGalleriesGalleryIdGetQueryKey,
   listGalleriesApiV1CGuildIdGalleriesGet,
@@ -108,6 +110,7 @@ import {
 import {
   createPostApiV1CGuildIdPostsPost,
   deletePostApiV1CGuildIdPostsPostIdDelete,
+  duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost,
   getListPostsApiV1CGuildIdPostsGetQueryKey,
   getReadPostApiV1CGuildIdPostsPostIdGetQueryKey,
   listPostsApiV1CGuildIdPostsGet,
@@ -128,6 +131,7 @@ import {
 import {
   createQueueApiV1CGuildIdQueuesPost,
   deleteQueueApiV1CGuildIdQueuesQueueIdDelete,
+  duplicateQueueApiV1CGuildIdQueuesQueueIdDuplicatePost,
   getListQueuesApiV1CGuildIdQueuesGetQueryKey,
   getReadQueueApiV1CGuildIdQueuesQueueIdGetQueryKey,
   listQueuesApiV1CGuildIdQueuesGet,
@@ -459,6 +463,7 @@ const dashboardEndpoints = {
   update: updateDashboardApiV1CGuildIdDashboardsDashboardIdPatch,
   remove: deleteDashboardApiV1CGuildIdDashboardsDashboardIdDelete,
   setGrants: setDashboardGrantsApiV1CGuildIdDashboardsDashboardIdGrantsPut,
+  duplicate: duplicateDashboardApiV1CGuildIdDashboardsDashboardIdDuplicatePost,
   tool: Tool.dashboard,
 };
 
@@ -502,6 +507,7 @@ const galleryEndpoints = {
   update: updateGalleryApiV1CGuildIdGalleriesGalleryIdPatch,
   remove: deleteGalleryApiV1CGuildIdGalleriesGalleryIdDelete,
   setGrants: setGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut,
+  duplicate: duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost,
   tool: Tool.gallery,
 };
 
@@ -516,6 +522,7 @@ const postEndpoints = {
   update: updatePostApiV1CGuildIdPostsPostIdPatch,
   remove: deletePostApiV1CGuildIdPostsPostIdDelete,
   setGrants: setPostGrantsApiV1CGuildIdPostsPostIdGrantsPut,
+  duplicate: duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost,
   tool: Tool.post,
 };
 
@@ -556,6 +563,7 @@ const queueEndpoints = {
   update: updateQueueApiV1CGuildIdQueuesQueueIdPatch,
   remove: deleteQueueApiV1CGuildIdQueuesQueueIdDelete,
   setGrants: setQueueGrantsApiV1CGuildIdQueuesQueueIdGrantsPut,
+  duplicate: duplicateQueueApiV1CGuildIdQueuesQueueIdDuplicatePost,
   tool: Tool.queue,
 };
 

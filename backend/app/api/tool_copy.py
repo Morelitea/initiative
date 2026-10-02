@@ -13,12 +13,13 @@ here, and a project made from a template is a copy as well
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from fastapi import HTTPException, status
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
@@ -32,18 +33,23 @@ from app.models.tenant._mixins import (
     ListingProvenanceMixin,
     SoftDeleteMixin,
 )
-from app.models.tenant.counter import Counter
+from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
+from app.models.tenant.post import Post
+from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.project import Project
+from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.task import Task
 from app.schemas.base import RESERVED_SIGIL_CODE, RESERVED_SIGILS
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
-from app.services.tenant import counters as counters_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import filter_presets as filter_presets_service
+from app.services.tenant import named_people
 from app.services.tenant import project_grants
 from app.services.tenant import properties as properties_service
+from app.services.tenant import relationships
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_creation
 from app.services.tenant import task_statuses as task_statuses_service
@@ -88,18 +94,61 @@ _NOT_CARRIED = frozenset(
 )
 
 
-def _carried(model: Any, copier: ToolCopier) -> list[str]:
-    """The columns a copy takes from its source: everything the tool says about
-    itself, but not its identity, its lifecycle, or the rows it points at,
-    which are the copy's own."""
+def _carried(model: Any, skip: Collection[str] = ()) -> list[str]:
+    """The columns a copy takes from its source: everything the row says about
+    itself, but not its identity, its lifecycle, the rows it points at, which
+    are the copy's own, or ``skip``."""
     return [
         column.name
         for column in model.__table__.columns
         if not column.primary_key
         and not column.foreign_keys
         and column.name not in _NOT_CARRIED
-        and column.name not in copier.reset
+        and column.name not in skip
     ]
+
+
+def _clone(source: Any, reset: Mapping[str, Any] | None = None, **values: Any) -> Any:
+    """A new row of ``source``'s model carrying its columns (:func:`_carried`),
+    with ``reset`` and ``values`` set on top. ``source`` is loaded."""
+    reset = reset or {}
+    model = type(source)
+    carried = {c: deepcopy(getattr(source, c)) for c in _carried(model, reset)}
+    return model(**{**carried, **reset, **values})
+
+
+async def _copy_extras(
+    session: AsyncSession, pairs: Sequence[tuple[Any, Any]], *, beside: bool
+) -> None:
+    """The tags and links of rows copied inside a tool, one model at a time,
+    and their property values when the copy stays in its initiative."""
+    if not pairs:
+        return
+    model = type(pairs[0][0])
+    copies = {source.id: copy.id for source, copy in pairs}
+    spec = next((s for s in tags_service.TAG_LINKS.values() if s.entity is model), None)
+    if spec is not None:
+        await tags_service.copy_entity_tags(session, spec, copies)
+        await relationships.copy_links(session, spec.kind, copies)
+    if beside and model in properties_service.PROPERTY_LINKS_BY_MODEL:
+        await properties_service.copy_values(session, model, copies)
+
+
+async def _copy_children(
+    session: AsyncSession,
+    sources: Sequence[Any],
+    *,
+    beside: bool,
+    values: Callable[[Any], Mapping[str, Any]],
+    reset: Mapping[str, Any] | None = None,
+) -> list[tuple[Any, Any]]:
+    """Clone ``sources``, rows inside a tool, with ``values(source)`` set on
+    each, then copy their tags and properties; returns the pairs."""
+    pairs = [(source, _clone(source, reset, **values(source))) for source in sources]
+    session.add_all(clone for _, clone in pairs)
+    await session.flush()
+    await _copy_extras(session, pairs, beside=beside)
+    return pairs
 
 
 async def load_source(
@@ -162,7 +211,7 @@ async def duplicate(
             detail=copier.name_taken,
         )
 
-    columns = _carried(model, copier)
+    columns = _carried(model, copier.reset)
     # Deferred columns (a document's body) are read too.
     await session.refresh(source, columns)
     copy = model(
@@ -198,9 +247,9 @@ async def duplicate(
         if copier.contents
         else []
     )
-    await tags_service.copy_entity_tags(
-        session, tags_service.TOOL_TAG_LINKS[tool], {source.id: copy.id}
-    )
+    spec = tags_service.TOOL_TAG_LINKS[tool]
+    await tags_service.copy_entity_tags(session, spec, {source.id: copy.id})
+    await relationships.copy_links(session, spec.kind, {source.id: copy.id})
     # Definitions belong to an initiative, so values only go where they apply.
     if beside and model in properties_service.PROPERTY_LINKS_BY_MODEL:
         await properties_service.copy_values(session, model, {source.id: copy.id})
@@ -239,6 +288,115 @@ async def _announce_project(session: AsyncSession, project_id: int, user: User) 
     await notifications_service.notify_project_added(session, project, user)
 
 
+def _beside(source: Any, copy: Any) -> bool:
+    return source.initiative_id == copy.initiative_id
+
+
+async def _counter_group_contents(
+    session: AsyncSession, source: CounterGroup, copy: CounterGroup, actor: ActorContext
+) -> list[Counter]:
+    counters = (
+        await session.exec(select(Counter).where(Counter.counter_group_id == source.id))
+    ).all()
+    pairs = await _copy_children(
+        session,
+        counters,
+        beside=_beside(source, copy),
+        values=lambda _: {"counter_group_id": copy.id},
+    )
+    return [clone for _, clone in pairs]
+
+
+async def _queue_contents(
+    session: AsyncSession, source: Queue, copy: Queue, actor: ActorContext
+) -> list[QueueItem]:
+    items = (
+        await session.exec(select(QueueItem).where(QueueItem.queue_id == source.id))
+    ).all()
+    # The person an item names stays only where they can open the copy.
+    readers = await named_people.readers(
+        session,
+        named_people.Governing.of(Tool.queue, copy),
+        {item.user_id for item in items if item.user_id is not None},
+    )
+    pairs = await _copy_children(
+        session,
+        items,
+        beside=_beside(source, copy),
+        values=lambda item: {
+            "queue_id": copy.id,
+            "user_id": item.user_id if item.user_id in readers else None,
+        },
+        reset={"held_at_round": None},
+    )
+    return [clone for _, clone in pairs]
+
+
+async def _gallery_contents(
+    session: AsyncSession, source: Gallery, copy: Gallery, actor: ActorContext
+) -> list[GalleryImage]:
+    images = (
+        await session.exec(
+            select(GalleryImage).where(GalleryImage.gallery_id == source.id)
+        )
+    ).all()
+    # Each picture starts again at version 1, authored by whoever copied it; an
+    # app is never an author, so its copy keeps the picture's uploader.
+    pairs = await _copy_children(
+        session,
+        images,
+        beside=_beside(source, copy),
+        values=lambda image: {
+            "gallery_id": copy.id,
+            "created_by": actor.user_id or image.created_by,
+        },
+    )
+    session.add_all(
+        GalleryImageVersion(
+            gallery_image_id=clone.id,
+            version_number=1,
+            created_by=clone.created_by,
+            **{c: getattr(clone, c) for c in _IMAGE_FILE_COLUMNS},
+        )
+        for _, clone in pairs
+    )
+    copy.cover_image_id = {s.id: c.id for s, c in pairs}.get(source.cover_image_id)
+    return [clone for _, clone in pairs]
+
+
+#: What a picture's version records about its file.
+_IMAGE_FILE_COLUMNS = (
+    "file_url",
+    "thumbnail_url",
+    "file_content_type",
+    "file_size",
+    "original_filename",
+    "width",
+    "height",
+)
+
+
+async def _post_contents(
+    session: AsyncSession, source: Post, copy: Post, actor: ActorContext
+) -> list[Any]:
+    """The post's polls, with their options and none of the votes."""
+    for poll in (
+        await session.exec(select(PostPoll).where(PostPoll.post_id == source.id))
+    ).all():
+        ((_, clone),) = await _copy_children(
+            session, [poll], beside=False, values=lambda _: {"post_id": copy.id}
+        )
+        options = (
+            await session.exec(
+                select(PostPollOption).where(PostPollOption.poll_id == poll.id)
+            )
+        ).all()
+        await _copy_children(
+            session, options, beside=False, values=lambda _: {"poll_id": clone.id}
+        )
+    return []
+
+
 TOOL_COPIERS: dict[Tool, ToolCopier] = {
     Tool.project: ToolCopier(
         copies=frozenset({Task}),
@@ -253,9 +411,27 @@ TOOL_COPIERS: dict[Tool, ToolCopier] = {
         name_takes_sigils=True,
     ),
     Tool.counter_group: ToolCopier(
-        copies=frozenset({Counter}),
-        contents=lambda session, source, copy, actor: counters_service.copy_counters(
-            session, source, copy
-        ),
+        copies=frozenset({Counter}), contents=_counter_group_contents
+    ),
+    Tool.queue: ToolCopier(
+        copies=frozenset({QueueItem}),
+        contents=_queue_contents,
+        # A copy starts its rotation from the top.
+        reset={"is_active": False, "current_round": 1},
+    ),
+    Tool.gallery: ToolCopier(
+        copies=frozenset({GalleryImage}), contents=_gallery_contents
+    ),
+    Tool.dashboard: ToolCopier(),
+    # A copy of a notice is a draft: not published, scheduled or pinned.
+    Tool.post: ToolCopier(
+        contents=_post_contents,
+        reset={
+            "published_at": None,
+            "scheduled_for": None,
+            "pinned_at": None,
+            "pinned_by": None,
+            "pin_expires_at": None,
+        },
     ),
 }

@@ -192,33 +192,6 @@ async def reset_all_counters(
     return group
 
 
-async def copy_counters(
-    session: AsyncSession, source: CounterGroup, target: CounterGroup
-) -> list[Counter]:
-    """Copy every live counter of ``source`` (values, bounds, view mode,
-    position) into ``target``, a duplicate whose sharing is already in the
-    database. Adds the rows and returns them; the caller commits.
-    """
-    copies = [
-        Counter(
-            counter_group_id=target.id,
-            name=counter.name,
-            color=counter.color,
-            count=counter.count,
-            min=counter.min,
-            max=counter.max,
-            step=counter.step,
-            initial_count=counter.initial_count,
-            view_mode=counter.view_mode,
-            position=counter.position,
-        )
-        for counter in source.counters
-        if counter.deleted_at is None
-    ]
-    session.add_all(copies)
-    return copies
-
-
 async def sort_counters(
     session: AsyncSession,
     group: CounterGroup,

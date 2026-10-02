@@ -276,6 +276,14 @@ describe("ToolSettingsAdvancedPage", () => {
     await waitFor(() => expect(sent).toEqual({ name: "Q3 Roadmap", target_initiative_id: 4 }));
   });
 
+  it("offers no copy of a post, which is published rather than reused", async () => {
+    resetFactories();
+    renderSection(ToolSettingsAdvancedPage, buildEntity(), Tool.post);
+
+    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Duplicate" })).not.toBeInTheDocument();
+  });
+
   it("offers no export to someone who may edit it but not delete it", async () => {
     resetFactories();
     renderSection(ToolSettingsAdvancedPage, buildEntity({ can: writerCan() }));
