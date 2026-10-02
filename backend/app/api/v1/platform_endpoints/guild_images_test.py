@@ -26,8 +26,10 @@ from app.models.platform.guild_image import (
     GuildImage,
     GuildImageVariant,
 )
+from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.testing.factories import (
+    create_access_grant,
     create_user,
     get_auth_headers,
 )
@@ -493,6 +495,27 @@ async def test_deleting_a_guild_takes_its_banner(
         await session.exec(select(GuildImage).where(GuildImage.guild_id == guild_id))
     ).all()
     assert rows == []
+
+
+async def test_a_settings_grant_reads_the_guild_with_its_pictures(
+    client: AsyncClient, acting_user, session: AsyncSession
+):
+    """A settings rung has no entry in the guild list, so its read of the
+    guild is where it learns the pictures it may be there to review."""
+    a = await acting_user(guild_role=GuildRole.admin)
+    payload = await _set_banner(client, a.guild.id, a.headers)
+    support = await create_user(session, role=UserRole.support)
+    await create_access_grant(
+        session, user=support, guild=a.guild, access_level="admin", purpose="settings"
+    )
+
+    response = await client.get(
+        f"/api/v1/communities/{a.guild.id}", headers=get_auth_headers(support)
+    )
+
+    assert response.status_code == 200
+    assert response.json()["banner"]["image_url"] == payload["banner"]["image_url"]
+    assert response.json()["banner_card_url"] == await _card_url(session, a.guild.id)
 
 
 async def test_a_pam_grantee_reads_the_full_banner(

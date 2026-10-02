@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A community reached through a settings grant shows its icon and banner** in its settings, on its front page and in the guild rail, so someone there to review its artwork can see it.
 - **Built-in dashboard templates update again.** After upgrading to 0.74, the server logged that several built-in templates were "already published with different content" and kept the copies it had. They now update, and the Counter board and Guild calendar templates move to 1.0.1 for installs that had their first copies.
 - **A post that goes up after its poll's deadline** opens the poll instead of posting it already closed. The author can set a new deadline.
 - Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.

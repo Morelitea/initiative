@@ -635,13 +635,15 @@ async def read_guild(
     guild_id: int,
     guild_context: SettingsAdminContextDep,
     session: SettingsRLSSessionDep,
+    system_session: SystemSessionDep,
 ) -> GuildRead:
     """The community as the caller's standing sees it — how a community
     reached by a settings grant, which has no entry in ``GET /communities/``, gets
     its entry and the answer to what the caller may change there.
 
-    Without its pictures: a settings rung reads on the read-only floor, which
-    holds no grant on the image digests.
+    Its pictures are looked up on the system engine: a settings rung reads on
+    the read-only floor, which holds no grant on the image digests, and the
+    image route serves them to a grant holder as it does to a member.
     """
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     return _serialize_guild(
@@ -653,6 +655,13 @@ async def read_guild(
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
             session, guild_id=guild_id
+        ),
+        images=await images_service.image_urls_for(
+            system_session,
+            guild_id,
+            GuildImageVariant.icon,
+            GuildImageVariant.full,
+            GuildImageVariant.card,
         ),
     )
 
