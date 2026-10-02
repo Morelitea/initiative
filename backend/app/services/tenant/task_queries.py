@@ -59,6 +59,7 @@ from app.services import fields as fields_registry
 from app.services import permissions as permissions_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.fields.spec import FieldContext, SortContext
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
@@ -516,6 +517,26 @@ async def _annotate_series_sizes(session: AsyncSession, tasks: list[Task]) -> No
         sizes = dict((await session.exec(stmt)).all())
     for task in tasks:
         object.__setattr__(task, "series_size", sizes.get(task.series_id, 1))
+
+
+async def load_for_change(
+    session: AsyncSession, task_id: int, *, populate_existing: bool = False
+) -> Task | None:
+    """The task with what changing it reads: its project as authorizing it
+    reads it, its status and its assignees. What only a response reads is
+    :func:`load_task`'s."""
+    return (
+        await session.exec(
+            select(Task)
+            .where(Task.id == task_id)
+            .options(
+                with_tool(Task.project),
+                joinedload(Task.task_status),
+                selectinload(Task.assignees),
+            )
+            .execution_options(populate_existing=populate_existing)
+        )
+    ).one_or_none()
 
 
 async def load_task(session: AsyncSession, task_id: int) -> Task | None:

@@ -4,7 +4,7 @@ from typing import Annotated, List, Optional, Sequence
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload, selectinload, undefer
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api import resource_access
@@ -156,37 +156,6 @@ def _touch_project(project: Project, now: datetime) -> None:
 #: ``tasks`` policy is rendered from, so the routes and the policy cannot
 #: disagree about a task's parent.
 _GOVERNING = resource_access.governing_tool("tasks")
-
-
-async def _load_for_change(
-    session: SessionDep, task_id: int, user: User | None, context: ActorContext
-) -> Task:
-    """The task with what changing it reads — its project and initiative, its
-    status and its assignees — refused unless the request may edit the project.
-
-    What only a response reads (counts, tags, properties, the creator) is left
-    to :func:`task_queries.load_task` once the change has landed.
-    """
-    statement = (
-        select(Task)
-        .where(Task.id == task_id)
-        .options(
-            joinedload(Task.project).options(
-                joinedload(Project.initiative), undefer(Project.actions)
-            ),
-            joinedload(Task.task_status),
-            selectinload(Task.assignees),
-        )
-    )
-    task = (await session.exec(statement)).one_or_none()
-    if task is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
-        )
-    resource_access.authorize(
-        _GOVERNING, task.project, user, context=context, access="write"
-    )
-    return task
 
 
 async def _response(session: SessionDep, task_id: int, missing: str) -> Task:
@@ -427,7 +396,7 @@ async def update_task(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> Task:
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
 
     update_data = task_in.model_dump(exclude_unset=True)
@@ -614,7 +583,7 @@ async def move_task(
     current_user: ActorUserDep,
     guild_context: ProjectsWrite,
 ) -> Task:
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     if task.project_id == move_in.target_project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -686,7 +655,7 @@ async def duplicate_task(
     """Copy the task beside itself, at the end of its project, as
     "<title> (Copy)", with its assignees, tags, links and properties; its
     checklist starts unticked."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     # The copy stays in the project, whose sharing is already committed, so
     # who it may name is asked of the copy's own assignees alone.
     keep = await named_people.readers(
@@ -714,7 +683,7 @@ async def delete_task(
     goes on (trashing it when the series has no more), ``following`` (the
     default) trashes it and so ends the repeat, and ``all`` trashes every
     other task of the series too."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
     now = datetime.now(timezone.utc)
     skipped = (
@@ -748,7 +717,7 @@ async def skip_task(
     guild_context: ProjectsWrite,
 ) -> Task:
     """Move a repeating task on to its next occurrence without completing it."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     if not task.recurrence:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -922,7 +891,7 @@ async def toggle_checklist_item(
     several people make to the same task at once: it names one item and rewrites
     only that item, so two ticks on different items both land.
     """
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     now = datetime.now(timezone.utc)
     result = await session.exec(
         checklist_service.toggle_statement(),
@@ -993,7 +962,7 @@ async def generate_task_checklist(
     guild_context: GuildContextDep,
 ) -> GenerateChecklistResponse:
     """Suggest checklist steps for a task."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
 
     await _record_ai_request(
@@ -1027,7 +996,7 @@ async def generate_task_description(
     guild_context: GuildContextDep,
 ) -> GenerateDescriptionResponse:
     """Generate AI-powered description for a task."""
-    task = await _load_for_change(session, task_id, current_user, guild_context)
+    task = await resource_access.load_child(session, Task, task_id, access="write")
     project = task.project
 
     await _record_ai_request(

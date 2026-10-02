@@ -29,6 +29,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, false, func, inspect, true
+from sqlalchemy.orm import joinedload, undefer
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
@@ -581,6 +582,15 @@ def actions_of(row: Any) -> frozenset[str]:
             "undefer it in the loader"
         )
     return frozenset(row.actions or ())
+
+
+def with_tool(relation: Any) -> Any:
+    """The load option for a row's tool, ``relation``, as authorizing it
+    reads it: its initiative and its ``actions``."""
+    tool = relation.property.mapper.class_
+    return joinedload(relation).options(
+        joinedload(tool.initiative), undefer(tool.actions)
+    )
 
 
 def allows(row: Any, action: Action) -> bool:

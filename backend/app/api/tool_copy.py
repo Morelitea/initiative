@@ -89,31 +89,6 @@ class ToolCopier:
     announce: Optional[Callable[[AsyncSession, int, User], Awaitable[None]]] = None
 
 
-@dataclass(frozen=True)
-class ChildCopier:
-    """How a row inside a tool is copied, alone or with its tool."""
-
-    #: The column holding the tool it is in.
-    parent: str
-    #: The column holding what it is called.
-    name: str
-    #: Columns a copy starts afresh rather than carries.
-    reset: Mapping[str, Any] = field(default_factory=dict)
-
-
-#: The rows inside a tool that can be copied on their own. A task is copied by
-#: ``task_creation.copy_tasks``.
-CHILD_COPIERS: dict[type, ChildCopier] = {
-    Counter: ChildCopier("counter_group_id", "name"),
-    # A copy is not held out of the rotation.
-    QueueItem: ChildCopier("queue_id", "label", reset={"held_at_round": None}),
-    CalendarEvent: ChildCopier("calendar_id", "title"),
-    WikiPage: ChildCopier(
-        "wiki_id", "title", reset={"yjs_state": None, "yjs_updated_at": None}
-    ),
-}
-
-
 #: What a row says about its own lifecycle and origin rather than its content.
 _NOT_CARRIED = frozenset(
     {
@@ -204,8 +179,9 @@ async def _copy_children(
 ) -> list[tuple[Any, Any]]:
     """Clone ``sources``, rows inside a tool, with ``values(source)`` set on
     each, then copy their tags and properties; returns the pairs."""
-    if sources and type(sources[0]) in CHILD_COPIERS:
-        reset = {**CHILD_COPIERS[type(sources[0])].reset, **(reset or {})}
+    if sources and type(sources[0]) in resource_access.SUB_TOOLS:
+        resets = resource_access.SUB_TOOLS[type(sources[0])].copy_resets
+        reset = {**resets, **(reset or {})}
     pairs = [(source, _clone(source, reset, **values(source))) for source in sources]
     session.add_all(clone for _, clone in pairs)
     await session.flush()
@@ -567,7 +543,7 @@ def _length(model: Any, column: str) -> int | None:
 
 def copied_name(source: Any) -> str:
     """What a copy of ``source``, a row inside a tool, is called beside it."""
-    column = CHILD_COPIERS[type(source)].name
+    column = resource_access.SUB_TOOLS[type(source)].name
     return copy_name(getattr(source, column), _length(type(source), column))
 
 
@@ -576,14 +552,14 @@ async def duplicate_child(session: AsyncSession, source: Any, **values: Any) -> 
     with its tags, links, text references, property values and files.
     ``values`` sets what its sub-tool decides: where the copy sits, and whom
     it names. The caller commits."""
-    copier = CHILD_COPIERS[type(source)]
+    parent = resource_access.parent_column(type(source))
     ((_, copy),) = await _copy_children(
         session,
         [source],
         beside=True,
         values=lambda _: {
-            copier.parent: getattr(source, copier.parent),
-            copier.name: copied_name(source),
+            parent: getattr(source, parent),
+            resource_access.SUB_TOOLS[type(source)].name: copied_name(source),
             **values,
         },
     )

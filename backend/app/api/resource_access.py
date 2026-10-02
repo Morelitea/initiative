@@ -5,6 +5,9 @@
 handlers and FastAPI-injected routes. `RESOURCE_ACCESS` is the enforcement-side
 registry: one entry per `Tool`, carrying only how a row is loaded and addressed.
 Everything it answers with is derived from the tool itself.
+
+`load_child` does the same for a row inside a tool (`SUB_TOOLS`), which its
+tool's sharing reaches.
 """
 
 # NOT `from __future__ import annotations`: resource_dependency builds a signature
@@ -12,8 +15,8 @@ Everything it answers with is derived from the tool itself.
 # annotations re-evaluate it where cfg is out of scope → FastAPI drops the path
 # param and 422s.
 
-from dataclasses import dataclass
-from typing import Annotated, Any, Awaitable, Callable, Optional
+from dataclasses import dataclass, field
+from typing import Annotated, Any, Awaitable, Callable, Mapping, Optional, TypeVar
 
 from fastapi import Depends, HTTPException, status
 
@@ -22,14 +25,30 @@ from app.api.deps import (
     get_current_active_user,
 )
 from app.core.app_scopes import AppScopeAccess, scope_name, tool_resource
-from app.core.messages import AppMessages, InitiativeMessages
+from app.core.messages import (
+    AppMessages,
+    CalendarEventMessages,
+    CounterMessages,
+    GalleryMessages,
+    InitiativeMessages,
+    QueueMessages,
+    TaskMessages,
+    WikiMessages,
+)
 from app.core.tools import Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
+from app.db.session import require_actor_context
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.counter import Counter
+from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.initiative import Initiative, PermissionKey
+from app.models.tenant.queue import QueueItem
+from app.models.tenant.wiki import WikiPage
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
+from sqlalchemy import inspect
 from sqlmodel import select
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.services import permissions as permissions_service
@@ -37,6 +56,7 @@ from app.services.permissions import Action
 from app.services import rls as rls_service
 from app.services import reachability
 from app.services.tenant import ownership as ownership_service
+from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import dashboards as dashboards_service
@@ -47,6 +67,7 @@ from app.services.tenant import posts as posts_service
 from app.services.tenant import named_people
 from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
+from app.services.tenant import task_queries
 
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
@@ -436,8 +457,9 @@ async def load_authorized(
     loader = cfg.hydrated_loader if hydrated and cfg.hydrated_loader else cfg.loader
     row = await loader(session, resource_id)
     if row is None:
-        if user is not None and await reachability.reader_is_in_the_initiative(
-            kind.plural, resource_id, user.id, guild_context.guild_id
+        reader = guild_context.user_id
+        if reader is not None and await reachability.reader_is_in_the_initiative(
+            kind.plural, resource_id, reader, guild_context.guild_id
         ):
             # In the initiative, so the row is theirs to know about — sharing is
             # what refused it, and "denied" is the answer to that.
@@ -456,6 +478,101 @@ async def load_authorized(
         action=action,
     )
     return row
+
+
+@dataclass(frozen=True)
+class SubTool:
+    """A row inside a tool, reached by its tool's sharing. Which tool, and the
+    column that names it, come from ``initiative_rls.governing_path``."""
+
+    #: async (session, id, *, populate_existing) -> the row, with its tool,
+    #: that tool's initiative and ``actions`` loaded.
+    load: Callable[..., Awaitable[Any]]
+    #: The refusal for one that is missing or out of reach.
+    not_found: str
+    #: The column holding what it is called.
+    name: str = "title"
+    #: Columns a copy starts afresh rather than carries.
+    copy_resets: Mapping[str, Any] = field(default_factory=dict)
+
+
+SUB_TOOLS: dict[type, SubTool] = {
+    Task: SubTool(task_queries.load_for_change, TaskMessages.NOT_FOUND),
+    CalendarEvent: SubTool(events_service.get_event, CalendarEventMessages.NOT_FOUND),
+    Counter: SubTool(
+        counters_service.get_counter, CounterMessages.NOT_FOUND, name="name"
+    ),
+    # A copy is not held out of the rotation.
+    QueueItem: SubTool(
+        queues_service.get_queue_item,
+        QueueMessages.ITEM_NOT_FOUND,
+        name="label",
+        copy_resets={"held_at_round": None},
+    ),
+    WikiPage: SubTool(
+        wikis_service.get_page,
+        WikiMessages.PAGE_NOT_FOUND,
+        copy_resets={"yjs_state": None, "yjs_updated_at": None},
+    ),
+    GalleryImage: SubTool(galleries_service.get_image, GalleryMessages.IMAGE_NOT_FOUND),
+}
+
+
+def parent_column(model: type) -> str:
+    """The column of a row inside a tool that names its tool."""
+    path = governing_path(model.__tablename__)
+    assert path is not None, model
+    ((column, _table),) = path[1]
+    return column
+
+
+Child = TypeVar("Child")
+
+
+async def load_child(
+    session: Any,
+    model: type[Child],
+    child_id: int,
+    *,
+    access: str = "read",
+    action: Optional[Action] = None,
+    parent_id: Optional[int] = None,
+) -> Child:
+    """A row inside a tool, by its own loader, refused as its tool would be
+    (:func:`authorize`) for the standing the session was routed with.
+    ``parent_id`` is the tool a route addresses it under, whose own refusal
+    comes first when the row is out of reach."""
+    context = require_actor_context(session)
+    kind = governing_tool(model.__tablename__)
+    column = parent_column(model)
+    row = await SUB_TOOLS[model].load(session, child_id)
+    if row is None or (parent_id is not None and getattr(row, column) != parent_id):
+        if parent_id is not None:
+            await load_authorized(
+                session, kind, parent_id, None, context, access=access, action=action
+            )
+        raise _missing(model)
+    parent = next(
+        getattr(row, r.key)
+        for r in inspect(model).relationships
+        if [c.name for c in r.local_columns] == [column]
+    )
+    authorize(kind, parent, context=context, access=access, action=action)
+    return row
+
+
+async def reload_child(session: Any, model: type[Child], child_id: int) -> Child:
+    """A row inside a tool again after a change, as its loader reads it."""
+    row = await SUB_TOOLS[model].load(session, child_id, populate_existing=True)
+    if row is None:
+        raise _missing(model)
+    return row
+
+
+def _missing(model: type) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=SUB_TOOLS[model].not_found
+    )
 
 
 # ── Unified grant-set flow ───────────────────────────────────────────────────

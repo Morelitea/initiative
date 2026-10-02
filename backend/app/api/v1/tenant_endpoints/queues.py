@@ -5,7 +5,7 @@ Follows the document endpoint patterns for RLS, DAC, and initiative permission c
 """
 
 from datetime import datetime, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Optional, cast
 
 import logging
 
@@ -42,7 +42,6 @@ from app.models.tenant.queue import (
     QueueItem,
 )
 from app.models.platform.user import User
-from app.core.messages import QueueMessages
 from app.schemas.tenant.queue import (
     QueueCreate,
     QueueUpdate,
@@ -175,21 +174,6 @@ QueuesWrite = Annotated[ActorContext, Depends(app_scope("queues:write"))]
 # ---------------------------------------------------------------------------
 
 
-async def _get_item_for_queue(
-    session: RLSSessionDep,
-    queue_id: int,
-    item_id: int,
-) -> QueueItem:
-    """Fetch a queue item and validate it belongs to the queue."""
-    item = await queues_service.get_queue_item(session, item_id)
-    if not item or item.queue_id != queue_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
-    return item
-
-
 async def _refetch_queue(
     session: RLSSessionDep,
     queue_id: int,
@@ -226,15 +210,7 @@ async def read_queue_item(
     Gated by read access on the queue it belongs to, like listing it. The item's
     own id is the whole address, so there is no parent to mismatch.
     """
-    item = await queues_service.get_queue_item(session, item_id)
-    if not item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
-    await resource_access.load_authorized(
-        session, Tool.queue, item.queue_id, current_user, guild_context, access="read"
-    )
+    item = await resource_access.load_child(session, QueueItem, item_id)
     return await _serialized_queue_item(session, item)
 
 
@@ -251,15 +227,8 @@ async def duplicate_queue_item(
 ) -> QueueItemRead:
     """Copy the item beside itself, at the same place in the turn order, as
     "<label> (Copy)", with its person, tags, links and properties."""
-    item = await queues_service.get_queue_item(session, item_id)
-    if not item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
-    queue = await resource_access.load_authorized(
-        session, Tool.queue, item.queue_id, current_user, guild_context, access="write"
-    )
+    item = await resource_access.load_child(session, QueueItem, item_id, access="write")
+    queue = item.queue
     named = {item.user_id} if item.user_id is not None else set()
     keep = await named_people.readers(
         session, named_people.Governing.of(Tool.queue, queue), named
@@ -268,14 +237,7 @@ async def duplicate_queue_item(
         session, item, user_id=item.user_id if item.user_id in keep else None
     )
     await session.commit()
-    hydrated = await queues_service.get_queue_item(
-        session, copy.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
+    hydrated = await resource_access.reload_child(session, QueueItem, copy.id)
     result = await _serialized_queue_item(session, hydrated)
     sockets.signal(routed_guild_id(session), Tool.queue, queue.id, "item_added")
     return result
@@ -446,14 +408,7 @@ async def add_queue_item(
     await properties_service.write_on_create(session, item, item_in.properties)
     await session.commit()
 
-    hydrated_item = await queues_service.get_queue_item(
-        session, item.id, populate_existing=True
-    )
-    if not hydrated_item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
+    hydrated_item = await resource_access.reload_child(session, QueueItem, item.id)
     result = await _serialized_queue_item(session, hydrated_item)
     sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "item_added")
     return result
@@ -469,10 +424,10 @@ async def update_queue_item(
     guild_context: QueuesWrite,
 ) -> QueueItemRead:
     """Update a queue item. Requires write access on the queue."""
-    queue = await resource_access.load_authorized(
-        session, Tool.queue, queue_id, current_user, guild_context, access="write"
+    item = await resource_access.load_child(
+        session, QueueItem, item_id, access="write", parent_id=queue_id
     )
-    item = await _get_item_for_queue(session, queue_id, item_id)
+    queue = item.queue
 
     updated = False
     update_data = item_in.model_dump(exclude_unset=True)
@@ -505,14 +460,7 @@ async def update_queue_item(
         await attachments_service.claim_uploads(session, item)
         await session.commit()
 
-    hydrated_item = await queues_service.get_queue_item(
-        session, item.id, populate_existing=True
-    )
-    if not hydrated_item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
+    hydrated_item = await resource_access.reload_child(session, QueueItem, item.id)
     result = await _serialized_queue_item(session, hydrated_item)
     sockets.signal(routed_guild_id(session), Tool.queue, queue_id, "item_updated")
     return result
@@ -529,10 +477,10 @@ async def delete_queue_item(
     """Soft-delete a queue item. Requires write access on the parent queue."""
     from app.services.tenant.soft_delete import trash
 
-    queue = await resource_access.load_authorized(
-        session, Tool.queue, queue_id, current_user, guild_context, access="write"
+    item = await resource_access.load_child(
+        session, QueueItem, item_id, access="write", parent_id=queue_id
     )
-    item = await _get_item_for_queue(session, queue_id, item_id)
+    queue = cast(Queue, item.queue)
 
     if queue.current_item_id == item.id:
         queue.current_item_id = None

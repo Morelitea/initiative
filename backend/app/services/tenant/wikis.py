@@ -40,6 +40,7 @@ from app.core.messages import WikiMessages
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.names import slugify, unique_slug
@@ -80,15 +81,25 @@ async def get_wiki(
 
 
 async def get_page(
-    session: AsyncSession, wiki_id: int, page_id: int
+    session: AsyncSession,
+    page_id: int,
+    *,
+    wiki_id: int | None = None,
+    populate_existing: bool = False,
 ) -> WikiPage | None:
-    """One page of one wiki. Keyed by both so a page id from another wiki
-    reads as missing rather than as somebody else's page."""
+    """One page, with its wiki as authorizing it reads it. ``wiki_id`` makes a
+    page of another wiki read as missing rather than as somebody else's."""
     statement = (
         select(WikiPage)
-        .where(WikiPage.id == page_id, WikiPage.wiki_id == wiki_id)
-        .options(selectinload(WikiPage.author))
+        .where(WikiPage.id == page_id)
+        .options(
+            selectinload(WikiPage.author),
+            with_tool(WikiPage.wiki),
+        )
     )
+    if wiki_id is not None:
+        statement = statement.where(WikiPage.wiki_id == wiki_id)
+    statement = statement.execution_options(populate_existing=populate_existing)
     return (await session.exec(statement)).one_or_none()
 
 
@@ -446,7 +457,7 @@ async def validate_reparent(
             detail=WikiMessages.PAGE_PARENT_ITSELF,
         )
 
-    parent = await get_page(session, page.wiki_id, new_parent_id)
+    parent = await get_page(session, new_parent_id, wiki_id=page.wiki_id)
     if parent is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
