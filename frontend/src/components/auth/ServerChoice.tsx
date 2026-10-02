@@ -88,11 +88,14 @@ const ServerPicker = () => {
         setError(result.error ?? t("server.connectError"));
         return;
       }
-      // Leaving a server signs out of it, and a sign-up begun there stays there.
-      if (user) await logout();
+      // A sign-up begun on one server stays there, and leaving a server signs
+      // out of it. The draft goes first: if it cannot, nothing has changed.
       await clearStart();
+      if (user) await logout();
       setSelfHostedAddress(trimmed);
       await setServerUrl(trimmed);
+    } catch {
+      setError(t("server.connectError"));
     } finally {
       setConnecting(false);
     }

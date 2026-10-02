@@ -14,6 +14,14 @@ import { freshAnswers, readStartDraft, saveStartDraft } from "@/lib/startFlow";
 
 import { ServerChoice } from "./ServerChoice";
 
+const mocks = vi.hoisted(() => ({ clearStart: vi.fn() }));
+
+vi.mock("@/lib/startFlow", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/startFlow")>();
+  mocks.clearStart.mockImplementation(actual.clearStart);
+  return { ...actual, clearStart: () => mocks.clearStart() };
+});
+
 describe("ServerChoice", () => {
   it.each([
     ["a browser, even where it signs in", false, true],
@@ -66,5 +74,30 @@ describe("ServerChoice", () => {
     });
 
     expect(screen.getByRole("button", { name: /^connected$/i })).toBeDisabled();
+  });
+
+  it("stays on the server, signed in, when the switch cannot finish", async () => {
+    const user = userEvent.setup();
+    mocks.clearStart.mockRejectedValueOnce(new Error("storage unavailable"));
+    const logout = vi.fn();
+    const setServerUrl = vi.fn();
+    renderWithProviders(<ServerChoice pick />, {
+      auth: { user: buildUser(), logout },
+      server: {
+        isNativePlatform: true,
+        serverUrl: "https://old.example.com/api/v1",
+        setServerUrl,
+        testServerConnection: vi.fn().mockResolvedValue({ valid: true }),
+      },
+    });
+
+    const address = screen.getByRole("textbox", { name: /server address/i });
+    await user.clear(address);
+    await user.type(address, "https://new.example.com");
+    await user.click(screen.getByRole("button", { name: /^connect$/i }));
+
+    expect(await screen.findByText(/could not connect to server/i)).toBeInTheDocument();
+    expect(logout).not.toHaveBeenCalled();
+    expect(setServerUrl).not.toHaveBeenCalled();
   });
 });
