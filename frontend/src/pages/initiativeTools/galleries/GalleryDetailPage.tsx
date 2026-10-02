@@ -295,11 +295,7 @@ export function GalleryDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          {gallery ? (
-            <h1 className="font-semibold text-3xl tracking-tight">{gallery.name}</h1>
-          ) : (
-            <Skeleton className="h-9 w-64" />
-          )}
+          {gallery && <h1 className="sr-only">{gallery.name}</h1>}
           {gallery?.description ? (
             <p className="max-w-prose text-muted-foreground">{gallery.description}</p>
           ) : null}
@@ -436,7 +432,7 @@ export function GalleryDetailPage() {
         ) : feed.isError ? (
           <p className="text-destructive text-sm">{t("loadError")}</p>
         ) : images.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-16 text-center">
+          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
             <p className="font-medium">
               {activeFilterCount > 0 ? t("filters.noMatchingPictures") : t("noPictures")}
             </p>

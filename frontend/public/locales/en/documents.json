@@ -582,7 +582,6 @@
     "generateButton": "Generate Summary",
     "generateError": "Failed to generate summary. Please try again.",
     "generating": "Generating summary…",
-    "title": "AI Summary",
     "copy": "Copy summary",
     "regenerate": "Regenerate summary"
   },

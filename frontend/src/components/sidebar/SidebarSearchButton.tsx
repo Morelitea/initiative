@@ -39,7 +39,7 @@ export const SidebarSearchButton = ({ guildName }: SidebarSearchButtonProps) => 
     >
       <Search className="h-4 w-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
-      <kbd className="pointer-events-none inline-flex shrink-0 select-none items-center rounded border bg-muted px-1.5 py-0.5 font-medium font-mono text-[10px] text-muted-foreground">
+      <kbd className="pointer-events-none inline-flex shrink-0 select-none items-center rounded border bg-muted px-1.5 py-0.5 font-medium font-mono text-3xs text-muted-foreground">
         {shortcutLabel}
       </kbd>
     </button>

@@ -12,7 +12,7 @@ import {
 import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDocument } from "@/hooks/useDocuments";
@@ -85,7 +85,6 @@ export const WikiDocumentView = () => {
       <Card className="mx-auto mt-10 max-w-md">
         <CardHeader>
           <CardTitle>{t("pages.notFound")}</CardTitle>
-          <CardDescription>{t("notFoundDescription")}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -179,7 +178,7 @@ export const WikiDocumentView = () => {
       >
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
           <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("links.title")}</SheetTitle>
+            <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             <WikiPageConnections
@@ -194,7 +193,7 @@ export const WikiDocumentView = () => {
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
           <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("comments")}</SheetTitle>
+            <SheetTitle className="sr-only">{t("comments")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {/* A document in a wiki is still that document — its thread is

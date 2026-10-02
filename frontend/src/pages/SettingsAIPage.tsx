@@ -91,7 +91,7 @@ export const SettingsAIPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("platformAI.title")}</CardTitle>
           <CardDescription>{t("platformAI.description")}</CardDescription>
@@ -125,7 +125,7 @@ export const SettingsAIPage = () => {
       </Card>
 
       {savedMode === "platform" && (
-        <Card className="shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle>{t("platformAI.connectionsTitle")}</CardTitle>
             <CardDescription>{t("platformAI.connectionsDescription")}</CardDescription>

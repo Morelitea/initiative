@@ -99,9 +99,9 @@ export const NotificationsInboxPage = () => {
   if (!user) return null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-semibold text-xl">{t("notifications.inbox.title")}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("notifications.inbox.title")}</h1>
         <Button
           variant="ghost"
           size="sm"
@@ -159,7 +159,7 @@ export const NotificationsInboxPage = () => {
         <div className="space-y-6">
           {days.map(([key, bucket]) => (
             <section key={key} className="space-y-1">
-              <h2 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+              <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
                 {dayLabel(key, t as (k: string, o?: Record<string, unknown>) => string)}
               </h2>
               <ul className="divide-y rounded-md border">

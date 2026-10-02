@@ -59,7 +59,7 @@ export const CalendarPanelDropdown = (props: ComponentProps<typeof CalendarListP
             <>
               <span
                 aria-hidden="true"
-                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-[11px] text-primary-foreground tabular-nums"
+                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-2xs text-primary-foreground tabular-nums"
               >
                 {hiddenCount}
               </span>

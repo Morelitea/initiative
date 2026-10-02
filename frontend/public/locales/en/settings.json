@@ -22,7 +22,6 @@
     "viewOnly": "You're viewing these settings on an access grant. Changing them takes a read/write grant beside it.",
     "restricted": {
       "read_only": {
-        "label": "Read-only",
         "message": "This community is read-only. Contact whoever runs this server to restore full access."
       }
     },
@@ -252,8 +251,6 @@
     "bundleError": "Couldn't apply the bundle."
   },
   "interface": {
-    "title": "Interface settings",
-    "description": "Customize your interface preferences.",
     "colorTheme": "Color theme",
     "colorThemeDescription": "Choose a color theme for the application.",
     "weekStartsOn": "Week starts on",
@@ -582,7 +579,6 @@
   "email": {
     "platformOnly": "Only the platform owner can manage email settings.",
     "title": "SMTP email",
-    "description": "Configure the SMTP server used for transactional emails.",
     "loading": "Loading email settings…",
     "loadError": "Unable to load email settings.",
     "hostLabel": "Host",
@@ -760,8 +756,6 @@
     }
   },
   "platformUsers": {
-    "title": "Platform users",
-    "description": "Manage all users across the platform.",
     "loading": "Loading users…",
     "loadError": "Unable to load users.",
     "filterPlaceholder": "Filter by handle…",
@@ -886,7 +880,6 @@
     "preferWindowHelp": "The account keeps everything and disappears for everyone else. It is erased at the end of the window unless somebody brings it back."
   },
   "accessGrants": {
-    "title": "Access requests",
     "description": "Request and approve time-bound access to a community you're not a member of.",
     "requestTitle": "Request access",
     "requestDescription": "Ask for temporary, scoped access to a community. Approvers grant it and it auto-expires.",
@@ -1200,7 +1193,6 @@
     }
   },
   "providerPlacement": {
-    "title": "Sign-in placement",
     "description": "Place the people a sign-in provider signs in — by the group or directory it reports — in a community, and in an initiative there if you name one.",
     "loading": "Loading placement rules…",
     "loadError": "Could not load placement rules. Please try again.",
@@ -1624,7 +1616,6 @@
     "allowMemberKeysDescription": "Members can attach a personal API key to this connection."
   },
   "memberAI": {
-    "title": "My AI",
     "description": "See every AI connection available to you across your communities. Add your own API key where allowed and pick the one you use.",
     "noneAvailable": "No AI connections are available to you yet.",
     "sharedKeyGuild": "Uses a shared key set by your community's admins.",
@@ -1891,7 +1882,6 @@
     "valuesHint": "Separate several with commas. A community's own connection replaces this outright, so nothing here is merged with what a community says."
   },
   "platformSecurity": {
-    "title": "Security",
     "description": "How long anybody may stay signed in, the captcha asked of anybody new, and what a notification may leave the app carrying."
   },
   "notificationDelivery": {

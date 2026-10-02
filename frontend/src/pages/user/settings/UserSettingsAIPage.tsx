@@ -60,9 +60,5 @@ export const UserSettingsAIPage = () => {
     );
   };
 
-  return (
-    <SettingsSection title={t("memberAI.title")} description={t("memberAI.description")}>
-      {content()}
-    </SettingsSection>
-  );
+  return <SettingsSection description={t("memberAI.description")}>{content()}</SettingsSection>;
 };

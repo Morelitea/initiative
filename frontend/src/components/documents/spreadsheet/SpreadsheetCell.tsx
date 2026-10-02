@@ -161,7 +161,7 @@ export const CellView = memo(function CellView({
         style={{ boxShadow: `inset 0 0 0 2px ${peerColor}` }}
       >
         <div
-          className="absolute -top-4 right-0 max-w-full truncate rounded-t px-1.5 py-0.5 font-medium text-[10px] text-slate-900 shadow-sm"
+          className="absolute -top-4 right-0 max-w-full truncate rounded-t px-1.5 py-0.5 font-medium text-3xs text-slate-900 shadow-sm"
           style={{ backgroundColor: peerColor }}
         >
           {peerName}

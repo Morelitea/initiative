@@ -582,7 +582,6 @@
     "generateButton": "Générer un résumé",
     "generateError": "Échec de la génération du résumé. Veuillez réessayer.",
     "generating": "Génération du résumé…",
-    "title": "Résumé IA",
     "copy": "Copier le résumé",
     "regenerate": "Régénérer le résumé"
   },

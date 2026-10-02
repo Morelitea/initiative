@@ -496,10 +496,11 @@ export const SettingsUsersPage = () => {
           </CardContent>
         </Card>
       ) : null}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>{t("users.usersTitle")}</CardTitle>
+            {/* Named only beside the invites card; alone, the tab names it. */}
+            {managesInvites ? <CardTitle>{t("users.usersTitle")}</CardTitle> : null}
             <CardDescription>{t("users.usersDescription")}</CardDescription>
             {/* Three words that get mixed up constantly, explained where the
                 choice is actually made rather than in the help centre. */}

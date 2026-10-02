@@ -154,7 +154,6 @@
     "addPlaceholder": "Agregar elemento a la lista",
     "itemPlaceholder": "Elemento de la lista",
     "readOnlyPlaceholder": "Solo lectura",
-    "readOnlyMessage": "Solo tienes acceso de lectura, por lo que los cambios en la lista de verificación están deshabilitados.",
     "aiDialogTitle": "Lista de verificación generada por IA",
     "aiDialogDescription": "Selecciona los pasos que quieres agregar a esta tarea.",
     "addSelected": "Agregar seleccionados ({{count}})",

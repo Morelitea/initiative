@@ -86,10 +86,7 @@ export const ToolSettingsDetailsPage = () => {
     <div className="space-y-6">
       {update && (
         <Card>
-          <CardHeader>
-            <CardTitle>{t("toolSettings.tabDetails")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
               <Label htmlFor="tool-settings-name">{t("name")}</Label>
               <Input

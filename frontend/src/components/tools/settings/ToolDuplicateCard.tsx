@@ -103,7 +103,7 @@ export const ToolDuplicateCard = () => {
 
   return (
     <>
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("toolSettings.duplicate.title")}</CardTitle>
           <CardDescription>{t("toolSettings.duplicate.description")}</CardDescription>
@@ -122,7 +122,9 @@ export const ToolDuplicateCard = () => {
             <DialogTitle>
               {t("toolSettings.duplicate.dialogTitle", { name: entity.name })}
             </DialogTitle>
-            <DialogDescription>{t("toolSettings.duplicate.description")}</DialogDescription>
+            <DialogDescription className="sr-only">
+              {t("toolSettings.duplicate.description")}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

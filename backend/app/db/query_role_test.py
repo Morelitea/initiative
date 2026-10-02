@@ -77,9 +77,8 @@ async def test_initiative_rls_still_applies_to_it(engine, provisioned):
     async with engine.begin() as conn:
         initiative_id = await conn.scalar(
             text(
-                f"INSERT INTO {schema}.initiatives (name, "
-                "is_default, created_at, updated_at) "
-                "VALUES ('i', false, now(), now()) RETURNING id"
+                f"INSERT INTO {schema}.initiatives (name, created_at, updated_at) "
+                "VALUES ('i', now(), now()) RETURNING id"
             ),
         )
         await conn.execute(

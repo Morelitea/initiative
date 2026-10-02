@@ -643,7 +643,7 @@ export const TaskEditPage = () => {
                 <TooltipTrigger asChild>
                   <div className="ml-auto flex items-center gap-2 text-muted-foreground text-xs">
                     {creationMeta.displayName ? (
-                      <Avatar className="h-5 w-5 border text-[10px]">
+                      <Avatar className="h-5 w-5 border text-3xs">
                         {creationMeta.avatarSrc ? (
                           <AvatarImage
                             src={creationMeta.avatarSrc}
@@ -684,7 +684,7 @@ export const TaskEditPage = () => {
           and 639px nothing claimed one, so the halves sat side by side at a
           width neither was meant to be used at. */}
       <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(25rem,100%),1fr))]">
-        <Card className="shadow-sm">
+        <Card>
           <CardContent className="pt-6">
             {isReadOnly && readOnlyMessage ? (
               <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-muted-foreground text-sm">

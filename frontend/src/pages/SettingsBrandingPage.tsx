@@ -67,7 +67,7 @@ export const SettingsBrandingPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("branding.colorsTitle")}</CardTitle>
           <CardDescription>{t("branding.colorsDescription")}</CardDescription>
@@ -119,7 +119,7 @@ export const SettingsBrandingPage = () => {
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("branding.cookieConsent.title")}</CardTitle>
           <CardDescription>{t("branding.cookieConsent.description")}</CardDescription>

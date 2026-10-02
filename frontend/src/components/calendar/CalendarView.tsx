@@ -470,7 +470,7 @@ export const CalendarView = ({
           <DragOverlay>
             {activeEntry ? (
               <div
-                className="pointer-events-none flex items-center gap-1 rounded px-2 py-1 font-medium text-[11px] text-white shadow-lg"
+                className="pointer-events-none flex items-center gap-1 rounded px-2 py-1 font-medium text-2xs text-white shadow-lg"
                 style={{ backgroundColor: activeEntry.color || "var(--primary)" }}
               >
                 <span className="truncate">{activeEntry.title}</span>

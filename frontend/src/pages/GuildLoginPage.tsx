@@ -47,7 +47,7 @@ export const GuildLoginPage = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-      <Card className="w-full max-w-md shadow-sm">
+      <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <LogoIcon className="mb-2 h-10 w-10" />
           <CardTitle>{guildName ?? t("guildLogin.title")}</CardTitle>

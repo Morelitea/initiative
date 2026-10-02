@@ -272,7 +272,7 @@ export function EventSettingsPage() {
   if (isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
-        <DetailPageSkeleton actions={0} description={false}>
+        <DetailPageSkeleton actions={0} title={false} description={false}>
           <FormSkeleton fields={5} />
         </DetailPageSkeleton>
       </SkeletonRegion>
@@ -281,7 +281,7 @@ export function EventSettingsPage() {
 
   if (!event) {
     return (
-      <div className="p-8 text-center">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
           <Link to={gp(toolListRoute(Tool.calendar, initiativeId))}>{t("backToEvents")}</Link>
@@ -423,7 +423,7 @@ export function EventSettingsPage() {
           {event.recurrence ? (
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-2">
-                <Label>{t("occurrence.addDate")}</Label>
+                <Label className="sr-only">{t("occurrence.addDate")}</Label>
                 <DateTimePicker
                   value={extraDate}
                   onChange={setExtraDate}

@@ -5498,7 +5498,6 @@ export interface InitiativeRead {
   color: string | null;
   id: number;
   guild_id: number | null;
-  is_default: boolean;
   archived_at: string | null;
   join_policy: InitiativeJoinPolicy;
   auto_join: boolean;

@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /** How many filters are set, as a small pill; nothing while none are. */
 export const FilterCountBadge = ({ count }: { count: number }) =>
   count > 0 ? (
-    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-[11px] text-primary-foreground tabular-nums">
+    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-2xs text-primary-foreground tabular-nums">
       {count}
     </span>
   ) : null;

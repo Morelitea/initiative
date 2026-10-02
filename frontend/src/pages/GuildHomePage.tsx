@@ -151,7 +151,6 @@ export function GuildHomePage() {
       <div className="relative z-10 space-y-6">
         {hasNoInitiatives ? (
           <GuildHomeEmptyState
-            guildDescription={activeGuild?.description}
             entries={directoryEntries}
             directoryStatus={
               directoryQuery.isSuccess ? "success" : directoryQuery.isError ? "error" : "pending"

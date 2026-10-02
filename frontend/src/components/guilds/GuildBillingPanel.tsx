@@ -28,7 +28,7 @@ const formatCharge = (charge: GuildBillingChargeRead, lang: string): string | nu
 };
 
 interface PlanStatus {
-  badge: string;
+  badge?: string;
   variant: BadgeProps["variant"];
   detail?: string;
 }
@@ -63,7 +63,6 @@ const planStatus = (
   if (change && changeOn) {
     if (change.action === "cancel") {
       return {
-        badge: t("billingPanel.status.ends", { date: changeOn }),
         variant: "warning",
         detail: t("billingPanel.status.endsDetail", { date: changeOn }),
       };
@@ -84,10 +83,6 @@ const planStatus = (
   const trialEndsOn = formatDay(summary.trial_ends_on);
   if (days != null && trialEndsOn) {
     return {
-      badge:
-        days === 0
-          ? t("billingPanel.status.trialLastDay")
-          : t("billingPanel.status.trial", { count: days }),
       variant: "secondary",
       detail: canSell
         ? t("billingPanel.status.trialDetail", { date: trialEndsOn })
@@ -148,7 +143,7 @@ export const GuildBillingPanel = () => {
               <span className="text-muted-foreground">{t("usagePanel.currentPlan")} </span>
               <span className="font-semibold">{tierLabel}</span>
             </p>
-            {status && <Badge variant={status.variant}>{status.badge}</Badge>}
+            {status?.badge && <Badge variant={status.variant}>{status.badge}</Badge>}
           </div>
           {status?.detail && <p className="text-muted-foreground text-sm">{status.detail}</p>}
           {unavailable && (

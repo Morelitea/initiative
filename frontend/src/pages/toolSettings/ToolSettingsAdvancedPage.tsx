@@ -78,7 +78,7 @@ export const ToolSettingsAdvancedPage = () => {
       <ToolArchiveCard />
 
       {entity.can.delete && (
-        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+        <Card className="border-destructive/50">
           <CardHeader>
             <CardTitle>{t("toolSettings.dangerZone")}</CardTitle>
             <CardDescription>{t("toolSettings.dangerZoneDescription")}</CardDescription>

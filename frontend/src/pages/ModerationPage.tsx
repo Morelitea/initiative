@@ -201,7 +201,7 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
   const gp = (path: string) => (guildId ? guildPath(guildId, path) : path);
 
   return (
-    <Card className="shadow-sm" role="region" aria-labelledby={`report-${report.id}`}>
+    <Card role="region" aria-labelledby={`report-${report.id}`}>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -219,9 +219,7 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
               {t(`reasons.${report.reason}`)} · {formatDateTime(report.reported_at)}
             </CardDescription>
           </div>
-          {settledAs === null ? (
-            <Badge variant="outline">{t("open")}</Badge>
-          ) : (
+          {settledAs === null ? null : (
             <Badge variant="secondary">{t(`outcomes.${settledAs}`)}</Badge>
           )}
         </div>
@@ -326,9 +324,8 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
-        <CardTitle>{t("areas.members")}</CardTitle>
         <CardDescription>{t("members.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -401,9 +398,8 @@ const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId:
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
-        <CardTitle>{t("areas.sharing")}</CardTitle>
         <CardDescription>{t("sharing.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

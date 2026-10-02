@@ -98,7 +98,7 @@ export const AIConnectionManager = ({
       ) : isError ? (
         <p className="text-destructive text-sm">{t("aiConnections.loadError")}</p>
       ) : connections.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed p-6 text-center">
           <Plug className="h-6 w-6 text-muted-foreground" />
           <p className="text-muted-foreground text-sm">{t("aiConnections.empty")}</p>
         </div>

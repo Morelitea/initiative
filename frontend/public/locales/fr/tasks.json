@@ -154,7 +154,6 @@
     "addPlaceholder": "Ajouter un élément",
     "itemPlaceholder": "Élément de la checklist",
     "readOnlyPlaceholder": "Lecture seule",
-    "readOnlyMessage": "Vous n'avez qu'un accès en lecture, les modifications de la checklist sont donc désactivées.",
     "aiDialogTitle": "Checklist générée par l'IA",
     "aiDialogDescription": "Sélectionnez les étapes que vous souhaitez ajouter à cette tâche.",
     "addSelected": "Ajouter la sélection ({{count}})",

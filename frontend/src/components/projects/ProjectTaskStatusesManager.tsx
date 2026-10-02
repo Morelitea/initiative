@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 import type { TaskStatusCategory, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import {
@@ -400,7 +400,6 @@ export const ProjectTaskStatusesManager = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("statuses.title")}</CardTitle>
         <CardDescription>{t("statuses.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

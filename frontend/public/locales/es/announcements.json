@@ -27,7 +27,6 @@
     "reloadNow": "Recargar ahora"
   },
   "operator": {
-    "title": "Anuncios",
     "subtitle": "Avisos para quienes usan esta instalación. Cada uno se muestra una vez y se recuerda por persona.",
     "new": "Nuevo anuncio",
     "newTitle": "Nuevo anuncio",

@@ -105,7 +105,7 @@ export const SettingsIntakePage = () => {
   // current value is known.
   if (failed) {
     return (
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("loadFailed.title")}</CardTitle>
           <CardDescription>{t("loadFailed.description")}</CardDescription>
@@ -131,7 +131,7 @@ export const SettingsIntakePage = () => {
     <div className="space-y-6">
       {settings ? <ContactsCard settings={settings} settled={settled} /> : null}
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("guild.title")}</CardTitle>
           <CardDescription>{t("guild.description")}</CardDescription>
@@ -254,7 +254,7 @@ const ContactsCard = ({
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("contacts.title")}</CardTitle>
         <CardDescription>{t("contacts.description")}</CardDescription>
@@ -351,7 +351,7 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
   const titleId = `intake-stream-${stream}`;
 
   return (
-    <Card className="shadow-sm" role="region" aria-labelledby={titleId}>
+    <Card role="region" aria-labelledby={titleId}>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>

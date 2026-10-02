@@ -123,9 +123,6 @@
     "openProjectSettings": "Projekteinstellungen öffnen"
   },
   "overview": {
-    "archived": "Archiviert",
-    "active": "Aktiv",
-    "template": "Vorlage",
     "templateInfo": "Dieses Projekt ist eine Vorlage. Verwende es, um über den Tab „Vorlagen“ neue Projekte zu erstellen.",
     "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren.",
     "scheduleLabel": "Projektzeitraum",
@@ -170,7 +167,6 @@
     "you": "Du"
   },
   "statuses": {
-    "title": "Aufgabenstatus",
     "description": "Ordne die Aufgabenspalten dieses Projekts neu an, benenne sie um oder ändere ihre Kategorie.",
     "noManagePermission": "Nur Projektmanager können Aufgabenstatus ändern. Wende dich an einen Projektmanager, wenn du Änderungen benötigst.",
     "addStatus": "Status hinzufügen",
@@ -220,7 +216,6 @@
     "breadcrumbSettings": "Einstellungen",
     "tabTaskStatuses": "Aufgabenstatus",
     "details": {
-      "title": "Projektdetails",
       "description": "Aktualisiere das Symbol, den Namen und die Beschreibung, die im gesamten Arbeitsbereich angezeigt werden.",
       "identityHeading": "Identität",
       "identityDescription": "Gib dem Projekt einen einprägsamen Namen und ein Emoji.",

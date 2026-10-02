@@ -202,7 +202,7 @@ export const NotificationBell = () => {
             // each get a dot instead.
             <Badge
               aria-hidden
-              className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]"
+              className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-2xs"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>

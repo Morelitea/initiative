@@ -102,7 +102,7 @@ export const HomeSidebarContent = () => {
                         <item.icon className="h-4 w-4" />
                         <span>{item.label}</span>
                         {item.badge ? (
-                          <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px]">
+                          <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-3xs">
                             {item.badge}
                           </Badge>
                         ) : null}

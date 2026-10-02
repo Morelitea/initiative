@@ -112,7 +112,7 @@ export const WikiChrome = ({
             {/* Said where the page is named, because "who can see this" is the
                 first thing to know about a page you are looking at. */}
             {isDraft ? (
-              <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground uppercase">
+              <span className="shrink-0 rounded border px-1 text-3xs text-muted-foreground uppercase">
                 {t("pages.draft")}
               </span>
             ) : null}

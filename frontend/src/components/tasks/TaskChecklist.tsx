@@ -264,7 +264,7 @@ export const TaskChecklist = ({ taskId, items: serverItems, canEdit }: TaskCheck
   );
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -350,9 +350,6 @@ export const TaskChecklist = ({ taskId, items: serverItems, canEdit }: TaskCheck
             {t("checklist.addButton")}
           </Button>
         </div>
-        {!canEdit ? (
-          <p className="text-muted-foreground text-xs">{t("checklist.readOnlyMessage")}</p>
-        ) : null}
       </CardContent>
 
       <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>

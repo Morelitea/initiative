@@ -105,7 +105,6 @@ export const ResetPasswordPage = () => {
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{t("resetPassword.title")}</CardTitle>
-          <CardDescription>{t("resetPassword.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
           {status === "success" ? (

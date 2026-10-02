@@ -54,7 +54,6 @@ export const InitiativeSettingsDangerPage = () => {
   return (
     <>
       <InitiativeSettingsDangerTab
-        isDefault={initiative.is_default}
         isArchived={initiative.archived_at !== null}
         canArchiveInitiative={isGuildAdmin}
         isArchiving={archiveInitiative.isPending || unarchiveInitiative.isPending}
@@ -66,14 +65,7 @@ export const InitiativeSettingsDangerPage = () => {
         }
         canDeleteInitiative={canDeleteInitiative}
         isDeleting={deleteInitiative.isPending}
-        onDeleteInitiative={() => {
-          // The default initiative is the guild's floor and cannot be deleted;
-          // the section says so rather than opening a dialog that would fail.
-          if (initiative.is_default) {
-            return;
-          }
-          setShowDeleteConfirm(true);
-        }}
+        onDeleteInitiative={() => setShowDeleteConfirm(true)}
       />
       {/* Shared with the guild settings Initiatives table, so there is a single
           delete workflow. */}

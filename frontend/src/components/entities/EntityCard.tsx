@@ -165,7 +165,7 @@ export const EntityCard = ({
   const stateChip = state?.text ? (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 font-medium text-[11px]",
+        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 font-medium text-2xs",
         CHIP_TONE_CLASSES[state.tone]
       )}
     >
@@ -206,7 +206,7 @@ export const EntityCard = ({
       <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
         {mark}
         {badge ? (
-          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/85 px-2 py-0.5 font-medium text-[11px] text-foreground shadow-sm">
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/85 px-2 py-0.5 font-medium text-2xs text-foreground shadow-sm">
             {badge}
           </span>
         ) : null}

@@ -55,7 +55,6 @@
   "INITIATIVE_NOT_FOUND": "Initiative introuvable",
   "INITIATIVE_MANAGER_REQUIRED": "Rôle de gestionnaire d'initiative requis",
   "INITIATIVE_NAME_EXISTS": "Ce nom d'initiative existe déjà",
-  "INITIATIVE_CANNOT_DELETE_DEFAULT": "L'initiative par défaut ne peut pas être supprimée",
   "INITIATIVE_NOT_A_MEMBER": "Pas membre de cette initiative",
   "INITIATIVE_ROLE_NOT_FOUND": "Rôle d'initiative introuvable",
   "INITIATIVE_ROLE_NAME_EXISTS": "Ce nom de rôle existe déjà",

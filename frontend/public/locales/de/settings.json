@@ -22,7 +22,6 @@
     "viewOnly": "Du siehst diese Einstellungen über eine Zugriffsfreigabe. Um sie zu ändern, ist zusätzlich eine Lese-/Schreibfreigabe nötig.",
     "restricted": {
       "read_only": {
-        "label": "Schreibgeschützt",
         "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
       }
     },
@@ -252,8 +251,6 @@
     "bundleError": "Das Paket konnte nicht übernommen werden."
   },
   "interface": {
-    "title": "Oberflächeneinstellungen",
-    "description": "Passe deine Oberflächeneinstellungen an.",
     "colorTheme": "Farbdesign",
     "colorThemeDescription": "Wähle ein Farbdesign für die Anwendung.",
     "weekStartsOn": "Woche beginnt am",
@@ -582,7 +579,6 @@
   "email": {
     "platformOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
-    "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
     "loadError": "E-Mail-Einstellungen konnten nicht geladen werden.",
     "hostLabel": "Host",
@@ -760,8 +756,6 @@
     }
   },
   "platformUsers": {
-    "title": "Plattformbenutzer",
-    "description": "Verwalte alle Benutzer auf der Plattform.",
     "loading": "Benutzer werden geladen…",
     "loadError": "Benutzer konnten nicht geladen werden.",
     "filterPlaceholder": "Nach Handle filtern…",
@@ -886,7 +880,6 @@
     "preferWindowHelp": "Das Konto behält alles und verschwindet für alle anderen. Am Ende der Frist wird es gelöscht, sofern es niemand zurückholt."
   },
   "accessGrants": {
-    "title": "Zugriffsanfragen",
     "description": "Fordere zeitlich begrenzten Zugriff auf eine Community an, deren Mitglied du nicht bist, und genehmige ihn.",
     "requestTitle": "Zugriff anfordern",
     "requestDescription": "Fordere temporären, eingeschränkten Zugriff auf eine Community an. Genehmiger gewähren ihn und er läuft automatisch ab.",
@@ -1088,7 +1081,6 @@
     }
   },
   "providerPlacement": {
-    "title": "Zuordnung bei Anmeldung",
     "description": "Ordne die Leute, die ein Anmeldeanbieter anmeldet – nach der Gruppe oder dem Verzeichnis, das er meldet –, einer Community zu, und dort einer Initiative, wenn du eine nennst.",
     "loading": "Zuordnungsregeln werden geladen…",
     "loadError": "Zuordnungsregeln konnten nicht geladen werden. Bitte versuche es erneut.",
@@ -1624,7 +1616,6 @@
     "allowMemberKeysDescription": "Mitglieder können dieser Verbindung einen persönlichen API-Schlüssel hinzufügen."
   },
   "memberAI": {
-    "title": "Meine KI",
     "description": "Sieh alle KI-Verbindungen, die dir in deinen Communitys zur Verfügung stehen. Füge dort, wo es erlaubt ist, deinen eigenen API-Schlüssel hinzu und wähle die Verbindung, die du verwendest.",
     "noneAvailable": "Dir sind noch keine KI-Verbindungen verfügbar.",
     "sharedKeyGuild": "Verwendet einen gemeinsamen Schlüssel, den die Community-Administration festgelegt hat.",
@@ -1891,7 +1882,6 @@
     "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
   },
   "platformSecurity": {
-    "title": "Sicherheit",
     "description": "Wie lange jemand angemeldet bleiben darf, welches Captcha neuen Personen gestellt wird und was eine Benachrichtigung mitnimmt, wenn sie die App verlässt."
   },
   "notificationDelivery": {

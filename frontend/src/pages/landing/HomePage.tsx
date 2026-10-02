@@ -141,7 +141,7 @@ const CommunityCard = ({ community, big }: { community: ExampleCommunity; big: b
           <ActivityIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
           <span>{t(`communities.${community.key}.activity`)}</span>
           {community.key === "dnd" ? (
-            <span className="ml-auto whitespace-nowrap rounded-full bg-primary px-2 py-0.5 font-bold text-[11px] text-primary-foreground">
+            <span className="ml-auto whitespace-nowrap rounded-full bg-primary px-2 py-0.5 font-bold text-2xs text-primary-foreground">
               {t("communities.dnd.pill")}
             </span>
           ) : null}

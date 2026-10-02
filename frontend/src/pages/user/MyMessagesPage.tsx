@@ -223,7 +223,7 @@ export function MyMessagesPage() {
   // the page says where they are rather than looking broken.
   if (!dmEnabled) {
     return (
-      <div className="p-6">
+      <div>
         <StatusMessage
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("platformDisabled")}
@@ -239,7 +239,7 @@ export function MyMessagesPage() {
   // is more use than the generic failure it would otherwise reach.
   if (!ratchetSupported()) {
     return (
-      <div className="p-6">
+      <div>
         <StatusMessage
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("unsupportedBrowser")}
@@ -250,7 +250,7 @@ export function MyMessagesPage() {
 
   if (device.isError) {
     return (
-      <div className="p-6">
+      <div>
         <StatusMessage
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("deviceFailed")}
@@ -267,9 +267,9 @@ export function MyMessagesPage() {
   // use the thing it gates.
   if (settingsLoaded && !canMessage) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <header className="space-y-1">
-          <h1 className="font-semibold text-2xl">{t("title")}</h1>
+          <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
         </header>
         <AgeUnansweredPanel id="messages-age" />
       </div>
@@ -282,7 +282,7 @@ export function MyMessagesPage() {
     // scrolls.
     <div className="flex h-full min-h-0 flex-col gap-4">
       <header className="space-y-1">
-        <h1 className="font-semibold text-2xl">{t("title")}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
         <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
           <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
           {t("encryptedNotice")}
@@ -820,7 +820,7 @@ function Thread({
                       <Speaking who={speakerOf(message)} hidden={!startsRun} />
                       {startsRun ? (
                         <span
-                          className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
+                          className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-3xs text-muted-foreground tabular-nums"
                           title={formatDateTime(message.at)}
                         >
                           {clockTime(message.at)}
@@ -1218,7 +1218,7 @@ function InvitationPanel({ conversationId, name }: { conversationId: string; nam
 
   return (
     <div className="mx-auto max-w-md space-y-4 py-10 text-center">
-      <h2 className="font-medium text-lg">{t("messages:invitation.heading")}</h2>
+      <h2 className="font-semibold text-xl tracking-tight">{t("messages:invitation.heading")}</h2>
       <p className="text-muted-foreground text-sm">{t("messages:invitation.who")}</p>
       <p className="break-words font-medium text-sm">{name}</p>
       <div className="flex justify-center gap-2">

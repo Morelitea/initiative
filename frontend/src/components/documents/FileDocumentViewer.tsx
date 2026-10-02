@@ -608,7 +608,7 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
           >
             <OfficeIcon className={`h-24 w-24 ${iconColor} mb-6`} />
-            <h3 className="mb-2 font-semibold text-xl">
+            <h3 className="mb-2 font-semibold text-xl tracking-tight">
               {originalFilename || t("viewer.document")}
             </h3>
             <p className="mb-6 max-w-md text-center text-muted-foreground">
@@ -640,7 +640,7 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
           >
             <FileText className="mb-6 h-24 w-24 text-muted-foreground" />
-            <h3 className="mb-2 font-semibold text-xl">
+            <h3 className="mb-2 font-semibold text-xl tracking-tight">
               {originalFilename || t("viewer.document")}
             </h3>
             <p className="mb-6 text-muted-foreground">{t("viewer.unknownFileType")}</p>

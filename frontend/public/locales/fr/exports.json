@@ -126,7 +126,6 @@
   "entry": {
     "guildTitle": "Exporter cette communauté",
     "guildDescription": "Téléchargez les données de chaque initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
-    "initiativeTitle": "Exporter cette initiative",
     "initiativeDescription": "Téléchargez les données de cette initiative en sauvegarde importable ou en rapport à la carte. Les règles de partage s’appliquent : l’export contient ce que vous pouvez voir.",
     "open": "Exporter…"
   },

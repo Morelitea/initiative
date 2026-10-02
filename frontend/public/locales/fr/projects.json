@@ -123,9 +123,6 @@
     "openProjectSettings": "Ouvrir les paramètres du projet"
   },
   "overview": {
-    "archived": "Archivé",
-    "active": "Actif",
-    "template": "Modèle",
     "templateInfo": "Ce projet est un modèle. Utilisez-le pour créer de nouveaux projets depuis l'onglet Modèles.",
     "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches.",
     "scheduleLabel": "Dates du projet",
@@ -170,7 +167,6 @@
     "you": "Vous"
   },
   "statuses": {
-    "title": "Statuts des tâches",
     "description": "Réordonnez, renommez ou changez la catégorie des colonnes de tâches utilisées par ce projet.",
     "noManagePermission": "Seuls les chefs de projet peuvent modifier les statuts des tâches. Contactez un chef de projet si vous avez besoin de modifications.",
     "addStatus": "Ajouter un statut",
@@ -220,7 +216,6 @@
     "breadcrumbSettings": "Paramètres",
     "tabTaskStatuses": "Statuts des tâches",
     "details": {
-      "title": "Détails du projet",
       "description": "Mettez à jour l'icône, le nom et la description affichés dans l'espace de travail.",
       "identityHeading": "Identité",
       "identityDescription": "Donnez au projet un nom et un emoji reconnaissables.",

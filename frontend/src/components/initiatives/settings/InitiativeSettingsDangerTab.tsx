@@ -2,10 +2,9 @@ import { Archive, ArchiveRestore, Loader2, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 
 interface InitiativeSettingsDangerTabProps {
-  isDefault: boolean;
   isArchived: boolean;
   // Archiving (hide from the sidebar) is a guild-admin-only action.
   canArchiveInitiative: boolean;
@@ -17,7 +16,6 @@ interface InitiativeSettingsDangerTabProps {
 }
 
 export const InitiativeSettingsDangerTab = ({
-  isDefault,
   isArchived,
   canArchiveInitiative,
   isArchiving,
@@ -30,9 +28,8 @@ export const InitiativeSettingsDangerTab = ({
 
   return (
     <div>
-      <Card className="border-destructive/40">
+      <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-destructive">{t("settings.dangerTitle")}</CardTitle>
           <CardDescription>{t("settings.dangerDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -64,7 +61,7 @@ export const InitiativeSettingsDangerTab = ({
               type="button"
               variant="destructive"
               onClick={onDeleteInitiative}
-              disabled={isDefault || isDeleting}
+              disabled={isDeleting}
             >
               {isDeleting ? (
                 <>
@@ -81,9 +78,6 @@ export const InitiativeSettingsDangerTab = ({
           ) : (
             <p className="text-muted-foreground text-sm">{t("settings.contactAdmin")}</p>
           )}
-          {isDefault ? (
-            <p className="text-muted-foreground text-xs">{t("settings.defaultCannotDelete")}</p>
-          ) : null}
         </CardContent>
       </Card>
     </div>

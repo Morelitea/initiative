@@ -902,11 +902,6 @@ async def delete_initiative(
     from app.services.tenant.soft_delete import trash
 
     initiative = await _get_initiative_or_404(initiative_id, session)
-    if initiative.is_default:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=InitiativeMessages.CANNOT_DELETE_DEFAULT,
-        )
     members = await _member_ids(session, initiative_id)
     retention_days = await trash(
         session,

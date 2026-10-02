@@ -7,7 +7,7 @@ import { GuildArtworkPanel } from "@/components/guilds/GuildArtworkPanel";
 import { GuildDiscoveryPanel } from "@/components/guilds/GuildDiscoveryPanel";
 import { GuildNameDisplayPanel } from "@/components/guilds/GuildNameDisplayPanel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,8 +61,8 @@ export const SettingsGuildPage = () => {
 
   if (!activeGuild) {
     return (
-      <div className="space-y-4">
-        <h2 className="font-semibold text-2xl">{t("settings.title")}</h2>
+      <div className="space-y-6">
+        <h2 className="font-semibold text-xl tracking-tight">{t("settings.title")}</h2>
         <p className="text-muted-foreground text-sm">{t("settings.noActiveGuild")}</p>
       </div>
     );
@@ -71,10 +71,7 @@ export const SettingsGuildPage = () => {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>{t("settings.detailsTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form className="space-y-4" onSubmit={handleSave}>
             <div className="space-y-2">
               <Label htmlFor="guild-name">{t("settings.nameLabel")}</Label>

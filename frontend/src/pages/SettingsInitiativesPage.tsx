@@ -15,7 +15,7 @@ import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativ
 import { type MemberLike, useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -306,11 +306,6 @@ export const SettingsInitiativesPage = () => {
               />
             ) : null}
             <span className="font-medium">{initiative.name}</span>
-            {initiative.is_default ? (
-              <Badge variant="secondary" className="text-xs">
-                {t("manage.default")}
-              </Badge>
-            ) : null}
           </div>
         );
       },
@@ -372,8 +367,6 @@ export const SettingsInitiativesPage = () => {
               variant="destructive"
               size="sm"
               onClick={() => setDeleteTarget(initiative)}
-              disabled={initiative.is_default}
-              title={initiative.is_default ? t("manage.deleteDefaultHint") : undefined}
             >
               <Trash2 className="h-4 w-4" />
               {t("manage.delete")}
@@ -398,9 +391,8 @@ export const SettingsInitiativesPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
-          <CardTitle>{t("manage.title")}</CardTitle>
           <CardDescription>{t("manage.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

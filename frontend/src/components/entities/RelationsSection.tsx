@@ -291,7 +291,7 @@ export const RelationsSection = ({
         <div>
           <div className="inline-flex items-center gap-2">
             <Waypoints className="h-5 w-5 text-muted-foreground" />
-            <h2 className="font-semibold text-xl">{sectionTitle}</h2>
+            <h2 className="font-semibold text-xl tracking-tight">{sectionTitle}</h2>
             {total > 0 ? <span className="text-muted-foreground text-sm">{total}</span> : null}
             {/* The explanation lives one hover away rather than under the
                 heading forever: it is onboarding copy, and onboarding copy that

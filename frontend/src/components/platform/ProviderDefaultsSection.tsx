@@ -154,7 +154,7 @@ export const ProviderDefaultsSection = () => {
   const providers = providersQuery.data ?? [];
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("providerDefaults.title")}</CardTitle>
         <CardDescription>{t("providerDefaults.description")}</CardDescription>

@@ -146,7 +146,7 @@ export const AddQueueItemDialog = ({
       <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("addItem")}</DialogTitle>
-          <DialogDescription>{t("noItemsDescription")}</DialogDescription>
+          <DialogDescription className="sr-only">{t("noItemsDescription")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

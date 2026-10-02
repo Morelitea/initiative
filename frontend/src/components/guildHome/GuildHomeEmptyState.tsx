@@ -20,20 +20,10 @@ import { useTranslation } from "react-i18next";
 
 import type { InitiativeDirectoryEntry } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeDirectory } from "@/components/guildHome/InitiativeDirectory";
-import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface GuildHomeEmptyStateProps {
-  /** The guild's own description, so the page still says where you are. */
-  guildDescription?: string | null;
   entries: InitiativeDirectoryEntry[];
   /** Whether the directory actually answered. "Nothing on offer" is a claim
    *  only a successful lookup can support; a failed or pending one says so
@@ -44,7 +34,6 @@ export interface GuildHomeEmptyStateProps {
 }
 
 export const GuildHomeEmptyState = ({
-  guildDescription,
   entries,
   directoryStatus = "success",
   onCreate,
@@ -61,11 +50,6 @@ export const GuildHomeEmptyState = ({
             {t(canCreate ? "emptyState.adminDescription" : "emptyState.description")}
           </CardDescription>
         </CardHeader>
-        {guildDescription ? (
-          <CardContent>
-            <Markdown content={guildDescription} className="text-sm" />
-          </CardContent>
-        ) : null}
       </Card>
 
       {entries.length > 0 ? (

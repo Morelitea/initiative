@@ -63,7 +63,6 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     name: `Initiative ${counter}`,
     description: `Description for initiative ${counter}`,
     color: "#3b82f6",
-    is_default: false,
     archived_at: null,
     // Fail-closed, like the column default: an initiative is invite-only until
     // someone opens it.

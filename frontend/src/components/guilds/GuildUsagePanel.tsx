@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useReadStorageUsageApiV1CGuildIdStorageUsageGet } from "@/api/generated/storage/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatBytes } from "@/lib/fileUtils";
 
@@ -21,6 +22,8 @@ const ratioPct = (used: number, max: number | null): number | null =>
 export const GuildUsagePanel = () => {
   const { t } = useTranslation(["guilds", "common"]);
   const { activeGuild } = useGuilds();
+  // The tab is "Usage" alone unless the plan sits beside this card.
+  const { billing } = useAppConfig();
 
   const guildId = activeGuild?.id;
   // Read on the settings surface, by the same rung as the caps beside it, so a
@@ -43,10 +46,12 @@ export const GuildUsagePanel = () => {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{t("usagePanel.title")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
+      {billing ? (
+        <CardHeader>
+          <CardTitle>{t("usagePanel.title")}</CardTitle>
+        </CardHeader>
+      ) : null}
+      <CardContent className={billing ? "space-y-6" : "space-y-6 pt-6"}>
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span className="font-medium">{t("usagePanel.storage")}</span>

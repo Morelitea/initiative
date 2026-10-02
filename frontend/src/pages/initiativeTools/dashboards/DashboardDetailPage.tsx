@@ -83,11 +83,7 @@ export function DashboardDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          {dashboard ? (
-            <h1 className="font-semibold text-3xl tracking-tight">{dashboard.name}</h1>
-          ) : (
-            <Skeleton className="h-9 w-64" />
-          )}
+          {dashboard && <h1 className="sr-only">{dashboard.name}</h1>}
           {dashboard?.description && (
             <p className="text-muted-foreground text-sm">{dashboard.description}</p>
           )}

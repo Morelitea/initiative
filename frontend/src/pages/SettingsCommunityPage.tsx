@@ -80,7 +80,7 @@ export const SettingsCommunityPage = () => {
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("community.title")}</CardTitle>
         <CardDescription>{t("community.description")}</CardDescription>

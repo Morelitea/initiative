@@ -133,7 +133,7 @@ export const GalleryImageSheet = ({
       <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
         <SheetHeader className="text-left">
           <div className="flex items-start justify-between gap-2">
-            <SheetTitle className="min-w-0 truncate">{label || t("sheet.title")}</SheetTitle>
+            <SheetTitle className="sr-only">{label || t("sheet.title")}</SheetTitle>
             <ReportButton
               targetType="gallery_image"
               targetId={image.id}

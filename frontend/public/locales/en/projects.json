@@ -123,9 +123,6 @@
     "openProjectSettings": "Open project settings"
   },
   "overview": {
-    "archived": "Archived",
-    "active": "Active",
-    "template": "Template",
     "templateInfo": "This project is a template. Use it to create new projects from the Templates tab.",
     "archivedInfo": "This project is archived. Unarchive it from settings to add or update tasks.",
     "scheduleLabel": "Project dates",
@@ -170,7 +167,6 @@
     "you": "You"
   },
   "statuses": {
-    "title": "Task statuses",
     "description": "Reorder, rename, or change category for the task columns used by this project.",
     "noManagePermission": "Only project managers can modify task statuses. Contact a project manager if you need changes.",
     "addStatus": "Add status",
@@ -220,7 +216,6 @@
     "breadcrumbSettings": "Settings",
     "tabTaskStatuses": "Task statuses",
     "details": {
-      "title": "Project details",
       "description": "Update the icon, name, and description shown across the workspace.",
       "identityHeading": "Identity",
       "identityDescription": "Give the project a recognizable name and emoji.",

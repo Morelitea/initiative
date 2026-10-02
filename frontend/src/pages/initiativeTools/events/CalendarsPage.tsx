@@ -630,7 +630,7 @@ export const CalendarsView = ({
     (calendarsQuery.isLoading && !calendarsQuery.data);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Only the standalone surfaces title themselves. Inside an initiative
           this view is a tab under that initiative's own heading, which already
           says both where you are and that you're looking at calendars. */}
@@ -763,7 +763,7 @@ export const CalendarsView = ({
       ) : guildScope && calendars.length === 0 ? (
         /* An empty grid would read as "nothing is happening" rather than
            "there is nothing to happen in yet". */
-        <div className="rounded-lg border border-dashed p-10 text-center">
+        <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="font-medium">{t("guildScope.empty")}</p>
           <p className="mt-1 text-muted-foreground text-sm">{t("guildScope.emptyHint")}</p>
           {canCreateCalendars ? (

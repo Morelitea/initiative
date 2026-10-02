@@ -220,7 +220,7 @@ export function EventDetailPage() {
   if (eventQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
-        <DetailPageSkeleton actions={2} />
+        <DetailPageSkeleton actions={2} title={false} />
       </SkeletonRegion>
     );
   }
@@ -315,11 +315,8 @@ export function EventDetailPage() {
         </div>
       </div>
 
-      {/* Event title and description */}
-      <div className="space-y-2">
-        <h1 className="font-semibold text-2xl tracking-tight">{event.title}</h1>
-        {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
-      </div>
+      <h1 className="sr-only">{event.title}</h1>
+      {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
 
       {/* Date, time, and location details */}
       <Card>
@@ -389,19 +386,15 @@ export function EventDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <span className="text-muted-foreground text-sm">{t("rsvp")}:</span>
-              {myRsvpStatus && (
-                <Badge variant={rsvpBadgeVariant(myRsvpStatus)}>
-                  {t(rsvpLabelKey(myRsvpStatus))}
-                </Badge>
-              )}
               <Select
-                value={myRsvpStatus ?? "pending"}
+                // Pending is no answer yet, so it shows as the placeholder
+                // rather than as a choice.
+                value={myRsvpStatus === "pending" ? "" : (myRsvpStatus ?? "")}
                 onValueChange={(value) => handleAnswer(value as RSVPStatus)}
                 disabled={updateRSVP.isPending}
               >
                 <SelectTrigger className="w-[140px]">
-                  <SelectValue />
+                  <SelectValue placeholder={t("rsvpPending")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="accepted">{t("rsvpAccepted")}</SelectItem>

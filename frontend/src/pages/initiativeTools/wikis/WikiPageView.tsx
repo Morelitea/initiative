@@ -13,7 +13,7 @@ import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PropertyPanel } from "@/components/properties";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -342,7 +342,6 @@ export const WikiPageView = () => {
       <Card className="mx-auto mt-10 max-w-md">
         <CardHeader>
           <CardTitle>{t("pages.notFound")}</CardTitle>
-          <CardDescription>{t("notFoundDescription")}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -506,7 +505,7 @@ export const WikiPageView = () => {
       >
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
           <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("links.title")}</SheetTitle>
+            <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             <WikiPageConnections wikiId={wikiId} pageId={pageId} className="border-0 shadow-none" />
@@ -539,7 +538,7 @@ export const WikiPageView = () => {
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
           <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle>{t("comments")}</SheetTitle>
+            <SheetTitle className="sr-only">{t("comments")}</SheetTitle>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {/* The page's thread, not the wiki's: a note about the rota

@@ -163,7 +163,7 @@ export function CounterGroupDetailPage() {
   if (groupQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingGroup")}>
-        <DetailPageSkeleton actions={4}>
+        <DetailPageSkeleton actions={4} title={false}>
           <CardGridSkeleton count={3} />
         </DetailPageSkeleton>
       </SkeletonRegion>
@@ -191,7 +191,7 @@ export function CounterGroupDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-semibold text-3xl tracking-tight">{group.name}</h1>
+          <h1 className="sr-only">{group.name}</h1>
           {group.description && (
             <p className="mt-1 max-w-2xl text-muted-foreground text-sm">{group.description}</p>
           )}
@@ -281,7 +281,7 @@ export function CounterGroupDetailPage() {
       </div>
 
       {counters.length === 0 ? (
-        <div className="rounded-md border border-dashed p-8 text-center">
+        <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="font-medium text-muted-foreground">{t("noCounters")}</p>
           <p className="mt-1 text-muted-foreground text-sm">{t("noCountersDescription")}</p>
           {canWrite && (

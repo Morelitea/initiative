@@ -582,7 +582,6 @@
     "generateButton": "Zusammenfassung generieren",
     "generateError": "Zusammenfassung konnte nicht generiert werden. Bitte versuche es erneut.",
     "generating": "Zusammenfassung wird generiert…",
-    "title": "KI-Zusammenfassung",
     "copy": "Zusammenfassung kopieren",
     "regenerate": "Zusammenfassung neu generieren"
   },

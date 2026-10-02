@@ -155,7 +155,7 @@ export const SettingsAppServicesPage = () => {
   const registrations = servicesQuery.data;
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div>
           <CardTitle>{t("appServices.title")}</CardTitle>
