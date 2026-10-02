@@ -46,7 +46,6 @@ from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import filter_presets as filter_presets_service
-from app.services.tenant import named_people
 from app.services.tenant import project_grants
 from app.services.tenant import properties as properties_service
 from app.services.tenant import relationships
@@ -313,20 +312,11 @@ async def _queue_contents(
     items = (
         await session.exec(select(QueueItem).where(QueueItem.queue_id == source.id))
     ).all()
-    # The person an item names stays only where they can open the copy.
-    readers = await named_people.readers(
-        session,
-        named_people.Governing.of(Tool.queue, copy),
-        {item.user_id for item in items if item.user_id is not None},
-    )
     pairs = await _copy_children(
         session,
         items,
         beside=_beside(source, copy),
-        values=lambda item: {
-            "queue_id": copy.id,
-            "user_id": item.user_id if item.user_id in readers else None,
-        },
+        values=lambda item: {"queue_id": copy.id, "user_id": item.user_id},
         reset={"held_at_round": None},
     )
     return [clone for _, clone in pairs]
@@ -383,8 +373,13 @@ async def _post_contents(
     for poll in (
         await session.exec(select(PostPoll).where(PostPoll.post_id == source.id))
     ).all():
+        # A draft's poll has not closed: it opens again when the copy is posted.
         ((_, clone),) = await _copy_children(
-            session, [poll], beside=False, values=lambda _: {"post_id": copy.id}
+            session,
+            [poll],
+            beside=False,
+            values=lambda _: {"post_id": copy.id},
+            reset={"closes_at": None},
         )
         options = (
             await session.exec(

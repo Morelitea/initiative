@@ -56,6 +56,8 @@ from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_creation as task_creation_service
+from app.core.tools import Tool
+from app.services.tenant import named_people
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_queries
 from app.services.tenant import task_series
@@ -686,6 +688,9 @@ async def duplicate_task(
     checklist starts unticked."""
     task = await _load_for_change(session, task_id, current_user, guild_context)
     (copy,) = await task_creation_service.copy_tasks(session, [task], task.project)
+    await named_people.sweep(
+        session, named_people.Governing.of(Tool.project, task.project)
+    )
     _touch_project(task.project, datetime.now(timezone.utc))
     await session.commit()
     return await _response(session, copy.id, TaskMessages.DUPLICATE_NOT_FOUND)

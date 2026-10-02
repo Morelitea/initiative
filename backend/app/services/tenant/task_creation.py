@@ -352,8 +352,9 @@ async def copy_tasks(
     keep_done: bool = False,
 ) -> list[Task]:
     """Copy ``sources``, loaded with their assignees, into ``target``; returns
-    the copies in the same order. The assignees who can open ``target`` come
-    along, with the tags, the links (a link between two of the sources joins
+    the copies in the same order. The assignees come along, for the caller to
+    sweep (``named_people.sweep``) once ``target``'s sharing is readable, with
+    the tags, the links (a link between two of the sources joins
     their copies) and, inside one initiative, the property values.
 
     ``status_of`` gives each copy its status in another project. Without it
@@ -398,17 +399,11 @@ async def copy_tasks(
         copies.append(copy)
     await session.flush()
 
-    can_open = await named_people.readers(
-        session,
-        named_people.Governing.of(Tool.project, target),
-        {assignee.id for source in sources for assignee in source.assignees},
-    )
     author_id = require_actor_context(session).user_id
     for source, copy in zip(sources, copies):
         session.add_all(
             TaskAssignee(task_id=copy.id, user_id=assignee.id)
             for assignee in source.assignees
-            if assignee.id in can_open
         )
         if copy.description:
             await task_description_service.record_references(

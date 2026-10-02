@@ -51,6 +51,7 @@ from app.schemas.tenant.tool import ToolDuplicateRequest
 from app.services.content_sockets import sockets
 from app.services.permissions import Action
 from app.services.tenant.attachments import StorageQuotaExceededError
+from app.services.tenant import named_people
 from app.services.tenant.soft_delete import trash
 
 router = APIRouter(route_class=ActorRoute)
@@ -142,8 +143,14 @@ def _mount_duplicate(
                 status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
                 detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
             )
-        copy_id = copied.id
+        settled = named_people.Governing.of(tool, copied)
         await session.commit()
+        # The people named inside the copy came with it; those its sharing
+        # does not reach are let go, once that sharing is committed and can be
+        # read from every session.
+        await named_people.sweep(session, settled)
+        await session.commit()
+        copy_id = settled.resource_id
         if copier.announce is not None and current_user is not None:
             await copier.announce(session, copy_id, current_user)
             await session.commit()

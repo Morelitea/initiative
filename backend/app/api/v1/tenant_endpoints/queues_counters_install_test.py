@@ -497,3 +497,67 @@ async def test_it_steps_a_counter_shared_for_writing_only(
         json={"direction": "up"},
     )
     assert refused.status_code == 403, refused.text
+
+
+async def test_a_member_tokens_copy_keeps_the_item_naming_its_member(
+    client, session, acting_user, role_session
+):
+    """The copy a member token makes is its member's, so an item naming that
+    member stays theirs once the copy's sharing is committed."""
+    from datetime import datetime, timezone
+
+    from app.core.app_access_token import seal_install_token
+    from app.models.platform.guild import GuildRole
+    from app.models.tenant.app_member_consent import AppMemberConsent, ConsentAccess
+    from app.testing import grant_role_permission
+    from app.testing.app_clients import CLIENT
+
+    scopes = ["queues:read", "queues:write"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    await _switch_on(session, installed.placed)
+    member = await acting_user(
+        guild_role=GuildRole.member, guild=installed.guild, initiative=installed.placed
+    )
+    await grant_role_permission(session, installed.placed, "create_queues")
+    queue = await create_queue(session, installed.placed, installed.seat.user)
+    await create_resource_grant(
+        session, queue, level=ResourceAccessLevel.write, user=member.user
+    )
+    await create_queue_item(session, queue, label="Mine", user_id=member.user.id)
+    await route_session_to_guild(session, installed.guild.id)
+    now = datetime.now(timezone.utc)
+    session.add(
+        AppMemberConsent(
+            install_id=installed.app.id,
+            user_id=member.user.id,
+            purpose="node-1",
+            label="Act as you",
+            requested_access=ConsentAccess.read_write.value,
+            granted_access=ConsentAccess.read_write.value,
+            granted_at=now,
+        )
+    )
+    await session.commit()
+    token, _exp = seal_install_token(
+        guild_id=installed.guild.id,
+        install_id=installed.app.id,
+        client_id=CLIENT,
+        scopes=frozenset(scopes),
+        initiative_id=None,
+        user_id=member.user.id,
+        purpose="node-1",
+    )
+
+    response = await client.post(
+        guild_url(installed.guild.id, f"/queues/{queue.id}/duplicate"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201, response.text
+    await route_session_to_guild(session, installed.guild.id)
+    named = (
+        await session.exec(
+            select(QueueItem.user_id).where(QueueItem.queue_id == response.json()["id"])
+        )
+    ).all()
+    assert named == [member.user.id]

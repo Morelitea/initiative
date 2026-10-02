@@ -817,7 +817,7 @@ async def test_an_unanswered_poll_is_not_locked(
     assert seen["is_locked"] is False
 
 
-async def test_a_copy_is_a_draft_with_the_poll_and_none_of_its_votes(
+async def test_a_copy_is_a_draft_with_an_open_poll_and_none_of_its_votes(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -833,6 +833,12 @@ async def test_a_copy_is_a_draft_with_the_poll_and_none_of_its_votes(
         json={"option_ids": [_option_id(read.json(), "Tuesday")]},
     )
     assert voted.status_code == 200, voted.text
+    poll = (
+        await session.exec(select(PostPoll).where(PostPoll.post_id == post.id))
+    ).one()
+    poll.closes_at = datetime.now(timezone.utc) - timedelta(days=1)
+    session.add(poll)
+    await session.commit()
 
     response = await client.post(a.g(f"/posts/{post.id}/duplicate"), headers=a.headers)
 
@@ -842,3 +848,5 @@ async def test_a_copy_is_a_draft_with_the_poll_and_none_of_its_votes(
     options = copy["poll"]["options"]
     assert [o["text"] for o in options] == ["Tuesday", "Thursday"]
     assert not any(o["voted_by_me"] for o in options)
+    # The original's poll had closed; the draft's opens when it is posted.
+    assert copy["poll"]["closes_at"] is None
