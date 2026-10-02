@@ -49,9 +49,18 @@ export interface ToolChestEntity {
   can: Pick<ToolCan, "edit" | "unarchive">;
 }
 
+/** A tool that can be a template (projects and documents): whether it is one,
+ *  and how to change that. */
+export interface ToolChestTemplate {
+  isTemplate: boolean;
+  onChange: (isTemplate: boolean) => Promise<unknown>;
+}
+
 export interface ToolChestProps {
   tool: Tool;
   entity: ToolChestEntity;
+  /** Adds Template to the status, for a tool that can be one. */
+  template?: ToolChestTemplate;
   /** What only this tool has: its own data and buttons, as `ToolChestSegment`s. */
   children?: ReactNode;
 }
@@ -71,7 +80,7 @@ export const ToolChestSegment = ({
   </div>
 );
 
-export const ToolChest = ({ tool, entity, children }: ToolChestProps) => {
+export const ToolChest = ({ tool, entity, template, children }: ToolChestProps) => {
   const { t } = useTranslation(["common", "properties"]);
   const gp = useGuildPath();
   const [propertiesOpen, setPropertiesOpen] = useState(false);
@@ -95,7 +104,7 @@ export const ToolChest = ({ tool, entity, children }: ToolChestProps) => {
           )}
         >
           <ToolChestSegment label={t("toolChest.status")}>
-            <ToolStatus tool={tool} entity={entity} />
+            <ToolStatus tool={tool} entity={entity} template={template} />
           </ToolChestSegment>
           {children}
           <ToolChestSegment label={t("toolSettings.tags")}>
@@ -164,25 +173,41 @@ export const ToolChest = ({ tool, entity, children }: ToolChestProps) => {
   );
 };
 
-const StatusLabel = ({ archived }: { archived: boolean }) => {
+type Status = "active" | "template" | "archived";
+
+const STATUS_DOT: Record<Status, string> = {
+  active: "bg-success",
+  template: "bg-primary",
+  archived: "bg-muted-foreground",
+};
+
+const StatusLabel = ({ status }: { status: Status }) => {
   const { t } = useTranslation("common");
   return (
     <span className="inline-flex items-center gap-1.5 font-medium">
-      <span
-        className={cn("h-2 w-2 rounded-full", archived ? "bg-muted-foreground" : "bg-success")}
-        aria-hidden
-      />
-      {archived ? t("toolChest.archived") : t("toolChest.active")}
+      <span className={cn("h-2 w-2 rounded-full", STATUS_DOT[status])} aria-hidden />
+      {t(`toolChest.${status}`)}
     </span>
   );
 };
 
-/** Active or archived; someone who may change it picks the other here, the
- *  way Settings › Advanced would. Archiving is an ordinary edit, and the way
- *  back out is its own permission. */
-const ToolStatus = ({ tool, entity }: { tool: Tool; entity: ToolChestEntity }) => {
+/** Active, a template (for a tool that can be one), or archived; someone who
+ *  may change it picks another here, the way Settings would. Archiving is an
+ *  ordinary edit, and the way back out is its own permission. An archived
+ *  template stays a template, so it reads as archived until it comes back. */
+const ToolStatus = ({
+  tool,
+  entity,
+  template,
+}: {
+  tool: Tool;
+  entity: ToolChestEntity;
+  template?: ToolChestTemplate;
+}) => {
   const { t } = useTranslation("common");
   const archived = entity.archived_at !== null;
+  const status: Status = archived ? "archived" : template?.isTemplate ? "template" : "active";
+  const [changing, setChanging] = useState(false);
   const archive = useArchiveEntity({
     onSuccess: () => toast.success(t("toolSettings.archive.archived", { name: entity.name })),
   });
@@ -191,17 +216,37 @@ const ToolStatus = ({ tool, entity }: { tool: Tool; entity: ToolChestEntity }) =
   });
   const canChange = archived ? entity.can.unarchive : entity.can.edit;
 
-  if (!canChange) return <StatusLabel archived={archived} />;
+  if (!canChange) return <StatusLabel status={status} />;
+
+  const change = async (next: Status) => {
+    if (next === status) return;
+    const target = { entityType: tool as ArchivableType, entityId: entity.id };
+    setChanging(true);
+    try {
+      if (next === "archived") {
+        await archive.mutateAsync(target);
+        return;
+      }
+      // Out of the archive first: nothing on an archived row may be edited.
+      if (archived) await unarchive.mutateAsync(target);
+      const wantTemplate = next === "template";
+      if (template && template.isTemplate !== wantTemplate) {
+        await template.onChange(wantTemplate);
+      }
+    } catch {
+      // Each mutation reports its own error.
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  const options: Status[] = template ? ["active", "template", "archived"] : ["active", "archived"];
 
   return (
     <Select
-      value={archived ? "archived" : "active"}
-      disabled={archive.isPending || unarchive.isPending}
-      onValueChange={(next) => {
-        const target = { entityType: tool as ArchivableType, entityId: entity.id };
-        if (next === "archived" && !archived) archive.mutate(target);
-        if (next === "active" && archived) unarchive.mutate(target);
-      }}
+      value={status}
+      disabled={changing}
+      onValueChange={(next) => void change(next as Status)}
     >
       <SelectTrigger
         aria-label={t("toolChest.status")}
@@ -210,12 +255,11 @@ const ToolStatus = ({ tool, entity }: { tool: Tool; entity: ToolChestEntity }) =
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="active">
-          <StatusLabel archived={false} />
-        </SelectItem>
-        <SelectItem value="archived">
-          <StatusLabel archived />
-        </SelectItem>
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            <StatusLabel status={option} />
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );

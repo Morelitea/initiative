@@ -35,7 +35,6 @@ import { DocumentDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -249,6 +248,11 @@ export const DocumentDetailPage = () => {
     });
   };
 
+  // Only the template flag, from the tool chest's status: kept apart from the
+  // save above, which settles the editor's draft when it lands.
+  const setTemplate = useUpdateDocument(parsedId, {
+    onSuccess: (updated) => setDocumentCache(parsedId, updated),
+  });
   const saveDocument = useUpdateDocument(parsedId, {
     // Suppress the default error toast when the save failed because we're offline —
     // the persistent offline toast already explains the situation to the user.
@@ -631,15 +635,17 @@ export const DocumentDetailPage = () => {
           canEditDocument ? toolSettingsRoute(Tool.document, initiativeId, document.id) : undefined
         }
         chest={
-          <ToolChest tool={Tool.document} entity={document}>
+          <ToolChest
+            tool={Tool.document}
+            entity={document}
+            template={{
+              isTemplate: document.is_template,
+              onChange: (isTemplate) => setTemplate.mutateAsync({ is_template: isTemplate }),
+            }}
+          >
             <ToolChestSegment label={t("detail.updatedLabel")}>
               <span>{relativeUpdatedAt}</span>
             </ToolChestSegment>
-            {document.is_template ? (
-              <ToolChestSegment>
-                <Badge variant="outline">{t("detail.template")}</Badge>
-              </ToolChestSegment>
-            ) : null}
             {showSummaryTab ? (
               <ToolChestSegment>
                 <Button
