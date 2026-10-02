@@ -23,13 +23,9 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 
 from app.api.deps import SystemSessionDep
-from app.core.app_access_token import (
-    AccessTokenError,
-    AppAccessToken,
-    is_access_token,
-    unseal_access_token,
-)
+from app.core.app_access_token import AppAccessToken
 from app.core.app_scopes import InstallLevel
+from app.core.identify import bearer_app_token
 from app.core.messages import AuthMessages
 from app.schemas.platform.app_oauth import (
     AppAccessTokenResponse,
@@ -193,14 +189,7 @@ def _refuse() -> HTTPException:
 def _app_token(request: Request) -> AppAccessToken:
     """The app token this request carries, or 401. Reads nothing from the
     database."""
-    scheme, _, value = request.headers.get("Authorization", "").partition(" ")
-    token = value.strip()
-    if scheme.lower() != "bearer" or not is_access_token(token):
-        raise _refuse()
-    try:
-        unsealed = unseal_access_token(token)
-    except AccessTokenError as exc:
-        raise _refuse() from exc
+    unsealed = bearer_app_token(request)
     if not isinstance(unsealed, AppAccessToken):
         raise _refuse()
     return unsealed

@@ -8,6 +8,9 @@ limit and storage backend are settings-driven, and that ``SlowAPIMiddleware`` is
 actually registered on the app so ``default_limits`` is no longer inert.
 """
 
+import uuid
+
+import jwt
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -19,7 +22,8 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.routing import Mount
 
-from app.core import rate_limit
+from app.core import identify, rate_limit
+from app.core.app_access_token import seal_install_token
 from app.core.config import settings
 from app.core.rate_limit import (
     _default_limits,
@@ -28,7 +32,13 @@ from app.core.rate_limit import (
     get_user_or_ip_key,
     limiter,
 )
+from app.core.security import (
+    SESSION_COOKIE_NAME,
+    create_upload_token,
+    mint_access_token,
+)
 from app.main import _MOUNTED, _route_endpoint, app
+from app.testing import create_user, get_auth_headers
 
 
 class TestDefaultLimitsBuilder:
@@ -226,28 +236,92 @@ class TestRealClientIp:
         assert get_real_client_ip(_Request()) == "198.51.100.7"
 
 
+def _session_token(subject: str) -> str:
+    token, _ = mint_access_token(
+        subject=subject,
+        token_version=0,
+        session_id=uuid.uuid4(),
+        amr=["pwd"],
+        satisfied_providers=[],
+    )
+    return token
+
+
+def _install_token() -> str:
+    token, _ = seal_install_token(
+        guild_id=7,
+        install_id=3,
+        client_id="acme.widgets",
+        scopes=frozenset(),
+        initiative_id=None,
+    )
+    return token
+
+
 class TestUserOrIpKey:
     """``get_user_or_ip_key`` counts per account where there is one.
 
-    The routes that use it are reached only while signed in, and several
-    accounts commonly share one address, so the account is the counter rather
-    than the address it arrived from.
+    Several accounts commonly share one address, so the account is the
+    counter rather than the address it arrived from — the one the request was
+    admitted as, or before that, the one its credential names.
     """
 
     @staticmethod
-    def _request(*, user_id: int | None = None) -> Request:
+    def _request(
+        *,
+        user_id: int | None = None,
+        headers: list[tuple[bytes, bytes]] | None = None,
+        query: bytes = b"",
+    ) -> Request:
         request = Request(
             {
                 "type": "http",
                 "method": "POST",
                 "path": "/",
-                "headers": [],
+                "headers": headers or [],
+                "query_string": query,
                 "client": ("198.51.100.7", 40404),
             }
         )
         if user_id is not None:
             request.state.user_id = user_id
         return request
+
+    def _bearer(self, token: str) -> Request:
+        return self._request(headers=[(b"authorization", f"Bearer {token}".encode())])
+
+    def test_every_limit_is_keyed_by_it(self):
+        assert limiter._key_func is get_user_or_ip_key
+        upload = "app.api.v1.platform_endpoints.auth.issue_upload_token"
+        assert all(
+            limit.key_func is get_user_or_ip_key
+            for limit in limiter._route_limits[upload]
+        )
+
+    def test_a_session_is_counted_by_its_subject_before_it_is_admitted(self):
+        assert get_user_or_ip_key(self._bearer(_session_token("ref-1"))) == (
+            "subject:ref-1"
+        )
+
+    def test_a_token_that_fails_its_check_is_counted_by_address(self):
+        forged = jwt.encode({"sub": "ref-1"}, "x" * 32, algorithm="HS256")
+        assert get_user_or_ip_key(self._bearer(forged)) == "198.51.100.7"
+        assert get_user_or_ip_key(self._bearer("junk")) == "198.51.100.7"
+
+    def test_an_upload_token_in_the_url_is_counted_by_its_account(self):
+        token, _ = create_upload_token(user_id=9)
+        request = self._request(query=f"token={token}".encode())
+        assert get_user_or_ip_key(request) == "user:9"
+
+    def test_an_installed_apps_bearer_token_is_counted_by_its_install(self):
+        assert get_user_or_ip_key(self._bearer(_install_token())) == (
+            "install:acme.widgets:7:3"
+        )
+
+    def test_an_installed_apps_token_is_read_only_as_a_bearer(self):
+        cookie = f"{SESSION_COOKIE_NAME}={_install_token()}".encode()
+        request = self._request(headers=[(b"cookie", cookie)])
+        assert get_user_or_ip_key(request) == "198.51.100.7"
 
     def test_a_signed_in_account_is_its_own_counter(self):
         assert get_user_or_ip_key(self._request(user_id=42)) == "user:42"
@@ -286,6 +360,38 @@ class TestDefaultLimitOnTheRealApp:
         path = "/api/v1/auth/username-available?username=someone"
         assert (await client.get(path)).status_code == 200
         assert (await client.get(path)).status_code == 200
+
+    async def test_accounts_behind_one_address_each_get_their_own_allowance(
+        self, client, session
+    ):
+        first = get_auth_headers(await create_user(session))
+        second = get_auth_headers(await create_user(session))
+        assert (await client.get("/api/v1/version", headers=first)).status_code == 200
+        assert (await client.get("/api/v1/version", headers=first)).status_code == 429
+        assert (await client.get("/api/v1/version", headers=second)).status_code == 200
+
+    async def test_a_junk_credential_shares_the_address_with_none(self, client):
+        junk = {"Authorization": "Bearer junk"}
+        assert (await client.get("/api/v1/version", headers=junk)).status_code == 200
+        assert (await client.get("/api/v1/version")).status_code == 429
+
+    async def test_the_credential_is_read_once_for_the_limit_and_the_route(
+        self, client, session, monkeypatch
+    ):
+        """The default limit reads the credential before the dependencies run,
+        and they read what it read rather than decoding it again."""
+        headers = get_auth_headers(await create_user(session))
+        decoded: list[str] = []
+        decode = identify.decode_session_token
+
+        def _counting(token: str):
+            decoded.append(token)
+            return decode(token)
+
+        monkeypatch.setattr(identify, "decode_session_token", _counting)
+        response = await client.get("/api/v1/me", headers=headers)
+        assert response.status_code == 200, response.text
+        assert len(decoded) == 1
 
     async def test_an_exempt_route_takes_no_limit_at_all(self, client):
         assert (await client.get("/api/v1/healthz")).status_code == 200

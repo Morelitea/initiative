@@ -8,12 +8,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.app_access_token import (
-    AccessTokenError,
-    InstallAccessToken,
-    is_access_token,
-    unseal_access_token,
-)
+from app.core.app_access_token import InstallAccessToken, is_access_token
 from app.core.app_scopes import (
     UnknownAppScope,
     parse_scope,
@@ -25,11 +20,14 @@ from app.core.login_methods import LoginMethod
 from app.core import auth_context
 from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
-from app.services.auth.credentials import (
-    HEADER_CREDENTIALS,
-    URL_CREDENTIALS,
-    Authenticated,
+from app.core.identify import (
     CredentialKind,
+    bearer_app_token,
+    identify,
+    identify_url_token,
+)
+from app.services.auth.credentials import (
+    Authenticated,
     CredentialRefused,
     asked_of_an_account,
     clear_recorded_credential,
@@ -167,8 +165,10 @@ async def get_current_user(
     # none reads as something other than a session.
     clear_recorded_credential()
     request.state.credential = None
-    token = bearer_token or session_cookie
-    if not token:
+    # ``bearer_token`` and ``session_cookie`` declare the schemes for the API
+    # description; the credential itself is read once, by ``identify``.
+    identified = identify(request)
+    if identified is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
@@ -177,9 +177,7 @@ async def get_current_user(
     # A credential that cannot be read is 401 "please re-authenticate", not
     # 403: the SPA's 401 interceptor sends an expired session to /welcome.
     try:
-        authenticated = await credentials.authenticate(
-            session, token, allow=HEADER_CREDENTIALS
-        )
+        authenticated = await credentials.authenticate(session, identified)
     except CredentialRefused as exc:
         raise exc.as_http() from exc
     return _admit(request, authenticated)
@@ -1410,7 +1408,7 @@ async def _named_refs(request: Request) -> list[str]:
 
 
 async def _establish_install_request(
-    request: Request, session: AsyncSession, token: str, scope: str | None
+    request: Request, session: AsyncSession, scope: str | None
 ) -> InstallContext:
     """Admit an installed app's request to a route that names ``scope``, or
     to an :func:`app_scope_checked` route, which names none here (``None``)
@@ -1423,10 +1421,7 @@ async def _establish_install_request(
     resolves the references the request names, which the route's identity
     types read while FastAPI validates it (``app.core.identity_boundary``).
     """
-    try:
-        unsealed = unseal_access_token(token)
-    except AccessTokenError as exc:
-        raise _refuse_install_credential() from exc
+    unsealed = bearer_app_token(request)
     if not isinstance(unsealed, InstallAccessToken):
         raise _refuse_install_credential()
 
@@ -1518,15 +1513,10 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
         session: SessionDep,
         guild_id: Annotated[int, Path(description="Guild this request operates in")],
         person: Annotated[Optional[User], Depends(get_actor_user)],
-        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     ) -> ActorContext:
         if person is None:
             # ``get_actor_user`` answers ``None`` only for an access token.
-            if not bearer_token:
-                raise _refuse_install_credential()
-            return await _establish_install_request(
-                request, session, bearer_token, scope
-            )
+            return await _establish_install_request(request, session, scope)
         context = await get_guild_membership(request, session, person, guild_id)
         return context
 
@@ -1560,26 +1550,19 @@ def app_scope_by(
         session: SessionDep,
         guild_id: Annotated[int, Path(description="Guild this request operates in")],
         person: Annotated[Optional[User], Depends(get_actor_user)],
-        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     ) -> ActorContext:
         if person is None:
-            if not bearer_token:
-                raise _refuse_install_credential()
             scope = scopes.get(str(request.path_params.get(param)))
             if scope is None:
                 # Read locally first, so a token that is not one answers 401
                 # whatever it asked for.
-                try:
-                    unseal_access_token(bearer_token)
-                except AccessTokenError as exc:
-                    raise _refuse_install_credential() from exc
+                if bearer_app_token(request) is None:
+                    raise _refuse_install_credential()
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=AppMessages.SCOPE_REQUIRED,
                 )
-            return await _establish_install_request(
-                request, session, bearer_token, scope
-            )
+            return await _establish_install_request(request, session, scope)
         context = await get_guild_membership(request, session, person, guild_id)
         return context
 
@@ -1622,14 +1605,9 @@ def app_scope_checked(
         session: SessionDep,
         guild_id: Annotated[int, Path(description="Guild this request operates in")],
         person: Annotated[Optional[User], Depends(get_actor_user)],
-        bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     ) -> ActorContext:
         if person is None:
-            if not bearer_token:
-                raise _refuse_install_credential()
-            return await _establish_install_request(
-                request, session, bearer_token, None
-            )
+            return await _establish_install_request(request, session, None)
         context = await get_guild_membership(request, session, person, guild_id)
         return context
 
@@ -1996,17 +1974,15 @@ async def _resolve_upload_user(
     """
     clear_recorded_credential()
     request.state.credential = None
-    token, allow = bearer_token or session_cookie, HEADER_CREDENTIALS
-    if not token and token_param:
-        token, allow = token_param, URL_CREDENTIALS
-    if not token:
+    identified = identify(request) or identify_url_token(request)
+    if identified is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
     try:
-        authenticated = await credentials.authenticate(session, token, allow=allow)
+        authenticated = await credentials.authenticate(session, identified)
     except CredentialRefused as exc:
         raise exc.as_http() from exc
     return await _active_user(request, _admit(request, authenticated))

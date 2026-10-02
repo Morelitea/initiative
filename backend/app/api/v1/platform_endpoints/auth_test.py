@@ -636,8 +636,8 @@ async def test_password_token_refusal_does_not_reveal_account_resolution(
 
 
 @pytest.fixture
-def two_refusals_per_address(client, monkeypatch):
-    """The limiter on, with an address allowance two refusals wide.
+def two_per_address(client, monkeypatch):
+    """The limiter on, with each address allowed two refusals and two letters.
 
     Narrow enough that each test stays inside the per-client route limits, so
     what it meets is the address allowance alone. Takes ``client`` for the
@@ -648,7 +648,8 @@ def two_refusals_per_address(client, monkeypatch):
     from app.core import rate_limit
 
     monkeypatch.setattr(rate_limit.limiter, "enabled", True)
-    monkeypatch.setattr(rate_limit, "SIGN_IN_FAILURES_PER_ADDRESS", parse("2/hour"))
+    monkeypatch.setattr(rate_limit.SIGN_IN_FAILURES, "limit", parse("2/hour"))
+    monkeypatch.setattr(rate_limit.MAIL_SENDS, "limit", parse("2/hour"))
     rate_limit.limiter.reset()
     yield
     rate_limit.limiter.reset()
@@ -661,7 +662,7 @@ async def _sign_in(client: AsyncClient, email: str, password: str) -> httpx.Resp
 
 
 async def test_address_out_of_refusals_refuses_the_right_password(
-    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+    client: AsyncClient, session: AsyncSession, two_per_address
 ) -> None:
     for email in ("held@example.com", "other@example.com"):
         await create_user(
@@ -684,7 +685,7 @@ async def test_address_out_of_refusals_refuses_the_right_password(
 
 
 async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
-    client: AsyncClient, two_refusals_per_address
+    client: AsyncClient, two_per_address
 ) -> None:
     """The browser and the app draw on one allowance, and an address nobody
     holds runs out the same way as one somebody does."""
@@ -701,7 +702,7 @@ async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
 
 
 async def test_one_network_address_is_not_one_allowance(
-    client: AsyncClient, two_refusals_per_address
+    client: AsyncClient, two_per_address
 ) -> None:
     """Everybody in an office signs in from one network address, so wrong
     passwords are counted by account and by address typed in, never by the
@@ -718,7 +719,7 @@ async def test_one_network_address_is_not_one_allowance(
 
 
 async def test_signing_in_starts_the_address_count_over(
-    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+    client: AsyncClient, session: AsyncSession, two_per_address
 ) -> None:
     await create_user(
         session,
@@ -742,7 +743,7 @@ async def test_signing_in_starts_the_address_count_over(
 async def test_lifting_a_lock_starts_the_address_count_over(
     client: AsyncClient,
     session: AsyncSession,
-    two_refusals_per_address,
+    two_per_address,
     recovery: str,
 ) -> None:
     """The refusal tells them to reset their password, and a moderator's unlock
@@ -789,6 +790,30 @@ async def test_lifting_a_lock_starts_the_address_count_over(
     assert lifted.status_code == 200, lifted.text
     signed_in = await _sign_in(client, "reset@example.com", password)
     assert signed_in.status_code == 200, signed_in.text
+
+
+async def test_an_address_is_sent_no_more_letters_than_its_allowance(
+    client: AsyncClient, session: AsyncSession, two_per_address
+) -> None:
+    """Counted by the address typed in, held or not, and not by the client:
+    the same client can still ask for a letter to another address."""
+    from app.services.platform import app_settings as app_settings_service
+
+    row = await app_settings_service.get_app_settings(session)
+    row.smtp_host = "smtp.example.com"
+    row.smtp_from_address = "noreply@example.com"
+    session.add(row)
+    await session.commit()
+
+    async def _forgot(email: str) -> httpx.Response:
+        return await client.post("/api/v1/auth/password/forgot", json={"email": email})
+
+    for _ in range(2):
+        assert (await _forgot("Nobody@Example.com")).status_code == 200
+    refused = await _forgot("nobody@example.com")
+    assert refused.status_code == 429
+    assert refused.json()["detail"] == "RATE_LIMITED"
+    assert (await _forgot("somebody-else@example.com")).status_code == 200
 
 
 async def test_five_wrong_passwords_lock_the_account(

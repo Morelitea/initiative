@@ -44,12 +44,7 @@ from app.core.auth_context import session_credential
 from app.core.config import is_device, settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
-from app.core.rate_limit import (
-    clear_sign_in_failures,
-    count_sign_in_failure,
-    get_inet_client_ip,
-    sign_in_allowance_left,
-)
+from app.core.rate_limit import SIGN_IN_FAILURES, get_inet_client_ip
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     get_password_hash,
@@ -284,7 +279,7 @@ async def prove_password(
     """
     await require_login_method(session, LoginMethod.password)
     normalized_email = email.lower().strip()
-    if not await sign_in_allowance_left(normalized_email):
+    if not await SIGN_IN_FAILURES.left(normalized_email):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=AuthMessages.SIGN_IN_LOCKED,
@@ -308,7 +303,7 @@ async def prove_password(
     if not user or not password_matches:
         # Recorded whether or not the address resolved; the record keeps no
         # identity when there was none to keep.
-        await count_sign_in_failure(normalized_email)
+        await SIGN_IN_FAILURES.take(normalized_email)
         await record_sign_in_failure(
             system_session, user, method="password", reason="bad_password"
         )
@@ -343,7 +338,7 @@ async def prove_password(
     # Which of the account's addresses was used, for the account page and for
     # telling an address in use from one nobody has signed in with.
     await addresses.note_sign_in(system_session, email=normalized_email)
-    await clear_sign_in_failures(normalized_email)
+    await SIGN_IN_FAILURES.clear(normalized_email)
     return user
 
 

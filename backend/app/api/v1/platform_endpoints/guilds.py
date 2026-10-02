@@ -43,7 +43,7 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.login_methods import SecondFactorRequirement
 from app.core.messages import BillingMessages, GuildMessages
-from app.core.rate_limit import get_user_or_ip_key, limiter
+from app.core.rate_limit import limiter
 from app.core.security import (
     HandoffSigningNotConfiguredError,
     create_billing_portal_handoff_token,
@@ -1081,7 +1081,7 @@ async def create_guild_billing_handoff(
     "/{guild_id}/billing/payment-issue",
     response_model=GuildPaymentIssueRead,
 )
-@limiter.limit("6/minute", key_func=get_user_or_ip_key)
+@limiter.limit("6/minute")
 async def read_guild_payment_issue(
     request: Request,
     guild_id: int,
@@ -1103,7 +1103,7 @@ async def read_guild_payment_issue(
     "/{guild_id}/billing/summary",
     response_model=GuildBillingSummaryRead,
 )
-@limiter.limit("30/minute", key_func=get_user_or_ip_key)
+@limiter.limit("30/minute")
 async def read_guild_billing_summary(
     request: Request,
     guild_id: int,

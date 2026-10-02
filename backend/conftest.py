@@ -1281,7 +1281,7 @@ def rate_limit_of_one_per_minute(client, monkeypatch):
     """
     from slowapi.wrappers import LimitGroup
 
-    from app.core.rate_limit import get_real_client_ip
+    from app.core.rate_limit import get_user_or_ip_key
 
     monkeypatch.setattr(limiter, "enabled", True)
     monkeypatch.setattr(
@@ -1290,7 +1290,7 @@ def rate_limit_of_one_per_minute(client, monkeypatch):
         [
             LimitGroup(
                 limit_provider="1/minute",
-                key_function=get_real_client_ip,
+                key_function=get_user_or_ip_key,
                 scope=None,
                 per_method=False,
                 methods=None,

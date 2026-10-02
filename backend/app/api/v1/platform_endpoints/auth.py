@@ -34,10 +34,7 @@ from app.db.session import set_rls_context
 from app.core.config import API_V1_STR, is_device, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import auth_context
-from app.core.rate_limit import (
-    get_inet_client_ip,
-    limiter,
-)
+from app.core.rate_limit import MAIL_SENDS, get_inet_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
     SALT_OIDC_CLIENT_SECRET,
@@ -2032,7 +2029,6 @@ async def _post_reset_letter(user_id: int, token: str) -> None:
 
 
 @router.post("/password/forgot", response_model=VerificationSendResponse)
-@limiter.limit("5/15minutes")
 async def request_password_reset(
     request: Request,
     payload: PasswordResetRequest,
@@ -2043,7 +2039,8 @@ async def request_password_reset(
     """Send a reset link to the account an address reaches.
 
     Answered the same way for every address: whether mail can be sent at all is
-    asked before the address is looked up, and the letter is posted after the
+    asked before the address is looked up, the address's mail allowance is
+    taken whether or not anybody holds it, and the letter is posted after the
     response.
     """
     await require_login_method(session, LoginMethod.password)
@@ -2052,7 +2049,12 @@ async def request_password_reset(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.SMTP_NOT_CONFIGURED,
         )
-    normalized_email = payload.email.lower().strip()
+    normalized_email = addresses.normalize(payload.email)
+    if not await MAIL_SENDS.take(normalized_email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=AuthMessages.RATE_LIMITED,
+        )
     # Held, not necessarily confirmed: an account that never confirmed the
     # address it signed up with is exactly the one a reset has to reach.
     user = await addresses.account_holding(system_session, normalized_email)
