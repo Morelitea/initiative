@@ -23,6 +23,8 @@ That is deliberate. A wiki is read by moving around it, so the shape of it stays
 
 Pages nest. Hover any page in the tree and a **+** appears to start one underneath it — so "Bar" can have "Float", "Stock" and "The till that hates everyone" filed under it. Nest as deep as makes sense, which is usually two levels and occasionally three.
 
+**Duplicate**, in a page's menu, puts a copy beside it called "(Copy)". The pages filed under it stay where they are, so copying "Bar" gives you one page to rewrite rather than a second bar.
+
 Drag a page onto another to file it underneath. Drag it to a row's top or bottom edge to put it beside instead. A page cannot be dropped inside itself, which is the one move the tree will not let you make.
 
 Documents you already have can sit in a wiki too: **Add a document** at the bottom of the tree offers every document in the initiative — a PDF, a spreadsheet, a whiteboard, a link. Each opens in the wiki the way it opens anywhere, and drags like a page, so the fire risk assessment can live under "Health and safety" where people will actually look for it. Nothing is copied. The document keeps its own address and its own sharing, and can sit somewhere else entirely in another wiki.

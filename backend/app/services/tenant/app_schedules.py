@@ -18,6 +18,13 @@ later, plus up to a tenth of it; a failure waits ``every × 2^failures``, at
 most ten intervals. An install that is switched off, or whose registration is
 not live, is not claimed, and runs when it is back.
 
+A declarative app has no schedules and no hook to call. Its rows are its
+community connections' ``health`` checks, by connection id, run the same way:
+Initiative makes the check's request with the connection's token, and the
+state it reads is reported where a container's verdict is shown, ``ok`` at
+once and anything else once two checks in a row have read something other
+than ``ok``. A check is next due one interval later whatever it read.
+
 Every read and write here is the system engine's.
 """
 
@@ -37,10 +44,17 @@ from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace.registration_lookup import load_registrations
+from app.services.marketplace import declarative
+from app.services.marketplace.registration_lookup import (
+    RegistrationSnapshot,
+    is_declarative,
+    load_registrations,
+)
 from app.services.marketplace.service_apps import schedule_minutes
 from app.services.tenant import app_connection_flows as flows
-from app.services.tenant.app_channels import owns_install
+from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant.app_channels import owns_install, set_connection_state
+from app.services.tenant.app_config import without_tokens
 from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
@@ -56,10 +70,29 @@ BACKOFF_CAP = 10
 
 
 def _declared(definition: Optional[Mapping[str, Any]]) -> dict[str, timedelta]:
-    """Each schedule the definition declares, by id, with its interval."""
+    """Each schedule the definition declares, by id, with its interval: a
+    container's ``schedules``, or the health checks of a declarative app's
+    community connections, by connection id (a declarative app has no
+    schedules of its own)."""
+    if is_declarative(definition):
+        return {
+            connection_id: timedelta(minutes=schedule_minutes(health["every"]))
+            for connection_id, health in _health_checks(definition).items()
+        }
     return {
         schedule["id"]: timedelta(minutes=schedule_minutes(schedule["every"]))
         for schedule in (definition or {}).get("schedules") or []
+    }
+
+
+def _health_checks(definition: Optional[Mapping[str, Any]]) -> dict[str, dict]:
+    """Each community connection's ``health``, by connection id."""
+    return {
+        connection["id"]: connection["health"]
+        for connection in (definition or {}).get("connections") or []
+        if isinstance(connection, dict)
+        and connection.get("scope") == "static"
+        and isinstance(connection.get("health"), dict)
     }
 
 
@@ -159,10 +192,21 @@ async def _settle(
     every: timedelta,
     started: datetime,
     succeeded: bool,
+    checked: Optional[str] = None,
 ) -> None:
+    """Settle a claimed row. A health check (``checked``, the state it read)
+    is next due one interval later whatever it read, and counts the answers
+    other than ``ok`` in a row as its failures."""
     now = datetime.now(timezone.utc)
-    if succeeded:
+    if checked is not None:
         values: dict[str, Any] = {
+            "failures": 0 if checked == "ok" else run.failures + 1,
+            "next_due_at": now + every + _jitter(every),
+        }
+        if checked == "ok":
+            values["last_success_at"] = started
+    elif succeeded:
+        values = {
             "last_success_at": started,
             "failures": 0,
             "next_due_at": now + every + _jitter(every),
@@ -205,6 +249,21 @@ async def run_due(session: AsyncSession, guild_id: int) -> None:
             # Left to its lease: the install changed since the row was written.
             continue
         started = datetime.now(timezone.utc)
+        # A declarative registration has no hook to call, whatever version
+        # an install is still pinned to.
+        if registration.declarative or is_declarative(app.definition):
+            checked = await _check_health(
+                session, app, registration, run, guild_id=guild_id
+            )
+            await _settle(
+                session,
+                run,
+                every=every,
+                started=started,
+                succeeded=True,
+                checked=checked,
+            )
+            continue
         try:
             await flows.call_hook(
                 "schedule",
@@ -230,3 +289,52 @@ async def run_due(session: AsyncSession, guild_id: int) -> None:
             )
             succeeded = False
         await _settle(session, run, every=every, started=started, succeeded=succeeded)
+
+
+async def _check_health(
+    session: AsyncSession,
+    app: GuildApp,
+    registration: RegistrationSnapshot,
+    run: Row,
+    *,
+    guild_id: int,
+) -> Optional[str]:
+    """Run one community connection's health check and report what it read:
+    ``ok`` at once, any other state once two checks in a row have read
+    something other than ``ok``. A connection not yet made is not checked,
+    and answers ``None``."""
+    connection_id = run.schedule_id
+    health = _health_checks(app.definition).get(connection_id)
+    stored = (app.config or {}).get(connection_id)
+    if health is None or not stored:
+        return None
+    try:
+        token = await flows.community_token(
+            session,
+            app=app,
+            public_id=registration.public_id,
+            connection_id=connection_id,
+            guild_id=guild_id,
+        )
+    except flows.ConnectionFlowError as exc:
+        logger.info(
+            "app health: %s has no token for %s in guild %s (%s)",
+            registration.public_id,
+            connection_id,
+            guild_id,
+            exc.code,
+        )
+        state = "unavailable"
+    else:
+        state = await declarative.health_state(
+            app.definition,
+            health,
+            fields=without_tokens(stored),
+            access_token=token.access_token,
+        )
+    if state == "ok" or run.failures >= 1:
+        locked = await guild_apps_service.lock_install(session, app.id)
+        if locked is not None and set_connection_state(locked, connection_id, state):
+            session.add(locked)
+        await session.commit()
+    return state

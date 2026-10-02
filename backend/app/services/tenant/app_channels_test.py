@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 
-from app.services.tenant.app_channels import owns_install
+from app.services.tenant.app_channels import owns_install, set_connection_state
 
 
 SHOP_UID = "TESTAPP0000001"
@@ -80,3 +80,18 @@ class TestOwnsInstall:
 
         assert owns_install(app, _registration()) is True
         assert owns_install(theirs, _registration()) is False
+
+
+def test_a_connections_recovery_clears_only_its_own_verdict():
+    """``foo`` working again says nothing about ``foo_bar``, whose name it
+    begins."""
+    app = SimpleNamespace(
+        config_state="unverified", config_state_detail=None, updated_at=None
+    )
+
+    assert set_connection_state(app, "foo_bar", "removed")
+    assert not set_connection_state(app, "foo", "ok")
+    assert (app.config_state, app.config_state_detail) == ("invalid", "foo_bar_removed")
+
+    assert set_connection_state(app, "foo_bar", "ok")
+    assert (app.config_state, app.config_state_detail) == ("ok", None)

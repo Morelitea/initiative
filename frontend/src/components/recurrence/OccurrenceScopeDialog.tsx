@@ -17,7 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 export type OccurrenceScope = NonNullable<CalendarEventUpdateScope>;
 
 /** What the change is: it names the dialog and its button. */
-export type ScopeAction = "edit" | "delete";
+export type ScopeAction = "edit" | "delete" | "duplicate";
 
 const SCOPES: OccurrenceScope[] = ["this", "following", "all"];
 

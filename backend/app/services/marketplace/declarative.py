@@ -1,4 +1,4 @@
-"""Declarative endpoints: Initiative makes the app's calls itself.
+"""Declarative apps: Initiative makes the app's calls itself.
 
 A declarative app has no container. Each of its reads and writes is a request,
 or up to three named steps, rendered from JSONata expressions, sent to the
@@ -7,6 +7,11 @@ the answers. This module runs one, exactly as the SDK's ``runEndpoint``
 (``initiative-app-sdk/testing``) does against recorded answers, and hands back
 the envelope a container answers with, ``{endpoint, actor, result}``, so
 everything around the call reads it the same way.
+
+It runs the rest of the app the same way, as the SDK's runners do: a
+connection's ``after_connect`` (``runAfterConnect``) and ``health``
+(``runHealth``), and what a vendor's delivery emits and says about a
+connection (``runWebhook``).
 
 * **What an expression sees**: ``params``, the non-secret fields of the
   request's connection, ``now``, each earlier step's answer as
@@ -65,7 +70,14 @@ from app.services.webhook_target_url import (
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["call_endpoint", "run_endpoint"]
+__all__ = [
+    "Delivered",
+    "after_connect",
+    "call_endpoint",
+    "health_state",
+    "map_delivery",
+    "run_endpoint",
+]
 
 MAPPING_FAILED = "mapping-failed"
 
@@ -104,6 +116,16 @@ class _Page:
     number: int = 1
     url: Optional[str] = None
     cursor: Any = UNDEFINED
+
+
+def _clock(now: datetime) -> tuple[int, str]:
+    """A run's time, as ``$millis()`` and ``now`` read it."""
+    millis = int(now.timestamp() * 1000)
+    return millis, (
+        datetime.fromtimestamp(millis / 1000, tz=timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _text(value: Any) -> str:
@@ -248,7 +270,7 @@ class _Run:
     def __init__(
         self,
         definition: Mapping[str, Any],
-        endpoint: Mapping[str, Any],
+        rules: Optional[list[dict[str, Any]]],
         *,
         credentials: Credentials,
         now: datetime,
@@ -257,14 +279,11 @@ class _Run:
         self.hosts: list[str] = list(definition.get("hosts") or [])
         self.auth_header: str = auth.get("header", DEFAULT_AUTH_HEADER)
         self.auth_prefix: str = auth.get("prefix", DEFAULT_AUTH_PREFIX)
-        self.rules: list[dict[str, Any]] = list(endpoint.get("errors") or [])
+        #: The rules an answer is held to before the defaults; ``None`` holds
+        #: it to neither, for a health check, whose states read every answer.
+        self.rules = rules
         self.credentials = credentials
-        self.millis = int(now.timestamp() * 1000)
-        self.now = (
-            datetime.fromtimestamp(self.millis / 1000, tz=timezone.utc)
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z")
-        )
+        self.millis, self.now = _clock(now)
 
     async def value(self, text: str, document: Any, where: str) -> Any:
         try:
@@ -419,16 +438,19 @@ class _Run:
             rendered = await self.render(request, document, where, page)
             answer = await self.send(rendered)
             read = {**document, "response": answer.read()}
-            for index, rule in enumerate(self.rules):
-                if not _matches(rule["status"], answer.status):
-                    continue
-                if "when" in rule and not await self.holds(
-                    rule["when"], read, f"errors/{index}/when"
-                ):
-                    continue
-                raise _Outcome(None if rule["code"] == TRANSIENT_CODE else rule["code"])
-            if not 200 <= answer.status <= 299:
-                raise _Outcome(_by_default(answer.status))
+            if self.rules is not None:
+                for index, rule in enumerate(self.rules):
+                    if not _matches(rule["status"], answer.status):
+                        continue
+                    if "when" in rule and not await self.holds(
+                        rule["when"], read, f"errors/{index}/when"
+                    ):
+                        continue
+                    raise _Outcome(
+                        None if rule["code"] == TRANSIENT_CODE else rule["code"]
+                    )
+                if not 200 <= answer.status <= 299:
+                    raise _Outcome(_by_default(answer.status))
             if not paging:
                 return answer
 
@@ -525,7 +547,12 @@ async def run_endpoint(
     ``credentials`` its token, by connection id. A passing failure raises
     :class:`AppDataError` as the app being unavailable.
     """
-    run = _Run(definition, endpoint, credentials=credentials, now=now)
+    run = _Run(
+        definition,
+        list(endpoint.get("errors") or []),
+        credentials=credentials,
+        now=now,
+    )
     base = {"params": dict(params), "now": run.now}
     steps = endpoint.get("steps") or [{"name": "", "request": endpoint["request"]}]
     named = "steps" in endpoint
@@ -577,6 +604,196 @@ async def run_endpoint(
                 outcome.detail,
             )
         return {"unavailable": outcome.code}
+
+
+# --- a connection's own requests --------------------------------------------
+
+
+async def after_connect(
+    definition: Mapping[str, Any],
+    after: Mapping[str, Any],
+    *,
+    params: Mapping[str, str],
+    access_token: str,
+    now: Optional[datetime] = None,
+) -> flows.AfterConnect:
+    """A declarative ``after_connect``: its request made with the token the
+    flow just obtained, its map's ``{values, account_label}``, and a refusal
+    with the declared code when ``refuse_when`` holds over the map's answer.
+
+    Its expressions read the flow's ``params`` and ``now``. An answer the
+    defaults refuse, a passing failure or an expression that fails raises
+    :class:`~app.services.tenant.app_connection_flows.HookError`, as a hook
+    that fails does.
+    """
+    run = _Run(
+        definition,
+        [],
+        credentials={"": access_token},
+        now=now or datetime.now(timezone.utc),
+    )
+    document: dict[str, Any] = {"params": dict(params), "now": run.now}
+    try:
+        response = (
+            await run.perform(after["request"], document, "after_connect/request")
+        ).read()
+        result = await run.value(
+            after["map"], {**document, "response": response}, "after_connect/map"
+        )
+        if not isinstance(result, dict):
+            raise _Outcome(
+                MAPPING_FAILED,
+                detail=f"after_connect/map answered {_text(result)}, "
+                "which is not {values, account_label}",
+            )
+        if "refuse_when" in after and await run.holds(
+            after["refuse_when"],
+            {**document, "response": response, "result": result},
+            "refuse_when",
+        ):
+            return flows.AfterConnect(
+                refused=True, values={}, account_label=None, code=after["code"]
+            )
+    except _Outcome as outcome:
+        raise flows.HookError(
+            f"after_connect answered {outcome.code or TRANSIENT_CODE}"
+            + (f" ({outcome.detail})" if outcome.detail else "")
+        ) from outcome
+    except AppDataError as exc:
+        raise flows.HookError(f"after_connect answered {exc.code}") from exc
+    return flows.connected(result)
+
+
+async def health_state(
+    definition: Mapping[str, Any],
+    health: Mapping[str, Any],
+    *,
+    fields: Mapping[str, Any],
+    access_token: str,
+    now: Optional[datetime] = None,
+) -> str:
+    """A connection's health check: its request made with the connection's
+    credential, and the state its ``states`` read from the answer.
+
+    Its expressions read the connection's non-secret ``fields`` as
+    ``connection``. An answer no row matches is ``ok`` when it is 2xx and
+    ``unavailable`` otherwise; a request that could not be made or read is
+    ``unavailable``.
+    """
+    run = _Run(
+        definition,
+        None,
+        credentials={"": access_token},
+        now=now or datetime.now(timezone.utc),
+    )
+    document: dict[str, Any] = {
+        "params": {},
+        "connection": dict(fields),
+        "now": run.now,
+    }
+    try:
+        answer = await run.perform(health["request"], document, "health/request")
+        response = answer.read()
+        for index, row in enumerate(health["states"]):
+            if "status" in row and not _matches(row["status"], answer.status):
+                continue
+            if "when" in row and not await run.holds(
+                row["when"], {**document, "response": response}, f"states/{index}/when"
+            ):
+                continue
+            return row["state"]
+        return "ok" if 200 <= answer.status <= 299 else "unavailable"
+    except (_Outcome, AppDataError) as exc:
+        logger.info("app health: the check answered no state (%s)", exc)
+        return "unavailable"
+
+
+# --- a vendor's deliveries ---------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Delivered:
+    """What one delivery emits, and the connection state it sets."""
+
+    #: The emit endpoint's id and its payload.
+    event: Optional[tuple[str, dict[str, Any]]] = None
+    #: The connection and its state.
+    status: Optional[tuple[str, str]] = None
+    #: Why ``events`` or ``status`` answered nothing, when an expression of
+    #: theirs failed or a payload did not fit: the same delivery fails the
+    #: same way again.
+    failures: tuple[str, ...] = ()
+
+
+async def map_delivery(
+    definition: Mapping[str, Any],
+    *,
+    headers: Mapping[str, str],
+    payload: Any,
+    connection: Mapping[str, Any],
+    now: Optional[datetime] = None,
+) -> Delivered:
+    """One webhook delivery, as a declarative app's ``webhooks`` map it: the
+    event the first ``events`` row whose ``when`` holds emits, its payload held
+    to the emit endpoint's returns, and the state the first matching
+    ``status`` row sets. A delivery nothing matches answers neither.
+
+    The expressions read ``headers`` (names in lowercase), ``payload``, the
+    routed connection's non-secret fields as ``connection``, and ``now``.
+    ``events`` and ``status`` are read apart: one failing leaves the other's
+    answer, and the failure is in ``failures``. An evaluation that may answer
+    if asked again raises :class:`ExpressionError` with ``transient`` set.
+    """
+    millis, at = _clock(now or datetime.now(timezone.utc))
+    document = {
+        "headers": {name.lower(): value for name, value in headers.items()},
+        "payload": payload,
+        "connection": dict(connection),
+        "now": at,
+    }
+    webhooks = definition.get("webhooks") or {}
+    returns = {
+        entry.get("id"): entry.get("returns") or []
+        for entry in definition.get("endpoints") or []
+        if isinstance(entry, dict)
+    }
+    failures: list[str] = []
+
+    async def first(what: str) -> Optional[tuple[int, dict[str, Any]]]:
+        """The first row of ``what`` whose ``when`` holds."""
+        for index, row in enumerate(webhooks.get(what) or []):
+            try:
+                if await expressions.holds(row["when"], document, millis=millis):
+                    return index, row
+            except ExpressionError as exc:
+                if exc.transient:
+                    raise
+                failures.append(f"{what}/{index}/when: {exc}")
+                return None
+        return None
+
+    event: Optional[tuple[str, dict[str, Any]]] = None
+    matched = await first("events")
+    if matched is not None:
+        index, row = matched
+        where = f"events/{index}/map"
+        try:
+            mapped = await expressions.evaluate(row["map"], document, millis=millis)
+        except ExpressionError as exc:
+            if exc.transient:
+                raise
+            failures.append(f"{where}: {exc}")
+        else:
+            problem = _fits(mapped, returns.get(row["emit"]) or [])
+            if problem is None:
+                event = (row["emit"], mapped)
+            else:
+                failures.append(f"{where}: the {row['emit']} event {problem}")
+    status: Optional[tuple[str, str]] = None
+    matched = await first("status")
+    if matched is not None:
+        status = (matched[1]["connection"], matched[1]["state"])
+    return Delivered(event=event, status=status, failures=tuple(failures))
 
 
 # --- the call behind ``_call_app`` -------------------------------------------

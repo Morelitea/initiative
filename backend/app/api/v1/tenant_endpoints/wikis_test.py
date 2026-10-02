@@ -1206,3 +1206,37 @@ async def test_a_copy_has_its_published_pages_in_their_tree(
     listed = await client.get(a.g(f"/wikis/{copy_id}/pages"), headers=a.headers)
     (borrowed,) = [row for row in listed.json()["items"] if row["kind"] == "document"]
     assert borrowed["parent_page_id"] == pages["Home"].id
+
+
+async def test_a_copied_page_goes_last_where_it_is_filed_without_its_subpages(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    rules = await create_wiki_page(session, wiki, a.user, title="Rules")
+    combat, travel = [
+        await create_wiki_page(
+            session, wiki, a.user, title=title, parent_page_id=rules.id, position=n
+        )
+        for n, title in enumerate(("Combat", "Travel"))
+    ]
+    await create_wiki_page(
+        session, wiki, a.user, title="Grapple", parent_page_id=combat.id
+    )
+
+    response = await client.post(
+        a.g(f"/wiki-pages/{combat.id}/duplicate"), headers=a.headers
+    )
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert (copy["title"], copy["slug"], copy["parent_page_id"]) == (
+        "Combat (Copy)",
+        "combat-copy",
+        rules.id,
+    )
+    assert copy["position"] > travel.position
+    listed = await client.get(a.g(f"/wikis/{wiki.id}/pages"), headers=a.headers)
+    titles = [row["title"] for row in listed.json()["items"]]
+    assert titles.count("Grapple") == 1

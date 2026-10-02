@@ -20,7 +20,8 @@ Three things happen here and nowhere else:
   the two returns. An installation-style flow (``install_url``) sends the
   person to the vendor's install page first; the vendor returns to the setup
   address with the installation's id, and one authorization trip follows so
-  the app's ``after_connect`` hook can check who installed it.
+  ``after_connect`` (the app's hook, or a declarative app's request) can check
+  who installed it.
 * **Tokens.** :func:`seal_tokens` and :func:`unseal_tokens` hold a token set
   in a connection's stored values under reserved keys; :func:`refresh_tokens`
   renews one; :func:`mint_jwt_bearer` mints a token for a connection that
@@ -732,6 +733,18 @@ class AfterConnect:
     refused: bool
     values: dict[str, Any]
     account_label: Optional[str]
+    #: What a declarative refusal answers.
+    code: Optional[str] = None
+
+
+def connected(answer: Mapping[str, Any]) -> AfterConnect:
+    """An ``after_connect`` answer's managed values and account label."""
+    values = answer.get("values") or {}
+    if not isinstance(values, dict):
+        raise HookError("after_connect values is not an object")
+    label = answer.get("account_label")
+    cleaned = label.strip()[:MAX_ACCOUNT_LABEL_LENGTH] if isinstance(label, str) else ""
+    return AfterConnect(refused=False, values=values, account_label=cleaned or None)
 
 
 async def after_connect(
@@ -762,12 +775,7 @@ async def after_connect(
         raise HookError("after_connect answered with something other than an object")
     if answer.get("refuse") is True:
         return AfterConnect(refused=True, values={}, account_label=None)
-    values = answer.get("values") or {}
-    if not isinstance(values, dict):
-        raise HookError("after_connect values is not an object")
-    label = answer.get("account_label")
-    cleaned = label.strip()[:MAX_ACCOUNT_LABEL_LENGTH] if isinstance(label, str) else ""
-    return AfterConnect(refused=False, values=values, account_label=cleaned or None)
+    return connected(answer)
 
 
 # --- finishing --------------------------------------------------------------
@@ -971,6 +979,7 @@ async def complete_callback(
             return landing_url(state.return_path, "not_recorded")
         fields = without_tokens((loaded.app.config or {}).get(state.connection_id))
         install_id = loaded.app.id
+        definition = loaded.app.definition
 
     # The vendor and the app are asked with no transaction open. What they
     # answer is stored against the install as it stands once they have.
@@ -992,25 +1001,39 @@ async def complete_callback(
 
     values: dict[str, Any] = {}
     label: Optional[str] = None
-    if loaded.flow.get("after_connect") is True:
+    declared = loaded.flow.get("after_connect")
+    if declared is True or isinstance(declared, dict):
         params: dict[str, str] = {}
         if state.installation_id is not None:
             params["installation_id"] = state.installation_id
         try:
-            answer = await after_connect(
-                public_id=loaded.public_id,
-                base_url=loaded.base_url,
-                guild_id=state.guild_id,
-                install_id=install_id,
-                connection_id=state.connection_id,
-                actor="member" if state.user_id is not None else "installation",
-                access_token=tokens.access_token,
-                params=params,
-            )
+            if isinstance(declared, dict):
+                # Initiative makes a declarative app's request itself.
+                from app.services.marketplace import declarative
+
+                answer = await declarative.after_connect(
+                    definition,
+                    declared,
+                    params=params,
+                    access_token=tokens.access_token,
+                )
+            else:
+                answer = await after_connect(
+                    public_id=loaded.public_id,
+                    base_url=loaded.base_url,
+                    guild_id=state.guild_id,
+                    install_id=install_id,
+                    connection_id=state.connection_id,
+                    actor="member" if state.user_id is not None else "installation",
+                    access_token=tokens.access_token,
+                    params=params,
+                )
         except HookError as exc:
             logger.warning("app connection: after_connect failed (%s)", exc)
             return landing_url(state.return_path, "not_recorded")
         if answer.refused:
+            if answer.code is not None:
+                logger.info("app connection: after_connect refused (%s)", answer.code)
             return landing_url(state.return_path, "refused")
         values = answer.values
         label = answer.account_label

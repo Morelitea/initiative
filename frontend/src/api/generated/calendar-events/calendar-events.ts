@@ -26,6 +26,7 @@ import type {
   CalendarEventRead,
   CalendarEventUpdate,
   DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams,
+  DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams,
   HTTPValidationError,
   ICalImportRequest,
   ICalImportResult,
@@ -770,6 +771,129 @@ export const useCreateCalendarEventApiV1CGuildIdCalendarEventsPost = <
 > => {
   return useMutation(
     getCreateCalendarEventApiV1CGuildIdCalendarEventsPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy the event beside itself as "<title> (Copy)", with its invitees,
+ * who are invited to it as to a new event, its tags, links and properties. A
+ * repeating event comes with its occurrences changed on their own; one
+ * changed occurrence, or the ``occurrence`` named, is copied as an event of
+ * its own.
+ * @summary Duplicate Calendar Event
+ */
+export const duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost = (
+  guildId: number,
+  eventId: number,
+  params?: DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventRead>(
+    {
+      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/duplicate`,
+      method: "POST",
+      params,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationKey =
+  () => ["duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost"] as const;
+
+export const getDuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost>
+      >,
+      TError,
+      DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost>
+    >,
+    TError,
+    DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getDuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost>
+      >,
+      DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables
+    > = (props) => {
+      const { guildId, eventId, params } = props ?? {};
+
+      return duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost(
+        guildId,
+        eventId,
+        params,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost>
+    >
+  >;
+
+export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables =
+  {
+    guildId: number;
+    eventId: number;
+    params?: DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams;
+  };
+
+/**
+ * @summary Duplicate Calendar Event
+ */
+export const useDuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost>
+      >,
+      TError,
+      DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost>>,
+  TError,
+  DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationOptions(
+      options
+    ),
     queryClient
   );
 };

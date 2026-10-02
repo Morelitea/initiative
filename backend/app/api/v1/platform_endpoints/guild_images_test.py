@@ -430,7 +430,10 @@ async def test_a_banner_needs_a_session(client: AsyncClient, acting_user):
 # --- how it reaches the two surfaces ------------------------------------------
 
 
-async def test_the_guild_list_names_the_banner(client: AsyncClient, acting_user):
+async def test_the_guild_list_names_the_banner(
+    client: AsyncClient, acting_user, session: AsyncSession
+):
+    """The full one for the front page, the card one for the switcher's cards."""
     a = await acting_user(guild_role=GuildRole.admin)
     await _set_banner(client, a.guild.id, a.headers)
 
@@ -439,6 +442,7 @@ async def test_the_guild_list_names_the_banner(client: AsyncClient, acting_user)
     assert response.status_code == 200
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["banner"]["image_url"] is not None
+    assert entry["banner_card_url"] == await _card_url(session, a.guild.id)
 
 
 async def test_the_directory_names_the_card_rendition(
@@ -466,6 +470,7 @@ async def test_a_guild_without_a_banner_names_none(client: AsyncClient, acting_u
 
     entry = next(g for g in response.json() if g["id"] == a.guild.id)
     assert entry["banner"]["image_url"] is None
+    assert entry["banner_card_url"] is None
 
 
 async def test_deleting_a_guild_takes_its_banner(

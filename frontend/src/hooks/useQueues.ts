@@ -7,6 +7,7 @@ import type {
   QueueRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost } from "@/api/generated/queue-items/queue-items";
 import {
   addQueueItemApiV1CGuildIdQueuesQueueIdItemsPost,
   advanceTurnApiV1CGuildIdQueuesQueueIdNextPost,
@@ -83,6 +84,20 @@ export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void,
         deleteQueueItemApiV1CGuildIdQueuesQueueIdItemsItemIdDelete(guildId, queueId, itemId),
       invalidate: () => invalidateQueueAndList(queueId),
       errorKey: "queues:error",
+    },
+    options
+  );
+
+export const useDuplicateQueueItem = (
+  queueId: number,
+  options?: MutationOpts<QueueItemRead, number>
+) =>
+  useGuildMutation<QueueItemRead, number>(
+    {
+      mutationFn: (guildId, itemId) =>
+        duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost(guildId, itemId),
+      invalidate: () => invalidateQueueAndList(queueId),
+      errorKey: "common:error",
     },
     options
   );

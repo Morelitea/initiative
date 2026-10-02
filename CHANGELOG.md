@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **See how the app behaves in people's browsers, with their say-so.** Set `FARO_COLLECTOR_URL` to a Grafana Faro collector and the cookie chooser gains an **Analytics** switch. Browsers that turn it on send page views, uncaught errors and Web Vitals, with each page named by its pattern rather than its address and nothing that names the person. Unset, nothing loads. See **Running a server › Configuration**.
+- **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. Opened at one of its dates, a repeating event asks whether to copy that date or the whole series, and a wiki page comes without the pages under it.
 
 ### Changed
 
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A duplicated task keeps its links** to other tasks, and is named "(Copy)" like every other copy. Checklists keep their ticks only when copied from a template; a duplicated project's start over.
 - **A tidier interface.** Page titles, section headings and spacing now match from page to page, and pages no longer say the same thing twice: a project or document no longer repeats its initiative under the breadcrumb, and the "Active" tag is gone.
 - **One header for every tool page.** A band in the initiative's colour holds the breadcrumb and **Settings**, then the name and description. Click a name to rename it (documents keep their title field). Under it, a strip shows the tool's status, its tags and its properties, all changeable in place (a project or document can be turned into a template from its status), with whatever that tool has of its own beside them, such as a project's progress and dates. Tools no longer show a count of what is in them.
+- **Expanding the guild rail shows each guild as a card**, with the same banner, description, categories and online and member counts as in the community directory.
 - **Pick which calendars to see from the calendar's title**, and show or hide project tasks from **Filters**.
 - **No initiative is the default any more.** Communities that were given a "Default Initiative" can now rename it, archive it or delete it like any other. **App and API integrations:** initiatives no longer carry `is_default`.
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.

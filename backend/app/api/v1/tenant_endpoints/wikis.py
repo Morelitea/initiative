@@ -27,13 +27,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
 from app.db.session import routed_guild_id
-from app.api import resource_access
+from app.api import resource_access, tool_copy
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
-    GuildContext,
     RLSSessionDep,
     app_scope,
     get_current_active_user,
@@ -113,8 +112,8 @@ async def _load_page(
     session: RLSSessionDep,
     wiki_id: int,
     page_id: int,
-    current_user: User,
-    guild_context: GuildContext,
+    current_user: User | None,
+    guild_context: ActorContext,
     *,
     access: str = "read",
 ) -> tuple[Wiki, WikiPage]:
@@ -542,6 +541,46 @@ async def read_wiki_page(
     await tags_service.annotate_tags(session, [page])
     await properties_service.annotate_properties(session, [page])
     return serialize_wiki_page(page, context=guild_context)
+
+
+@pages_router.post(
+    "/wiki-pages/{page_id}/duplicate",
+    response_model=WikiPageRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def duplicate_wiki_page(
+    page_id: int,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisWrite,
+) -> WikiPageRead:
+    """Copy the page, without the pages under it, to the end of where it is
+    filed, as "<title> (Copy)", with its tags, links and properties."""
+    wiki_id = (
+        await session.exec(select(WikiPage.wiki_id).where(WikiPage.id == page_id))
+    ).first()
+    if wiki_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=WikiMessages.PAGE_NOT_FOUND,
+        )
+    wiki, page = await _load_page(
+        session, wiki_id, page_id, current_user, guild_context, access="write"
+    )
+    copy = await tool_copy.duplicate_child(
+        session,
+        page,
+        parent_page_id=page.parent_page_id,
+        position=await wikis_service.next_position(session, wiki, page.parent_page_id),
+        slug=await wikis_service.unique_page_slug(
+            session, wiki.id, tool_copy.copied_name(page)
+        ),
+    )
+    await session.commit()
+    await session.refresh(copy)
+    await tags_service.annotate_tags(session, [copy])
+    await properties_service.annotate_properties(session, [copy])
+    return serialize_wiki_page(copy, context=guild_context)
 
 
 @router.patch("/{wiki_id}/pages/{page_id}", response_model=WikiPageRead)

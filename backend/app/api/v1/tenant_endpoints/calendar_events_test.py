@@ -1256,3 +1256,107 @@ class TestGuildCalendarEvents:
         )
         assert into.status_code == 400
         assert into.json()["detail"] == CalendarEventMessages.CANNOT_CROSS_SCOPE
+
+
+async def test_a_copied_series_takes_its_changed_occurrences_and_one_goes_alone(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A copied series' changed occurrences follow its new title unless they
+    changed their own; a changed occurrence, or one date of the series, copied
+    alone is an event of its own. Invitees come along, invited afresh."""
+    from app.models.tenant.calendar_event import CalendarEventAttendee, RSVPStatus
+    from app.testing import route_session_to_guild
+
+    (
+        organizer,
+        attendee,
+        _guild,
+        _initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+    start = datetime(2026, 10, 5, 10, tzinfo=timezone.utc)
+    weekly = await create_calendar_event(
+        session,
+        calendar,
+        organizer.user,
+        title="Standup",
+        recurrence="RRULE:FREQ=WEEKLY",
+        start_at=start,
+        end_at=start + timedelta(hours=1),
+    )
+    week = timedelta(days=7)
+    moved, renamed = [
+        await create_calendar_event(
+            session,
+            calendar,
+            organizer.user,
+            title=title,
+            series_id=weekly.id,
+            original_start=weekly.start_at + n * week,
+            start_at=weekly.start_at + n * week + timedelta(hours=2),
+            end_at=weekly.start_at + n * week + timedelta(hours=3),
+            overridden_fields=fields,
+        )
+        for n, title, fields in (
+            (1, "Standup", ["all_day", "end_at", "start_at"]),
+            (2, "Retro", ["title"]),
+        )
+    ]
+    session.add(
+        CalendarEventAttendee(
+            calendar_event_id=weekly.id,
+            user_id=attendee.user.id,
+            rsvp_status=RSVPStatus.accepted,
+        )
+    )
+    await session.commit()
+
+    series = await client.post(
+        organizer.g(f"/calendar-events/{weekly.id}/duplicate"),
+        headers=organizer.headers,
+    )
+    alone = await client.post(
+        organizer.g(f"/calendar-events/{moved.id}/duplicate"),
+        headers=organizer.headers,
+    )
+    week_four = weekly.start_at + 3 * week
+    one_date = await client.post(
+        organizer.g(f"/calendar-events/{weekly.id}/duplicate"),
+        headers=organizer.headers,
+        params={"occurrence": week_four.isoformat()},
+    )
+
+    assert series.status_code == 201, series.text
+    assert alone.status_code == 201, alone.text
+    series, alone = series.json(), alone.json()
+    await route_session_to_guild(session, organizer.guild.id)
+    assert (series["title"], series["recurrence"]) == (
+        "Standup (Copy)",
+        "RRULE:FREQ=WEEKLY",
+    )
+    assert [(a["user_id"], a["rsvp_status"]) for a in series["attendees"]] == [
+        (attendee.user.id, "pending")
+    ]
+    changed = (
+        await session.exec(
+            select(CalendarEvent.title).where(CalendarEvent.series_id == series["id"])
+        )
+    ).all()
+    assert sorted(changed) == ["Retro", "Standup (Copy)"]
+    assert (alone["title"], alone["series_id"], alone["original_start"]) == (
+        "Standup (Copy)",
+        None,
+        None,
+    )
+    assert datetime.fromisoformat(alone["start_at"]) == moved.start_at
+    assert one_date.status_code == 201, one_date.text
+    one_date = one_date.json()
+    assert (one_date["recurrence"], one_date["series_id"]) == (None, None)
+    assert datetime.fromisoformat(one_date["start_at"]) == week_four
+    invites = await _notifications_for(
+        session, attendee.user.id, NotificationType.event_invitation
+    )
+    assert {invite.data["event_id"] for invite in invites} == {
+        series["id"],
+        one_date["id"],
+    }

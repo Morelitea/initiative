@@ -4,15 +4,18 @@
  * Initiative API
  * OpenAPI spec version: 0.74.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
@@ -227,3 +230,104 @@ export function useReadQueueItemApiV1CGuildIdQueueItemsItemIdGet<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+/**
+ * Copy the item beside itself, at the same place in the turn order, as
+ * "<label> (Copy)", with its person, tags, links and properties.
+ * @summary Duplicate Queue Item
+ */
+export const duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost = (
+  guildId: number,
+  itemId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<QueueItemRead>(
+    { url: `/api/v1/c/${guildId}/queue-items/${itemId}/duplicate`, method: "POST", signal },
+    options
+  );
+};
+
+export const getDuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationKey = () =>
+  ["duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost"] as const;
+
+export const getDuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost>>,
+    TError,
+    DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost>>,
+  TError,
+  DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost>>,
+    DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, itemId } = props ?? {};
+
+    return duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost(
+      guildId,
+      itemId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost>>
+  >;
+
+export type DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationVariables = {
+  guildId: number;
+  itemId: number;
+};
+
+/**
+ * @summary Duplicate Queue Item
+ */
+export const useDuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost>>,
+      TError,
+      DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePost>>,
+  TError,
+  DuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateQueueItemApiV1CGuildIdQueueItemsItemIdDuplicatePostMutationOptions(options),
+    queryClient
+  );
+};

@@ -24,6 +24,8 @@ From an initiative's **Calendar**, pick a slot or choose **New event**. You can 
 
 ![The initiative calendar with events](../images/tools/calendar.png)
 
+To make another one like an event you already have, open it and use **Duplicate** under its title. The copy invites the same people afresh. On a repeating event opened at one of its dates, Initiative asks whether you mean that date, which becomes an event of its own, or the whole series, which brings the dates you changed on their own with it.
+
 ## Repeating events
 
 Pick **Repeat** and choose daily, every weekday, weekly, monthly or annually. **Custom…** covers the awkward ones: the second Tuesday, the last Friday, the first weekday of the month, the 1st and the 15th.

@@ -5089,6 +5089,7 @@ export interface GuildRead {
   banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
+  banner_card_url: string | null;
 }
 
 /**
@@ -10974,6 +10975,13 @@ export const DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope = 
   following: "following",
   all: "all",
 } as const;
+
+export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams = {
+  /**
+   * One date of a repeating event, copied as an event of its own.
+   */
+  occurrence?: string | null;
+};
 
 export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams = {
   scope?: SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope;
