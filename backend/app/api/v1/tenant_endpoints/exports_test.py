@@ -2453,18 +2453,27 @@ async def test_initiative_backup_zip_layout_and_manifest(
 async def test_initiative_backup_includes_read_only_projects(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
 ):
-    """The aggregate-export relaxation: a project the exporter can only READ is
-    still in their backup (standalone per-project export would 403)."""
+    """An initiative's export is for those who manage it, as its settings page
+    is. Within it, the aggregate-export relaxation: a project the exporter can
+    only READ is still in their backup (standalone per-project export would
+    403)."""
     owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-    exporter = await acting_user(
-        guild_role=GuildRole.member,
-        guild=owner.guild,
-        initiative=owner.initiative,
-        initiative_role="member",
-    )
+    exporter, member = [
+        await acting_user(
+            guild_role=GuildRole.member,
+            guild=owner.guild,
+            initiative=owner.initiative,
+            initiative_role=role,
+        )
+        for role in ("project_manager", "member")
+    ]
     theirs = await create_project(session, owner.initiative, owner.user, name="Theirs")
     await create_resource_grant(session, theirs, user=exporter.user)
 
+    refused = await _export(
+        client, member, "initiative", initiative_id=owner.initiative.id
+    )
+    assert refused.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED", refused.text
     # Standalone export of the same project: still write-gated.
     denied = await _export(client, exporter, "project", ids=[theirs.id], format="json")
     assert denied.status_code == 403

@@ -55,8 +55,10 @@ export const ToolDuplicateCard = () => {
   const gp = useGuildPath();
   const { tool, entity } = useToolSettings();
   const { creatableInitiatives: creatable } = useToolCreateAccess(tool);
-  // An initiative that keeps its content in is copied only beside itself.
-  const keptIn = useInitiative(entity.initiative_id ?? null).data?.keep_content_in;
+  // An initiative that keeps its content in is copied only beside itself, so
+  // the card waits until it is known whether this one does.
+  const source = useInitiative(entity.initiative_id ?? null);
+  const keptIn = source.data?.keep_content_in;
   const creatableInitiatives = keptIn
     ? creatable.filter((i) => i.id === entity.initiative_id)
     : creatable;
@@ -79,7 +81,11 @@ export const ToolDuplicateCard = () => {
     },
   });
 
-  if (!canUseDuplicateCard(tool, entity) || creatableInitiatives.length === 0) {
+  if (
+    !canUseDuplicateCard(tool, entity) ||
+    creatableInitiatives.length === 0 ||
+    (entity.initiative_id != null && !source.isSuccess)
+  ) {
     return null;
   }
 
