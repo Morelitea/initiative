@@ -707,6 +707,26 @@ async def test_address_allowance_is_shared_and_ignores_whether_anyone_holds_it(
     assert response.json() == {"detail": "SIGN_IN_LOCKED"}
 
 
+async def test_one_network_address_is_not_one_allowance(
+    client: AsyncClient, two_refusals_per_address
+) -> None:
+    """Everybody in an office signs in from one network address, so wrong
+    passwords are counted by account and by address typed in, never by the
+    network they came from."""
+    for n in range(6):
+        response = await _sign_in(client, f"person{n}@example.com", "wrong")
+        assert response.status_code == 400, response.text
+        app_response = await client.post(
+            "/api/v1/auth/device-token",
+            json={
+                "email": f"phone{n}@example.com",
+                "password": "wrong",
+                "device_name": "test-phone",
+            },
+        )
+        assert app_response.status_code == 400, app_response.text
+
+
 async def test_signing_in_starts_the_address_count_over(
     client: AsyncClient, session: AsyncSession, two_refusals_per_address
 ) -> None:
@@ -728,12 +748,19 @@ async def test_signing_in_starts_the_address_count_over(
     ).status_code == 200
 
 
-async def test_a_reset_from_the_emailed_link_starts_the_address_count_over(
-    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+@pytest.mark.parametrize("recovery", ["reset", "moderator"])
+async def test_lifting_a_lock_starts_the_address_count_over(
+    client: AsyncClient,
+    session: AsyncSession,
+    two_refusals_per_address,
+    recovery: str,
 ) -> None:
-    """The refusal tells them to reset their password, so a reset has to let
-    them in, whichever of the two counts was refusing them."""
+    """The refusal tells them to reset their password, and a moderator's unlock
+    says the account is open again, so either has to let them in, whichever of
+    the two counts was refusing them."""
+    from app.models.platform.user import UserRole
     from app.models.platform.user_token import UserTokenPurpose
+    from app.services.auth import sign_in_locks
     from app.services.platform import user_tokens
 
     user = await create_user(
@@ -746,19 +773,31 @@ async def test_a_reset_from_the_emailed_link_starts_the_address_count_over(
     user_id = user.id
     for _ in range(2):
         await _sign_in(client, "reset@example.com", "wrong")
+    for _ in range(sign_in_locks.LOCK_AFTER_FAILURES):
+        await sign_in_locks.record_failure(session, user_id)
+    await session.commit()
     assert (
         await _sign_in(client, "reset@example.com", "right-password")
     ).status_code == 429
 
-    reset_token = await user_tokens.create_token(
-        session, user_id=user_id, purpose=UserTokenPurpose.password_reset
-    )
-    reset = await client.post(
-        "/api/v1/auth/password/reset",
-        json={"token": reset_token, "password": "brand-new-secret-123"},
-    )
-    assert reset.status_code == 200, reset.text
-    signed_in = await _sign_in(client, "reset@example.com", "brand-new-secret-123")
+    if recovery == "reset":
+        password = "brand-new-secret-123"
+        reset_token = await user_tokens.create_token(
+            session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+        )
+        lifted = await client.post(
+            "/api/v1/auth/password/reset",
+            json={"token": reset_token, "password": password},
+        )
+    else:
+        password = "right-password"
+        moderator = await create_user(session, role=UserRole.moderator)
+        lifted = await client.delete(
+            f"/api/v1/operator/users/{user_id}/sign-in-lock",
+            headers=get_auth_headers(moderator),
+        )
+    assert lifted.status_code == 200, lifted.text
+    signed_in = await _sign_in(client, "reset@example.com", password)
     assert signed_in.status_code == 200, signed_in.text
 
 

@@ -15,6 +15,7 @@ over at once.
 from __future__ import annotations
 
 import enum
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -30,6 +31,8 @@ from app.models.platform.sign_in_lock import SignInLock
 from app.services import audit as audit_service
 from app.services.auth import addresses
 from app.core.clock import utcnow
+
+logger = logging.getLogger(__name__)
 
 LOCK_AFTER_FAILURES = 5
 FAILURE_WINDOW = timedelta(minutes=15)
@@ -146,7 +149,14 @@ async def lift(session: AsyncSession, user_id: int) -> bool:
     was_closed = _is_closed(await session.get(SignInLock, user_id), utcnow())
     await session.exec(delete(SignInLock).where(SignInLock.user_id == user_id))
     for address in await addresses.proven_addresses(session, user_id=user_id):
-        await clear_sign_in_failures(addresses.normalize(address))
+        try:
+            await clear_sign_in_failures(addresses.normalize(address))
+        except Exception:
+            # The count lapses at the end of its window anyway; the lift and
+            # whatever the caller commits with it go ahead without it.
+            logger.warning(
+                "Could not start an address's sign-in count over", exc_info=True
+            )
     return was_closed
 
 

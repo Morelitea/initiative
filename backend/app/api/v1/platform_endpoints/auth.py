@@ -786,7 +786,6 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
 
 
 @router.post("/token", response_model=Token)
-@limiter.limit("5/15minutes")
 async def login_access_token(
     request: Request,
     response: Response,
@@ -821,7 +820,6 @@ async def login_access_token(
 
 
 @router.post("/token/totp", response_model=Token)
-@limiter.limit("10/15minutes")
 async def answer_second_factor(
     request: Request,
     response: Response,
@@ -1213,7 +1211,6 @@ async def issue_upload_token(
 
 
 @router.post("/device-token", response_model=DeviceTokenResponse)
-@limiter.limit("5/15minutes")
 async def create_device_token(
     request: Request,
     session: SessionDep,

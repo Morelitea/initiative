@@ -1042,7 +1042,7 @@ class Settings(BaseSettings):
     # throttles the hundreds of rapid requests a test makes from one client IP.
     RATE_LIMIT_DEFAULT: str = "100/minute"
     # Master on/off switch for ALL rate limiting — the global default *and* every
-    # per-route ``@limiter.limit(...)`` cap (e.g. login's ``5/15minutes``). Leave
+    # per-route ``@limiter.limit(...)`` cap (e.g. password reset's ``5/15minutes``). Leave
     # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
     # in a local ``.env`` to stop throttling yourself while testing auth flows.
     # This is the same lever the test suite pulls (``limiter.enabled = False``),

@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.
 - **A project's built-in filter presets** (All, Incomplete, Unassigned, Mine) now show in your language, unless someone has renamed them.
 - **Unlocking an account now lets its holder straight back in.** After too many wrong passwords, a moderator's unlock or a password reset from the emailed link ended the account's lock, but sign-in could still be refused as locked for up to 15 minutes. Both now clear that too.
+- **People who share a network no longer lock each other out of signing in.** Password sign-in, in the browser and the app, and the authenticator code step were each limited per network address. Everyone in one office shares that address, so a handful of wrong passwords there refused everyone with "Too many requests". Wrong passwords are still counted per account and per email address.
 - **Signing in with a password manager no longer locks your account.** On some phones, a password manager that filled the sign-in form could send it several times at once, or before the password reached it. Each counted as a wrong password, and five lock the account. The form now sends one sign-in, with what the fields hold. The same goes for the authenticator code step.
 
 ## [0.74.0] - 2026-10-01
