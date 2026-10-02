@@ -83,6 +83,7 @@ import {
   useFilterPresets,
   useUpdateFilterPreset,
 } from "@/hooks/useFilterPresets";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import {
   type UpdateTaskVariables,
@@ -238,6 +239,8 @@ export const ProjectTasksSection = ({
   onComposerOpenChange,
 }: ProjectTasksSectionProps) => {
   const { t } = useTranslation("projects");
+  // Nothing is exported from an initiative that keeps its content in.
+  const keepsContentIn = Boolean(useInitiative(initiativeId).data?.keep_content_in);
   const guildId = useActiveGuildId();
   const sortedTaskStatuses = useMemo(() => {
     return [...taskStatuses].sort((a, b) => {
@@ -1105,13 +1108,15 @@ export const ProjectTasksSection = ({
           trailing={
             /* resumePending: this is the view's single adopter of a stored
                in-flight job (the selection button must not double-handle it). */
-            <ExportTasksButton
-              params={{
-                conditions: buildTaskConditions(appliedSpec, { projectId }),
-                include_archived: appliedSpec.include_archived,
-              }}
-              resumePending
-            />
+            keepsContentIn ? undefined : (
+              <ExportTasksButton
+                params={{
+                  conditions: buildTaskConditions(appliedSpec, { projectId }),
+                  include_archived: appliedSpec.include_archived,
+                }}
+                resumePending
+              />
+            )
           }
           actions={
             canEditTaskDetails ? (
@@ -1239,12 +1244,18 @@ export const ProjectTasksSection = ({
           {selectedTasks.length > 0 && canEditTaskDetails && (
             <TaskBulkEditPanel
               selectedTasks={selectedTasks}
-              exportParams={{
-                conditions: [{ field: "id", op: "in_", value: selectedTasks.map((t) => t.id) }],
-                // Selection came from the visible list, which may include
-                // archived rows when the toggle is on.
-                include_archived: appliedSpec.include_archived,
-              }}
+              exportParams={
+                keepsContentIn
+                  ? undefined
+                  : {
+                      conditions: [
+                        { field: "id", op: "in_", value: selectedTasks.map((t) => t.id) },
+                      ],
+                      // Selection came from the visible list, which may include
+                      // archived rows when the toggle is on.
+                      include_archived: appliedSpec.include_archived,
+                    }
+              }
               onEdit={() => setIsBulkEditDialogOpen(true)}
               onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
               onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}

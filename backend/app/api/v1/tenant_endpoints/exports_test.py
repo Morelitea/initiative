@@ -492,6 +492,21 @@ async def test_an_export_is_served_while_its_initiatives_are_reached(
     await session.commit()
     await _download(client, a, job_id)
 
+    # Once one of its initiatives keeps its content in, the file is not
+    # served, and a new list export holding it is refused.
+    initiative = await session.get(Initiative, initiative_id)
+    initiative.keep_content_in = True
+    session.add(initiative)
+    await session.commit()
+    dl = await client.get(a.g(f"/exports/{job_id}/download"), headers=a.headers)
+    assert dl.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN"
+    refused_id = (await _export(client, a, "tasks")).json()["id"]
+    await _run_worker()
+    assert (await _job(client, a, refused_id))["error"] == "INITIATIVE_CONTENT_KEPT_IN"
+    initiative.keep_content_in = False
+    session.add(initiative)
+    await session.commit()
+
     await session.exec(
         sa_delete(InitiativeMember).where(
             InitiativeMember.initiative_id == initiative_id,
@@ -1430,6 +1445,26 @@ async def test_exporting_a_tool_takes_the_rung_that_may_delete_it(
     for who in (a, admin):
         resp = await _export(client, a, source, headers=who.headers, **params)
         assert resp.status_code == 200, (who.user.id, resp.text)
+
+    # An initiative that keeps its content in exports nothing on its own, for
+    # anyone; its backup still takes it.
+    kept = await client.patch(
+        a.g(f"/initiatives/{a.initiative.id}"),
+        headers=a.headers,
+        json={"keep_content_in": True},
+    )
+    assert kept.json()["keep_content_in"] is True, kept.text
+    read = await client.get(
+        a.g(f"/{tool.route_segment}/{entity.id}"), headers=a.headers
+    )
+    assert read.json()["can"]["export"] is False
+    for who in (a, admin):
+        resp = await _export(client, a, source, headers=who.headers, **params)
+        assert resp.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN", resp.text
+    backup = await _export(client, a, "initiative", initiative_id=a.initiative.id)
+    await _run_worker()
+    done = await _job(client, a, backup.json()["id"])
+    assert done["status"] == ExportJobStatus.done.value, done.get("error")
 
 
 def _page_body(text: str) -> dict:

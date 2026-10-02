@@ -68,6 +68,7 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     // someone opens it.
     join_policy: "private",
     auto_join: false,
+    keep_content_in: false,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     member_count: 0,

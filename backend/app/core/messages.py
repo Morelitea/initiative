@@ -302,6 +302,9 @@ class InitiativeMessages:
     JOIN_REQUEST_NOT_FOUND = "INITIATIVE_JOIN_REQUEST_NOT_FOUND"
     # Approve/deny act on a pending row only; a resolved one is history.
     JOIN_REQUEST_ALREADY_RESOLVED = "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED"
+    # The initiative keeps its content in: nothing in it is exported on its own
+    # or copied to another initiative.
+    CONTENT_KEPT_IN = "INITIATIVE_CONTENT_KEPT_IN"
 
 
 class FilterPresetMessages:

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { useDuplicateTool } from "@/hooks/toolHooks";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute } from "@/lib/tools";
@@ -53,7 +54,12 @@ export const ToolDuplicateCard = () => {
   const router = useRouter();
   const gp = useGuildPath();
   const { tool, entity } = useToolSettings();
-  const { creatableInitiatives } = useToolCreateAccess(tool);
+  const { creatableInitiatives: creatable } = useToolCreateAccess(tool);
+  // An initiative that keeps its content in is copied only beside itself.
+  const keptIn = useInitiative(entity.initiative_id ?? null).data?.keep_content_in;
+  const creatableInitiatives = keptIn
+    ? creatable.filter((i) => i.id === entity.initiative_id)
+    : creatable;
 
   const [open, setOpen] = useState(false);
   const [initiativeId, setInitiativeId] = useState("");

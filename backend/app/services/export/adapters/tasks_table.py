@@ -21,6 +21,7 @@ import re
 from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.models.platform.user import User
 from app.models.tenant.task import Task, TaskStatusCategory
+from app.services.export.adapters._common import require_may_leave
 from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale
 from app.services.export.markdown import blocks_from_markdown
@@ -112,6 +113,7 @@ class TasksTableAdapter:
             **_selector(params),
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )
+        reach = await require_may_leave(session, _reach(tasks))
         loc = export_locale(user)
         data = {
             "title": et("title.tasks", loc),
@@ -132,7 +134,7 @@ class TasksTableAdapter:
             template_id=self.template_id,
             format=format,
             batch=(RenderItem(key="tasks", data=data),),
-            initiative_ids=_reach(tasks),
+            initiative_ids=reach,
         )
 
     async def _build_detailed(
@@ -144,6 +146,7 @@ class TasksTableAdapter:
             **_selector(params),
             max_rows=export_limits.EXPORT_MAX_ROWS,
         )
+        reach = await require_may_leave(session, _reach(tasks))
         loc = export_locale(user)
         data = {
             "title": et("title.tasks", loc),
@@ -173,7 +176,7 @@ class TasksTableAdapter:
             template_id=self.detail_template_id,
             format="pdf",
             batch=(RenderItem(key="tasks", data=data),),
-            initiative_ids=_reach(tasks),
+            initiative_ids=reach,
         )
 
 

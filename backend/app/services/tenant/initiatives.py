@@ -1088,6 +1088,22 @@ async def list_join_requests(
     ]
 
 
+async def keeps_content_in(
+    session: AsyncSession, initiative_ids: Iterable[int | None]
+) -> bool:
+    """Whether any of ``initiative_ids`` keeps its content in
+    (``Initiative.keep_content_in``)."""
+    ids = {initiative_id for initiative_id in initiative_ids if initiative_id}
+    if not ids:
+        return False
+    found = await session.exec(
+        select(Initiative.id)
+        .where(ids_in(Initiative.id, ids), Initiative.keep_content_in)
+        .limit(1)
+    )
+    return found.first() is not None
+
+
 def validate_join_settings(
     initiative: Initiative,
     *,

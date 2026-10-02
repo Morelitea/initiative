@@ -156,6 +156,19 @@ async def test_a_copy_keeps_its_sharing_beside_and_its_tags_anywhere(
     assert not any(g["user_id"] == b.user.id for g in moved["grants"])
     assert len(beside["tags"]) == len(moved["tags"]) == 1
 
+    # An initiative that keeps its content in is copied only beside itself.
+    await client.patch(
+        a.g(f"/initiatives/{a.initiative.id}"),
+        headers=a.headers,
+        json={"keep_content_in": True},
+    )
+    kept = await client.post(
+        path, headers=a.headers, json={"target_initiative_id": elsewhere.id}
+    )
+    assert kept.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN", kept.text
+    again = await client.post(path, headers=a.headers, json={"name": "Plan again"})
+    assert again.status_code == 201, again.text
+
 
 @COPIABLE
 async def test_copying_takes_write_or_a_template_and_the_right_to_create(

@@ -33,7 +33,7 @@ from app.api.deps import (
 )
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.messages import ExportMessages
+from app.core.messages import ExportMessages, InitiativeMessages
 from app.core.tools import Tool, tool_export_source
 from app.core.user_display import display_name
 from app.models.platform.user import User
@@ -49,6 +49,10 @@ from app.schemas.tenant.export_job import (
 )
 from app.services import audit as audit_service
 from app.services.export.adapters import ADAPTERS
+from app.services.export.adapters.backup import (
+    GuildExportAdapter,
+    InitiativeExportAdapter,
+)
 from app.services.export.engine import ExportError, InlineExport, start_export
 from app.services.storage import (
     build_upload_response,
@@ -57,6 +61,7 @@ from app.services.storage import (
 )
 from app.services.export import limits as export_limits
 from app.services.membership import initiative_scope_clause
+from app.services.tenant.initiatives import keeps_content_in
 
 router = APIRouter()
 
@@ -621,6 +626,16 @@ async def download_export_artifact(
     if job.source == "guild":
         require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     await _require_reach(session, current_user, job.initiative_ids)
+    # The backups take an initiative that keeps its content in; any other file
+    # is refused once one of the initiatives it holds does.
+    if job.source not in (
+        InitiativeExportAdapter.source,
+        GuildExportAdapter.source,
+    ) and await keeps_content_in(session, job.initiative_ids):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.CONTENT_KEPT_IN,
+        )
     storage = get_guild_storage(guild_context.guild_id)
     # Recover the download name from the artifact key. A named artifact
     # (passthrough / .lexical) is stored as `exports/{job_id}-{filename}`;

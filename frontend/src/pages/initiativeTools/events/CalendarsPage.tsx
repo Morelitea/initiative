@@ -78,6 +78,7 @@ import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProjects } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -183,6 +184,8 @@ export const CalendarsView = ({
   const initiativeId = guildOnly
     ? null
     : (fixedInitiativeId ?? (initiativeIdParam ? Number(initiativeIdParam) : null));
+  // Nothing is exported from an initiative that keeps its content in.
+  const keepsContentIn = Boolean(useInitiative(initiativeId).data?.keep_content_in);
 
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
@@ -355,6 +358,9 @@ export const CalendarsView = ({
   // calendars are left out by their saved ids, so one past the loaded page of
   // calendars stays out too.
   const exportParams = useMemo((): ExportEventsApiV1CGuildIdExportsEventsGetParams | null => {
+    if (keepsContentIn) {
+      return null;
+    }
     const allHidden = calendars.every((calendar) =>
       visibility.isCalendarHidden(guildId, calendar.id)
     );
@@ -384,6 +390,7 @@ export const CalendarsView = ({
     guildScope,
     guildOnly,
     initiativeId,
+    keepsContentIn,
     propertyFiltersParam,
     dateRange,
   ]);
