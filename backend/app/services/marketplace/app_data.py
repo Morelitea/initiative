@@ -42,6 +42,11 @@ result as data.
 **The same call serves one app calling another.** :mod:`app_hub` checks such a
 call and makes it through :func:`_call_app` and :func:`cached_call`, reading
 the answer whole rather than through the returns.
+
+**A declarative app is called the same way.** It has no container: Initiative
+makes its calls itself (:mod:`app.services.marketplace.declarative`) behind
+:func:`_call_app`, and hands back the envelope a container answers with, so
+everything around the call is the same for both.
 """
 
 from __future__ import annotations
@@ -73,7 +78,9 @@ from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.context_jwt import mint_context_token
 from app.services.marketplace.registration_lookup import (
     RegistrationSnapshot,
+    is_declarative,
     load_registrations,
+    registration_for_definition,
     service_public_id,
 )
 from app.services.query.rows import RowColumn
@@ -538,15 +545,22 @@ async def _member_connection(
 # --- the registration -------------------------------------------------------
 
 
-async def _load_registration(public_id: str) -> RegistrationSnapshot:
-    """Where this app lives and whether the operator still allows it.
+async def _load_registration(
+    public_id: Optional[str], *, app: Optional[GuildApp] = None
+) -> RegistrationSnapshot:
+    """Where this app lives and whether the operator still allows it: the
+    registration for ``public_id``, or the one behind ``app``.
 
     Read from the registration snapshot every request path shares
     (:mod:`app.services.marketplace.registration_lookup`), which an operator's
     write drops at once and a replica that did not serve it reloads within its
     TTL.
     """
-    row = (await load_registrations()).get(public_id)
+    row = (
+        await registration_for_definition(app.definition, listing_uid=app.listing_uid)
+        if app is not None
+        else (await load_registrations()).get(public_id or "")
+    )
     if row is None:
         raise AppDataError(AppDataMessages.SERVICE_NOT_REGISTERED, 404)
     if not row.live:
@@ -673,7 +687,7 @@ def _endpoints_url(registration: RegistrationSnapshot) -> str:
 
 
 async def _read_body(
-    request: httpx.Request,
+    request: httpx.Request | Answered,
     *,
     transport: httpx.AsyncBaseTransport | None,
 ) -> dict[str, Any]:
@@ -686,8 +700,32 @@ async def _read_body(
     shape this build does not accept.
 
     The body is returned whole. What a widget reads of its result is the
-    endpoint's own declaration; see :func:`project_returns`.
+    endpoint's own declaration; see :func:`project_returns`. A declarative
+    call's envelope (:class:`Answered`) is read the same way, unsent.
     """
+    body = (
+        request.body
+        if isinstance(request, Answered)
+        else await _send(request, transport=transport)
+    )
+
+    # The app answers with what it did — the endpoint it ran, whose credential
+    # ran it, and the result — so the returns are one level in. Reported as the
+    # app being unavailable rather than as a bad request: from a dashboard's
+    # side "this app is not answering" is true whether the service is down or
+    # talking a shape this build does not accept.
+    result = body.get("result") if isinstance(body, dict) else None
+    if not isinstance(result, dict):
+        raise AppDataError(
+            AppDataMessages.SERVICE_UNAVAILABLE, 502, "app answered without a result"
+        )
+    return body
+
+
+async def _send(
+    request: httpx.Request, *, transport: httpx.AsyncBaseTransport | None
+) -> Any:
+    """Send one bounded request, and its body as JSON."""
     timeout = httpx.Timeout(REQUEST_TIMEOUT_SECONDS, connect=REQUEST_TIMEOUT_SECONDS)
     try:
         async with httpx.AsyncClient(
@@ -720,27 +758,15 @@ async def _read_body(
         ) from exc
 
     try:
-        body = json.loads(b"".join(chunks).decode("utf-8"))
+        return json.loads(b"".join(chunks).decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AppDataError(
             AppDataMessages.SERVICE_UNAVAILABLE, 502, "app did not answer with JSON"
         ) from exc
 
-    # The app answers with what it did — the endpoint it ran, whose credential
-    # ran it, and the result — so the returns are one level in. Reported as the
-    # app being unavailable rather than as a bad request: from a dashboard's
-    # side "this app is not answering" is true whether the service is down or
-    # talking a shape this build does not accept.
-    result = body.get("result") if isinstance(body, dict) else None
-    if not isinstance(result, dict):
-        raise AppDataError(
-            AppDataMessages.SERVICE_UNAVAILABLE, 502, "app answered without a result"
-        )
-    return body
-
 
 async def _read_answer(
-    request: httpx.Request,
+    request: httpx.Request | Answered,
     *,
     endpoint: Mapping[str, Any],
     transport: httpx.AsyncBaseTransport | None,
@@ -749,6 +775,14 @@ async def _read_answer(
     endpoint declares (:func:`project_returns`)."""
     body = await _read_body(request, transport=transport)
     return project_returns(body["result"], endpoint)
+
+
+@dataclass(frozen=True)
+class Answered:
+    """An envelope a declarative call already answered with, read as a
+    container's would be."""
+
+    body: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -778,12 +812,18 @@ async def _call_app(
     params: Mapping[str, Any],
     refs: Mapping[str, str],
     transport: httpx.AsyncBaseTransport | None,
-    read: Callable[[httpx.Request], Awaitable[T]],
+    read: Callable[[httpx.Request | Answered], Awaitable[T]],
     caller: Optional[CallingApp] = None,
 ) -> T:
     """One upstream call, under this worker's in-flight cap for the app, and
-    what ``read`` made of its answer. Sent once: nothing here retries."""
-    if not app_platform_signing_enabled():
+    what ``read`` made of its answer. Sent once: nothing here retries.
+
+    A declarative app is called by Initiative itself
+    (:func:`~app.services.marketplace.declarative.call_endpoint`), with no
+    context token and no signature, since there is no app to receive either.
+    """
+    declarative = is_declarative(app.definition)
+    if not declarative and not app_platform_signing_enabled():
         raise AppDataError(AppServiceMessages.SIGNING_NOT_CONFIGURED, 503)
 
     public_id = registration.public_id
@@ -796,6 +836,24 @@ async def _call_app(
         raise AppDataError(AppDataMessages.BUSY, 503)
     _inflight[public_id] = _inflight.get(public_id, 0) + 1
     try:
+        if declarative:
+            # Imported here: the executor reaches the connection flows, which
+            # read this module's limits.
+            from app.services.marketplace.declarative import call_endpoint
+
+            return await read(
+                Answered(
+                    await call_endpoint(
+                        registration=registration,
+                        app=app,
+                        guild_id=int(guild_id or 0),
+                        endpoint_id=endpoint_id,
+                        params=params,
+                        refs=refs,
+                        actor=caller.actor if caller is not None else None,
+                    )
+                )
+            )
         # What this install calls the guild. The token and the body name it
         # the same way, because it is the only name the app has for it.
         guild_ref = await ensure_app_guild_ref(guild_id=guild_id, app_install_id=app.id)
@@ -875,8 +933,9 @@ async def fetch_app_source(
     the endpoint declared, and the credentials it named are present.
     """
     endpoint = find_read_endpoint(app.definition, endpoint_id)
-    public_id = service_public_id(app.definition)
-    if endpoint is None or public_id is None:
+    if endpoint is None or (
+        service_public_id(app.definition) is None and not is_declarative(app.definition)
+    ):
         raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
 
     if is_admin_only(endpoint) and not is_guild_admin:
@@ -884,7 +943,7 @@ async def fetch_app_source(
     if not app.enabled:
         raise AppDataError(AppDataMessages.APP_DISABLED, 409)
 
-    registration = await _load_registration(public_id)
+    registration = await _load_registration(None, app=app)
     params, canonical = validate_params(endpoint, raw_params)
     refs = await _resolve_connections(
         session, app=app, endpoint=endpoint, user_id=user_id
@@ -899,7 +958,7 @@ async def fetch_app_source(
     )
 
     async def read(
-        request: httpx.Request,
+        request: httpx.Request | Answered,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         return await _read_answer(request, endpoint=endpoint, transport=transport)
 

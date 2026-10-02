@@ -825,7 +825,9 @@ async def _load_for_flow(
     expected = "interactive" if state.user_id is not None else "static"
     if connection.get("scope") != expected:
         return None
-    registration = await registration_lookup.registration_for_definition(app.definition)
+    registration = await registration_lookup.registration_for_definition(
+        app.definition, listing_uid=app.listing_uid
+    )
     if registration is None or not registration.live:
         return None
     return _Loaded(

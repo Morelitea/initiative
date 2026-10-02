@@ -721,6 +721,9 @@ async def test_a_new_transaction_replays_the_install(
                 "jwks_uri",
                 "base_url",
                 "vendor_ready",
+                # Whether it is a declarative app's, which needs no location
+                # or keys to be live.
+                "kind",
             },
         ),
         # Whether the registration's publisher is on.

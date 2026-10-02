@@ -32,6 +32,7 @@ from sqlmodel import select
 from app.db import session as db_session
 from app.models.platform.app_service_registration import (
     AppServiceRegistration,
+    RegistrationKind,
     browser_base,
     registration_live_sql,
 )
@@ -48,6 +49,7 @@ __all__ = [
     "frame_origins",
     "install_state",
     "invalidate_registrations",
+    "is_declarative",
     "live_registration_clause",
     "load_registrations",
     "mandatory_registrations",
@@ -95,6 +97,9 @@ class RegistrationSnapshot:
     #: Where the app publishes its key set, when it does
     #: (:mod:`app.services.marketplace.app_keys`).
     jwks_uri: Optional[str] = None
+    #: Initiative makes this app's calls itself, from its manifest; it has no
+    #: location and no keys.
+    declarative: bool = False
 
     @property
     def browser_base(self) -> str:
@@ -182,6 +187,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             live=bool(live),
             scope_ceiling=tuple(sorted(row.scope_ceiling or [])),
             jwks_uri=row.jwks_uri,
+            declarative=row.kind == RegistrationKind.DECLARATIVE,
         )
         for row, live in rows
     }
@@ -215,16 +221,29 @@ async def frame_origins() -> tuple[str, ...]:
     )
 
 
-def service_public_id(definition: Mapping[str, Any] | None) -> Optional[str]:
-    """The app service a pinned definition names, if it names one.
+def is_declarative(definition: Mapping[str, Any] | None) -> bool:
+    """Whether a definition is a declarative app's: a service app with no
+    ``service`` block, whose calls Initiative makes itself."""
+    return (
+        isinstance(definition, Mapping)
+        and definition.get("app_kind") == "service"
+        and "service" not in definition
+    )
+
+
+def service_public_id(
+    definition: Mapping[str, Any] | None, *, listing_public_id: Optional[str] = None
+) -> Optional[str]:
+    """The app a pinned definition names, if it names one.
 
     Only a ``service`` app has one — a tool instance mounts one of this build's
     own tools and an embed opens a configured surface, and neither has a
-    container behind it.
+    container behind it. A container names itself in its ``service`` block; a
+    declarative app has none, and is its listing's ``listing_public_id``.
     """
-    if not isinstance(definition, Mapping):
-        return None
-    if definition.get("app_kind") != "service":
+    if is_declarative(definition):
+        return listing_public_id
+    if not isinstance(definition, Mapping) or definition.get("app_kind") != "service":
         return None
     service = definition.get("service")
     if not isinstance(service, dict):
@@ -234,18 +253,28 @@ def service_public_id(definition: Mapping[str, Any] | None) -> Optional[str]:
 
 
 async def registration_for_definition(
-    definition: dict[str, Any] | None,
+    definition: Mapping[str, Any] | None, *, listing_uid: Optional[str] = None
 ) -> Optional[RegistrationSnapshot]:
     """The registration behind an installed app, or ``None``.
 
     ``None`` covers both "this app has no service" and "this deployment has not
-    wired that service up" — callers that need the difference read
-    :func:`service_public_id` first.
+    wired that service up". A declarative app's is the one its listing,
+    ``listing_uid``, applied.
     """
+    snapshots = await load_registrations()
+    if is_declarative(definition):
+        return next(
+            (
+                snapshot
+                for snapshot in snapshots.values()
+                if listing_uid and snapshot.listing_uid == listing_uid
+            ),
+            None,
+        )
     public_id = service_public_id(definition)
     if public_id is None:
         return None
-    return (await load_registrations()).get(public_id)
+    return snapshots.get(public_id)
 
 
 @dataclass(frozen=True)
@@ -265,16 +294,21 @@ class InstallState:
     scope_ceiling: tuple[str, ...] = ()
 
 
-async def install_state(definition: dict[str, Any] | None) -> InstallState:
+def _has_registration(definition: Mapping[str, Any] | None) -> bool:
+    return is_declarative(definition) or service_public_id(definition) is not None
+
+
+async def install_state(
+    definition: dict[str, Any] | None, *, listing_uid: Optional[str] = None
+) -> InstallState:
     """The registration-derived state of one install.
 
     An app with no service behind it — a tool instance, an embed — is always
     available and never mandatory: there is no registration for it to depend on.
     """
-    public_id = service_public_id(definition)
-    if public_id is None:
+    if not _has_registration(definition):
         return InstallState()
-    snapshot = (await load_registrations()).get(public_id)
+    snapshot = await registration_for_definition(definition, listing_uid=listing_uid)
     if snapshot is None:
         # Installed here, but this deployment has not wired the service up (or
         # no longer does). Nothing it offers can be reached.
@@ -304,7 +338,9 @@ async def enabled_service_ids() -> frozenset[str]:
     )
 
 
-async def app_is_offered(definition: dict[str, Any] | None) -> bool:
+async def app_is_offered(
+    definition: dict[str, Any] | None, *, listing_uid: Optional[str] = None
+) -> bool:
     """Whether this deployment offers the app a listing describes.
 
     The per-listing spelling of :func:`enabled_service_ids`, for the paths that
@@ -314,10 +350,9 @@ async def app_is_offered(definition: dict[str, Any] | None) -> bool:
     tools — is always offered, because there is no registration for it to
     depend on.
     """
-    public_id = service_public_id(definition)
-    if public_id is None:
+    if not _has_registration(definition):
         return True
-    snapshot = (await load_registrations()).get(public_id)
+    snapshot = await registration_for_definition(definition, listing_uid=listing_uid)
     return snapshot is not None and snapshot.live
 
 

@@ -1301,6 +1301,9 @@ class AppServiceMessages:
     #: The registration's app facts come from the registry, whose next refresh
     #: would bring it back, so it is switched off rather than removed.
     REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
+    #: An address, origin or key given for a declarative app, whose calls
+    #: Initiative makes itself.
+    DECLARATIVE_NOT_PLACED = "APP_SERVICE_DECLARATIVE_NOT_PLACED"
     #: A vendor value named a field the app's manifest does not declare.
     UNKNOWN_VENDOR_FIELD = "APP_SERVICE_UNKNOWN_VENDOR_FIELD"
     #: A vendor value that is too long, or not the address its field asks for.

@@ -21,6 +21,7 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.publisher import Publisher
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.testing.fake_vendor import declarative_app
 from app.testing import (
     create_app_service_registration,
     create_guild_app,
@@ -504,6 +505,38 @@ class TestAnAppNeedsItsServiceRegistered:
             actor.g("/marketplace/listings/tests.shop"), headers=actor.headers
         )
         assert response.status_code == 200
+        assert response.json()["installable"] is True
+
+    async def test_a_declarative_app_is_offered_by_its_listings_registration(
+        self, client, acting_user, session
+    ):
+        """It names no service: the registration its listing applied, under
+        the listing's own id, is the one that offers it."""
+        uid = marketplace_uid("declarative")
+        await create_marketplace_listing(
+            session,
+            uid=uid,
+            public_id="tests.issues",
+            kind="app",
+            name="Issues",
+            definition=declarative_app("tests.issues"),
+        )
+        actor = await acting_user(guild_role=GuildRole.member)
+        assert "tests.issues" not in await _shelf(client, actor, kind="app")
+
+        await create_app_service_registration(
+            session,
+            public_id="tests.issues",
+            listing_uid=uid,
+            base_url=None,
+            allowed_origins=[],
+            jwks={},
+            kind="declarative",
+        )
+        assert "tests.issues" in await _shelf(client, actor, kind="app")
+        response = await client.get(
+            actor.g("/marketplace/listings/tests.issues"), headers=actor.headers
+        )
         assert response.json()["installable"] is True
 
     async def test_an_app_that_mounts_a_built_in_tool_needs_no_registration(

@@ -296,7 +296,9 @@ async def _require_removable(app: GuildApp) -> None:
     the moment an operator clears the flag the same app becomes removable with
     nothing migrated.
     """
-    state = await registration_lookup.install_state(app.definition)
+    state = await registration_lookup.install_state(
+        app.definition, listing_uid=app.listing_uid
+    )
     if state.mandatory:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -320,7 +322,9 @@ async def _read(
     """One install as the list reads it."""
     return serialize_guild_app(
         app,
-        install_state=await registration_lookup.install_state(app.definition),
+        install_state=await registration_lookup.install_state(
+            app.definition, listing_uid=app.listing_uid
+        ),
         avatar_url=await _app_avatar(session, app),
         context=context,
         placements=await _placements(session, app),
@@ -346,7 +350,9 @@ async def _detail(
         app,
         avatar_url=await _app_avatar(session, app),
         member_rows=await _member_rows(session, app_id=app.id, user_id=user_id),
-        install_state=await registration_lookup.install_state(app.definition),
+        install_state=await registration_lookup.install_state(
+            app.definition, listing_uid=app.listing_uid
+        ),
         update_offer=offer,
         app_names=await _app_names(session, app, offer),
         context=context,
@@ -400,7 +406,9 @@ async def list_guild_apps(
         items=[
             serialize_guild_app(
                 app,
-                install_state=await registration_lookup.install_state(app.definition),
+                install_state=await registration_lookup.install_state(
+                    app.definition, listing_uid=app.listing_uid
+                ),
                 avatar_url=avatars.get(app.listing_uid),
                 context=guild_context,
                 placements=placements.get(app.id, []),
