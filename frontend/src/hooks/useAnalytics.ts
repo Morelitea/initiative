@@ -1,13 +1,20 @@
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { recordPageViewApiV1PageViewsPost } from "@/api/generated/health/health";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useConsent } from "@/hooks/useConsent";
 import { pauseAnalytics, recordPageView, startAnalytics } from "@/lib/analytics";
 import { ConsentCategory } from "@/lib/consent";
 
 /**
- * Measures while the deployment names a collector, asks visitors about
+ * Two kinds of measurement.
+ *
+ * Every page opened is counted on the server by its route template, where the
+ * deployment reads its metrics: a tally with nothing kept in the browser and
+ * nothing that says whose visit it was.
+ *
+ * Faro measures while the deployment names a collector, asks visitors about
  * cookies, and this browser allows `analytics`, and stops the moment any of
  * them is no longer true. A grant given while the chooser was on counts for
  * nothing once it is off, since nobody can then take it back.
@@ -16,6 +23,7 @@ export const useAnalytics = () => {
   const { config, cookieConsentEnabled } = useAppConfig();
   const { allows } = useConsent();
   const collectorUrl = config?.faro_collector_url ?? null;
+  const countPageViews = config?.count_page_views ?? false;
   const allowed = cookieConsentEnabled && allows(ConsentCategory.analytics);
 
   // A new location is a page view even where the template is the same, as
@@ -31,6 +39,14 @@ export const useAnalytics = () => {
   useEffect(() => {
     if (template) recordPageView(template);
   }, [pathname, template]);
+
+  useEffect(() => {
+    if (template && countPageViews) {
+      recordPageViewApiV1PageViewsPost({ route: template }).catch(() => {
+        // A view that was not counted costs nothing; the page carries on.
+      });
+    }
+  }, [pathname, template, countPageViews]);
 
   useEffect(() => {
     if (collectorUrl && allowed) {

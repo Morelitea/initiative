@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from httpx import AsyncClient
+from prometheus_client import REGISTRY
 
 from app.api.v1.platform_endpoints import health
 from app.core.config import settings
+from app.testing import create_user
 
 
 @pytest.fixture(autouse=True)
@@ -226,3 +230,39 @@ async def test_metrics_answers_a_scrape_presenting_the_token(
     assert 'initiative_db_pool_connections{engine="request",state="idle"}' in body
     assert "initiative_sessions_active " in body
     assert "process_cpu_seconds_total" in body or "python_gc_objects" in body
+
+
+async def test_metrics_counts_accounts_active_in_each_window(
+    client: AsyncClient, session, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "METRICS_TOKEN", "s3cret-token")
+    now = datetime.now(timezone.utc)
+    await create_user(session, last_active_at=now - timedelta(hours=2))
+    await create_user(session, last_active_at=now - timedelta(days=3))
+    await create_user(session, last_active_at=now - timedelta(days=40))
+    await create_user(session)
+
+    resp = await client.get(METRICS, headers={"Authorization": "Bearer s3cret-token"})
+
+    assert resp.status_code == 200, resp.text
+    assert 'initiative_active_users{window="1d"} 1.0' in resp.text
+    assert 'initiative_active_users{window="7d"} 2.0' in resp.text
+    assert 'initiative_active_users{window="30d"} 2.0' in resp.text
+
+
+async def test_page_views_are_counted_by_route_template(client: AsyncClient):
+    def views(route: str) -> float:
+        return (
+            REGISTRY.get_sample_value("initiative_page_views_total", {"route": route})
+            or 0.0
+        )
+
+    known = "/c/$guildId/i/$initiativeId/projects/$projectId/"
+    before_known, before_other = views(known), views("other")
+
+    for route in (known, "/c/42/projects/913"):
+        resp = await client.post("/api/v1/page-views", json={"route": route})
+        assert resp.status_code == 204, resp.text
+
+    assert views(known) == before_known + 1
+    assert views("other") == before_other + 1

@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -26,6 +27,7 @@ from app.core.app_access_token import (
     unseal_access_token,
 )
 from app.core.config import settings
+from app.core.tools import Tool
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 from app.db import cohorts, gucs
 from app.db.guild_standing import (
@@ -45,6 +47,7 @@ from app.db.request_context import (
     SystemMaintenance,
     Unattributed,
 )
+from app.models.tenant._mixins import tool_models
 
 logger = logging.getLogger(__name__)
 
@@ -393,6 +396,38 @@ def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
 # sync session under AsyncSession). Sessions without a stored context are a
 # no-op, so the global listener is effectively scoped to routed sessions.
 event.listen(SyncSession, "after_begin", _replay_rls_context, propagate=True)
+
+
+@functools.cache
+def _tool_of_model() -> dict[type, Tool]:
+    models = tool_models()
+    return {models[tool.plural]: tool for tool in Tool}
+
+
+#: The tools a session's flushes inserted, counted once its transaction commits.
+_CREATED_TOOLS = "created_tools"
+
+
+def _note_created_tools(session: SyncSession, _flush_context: Any) -> None:
+    # ``session.new`` still lists what this flush inserted.
+    tool_of = _tool_of_model()
+    created = [tool_of[type(row)] for row in session.new if type(row) in tool_of]
+    if created:
+        session.info.setdefault(_CREATED_TOOLS, []).extend(created)
+
+
+def _count_created_tools(session: SyncSession) -> None:
+    for tool in session.info.pop(_CREATED_TOOLS, ()):
+        metrics.tools_created.labels(tool=tool.value).inc()
+
+
+def _forget_created_tools(session: SyncSession) -> None:
+    session.info.pop(_CREATED_TOOLS, None)
+
+
+event.listen(SyncSession, "after_flush", _note_created_tools, propagate=True)
+event.listen(SyncSession, "after_commit", _count_created_tools, propagate=True)
+event.listen(SyncSession, "after_rollback", _forget_created_tools, propagate=True)
 
 #: The shapes that name a person, and so carry the tier the request
 #: authenticated as.

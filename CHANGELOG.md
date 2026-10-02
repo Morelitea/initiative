@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Prometheus metrics for what gets used:** pages opened by route, tools created by kind, and accounts active in the last day, week and month. Pages are counted only while `METRICS_TOKEN` is set, with nothing kept in the browser. See **Running a server › Configuration**.
 - **See how the app behaves in people's browsers, with their say-so.** Set `FARO_COLLECTOR_URL` to a Grafana Faro collector and the cookie chooser gains an **Analytics** switch. Browsers that turn it on send page views, uncaught errors and Web Vitals, with each page named by its pattern rather than its address and nothing that names the person. Unset, nothing loads. See **Running a server › Configuration**.
 - **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. Opened at one of its dates, a repeating event asks whether to copy that date or the whole series, and a wiki page comes without the pages under it.
 
