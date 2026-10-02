@@ -590,7 +590,7 @@ class GuildMembershipUpdate(SanitizedBaseModel):
 
 class MemberDisplayNameUpdate(SanitizedBaseModel):
     """What a member is called in one community. ``None`` or blank clears it,
-    and the guild's usual name shows again."""
+    and their handle shows again."""
 
     display_name: Optional[TitleStr] = Field(
         default=None, max_length=MEMBER_DISPLAY_NAME_MAX_LENGTH

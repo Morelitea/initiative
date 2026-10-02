@@ -550,8 +550,8 @@ class GuildMembership(SQLModel, table=True):
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
     #: What this person is called in this community, set by them or by its
-    #: administrators. NULL — the usual case — leaves the name the guild
-    #: renders anyway. ``guild_member_profiles`` answers with it (0438).
+    #: administrators. NULL — the usual case — leaves their handle.
+    #: ``guild_member_profiles`` answers with it (0438).
     display_name: Optional[str] = Field(
         default=None,
         sa_column=Column(String(MEMBER_DISPLAY_NAME_MAX_LENGTH), nullable=True),

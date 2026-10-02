@@ -283,8 +283,8 @@ async def list_users(
         default=None,
         description=(
             "Matches members the way ``/search`` does: the handle, a whole "
-            "handle pinning one member, and real names in a guild that shows "
-            "them."
+            "handle pinning one member, and the display names members set "
+            "here."
         ),
     ),
     page: int = Query(default=1, ge=1),

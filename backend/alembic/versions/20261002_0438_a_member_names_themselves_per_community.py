@@ -2,15 +2,16 @@
 
 ``guild_memberships.display_name`` is what a person is called in one
 community, when they or its administrators choose to set it. NULL is the
-usual case, and leaves the name the projection gives today: the real name
-where the guild renders names, and nothing (so the handle) where it does not.
+usual case, and leaves the handle.
 
-The projection ``public.guild_member_profiles`` answers with it in its
-``full_name`` column, so every surface that already reads a person from it — a
-roster, a picker, a mention, a byline, ``current_guild_members`` and its
-``display_name`` — shows it without asking. The membership row is read for the
-guild the request is routed into, under the policy 0244 gave the reader for
-exactly that guild.
+It is the only name a community shows. The projection
+``public.guild_member_profiles`` answers with it in its ``full_name`` column in
+place of the account's own name, which it no longer reads, and with it the
+guild's ``show_member_names`` no longer decides anything there. Every surface
+that already reads a person from the projection — a roster, a picker, a
+mention, a byline, ``current_guild_members`` and its ``display_name`` — shows
+it without asking. The membership row is read for the guild the request is
+routed into, under the policy 0244 gave the reader for exactly that guild.
 
 Who writes it:
 
@@ -59,10 +60,8 @@ AFTER = (
     "u.created_at",
 )
 
-#: The member's own name in this community first; 0281's rule otherwise.
-NAME = f"""COALESCE(m.display_name, CASE WHEN (
-    SELECT g.show_member_names FROM public.guilds g WHERE g.id = {ROUTED_GUILD_ID}
-) THEN u.full_name END)::varchar AS full_name"""
+#: The member's own name in this community, and nothing else.
+NAME = "m.display_name::varchar AS full_name"
 
 #: 0386's install rule, unchanged.
 INSTALL_READS_ITS_MEMBERS = f"""

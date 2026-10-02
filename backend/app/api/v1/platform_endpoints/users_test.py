@@ -400,8 +400,8 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
     # key-set check passes just as happily on an endpoint that never fills it
     # in -- which is the state this test was written against.
     assert summary["guild_role"] == "member"
-    # This guild takes the default and shows names.
-    assert summary["full_name"] == "Aaa"
+    # The account's own name does not reach a guild; nobody set one here.
+    assert summary["full_name"] is None
 
 
 async def test_search_users_says_where_each_member_stands(client, acting_user):
