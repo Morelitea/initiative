@@ -110,7 +110,8 @@
   "scope": {
     "title": {
       "edit": "Wiederkehrenden Termin ändern",
-      "delete": "Wiederkehrenden Termin löschen"
+      "delete": "Wiederkehrenden Termin löschen",
+      "duplicate": "Wiederkehrenden Termin duplizieren"
     },
     "description": "Dieser Termin wiederholt sich. Für welche Termine gilt das?",
     "this": "Nur dieser Termin",
@@ -118,7 +119,8 @@
     "all": "Alle Termine der Serie",
     "confirm": {
       "edit": "Speichern",
-      "delete": "Löschen"
+      "delete": "Löschen",
+      "duplicate": "Duplizieren"
     }
   },
   "occurrence": {

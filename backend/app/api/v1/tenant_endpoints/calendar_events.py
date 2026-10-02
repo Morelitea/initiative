@@ -833,15 +833,29 @@ async def duplicate_calendar_event(
     session: ActorSessionDep,
     current_user: ActorUserDep,
     guild_context: CalendarsWrite,
+    occurrence: Optional[datetime] = Query(
+        default=None,
+        description="One date of a repeating event, copied as an event of its own.",
+    ),
 ) -> CalendarEventRead:
     """Copy the event beside itself as "<title> (Copy)", with its invitees,
-    their answers starting over, its tags, links and properties. A repeating
-    event comes with its occurrences changed on their own; one changed
-    occurrence is copied as an event of its own."""
+    who are invited to it as to a new event, its tags, links and properties. A
+    repeating event comes with its occurrences changed on their own; one
+    changed occurrence, or the ``occurrence`` named, is copied as an event of
+    its own."""
     event = await _get_event_or_404(
         session, event_id, current_user, guild_context, action=Action.contribute
     )
-    copy = await tool_copy.duplicate_event(session, event, event.calendar)
+    copy = await tool_copy.duplicate_event(session, event, event.calendar, occurrence)
+    invited = (
+        await session.exec(
+            select(CalendarEventAttendee.user_id).where(
+                CalendarEventAttendee.calendar_event_id == copy.id,
+                CalendarEventAttendee.user_id != guild_context.user_id,
+            )
+        )
+    ).all()
+    await _notify_invited(session, copy, list(invited), current_user, guild_context)
     await session.commit()
     hydrated = await _refetch_event(session, copy.id)
     return await _serialized_event(

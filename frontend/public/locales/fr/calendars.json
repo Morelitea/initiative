@@ -110,7 +110,8 @@
   "scope": {
     "title": {
       "edit": "Modifier un événement récurrent",
-      "delete": "Supprimer un événement récurrent"
+      "delete": "Supprimer un événement récurrent",
+      "duplicate": "Dupliquer un événement récurrent"
     },
     "description": "Cet événement se répète. À quels événements cela s'applique-t-il ?",
     "this": "Uniquement cet événement",
@@ -118,7 +119,8 @@
     "all": "Tous les événements de la série",
     "confirm": {
       "edit": "Enregistrer",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "duplicate": "Dupliquer"
     }
   },
   "occurrence": {

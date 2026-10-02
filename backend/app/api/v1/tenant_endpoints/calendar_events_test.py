@@ -1262,8 +1262,8 @@ async def test_a_copied_series_takes_its_changed_occurrences_and_one_goes_alone(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A copied series' changed occurrences follow its new title unless they
-    changed their own; a changed occurrence copied alone is an event of its
-    own. Invitees come along, their answers starting over."""
+    changed their own; a changed occurrence, or one date of the series, copied
+    alone is an event of its own. Invitees come along, invited afresh."""
     from app.models.tenant.calendar_event import CalendarEventAttendee, RSVPStatus
     from app.testing import route_session_to_guild
 
@@ -1274,12 +1274,15 @@ async def test_a_copied_series_takes_its_changed_occurrences_and_one_goes_alone(
         _initiative,
         calendar,
     ) = await _setup_organizer_and_attendee(session, acting_user)
+    start = datetime(2026, 10, 5, 10, tzinfo=timezone.utc)
     weekly = await create_calendar_event(
         session,
         calendar,
         organizer.user,
         title="Standup",
         recurrence="RRULE:FREQ=WEEKLY",
+        start_at=start,
+        end_at=start + timedelta(hours=1),
     )
     week = timedelta(days=7)
     moved, renamed = [
@@ -1316,6 +1319,12 @@ async def test_a_copied_series_takes_its_changed_occurrences_and_one_goes_alone(
         organizer.g(f"/calendar-events/{moved.id}/duplicate"),
         headers=organizer.headers,
     )
+    week_four = weekly.start_at + 3 * week
+    one_date = await client.post(
+        organizer.g(f"/calendar-events/{weekly.id}/duplicate"),
+        headers=organizer.headers,
+        params={"occurrence": week_four.isoformat()},
+    )
 
     assert series.status_code == 201, series.text
     assert alone.status_code == 201, alone.text
@@ -1340,3 +1349,14 @@ async def test_a_copied_series_takes_its_changed_occurrences_and_one_goes_alone(
         None,
     )
     assert datetime.fromisoformat(alone["start_at"]) == moved.start_at
+    assert one_date.status_code == 201, one_date.text
+    one_date = one_date.json()
+    assert (one_date["recurrence"], one_date["series_id"]) == (None, None)
+    assert datetime.fromisoformat(one_date["start_at"]) == week_four
+    invites = await _notifications_for(
+        session, attendee.user.id, NotificationType.event_invitation
+    )
+    assert {invite.data["event_id"] for invite in invites} == {
+        series["id"],
+        one_date["id"],
+    }

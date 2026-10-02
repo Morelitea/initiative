@@ -70,7 +70,6 @@ from app.services.tenant import soft_delete as soft_delete_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import wikis as wikis_service
-from app.services.tenant.names import copy_name
 
 router = APIRouter(route_class=ActorRoute)
 #: A page addressed by its own id, mounted at the guild root the way a queue
@@ -575,7 +574,7 @@ async def duplicate_wiki_page(
         parent_page_id=page.parent_page_id,
         position=await wikis_service.next_position(session, wiki, page.parent_page_id),
         slug=await wikis_service.unique_page_slug(
-            session, wiki.id, copy_name(page.title)
+            session, wiki.id, tool_copy.copied_name(page)
         ),
     )
     await session.commit()

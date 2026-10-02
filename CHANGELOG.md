@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. A repeating event brings the dates you changed on their own, and a wiki page comes without the pages under it.
+- **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. Opened at one of its dates, a repeating event asks whether to copy that date or the whole series, and a wiki page comes without the pages under it.
 
 ### Changed
 

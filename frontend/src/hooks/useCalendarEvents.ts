@@ -133,11 +133,16 @@ export const useDeleteCalendarEvent = (
     options
   );
 
-export const useDuplicateCalendarEvent = (options?: MutationOpts<CalendarEventRead, number>) =>
-  useGuildMutation<CalendarEventRead, number>(
+/** Copies the event, or with `occurrence` that one date of a repeating event. */
+export const useDuplicateCalendarEvent = (
+  options?: MutationOpts<CalendarEventRead, { eventId: number; occurrence?: string }>
+) =>
+  useGuildMutation<CalendarEventRead, { eventId: number; occurrence?: string }>(
     {
-      mutationFn: (guildId, eventId) =>
-        duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost(guildId, eventId),
+      mutationFn: (guildId, { eventId, occurrence }) =>
+        duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost(guildId, eventId, {
+          occurrence,
+        }),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "common:error",
     },

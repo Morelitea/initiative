@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import HTTPException, status
@@ -257,7 +258,9 @@ async def duplicate(
     initiative_id = initiative_id or source.initiative_id
     beside = initiative_id == source.initiative_id
     await resource_access.prepare_create(session, tool, initiative_id, user, actor)
-    name = (name or "").strip() or (copy_name(source.name) if beside else source.name)
+    name = (name or "").strip() or (
+        copy_name(source.name, _length(model, "name")) if beside else source.name
+    )
     if not copier.name_takes_sigils and RESERVED_SIGILS.intersection(name):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -463,7 +466,7 @@ async def _copy_events(
     their own, and their invitees (those in ``people`` when it is given),
     whose answers start over."""
     pairs = await _copy_children(session, events, beside=beside, values=values)
-    series = {source.id: clone for source, clone in pairs if source.recurrence}
+    series = {source.id: clone for source, clone in pairs if clone.recurrence}
     changed = (
         await session.exec(
             select(CalendarEvent).where(CalendarEvent.series_id.in_(series))
@@ -558,6 +561,16 @@ async def _wiki_contents(
     return [clone for _, clone in pairs]
 
 
+def _length(model: Any, column: str) -> int | None:
+    return getattr(model.__table__.c[column].type, "length", None)
+
+
+def copied_name(source: Any) -> str:
+    """What a copy of ``source``, a row inside a tool, is called beside it."""
+    column = CHILD_COPIERS[type(source)].name
+    return copy_name(getattr(source, column), _length(type(source), column))
+
+
 async def duplicate_child(session: AsyncSession, source: Any, **values: Any) -> Any:
     """Copy ``source``, a row inside a tool, beside itself as "<name> (Copy)",
     with its tags, links, text references, property values and files.
@@ -570,7 +583,7 @@ async def duplicate_child(session: AsyncSession, source: Any, **values: Any) -> 
         beside=True,
         values=lambda _: {
             copier.parent: getattr(source, copier.parent),
-            copier.name: copy_name(getattr(source, copier.name)),
+            copier.name: copied_name(source),
             **values,
         },
     )
@@ -579,13 +592,40 @@ async def duplicate_child(session: AsyncSession, source: Any, **values: Any) -> 
 
 
 async def duplicate_event(
-    session: AsyncSession, event: CalendarEvent, calendar: Calendar
+    session: AsyncSession,
+    event: CalendarEvent,
+    calendar: Calendar,
+    at: Optional[datetime] = None,
 ) -> CalendarEvent:
     """Copy ``event``, in ``calendar``, beside itself as "<title> (Copy)",
     with its invitees who can open the calendar. A series takes the
     occurrences changed on their own, which keep following its title where
-    they did; one changed occurrence becomes an event of its own. The caller
-    commits."""
+    they did; one changed occurrence, or the series' occurrence at ``at``,
+    becomes an event of its own. The caller commits."""
+    alone: dict[str, Any] = (
+        {"original_start": None, "overridden_fields": []}
+        if event.series_id is not None
+        else {}
+    )
+    if at is not None:
+        at = occurrences_service.require_occurrence(event, at)
+        changed = (
+            await session.exec(
+                select(CalendarEvent).where(
+                    CalendarEvent.series_id == event.id,
+                    CalendarEvent.original_start == at,
+                )
+            )
+        ).one_or_none()
+        if changed is not None:
+            return await duplicate_event(session, changed, calendar)
+        alone = {
+            "start_at": at,
+            "end_at": at + (event.end_at - event.start_at),
+            "recurrence": None,
+            "recurrence_shift": 0,
+            "recurrence_until": None,
+        }
     invited = (
         await session.exec(
             select(CalendarEventAttendee.user_id)
@@ -598,18 +638,13 @@ async def duplicate_event(
     people = await named_people.readers(
         session, named_people.Governing.of(Tool.calendar, calendar), invited
     )
-    alone = (
-        {"original_start": None, "overridden_fields": []}
-        if event.series_id is not None
-        else {}
-    )
     ((_, copy), *_rest) = await _copy_events(
         session,
         [event],
         beside=True,
         values=lambda _: {
             "calendar_id": event.calendar_id,
-            "title": copy_name(event.title),
+            "title": copied_name(event),
             **alone,
         },
         people=people,

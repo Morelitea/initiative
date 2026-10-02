@@ -268,6 +268,19 @@ export function EventDetailPage() {
     if (scope) deleteEvent.mutate({ eventId: parsedId, ...scoped(scope) });
   };
 
+  // Opened at one date of a repeating event: that date alone, or the series.
+  const handleDuplicate = async () => {
+    const scope =
+      event.recurrence && occurrence
+        ? await scopePrompt.ask("duplicate", { scopes: ["this", "all"] })
+        : "all";
+    if (scope)
+      duplicateEvent.mutate({
+        eventId: parsedId,
+        occurrence: scope === "this" ? occurrenceStart : undefined,
+      });
+  };
+
   // An answer is for one event: a series' is for the occurrence shown.
   const handleAnswer = (status: RSVPStatus) =>
     updateRSVP.mutate({
@@ -313,7 +326,7 @@ export function EventDetailPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => duplicateEvent.mutate(parsedId)}
+                onClick={() => void handleDuplicate()}
                 disabled={duplicateEvent.isPending}
                 aria-label={t("common:subToolDuplicate.action")}
                 title={t("common:subToolDuplicate.action")}

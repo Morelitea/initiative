@@ -200,20 +200,23 @@ def test_every_table_inside_a_tool_is_copied_or_left_on_purpose(tool: Tool):
     assert inside - {Comment} == TOOL_COPIERS[tool].copies
 
 
-#: Where each row inside a tool is addressed, and how one called "Plan" is made.
+#: Where each row inside a tool is addressed, and how one called ``name`` is made.
 CHILDREN = {
-    Counter: ("counters", lambda s, tool, user: create_counter(s, tool, name="Plan")),
+    Counter: (
+        "counters",
+        lambda s, tool, user, name: create_counter(s, tool, name=name),
+    ),
     QueueItem: (
         "queue-items",
-        lambda s, tool, user: create_queue_item(s, tool, label="Plan"),
+        lambda s, tool, user, name: create_queue_item(s, tool, label=name),
     ),
     CalendarEvent: (
         "calendar-events",
-        lambda s, tool, user: create_calendar_event(s, tool, user, title="Plan"),
+        lambda s, tool, user, name: create_calendar_event(s, tool, user, title=name),
     ),
     WikiPage: (
         "wiki-pages",
-        lambda s, tool, user: create_wiki_page(s, tool, user, title="Plan"),
+        lambda s, tool, user, name: create_wiki_page(s, tool, user, title=name),
     ),
 }
 
@@ -228,7 +231,9 @@ async def test_a_row_inside_a_tool_is_copied_beside_itself_by_its_writers(
     copier = CHILD_COPIERS[model]
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     tool = await _entity(session, a, governing_tool(model.__tablename__))
-    row = await make(session, tool, a.user)
+    # As long as the column takes, so the copy's name has to be shortened.
+    name = "Plan" + "n" * 251
+    row = await make(session, tool, a.user, name)
     tagged = any(spec.entity is model for spec in TAG_LINKS.values())
     if tagged:
         await assign_tag(session, row, await create_tag(session, a.guild), commit=True)
@@ -250,5 +255,5 @@ async def test_a_row_inside_a_tool_is_copied_beside_itself_by_its_writers(
     assert copied.status_code == 201, copied.text
     body = copied.json()
     assert body["id"] != row.id
-    assert (body[copier.name], body[copier.parent]) == ("Plan (Copy)", tool.id)
+    assert (body[copier.name], body[copier.parent]) == (name[:248] + " (Copy)", tool.id)
     assert len(body.get("tags", [])) == int(tagged)

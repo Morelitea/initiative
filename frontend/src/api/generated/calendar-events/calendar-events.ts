@@ -26,6 +26,7 @@ import type {
   CalendarEventRead,
   CalendarEventUpdate,
   DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteParams,
+  DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams,
   HTTPValidationError,
   ICalImportRequest,
   ICalImportResult,
@@ -775,19 +776,26 @@ export const useCreateCalendarEventApiV1CGuildIdCalendarEventsPost = <
 };
 /**
  * Copy the event beside itself as "<title> (Copy)", with its invitees,
- * their answers starting over, its tags, links and properties. A repeating
- * event comes with its occurrences changed on their own; one changed
- * occurrence is copied as an event of its own.
+ * who are invited to it as to a new event, its tags, links and properties. A
+ * repeating event comes with its occurrences changed on their own; one
+ * changed occurrence, or the ``occurrence`` named, is copied as an event of
+ * its own.
  * @summary Duplicate Calendar Event
  */
 export const duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost = (
   guildId: number,
   eventId: number,
+  params?: DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CalendarEventRead>(
-    { url: `/api/v1/c/${guildId}/calendar-events/${eventId}/duplicate`, method: "POST", signal },
+    {
+      url: `/api/v1/c/${guildId}/calendar-events/${eventId}/duplicate`,
+      method: "POST",
+      params,
+      signal,
+    },
     options
   );
 };
@@ -828,11 +836,12 @@ export const getDuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicat
       >,
       DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables
     > = (props) => {
-      const { guildId, eventId } = props ?? {};
+      const { guildId, eventId, params } = props ?? {};
 
       return duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost(
         guildId,
         eventId,
+        params,
         requestOptions
       );
     };
@@ -850,7 +859,11 @@ export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePos
 export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationError =
   ErrorType<HTTPValidationError>;
 export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostMutationVariables =
-  { guildId: number; eventId: number };
+  {
+    guildId: number;
+    eventId: number;
+    params?: DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams;
+  };
 
 /**
  * @summary Duplicate Calendar Event
