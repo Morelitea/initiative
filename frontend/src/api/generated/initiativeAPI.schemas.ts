@@ -925,10 +925,13 @@ export interface AppServiceRegistrationRead {
   enabled: boolean;
   source: string;
   image_digest: string | null;
+  compose_service: string | null;
+  compose_base_url: string | null;
   vendor_fields: AppVendorFieldRead[];
   vendor_values: AppServiceRegistrationReadVendorValues;
   vendor_set: string[];
   vendor_ready: boolean;
+  vendor_setup: string | null;
   connection_callback_url: string;
   connection_setup_url: string;
   webhook_url: string;
@@ -959,6 +962,39 @@ export interface AppServiceRegistrationUpdate {
   mandatory?: boolean | null;
   enabled?: boolean | null;
   vendor_values?: AppServiceRegistrationUpdateVendorValues;
+}
+
+/**
+ * What the operator's browser posts to the vendor: ``manifest`` as a form
+ * field, to ``action`` with ``state`` in its query.
+ */
+export interface AppServiceVendorSetup {
+  action: string;
+  manifest: string;
+  state: string;
+}
+
+/**
+ * What the vendor sent the operator back with.
+ */
+export interface AppServiceVendorSetupComplete {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  code: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  state: string;
+}
+
+/**
+ * Start the vendor's own setup for the app's client.
+ */
+export interface AppServiceVendorSetupStart {
+  organization?: string | null;
 }
 
 /**

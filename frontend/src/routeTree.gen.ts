@@ -95,6 +95,7 @@ import { Route as ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRouteImport }
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
 import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings'
+import { Route as ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/integrations_.vendor-setup.$registrationId'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/index'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/access'
 import { Route as ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAdvancedRouteImport } from './routes/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/advanced'
@@ -680,6 +681,14 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRoute =
     path: '/settings',
     getParentRoute: () => ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute,
   } as any)
+const ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute =
+  ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRouteImport.update(
+    {
+      id: '/integrations_/vendor-setup/$registrationId',
+      path: '/integrations/vendor-setup/$registrationId',
+      getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsIndexRoute =
   ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsIndexRouteImport.update(
     {
@@ -1437,6 +1446,7 @@ export interface FileRoutesByFullPath {
   '/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
   '/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/c/$guildId/i/$initiativeId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
+  '/settings/platform/integrations/vendor-setup/$registrationId': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute
   '/c/$guildId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/c/$guildId/i/$initiativeId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
   '/c/$guildId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRoute
@@ -1591,6 +1601,7 @@ export interface FileRoutesByTo {
   '/c/$guildId/settings': typeof ServerRequiredAuthenticatedCGuildIdSettingsIndexRoute
   '/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
   '/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
+  '/settings/platform/integrations/vendor-setup/$registrationId': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute
   '/c/$guildId/calendars/$calendarId': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/c/$guildId/i/$initiativeId': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
   '/c/$guildId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRoute
@@ -1747,6 +1758,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId': typeof ServerRequiredAuthenticatedCGuildIdGoRefTypeRefIdRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdModerationRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteWithChildren
+  '/_serverRequired/_authenticated/settings/platform/integrations_/vendor-setup/$registrationId': typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/': typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdIndexRoute
   '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/access': typeof ServerRequiredAuthenticatedCGuildIdCalendarsCalendarIdSettingsAccessRoute
@@ -1911,6 +1923,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/go/$refType/$refId'
     | '/c/$guildId/i/$initiativeId/moderation'
     | '/c/$guildId/i/$initiativeId/settings'
+    | '/settings/platform/integrations/vendor-setup/$registrationId'
     | '/c/$guildId/calendars/$calendarId/'
     | '/c/$guildId/i/$initiativeId/'
     | '/c/$guildId/calendars/$calendarId/settings/access'
@@ -2065,6 +2078,7 @@ export interface FileRouteTypes {
     | '/c/$guildId/settings'
     | '/c/$guildId/go/$refType/$refId'
     | '/c/$guildId/i/$initiativeId/moderation'
+    | '/settings/platform/integrations/vendor-setup/$registrationId'
     | '/c/$guildId/calendars/$calendarId'
     | '/c/$guildId/i/$initiativeId'
     | '/c/$guildId/calendars/$calendarId/settings/access'
@@ -2220,6 +2234,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$guildId/go/$refType/$refId'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/moderation'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/settings'
+    | '/_serverRequired/_authenticated/settings/platform/integrations_/vendor-setup/$registrationId'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/'
     | '/_serverRequired/_authenticated/c/$guildId/i/$initiativeId/'
     | '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/access'
@@ -2909,6 +2924,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/c/$guildId/i/$initiativeId/settings'
       preLoaderRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdSettingsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCGuildIdIInitiativeIdRoute
+    }
+    '/_serverRequired/_authenticated/settings/platform/integrations_/vendor-setup/$registrationId': {
+      id: '/_serverRequired/_authenticated/settings/platform/integrations_/vendor-setup/$registrationId'
+      path: '/integrations/vendor-setup/$registrationId'
+      fullPath: '/settings/platform/integrations/vendor-setup/$registrationId'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
     }
     '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/': {
       id: '/_serverRequired/_authenticated/c/$guildId/calendars/$calendarId/settings/'
@@ -3999,6 +4021,7 @@ interface ServerRequiredAuthenticatedSettingsPlatformRouteChildren {
   ServerRequiredAuthenticatedSettingsPlatformSecurityRoute: typeof ServerRequiredAuthenticatedSettingsPlatformSecurityRoute
   ServerRequiredAuthenticatedSettingsPlatformStorageRoute: typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   ServerRequiredAuthenticatedSettingsPlatformIndexRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
+  ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute
 }
 
 const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAuthenticatedSettingsPlatformRouteChildren =
@@ -4023,6 +4046,8 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsPlatformStorageRoute,
     ServerRequiredAuthenticatedSettingsPlatformIndexRoute:
       ServerRequiredAuthenticatedSettingsPlatformIndexRoute,
+    ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute:
+      ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute,
   }
 
 const ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren =

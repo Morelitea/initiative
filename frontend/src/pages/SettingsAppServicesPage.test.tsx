@@ -26,10 +26,13 @@ const buildRegistration = (
   enabled: true,
   source: "operator",
   image_digest: null,
+  compose_service: null,
+  compose_base_url: null,
   vendor_fields: [],
   vendor_values: {},
   vendor_set: [],
   vendor_ready: true,
+  vendor_setup: null,
   connection_callback_url: "https://initiative.example.com/api/v1/app-connections/callback",
   connection_setup_url: "https://initiative.example.com/api/v1/app-connections/setup",
   webhook_url: "https://initiative.example.com/api/v1/app-hooks/core.github",
@@ -47,6 +50,8 @@ const updateMutate = vi.fn();
 const deleteMutate = vi.fn();
 const readKeysMutate = vi.fn();
 const connectMutate = vi.fn();
+const startSetupMutate = vi.fn();
+const completeSetupMutate = vi.fn();
 
 vi.mock("@/lib/chesterToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -59,6 +64,8 @@ vi.mock("@/hooks/useAppServices", () => ({
   useDeleteAppService: () => ({ mutate: deleteMutate, isPending: false }),
   useAppServiceKeys: () => ({ mutate: readKeysMutate, isPending: false }),
   useConnectAppService: () => ({ mutate: connectMutate, isPending: false }),
+  useStartVendorSetup: () => ({ mutate: startSetupMutate, isPending: false }),
+  useCompleteVendorSetup: () => ({ mutate: completeSetupMutate, isPending: false }),
 }));
 
 import { SettingsAppServicesPage } from "./SettingsAppServicesPage";
@@ -76,6 +83,8 @@ describe("SettingsAppServicesPage", () => {
     deleteMutate.mockReset();
     readKeysMutate.mockReset();
     connectMutate.mockReset();
+    startSetupMutate.mockReset();
+    completeSetupMutate.mockReset();
   });
 
   describe("capability gate", () => {
@@ -302,6 +311,76 @@ describe("SettingsAppServicesPage", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(updateMutate.mock.calls[0][0].data.vendor_values).toEqual({ client_id: "gh-app-2" });
+    });
+
+    it("shows the compose service to copy, and its address as the base URL", async () => {
+      const user = userEvent.setup();
+      const service = "github:\n  image: ghcr.io/morelitea/github@sha256:abc\n";
+      registrations = [
+        buildRegistration({
+          base_url: null,
+          compose_service: service,
+          compose_base_url: "http://github:8080",
+        }),
+      ];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      const snippet = await screen.findByLabelText("Compose service");
+      expect(snippet).toHaveValue(service);
+      expect(snippet).toHaveAttribute("readonly");
+      expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Base URL")).toHaveValue("http://github:8080");
+    });
+
+    it("creates the GitHub App at GitHub, posting its manifest there", async () => {
+      const user = userEvent.setup();
+      const submit = vi.spyOn(HTMLFormElement.prototype, "submit").mockImplementation(() => {});
+      registrations = [
+        buildRegistration({
+          vendor_setup: "github_app_manifest",
+          vendor_fields: [{ key: "client_id", type: "string", required: true, label: {} }],
+        }),
+      ];
+      startSetupMutate.mockImplementation((_vars, { onSuccess }) =>
+        onSuccess({
+          action: "https://github.com/organizations/acme/settings/apps/new",
+          manifest: '{"name":"GitHub"}',
+          state: "st/ate",
+        })
+      );
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await user.type(await screen.findByLabelText("GitHub organization"), "acme");
+      await user.click(screen.getByRole("button", { name: "Create the GitHub App" }));
+
+      expect(startSetupMutate).toHaveBeenCalledWith(
+        { registrationId: 1, organization: "acme" },
+        expect.anything()
+      );
+      const posted = submit.mock.contexts[0] as HTMLFormElement;
+      expect(posted.method).toBe("post");
+      expect(posted.action).toBe(
+        "https://github.com/organizations/acme/settings/apps/new?state=st%2Fate"
+      );
+      expect(posted.elements.namedItem("manifest")).toHaveValue('{"name":"GitHub"}');
+      submit.mockRestore();
+      posted.remove();
+    });
+
+    it("offers no GitHub App to an app whose listing has no setup", async () => {
+      const user = userEvent.setup();
+      registrations = [
+        buildRegistration({
+          vendor_fields: [{ key: "client_id", type: "string", required: true, label: {} }],
+        }),
+      ];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await screen.findByLabelText(/client_id/);
+      expect(screen.queryByRole("button", { name: "Create the GitHub App" })).toBeNull();
     });
 
     it("says a registration waits on its vendor values", () => {
@@ -533,5 +612,39 @@ describe("SettingsPlatformIndexPage", () => {
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: /authentication/i })).toBeNull()
     );
+  });
+});
+
+describe("SettingsVendorSetupPage", () => {
+  it("hands GitHub's code and the setup's state to the server once", async () => {
+    const { SettingsVendorSetupPage } = await import("@/pages/SettingsVendorSetupPage");
+    renderPage(SettingsVendorSetupPage, {
+      auth: { user: buildUser({ role: "owner", capabilities: ["apps.manage"] }) },
+      initialRoute: "/settings/platform/integrations/vendor-setup/$registrationId",
+      routeParams: { registrationId: "7" },
+      routerSearch: { code: "abc123", state: "st" },
+    });
+
+    await waitFor(() =>
+      expect(completeSetupMutate).toHaveBeenCalledWith(
+        { registrationId: 7, code: "abc123", state: "st" },
+        expect.anything()
+      )
+    );
+    expect(completeSetupMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the setup failed when GitHub sent no code", async () => {
+    const { SettingsVendorSetupPage } = await import("@/pages/SettingsVendorSetupPage");
+    renderPage(SettingsVendorSetupPage, {
+      auth: { user: buildUser({ role: "owner", capabilities: ["apps.manage"] }) },
+      initialRoute: "/settings/platform/integrations/vendor-setup/$registrationId",
+      routeParams: { registrationId: "7" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save the GitHub App's values."
+    );
+    expect(completeSetupMutate).not.toHaveBeenCalled();
   });
 });
