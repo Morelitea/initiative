@@ -7,7 +7,9 @@ reset from the emailed link, or a moderator, ends it sooner. Passkeys and
 sessions already open are not affected.
 
 Every function here stages its writes on the caller's system-engine session;
-the caller commits.
+the caller commits. The one exception is the count kept by address
+(``app.core.rate_limit``), which is not in the database: :func:`lift` starts it
+over at once.
 """
 
 from __future__ import annotations
@@ -23,8 +25,10 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.core.rate_limit import clear_sign_in_failures
 from app.models.platform.sign_in_lock import SignInLock
 from app.services import audit as audit_service
+from app.services.auth import addresses
 from app.core.clock import utcnow
 
 LOCK_AFTER_FAILURES = 5
@@ -133,9 +137,16 @@ async def record_success(session: AsyncSession, user_id: int) -> None:
 
 async def lift(session: AsyncSession, user_id: int) -> bool:
     """Clear everything counted against the account, and any lock. True if it
-    was locked."""
+    was locked.
+
+    The count kept by address starts over too, for each address the account
+    signs in with. It refuses in the same words as the lock, so lifting one and
+    not the other would leave the account refused for the rest of its window.
+    """
     was_closed = _is_closed(await session.get(SignInLock, user_id), utcnow())
     await session.exec(delete(SignInLock).where(SignInLock.user_id == user_id))
+    for address in await addresses.proven_addresses(session, user_id=user_id):
+        await clear_sign_in_failures(addresses.normalize(address))
     return was_closed
 
 

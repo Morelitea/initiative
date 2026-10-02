@@ -728,6 +728,40 @@ async def test_signing_in_starts_the_address_count_over(
     ).status_code == 200
 
 
+async def test_a_reset_from_the_emailed_link_starts_the_address_count_over(
+    client: AsyncClient, session: AsyncSession, two_refusals_per_address
+) -> None:
+    """The refusal tells them to reset their password, so a reset has to let
+    them in, whichever of the two counts was refusing them."""
+    from app.models.platform.user_token import UserTokenPurpose
+    from app.services.platform import user_tokens
+
+    user = await create_user(
+        session,
+        email="Reset@Example.com",
+        hashed_password=get_password_hash("right-password"),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    user_id = user.id
+    for _ in range(2):
+        await _sign_in(client, "reset@example.com", "wrong")
+    assert (
+        await _sign_in(client, "reset@example.com", "right-password")
+    ).status_code == 429
+
+    reset_token = await user_tokens.create_token(
+        session, user_id=user_id, purpose=UserTokenPurpose.password_reset
+    )
+    reset = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert reset.status_code == 200, reset.text
+    signed_in = await _sign_in(client, "reset@example.com", "brand-new-secret-123")
+    assert signed_in.status_code == 200, signed_in.text
+
+
 async def test_five_wrong_passwords_lock_the_account(
     client: AsyncClient, session: AsyncSession
 ) -> None:
