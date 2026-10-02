@@ -61,6 +61,17 @@ def maximal_manifest() -> dict:
                 },
                 {"key": "private_key", "type": "secret", "label": {"en": "Key"}},
             ],
+            "setup": {
+                "kind": "github_app_manifest",
+                "app": {
+                    "name": "Acme Tracker",
+                    "url": "https://acme.test",
+                    "public": True,
+                    "default_permissions": {"issues": "write"},
+                    "default_events": ["issues"],
+                },
+                "values": {"client_id": "client_id", "private_key": "pem"},
+            },
         },
         "connections": [
             {
@@ -258,6 +269,8 @@ def _nodes(published: dict) -> list[tuple[str, dict]]:
         ("connectionToken", connection["token"]),
         ("vendor", published["vendor"]),
         ("vendorField", published["vendor"]["fields"][0]),
+        ("githubAppManifestSetup", published["vendor"]["setup"]),
+        ("githubAppManifest", published["vendor"]["setup"]["app"]),
         ("webhooks", published["webhooks"]),
         ("webhookVerify", published["webhooks"]["verify"]),
         ("webhookRoute", published["webhooks"]["route"]),
@@ -441,5 +454,30 @@ def test_a_read_endpoint_has_no_identity():
 
     body = maximal_manifest()
     body["endpoints"][0]["identity"] = {"kind": "issue", "key": ["count"]}
+    with pytest.raises(ListingDefinitionError):
+        normalize_listing_definition("app", body)
+
+
+# --- a vendor's own setup flow ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"client_id": "pem"},
+        {"client_id": "client_id", "private_key": "client_id"},
+        {"nothing": "id"},
+        {"client_id": "token"},
+        {},
+    ],
+    ids=["secret-to-plain", "twice", "undeclared", "unknown", "empty"],
+)
+def test_a_setup_writes_each_answer_once_and_secrets_only_to_a_secret(values):
+    """What GitHub answers with is written to the fields the setup names, so a
+    secret one meeting a plain field would be shown on the settings form."""
+    from app.services.marketplace.manifest_values import ListingDefinitionError
+
+    body = maximal_manifest()
+    body["vendor"]["setup"]["values"] = values
     with pytest.raises(ListingDefinitionError):
         normalize_listing_definition("app", body)
