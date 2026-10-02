@@ -850,3 +850,10 @@ async def test_a_copy_is_a_draft_with_an_open_poll_and_none_of_its_votes(
     assert not any(o["voted_by_me"] for o in options)
     # The original's poll had closed; the draft's opens when it is posted.
     assert copy["poll"]["closes_at"] is None
+    # A deadline still to come is the copy's too.
+    later = datetime.now(timezone.utc) + timedelta(days=7)
+    upcoming = await create_post(session, a.initiative, a.user)
+    await create_post_poll(session, upcoming, closes_at=later)
+    kept = await client.post(a.g(f"/posts/{upcoming.id}/duplicate"), headers=a.headers)
+    assert kept.status_code == 201, kept.text
+    assert datetime.fromisoformat(kept.json()["poll"]["closes_at"]) == later

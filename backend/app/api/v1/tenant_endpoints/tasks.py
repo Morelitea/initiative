@@ -687,9 +687,15 @@ async def duplicate_task(
     "<title> (Copy)", with its assignees, tags, links and properties; its
     checklist starts unticked."""
     task = await _load_for_change(session, task_id, current_user, guild_context)
-    (copy,) = await task_creation_service.copy_tasks(session, [task], task.project)
-    await named_people.sweep(
-        session, named_people.Governing.of(Tool.project, task.project)
+    # The copy stays in the project, whose sharing is already committed, so
+    # who it may name is asked of the copy's own assignees alone.
+    keep = await named_people.readers(
+        session,
+        named_people.Governing.of(Tool.project, task.project),
+        {assignee.id for assignee in task.assignees},
+    )
+    (copy,) = await task_creation_service.copy_tasks(
+        session, [task], task.project, assignees=keep
     )
     _touch_project(task.project, datetime.now(timezone.utc))
     await session.commit()

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from copy import deepcopy
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -369,17 +370,20 @@ _IMAGE_FILE_COLUMNS = (
 async def _post_contents(
     session: AsyncSession, source: Post, copy: Post, actor: ActorContext
 ) -> list[Any]:
-    """The post's polls, with their options and none of the votes."""
+    """The post's poll, with its options and none of the votes. A deadline
+    still to come stays; one already past is cleared, so the draft's poll is
+    open when it is posted."""
+    now = datetime.now(timezone.utc)
     for poll in (
         await session.exec(select(PostPoll).where(PostPoll.post_id == source.id))
     ).all():
-        # A draft's poll has not closed: it opens again when the copy is posted.
+        closed = poll.closes_at is not None and poll.closes_at <= now
         ((_, clone),) = await _copy_children(
             session,
             [poll],
             beside=False,
             values=lambda _: {"post_id": copy.id},
-            reset={"closes_at": None},
+            reset={"closes_at": None} if closed else None,
         )
         options = (
             await session.exec(

@@ -350,11 +350,13 @@ async def copy_tasks(
     status_of: Callable[[Task], int | None] | None = None,
     date_shift: timedelta | None = None,
     keep_done: bool = False,
+    assignees: set[int] | None = None,
 ) -> list[Task]:
     """Copy ``sources``, loaded with their assignees, into ``target``; returns
-    the copies in the same order. The assignees come along, for the caller to
-    sweep (``named_people.sweep``) once ``target``'s sharing is readable, with
-    the tags, the links (a link between two of the sources joins
+    the copies in the same order. The assignees come along (only those in
+    ``assignees`` when it is given; otherwise all, for the caller to sweep with
+    ``named_people.sweep`` once ``target``'s sharing is readable), with the
+    tags, the links (a link between two of the sources joins
     their copies) and, inside one initiative, the property values.
 
     ``status_of`` gives each copy its status in another project. Without it
@@ -404,6 +406,7 @@ async def copy_tasks(
         session.add_all(
             TaskAssignee(task_id=copy.id, user_id=assignee.id)
             for assignee in source.assignees
+            if assignees is None or assignee.id in assignees
         )
         if copy.description:
             await task_description_service.record_references(
