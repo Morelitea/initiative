@@ -5502,6 +5502,7 @@ export interface InitiativeRead {
   archived_at: string | null;
   join_policy: InitiativeJoinPolicy;
   auto_join: boolean;
+  keep_content_in: boolean;
   created_at: string;
   updated_at: string;
   can: InitiativeCan;
@@ -5631,6 +5632,7 @@ export interface InitiativeUpdate {
   color?: string | null;
   join_policy?: InitiativeJoinPolicy | null;
   auto_join?: boolean | null;
+  keep_content_in?: boolean | null;
 }
 
 /**

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. Opened at one of its dates, a repeating event asks whether to copy that date or the whole series, and a wiki page comes without the pages under it.
 - **Moderators and above can revoke somebody's API keys.** In **Operator dashboard › Users**, choose **Manage** on an account with working keys and use **Revoke** under **Access**. The keys stop working at once and stay on the person's own list marked disabled, so they can see what stopped and make new ones.
 - **A display name for each community.** On a community's **Members** page, choose **Set your display name** on your own row to be known by something other than your handle there, and only there. Community admins can set one for a member from **Community settings › Users**. It shows wherever the community shows people, and people can be found by it. Leave it empty to go back to your handle.
+- **Keep an initiative's content in.** A switch under **Initiative settings › Export** stops anyone, admins included, from exporting things from the initiative one at a time, sharing them to the marketplace, or copying them to another initiative. Copies inside the initiative, and the initiative and community exports, carry on. **App and API integrations:** initiatives carry `keep_content_in`, and a refused export or copy answers `INITIATIVE_CONTENT_KEPT_IN`. `GET /exports/initiative` takes someone who manages the initiative, as its settings page does, and answers anyone else `INITIATIVE_MANAGER_REQUIRED`.
 
 ### Changed
 
@@ -28,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
 - **App and API integrations:** galleries, queues, counter groups and wikis no longer report `image_count`, `item_count`, `counter_count` or `page_count`.
 - **The API reference is always served,** at `/api/v1/docs` with its schema at `/api/v1/openapi.json`. `ENABLE_API_DOCS` is gone; a deployment that still sets it starts as before and ignores it.
+- **The app's first screen asks where your Initiative runs.** Pick **Self-hosted** and enter your server's address.
+- **The app opens faster.** The sign-in page loads less than half the code it used to, in 30 files rather than nearly 170, and the rest of the app loads as you reach it.
 
 ### Fixed
 

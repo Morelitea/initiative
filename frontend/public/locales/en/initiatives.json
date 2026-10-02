@@ -142,6 +142,11 @@
       "lockedNote": "A community admin turned on auto-join for this initiative, so it has to stay open to everyone. Ask an admin to turn auto-join off before changing this.",
       "turnedOff": "Auto-join is off — it is only available while anyone can join."
     },
+    "keepContentIn": {
+      "title": "Keep content in this initiative",
+      "label": "Block exports and copies to other initiatives",
+      "help": "While this is on, nobody can export anything from this initiative or copy it to another initiative, managers and community admins included. Copies inside this initiative still work, and so does the initiative export below."
+    },
     "membersTitle": "Members",
     "membersDescription": "Initiative project managers and community admins can manage membership.",
     "filterByName": "Filter by name",

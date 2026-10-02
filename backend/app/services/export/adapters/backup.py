@@ -29,11 +29,11 @@ with one ``initiatives/`` entry, so ONE import path serves both)::
     initiatives/{id}-{slug}/properties.json         (backup mode)
     assets/{storage_key}                            (include_uploads only)
 
-Authorization: the initiative source requires the creator to reach each
-initiative (``initiative_access`` — member, guild admin, or live PAM grant);
-the guild source additionally requires the creator to be a guild ADMIN,
-re-checked here so the worker's render-time replay fails closed if adminship
-was revoked between request and render. Within an initiative, enumeration is
+Authorization: the initiative source requires the creator to manage the
+initiative (its managers, or a guild admin), as its settings page does;
+the guild source requires the community's seat. Both are re-checked here so
+the worker's render-time replay fails closed if either was lost between
+request and render. Within an initiative, enumeration is
 DAC-visible-only per tool, and every entity still passes its own
 fetch+authorize seam. Projects are included with READ access — the
 deliberate aggregate-export relaxation of the standalone write rule.
@@ -61,7 +61,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.user_display import handle_of
 from app.core.config import settings
-from app.core.messages import ExportMessages
+from app.core.messages import ExportMessages, InitiativeMessages
 from app.models.platform.user import User
 from app.models.tenant.document import DocumentType
 from app.services.export.adapters._common import BuildContext, ToolExportAdapter
@@ -143,6 +143,7 @@ async def _resolve_scope(
     demands the community's seat (re-checked on worker replay); initiative
     scope demands the creator reach the requested initiative. Returns the
     Initiative rows (name/flags feed the manifest)."""
+    from sqlalchemy.orm import undefer
     from sqlmodel import select
 
     from app.models.tenant.initiative import Initiative
@@ -177,14 +178,21 @@ async def _resolve_scope(
         initiative_id = int(initiative_id)
     except (TypeError, ValueError):
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS)
-    statement = select(Initiative).where(
-        Initiative.id == initiative_id,
-        initiative_scope_clause(user.id, Initiative.id),
+    statement = (
+        select(Initiative)
+        .options(undefer(Initiative.actions))
+        .where(
+            Initiative.id == initiative_id,
+            initiative_scope_clause(user.id, Initiative.id),
+        )
     )
     initiative = (await session.exec(statement)).one_or_none()
     if initiative is None:
         # Unreachable initiative — indistinguishable from absent.
         raise ExportError(ExportMessages.EXPORT_INVALID_PARAMS, status_code=404)
+    # An initiative's export is its settings' to take: those who manage it.
+    if "manage" not in (initiative.actions or ()):
+        raise ExportError(InitiativeMessages.MANAGER_REQUIRED, status_code=403)
     return [initiative]
 
 

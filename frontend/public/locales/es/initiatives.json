@@ -142,6 +142,11 @@
       "lockedNote": "Un administrador de la comunidad activó la incorporación automática en esta iniciativa, así que debe seguir abierta a todo el mundo. Pide a un administrador que la desactive antes de cambiar esto.",
       "turnedOff": "La incorporación automática está desactivada: solo está disponible mientras cualquiera pueda unirse."
     },
+    "keepContentIn": {
+      "title": "Mantener el contenido en esta iniciativa",
+      "label": "Bloquear exportaciones y copias a otras iniciativas",
+      "help": "Mientras esté activado, nadie puede exportar nada de esta iniciativa ni copiarlo a otra iniciativa, incluidos los responsables y los administradores de la comunidad. Las copias dentro de esta iniciativa siguen funcionando, igual que la exportación de la iniciativa de abajo."
+    },
     "membersTitle": "Miembros",
     "membersDescription": "Los gerentes de proyecto de la iniciativa y los administradores de la comunidad pueden gestionar la membresía.",
     "filterByName": "Filtrar por nombre",
