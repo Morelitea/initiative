@@ -134,15 +134,13 @@
   },
   "myTasks": {
     "title": "Meine Aufgaben",
-    "subtitle": "Alles, was dir projektübergreifend zugewiesen ist.",
     "noGuild": "Keine Community",
     "loadError": "Deine Aufgaben konnten nicht geladen werden.",
     "groupByDate": "Datum",
     "groupByGuild": "Community"
   },
   "myCalendar": {
-    "title": "Mein Kalender",
-    "subtitle": "Aufgaben und Termine über alle deine Communitys hinweg."
+    "title": "Mein Kalender"
   },
   "tagTasks": {
     "loadError": "Aufgaben konnten nicht geladen werden."

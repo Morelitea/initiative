@@ -115,7 +115,6 @@
   },
   "archive": {
     "title": "Annonces",
-    "subtitle": "Tout ce qu'Initiative a annoncé, du plus récent au plus ancien.",
     "empty": "Rien n'a encore été annoncé.",
     "read": "Lire",
     "unread": "Non lue",

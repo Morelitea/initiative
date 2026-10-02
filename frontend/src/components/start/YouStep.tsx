@@ -1,5 +1,5 @@
 import { keepPreviousData } from "@tanstack/react-query";
-import { Sparkles } from "lucide-react";
+import { Dices } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -49,7 +49,7 @@ const HandleSuggestions = ({
             onClick={() => onPick(name)}
             disabled={disabled}
           >
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <Dices className="h-3.5 w-3.5" aria-hidden="true" />
             {name}
           </Button>
         ))}

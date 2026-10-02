@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "Mes statistiques",
-    "subtitle": "Suivez votre productivité et vos indicateurs de complétion des tâches",
     "guildFilterPlaceholder": "Sélectionner une communauté",
     "allGuilds": "Tous les communautés",
     "loading": "Chargement des statistiques\u2026",

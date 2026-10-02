@@ -134,15 +134,13 @@
   },
   "myTasks": {
     "title": "Mes tâches",
-    "subtitle": "Tout ce qui vous est assigné dans tous les projets.",
     "noGuild": "Aucune communauté",
     "loadError": "Impossible de charger vos tâches.",
     "groupByDate": "Date",
     "groupByGuild": "Communauté"
   },
   "myCalendar": {
-    "title": "Mon calendrier",
-    "subtitle": "Tâches et événements dans tous vos communautés."
+    "title": "Mon calendrier"
   },
   "tagTasks": {
     "loadError": "Impossible de charger les tâches."

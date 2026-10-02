@@ -105,7 +105,6 @@
   },
   "settings": {
     "title": "Paramètres de l'initiative",
-    "subtitle": "Mettez à jour les détails, gérez les membres et les rôles, et contrôlez les actions dangereuses.",
     "breadcrumbSettings": "Paramètres",
     "loadingInitiative": "Chargement de l'initiative...",
     "backToInitiatives": "← Retour à mes initiatives",

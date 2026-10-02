@@ -106,7 +106,6 @@ export const GuildSettingsLayout = () => {
           <h1 className="font-semibold text-3xl tracking-tight">{t("guildLayout.title")}</h1>
           {statusNotice && <Badge variant="destructive">{statusNotice.label}</Badge>}
         </div>
-        <p className="text-muted-foreground">{t("guildLayout.subtitle")}</p>
         {statusNotice && (
           <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
         )}

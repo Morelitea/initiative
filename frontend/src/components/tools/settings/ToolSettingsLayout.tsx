@@ -172,10 +172,7 @@ export const ToolSettingsLayout = ({
         ]}
       />
 
-      <div className="space-y-1">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("common:toolSettings.title")}</h1>
-        <p className="text-muted-foreground text-sm">{t("common:toolSettings.description")}</p>
-      </div>
+      <h1 className="font-semibold text-3xl tracking-tight">{t("common:toolSettings.title")}</h1>
 
       <SettingsTabsNav
         tabs={tabs}

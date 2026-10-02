@@ -564,7 +564,6 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
             ) : null}
             <ToolImportAction tool={Tool.document} canImport={canCreateDocuments} />
           </div>
-          <p className="text-muted-foreground text-sm">{t("page.subtitle")}</p>
         </div>
       )}
 

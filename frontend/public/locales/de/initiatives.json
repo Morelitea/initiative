@@ -105,7 +105,6 @@
   },
   "settings": {
     "title": "Initiative-Einstellungen",
-    "subtitle": "Aktualisiere Details, verwalte Mitglieder und Rollen und steuere gefährliche Aktionen.",
     "breadcrumbSettings": "Einstellungen",
     "loadingInitiative": "Initiative wird geladen...",
     "backToInitiatives": "← Zurück zu 'Meine Initiativen'",

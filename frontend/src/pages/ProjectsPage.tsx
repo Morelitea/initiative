@@ -212,7 +212,6 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
               )}
               <ToolImportAction tool={Tool.project} canImport={canCreateProjects} />
             </div>
-            <p className="text-muted-foreground">{t("subtitle")}</p>
           </div>
         )}
 

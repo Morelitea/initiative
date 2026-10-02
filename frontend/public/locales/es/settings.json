@@ -1,7 +1,6 @@
 {
   "layout": {
     "title": "Mi configuración",
-    "subtitle": "Administra tu perfil, preferencias de interfaz y notificaciones.",
     "tabs": {
       "profile": "Perfil",
       "account": "Cuenta",
@@ -19,7 +18,6 @@
   },
   "guildLayout": {
     "title": "Configuración de la comunidad",
-    "subtitle": "Administra la membresía del espacio de trabajo y los detalles de la comunidad.",
     "permissionDenied": "Necesitas permisos adicionales para ver esta página.",
     "viewOnly": "Estás viendo esta configuración con una concesión de acceso. Para cambiarla hace falta además una concesión de lectura y escritura.",
     "restricted": {
@@ -955,7 +953,6 @@
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",
-    "subtitle": "Inicio de sesión, seguridad, marca, correo, notificaciones push, el directorio de comunidades, integraciones, almacenamiento y entrada para toda la instalación.",
     "tabs": {
       "auth": "Autenticación",
       "branding": "Personalización",
@@ -1066,7 +1063,6 @@
   },
   "operatorDashboard": {
     "title": "Panel de operador",
-    "subtitle": "Administra los usuarios de la plataforma y los accesos temporales.",
     "tabs": {
       "users": "Usuarios",
       "access": "Acceso",

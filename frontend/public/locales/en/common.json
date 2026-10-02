@@ -140,7 +140,6 @@
       "description": "Download a copy — a file you can import here or on another server, or a report to read. Only whoever can delete this can export it."
     },
     "title": "Settings",
-    "description": "Manage details, access, and advanced options.",
     "tabDetails": "Details",
     "tabAccess": "Access",
     "tabAdvanced": "Advanced",

@@ -115,7 +115,6 @@
   },
   "archive": {
     "title": "Anuncios",
-    "subtitle": "Todo lo que Initiative ha anunciado, lo más reciente primero.",
     "empty": "Todavía no se ha anunciado nada.",
     "read": "Leerlo",
     "unread": "Sin leer",
