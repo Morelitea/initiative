@@ -55,7 +55,7 @@ export const GuildCardFace = ({
         />
       ) : (
         // Muted under the fill, for an entry whose banner has not arrived (a
-        // guild reached by a grant carries none).
+        // guild reached by a content grant alone carries none).
         <div
           className="aspect-[4/1] w-full bg-muted"
           style={{ backgroundColor: banner.color || undefined }}

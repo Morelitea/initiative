@@ -179,8 +179,6 @@ const withSettingsEntry = async (entry: GuildEntry): Promise<GuildEntry> => {
     const response = await apiClient.get<GuildRead>(`/communities/${entry.id}`);
     return {
       ...response.data,
-      icon_url: entry.icon_url,
-      banner: entry.banner,
       position: entry.position,
       content_read_only: entry.content_read_only,
       accessType: entry.accessType,
