@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { LoginProviderEntry } from "@/api/generated/initiativeAPI.schemas";
 import { ProviderMark } from "@/components/auth/ProviderMark";
-import { LogoIcon } from "@/components/LogoIcon";
+import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,10 +46,9 @@ export const GuildLoginPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
-      <Card className="w-full max-w-md">
+    <SignInFrame>
+      <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="items-center text-center">
-          <LogoIcon className="mb-2 h-10 w-10" />
           <CardTitle>{guildName ?? t("guildLogin.title")}</CardTitle>
           <CardDescription>{t("guildLogin.subtitle")}</CardDescription>
         </CardHeader>
@@ -85,6 +84,6 @@ export const GuildLoginPage = () => {
           </Link>
         </CardFooter>
       </Card>
-    </div>
+    </SignInFrame>
   );
 };

@@ -134,7 +134,7 @@ export const RegisterPage = () => {
   };
 
   return (
-    <SignInFrame>
+    <SignInFrame pickServer>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{t("register.titleBootstrap")}</CardTitle>

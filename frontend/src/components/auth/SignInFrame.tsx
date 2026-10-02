@@ -1,11 +1,16 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ServerChoice } from "@/components/auth/ServerChoice";
 import { LogoIcon } from "@/components/LogoIcon";
 import { cn } from "@/lib/utils";
 
 /**
- * The ground every signed-out card sits on: the hex backdrop and the wordmark.
+ * The ground every signed-out card sits on: the hex backdrop, the wordmark,
+ * and under the card, the server the sign-in goes to.
+ *
+ * `pickServer` lets the app change the server here, where it signs in or up;
+ * elsewhere the server is shown and stays as it is.
  *
  * `fillPhone` drops the margin and the wordmark below `sm`, for a card that
  * takes the whole screen on a phone.
@@ -13,9 +18,11 @@ import { cn } from "@/lib/utils";
 export const SignInFrame = ({
   children,
   fillPhone = false,
+  pickServer = false,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   fillPhone?: boolean;
+  pickServer?: boolean;
 }) => {
   const { t } = useTranslation("common");
   const isDark = document.documentElement.classList.contains("dark");
@@ -45,6 +52,9 @@ export const SignInFrame = ({
           <span className="pride-wordmark">{t("appName")}</span>
         </div>
         {children}
+        <div className="w-full max-w-md rounded-xl border bg-card p-4 shadow-sm">
+          <ServerChoice pick={pickServer} />
+        </div>
       </div>
     </div>
   );

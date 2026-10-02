@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No initiative is the default any more.** Communities that were given a "Default Initiative" can now rename it, archive it or delete it like any other. **App and API integrations:** initiatives no longer carry `is_default`.
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
 - **App and API integrations:** galleries, queues, counter groups and wikis no longer report `image_count`, `item_count`, `counter_count` or `page_count`.
-- **The app's first screen asks where your Initiative runs.** Pick **Self-hosted** and enter your server's address.
+- **Signed-out pages say which server you're on**, in a **Server** box under the form. In the app, signing in or up is where you change it: the box takes a self-hosted server's address, and the app keeps it, so going back to your server needs no typing. The separate connect screen is gone.
 
 ### Fixed
 

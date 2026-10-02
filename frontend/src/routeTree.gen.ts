@@ -10,7 +10,6 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ServerRequiredRouteImport } from './routes/_serverRequired'
-import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ServerRequiredAuthenticatedRouteImport } from './routes/_serverRequired/_authenticated'
 import { Route as ServerRequiredDownloadRouteImport } from './routes/_serverRequired/download'
 import { Route as ServerRequiredForgotPasswordRouteImport } from './routes/_serverRequired/forgot-password'
@@ -175,11 +174,6 @@ import { Route as ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalen
 
 const ServerRequiredRoute = ServerRequiredRouteImport.update({
   id: '/_serverRequired',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConnectRoute = ConnectRouteImport.update({
-  id: '/connect',
-  path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ServerRequiredAuthenticatedRoute =
@@ -1365,7 +1359,6 @@ const ServerRequiredAuthenticatedCGuildIdIInitiativeIdCalendarsCalendarIdEventsE
 
 export interface FileRoutesByFullPath {
   '/': typeof ServerRequiredAuthenticatedIndexRoute
-  '/connect': typeof ConnectRoute
   '/download': typeof ServerRequiredDownloadRoute
   '/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/login': typeof ServerRequiredLoginRoute
@@ -1528,7 +1521,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof ServerRequiredAuthenticatedIndexRoute
-  '/connect': typeof ConnectRoute
   '/download': typeof ServerRequiredDownloadRoute
   '/forgot-password': typeof ServerRequiredForgotPasswordRoute
   '/login': typeof ServerRequiredLoginRoute
@@ -1675,7 +1667,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_serverRequired': typeof ServerRequiredRouteWithChildren
-  '/connect': typeof ConnectRoute
   '/_serverRequired/_authenticated': typeof ServerRequiredAuthenticatedRouteWithChildren
   '/_serverRequired/download': typeof ServerRequiredDownloadRoute
   '/_serverRequired/forgot-password': typeof ServerRequiredForgotPasswordRoute
@@ -1842,7 +1833,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/connect'
     | '/download'
     | '/forgot-password'
     | '/login'
@@ -2005,7 +1995,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/connect'
     | '/download'
     | '/forgot-password'
     | '/login'
@@ -2151,7 +2140,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_serverRequired'
-    | '/connect'
     | '/_serverRequired/_authenticated'
     | '/_serverRequired/download'
     | '/_serverRequired/forgot-password'
@@ -2317,7 +2305,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   ServerRequiredRoute: typeof ServerRequiredRouteWithChildren
-  ConnectRoute: typeof ConnectRoute
   AppsConnectedRoute: typeof AppsConnectedRoute
 }
 
@@ -2328,13 +2315,6 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof ServerRequiredRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/connect': {
-      id: '/connect'
-      path: '/connect'
-      fullPath: '/connect'
-      preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_serverRequired/_authenticated': {
@@ -4161,7 +4141,6 @@ const ServerRequiredRouteWithChildren = ServerRequiredRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   ServerRequiredRoute: ServerRequiredRouteWithChildren,
-  ConnectRoute: ConnectRoute,
   AppsConnectedRoute: AppsConnectedRoute,
 }
 export const routeTree = rootRouteImport

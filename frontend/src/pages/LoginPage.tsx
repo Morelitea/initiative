@@ -54,6 +54,18 @@ const FALLBACK_DEVICE_NAME = "Mobile Device";
 const flag = (value: unknown): string => String(value ?? "");
 
 export const LoginPage = () => {
+  const { isNativePlatform, isServerConfigured, serverUrl } = useServer();
+
+  // The app needs a server before anything else can load, so until it has
+  // one the frame's server choice is all there is.
+  if (isNativePlatform && !isServerConfigured) {
+    return <SignInFrame pickServer />;
+  }
+  // Another server is another sign-in, so the card starts over.
+  return <SignInCard key={serverUrl ?? "web"} />;
+};
+
+const SignInCard = () => {
   const { t } = useTranslation(["auth", "common", "errors"]);
   const router = useRouter();
   const searchParams = useSearch({ strict: false }) as {
@@ -66,13 +78,7 @@ export const LoginPage = () => {
   };
   const { login, completeSecondFactor, applyPasskeySignIn } = useAuth();
   const resumeAfterSignIn = useResumeAfterSignIn();
-  const {
-    isNativePlatform,
-    isServerConfigured,
-    getServerHostname,
-    getServerOrigin,
-    clearServerUrl,
-  } = useServer();
+  const { isNativePlatform, isServerConfigured, getServerOrigin } = useServer();
   const { passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } = useAppConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -283,11 +289,6 @@ export const LoginPage = () => {
     }
   };
 
-  const handleChangeServer = () => {
-    clearServerUrl();
-    router.navigate({ to: "/connect", replace: true });
-  };
-
   // A password manager can fill a form and submit it several times within one
   // render, before `submitting` disables anything. A ref is set at once, so
   // only the first of those is sent. One for both steps: only one is on screen.
@@ -405,7 +406,7 @@ export const LoginPage = () => {
   }
 
   return (
-    <SignInFrame>
+    <SignInFrame pickServer>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{challenge ? t("secondFactor.title") : t("login.title")}</CardTitle>
@@ -577,19 +578,6 @@ export const LoginPage = () => {
           )}
         </CardContent>
         <CardFooter className="flex flex-col items-start gap-2 text-muted-foreground text-sm">
-          {isNativePlatform && (
-            <p className="text-xs">
-              {t("login.connectedTo")} <span className="font-medium">{getServerHostname()}</span>
-              {" · "}
-              <button
-                type="button"
-                className="text-primary underline-offset-4 hover:underline"
-                onClick={handleChangeServer}
-              >
-                {t("login.changeServer")}
-              </button>
-            </p>
-          )}
           {passwordLoginEnabled ? (
             <p>
               {t("login.needAccount")}{" "}
