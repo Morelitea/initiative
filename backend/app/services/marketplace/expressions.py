@@ -9,11 +9,12 @@ an expression that raises an error is (:class:`ExpressionError`).
 
 **Where it runs.** The library checks the time and depth bounds between
 evaluation steps, as the reference implementation does. One step can still run
-long on its own (a regular expression, a large ``$pad``), so every evaluation
-runs in a small pool of worker processes, and a worker still busy after the
-time bound and a grace period is stopped and replaced. Each worker evaluates
-one expression at a time; the documents travel as JSON, which is also how the
-output bound is measured.
+long on its own (a regular expression, a large ``$pad``), so evaluations run in
+worker processes (:mod:`app.services.jsonata_pool`), and one still busy after
+the time bound and a grace period is stopped and replaced. The pool starts on
+the first evaluation, holds at most ``EXPRESSION_WORKERS`` per process, and a
+worker idle for ``_IDLE_SECONDS`` exits. Parsing, which publishing a manifest
+needs, runs here.
 
 An answer comes back as plain JSON, or :data:`UNDEFINED` when the expression
 answers nothing.
@@ -22,21 +23,15 @@ answers nothing.
 from __future__ import annotations
 
 import asyncio
-import json
-import math
-import multiprocessing
-import os
-import signal
-import sys
+import atexit
 import threading
-import time
-from multiprocessing.connection import Connection
 from typing import Any, Optional
 
 import jsonata
 from jsonata.parser import Parser
-from jsonata.utils import Utils
 
+from app.core.config import settings
+from app.services.jsonata_pool import Pool, PoolError
 from app.services.marketplace import contract
 
 __all__ = [
@@ -48,6 +43,7 @@ __all__ = [
     "evaluate",
     "holds",
     "parse",
+    "shutdown",
     "step_reads",
 ]
 
@@ -55,12 +51,8 @@ TIME_MS = contract.cap("expressionTimeMs")
 DEPTH = contract.cap("expressionDepth")
 OUTPUT_BYTES = contract.cap("expressionOutputBytes")
 
-#: How long past the time bound a worker may take to answer, for the document
-#: to cross the pipe both ways, before it is stopped.
-_GRACE_SECONDS = 1.0
-#: Workers per process. Evaluations are short; more than this waiting at once
-#: wait for one to come free, within the same deadline.
-_POOL_SIZE = min(4, os.cpu_count() or 1)
+#: How long a worker waits for its next evaluation before it exits.
+_IDLE_SECONDS = 300
 
 
 class _Undefined:
@@ -137,186 +129,50 @@ def step_reads(tree: Any) -> set[str]:
     return names
 
 
-# --- one evaluation, in a worker ---------------------------------------------
+# --- evaluating, in the pool ------------------------------------------------
+
+_pool: Optional[Pool] = None
+_pool_lock = threading.Lock()
 
 
-def _is_function(value: Any) -> bool:
-    return isinstance(value, (jsonata.Jsonata.JFunctionCallable, Parser.Symbol))
+def _the_pool() -> Pool:
+    global _pool
+    with _pool_lock:
+        if _pool is None:
+            # The app's lifespan stops it; a process that has none stops it
+            # on its way out.
+            atexit.register(shutdown)
+            _pool = Pool(
+                size=settings.EXPRESSION_WORKERS,
+                time_ms=TIME_MS,
+                depth=DEPTH,
+                output_bytes=OUTPUT_BYTES,
+                idle_seconds=_IDLE_SECONDS,
+            )
+        return _pool
 
 
-def _number(value: float) -> Any:
-    """A number as a double holds it and ``JSON.stringify`` writes it: integral
-    below 1e21 as an integer, otherwise as a float."""
-    as_float = float(value)
-    if not math.isfinite(as_float):
-        return None
-    if as_float.is_integer() and abs(as_float) < 1e21:
-        return int(as_float)
-    return as_float
-
-
-def _plain(value: Any, *, top: bool = False) -> Any:
-    """An answer as JSON reads it, the way ``JSON.stringify`` writes it: a
-    function or nothing is left out of an object and ``null`` in a list, and
-    nothing at the top is undefined."""
-    if value is None or _is_function(value):
-        return UNDEFINED if top else None
-    if value is Utils.NULL_VALUE:
-        return None
-    if isinstance(value, (bool, str)):
-        return value
-    if isinstance(value, (int, float)):
-        return _number(value)
-    if isinstance(value, dict):
-        return {
-            str(key): _plain(item)
-            for key, item in value.items()
-            if item is not None and not _is_function(item)
-        }
-    if isinstance(value, list):
-        return [_plain(item) for item in value]
-    return UNDEFINED if top else None
-
-
-def _clock(millis: int) -> dict[str, Any]:
-    """``$now()`` and ``$millis()`` answering one instant, bound as the SDK
-    binds them."""
-    return {
-        "now": jsonata.Jsonata(
-            f"function($picture, $timezone) {{ $fromMillis({millis}, $picture, $timezone) }}"
-        ).evaluate({}),
-        "millis": jsonata.Jsonata(f"function() {{ {millis} }}").evaluate({}),
-    }
-
-
-def _run(expression: str, document: Any, millis: Optional[int]) -> Any:
-    bounded = jsonata.Jsonata(expression, timeout=TIME_MS, stack=DEPTH)
-    bounded.set_output_convert_nulls(False)
-    bindings = _clock(millis) if millis is not None else None
-    return _plain(bounded.evaluate(document, bindings), top=True)
-
-
-def _answer(request: dict[str, Any]) -> dict[str, Any]:
-    """What one request to a worker answers: a value, undefined, or an error."""
-    document = request["document"] if "document" in request else None
-    try:
-        value = _run(request["expression"], document, request.get("millis"))
-        if value is UNDEFINED:
-            return {"undefined": True}
-        text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-        if len(text.encode("utf-8")) > OUTPUT_BYTES:
-            return {"error": f"the answer is over {OUTPUT_BYTES} bytes"}
-        if request.get("predicate"):
-            # ``$boolean`` of the answer, as JSON gives it back.
-            truth = _run("$boolean($)", json.loads(text), None)
-            return {"value": truth is True}
-        return {"value": value}
-    except Exception as error:  # noqa: BLE001 - every evaluation failure is one answer
-        failure = _failure(error)
-        return {"error": str(failure), "position": failure.position}
-
-
-def _serve(connection: Connection) -> None:
-    """A worker: one request at a time, until the pipe closes."""
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
-    # The depth bound is the library's; this only keeps Python's own limit
-    # from being reached first.
-    sys.setrecursionlimit(20_000)
-    while True:
-        try:
-            raw = connection.recv_bytes()
-        except (EOFError, OSError):
-            return
-        reply = _answer(json.loads(raw))
-        connection.send_bytes(json.dumps(reply, ensure_ascii=False).encode("utf-8"))
-
-
-# --- the pool ----------------------------------------------------------------
-
-_CONTEXT = multiprocessing.get_context("spawn")
-
-
-class _Worker:
-    def __init__(self) -> None:
-        parent, child = _CONTEXT.Pipe()
-        self.process = _CONTEXT.Process(
-            target=_serve, args=(child,), daemon=True, name="jsonata"
-        )
-        self.process.start()
-        child.close()
-        self.connection = parent
-
-    def stop(self) -> None:
-        self.process.kill()
-        self.process.join(timeout=5)
-        self.connection.close()
-
-
-_lock = threading.Condition()
-_idle: list[_Worker] = []
-_live = 0
-
-
-def _take(deadline: float) -> _Worker:
-    global _live
-    with _lock:
-        while not _idle and _live >= _POOL_SIZE:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ExpressionError("no evaluator came free in time")
-            _lock.wait(remaining)
-        if _idle:
-            return _idle.pop()
-        _live += 1
-    try:
-        return _Worker()
-    except BaseException:
-        _give_back(None)
-        raise
-
-
-def _give_back(worker: Optional[_Worker]) -> None:
-    global _live
-    with _lock:
-        if worker is None:
-            _live -= 1
-        else:
-            _idle.append(worker)
-        _lock.notify()
-
-
-def _ask(request: bytes) -> dict[str, Any]:
-    """Send one request to a worker and wait, within the deadline, for it."""
-    budget = TIME_MS / 1000 + _GRACE_SECONDS
-    worker = _take(time.monotonic() + budget)
-    try:
-        worker.connection.send_bytes(request)
-        if not worker.connection.poll(budget):
-            raise ExpressionError(f"timeout after {TIME_MS} milliseconds")
-        reply = json.loads(worker.connection.recv_bytes())
-    except BaseException as error:
-        worker.stop()
-        _give_back(None)
-        if isinstance(error, ExpressionError):
-            raise
-        raise ExpressionError("the evaluator stopped") from error
-    _give_back(worker)
-    return reply
-
-
-def _request(text: str, document: Any, millis: Optional[int], predicate: bool) -> bytes:
-    body: dict[str, Any] = {"expression": text, "predicate": predicate}
-    if document is not UNDEFINED:
-        body["document"] = document
-    if millis is not None:
-        body["millis"] = millis
-    return json.dumps(body, ensure_ascii=False).encode("utf-8")
+def shutdown() -> None:
+    """Stop the pool's workers; the next evaluation starts a new pool."""
+    global _pool
+    with _pool_lock:
+        pool, _pool = _pool, None
+    if pool is not None:
+        pool.shutdown()
 
 
 async def _evaluate(
     text: str, document: Any, millis: Optional[int], predicate: bool
 ) -> dict[str, Any]:
-    reply = await asyncio.to_thread(_ask, _request(text, document, millis, predicate))
+    request: dict[str, Any] = {"expression": text, "predicate": predicate}
+    if document is not UNDEFINED:
+        request["document"] = document
+    if millis is not None:
+        request["millis"] = millis
+    try:
+        reply = await asyncio.to_thread(_the_pool().ask, request)
+    except PoolError as exc:
+        raise ExpressionError(str(exc)) from exc
     if "error" in reply:
         raise ExpressionError(reply["error"], reply.get("position"))
     return reply
