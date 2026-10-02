@@ -1306,6 +1306,15 @@ class AppServiceMessages:
     UNKNOWN_VENDOR_FIELD = "APP_SERVICE_UNKNOWN_VENDOR_FIELD"
     #: A vendor value that is too long, or not the address its field asks for.
     INVALID_VENDOR_VALUE = "APP_SERVICE_INVALID_VENDOR_VALUE"
+    #: The app's listing declares no vendor setup flow this build runs.
+    VENDOR_SETUP_UNAVAILABLE = "APP_SERVICE_VENDOR_SETUP_UNAVAILABLE"
+    #: The organization named for the vendor's setup is not one it could have.
+    VENDOR_SETUP_INVALID_ORGANIZATION = "APP_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION"
+    #: The setup returning from the vendor is not one this person started for
+    #: this app in the last hour, or it was already finished.
+    VENDOR_SETUP_EXPIRED = "APP_SERVICE_VENDOR_SETUP_EXPIRED"
+    #: The vendor did not answer the setup's code with the new client's values.
+    VENDOR_SETUP_FAILED = "APP_SERVICE_VENDOR_SETUP_FAILED"
 
 
 class AppMessages:

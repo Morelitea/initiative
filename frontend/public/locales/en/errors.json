@@ -764,6 +764,10 @@
   "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "This app's connection isn't set up on this server yet. Let whoever runs it know.",
   "APP_SERVICE_UNKNOWN_VENDOR_FIELD": "That value isn't one this app's listing asks for.",
   "APP_SERVICE_INVALID_VENDOR_VALUE": "That value isn't valid. Check its length, and that an address starts with https:// or http://.",
+  "APP_SERVICE_VENDOR_SETUP_UNAVAILABLE": "This app's listing doesn't offer a setup at its vendor. Enter its values by hand.",
+  "APP_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION": "That isn't an organization name GitHub uses. Use letters, numbers and hyphens, up to 39 characters.",
+  "APP_SERVICE_VENDOR_SETUP_EXPIRED": "This setup has expired or was already finished. Start it again from the app's settings.",
+  "APP_SERVICE_VENDOR_SETUP_FAILED": "GitHub didn't hand over the new app's values. Start the setup again.",
   "APP_CHANNEL_CONNECTION_EXPIRED": "That connection has run out, and the member has to connect again.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "That connection holds no token to give.",
   "APP_CHANNEL_TOKEN_UNAVAILABLE": "The vendor didn't give a token. Try again shortly."

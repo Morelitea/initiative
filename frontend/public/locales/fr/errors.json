@@ -764,6 +764,10 @@
   "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "La connexion de cette app n'est pas encore configurée sur ce serveur. Prévenez la personne qui l'administre.",
   "APP_SERVICE_UNKNOWN_VENDOR_FIELD": "Cette valeur n'est pas demandée par la fiche de cette app.",
   "APP_SERVICE_INVALID_VENDOR_VALUE": "Cette valeur n'est pas valide. Vérifiez sa longueur, et qu'une adresse commence par https:// ou http://.",
+  "APP_SERVICE_VENDOR_SETUP_UNAVAILABLE": "La fiche de cette application ne propose pas de configuration chez son fournisseur. Saisissez ses valeurs à la main.",
+  "APP_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION": "Ce n'est pas un nom d'organisation que GitHub utilise. Utilisez des lettres, des chiffres et des tirets, 39 caractères au plus.",
+  "APP_SERVICE_VENDOR_SETUP_EXPIRED": "Cette configuration a expiré ou est déjà terminée. Recommencez-la depuis les paramètres de l'application.",
+  "APP_SERVICE_VENDOR_SETUP_FAILED": "GitHub n'a pas transmis les valeurs de la nouvelle application. Recommencez la configuration.",
   "APP_CHANNEL_CONNECTION_EXPIRED": "Cette connexion a expiré et le membre doit se reconnecter.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "Cette connexion ne détient aucun jeton à fournir.",
   "APP_CHANNEL_TOKEN_UNAVAILABLE": "Le fournisseur n'a pas fourni de jeton. Réessayez dans un instant."

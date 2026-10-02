@@ -108,6 +108,10 @@ class ChallengePurpose(str, Enum):
     #: is that the gates a registration has to pass were passed before the
     #: browser was sent to an authenticator.
     passkey_sign_up = "passkey_sign_up"
+    #: An operator has been sent to an app's vendor to create its client, and
+    #: the vendor will send them back with a code. The row names the operator;
+    #: the answer is the registration the setup is for.
+    app_vendor_setup = "app_vendor_setup"
 
 
 @dataclass(frozen=True)
@@ -249,6 +253,32 @@ async def consume(session: AsyncSession, challenge: AuthChallenge) -> bool:
         .where(
             AuthChallenge.id == challenge.id,
             AuthChallenge.consumed_at.is_(None),
+        )
+        .values(consumed_at=utcnow())
+    )
+    return bool(result.rowcount)
+
+
+async def spend_answered(
+    session: AsyncSession,
+    *,
+    value: str,
+    purpose: ChallengePurpose,
+    user_id: int,
+    answer: str,
+) -> bool:
+    """Spend a challenge only when it is this account's and ``answer`` is the
+    one it waits for, in one statement. A challenge that does not match is
+    left as it was; returns whether this call spent it."""
+    result = await session.exec(
+        update(AuthChallenge)
+        .where(
+            AuthChallenge.challenge_hash == _hash(value),
+            AuthChallenge.purpose == purpose.value,
+            AuthChallenge.user_id == user_id,
+            AuthChallenge.answer_hash == _hash(f"{value}:{answer}"),
+            AuthChallenge.consumed_at.is_(None),
+            AuthChallenge.expires_at > utcnow(),
         )
         .values(consumed_at=utcnow())
     )

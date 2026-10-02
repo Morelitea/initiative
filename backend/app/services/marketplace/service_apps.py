@@ -45,6 +45,7 @@ from app.services.marketplace.manifest_values import (
     check_path,
     check_public_id,
     check_uid,
+    check_url,
     clean_text,
     fail,
     require_list,
@@ -112,6 +113,18 @@ FLOW_TYPES: frozenset[str] = contract.enum("flowType")
 TOKEN_TYPES: frozenset[str] = contract.enum("tokenType")
 REVOKE_METHODS: frozenset[str] = contract.enum("revokeMethod")
 JWT_ALGORITHMS: frozenset[str] = contract.enum("jwtAlgorithm")
+
+#: A vendor's own setup flow (``vendor.setup``): the flows this build runs, a
+#: GitHub App's permission levels, and the values GitHub answers a manifest
+#: conversion with. The three secret ones are written only to a secret field.
+GITHUB_APP_MANIFEST: str = contract.objects()["githubAppManifestSetup"]["properties"][
+    "kind"
+]["const"]
+GITHUB_PERMISSION_LEVELS: frozenset[str] = contract.enum("githubPermissionLevel")
+GITHUB_APP_VALUES: frozenset[str] = contract.enum("githubAppValue")
+GITHUB_SECRET_VALUES: frozenset[str] = frozenset(
+    {"client_secret", "pem", "webhook_secret"}
+)
 
 #: How a vendor webhook's signature is checked, and the characters a header
 #: name and a body path are written in.
@@ -238,6 +251,8 @@ RETURN_TYPES: frozenset[str] = contract.enum("returnValueType")
 MAX_CONNECTIONS = contract.cap("connections")
 MAX_FIELDS_PER_CONNECTION = contract.cap("fieldsPerConnection")
 MAX_VENDOR_FIELDS = contract.cap("vendorFields")
+MAX_GITHUB_APP_PERMISSIONS = contract.cap("githubAppPermissions")
+MAX_GITHUB_APP_EVENTS = contract.cap("githubAppEvents")
 MAX_FLOW_SCOPES = contract.cap("flowScopes")
 MAX_AUTHORIZE_PARAMS = contract.cap("authorizeParams")
 MAX_TOKEN_LIFETIME_SECONDS = contract.cap("tokenLifetimeSeconds")
@@ -560,7 +575,86 @@ def _vendor(raw: Any) -> dict[str, Any] | None:
     label = localized_text(vendor.get("label"), MAX_TEXT_LENGTH)
     if label is not None:
         cleaned["label"] = label
+    if vendor.get("setup") is not None:
+        cleaned["setup"] = _vendor_setup(vendor["setup"], fields=fields)
     return cleaned
+
+
+def check_setup_values(values: Any, *, fields: list[dict[str, Any]]) -> None:
+    """Hold a GitHub App setup's ``values`` to the vendor fields: each key a
+    declared field, each answer GitHub gives written at most once, and the
+    secret ones only to a secret field. Read when a manifest is published and
+    again when a setup finishes against the manifest current then."""
+    what = "service app: vendor.setup.values"
+    if not isinstance(values, dict) or not values:
+        fail(f"{what} must name at least one value")
+    types = {field["key"]: field.get("type") for field in fields}
+    written: set[str] = set()
+    for key, answer in values.items():
+        if key not in types:
+            fail(f"{what} names {key!r}, which the vendor block does not declare")
+        if answer not in GITHUB_APP_VALUES:
+            fail(f"{what} {key!r}: unknown value {answer!r}")
+        if answer in written:
+            fail(f"{what} writes {answer!r} twice")
+        written.add(answer)
+        if answer in GITHUB_SECRET_VALUES and types[key] != "secret":
+            fail(f"{what} {key!r}: {answer!r} is written only to a secret field")
+
+
+def _vendor_setup(raw: Any, *, fields: list[dict[str, Any]]) -> dict[str, Any]:
+    """The vendor's own flow for making its client, and which vendor field
+    each value it answers with is written to."""
+    what = "service app: vendor.setup"
+    setup = require_mapping(raw, what)
+    if setup.get("kind") != GITHUB_APP_MANIFEST:
+        fail(f"{what}: unknown kind {setup.get('kind')!r}")
+    app = require_mapping(setup.get("app"), f"{what}.app")
+    name = check_single_line(
+        clean_text(app.get("name"), what=f"{what}.app.name", limit=MAX_LABEL_LENGTH)
+        or "",
+        what=f"{what}.app.name",
+    )
+    url = check_url(app.get("url"), what=f"{what}.app.url")
+    if not url.startswith("https://"):
+        fail(f"{what}.app.url must be an https address")
+    public = app.get("public", False)
+    if not isinstance(public, bool):
+        fail(f"{what}.app.public must be true or false")
+    permissions = require_mapping(
+        app.get("default_permissions") or {}, f"{what}.app.default_permissions"
+    )
+    if len(permissions) > MAX_GITHUB_APP_PERMISSIONS:
+        fail(
+            f"{what}.app.default_permissions holds more than "
+            f"{MAX_GITHUB_APP_PERMISSIONS} entries"
+        )
+    for permission, level in permissions.items():
+        check_identifier(permission, what=f"{what}.app permission")
+        if level not in GITHUB_PERMISSION_LEVELS:
+            fail(f"{what}.app permission {permission!r}: unknown level {level!r}")
+    events = [
+        check_identifier(event, what=f"{what}.app event")
+        for event in require_list(
+            app.get("default_events"),
+            f"{what}.app.default_events",
+            MAX_GITHUB_APP_EVENTS,
+        )
+    ]
+    if len(set(events)) != len(events):
+        fail(f"{what}.app.default_events names an event twice")
+
+    values = require_mapping(setup.get("values"), f"{what}.values")
+    check_setup_values(values, fields=fields)
+
+    cleaned_app: dict[str, Any] = {
+        "name": name,
+        "url": url,
+        "public": public,
+        "default_permissions": dict(sorted(permissions.items())),
+        "default_events": events,
+    }
+    return {"kind": setup["kind"], "app": cleaned_app, "values": dict(values)}
 
 
 def _template(

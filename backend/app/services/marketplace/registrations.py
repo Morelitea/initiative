@@ -7,8 +7,8 @@ Every app splits the same way, whatever published its listing
   registry, a local upload, the operator's catalog directory, the build) may
   carry a ``registration`` block, and ``upsert_listing`` hands it to
   :func:`read_listing_registration` and :func:`apply_listing_registration`,
-  which write the listing, scope ceiling, image and reference sectors onto
-  the registration for the service it names, creating the row when there is
+  which write the listing, scope ceiling, image, reference sectors and
+  Compose service onto the registration for the service it names, creating the row when there is
   none. Reference sectors are honoured only from the registry.
 * **The operator gives the deployment facts**: where the app runs, the keys
   its container signs with, its vendor values, the switch, the mandatory flag
@@ -107,6 +107,7 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "source",
     "image_digest",
     "reference_sectors",
+    "compose",
 )
 
 
@@ -124,6 +125,7 @@ __all__ = [
     "connect_registration",
     "create_registration",
     "delete_registration",
+    "filled_compose",
     "get_registration",
     "row_browser_base",
     "list_registrations",
@@ -801,6 +803,17 @@ async def connect_registration(
 #: and the keys it signs with are the deployment's.
 _DEPLOYMENT_KEYS = ("base_url", "embed_origin", "jwks", "jwks_uri")
 
+#: What a listing's Compose service may hold: YAML text, and the address the
+#: service answers at on the Compose network. A ``${`` opens one of the
+#: placeholders filled when the snippet is shown, and nothing else.
+_COMPOSE_KEYS = frozenset({"service", "base_url"})
+_MAX_COMPOSE_SERVICE = 4096
+_MAX_COMPOSE_BASE_URL = 512
+_COMPOSE_IMAGE = "${IMAGE}"
+_COMPOSE_INITIATIVE_URL = "${INITIATIVE_URL}"
+#: A host as a URL parser reads it back, lowercased.
+_COMPOSE_HOST_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789.-")
+
 #: Characters a container image reference may use (``<repository>@sha256:``).
 _IMAGE_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789._/:-@")
 _IMAGE_DIGEST_MARK = "@sha256:"
@@ -829,6 +842,8 @@ class ListingRegistration:
     reference_sectors: list[str]
     #: Whether the registry listing verified under the root this image ships.
     root_is_builtin: bool
+    #: The Compose service its publisher wrote, placeholders unfilled.
+    compose: Optional[dict[str, str]] = None
 
 
 def _image_reference(value: Any) -> str:
@@ -851,6 +866,66 @@ def _image_reference(value: Any) -> str:
             "the container image is not pinned by sha256 digest"
         )
     return value
+
+
+def _compose(value: Any, *, image: Optional[str]) -> dict[str, str]:
+    """A listing's Compose service: ``service``, YAML text whose only
+    placeholders are ``${IMAGE}`` (only beside an image) and
+    ``${INITIATIVE_URL}``, and ``base_url``, an http(s) address with a host, an
+    optional port and an optional path."""
+    if not isinstance(value, Mapping) or set(value) != _COMPOSE_KEYS:
+        raise ListingRegistrationError("compose names its service and base_url only")
+    service, base_url = value["service"], value["base_url"]
+    if not isinstance(service, str) or not 0 < len(service) <= _MAX_COMPOSE_SERVICE:
+        raise ListingRegistrationError(
+            f"compose.service must be 1..{_MAX_COMPOSE_SERVICE} characters"
+        )
+    start = service.find("${")
+    while start != -1:
+        placeholder = next(
+            (
+                name
+                for name in (_COMPOSE_IMAGE, _COMPOSE_INITIATIVE_URL)
+                if service.startswith(name, start)
+            ),
+            None,
+        )
+        if placeholder is None:
+            raise ListingRegistrationError(
+                "compose.service fills ${IMAGE} and ${INITIATIVE_URL} only"
+            )
+        if placeholder == _COMPOSE_IMAGE and image is None:
+            raise ListingRegistrationError("compose.service names an image it lacks")
+        start = service.find("${", start + len(placeholder))
+    if not isinstance(base_url, str) or len(base_url) > _MAX_COMPOSE_BASE_URL:
+        raise ListingRegistrationError(
+            f"compose.base_url must be at most {_MAX_COMPOSE_BASE_URL} characters"
+        )
+    try:
+        parsed = urlparse(base_url)
+        parsed.port
+    except ValueError as exc:
+        raise ListingRegistrationError("compose.base_url is not a usable URL") from exc
+    if (
+        parsed.scheme not in ("http", "https")
+        or not parsed.hostname
+        or any(char not in _COMPOSE_HOST_CHARS for char in parsed.hostname)
+        or parsed.username is not None
+        or any(char in "?#" or char.isspace() for char in base_url)
+    ):
+        raise ListingRegistrationError("compose.base_url is not a usable URL")
+    return {"service": service, "base_url": base_url}
+
+
+def filled_compose(row: AppServiceRegistration) -> Optional[str]:
+    """The registration's Compose service as the operator copies it: its
+    image pinned by digest and Initiative's public address filled in."""
+    service = (row.compose or {}).get("service")
+    if not isinstance(service, str):
+        return None
+    return service.replace(_COMPOSE_IMAGE, row.image_digest or "").replace(
+        _COMPOSE_INITIATIVE_URL, settings.APP_URL.rstrip("/")
+    )
 
 
 def _vocabulary(values: Any, allowed: frozenset[str], *, what: str) -> list[str]:
@@ -917,6 +992,12 @@ async def read_listing_registration(
 
     declared_image = spec.get("image")
     image = _image_reference(declared_image) if declared_image is not None else None
+    declared_compose = spec.get("compose")
+    compose = (
+        _compose(declared_compose, image=image)
+        if declared_compose is not None
+        else None
+    )
     declared_ceiling = spec.get("scope_ceiling")
     ceiling = _vocabulary(
         declared_ceiling,
@@ -956,6 +1037,7 @@ async def read_listing_registration(
         scope_ceiling=ceiling,
         reference_sectors=sectors,
         root_is_builtin=registry and root_is_builtin,
+        compose=compose,
     )
 
 
@@ -983,6 +1065,7 @@ async def apply_listing_registration(
     row.scope_ceiling = registration.scope_ceiling
     row.reference_sectors = registration.reference_sectors
     row.image_digest = registration.image
+    row.compose = registration.compose
     row.root_is_builtin = registration.root_is_builtin
     row.source = (
         RegistrationSource.REGISTRY

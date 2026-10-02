@@ -764,6 +764,10 @@
   "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED": "La conexión de esta app aún no está configurada en este servidor. Avisa a quien lo administra.",
   "APP_SERVICE_UNKNOWN_VENDOR_FIELD": "Ese valor no es uno que pida la ficha de esta app.",
   "APP_SERVICE_INVALID_VENDOR_VALUE": "Ese valor no es válido. Revisa su longitud y que una dirección empiece por https:// o http://.",
+  "APP_SERVICE_VENDOR_SETUP_UNAVAILABLE": "La ficha de esta aplicación no ofrece una configuración en su proveedor. Introduce sus valores a mano.",
+  "APP_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION": "Ese no es un nombre de organización que use GitHub. Usa letras, números y guiones, hasta 39 caracteres.",
+  "APP_SERVICE_VENDOR_SETUP_EXPIRED": "Esta configuración ha caducado o ya se completó. Vuelve a empezarla desde los ajustes de la aplicación.",
+  "APP_SERVICE_VENDOR_SETUP_FAILED": "GitHub no entregó los valores de la nueva aplicación. Vuelve a empezar la configuración.",
   "APP_CHANNEL_CONNECTION_EXPIRED": "Esa conexión ha caducado y el miembro tiene que volver a conectar.",
   "APP_CHANNEL_CONNECTION_NO_TOKEN": "Esa conexión no tiene ningún token que entregar.",
   "APP_CHANNEL_TOKEN_UNAVAILABLE": "El proveedor no entregó un token. Inténtalo de nuevo en un momento."

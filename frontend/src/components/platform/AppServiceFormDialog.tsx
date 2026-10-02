@@ -6,6 +6,7 @@ import type {
   AppServiceRegistrationRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy-button";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useAppServiceKeys, useConnectAppService } from "@/hooks/useAppServices";
-import { parseAllowedOrigins } from "@/lib/appServices";
+import {
+  useAppServiceKeys,
+  useConnectAppService,
+  useStartVendorSetup,
+} from "@/hooks/useAppServices";
+import { parseAllowedOrigins, postToVendor } from "@/lib/appServices";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { localized } from "@/lib/widgets/widgetMeta";
@@ -80,7 +85,12 @@ export interface AppServiceFormDialogProps {
  * its saved base URL, shows each key's fingerprint, and pins the set once the
  * operator confirms it. The one secret a registration holds is
  * what the operator supplies for the app's vendor client, as the app's listing
- * asks for it: a secret value is written here and never shown again.
+ * asks for it: a secret value is written here and never shown again. A listing
+ * may also offer the vendor's own setup, which creates the client at the
+ * vendor and writes its values back without anyone copying them.
+ *
+ * A container's listing may carry the Compose service its publisher wrote. It
+ * is shown as text to copy, and its address pre-fills the base URL.
  */
 export const AppServiceFormDialog = ({
   open,
@@ -100,8 +110,12 @@ export const AppServiceFormDialog = ({
   // The key set box's text as Connect left it, to tell a pinned set from one
   // the operator pasted.
   const [pinnedJwks, setPinnedJwks] = useState<string | null>(null);
+  // The GitHub organization to own the app the vendor's setup creates.
+  const [organization, setOrganization] = useState("");
+  const [setupError, setSetupError] = useState<string | null>(null);
   const readKeys = useAppServiceKeys();
   const connect = useConnectAppService();
+  const startSetup = useStartVendorSetup();
 
   // Re-seed whenever the dialog opens, so a reopened form never shows the
   // previous row's values.
@@ -110,7 +124,7 @@ export const AppServiceFormDialog = ({
     if (editing) {
       setForm({
         publicId: editing.public_id,
-        baseUrl: editing.base_url ?? "",
+        baseUrl: editing.base_url ?? editing.compose_base_url ?? "",
         embedOrigin: editing.embed_origin ?? "",
         allowedOrigins: editing.allowed_origins.join("\n"),
         jwks: editing.jwks ? JSON.stringify(editing.jwks, null, 2) : "",
@@ -125,6 +139,8 @@ export const AppServiceFormDialog = ({
     setServedKeys(null);
     setConnectError(null);
     setPinnedJwks(null);
+    setOrganization("");
+    setSetupError(null);
   }, [open, editing]);
 
   // Connect reads from the saved base URL, so it waits while the box holds
@@ -166,6 +182,19 @@ export const AppServiceFormDialog = ({
           setServedKeys(null);
           setConnectError(getErrorMessage(error, "settings:appServices.connectError"));
         },
+      }
+    );
+  };
+
+  const handleVendorSetup = () => {
+    if (!editing) return;
+    setSetupError(null);
+    startSetup.mutate(
+      { registrationId: editing.id, organization: organization.trim() },
+      {
+        onSuccess: postToVendor,
+        onError: (error) =>
+          setSetupError(getErrorMessage(error, "settings:appServices.vendorSetupError")),
       }
     );
   };
@@ -239,6 +268,29 @@ export const AppServiceFormDialog = ({
               {editing ? t("appServices.publicIdHelpEdit") : t("appServices.publicIdHelp")}
             </p>
           </div>
+
+          {editing?.compose_service && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="app-service-compose">{t("appServices.composeLabel")}</Label>
+                <CopyButton
+                  value={editing.compose_service}
+                  label={t("appServices.composeCopy")}
+                  copiedMessage={t("appServices.composeCopied")}
+                />
+              </div>
+              <Textarea
+                id="app-service-compose"
+                value={editing.compose_service}
+                readOnly
+                rows={8}
+                className="whitespace-pre font-mono text-xs"
+                wrap="off"
+                spellCheck={false}
+              />
+              <p className="text-muted-foreground text-xs">{t("appServices.composeHelp")}</p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="app-service-base-url">{t("appServices.baseUrlLabel")}</Label>
@@ -398,6 +450,46 @@ export const AppServiceFormDialog = ({
               </legend>
               <div className="clear-both space-y-3">
                 <p className="text-muted-foreground text-xs">{t("appServices.vendorHelp")}</p>
+
+                {editing.vendor_setup === "github_app_manifest" && (
+                  <section
+                    className="space-y-2 rounded-md border p-3"
+                    aria-label={t("appServices.vendorSetupTitle")}
+                  >
+                    <p className="font-medium text-sm">{t("appServices.vendorSetupTitle")}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {t("appServices.vendorSetupHelp")}
+                    </p>
+                    <Label htmlFor="app-service-vendor-organization">
+                      {t("appServices.vendorSetupOrganizationLabel")}
+                    </Label>
+                    <Input
+                      id="app-service-vendor-organization"
+                      value={organization}
+                      onChange={(event) => setOrganization(event.target.value)}
+                      placeholder={t("appServices.vendorSetupOrganizationPlaceholder")}
+                      maxLength={39}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <p className="text-muted-foreground text-xs">
+                      {t("appServices.vendorSetupOrganizationHelp")}
+                    </p>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleVendorSetup}
+                        disabled={startSetup.isPending}
+                      >
+                        {startSetup.isPending
+                          ? t("appServices.vendorSetupStarting")
+                          : t("appServices.vendorSetupCreate")}
+                      </Button>
+                    </div>
+                    {setupError && <p className="text-destructive text-xs">{setupError}</p>}
+                  </section>
+                )}
 
                 {vendorFields.map((field) => {
                   const id = `app-service-vendor-${field.key}`;

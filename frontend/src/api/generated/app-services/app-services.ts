@@ -29,6 +29,9 @@ import type {
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
+  AppServiceVendorSetup,
+  AppServiceVendorSetupComplete,
+  AppServiceVendorSetupStart,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -749,6 +752,254 @@ export const useConnectAppServiceApiV1AppServicesRegistrationIdConnectPost = <
     queryClient
   );
 };
+/**
+ * Start the vendor's own setup of the app's client: the manifest the
+ * operator's browser posts to the vendor, where, and the state that brings
+ * them back (409 when the listing declares no such setup).
+ * @summary Start App Service Vendor Setup
+ */
+export const startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost = (
+  registrationId: number,
+  appServiceVendorSetupStart: BodyType<AppServiceVendorSetupStart>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServiceVendorSetup>(
+    {
+      url: `/api/v1/app-services/${registrationId}/vendor-setup`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: appServiceVendorSetupStart,
+      signal,
+    },
+    options
+  );
+};
+
+export const getStartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationKey =
+  () => ["startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost"] as const;
+
+export const getStartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost>
+      >,
+      TError,
+      StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost>
+    >,
+    TError,
+    StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getStartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost>
+      >,
+      StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationVariables
+    > = (props) => {
+      const { registrationId, data } = props ?? {};
+
+      return startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost(
+        registrationId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost>
+    >
+  >;
+export type StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationBody =
+  BodyType<AppServiceVendorSetupStart>;
+export type StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationError =
+  ErrorType<HTTPValidationError>;
+export type StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationVariables =
+  { registrationId: number; data: BodyType<AppServiceVendorSetupStart> };
+
+/**
+ * @summary Start App Service Vendor Setup
+ */
+export const useStartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost>
+      >,
+      TError,
+      StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost>
+  >,
+  TError,
+  StartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getStartAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Finish the setup the vendor sent the operator back from, writing the
+ * new client's values into the registration's vendor values.
+ * @summary Complete App Service Vendor Setup
+ */
+export const completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost = (
+  registrationId: number,
+  appServiceVendorSetupComplete: BodyType<AppServiceVendorSetupComplete>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AppServiceRegistrationRead>(
+    {
+      url: `/api/v1/app-services/${registrationId}/vendor-setup/complete`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: appServiceVendorSetupComplete,
+      signal,
+    },
+    options
+  );
+};
+
+export const getCompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationKey =
+  () =>
+    ["completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost"] as const;
+
+export const getCompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost
+        >
+      >,
+      TError,
+      CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost
+      >
+    >,
+    TError,
+    CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getCompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost
+        >
+      >,
+      CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationVariables
+    > = (props) => {
+      const { registrationId, data } = props ?? {};
+
+      return completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost(
+        registrationId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost
+      >
+    >
+  >;
+export type CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationBody =
+  BodyType<AppServiceVendorSetupComplete>;
+export type CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationVariables =
+  { registrationId: number; data: BodyType<AppServiceVendorSetupComplete> };
+
+/**
+ * @summary Complete App Service Vendor Setup
+ */
+export const useCompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost
+          >
+        >,
+        TError,
+        CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationVariables,
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost
+      >
+    >,
+    TError,
+    CompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationVariables,
+    TContext
+  > => {
+    return useMutation(
+      getCompleteAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePostMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
 /**
  * Every publisher of app services on this deployment (``apps.manage``).
  * @summary List App Publishers

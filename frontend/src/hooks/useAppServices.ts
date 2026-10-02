@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost,
   connectAppServiceApiV1AppServicesRegistrationIdConnectPost,
   createAppServiceApiV1AppServicesPost,
   deleteAppServiceApiV1AppServicesRegistrationIdDelete,
   getListAppServicesApiV1AppServicesGetQueryKey,
   listAppServicesApiV1AppServicesGet,
   readAppServiceKeysApiV1AppServicesRegistrationIdConnectGet,
+  startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost,
   updateAppServiceApiV1AppServicesRegistrationIdPatch,
 } from "@/api/generated/app-services/app-services";
 import type {
@@ -14,6 +16,7 @@ import type {
   AppServiceRegistrationCreate,
   AppServiceRegistrationRead,
   AppServiceRegistrationUpdate,
+  AppServiceVendorSetup,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -96,6 +99,48 @@ export const useConnectAppService = (
         connectAppServiceApiV1AppServicesRegistrationIdConnectPost(registrationId, {
           keys,
         }),
+      invalidate: () => invalidate(q.appServices()),
+    },
+    options
+  );
+
+export interface StartVendorSetupVariables {
+  registrationId: number;
+  /** The organization to own the vendor's new client, or "" for the operator's account. */
+  organization: string;
+}
+
+/** Start the vendor's own setup of the app's client: what the browser posts to it, and where. */
+export const useStartVendorSetup = (
+  options?: MutationOpts<AppServiceVendorSetup, StartVendorSetupVariables>
+) =>
+  useApiMutation<AppServiceVendorSetup, StartVendorSetupVariables>(
+    {
+      mutationFn: ({ registrationId, organization }) =>
+        startAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupPost(registrationId, {
+          organization: organization || null,
+        }),
+    },
+    options
+  );
+
+export interface CompleteVendorSetupVariables {
+  registrationId: number;
+  code: string;
+  state: string;
+}
+
+/** Finish the setup the vendor sent the operator back from, writing the vendor values. */
+export const useCompleteVendorSetup = (
+  options?: MutationOpts<AppServiceRegistrationRead, CompleteVendorSetupVariables>
+) =>
+  useApiMutation<AppServiceRegistrationRead, CompleteVendorSetupVariables>(
+    {
+      mutationFn: ({ registrationId, code, state }) =>
+        completeAppServiceVendorSetupApiV1AppServicesRegistrationIdVendorSetupCompletePost(
+          registrationId,
+          { code, state }
+        ),
       invalidate: () => invalidate(q.appServices()),
     },
     options
