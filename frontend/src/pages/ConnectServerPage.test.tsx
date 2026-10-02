@@ -2,13 +2,16 @@
  * The app's first screen: where the person's Initiative runs.
  *
  * Initiative Cloud is listed but closed until it opens, so the only road is a
- * self-hosted server's address.
+ * self-hosted server's address. A browser is already on its server and is
+ * never asked.
  */
+import { isRedirect } from "@tanstack/react-router";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
+import { Route } from "@/routes/connect";
 
 import { ConnectServerPage } from "./ConnectServerPage";
 
@@ -31,5 +34,22 @@ describe("ConnectServerPage", () => {
 
     expect(testServerConnection).toHaveBeenCalledWith("https://initiative.example.com");
     expect(setServerUrl).toHaveBeenCalledWith("https://initiative.example.com");
+  });
+
+  it("sends a browser home and lets the app in", () => {
+    const beforeLoad = Route.options.beforeLoad as (args: {
+      context: { server: { isNativePlatform: boolean } };
+    }) => void;
+    const guard = (isNativePlatform: boolean) => {
+      try {
+        beforeLoad({ context: { server: { isNativePlatform } } });
+        return null;
+      } catch (error) {
+        return isRedirect(error) ? error.options.to : error;
+      }
+    };
+
+    expect(guard(false)).toBe("/");
+    expect(guard(true)).toBeNull();
   });
 });
