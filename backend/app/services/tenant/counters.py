@@ -192,6 +192,18 @@ async def reset_all_counters(
     return group
 
 
+async def next_position(session: AsyncSession, group_id: int) -> Decimal:
+    """Where a counter added at the end of its group goes."""
+    last = (
+        await session.exec(
+            select(func.max(Counter.position)).where(
+                Counter.counter_group_id == group_id
+            )
+        )
+    ).one()
+    return (last or Decimal(0)) + 1
+
+
 async def sort_counters(
     session: AsyncSession,
     group: CounterGroup,

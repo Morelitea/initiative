@@ -54,7 +54,7 @@ from app.schemas.tenant.queue import (
     serialize_queue,
     serialize_queue_item,
 )
-from app.api import resource_access
+from app.api import resource_access, tool_copy
 from app.core.tools import Tool
 from app.db.session import require_actor_context
 from app.services.tenant import queues as queues_service
@@ -236,6 +236,49 @@ async def read_queue_item(
         session, Tool.queue, item.queue_id, current_user, guild_context, access="read"
     )
     return await _serialized_queue_item(session, item)
+
+
+@items_router.post(
+    "/queue-items/{item_id}/duplicate",
+    response_model=QueueItemRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def duplicate_queue_item(
+    item_id: int,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: QueuesWrite,
+) -> QueueItemRead:
+    """Copy the item beside itself, at the same place in the turn order, as
+    "<label> (Copy)", with its person, tags, links and properties."""
+    item = await queues_service.get_queue_item(session, item_id)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=QueueMessages.ITEM_NOT_FOUND,
+        )
+    queue = await resource_access.load_authorized(
+        session, Tool.queue, item.queue_id, current_user, guild_context, access="write"
+    )
+    named = {item.user_id} if item.user_id is not None else set()
+    keep = await named_people.readers(
+        session, named_people.Governing.of(Tool.queue, queue), named
+    )
+    copy = await tool_copy.duplicate_child(
+        session, item, user_id=item.user_id if item.user_id in keep else None
+    )
+    await session.commit()
+    hydrated = await queues_service.get_queue_item(
+        session, copy.id, populate_existing=True
+    )
+    if not hydrated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=QueueMessages.ITEM_NOT_FOUND,
+        )
+    result = await _serialized_queue_item(session, hydrated)
+    sockets.signal(routed_guild_id(session), Tool.queue, queue.id, "item_added")
+    return result
 
 
 @router.get("/{queue_id}", response_model=QueueRead)

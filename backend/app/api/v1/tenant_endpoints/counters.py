@@ -52,7 +52,7 @@ from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import counters as counters_service
-from app.api import resource_access
+from app.api import resource_access, tool_copy
 from app.core.tools import Tool
 from app.services.content_sockets import sockets
 from app.api.content_socket import serve_tool_stream
@@ -494,6 +494,45 @@ async def _writable_counter(
         access="write",
     )
     return counter
+
+
+@counters_router.post(
+    "/counters/{counter_id}/duplicate",
+    response_model=CounterRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def duplicate_counter(
+    counter_id: int,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CounterGroupsWrite,
+) -> CounterRead:
+    """Copy the counter to the end of its group as "<name> (Copy)", with its
+    count, tags and properties."""
+    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    copy = await tool_copy.duplicate_child(
+        session,
+        counter,
+        position=await counters_service.next_position(
+            session, counter.counter_group_id
+        ),
+    )
+    await session.commit()
+    hydrated = await counters_service.get_counter(
+        session, copy.id, populate_existing=True
+    )
+    if not hydrated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
+        )
+    result = serialize_counter(hydrated, context=guild_context)
+    sockets.signal(
+        routed_guild_id(session),
+        Tool.counter_group,
+        counter.counter_group_id,
+        "counter_added",
+    )
+    return result
 
 
 @counters_router.post("/counters/{counter_id}/set", response_model=CounterRead)

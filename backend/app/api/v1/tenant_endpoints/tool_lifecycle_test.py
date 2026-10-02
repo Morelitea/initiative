@@ -7,7 +7,9 @@ into the trash with it is ``soft_delete_test``'s; restoring it is ``trash_test``
 
 ``POST /{tool}/{id}/duplicate`` is mounted for every tool in
 ``tool_copy.TOOL_COPIERS``, and its shared steps are proved here per tool; what
-each tool carries inside it is that tool's own test.
+each tool carries inside it is that tool's own test. So is the duplicate of a
+row inside a tool (``tool_copy.CHILD_COPIERS``), which each sub-tool routes
+itself.
 
 The queue and counter-group signal tests this replaces asserted the same thing
 for two tools under their own event names.
@@ -17,22 +19,32 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.tool_copy import TOOL_COPIERS
+from app.api.resource_access import governing_tool
+from app.api.tool_copy import CHILD_COPIERS, TOOL_COPIERS
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
+from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
+from app.models.tenant.counter import Counter
+from app.models.tenant.queue import QueueItem
+from app.models.tenant.wiki import WikiPage
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.tenant.lifecycle_tree import CASCADE_CHILDREN
 from app.testing import (
     assign_tag,
+    create_calendar_event,
+    create_counter,
     create_initiative,
+    create_queue_item,
     create_resource_grant,
     create_tag,
     create_tool_entity,
     enable_all_tools,
+    create_wiki_page,
     grant_role_permission,
 )
+from app.services.tenant.tags import TAG_LINKS
 
 #: Every tool, as its own test case.
 TOOLS = pytest.mark.parametrize("tool", list(Tool), ids=[t.value for t in Tool])
@@ -186,3 +198,57 @@ def test_every_table_inside_a_tool_is_copied_or_left_on_purpose(tool: Tool):
     says which."""
     inside = {child for child, _ in CASCADE_CHILDREN.get(TOOL_LISTS[tool].model, ())}
     assert inside - {Comment} == TOOL_COPIERS[tool].copies
+
+
+#: Where each row inside a tool is addressed, and how one called "Plan" is made.
+CHILDREN = {
+    Counter: ("counters", lambda s, tool, user: create_counter(s, tool, name="Plan")),
+    QueueItem: (
+        "queue-items",
+        lambda s, tool, user: create_queue_item(s, tool, label="Plan"),
+    ),
+    CalendarEvent: (
+        "calendar-events",
+        lambda s, tool, user: create_calendar_event(s, tool, user, title="Plan"),
+    ),
+    WikiPage: (
+        "wiki-pages",
+        lambda s, tool, user: create_wiki_page(s, tool, user, title="Plan"),
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "model", list(CHILD_COPIERS), ids=[m.__tablename__ for m in CHILD_COPIERS]
+)
+async def test_a_row_inside_a_tool_is_copied_beside_itself_by_its_writers(
+    client: AsyncClient, session: AsyncSession, acting_user, model: type
+):
+    segment, make = CHILDREN[model]
+    copier = CHILD_COPIERS[model]
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    tool = await _entity(session, a, governing_tool(model.__tablename__))
+    row = await make(session, tool, a.user)
+    tagged = any(spec.entity is model for spec in TAG_LINKS.values())
+    if tagged:
+        await assign_tag(session, row, await create_tag(session, a.guild), commit=True)
+    reader = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session, tool, level=ResourceAccessLevel.read, user=reader.user
+    )
+    path = a.g(f"/{segment}/{row.id}/duplicate")
+
+    refused = await client.post(path, headers=reader.headers)
+    copied = await client.post(path, headers=a.headers)
+
+    assert refused.status_code == 403, refused.text
+    assert copied.status_code == 201, copied.text
+    body = copied.json()
+    assert body["id"] != row.id
+    assert (body[copier.name], body[copier.parent]) == ("Plan (Copy)", tool.id)
+    assert len(body.get("tags", [])) == int(tagged)

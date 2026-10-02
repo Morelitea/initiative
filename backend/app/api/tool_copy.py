@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -48,9 +49,10 @@ from app.schemas.base import RESERVED_SIGIL_CODE, RESERVED_SIGILS
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import documents as documents_service
 from app.services.tenant import filter_presets as filter_presets_service
-from app.services.tenant import project_grants
+from app.services.tenant import named_people, project_grants
 from app.services.tenant import properties as properties_service
 from app.services.tenant import content_references, relationships
 from app.services.tenant.relationships import Endpoint
@@ -58,7 +60,7 @@ from app.services.tenant import tags as tags_service
 from app.services.tenant import task_creation
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services.tenant import wikis as wikis_service
-from app.services.tenant.names import ensure_name_free
+from app.services.tenant.names import copy_name, ensure_name_free
 
 #: async (session, source, copy, actor) -> the rows made inside ``copy``
 Contents = Callable[[AsyncSession, Any, Any, ActorContext], Awaitable[Sequence[Any]]]
@@ -84,6 +86,31 @@ class ToolCopier:
     #: async (session, copy_id, user): tell people about the copy, once it is
     #: committed.
     announce: Optional[Callable[[AsyncSession, int, User], Awaitable[None]]] = None
+
+
+@dataclass(frozen=True)
+class ChildCopier:
+    """How a row inside a tool is copied, alone or with its tool."""
+
+    #: The column holding the tool it is in.
+    parent: str
+    #: The column holding what it is called.
+    name: str
+    #: Columns a copy starts afresh rather than carries.
+    reset: Mapping[str, Any] = field(default_factory=dict)
+
+
+#: The rows inside a tool that can be copied on their own. A task is copied by
+#: ``task_creation.copy_tasks``.
+CHILD_COPIERS: dict[type, ChildCopier] = {
+    Counter: ChildCopier("counter_group_id", "name"),
+    # A copy is not held out of the rotation.
+    QueueItem: ChildCopier("queue_id", "label", reset={"held_at_round": None}),
+    CalendarEvent: ChildCopier("calendar_id", "title"),
+    WikiPage: ChildCopier(
+        "wiki_id", "title", reset={"yjs_state": None, "yjs_updated_at": None}
+    ),
+}
 
 
 #: What a row says about its own lifecycle and origin rather than its content.
@@ -176,6 +203,8 @@ async def _copy_children(
 ) -> list[tuple[Any, Any]]:
     """Clone ``sources``, rows inside a tool, with ``values(source)`` set on
     each, then copy their tags and properties; returns the pairs."""
+    if sources and type(sources[0]) in CHILD_COPIERS:
+        reset = {**CHILD_COPIERS[type(sources[0])].reset, **(reset or {})}
     pairs = [(source, _clone(source, reset, **values(source))) for source in sources]
     session.add_all(clone for _, clone in pairs)
     await session.flush()
@@ -228,7 +257,7 @@ async def duplicate(
     initiative_id = initiative_id or source.initiative_id
     beside = initiative_id == source.initiative_id
     await resource_access.prepare_create(session, tool, initiative_id, user, actor)
-    name = (name or "").strip() or (f"{source.name} (Copy)" if beside else source.name)
+    name = (name or "").strip() or (copy_name(source.name) if beside else source.name)
     if not copier.name_takes_sigils and RESERVED_SIGILS.intersection(name):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -351,7 +380,6 @@ async def _queue_contents(
         items,
         beside=_beside(source, copy),
         values=lambda item: {"queue_id": copy.id, "user_id": item.user_id},
-        reset={"held_at_round": None},
     )
     return [clone for _, clone in pairs]
 
@@ -423,34 +451,34 @@ async def _post_contents(
     return []
 
 
-async def _calendar_contents(
-    session: AsyncSession, source: Calendar, copy: Calendar, actor: ActorContext
-) -> list[CalendarEvent]:
-    """Its events, each series with the occurrences changed on their own, and
-    their invitees, whose answers start over."""
-    events = (
+async def _copy_events(
+    session: AsyncSession,
+    events: Sequence[CalendarEvent],
+    *,
+    beside: bool,
+    values: Callable[[Any], Mapping[str, Any]],
+    people: Optional[Collection[int]] = None,
+) -> list[tuple[Any, Any]]:
+    """Copy ``events``, each series among them with the occurrences changed on
+    their own, and their invitees (those in ``people`` when it is given),
+    whose answers start over."""
+    pairs = await _copy_children(session, events, beside=beside, values=values)
+    series = {source.id: clone for source, clone in pairs if source.recurrence}
+    changed = (
         await session.exec(
-            select(CalendarEvent).where(CalendarEvent.calendar_id == source.id)
+            select(CalendarEvent).where(CalendarEvent.series_id.in_(series))
         )
     ).all()
-    beside = _beside(source, copy)
-    pairs = await _copy_children(
-        session,
-        [event for event in events if event.series_id is None],
-        beside=beside,
-        values=lambda _: {"calendar_id": copy.id},
-    )
-    series = {source_event.id: clone.id for source_event, clone in pairs}
     pairs += await _copy_children(
         session,
-        [event for event in events if event.series_id in series],
+        changed,
         beside=beside,
         values=lambda event: {
-            "calendar_id": copy.id,
-            "series_id": series[event.series_id],
+            "calendar_id": series[event.series_id].calendar_id,
+            "series_id": series[event.series_id].id,
         },
     )
-    clones = {source_event.id: clone.id for source_event, clone in pairs}
+    clones = {source.id: clone.id for source, clone in pairs}
     attendees = (
         await session.exec(
             select(CalendarEventAttendee).where(
@@ -464,6 +492,27 @@ async def _calendar_contents(
             user_id=attendee.user_id,
         )
         for attendee in attendees
+        if people is None or attendee.user_id in people
+    )
+    return pairs
+
+
+async def _calendar_contents(
+    session: AsyncSession, source: Calendar, copy: Calendar, actor: ActorContext
+) -> list[CalendarEvent]:
+    events = (
+        await session.exec(
+            select(CalendarEvent).where(
+                CalendarEvent.calendar_id == source.id,
+                CalendarEvent.series_id.is_(None),
+            )
+        )
+    ).all()
+    pairs = await _copy_events(
+        session,
+        events,
+        beside=_beside(source, copy),
+        values=lambda _: {"calendar_id": copy.id},
     )
     return [clone for _, clone in pairs]
 
@@ -484,7 +533,6 @@ async def _wiki_contents(
         published,
         beside=_beside(source, copy),
         values=lambda _: {"wiki_id": copy.id},
-        reset={"yjs_state": None, "yjs_updated_at": None},
     )
     clones = {page.id: clone.id for page, clone in pairs}
 
@@ -508,6 +556,68 @@ async def _wiki_contents(
     copy.home_page_id = clones.get(source.home_page_id)
     copy.template_page_id = clones.get(source.template_page_id)
     return [clone for _, clone in pairs]
+
+
+async def duplicate_child(session: AsyncSession, source: Any, **values: Any) -> Any:
+    """Copy ``source``, a row inside a tool, beside itself as "<name> (Copy)",
+    with its tags, links, text references, property values and files.
+    ``values`` sets what its sub-tool decides: where the copy sits, and whom
+    it names. The caller commits."""
+    copier = CHILD_COPIERS[type(source)]
+    ((_, copy),) = await _copy_children(
+        session,
+        [source],
+        beside=True,
+        values=lambda _: {
+            copier.parent: getattr(source, copier.parent),
+            copier.name: copy_name(getattr(source, copier.name)),
+            **values,
+        },
+    )
+    await attachments_service.claim_uploads(session, copy)
+    return copy
+
+
+async def duplicate_event(
+    session: AsyncSession, event: CalendarEvent, calendar: Calendar
+) -> CalendarEvent:
+    """Copy ``event``, in ``calendar``, beside itself as "<title> (Copy)",
+    with its invitees who can open the calendar. A series takes the
+    occurrences changed on their own, which keep following its title where
+    they did; one changed occurrence becomes an event of its own. The caller
+    commits."""
+    invited = (
+        await session.exec(
+            select(CalendarEventAttendee.user_id)
+            .join(CalendarEvent)
+            .where(
+                or_(CalendarEvent.id == event.id, CalendarEvent.series_id == event.id)
+            )
+        )
+    ).all()
+    people = await named_people.readers(
+        session, named_people.Governing.of(Tool.calendar, calendar), invited
+    )
+    alone = (
+        {"original_start": None, "overridden_fields": []}
+        if event.series_id is not None
+        else {}
+    )
+    ((_, copy), *_rest) = await _copy_events(
+        session,
+        [event],
+        beside=True,
+        values=lambda _: {
+            "calendar_id": event.calendar_id,
+            "title": copy_name(event.title),
+            **alone,
+        },
+        people=people,
+    )
+    if copy.recurrence:
+        await occurrences_service.follow(session, copy, {"title"})
+    await attachments_service.claim_uploads(session, copy)
+    return copy
 
 
 TOOL_COPIERS: dict[Tool, ToolCopier] = {

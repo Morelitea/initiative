@@ -57,6 +57,11 @@ def unique_slug(
     return candidate
 
 
+def copy_name(name: str) -> str:
+    """What a copy beside its source is called."""
+    return f"{name} (Copy)".lstrip()
+
+
 async def ensure_name_free(
     session: AsyncSession, column: Any, name: str, *where: Any, detail: str
 ) -> None:
