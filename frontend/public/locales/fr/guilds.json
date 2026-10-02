@@ -521,7 +521,18 @@
     "title": "Comment les membres sont nommés",
     "description": "Si cette communauté affiche les vrais noms des personnes ou les noms d'utilisateur qu'elles ont choisis.",
     "toggleLabel": "Afficher les noms complets",
-    "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un."
+    "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un. Un nom d'affichage défini pour cette communauté est affiché dans les deux cas."
+  },
+  "displayName": {
+    "menuItem": "Définir votre nom d'affichage",
+    "adminAction": "Définir le nom d'affichage",
+    "ownTitle": "Votre nom d'affichage ici",
+    "ownDescription": "Affiché à la place de votre nom dans cette communauté uniquement. Laissez vide pour le retirer.",
+    "memberTitle": "Nom d'affichage de {{name}}",
+    "memberDescription": "Affiché à la place de son nom dans cette communauté uniquement. Laissez vide pour le retirer.",
+    "label": "Nom d'affichage",
+    "saved": "Nom d'affichage enregistré.",
+    "saveFailed": "Impossible d'enregistrer le nom d'affichage."
   },
   "members": {
     "title": "Membres",

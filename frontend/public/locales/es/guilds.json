@@ -521,7 +521,18 @@
     "title": "Cómo se nombra a los miembros",
     "description": "Si esta comunidad muestra los nombres reales de las personas o los nombres de usuario que eligieron.",
     "toggleLabel": "Mostrar nombres completos",
-    "toggleHint": "Desactivado, los miembros aparecen por su nombre de usuario. Activado, se muestra su nombre completo si lo han indicado."
+    "toggleHint": "Desactivado, los miembros aparecen por su nombre de usuario. Activado, se muestra su nombre completo si lo han indicado. Un nombre visible que alguien establezca para esta comunidad se muestra en ambos casos."
+  },
+  "displayName": {
+    "menuItem": "Establecer tu nombre visible",
+    "adminAction": "Establecer nombre visible",
+    "ownTitle": "Tu nombre visible aquí",
+    "ownDescription": "Se muestra en lugar de tu nombre solo en esta comunidad. Déjalo vacío para quitarlo.",
+    "memberTitle": "Nombre visible de {{name}}",
+    "memberDescription": "Se muestra en lugar de su nombre solo en esta comunidad. Déjalo vacío para quitarlo.",
+    "label": "Nombre visible",
+    "saved": "Nombre visible guardado.",
+    "saveFailed": "No se pudo guardar el nombre visible."
   },
   "members": {
     "title": "Miembros",

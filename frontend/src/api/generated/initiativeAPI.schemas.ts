@@ -5067,6 +5067,7 @@ export interface GuildRead {
   role: GuildRole;
   can: GuildCan;
   position: number;
+  display_name: string | null;
   created_at: string;
   updated_at: string;
   retention_days: number | null;
@@ -6042,6 +6043,14 @@ export interface MemberAIView {
   mode: AIConfigMode;
   enabled: boolean;
   connections: MemberAIConnectionView[];
+}
+
+/**
+ * What a member is called in one community. ``None`` or blank clears it,
+ * and the guild's usual name shows again.
+ */
+export interface MemberDisplayNameUpdate {
+  display_name?: string | null;
 }
 
 /**
@@ -9027,6 +9036,7 @@ export interface UserGuildMember {
   full_name: string | null;
   guild_role: string | null;
   oidc_managed: boolean;
+  display_name: string | null;
 }
 
 /**

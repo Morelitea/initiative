@@ -186,6 +186,7 @@ export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): 
     avatar_url: null,
     guild_role: guildRole,
     oidc_managed: false,
+    display_name: null,
     status: "active",
     created_at: "2026-01-15T00:00:00.000Z",
     initiative_roles: [],

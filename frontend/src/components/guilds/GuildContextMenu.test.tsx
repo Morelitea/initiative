@@ -20,9 +20,11 @@ import { GuildContextMenu } from "./GuildContextMenu";
 
 const mintInvite = vi.hoisted(() => vi.fn());
 const mintHandoff = vi.hoisted(() => vi.fn());
+const setOwnName = vi.hoisted(() => vi.fn());
 vi.mock("@/api/generated/communities/communities", () => ({
   createGuildInviteApiV1CommunitiesGuildIdInvitesPost: mintInvite,
   createGuildBillingHandoffApiV1CommunitiesGuildIdBillingHandoffPost: mintHandoff,
+  setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut: setOwnName,
 }));
 
 // Null billing is the self-hosted deployment; a test opts into the portal.
@@ -195,5 +197,35 @@ describe("GuildContextMenu billing action", () => {
     await openMenu();
     expect(await screen.findByRole("menuitem", { name: /settings/i })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Manage billing" })).not.toBeInTheDocument();
+  });
+});
+
+describe("GuildContextMenu display name", () => {
+  beforeEach(() => setOwnName.mockReset().mockResolvedValue(undefined));
+
+  it("sets the member's own name for the community, starting from the current one", async () => {
+    const guild = setup({ display_name: "Ana" });
+
+    await openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Set your display name" }));
+    const input = await screen.findByLabelText("Display name");
+    expect(input).toHaveValue("Ana");
+    fireEvent.change(input, { target: { value: "  Ana B  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(setOwnName).toHaveBeenCalledWith(guild.id, { display_name: "Ana B" })
+    );
+  });
+
+  it("clears it when left empty", async () => {
+    const guild = setup({ display_name: "Ana" });
+
+    await openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Set your display name" }));
+    fireEvent.change(await screen.findByLabelText("Display name"), { target: { value: " " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(setOwnName).toHaveBeenCalledWith(guild.id, { display_name: null }));
   });
 });

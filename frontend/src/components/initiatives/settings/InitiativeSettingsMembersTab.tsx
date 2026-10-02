@@ -206,8 +206,11 @@ export const InitiativeSettingsMembersTab = ({
   const { activeGuild } = useGuilds();
 
   // What this guild calls people, which decides whether a handle column adds
-  // anything to the member column beside it.
-  const showsNames = Boolean(activeGuild?.show_member_names);
+  // anything to the member column beside it. A name a member set here counts
+  // too, wherever the guild otherwise renders handles.
+  const showsNames =
+    Boolean(activeGuild?.show_member_names) ||
+    members.some((member) => member.user.full_name?.trim());
 
   const memberColumns: AppColumnDef<InitiativeMemberRead>[] = useMemo(() => {
     const getRoleDisplayName = (member: InitiativeMemberRead): string => {

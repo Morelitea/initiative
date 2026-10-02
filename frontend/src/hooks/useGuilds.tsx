@@ -128,6 +128,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
     seat: false,
   },
   position: Number.MAX_SAFE_INTEGER,
+  display_name: null,
   retention_days: null,
   max_storage_bytes: null,
   max_users: null,

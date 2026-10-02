@@ -5,7 +5,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch } from "@/api/generated/communities/communities";
+import {
+  setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut,
+  setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut,
+  updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch,
+} from "@/api/generated/communities/communities";
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
@@ -368,6 +372,32 @@ export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuil
           role: data.role,
         } as Parameters<typeof updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch>[2]),
       invalidate: () => invalidate(q.guildMembers()),
+    },
+    options
+  );
+
+type SetDisplayNameVars = { guildId: number; userId?: number; displayName: string | null };
+
+/**
+ * What somebody is called in one community — their own, without `userId`, or
+ * a member's, by an administrator. The name is drawn wherever the community
+ * draws people, so its content and its roster refresh along with the
+ * community list.
+ */
+export const useSetMemberDisplayName = (options?: MutationOpts<void, SetDisplayNameVars>) =>
+  useApiMutation<void, SetDisplayNameVars>(
+    {
+      mutationFn: async ({ guildId, userId, displayName }) => {
+        const body = { display_name: displayName };
+        await (userId === undefined
+          ? setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut(guildId, body)
+          : setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut(
+              guildId,
+              userId,
+              body
+            ));
+      },
+      invalidate: () => invalidate(q.guildContent(), q.guildMembers(), q.allGuilds()),
     },
     options
   );

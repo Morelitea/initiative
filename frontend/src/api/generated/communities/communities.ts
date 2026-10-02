@@ -43,6 +43,7 @@ import type {
   HTTPValidationError,
   LeaveGuildEligibilityResponse,
   ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
+  MemberDisplayNameUpdate,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -3093,6 +3094,239 @@ export const useUpdateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch =
 > => {
   return useMutation(
     getUpdateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set what a member is called in this community, or clear it. Guild admin
+ * only, or a settings grant beside a read_write one.
+ *
+ * On the system engine, as a role change is: the guild role writes only the
+ * caller's own membership row.
+ * @summary Set Member Display Name
+ */
+export const setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut = (
+  guildId: number,
+  userId: number,
+  memberDisplayNameUpdate: BodyType<MemberDisplayNameUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/communities/${guildId}/members/${userId}/display-name`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: memberDisplayNameUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationKey =
+  () => ["setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut"] as const;
+
+export const getSetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut>
+      >,
+      TError,
+      SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut>
+    >,
+    TError,
+    SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationVariables,
+    TContext
+  > => {
+    const mutationKey =
+      getSetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationKey();
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut>
+      >,
+      SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationVariables
+    > = (props) => {
+      const { guildId, userId, data } = props ?? {};
+
+      return setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut(
+        guildId,
+        userId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut>
+    >
+  >;
+export type SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationBody =
+  BodyType<MemberDisplayNameUpdate>;
+export type SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationError =
+  ErrorType<HTTPValidationError>;
+export type SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationVariables =
+  { guildId: number; userId: number; data: BodyType<MemberDisplayNameUpdate> };
+
+/**
+ * @summary Set Member Display Name
+ */
+export const useSetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut>
+      >,
+      TError,
+      SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut>
+  >,
+  TError,
+  SetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSetMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePutMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
+/**
+ * Set what the caller is called in this community, or clear it.
+ *
+ * Routed as the community's own configuration is, so a member keeps it while
+ * content is frozen and not while the community is in time out.
+ * @summary Set Own Display Name
+ */
+export const setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut = (
+  guildId: number,
+  memberDisplayNameUpdate: BodyType<MemberDisplayNameUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/communities/${guildId}/membership/display-name`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: memberDisplayNameUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationKey = () =>
+  ["setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut"] as const;
+
+export const getSetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut>>,
+    TError,
+    SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut>>,
+  TError,
+  SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getSetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut>>,
+    SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationVariables
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut(
+      guildId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut>>
+  >;
+export type SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationBody =
+  BodyType<MemberDisplayNameUpdate>;
+export type SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationError =
+  ErrorType<HTTPValidationError>;
+export type SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationVariables = {
+  guildId: number;
+  data: BodyType<MemberDisplayNameUpdate>;
+};
+
+/**
+ * @summary Set Own Display Name
+ */
+export const useSetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut>>,
+      TError,
+      SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut>>,
+  TError,
+  SetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getSetOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePutMutationOptions(options),
     queryClient
   );
 };

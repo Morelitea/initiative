@@ -36,6 +36,7 @@ vi.mock("@/hooks/useUsers", () => ({
   }),
   useUserSearch: () => ({ data: undefined, isFetching: false }),
   useUpdateGuildMembership: () => ({ mutate: vi.fn() }),
+  useSetMemberDisplayName: () => ({ mutate: vi.fn(), isPending: false }),
   useExportGuildUsersCsv: () => ({ mutate: vi.fn() }),
 }));
 
