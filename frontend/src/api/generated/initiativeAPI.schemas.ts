@@ -5088,6 +5088,7 @@ export interface GuildRead {
   banner: GuildBannerRead;
   online_count: number;
   icon_url: string | null;
+  banner_card_url: string | null;
 }
 
 /**

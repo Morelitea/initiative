@@ -109,6 +109,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
   icon_url: null,
   // A blank banner until the guild's own payload arrives with the real one.
   banner: renderableBanner(),
+  banner_card_url: null,
   // Nobody is "here" in a guild reached only by a grant until its own payload
   // arrives and says so.
   online_count: 0,

@@ -55,12 +55,15 @@ import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 import { LogoIcon } from "../LogoIcon";
+import { GuildCardFace } from "./GuildCardFace";
 import { GuildContextMenu } from "./GuildContextMenu";
 
 // Swipe tuning — shared feel with the mobile drawer (see ui/sidebar.tsx).
 const SWIPE_THRESHOLD = 60; // px to commit an open/close
 const SWIPE_ENGAGE = 8; // px before a gesture counts as a horizontal drag
 const FLYOUT_TRANSITION_MS = 300; // keep in sync with the inline transform transition
+// Quick to start, long soft settle — the same curve for a tap and a released swipe.
+const FLYOUT_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 const CreateGuildButton = ({ expanded = false }: { expanded?: boolean }) => {
   const { createGuild, canCreateGuilds, switchGuild } = useGuilds();
@@ -454,10 +457,11 @@ const GrantGuildButton = ({
   );
 };
 
-// Expanded ("Guilds" flyout) row: avatar + name + member count. Member rows are
-// drag-reorderable (via SortableGuildRow) — with a mouse always, by touch only
-// in reorder mode, which keeps press-and-hold free for the context menu and a
-// horizontal swipe free to close the flyout. Grant rows pass no drag props.
+// Expanded ("Guilds" flyout) card: the same face a guild wears in the community
+// directory. Member cards are drag-reorderable (via SortableGuildRow) — with a
+// mouse always, by touch only in reorder mode, which keeps press-and-hold free
+// for the context menu and a horizontal swipe free to close the flyout. Grant
+// cards pass no drag props.
 const GuildRow = ({
   guild,
   isActive,
@@ -468,6 +472,7 @@ const GuildRow = ({
   dragProps,
   reorderMode = false,
   onStartReorder,
+  enterIndex,
 }: {
   guild: GuildEntry;
   isActive: boolean;
@@ -478,65 +483,92 @@ const GuildRow = ({
   dragProps?: Record<string, unknown>;
   reorderMode?: boolean;
   onStartReorder?: () => void;
+  /** Place in the list, for the staggered entrance. Absent: no entrance. */
+  enterIndex?: number;
 }) => {
   const { t } = useTranslation("guilds");
   const isGrant = guild.accessType === "grant";
   const left = isGrant ? grantMinutesLeft(guild.grantExpiresAt) : null;
   const rowUnread = useUnreadTree();
+  const highlighted = isActive && !isHomeMode;
   return (
-    <GuildContextMenu guild={guild} onReorder={onStartReorder}>
-      <button
-        type="button"
-        ref={innerRef}
-        style={style}
-        // In reorder mode the tap belongs to the drag, not to switching.
-        onClick={() => {
-          if (!reorderMode) onSelect(guild.id);
-        }}
-        className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          isActive && !isHomeMode ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted",
-          reorderMode && "ring-2 ring-primary/40"
-        )}
-        aria-label={
-          reorderMode
-            ? t("dragToReorder", { name: guild.name })
-            : t("switchTo", { name: guild.name })
-        }
-        {...dragProps}
-      >
-        <span className="relative shrink-0">
-          <GuildAvatar
-            name={guild.name}
-            icon={guild.icon_url}
-            active={isActive}
-            unread={rowUnread.hasGuild(guild.id)}
-            closed={!guild.can.enter}
+    // The entrance sits on a wrapper, not the button, so it never contends
+    // with the transform the drag sets on the button. `backwards` holds the
+    // start frame through the delay and leaves nothing behind once it ends.
+    <div
+      className={cn(
+        enterIndex !== undefined &&
+          "motion-safe:fade-in-0 motion-safe:slide-in-from-left-4 motion-safe:animate-in motion-safe:fill-mode-backwards motion-safe:duration-300 motion-safe:ease-out"
+      )}
+      // The stagger stops growing after a few cards, so a long list arrives
+      // together rather than trickling in.
+      style={
+        enterIndex !== undefined
+          ? { animationDelay: `${60 + Math.min(enterIndex, 8) * 35}ms` }
+          : undefined
+      }
+    >
+      <GuildContextMenu guild={guild} onReorder={onStartReorder}>
+        <button
+          type="button"
+          ref={innerRef}
+          style={style}
+          // In reorder mode the tap belongs to the drag, not to switching.
+          onClick={() => {
+            if (!reorderMode) onSelect(guild.id);
+          }}
+          className="group block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+          aria-label={
+            reorderMode
+              ? t("dragToReorder", { name: guild.name })
+              : t("switchTo", { name: guild.name })
+          }
+          aria-current={isActive ? "true" : undefined}
+          {...dragProps}
+        >
+          <GuildCardFace
+            // The card rendition, as the directory shows it: this list is every
+            // guild the caller is in, and the full banner is many times heavier.
+            guild={{ ...guild, banner: { ...guild.banner, image_url: guild.banner_card_url } }}
+            className={cn(
+              "transition-[translate,scale,box-shadow,border-color] duration-200 ease-out group-hover:shadow-md group-active:scale-[0.98] motion-safe:group-hover:-translate-y-0.5",
+              highlighted && "border-primary/60 ring-2 ring-primary/30",
+              isGrant && !highlighted && "border-muted-foreground/40 border-dashed",
+              reorderMode && "ring-2 ring-primary/40"
+            )}
+            avatar={
+              <span className="relative shrink-0">
+                <GuildAvatar
+                  name={guild.name}
+                  icon={guild.icon_url}
+                  active={isActive}
+                  unread={rowUnread.hasGuild(guild.id)}
+                  closed={!guild.can.enter}
+                />
+                {isGrant ? (
+                  <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
+                    <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
+                  </span>
+                ) : null}
+              </span>
+            }
+            aside={
+              reorderMode ? (
+                <GripVertical className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+              ) : null
+            }
+            meta={
+              isGrant ? (
+                <p className="mt-0.5 truncate text-muted-foreground text-xs">
+                  {t("temporaryAccess")}
+                  {left !== null ? ` · ${t("expiresInMinutes", { minutes: left })}` : ""}
+                </p>
+              ) : null
+            }
           />
-          {isGrant ? (
-            <span className="absolute -top-1 -right-1 rounded-full bg-background p-0.5">
-              <Clock className="h-3 w-3 text-amber-500" aria-hidden="true" />
-            </span>
-          ) : null}
-        </span>
-        <span className="flex min-w-0 flex-col">
-          <span className="truncate font-medium text-sm">{guild.name}</span>
-          {isGrant ? (
-            <span className="truncate text-muted-foreground text-xs">
-              {t("temporaryAccess")}
-              {left !== null ? ` · ${t("expiresInMinutes", { minutes: left })}` : ""}
-            </span>
-          ) : (
-            <span className="truncate text-muted-foreground text-xs">
-              {t("memberCount", { count: guild.member_count })}
-            </span>
-          )}
-        </span>
-        {reorderMode ? (
-          <GripVertical className="ml-auto h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-        ) : null}
-      </button>
-    </GuildContextMenu>
+        </button>
+      </GuildContextMenu>
+    </div>
   );
 };
 
@@ -551,6 +583,7 @@ const SortableGuildRow = ({
   onSelect,
   reorderMode,
   onStartReorder,
+  enterIndex,
 }: {
   guild: GuildEntry;
   isActive: boolean;
@@ -559,6 +592,7 @@ const SortableGuildRow = ({
   reorderMode: boolean;
   /** Absent when there is nothing to reorder — a lone guild has no order. */
   onStartReorder?: () => void;
+  enterIndex: number;
 }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `${FLYOUT_DRAG_PREFIX}${guild.id}`,
@@ -579,6 +613,7 @@ const SortableGuildRow = ({
       dragProps={{ ...attributes, ...listeners }}
       reorderMode={reorderMode}
       onStartReorder={onStartReorder}
+      enterIndex={enterIndex}
     />
   );
 };
@@ -1008,7 +1043,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
             className="absolute top-0 left-0 z-40 flex h-screen w-[var(--sidebar-width-mobile,90vw)] flex-col border-r bg-sidebar shadow-lg lg:w-[var(--sidebar-width,20rem)]"
             style={{
               transform: panelTransform,
-              transition: drag ? "none" : `transform ${FLYOUT_TRANSITION_MS}ms ease-out`,
+              transition: drag ? "none" : `transform ${FLYOUT_TRANSITION_MS}ms ${FLYOUT_EASING}`,
               paddingTop: "var(--safe-area-inset-top)",
             }}
             onTouchStart={handlePanelTouchStart}
@@ -1052,7 +1087,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                 {t("guilds:reorderHint")}
               </p>
             ) : null}
-            <div className="scrollbar-thin flex flex-1 flex-col gap-1 overflow-y-auto p-2">
+            <div className="scrollbar-thin flex flex-1 flex-col gap-3 overflow-y-auto p-3">
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -1064,9 +1099,10 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                   items={memberGuilds.map((guild) => `${FLYOUT_DRAG_PREFIX}${guild.id}`)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {memberGuilds.map((guild) => (
+                  {memberGuilds.map((guild, index) => (
                     <SortableGuildRow
                       key={guild.id}
+                      enterIndex={index}
                       guild={guild}
                       isActive={guild.id === activeGuildId}
                       isHomeMode={isHomeMode}
@@ -1089,10 +1125,11 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                 </DragOverlay>
               </DndContext>
               {grantGuilds.length > 0 ? (
-                <div className="mt-1 flex flex-col gap-1 border-t pt-2">
-                  {grantGuilds.map((guild) => (
+                <div className="flex flex-col gap-3 border-t pt-3">
+                  {grantGuilds.map((guild, index) => (
                     <GuildRow
                       key={guild.id}
+                      enterIndex={memberGuilds.length + index}
                       guild={guild}
                       isActive={guild.id === activeGuildId}
                       isHomeMode={isHomeMode}

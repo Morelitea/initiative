@@ -251,6 +251,7 @@ def _serialize_guild(
         banner=GuildBannerRead(
             image_url=(images or {}).get(GuildImageVariant.full), **guild.banner
         ),
+        banner_card_url=(images or {}).get(GuildImageVariant.card),
         # Read here rather than passed in, so every payload that names a guild
         # carries the same figure without each call site remembering to ask.
         # It costs no query — presence is a dict this process already holds.
@@ -291,6 +292,7 @@ async def list_guilds(
         [guild.id for guild, *_ in memberships],
         GuildImageVariant.icon,
         GuildImageVariant.full,
+        GuildImageVariant.card,
     )
     # Asked once, and only when a suspended guild is on the list — the only
     # entry that names who to contact.
@@ -459,7 +461,11 @@ async def join_community_guild(
         # Joining is how the caller first earns the full-size banner they were
         # shown a card of.
         images=await images_service.image_urls_for(
-            session, guild.id, GuildImageVariant.icon, GuildImageVariant.full
+            session,
+            guild.id,
+            GuildImageVariant.icon,
+            GuildImageVariant.full,
+            GuildImageVariant.card,
         ),
     )
 
@@ -765,7 +771,11 @@ async def update_guild(
         member_count=member_count,
         administration=administration,
         images=await images_service.image_urls_for(
-            session, guild_id, GuildImageVariant.icon, GuildImageVariant.full
+            session,
+            guild_id,
+            GuildImageVariant.icon,
+            GuildImageVariant.full,
+            GuildImageVariant.card,
         ),
     )
 
@@ -1004,7 +1014,11 @@ async def _guild_payload_after_image_change(
             session, guild_id=guild_id
         ),
         images=await images_service.image_urls_for(
-            session, guild_id, GuildImageVariant.icon, GuildImageVariant.full
+            session,
+            guild_id,
+            GuildImageVariant.icon,
+            GuildImageVariant.full,
+            GuildImageVariant.card,
         ),
     )
 
@@ -1432,7 +1446,11 @@ async def accept_invite(
         # Joining is how the caller first earns the full-size banner they were
         # shown a card of.
         images=await images_service.image_urls_for(
-            session, guild.id, GuildImageVariant.icon, GuildImageVariant.full
+            session,
+            guild.id,
+            GuildImageVariant.icon,
+            GuildImageVariant.full,
+            GuildImageVariant.card,
         ),
     )
 
