@@ -5068,6 +5068,7 @@ export interface GuildRead {
   role: GuildRole;
   can: GuildCan;
   position: number;
+  display_name: string | null;
   created_at: string;
   updated_at: string;
   retention_days: number | null;
@@ -6044,6 +6045,14 @@ export interface MemberAIView {
   mode: AIConfigMode;
   enabled: boolean;
   connections: MemberAIConnectionView[];
+}
+
+/**
+ * What a member is called in one community. ``None`` or blank clears it,
+ * and their handle shows again.
+ */
+export interface MemberDisplayNameUpdate {
+  display_name?: string | null;
 }
 
 /**
@@ -9029,6 +9038,7 @@ export interface UserGuildMember {
   full_name: string | null;
   guild_role: string | null;
   oidc_managed: boolean;
+  display_name: string | null;
 }
 
 /**
@@ -11181,7 +11191,7 @@ export type ListGuildTrashApiV1CGuildIdTrashGetParams = {
 
 export type ListUsersApiV1CGuildIdUsersGetParams = {
   /**
-   * Matches members the way ``/search`` does: the handle, a whole handle pinning one member, and real names in a guild that shows them.
+   * Matches members the way ``/search`` does: the handle, a whole handle pinning one member, and the display names members set here.
    */
   search?: string | null;
   /**
@@ -11197,7 +11207,7 @@ export type ListUsersApiV1CGuildIdUsersGetParams = {
 
 export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
   /**
-   * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Real names are matched only in a guild that shows them.
+   * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Display names members set here are matched too.
    */
   search?: string | null;
   user_id?: number[] | null;
@@ -11210,6 +11220,10 @@ export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
    */
   tool?: Tool | null;
   resource_id?: number | null;
+  /**
+   * List the caller first, wherever the rest of the order would put them. For the community's members page, where your own row is where you set your name.
+   */
+  self_first?: boolean;
   /**
    * @minimum 1
    */

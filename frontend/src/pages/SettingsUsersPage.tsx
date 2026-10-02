@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { PaginationState } from "@tanstack/react-table";
-import { Copy, Download, HandCoins, RefreshCcw, Trash2, UserMinus } from "lucide-react";
+import { Copy, Download, HandCoins, IdCard, RefreshCcw, Trash2, UserMinus } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +14,7 @@ import type {
   GuildRole,
   UserGuildMember,
 } from "@/api/generated/initiativeAPI.schemas";
+import { MemberDisplayNameDialog } from "@/components/guilds/MemberDisplayNameDialog";
 import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
 import { TransferContentOwnershipDialog } from "@/components/guilds/TransferContentOwnershipDialog";
 import { UnownedContentCard } from "@/components/guilds/UnownedContentCard";
@@ -121,6 +122,7 @@ export const SettingsUsersPage = () => {
     email: string;
   } | null>(null);
   // `member: null` opens the dialog in "claim everything unowned" mode.
+  const [namingMember, setNamingMember] = useState<UserGuildMember | null>(null);
   const [transferTarget, setTransferTarget] = useState<{ member: UserGuildMember | null } | null>(
     null
   );
@@ -223,10 +225,9 @@ export const SettingsUsersPage = () => {
     return <p className="text-destructive text-sm">{t("users.unableToLoadSettings")}</p>;
   }
 
-  // The handle leads: every guild has one for every member. A guild that
-  // renders handles sends no names, so that column would be a full one of
-  // em-dashes.
-  const showsNames = Boolean(activeGuild?.show_member_names);
+  // The handle leads: every member has one. A name is only the display name
+  // somebody set here, so the column shows once someone on the page has one.
+  const showsNames = rows.some((row) => row.full_name?.trim());
 
   const userColumns: AppColumnDef<UserGuildMember>[] = [
     {
@@ -318,6 +319,10 @@ export const SettingsUsersPage = () => {
             <DropdownMenuItem onSelect={() => exportUserCsv(guildMember)}>
               <Download className="h-4 w-4" />
               {t("users.exportUser")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setNamingMember(guildMember)}>
+              <IdCard className="h-4 w-4" />
+              {t("displayName.adminAction")}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setTransferTarget({ member: guildMember })}>
               <HandCoins className="h-4 w-4" />
@@ -563,6 +568,18 @@ export const SettingsUsersPage = () => {
         userId={deleteUserConfirm?.userId ?? null}
         email={deleteUserConfirm?.email ?? ""}
       />
+
+      {activeGuildId ? (
+        <MemberDisplayNameDialog
+          open={namingMember !== null}
+          onOpenChange={(open) => !open && setNamingMember(null)}
+          guildId={activeGuildId}
+          member={
+            namingMember ? { id: namingMember.id, name: getUserHandle(namingMember) } : undefined
+          }
+          current={namingMember?.display_name}
+        />
+      ) : null}
 
       <TransferContentOwnershipDialog
         open={transferTarget !== null}

@@ -8,11 +8,10 @@ catalog rather than by whoever writes the next query:
 * ``public.user_profiles`` (migration 0214) — the eight columns a profile is,
   read by the cross-guild profile page on a ``platform_base`` session.
 * ``public.guild_member_profiles`` — those plus ``full_name``, read by every
-  guild-routed session. A guild is where colleagues are named; the profile
-  page is not in one, which is why the name is in this view and not that one.
-  It arrives only from a guild that renders names: the view reads that guild's
-  own ``show_member_names`` for the guild the request is routed into, and
-  answers ``NULL`` otherwise.
+  guild-routed session. The column holds the name the member set for the guild
+  the request is routed into (``guild_memberships.display_name``, migration
+  0438), not the account's own name, and is ``NULL`` where they set none; the
+  handle is what renders then.
 
 Which columns those are lives in ``app.db.user_columns``.
 

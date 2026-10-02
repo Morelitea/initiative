@@ -227,25 +227,31 @@ async def test_both_ways_of_listing_someone_draw_them_the_same(
 # --- names, per guild -------------------------------------------------------
 
 
-async def test_a_guild_that_hides_real_names_neither_shows_nor_matches_them(
+async def test_each_guild_names_someone_by_what_they_set_there(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """One response, two guilds, one person — named by each guild's setting,
-    and searchable by that name only where the guild shows it."""
+    """One response, two guilds, one person — named in each by the display name
+    set there, and searchable by it only there. The account's own name is
+    neither."""
     a = await acting_user()
-    shows = await create_guild(session, show_member_names=True)
-    hides = await create_guild(session, show_member_names=False)
-    await _rail(session, a.user, shows, hides)
-    other = await create_user(session, username="qqqhandle", full_name="Ada Lovelace")
-    await _join(session, shows, other)
-    await _join(session, hides, other)
+    named = await create_guild(session)
+    unnamed = await create_guild(session)
+    await _rail(session, a.user, named, unnamed)
+    other = await create_user(session, username="qqqhandle", full_name="Ada Real")
+    await _join(session, named, other)
+    await _join(session, unnamed, other)
+    await create_guild_membership(
+        session, user=other, guild=named, display_name="Ada Lovelace"
+    )
 
     payload = (await client.get(SECTIONS, headers=a.headers)).json()
-    assert _section(payload, shows.id)["items"][0]["full_name"] == "Ada Lovelace"
-    assert _section(payload, hides.id)["items"][0]["full_name"] is None
+    assert _section(payload, named.id)["items"][0]["full_name"] == "Ada Lovelace"
+    assert _section(payload, unnamed.id)["items"][0]["full_name"] is None
 
     searched = await client.get(f"{SECTIONS}?search=Lovelace", headers=a.headers)
-    assert [s["guild_id"] for s in searched.json()["sections"]] == [shows.id]
+    assert [s["guild_id"] for s in searched.json()["sections"]] == [named.id]
+    real = await client.get(f"{SECTIONS}?search=Real", headers=a.headers)
+    assert real.json()["sections"] == []
 
 
 # --- the shared-guild chip --------------------------------------------------

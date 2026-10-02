@@ -151,7 +151,7 @@ async def list_all_users(
     closest = None
     if search and (term := search.strip()):
         matches, closest = users_service.member_match(
-            term, shows_names=False, profile=User
+            term, match_names=False, profile=User
         )
         base = base.where(matches)
 

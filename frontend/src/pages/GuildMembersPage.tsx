@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { PaginationState } from "@tanstack/react-table";
-import { UsersRound } from "lucide-react";
+import { IdCard, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,15 +9,18 @@ import { GuildRole } from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
+import { MemberDisplayNameDialog } from "@/components/guilds/MemberDisplayNameDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useFavoriteContacts, useToggleFavoriteContact } from "@/hooks/useContacts";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDmPermissions } from "@/hooks/useDirectMessages";
+import { useGuilds } from "@/hooks/useGuilds";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { USER_SEARCH_PAGE_SIZE, useUserSearch } from "@/hooks/useUsers";
 import { isAdminRole } from "@/lib/permissions";
@@ -49,11 +52,19 @@ export const GuildMembersPage = () => {
   const { user: me } = useAuth();
 
   const id = Number(guildId);
+  // The reader's own membership: what they have asked to be called here. A
+  // grant to visit carries no name of its own to set.
+  const ownEntry = useGuilds().guilds.find((guild) => guild.id === id);
+  const canNameSelf = ownEntry !== undefined && ownEntry.accessType !== "grant";
+  const [namingSelf, setNamingSelf] = useState(false);
   const members = useUserSearch({
     search: q || undefined,
     page,
     pageSize: USER_SEARCH_PAGE_SIZE,
     guildIdOverride: id,
+    // Your own row is where you set your name, so it leads the first page and
+    // stays on top however the table is sorted.
+    selfFirst: true,
   });
   const rows = useMemo(() => members.data?.items ?? [], [members.data]);
   // One question for the whole page. Asked per row, this is a request per row.
@@ -193,9 +204,19 @@ export const GuildMembersPage = () => {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("members.title")}</h1>
-        <p className="text-muted-foreground text-sm">{t("memberCount", { count: total })}</p>
+      {/* Your own name sits up here rather than on your row, which in a big
+          community may be several pages in. */}
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-semibold text-3xl tracking-tight">{t("members.title")}</h1>
+          <p className="text-muted-foreground text-sm">{t("memberCount", { count: total })}</p>
+        </div>
+        {canNameSelf ? (
+          <Button variant="outline" size="sm" onClick={() => setNamingSelf(true)}>
+            <IdCard className="h-4 w-4" />
+            {t("displayName.menuItem")}
+          </Button>
+        ) : null}
       </header>
 
       {members.isError ? (
@@ -226,8 +247,16 @@ export const GuildMembersPage = () => {
             setSearch({ page: next.pageIndex + 1 === 1 ? undefined : next.pageIndex + 1 })
           }
           getRowId={(row: UserSummary) => String(row.id)}
+          pinnedRowId={me ? String(me.id) : undefined}
         />
       )}
+
+      <MemberDisplayNameDialog
+        guildId={id}
+        current={ownEntry?.display_name}
+        open={namingSelf}
+        onOpenChange={setNamingSelf}
+      />
     </div>
   );
 };

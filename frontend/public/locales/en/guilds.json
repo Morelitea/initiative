@@ -517,11 +517,16 @@
     "ageGateBody": "Anyone signed in can find the communities listed here, so joining one asks your age once. You will not be asked again, and the communities you were invited to never ask.",
     "ageGateConfirm": "Confirm and join"
   },
-  "nameDisplay": {
-    "title": "How members are named",
-    "description": "Whether this community shows people's real names, or the usernames they chose.",
-    "toggleLabel": "Show full names",
-    "toggleHint": "Off, members appear by username. On, their full name is shown where they have entered one."
+  "displayName": {
+    "menuItem": "Set your display name",
+    "adminAction": "Set display name",
+    "ownTitle": "Your display name here",
+    "ownDescription": "Shown instead of your handle in this community only. Leave it empty to clear it.",
+    "memberTitle": "Display name for {{name}}",
+    "memberDescription": "Shown instead of their handle in this community only. Leave it empty to clear it.",
+    "label": "Display name",
+    "saved": "Display name saved.",
+    "saveFailed": "Couldn't save the display name."
   },
   "members": {
     "title": "Members",

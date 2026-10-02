@@ -359,6 +359,24 @@ describe("DataTable sorting", () => {
     expect(firstBodyRowText()).toContain("Row 25");
   });
 
+  it("keeps a pinned row first whichever way it sorts", async () => {
+    const user = userEvent.setup();
+    render(
+      <DataTable
+        columns={sortableColumns}
+        data={manyRows}
+        getRowId={(row) => String(row.id)}
+        pinnedRowId="13"
+      />
+    );
+    expect(firstBodyRowText()).toContain("Row 13");
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(firstBodyRowText()).toContain("Row 13");
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(firstBodyRowText()).toContain("Row 13");
+  });
+
   it("reports sorting changes to the caller", async () => {
     const user = userEvent.setup();
     const seen: string[] = [];

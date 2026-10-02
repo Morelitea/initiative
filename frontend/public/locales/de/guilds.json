@@ -517,11 +517,16 @@
     "ageGateBody": "Jede angemeldete Person kann die hier gelisteten Communitys finden. Beim Beitritt fragen wir daher einmal nach deinem Alter – danach nie wieder, und Communitys mit Einladung fragen nie.",
     "ageGateConfirm": "Bestätigen und beitreten"
   },
-  "nameDisplay": {
-    "title": "Wie Mitglieder benannt werden",
-    "description": "Ob diese Community die echten Namen der Leute zeigt oder die von ihnen gewählten Benutzernamen.",
-    "toggleLabel": "Vollständige Namen zeigen",
-    "toggleHint": "Aus erscheinen Mitglieder mit ihrem Benutzernamen. An wird ihr vollständiger Name gezeigt, sofern hinterlegt."
+  "displayName": {
+    "menuItem": "Anzeigenamen festlegen",
+    "adminAction": "Anzeigenamen festlegen",
+    "ownTitle": "Dein Anzeigename hier",
+    "ownDescription": "Wird nur in dieser Community statt deines Handles angezeigt. Leer lassen, um ihn zu entfernen.",
+    "memberTitle": "Anzeigename für {{name}}",
+    "memberDescription": "Wird nur in dieser Community statt des Handles angezeigt. Leer lassen, um ihn zu entfernen.",
+    "label": "Anzeigename",
+    "saved": "Anzeigename gespeichert.",
+    "saveFailed": "Der Anzeigename konnte nicht gespeichert werden."
   },
   "members": {
     "title": "Mitglieder",

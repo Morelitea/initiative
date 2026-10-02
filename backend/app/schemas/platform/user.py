@@ -56,11 +56,10 @@ from app.core.config import settings
 #   ``OperatorUserRead``, which is ``UserRead`` with the address
 #   shortened (``app.core.email_masking``) — enough to recognise one you
 #   already have.
-# * A real name is shown only where a guild has asked for it.
-#   ``GuildNameVisibility`` drops ``full_name`` unless the request's guild has
-#   ``show_member_names`` set, which a community-listed guild cannot. Only the
-#   shapes that draw a person carry it; ``UserIdentity`` — what everything else
-#   is built from — has no name field to drop.
+# * In a guild, ``full_name`` is the display name the member set there and
+#   nothing else (``guild_memberships.display_name``, read through the guild
+#   projection). Only the shapes that draw a person carry it; ``UserIdentity``
+#   — what everything else is built from — has no name field.
 #
 # What is always present is the handle: ``username`` plus ``discriminator``,
 # rendered ``foobar#1234`` with the number muted. They are two fields rather
@@ -226,6 +225,9 @@ class UserGuildMember(UserGuildRead):
     #: whether it administers the place.
     guild_role: Optional[str] = None
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
+    #: The name set for this member in this guild, as set; ``full_name`` is
+    #: already the result of it. ``None`` when nobody set one.
+    display_name: Optional[str] = None
 
 
 class UserGuildMemberListResponse(PageMeta):

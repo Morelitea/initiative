@@ -283,8 +283,8 @@ async def list_users(
         default=None,
         description=(
             "Matches members the way ``/search`` does: the handle, a whole "
-            "handle pinning one member, and real names in a guild that shows "
-            "them."
+            "handle pinning one member, and the display names members set "
+            "here."
         ),
     ),
     page: int = Query(default=1, ge=1),
@@ -300,22 +300,26 @@ async def list_users(
     where the guild shows names, then by handle.
     """
     base = (
-        select(MemberProfile, GuildMembership.role, GuildMembership.oidc_provider_id)
+        select(
+            MemberProfile,
+            GuildMembership.role,
+            GuildMembership.oidc_provider_id,
+            GuildMembership.display_name,
+        )
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
             GuildMembership.guild_id == guild_context.guild_id,
             users_service.visible_to_other_people(),
         )
     )
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         base = base.where(matches)
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -329,10 +333,11 @@ async def list_users(
     # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
     # SSO placed somebody, not which provider did.
     items = []
-    for user, guild_role, oidc_provider_id in rows:
+    for user, guild_role, oidc_provider_id, display_name in rows:
         member = UserGuildMember.model_validate(user)
         member.guild_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
+        member.display_name = display_name
         member.initiative_roles = getattr(user, "initiative_roles", [])
         items.append(member)
     return UserGuildMemberListResponse(
@@ -374,14 +379,14 @@ async def _search_members_for_app(
         base = base.where(_in_initiative(initiative_id))
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=False)
+        matches, closest = users_service.member_match(term, match_names=False)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=False),
+        *users_service.member_order(closest, match_names=False),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -415,8 +420,8 @@ async def search_users(
         description=(
             "Matches the handle's name part. Type the whole handle "
             "(`foobar#1234`) to pin one member; a partial number after `#` is a "
-            "prefix of the four digits as rendered. Real names are matched only "
-            "in a guild that shows them."
+            "prefix of the four digits as rendered. Display names members set "
+            "here are matched too."
         ),
     ),
     user_id: Annotated[
@@ -439,6 +444,14 @@ async def search_users(
         ),
     ),
     resource_id: Optional[int] = Query(default=None),
+    self_first: bool = Query(
+        default=False,
+        description=(
+            "List the caller first, wherever the rest of the order would put "
+            "them. For the community's members page, where your own row is "
+            "where you set your name."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -455,7 +468,7 @@ async def search_users(
 
     An installed app (``members:read``) names members by its own references
     and reads what :class:`AppMemberRead` carries: the reference, the handle,
-    the name where the guild shows names, and a picture hosted elsewhere.
+    the display name set in the community, and a picture hosted elsewhere.
     """
     if initiative_id is not None and not (
         initiative_id in guild_context.member_initiatives
@@ -499,20 +512,20 @@ async def search_users(
             )
         )
     #: Set while searching by name, and then what the page is ordered by.
-    # Both calls take the guild's own setting: a name is searchable and
-    # sortable only where the guild shows names, and a default here would
-    # decide that for it.
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         base = base.where(matches)
     if user_id:
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
+    you_first = (
+        ((MemberProfile.id == guild_context.user_id).desc(),) if self_first else ()
+    )
     data_stmt = base.order_by(
-        *users_service.member_order(closest, shows_names=shows_names),
+        *you_first,
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -614,7 +627,6 @@ async def list_roster(
         for rank, appears in enumerate(ROSTER_PRESENCE_ORDER)
     }
 
-    shows_names = bool(guild_context.guild.show_member_names)
     rows = (
         await session.exec(
             apply_pagination(
@@ -623,7 +635,7 @@ async def list_roster(
                 .where(*where)
                 .order_by(
                     group,
-                    *users_service.member_order(None, shows_names=shows_names),
+                    *users_service.member_order(None),
                     MemberProfile.username.asc(),
                     MemberProfile.discriminator.asc(),
                     MemberProfile.id.asc(),
@@ -976,14 +988,13 @@ async def export_users_csv(
     users = [row[0] for row in rows]
     await initiatives_service.load_user_initiative_roles(session, users)
 
-    shows_names = bool(guild_context.guild.show_member_names)
     csv_rows = []
     for user, guild_role, oidc_provider_id in rows:
         csv_rows.append(
             [
                 user.id,
                 handle_of(user),
-                (user.full_name or "") if shows_names else "",
+                user.full_name or "",
                 guild_role.value,
                 oidc_provider_id is not None,
                 user.status.value if hasattr(user.status, "value") else user.status,

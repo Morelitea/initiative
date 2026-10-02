@@ -517,11 +517,16 @@
     "ageGateBody": "Toute personne connectée peut trouver les communautés référencées ici : en rejoindre une demande donc votre âge une fois. On ne vous le redemandera pas, et les communautés sur invitation ne le demandent jamais.",
     "ageGateConfirm": "Confirmer et rejoindre"
   },
-  "nameDisplay": {
-    "title": "Comment les membres sont nommés",
-    "description": "Si cette communauté affiche les vrais noms des personnes ou les noms d'utilisateur qu'elles ont choisis.",
-    "toggleLabel": "Afficher les noms complets",
-    "toggleHint": "Désactivé, les membres apparaissent sous leur nom d'utilisateur. Activé, leur nom complet s'affiche s'ils en ont renseigné un."
+  "displayName": {
+    "menuItem": "Définir votre nom d'affichage",
+    "adminAction": "Définir le nom d'affichage",
+    "ownTitle": "Votre nom d'affichage ici",
+    "ownDescription": "Affiché à la place de votre identifiant dans cette communauté uniquement. Laissez vide pour le retirer.",
+    "memberTitle": "Nom d'affichage de {{name}}",
+    "memberDescription": "Affiché à la place de son identifiant dans cette communauté uniquement. Laissez vide pour le retirer.",
+    "label": "Nom d'affichage",
+    "saved": "Nom d'affichage enregistré.",
+    "saveFailed": "Impossible d'enregistrer le nom d'affichage."
   },
   "members": {
     "title": "Membres",

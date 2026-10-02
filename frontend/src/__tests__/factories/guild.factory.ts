@@ -52,6 +52,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     role,
     can: guildCan(role),
     position: counter - 1,
+    display_name: null,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     retention_days: null,

@@ -110,6 +110,9 @@ interface DataTableProps<TData extends RowData> {
   enableRowSelection?: boolean;
   onRowSelectionChange?: (selectedRows: TData[]) => void;
   getRowId?: (row: TData) => string;
+  /** A row (by `getRowId`) kept first whatever the sort; the rest sort as
+   *  asked beneath it. */
+  pinnedRowId?: string;
   onExitSelection?: () => void;
   manualPagination?: boolean;
   pageCount?: number;
@@ -177,6 +180,7 @@ export function DataTable<TData extends RowData>({
   enableRowSelection = false,
   onRowSelectionChange,
   getRowId,
+  pinnedRowId,
   onExitSelection,
   manualPagination = false,
   pageCount: externalPageCount,
@@ -618,7 +622,13 @@ export function DataTable<TData extends RowData>({
   }, [onExitSelection]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const rows = table.getRowModel().rows;
+  const sortedRows = table.getRowModel().rows;
+  const rows = useMemo(() => {
+    const at = pinnedRowId ? sortedRows.findIndex((row) => row.id === pinnedRowId) : -1;
+    return at > 0
+      ? [sortedRows[at], ...sortedRows.slice(0, at), ...sortedRows.slice(at + 1)]
+      : sortedRows;
+  }, [sortedRows, pinnedRowId]);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollContainerRef.current,

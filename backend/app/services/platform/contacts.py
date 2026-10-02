@@ -121,21 +121,6 @@ async def guild_sections(
         session, user_id=user_id, guilds=[gid for gid, _n, _i in guilds]
     )
 
-    # `member_match` and `member_order` read and sort on the real name only
-    # where the guild shows names, so the answer is per section rather than
-    # per reader: the same person can be searchable by name in one of their
-    # communities and not in another. Asked once for all of them.
-    shows_names_by_guild = {
-        gid: bool(flag)
-        for gid, flag in (
-            await session.exec(
-                select(Guild.id, Guild.show_member_names).where(
-                    col(Guild.id).in_([gid for gid, _n, _i in guilds])
-                )
-            )
-        ).all()
-    }
-
     async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[int]:
         visited.add(guild_id)
 
@@ -173,9 +158,9 @@ async def guild_sections(
         )
         closest = None
         if search and (term := search.strip()):
-            matches, closest = users_service.member_match(
-                term, shows_names=shows_names_by_guild.get(guild_id, False)
-            )
+            # The name each guild shows, so the same person can be found by name
+            # in one of the reader's communities and not in another.
+            matches, closest = users_service.member_match(term)
             base = base.where(matches)
 
         total = (
@@ -186,10 +171,7 @@ async def guild_sections(
             await guild_session.exec(
                 apply_pagination(
                     base.order_by(
-                        *users_service.member_order(
-                            closest,
-                            shows_names=shows_names_by_guild.get(guild_id, False),
-                        ),
+                        *users_service.member_order(closest),
                         col(MemberProfile.username).asc(),
                         col(MemberProfile.discriminator).asc(),
                         col(MemberProfile.id).asc(),

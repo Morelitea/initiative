@@ -13,10 +13,10 @@ once:
 * ``PUBLIC_PROFILE_COLUMNS`` — what a profile is, anywhere in the platform.
   Behind ``public.user_profiles`` (migration 0214), read by the cross-guild
   profile page.
-* ``GUILD_MEMBER_PROFILE_COLUMNS`` — the same plus ``full_name``. Behind
-  ``public.guild_member_profiles``, read by every guild-routed request. The
-  name is here and not above because a guild is where colleagues are named;
-  the profile page is not in one.
+* ``GUILD_MEMBER_PROFILE_COLUMNS`` — the same plus ``full_name``, the columns
+  the reader behind ``public.guild_member_profiles`` holds. Since migration
+  0438 that view answers its ``full_name`` from the member's display name in
+  the routed guild rather than from this column.
 
 Everything else is ``PRIVATE_COLUMNS``, which is *derived* rather than listed:
 a column added to the model tomorrow is private because it is not in either
@@ -57,11 +57,9 @@ PUBLIC_PROFILE_COLUMNS: tuple[str, ...] = (
     "created_at",
 )
 
-#: What a guild-routed request may read of somebody. The profile plus the real
-#: name, which is what a roster, a picker and an @mention render in a guild
-#: that asked for names. The column is in the view; whether the view answers
-#: with it is the guild's own ``show_member_names``, which the view reads for
-#: the guild the request is routed into (migration 0280).
+#: The columns the guild projection's reader holds on ``public.users``: the
+#: profile plus ``full_name``. The view's own ``full_name`` is the member's
+#: display name in the routed guild (migration 0438), not this column.
 GUILD_MEMBER_PROFILE_COLUMNS: tuple[str, ...] = (
     "id",
     "username",

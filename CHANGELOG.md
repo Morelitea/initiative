@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **See how the app behaves in people's browsers, with their say-so.** Set `FARO_COLLECTOR_URL` to a Grafana Faro collector and the cookie chooser gains an **Analytics** switch. Browsers that turn it on send page views, uncaught errors and Web Vitals, with each page named by its pattern rather than its address and nothing that names the person. Unset, nothing loads. See **Running a server › Configuration**.
 - **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. Opened at one of its dates, a repeating event asks whether to copy that date or the whole series, and a wiki page comes without the pages under it.
+- **A display name for each community.** On a community's **Members** page, choose **Set your display name** on your own row to be known by something other than your handle there, and only there. Community admins can set one for a member from **Community settings › Users**. It shows wherever the community shows people, and people can be found by it. Leave it empty to go back to your handle.
 
 ### Changed
 
+- **Communities no longer show the name on your account.** Inside a community you're shown by the display name you set there, or by your handle. The **Show full names** community setting is gone. **App and API integrations:** in a community, `full_name` on a person is now that display name.
 - **Duplicate any tool but a notice into any initiative** where you can create one, from **Settings › Advanced**. A calendar brings its events and repeats, and a wiki its published pages. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
 - **A duplicated task keeps its links** to other tasks, and is named "(Copy)" like every other copy. Checklists keep their ticks only when copied from a template; a duplicated project's start over.
 - **A tidier interface.** Page titles, section headings and spacing now match from page to page, and pages no longer say the same thing twice: a project or document no longer repeats its initiative under the breadcrumb, and the "Active" tag is gone.

@@ -444,9 +444,12 @@ const operatorUsers = (): Spec => ({ personalPrefix: ["/api/v1/operator"] });
 // The member roster is guild-scoped (`/api/v1/c/{id}/users/`), even though the
 // membership *mutations* go through the platform `/api/v1/communities/{id}/members/…`
 // path. It must stay in the guild bucket. The member search rides along: the
-// pickers read each person's guild role from it.
+// pickers read each person's guild role from it. So does the sidebar's people
+// roster.
 
-const guildMembers = (): Spec => ({ guildExact: ["/api/v1/users/", "/api/v1/users/search"] });
+const guildMembers = (): Spec => ({
+  guildExact: ["/api/v1/users/", "/api/v1/users/search", "/api/v1/users/roster"],
+});
 
 // ── Guilds (personal / platform) ─────────────────────────────────────────────
 

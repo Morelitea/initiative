@@ -14,6 +14,7 @@ from app.schemas.query import PageMeta
 from app.core.email_masking import mask_email
 from app.models.platform.guild import (
     DEFAULT_BANNER,
+    MEMBER_DISPLAY_NAME_MAX_LENGTH,
     BannerFade,
     BannerTextAlign,
     GuildCategory,
@@ -139,6 +140,9 @@ class GuildRead(GuildBase):
     role: GuildRole
     can: GuildCan = Field(default_factory=GuildCan)
     position: int
+    #: What the caller has asked to be called here, as they set it; ``None``
+    #: when they have not, which is most people.
+    display_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     # ADMIN-ONLY. Trash retention window, set from the guild's trash settings tab.
@@ -585,6 +589,20 @@ class GuildMembershipUpdate(SanitizedBaseModel):
     """Schema for updating a user's guild membership role."""
 
     role: GuildRole
+
+
+class MemberDisplayNameUpdate(SanitizedBaseModel):
+    """What a member is called in one community. ``None`` or blank clears it,
+    and their handle shows again."""
+
+    display_name: Optional[TitleStr] = Field(
+        default=None, max_length=MEMBER_DISPLAY_NAME_MAX_LENGTH
+    )
+
+    @field_validator("display_name")
+    @classmethod
+    def _blank_is_none(cls, value: Optional[str]) -> Optional[str]:
+        return None if value is None else (value.strip() or None)
 
 
 class LeaveGuildEligibilityResponse(SanitizedBaseModel):

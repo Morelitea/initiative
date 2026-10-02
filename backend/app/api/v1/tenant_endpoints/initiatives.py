@@ -1207,7 +1207,6 @@ def _roster_where(
     statement: _S,
     *,
     initiative_id: int,
-    guild_context: GuildContext,
     search: Optional[str],
 ) -> tuple[_S, tuple[ColumnElement, ...]]:
     """``statement`` (which joins ``InitiativeMember`` to ``MemberProfile``)
@@ -1218,13 +1217,12 @@ def _roster_where(
         InitiativeMember.initiative_id == initiative_id,
         users_service.visible_to_other_people(),
     )
-    shows_names = bool(guild_context.guild.show_member_names)
     closest = None
     if search and (term := search.strip()):
-        matches, closest = users_service.member_match(term, shows_names=shows_names)
+        matches, closest = users_service.member_match(term)
         statement = statement.where(matches)
     order = (
-        *users_service.member_order(closest, shows_names=shows_names),
+        *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),
         MemberProfile.id.asc(),
@@ -1261,7 +1259,6 @@ async def get_initiative_members(
             InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
         ),
         initiative_id=initiative_id,
-        guild_context=guild_context,
         search=search,
     )
     if is_manager is not None:
@@ -1319,7 +1316,6 @@ async def search_initiative_members(
             InitiativeMember, InitiativeMember.user_id == MemberProfile.id
         ),
         initiative_id=initiative_id,
-        guild_context=guild_context,
         search=search,
     )
     if user_id:

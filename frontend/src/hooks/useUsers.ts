@@ -5,7 +5,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch } from "@/api/generated/communities/communities";
+import {
+  setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut,
+  setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut,
+  updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch,
+} from "@/api/generated/communities/communities";
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
@@ -119,6 +123,8 @@ export interface UserSearchOptions {
   enabled?: boolean;
   /** Read a specific guild instead of the active one (cross-guild surfaces). */
   guildIdOverride?: number;
+  /** List the reader first, ahead of whatever order the rest takes. */
+  selfFirst?: boolean;
 }
 
 /** Shared query params for the three slim member-search endpoints. */
@@ -233,6 +239,7 @@ export const useUserSearch = ({
   enabled = true,
   guildIdOverride,
   canOpen,
+  selfFirst,
 }: UserSearchOptions = {}) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
@@ -243,6 +250,7 @@ export const useUserSearch = ({
       page_size: pageSize,
       ...(page != null ? { page } : {}),
       ...(canOpen ? { tool: canOpen.tool, resource_id: canOpen.id } : {}),
+      ...(selfFirst ? { self_first: true } : {}),
     },
     {
       query: {
@@ -368,6 +376,32 @@ export const useUpdateGuildMembership = (options?: MutationOpts<void, UpdateGuil
           role: data.role,
         } as Parameters<typeof updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch>[2]),
       invalidate: () => invalidate(q.guildMembers()),
+    },
+    options
+  );
+
+type SetDisplayNameVars = { guildId: number; userId?: number; displayName: string | null };
+
+/**
+ * What somebody is called in one community — their own, without `userId`, or
+ * a member's, by an administrator. The name is drawn wherever the community
+ * draws people, so its content, its rosters and the contacts lists refresh
+ * along with the community list.
+ */
+export const useSetMemberDisplayName = (options?: MutationOpts<void, SetDisplayNameVars>) =>
+  useApiMutation<void, SetDisplayNameVars>(
+    {
+      mutationFn: async ({ guildId, userId, displayName }) => {
+        const body = { display_name: displayName };
+        await (userId === undefined
+          ? setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut(guildId, body)
+          : setMemberDisplayNameApiV1CommunitiesGuildIdMembersUserIdDisplayNamePut(
+              guildId,
+              userId,
+              body
+            ));
+      },
+      invalidate: () => invalidate(q.guildContent(), q.guildMembers(), q.contacts(), q.allGuilds()),
     },
     options
   );

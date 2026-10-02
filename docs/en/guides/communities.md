@@ -110,7 +110,7 @@ So the top seat is its own rung, and it's narrow on purpose: the [Security and I
 
 ### What the member list shows
 
-The things a community actually manages: **handle**, **name** (in communities that show real names), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
+The things a community actually manages: **handle**, **name** (the [display name](#your-name-in-a-community), where there is one), **community role**, whether the membership came from a group login sync, the member's standing, and when they joined. **Export all as CSV** gives you the same columns.
 
 A member's platform role and whether they've confirmed their email address aren't a community's business, so they're in neither the list nor the CSV. Platform-wide user management lives in the [operator dashboard](../running-a-server/platform-roles.md#managing-platform-users).
 
@@ -196,6 +196,14 @@ The friction is entirely deliberate and we're not sorry about it.
 
 ??? techspec "For the technically minded — what community deletion does"
     When the window finally runs out, it removes the community's isolated database area and the database roles tied to it, then cleans up the shared records connecting people to it: memberships, invites, single-sign-on mappings, access grants. Until then all of that is intact, which is what makes a restore a restore rather than a rebuild. If you only want *out* of a community, **leave** it from the rail instead — that removes just you.
+
+## Your name in a community
+
+Everyone is their handle, `jordan#1234`, until they say otherwise. To go by something friendlier in one community, open its **Members** page and choose **Set your display name** on your own row. "Jordan from the allotment" in the allotment society, plain `jordan#1234` at the residents' association, and neither one any the wiser.
+
+It shows wherever that community shows people, and people can search for it. Clear the box and you're back to your handle.
+
+Admins can set or clear a member's from the row menu under **Community settings → Users**. Handy when four people are called Sam.
 
 ## Leaving a community
 

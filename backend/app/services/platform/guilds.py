@@ -536,6 +536,22 @@ async def get_membership(
     return result.one_or_none()
 
 
+async def set_member_display_name(
+    session: AsyncSession, *, guild_id: int, user_id: int, display_name: str | None
+) -> bool:
+    """Set what ``user_id`` is called in ``guild_id``, or clear it with
+    ``None``. ``False`` when they are not a member.
+
+    The session decides who may: a member's routed session writes only its own
+    row, and the system engine writes any, behind the admin guard."""
+    membership = await get_membership(session, guild_id=guild_id, user_id=user_id)
+    if membership is None:
+        return False
+    membership.display_name = display_name
+    session.add(membership)
+    return True
+
+
 async def list_memberships(
     session: AsyncSession,
     *,

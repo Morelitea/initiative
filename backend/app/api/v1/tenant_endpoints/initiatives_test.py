@@ -36,7 +36,7 @@ from app.testing import (
     set_notification_prefs,
     drain_notices,
 )
-from app.testing.factories import create_initiative
+from app.testing.factories import create_guild_membership, create_initiative
 
 
 async def _live_grant(
@@ -549,7 +549,7 @@ async def test_search_initiative_members_slim_and_filtered(
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Search Initiative"
     )
-    await acting_user(
+    alice = await acting_user(
         guild_role=GuildRole.member,
         guild=admin.guild,
         initiative=initiative,
@@ -558,7 +558,7 @@ async def test_search_initiative_members_slim_and_filtered(
         username="wonderland",
         full_name="Alice Wonderland",
     )
-    await acting_user(
+    bob = await acting_user(
         guild_role=GuildRole.member,
         guild=admin.guild,
         initiative=initiative,
@@ -588,10 +588,10 @@ async def test_search_initiative_members_slim_and_filtered(
     # Asserted as a value, not only as a key: the schema leaves it unset, so a
     # key-set check passes just as happily on an endpoint that never fills it
     # in.
-    by_name = {item["full_name"]: item for item in body["items"]}
-    assert by_name["Zed Admin"]["guild_role"] == "admin"
-    assert by_name["Alice Wonderland"]["guild_role"] == "member"
-    assert by_name["Bob Builder"]["guild_role"] == "member"
+    by_id = {item["id"]: item for item in body["items"]}
+    assert by_id[admin.user.id]["guild_role"] == "admin"
+    assert by_id[alice.user.id]["guild_role"] == "member"
+    assert by_id[bob.user.id]["guild_role"] == "member"
 
     # Filtered by handle, which every guild has for every member.
     response = await client.get(
@@ -604,27 +604,26 @@ async def test_search_initiative_members_slim_and_filtered(
     assert body["total_count"] == 1
     assert body["items"][0]["username"] == "wonderland"
 
-    # This guild takes the default and shows names, so a term that appears
-    # only in the real name finds her too.
-    response = await client.get(
-        admin.g(f"/initiatives/{initiative.id}/members/search"),
-        headers=admin.headers,
-        params={"search": "Alice"},
-    )
-    assert response.json()["total_count"] == 1
-
-    # Turn names off and the same term matches nothing, which is the half that
-    # matters: the search reaches exactly what the guild renders.
-    admin.guild.show_member_names = False
-    session.add(admin.guild)
-    await session.commit()
-
+    # The account's own name does not reach the guild, so a term that appears
+    # only there finds nobody...
     response = await client.get(
         admin.g(f"/initiatives/{initiative.id}/members/search"),
         headers=admin.headers,
         params={"search": "Alice"},
     )
     assert response.json()["total_count"] == 0
+
+    # ...and the display name she set here does: the search reaches exactly
+    # what the guild renders.
+    await create_guild_membership(
+        session, user=alice.user, guild=admin.guild, display_name="Alice W"
+    )
+    response = await client.get(
+        admin.g(f"/initiatives/{initiative.id}/members/search"),
+        headers=admin.headers,
+        params={"search": "Alice"},
+    )
+    assert response.json()["total_count"] == 1
 
 
 async def test_search_initiative_members_filters_by_user_id(

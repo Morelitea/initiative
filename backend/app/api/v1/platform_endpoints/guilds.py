@@ -23,6 +23,7 @@ from app.api.deps import (
     SeatWriteSessionDep,
     SettingsAdminContextDep,
     SettingsAdminWriteContextDep,
+    SettingsContextDep,
     SettingsRLSSessionDep,
     SettingsSeatWriteContextDep,
     UploadUserDep,
@@ -57,6 +58,7 @@ from app.models.platform.guild import (
     assignable_roles,
     Guild,
     GuildCategory,
+    GuildMembership,
     GuildRole,
     GuildStatus,
     LIVE_STATUS_VALUES,
@@ -91,6 +93,7 @@ from app.schemas.platform.guild import (
     GuildOrderUpdate,
     GuildUpdate,
     LeaveGuildEligibilityResponse,
+    MemberDisplayNameUpdate,
 )
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
@@ -111,13 +114,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-def _position_of(guild_context: GuildContext) -> int:
-    """Where the caller keeps this community in their list; a grantee has no
-    place in it."""
-    membership = guild_context.membership
-    return membership.position if membership is not None else 0
 
 
 def _can_of(guild_context: GuildContext) -> GuildCan:
@@ -154,7 +150,7 @@ def _serialize_guild(
     guild: Guild,
     *,
     role: GuildRole,
-    position: int,
+    membership: GuildMembership | None,
     retention_days: int | None = None,
     member_count: int = 0,
     administration: GuildAdministration | None = None,
@@ -181,6 +177,9 @@ def _serialize_guild(
     the caller may read but no request path may write. Callers serving a member
     pass ``None`` for it and never read the row at all.
 
+    ``membership`` is the caller's own row, where they have one; a grantee
+    has no place in the list and no name of their own here.
+
     ``can`` is the caller's standing, where the caller has one
     (:func:`_can_of`); left out, the membership row answers.
 
@@ -199,7 +198,8 @@ def _serialize_guild(
         updated_at=guild.updated_at,
         role=role,
         can=_can_of_membership(guild, role) if can is None else can,
-        position=position,
+        position=membership.position if membership is not None else 0,
+        display_name=membership.display_name if membership is not None else None,
         # Trash retention window — set from the admin-only trash settings tab.
         retention_days=retention_days if is_admin else None,
         member_count=member_count,
@@ -307,7 +307,7 @@ async def list_guilds(
             _serialize_guild(
                 guild,
                 role=membership.role,
-                position=membership.position,
+                membership=membership,
                 retention_days=retention_days,
                 member_count=member_count,
                 administration=administration,
@@ -456,7 +456,7 @@ async def join_community_guild(
     return _serialize_guild(
         guild,
         role=membership.role,
-        position=membership.position,
+        membership=membership,
         member_count=member_count,
         # Joining is how the caller first earns the full-size banner they were
         # shown a card of.
@@ -614,7 +614,7 @@ async def create_guild(
     return _serialize_guild(
         guild,
         role=membership.role,
-        position=membership.position,
+        membership=membership,
         member_count=member_count,
         administration=administration,
     )
@@ -650,7 +650,7 @@ async def read_guild(
         guild,
         role=guild_context.rung,
         can=_can_of(guild_context),
-        position=_position_of(guild_context),
+        membership=guild_context.membership,
         retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
@@ -775,7 +775,7 @@ async def update_guild(
         guild,
         role=guild_context.rung,
         can=_can_of(guild_context),
-        position=_position_of(guild_context),
+        membership=guild_context.membership,
         retention_days=retention_days,
         member_count=member_count,
         administration=administration,
@@ -1016,7 +1016,7 @@ async def _guild_payload_after_image_change(
         guild,
         role=guild_context.rung,
         can=_can_of(guild_context),
-        position=_position_of(guild_context),
+        membership=guild_context.membership,
         retention_days=await guilds_service.get_guild_retention_days(session),
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         administration=await guilds_service.get_administration(
@@ -1450,7 +1450,7 @@ async def accept_invite(
     return _serialize_guild(
         guild,
         role=membership.role,
-        position=membership.position,
+        membership=membership,
         member_count=member_count,
         # Joining is how the caller first earns the full-size banner they were
         # shown a card of.
@@ -1585,6 +1585,67 @@ async def update_guild_membership(
     # bypass): re-check this user's live content streams now so the change takes
     # effect immediately, not on the next bounded re-auth tick.
     await content_sockets.revoke_user(guild_id, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put(
+    "/{guild_id}/members/{user_id}/display-name",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def set_member_display_name(
+    guild_id: int,
+    _guild_context: SettingsAdminWriteContextDep,
+    user_id: int,
+    payload: MemberDisplayNameUpdate,
+    session: SystemSessionDep,
+) -> Response:
+    """Set what a member is called in this community, or clear it. Guild admin
+    only, or a settings grant beside a read_write one.
+
+    On the system engine, as a role change is: the guild role writes only the
+    caller's own membership row."""
+    if not await guilds_service.set_member_display_name(
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
+        display_name=payload.display_name,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.USER_NOT_FOUND_IN_GUILD,
+        )
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put(
+    "/{guild_id}/membership/display-name",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def set_own_display_name(
+    guild_id: int,
+    guild_context: SettingsContextDep,
+    payload: MemberDisplayNameUpdate,
+    session: SettingsRLSSessionDep,
+) -> Response:
+    """Set what the caller is called in this community, or clear it.
+
+    Routed as the community's own configuration is, so a member keeps it while
+    content is frozen and not while the community is in time out."""
+    if guild_context.membership is None or not (
+        await guilds_service.set_member_display_name(
+            session,
+            guild_id=guild_id,
+            user_id=guild_context.membership.user_id,
+            display_name=payload.display_name,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER
+        )
+    await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

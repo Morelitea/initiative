@@ -1706,7 +1706,7 @@
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
     "passwordsOffDescription": "Die Anmeldung per Passwort ist auf diesem Server ausgeschaltet, daher kannst du hier kein Passwort festlegen oder ändern.",
-    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
+    "fullNameHelp": "Wird verwendet, wenn wir dir E-Mails schicken. Communitys zeigen dein Handle oder den Anzeigenamen, den du dort festlegst.",
     "setPasswordTitle": "Passwort festlegen",
     "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
     "removePassword": "Passwort entfernen",
