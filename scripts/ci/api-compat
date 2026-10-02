@@ -33,7 +33,11 @@ docker run --rm --entrypoint python \
   > "$work/release.json"
 cp "$ACCEPTED" "$work/accepted.md"
 
-if docker run --rm -v "$work:/specs:ro" "$OASDIFF" breaking --fail-on ERR \
+# Path parameters are matched by name: the spec drops a route's converter,
+# so /exports/{job_id:int} and /exports/{tool} would otherwise read as one
+# endpoint declared twice. A renamed path parameter then reads as a route
+# removed and another added, though a client's URLs are unchanged.
+if docker run --rm -v "$work:/specs:ro" "$OASDIFF" breaking --fail-on ERR --include-path-params \
   --err-ignore /specs/accepted.md /specs/release.json /specs/current.json; then
   echo "The API takes everything $release's did, or lists the break in $ACCEPTED."
 else
