@@ -1,6 +1,11 @@
 /**
- * The sign-in card's two steps beyond a password: the second factor, and the
- * passkey.
+ * The sign-in card: the password form, and the two steps beyond it — the
+ * second factor, and the passkey.
+ *
+ * For the password form, what is pinned is what a password manager does to it:
+ * filling the fields without the change reaching the page's state, and
+ * submitting several times in one moment. Each wrong answer counts toward
+ * locking the account, so the form sends one sign-in, of what the fields hold.
  *
  * For the factor, what is worth pinning is what the card does with a challenge
  * — that it stops asking for a password, that a refused code leaves the person
@@ -18,7 +23,7 @@
  * here too.
  */
 import { Browser } from "@capacitor/browser";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AxiosError, AxiosHeaders } from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -189,6 +194,47 @@ const resetLoginMocks = () => {
   // has_users false would send the page to first-run registration instead.
   mocks.get.mockReset().mockResolvedValue({ data: { has_users: true, providers: [] } });
 };
+
+/** Put a value in a field the way an autofill can: in the field, with no
+ *  event the page hears. */
+const fillWithoutTelling = (field: HTMLElement, value: string) => {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(field, value);
+};
+
+describe("LoginPage password", () => {
+  beforeEach(resetLoginMocks);
+
+  it("sends one sign-in however many times the form is submitted at once", async () => {
+    const user = userEvent.setup();
+    // Still waiting on the server while the other submits arrive.
+    mocks.login.mockReturnValue(new Promise(() => {}));
+    renderLogin();
+    await user.type(await screen.findByLabelText(/email/i), "someone@example.com");
+    await user.type(screen.getByLabelText(/password/i), "a-password");
+    const form = screen.getByRole("button", { name: /^sign in$/i }).closest("form");
+
+    for (let i = 0; i < 5; i++) fireEvent.submit(form as HTMLFormElement);
+
+    expect(mocks.login).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends what the fields hold, though the fill never reached the page", async () => {
+    mocks.login.mockReturnValue(new Promise(() => {}));
+    renderLogin();
+    const email = await screen.findByLabelText(/email/i);
+    const password = screen.getByLabelText(/password/i);
+
+    fillWithoutTelling(email, "Someone@Example.com");
+    fillWithoutTelling(password, "the-saved-password");
+    fireEvent.submit(password.closest("form") as HTMLFormElement);
+
+    expect(mocks.login).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "someone@example.com", password: "the-saved-password" })
+    );
+    // And the fields keep it once the page renders again.
+    await waitFor(() => expect(password).toHaveValue("the-saved-password"));
+  });
+});
 
 describe("LoginPage second factor", () => {
   beforeEach(resetLoginMocks);

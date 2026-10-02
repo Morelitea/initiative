@@ -288,13 +288,33 @@ export const LoginPage = () => {
     router.navigate({ to: "/connect", replace: true });
   };
 
+  // A password manager can fill a form and submit it several times within one
+  // render, before `submitting` disables anything. A ref is set at once, so
+  // only the first of those is sent. One for both steps: only one is on screen.
+  const submitInFlightRef = useRef(false);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    // Read from the fields, not from state: a password manager can submit a
+    // field it filled before the change reached state, which would send what
+    // the field held before it was filled.
+    const fields = new FormData(event.currentTarget);
+    const enteredEmail = String(fields.get("email") ?? "");
+    const enteredPassword = String(fields.get("password") ?? "");
+    // And kept, so the next render does not put the old values back.
+    setEmail(enteredEmail);
+    setPassword(enteredPassword);
     setSubmitting(true);
     setError(null);
     try {
       const deviceName = isNativePlatform ? await resolveDeviceName() : undefined;
-      await login({ email: email.toLowerCase().trim(), password, deviceName });
+      await login({
+        email: enteredEmail.toLowerCase().trim(),
+        password: enteredPassword,
+        deviceName,
+      });
       await goWhereTheySignedInFor();
     } catch (err) {
       if (err instanceof SecondFactorRequiredError) {
@@ -308,17 +328,22 @@ export const LoginPage = () => {
       console.error(err);
       setError(err instanceof Error ? err.message : t("login.defaultError"));
     } finally {
+      submitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleCodeSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!challenge) return;
+    if (!challenge || submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
+    // From the field, for the same reason as the password.
+    const enteredCode = String(new FormData(event.currentTarget).get("second-factor-code") ?? "");
+    setCode(enteredCode);
     setSubmitting(true);
     setError(null);
     try {
-      const entered = code.trim();
+      const entered = enteredCode.trim();
       await completeSecondFactor({
         challenge,
         ...(useRecoveryCode ? { recoveryCode: entered } : { code: compactCode(entered) }),
@@ -329,6 +354,7 @@ export const LoginPage = () => {
       setError(err instanceof Error ? err.message : t("login.defaultError"));
       setCode("");
     } finally {
+      submitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
