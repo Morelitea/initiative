@@ -5,9 +5,11 @@ deployment facts; its app facts come from the app's listing. A registration is
 shown whole, since none of it is secret.
 """
 
+import copy
 import ipaddress
 import json
 from datetime import timedelta
+from typing import Any
 
 import httpx
 import pytest
@@ -644,7 +646,7 @@ GITHUB_APP = {
     "default_permissions": {"issues": "write"},
     "default_events": ["issues"],
 }
-GITHUB_DEFINITION = {
+GITHUB_DEFINITION: dict[str, Any] = {
     **VENDOR_DEFINITION,
     "vendor": {
         "fields": [
@@ -680,7 +682,9 @@ CONVERSION = {
 }
 
 
-def _github(monkeypatch, *, status: int = 201) -> list[httpx.Request]:
+def _github(
+    monkeypatch, *, status: int = 201, answer: dict = CONVERSION
+) -> list[httpx.Request]:
     """GitHub answering a manifest conversion; the requests it was sent."""
     sent: list[httpx.Request] = []
 
@@ -692,7 +696,7 @@ def _github(monkeypatch, *, status: int = 201) -> list[httpx.Request]:
 
     def handle(request: httpx.Request) -> httpx.Response:
         sent.append(request)
-        return httpx.Response(status, json=CONVERSION if status < 400 else {})
+        return httpx.Response(status, json=answer if status < 400 else {})
 
     monkeypatch.setattr(safe_http, "resolve_validated_target_async", resolve)
     monkeypatch.setattr(vendor_setup, "http_transport", httpx.MockTransport(handle))
@@ -835,7 +839,15 @@ async def test_completing_the_github_setup_writes_the_vendor_values(
     assert len(sent) == 1
 
 
-@pytest.mark.parametrize("whose", ["another_owner", "another_app", "expired"])
+async def _complete(client: AsyncClient, headers, row_id: int, state: str):
+    return await client.post(
+        f"{BASE}{row_id}/vendor-setup/complete",
+        headers=headers,
+        json={"code": "abc123", "state": state},
+    )
+
+
+@pytest.mark.parametrize("whose", ["another_owner", "another_app"])
 async def test_a_setup_is_finished_only_by_who_started_it_for_that_app(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch, whose
 ):
@@ -843,21 +855,106 @@ async def test_a_setup_is_finished_only_by_who_started_it_for_that_app(
     a = await acting_user()
     row = await _github_registration(session)
     other = await _seed(session, public_id="acme.other", listing_uid=None)
-    if whose == "expired":
-        monkeypatch.setattr(vendor_setup, "STATE_TTL", timedelta(seconds=-1))
     started = await _start(client, a.headers, row.id)
     headers = (await acting_user()).headers if whose == "another_owner" else a.headers
     target = other.id if whose == "another_app" else row.id
 
-    response = await client.post(
-        f"{BASE}{target}/vendor-setup/complete",
-        headers=headers,
-        json={"code": "abc123", "state": started["state"]},
-    )
+    response = await _complete(client, headers, target, started["state"])
 
     assert response.status_code == 400
     assert response.json()["detail"] == AppServiceMessages.VENDOR_SETUP_EXPIRED
     assert sent == []
+    # Left for the completion it belongs to.
+    finished = await _complete(client, a.headers, row.id, started["state"])
+    assert finished.status_code == 200, finished.text
+    assert len(sent) == 1
+
+
+async def test_an_expired_setup_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    sent = _github(monkeypatch)
+    monkeypatch.setattr(vendor_setup, "STATE_TTL", timedelta(seconds=-1))
+    a = await acting_user()
+    row = await _github_registration(session)
+    started = await _start(client, a.headers, row.id)
+
+    response = await _complete(client, a.headers, row.id, started["state"])
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == AppServiceMessages.VENDOR_SETUP_EXPIRED
+    assert sent == []
+
+
+async def test_a_conversion_missing_a_value_writes_none_of_them(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    answer = {**CONVERSION, "webhook_secret": None}
+    _github(monkeypatch, answer=answer)
+    a = await acting_user()
+    row = await _github_registration(session)
+    await client.patch(
+        f"{BASE}{row.id}",
+        headers=a.headers,
+        json={"vendor_values": {"client_id": "earlier-app"}},
+    )
+    started = await _start(client, a.headers, row.id)
+
+    response = await _complete(client, a.headers, row.id, started["state"])
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == AppServiceMessages.VENDOR_SETUP_FAILED
+    assert await load_vendor_values("acme.widgets") == {"client_id": "earlier-app"}
+
+
+async def _republish(session: AsyncSession, **setup_values: str) -> None:
+    """A newer version of the listing, whose setup writes ``setup_values``
+    and whose vendor block declares only the fields it names."""
+    definition = copy.deepcopy(GITHUB_DEFINITION)
+    vendor = definition["vendor"]
+    vendor["fields"] = [f for f in vendor["fields"] if f["key"] in setup_values]
+    vendor["setup"]["values"] = setup_values
+    await create_marketplace_listing(
+        session,
+        uid=LISTING_UID,
+        public_id="acme.widgets",
+        kind="app",
+        version="1.1.0",
+        definition=definition,
+    )
+
+
+async def test_a_setup_writes_by_the_mapping_it_started_with(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    _github(monkeypatch)
+    a = await acting_user()
+    row = await _github_registration(session)
+    started = await _start(client, a.headers, row.id)
+    stored = GITHUB_DEFINITION["vendor"]["setup"]["values"]
+    await _republish(session, **{**stored, "app_id": "slug"})
+
+    response = await _complete(client, a.headers, row.id, started["state"])
+
+    assert response.status_code == 200, response.text
+    assert response.json()["vendor_values"]["app_id"] == "4242"
+
+
+async def test_a_setup_naming_a_field_the_listing_dropped_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    sent = _github(monkeypatch)
+    a = await acting_user()
+    row = await _github_registration(session)
+    started = await _start(client, a.headers, row.id)
+    await _republish(session, app_id="id", client_id="client_id")
+
+    response = await _complete(client, a.headers, row.id, started["state"])
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == AppServiceMessages.VENDOR_SETUP_EXPIRED
+    assert sent == []
+    assert await load_vendor_values("acme.widgets") == {}
 
 
 async def test_a_conversion_github_refuses_writes_nothing(

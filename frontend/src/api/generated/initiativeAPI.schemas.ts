@@ -985,7 +985,7 @@ export interface AppServiceVendorSetupComplete {
   code: string;
   /**
    * @minLength 1
-   * @maxLength 200
+   * @maxLength 4000
    */
   state: string;
 }

@@ -214,7 +214,7 @@ class AppServiceVendorSetupComplete(SanitizedBaseModel):
     """What the vendor sent the operator back with."""
 
     code: str = Field(min_length=1, max_length=200)
-    state: str = Field(min_length=1, max_length=200)
+    state: str = Field(min_length=1, max_length=4000)
 
 
 class AppPublisherRead(SanitizedBaseModel):

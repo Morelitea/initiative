@@ -580,6 +580,28 @@ def _vendor(raw: Any) -> dict[str, Any] | None:
     return cleaned
 
 
+def check_setup_values(values: Any, *, fields: list[dict[str, Any]]) -> None:
+    """Hold a GitHub App setup's ``values`` to the vendor fields: each key a
+    declared field, each answer GitHub gives written at most once, and the
+    secret ones only to a secret field. Read when a manifest is published and
+    again when a setup finishes against the manifest current then."""
+    what = "service app: vendor.setup.values"
+    if not isinstance(values, dict) or not values:
+        fail(f"{what} must name at least one value")
+    types = {field["key"]: field.get("type") for field in fields}
+    written: set[str] = set()
+    for key, answer in values.items():
+        if key not in types:
+            fail(f"{what} names {key!r}, which the vendor block does not declare")
+        if answer not in GITHUB_APP_VALUES:
+            fail(f"{what} {key!r}: unknown value {answer!r}")
+        if answer in written:
+            fail(f"{what} writes {answer!r} twice")
+        written.add(answer)
+        if answer in GITHUB_SECRET_VALUES and types[key] != "secret":
+            fail(f"{what} {key!r}: {answer!r} is written only to a secret field")
+
+
 def _vendor_setup(raw: Any, *, fields: list[dict[str, Any]]) -> dict[str, Any]:
     """The vendor's own flow for making its client, and which vendor field
     each value it answers with is written to."""
@@ -622,23 +644,8 @@ def _vendor_setup(raw: Any, *, fields: list[dict[str, Any]]) -> dict[str, Any]:
     if len(set(events)) != len(events):
         fail(f"{what}.app.default_events names an event twice")
 
-    types = {field["key"]: field["type"] for field in fields}
     values = require_mapping(setup.get("values"), f"{what}.values")
-    if not values:
-        fail(f"{what}.values must name at least one value")
-    written: set[str] = set()
-    for key, answer in values.items():
-        if key not in types:
-            fail(
-                f"{what}.values names {key!r}, which the vendor block does not declare"
-            )
-        if answer not in GITHUB_APP_VALUES:
-            fail(f"{what}.values {key!r}: unknown value {answer!r}")
-        if answer in written:
-            fail(f"{what}.values writes {answer!r} twice")
-        written.add(answer)
-        if answer in GITHUB_SECRET_VALUES and types[key] != "secret":
-            fail(f"{what}.values {key!r}: {answer!r} is written only to a secret field")
+    check_setup_values(values, fields=fields)
 
     cleaned_app: dict[str, Any] = {
         "name": name,

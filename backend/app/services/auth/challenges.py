@@ -259,6 +259,32 @@ async def consume(session: AsyncSession, challenge: AuthChallenge) -> bool:
     return bool(result.rowcount)
 
 
+async def spend_answered(
+    session: AsyncSession,
+    *,
+    value: str,
+    purpose: ChallengePurpose,
+    user_id: int,
+    answer: str,
+) -> bool:
+    """Spend a challenge only when it is this account's and ``answer`` is the
+    one it waits for, in one statement. A challenge that does not match is
+    left as it was; returns whether this call spent it."""
+    result = await session.exec(
+        update(AuthChallenge)
+        .where(
+            AuthChallenge.challenge_hash == _hash(value),
+            AuthChallenge.purpose == purpose.value,
+            AuthChallenge.user_id == user_id,
+            AuthChallenge.answer_hash == _hash(f"{value}:{answer}"),
+            AuthChallenge.consumed_at.is_(None),
+            AuthChallenge.expires_at > utcnow(),
+        )
+        .values(consumed_at=utcnow())
+    )
+    return bool(result.rowcount)
+
+
 async def revoke_for_user(session: AsyncSession, *, user_id: int) -> int:
     """Drop every challenge standing for one account, spent or not.
 

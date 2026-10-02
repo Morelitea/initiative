@@ -615,6 +615,7 @@ async def test_a_listing_republished_without_a_scope_takes_it_away(session):
                 {"base_url": "ftp://widgets"},
                 {"base_url": "http://widgets:8080/a b"},
                 {"base_url": f"http://{'w' * 506}"},
+                {"base_url": "http://["},
                 {"ports": []},
             )
         ),
@@ -631,6 +632,7 @@ async def test_a_listing_republished_without_a_scope_takes_it_away(session):
         "not-http",
         "space",
         "long-url",
+        "malformed-authority",
         "unknown-term",
         "image-placeholder-without-image",
     ],

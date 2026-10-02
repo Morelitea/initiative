@@ -17,9 +17,11 @@ webhook secret and private key.
 * :func:`complete` checks the state, exchanges the code, and writes each value
   to the vendor field the manifest names.
 
-The state is an ``auth_challenges`` row naming the operator who started the
-setup, answered by the registration it is for. It lasts an hour and the first
-completion spends it.
+The state seals what the setup was started with: the registration, its
+listing and listing version, and which vendor field each answer is written to.
+It is recorded as an ``auth_challenges`` row naming the operator who started
+the setup, answered by the registration it is for. It lasts an hour, and the
+first completion by that operator for that registration spends it.
 """
 
 from __future__ import annotations
@@ -32,16 +34,24 @@ from typing import Any, Mapping, Optional
 from urllib.parse import quote
 
 import httpx
+from cryptography.fernet import InvalidToken
 from fastapi import HTTPException, status as http_status
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.encryption import SALT_APP_VENDOR_SETUP, decrypt_field, encrypt_field
 from app.core.messages import AppServiceMessages
 from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.marketplace import MarketplaceListing
 from app.services.auth import challenges as challenge_service
 from app.services.marketplace import registrations as registrations_service
 from app.services.marketplace import vendor_values as vendor_values_service
-from app.services.marketplace.service_apps import GITHUB_APP_MANIFEST
+from app.services.marketplace.manifest_values import ListingDefinitionError
+from app.services.marketplace.service_apps import (
+    GITHUB_APP_MANIFEST,
+    check_setup_values,
+)
 from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.tenant import app_connection_flows as flows_service
 from app.services.webhook_target_url import (
@@ -112,18 +122,21 @@ def redirect_url(registration_id: int) -> str:
     )
 
 
-async def _setup_of(
+async def _manifest(
     session: AsyncSession, row: AppServiceRegistration
-) -> dict[str, Any]:
+) -> tuple[Optional[int], dict[str, Any]]:
+    """The registration's listing version and its manifest, as they are now."""
+    version = (
+        await session.exec(
+            select(MarketplaceListing.latest_version_id).where(
+                MarketplaceListing.uid == row.listing_uid
+            )
+        )
+    ).first()
     definition = (
         await vendor_values_service.listing_definitions(session, [row.listing_uid])
     ).get(row.listing_uid or "")
-    if setup_kind(definition) is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_409_CONFLICT,
-            detail=AppServiceMessages.VENDOR_SETUP_UNAVAILABLE,
-        )
-    return (definition or {})["vendor"]["setup"]
+    return version, definition or {}
 
 
 def _organization(value: Optional[str]) -> Optional[str]:
@@ -153,7 +166,13 @@ async def start(
     or by the operator's own account, and open the state that brings the
     operator back."""
     row = await registrations_service.get_registration(session, registration_id)
-    setup = await _setup_of(session, row)
+    version, definition = await _manifest(session, row)
+    if setup_kind(definition) is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_409_CONFLICT,
+            detail=AppServiceMessages.VENDOR_SETUP_UNAVAILABLE,
+        )
+    setup = definition["vendor"]["setup"]
     owner = _organization(organization)
     action = (
         f"{GITHUB_URL}/organizations/{owner}/settings/apps/new"
@@ -170,17 +189,26 @@ async def start(
             "active": True,
         },
     }
-    issued = await challenge_service.create(
+    state = encrypt_field(
+        json.dumps(
+            {
+                "listing_uid": row.listing_uid,
+                "version": version,
+                "values": setup["values"],
+            }
+        ),
+        SALT_APP_VENDOR_SETUP,
+    )
+    await challenge_service.create(
         session,
         user_id=actor_user_id,
         purpose=challenge_service.ChallengePurpose.app_vendor_setup,
+        value=state,
         answer=str(row.id),
         ttl=STATE_TTL,
     )
     await session.commit()
-    return VendorSetupStart(
-        action=action, manifest=json.dumps(manifest), state=issued.value
-    )
+    return VendorSetupStart(action=action, manifest=json.dumps(manifest), state=state)
 
 
 def _expired() -> HTTPException:
@@ -199,27 +227,27 @@ def _failed() -> HTTPException:
 
 async def _spend_state(
     session: AsyncSession, *, registration_id: int, state: str, actor_user_id: int
-) -> None:
-    """Spend the state, and refuse one this operator did not open for this
-    registration. Presenting it spends it either way."""
-    challenge = await challenge_service.claim_attempt(
+) -> dict[str, Any]:
+    """Spend the state when this operator opened it for this registration,
+    and read what it sealed. A state that does not match is refused and left
+    for the completion it belongs to."""
+    spent = await challenge_service.spend_answered(
         session,
         value=state,
-        purposes=[challenge_service.ChallengePurpose.app_vendor_setup],
-    )
-    spent = challenge is not None and await challenge_service.consume(
-        session, challenge
+        purpose=challenge_service.ChallengePurpose.app_vendor_setup,
+        user_id=actor_user_id,
+        answer=str(registration_id),
     )
     await session.commit()
-    if not (
-        challenge is not None
-        and spent
-        and challenge.user_id == actor_user_id
-        and challenge_service.answered_by(
-            challenge, value=state, answer=str(registration_id)
-        )
-    ):
+    if not spent:
         raise _expired()
+    try:
+        sealed = json.loads(decrypt_field(state, SALT_APP_VENDOR_SETUP))
+    except (InvalidToken, UnicodeDecodeError, ValueError) as exc:
+        raise _expired() from exc
+    if not isinstance(sealed, dict) or not isinstance(sealed.get("values"), dict):
+        raise _expired()
+    return sealed
 
 
 async def _convert(code: str) -> dict[str, Any]:
@@ -264,25 +292,40 @@ async def complete(
     actor_user_id: int,
 ) -> AppServiceRegistration:
     """Finish the setup GitHub sent the operator back from: exchange its code,
-    and write each value GitHub answers with to the vendor field the manifest
-    names. A value GitHub leaves out is left as it was."""
-    await _spend_state(
+    and write each value GitHub answers with to the vendor field the setup
+    named when it started, all of them in one write or none.
+
+    Refused without writing when the registration's listing is another one
+    now, or when a newer version of it no longer declares a named field, or
+    no longer as a secret where a secret is written."""
+    sealed = await _spend_state(
         session,
         registration_id=registration_id,
         state=state,
         actor_user_id=actor_user_id,
     )
+    mapping: dict[str, Any] = sealed["values"]
     row = await registrations_service.get_registration(session, registration_id)
-    setup = await _setup_of(session, row)
+    if row.listing_uid != sealed.get("listing_uid"):
+        raise _expired()
+    version, definition = await _manifest(session, row)
+    if version != sealed.get("version"):
+        try:
+            check_setup_values(
+                mapping, fields=vendor_values_service.vendor_fields(definition)
+            )
+        except ListingDefinitionError as exc:
+            logger.info("app services: a vendor setup no longer fits (%s)", exc)
+            raise _expired() from exc
     answer = await _convert(code)
     values: dict[str, Optional[str]] = {}
-    for key, name in setup["values"].items():
+    for key, name in mapping.items():
         value = answer.get(name)
-        if isinstance(value, (str, int)) and not isinstance(value, bool):
-            if str(value).strip():
-                values[key] = str(value)
-    if not values:
-        raise _failed()
+        if isinstance(value, bool) or not isinstance(value, (str, int)):
+            raise _failed()
+        if not str(value).strip():
+            raise _failed()
+        values[key] = str(value)
     return await registrations_service.update_registration(
         session, registration_id, vendor_values=values, actor_user_id=actor_user_id
     )

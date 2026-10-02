@@ -50,6 +50,9 @@ SALT_APP_INSTALLS_CURSOR = b"app-installs-cursor"
 # A sign-in finished in the phone's browser, on its way back to the app that
 # began it. Transient: it lives two minutes and is spent once.
 SALT_NATIVE_HANDOFF = b"native-handoff"
+# The state an app vendor's own setup carries through the vendor and back.
+# Transient: it lives an hour and is spent once.
+SALT_APP_VENDOR_SETUP = b"app-vendor-setup"
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"

@@ -901,11 +901,11 @@ def _compose(value: Any, *, image: Optional[str]) -> dict[str, str]:
         raise ListingRegistrationError(
             f"compose.base_url must be at most {_MAX_COMPOSE_BASE_URL} characters"
         )
-    parsed = urlparse(base_url)
     try:
+        parsed = urlparse(base_url)
         parsed.port
     except ValueError as exc:
-        raise ListingRegistrationError("compose.base_url has an unusable port") from exc
+        raise ListingRegistrationError("compose.base_url is not a usable URL") from exc
     if (
         parsed.scheme not in ("http", "https")
         or not parsed.hostname

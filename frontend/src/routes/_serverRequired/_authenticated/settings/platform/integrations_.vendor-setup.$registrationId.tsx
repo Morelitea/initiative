@@ -5,8 +5,11 @@ export interface VendorSetupSearch {
   state?: string;
 }
 
+/** What the server takes for each, so a longer one is not cut short. */
+const MAX_LENGTH = 4000;
+
 const text = (value: unknown): string | undefined =>
-  typeof value === "string" && value ? value.slice(0, 200) : undefined;
+  typeof value === "string" && value ? value.slice(0, MAX_LENGTH) : undefined;
 
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/settings/platform/integrations_/vendor-setup/$registrationId"
