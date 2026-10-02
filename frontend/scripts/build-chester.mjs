@@ -358,7 +358,7 @@ const POSES = {
     css: `
 .fig { animation: bounce 2.4s ease-in-out infinite; }
 .head { animation: nod 1.2s ease-in-out infinite; }
-.mouth { opacity: 0; animation: talk-a 0.6s linear infinite; }
+.mouth { animation: talk-a 0.6s linear infinite; }
 .alt { animation: talk-b 0.6s linear infinite; }
 @keyframes nod { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-3deg); } }
 @keyframes talk-a { 0%, 32% { opacity: 1; } 33%, 100% { opacity: 0; } }
