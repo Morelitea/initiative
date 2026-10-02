@@ -30,7 +30,7 @@ import httpx
 from app.services import safe_http
 from app.services.webhook_target_url import ValidatedTarget
 
-__all__ = ["FakeVendor", "declarative_app"]
+__all__ = ["FakeVendor", "declarative_app", "declarative_github"]
 
 VENDOR_HOST = "github.test"
 API_HOST = "api.github.test"
@@ -118,6 +118,151 @@ def declarative_app(public_id: str) -> dict[str, Any]:
             },
         ],
     }
+
+
+def declarative_github(public_id: str) -> dict[str, Any]:
+    """:func:`declarative_app` as GitHub's is: its community connection is an
+    installation, found among the person's own by ``after_connect`` and
+    checked by ``health``, and the vendor's deliveries become its
+    ``issue-opened`` event and the installation's state."""
+    app = declarative_app(public_id)
+    issue_opened = f"app.{public_id}.issue-opened"
+    app["vendor"] = {
+        "fields": [
+            {"key": key, "type": "string", "required": True, "label": {"en": key}}
+            for key in (
+                "client_id",
+                "client_secret",
+                "app_slug",
+                "app_id",
+                "private_key",
+                "webhook_secret",
+            )
+        ]
+    }
+    app["connections"] = [
+        {
+            "id": "workspace",
+            "scope": "static",
+            "label": {"en": "Organization"},
+            "fields": [
+                {"key": key, "type": "string", "label": {"en": key}, "managed": True}
+                for key in ("owner", "installation_id")
+            ],
+            "flow": {
+                "type": "oauth2",
+                "authorize_url": f"https://{VENDOR_HOST}/login/oauth/authorize",
+                "token_url": f"https://{VENDOR_HOST}/login/oauth/access_token",
+                "client_id": "{vendor.client_id}",
+                "client_secret": "{vendor.client_secret}",
+                "install_url": (
+                    f"https://{VENDOR_HOST}/apps/{{vendor.app_slug}}/installations/new"
+                ),
+                "after_connect": {
+                    "request": {
+                        "method": "GET",
+                        "url": f'"https://{API_HOST}/user/installations"',
+                        "paging": {
+                            "kind": "page_number",
+                            "page_param": "page",
+                            "per_page_param": "per_page",
+                            "per_page": 2,
+                            "items": "response.body.installations",
+                            "max_pages": 5,
+                            "on_limit": "refuse",
+                        },
+                    },
+                    "map": (
+                        "($i := response.body[$string(id) = $$.params.installation_id][0];"
+                        ' {"values": {"owner": $i.account.login,'
+                        ' "installation_id": $string($i.id)},'
+                        ' "account_label": $i.account.login})'
+                    ),
+                    "refuse_when": "$not($exists(result.values.installation_id))",
+                    "code": "not-your-installation",
+                },
+            },
+            "token": {
+                "type": "jwt_bearer",
+                "exchange_url": (
+                    f"https://{VENDOR_HOST}/app/installations/"
+                    "{installation_id}/access_tokens"
+                ),
+                "iss": "{vendor.app_id}",
+                "key": "{vendor.private_key}",
+            },
+            "health": {
+                "request": {
+                    "method": "GET",
+                    "url": f'"https://{API_HOST}/installation/repositories"',
+                },
+                "every": "15m",
+                "states": [
+                    {"status": 404, "state": "removed"},
+                    {"status": 403, "state": "suspended"},
+                ],
+            },
+        }
+    ]
+    app["endpoints"].append(
+        {
+            "id": issue_opened,
+            "direction": "emit",
+            "label": {"en": "Issue opened"},
+            "returns": [
+                {"key": "repository", "type": "string"},
+                {"key": "number", "type": "int"},
+                {"key": "title", "type": "string"},
+            ],
+        }
+    )
+    installation = 'headers."x-github-event" = "installation" and payload.action = '
+    app["webhooks"] = {
+        "verify": {
+            "scheme": "hmac_sha256",
+            "header": "X-Hub-Signature-256",
+            "prefix": "sha256=",
+            "encoding": "hex",
+            "secret": "{vendor.webhook_secret}",
+        },
+        "dedup": "X-GitHub-Delivery",
+        "route": {
+            "path": "installation.id",
+            "connection": "workspace",
+            "field": "installation_id",
+        },
+        "events": [
+            {
+                "when": (
+                    'headers."x-github-event" = "issues" and payload.action = "opened"'
+                    " and $not($exists(payload.issue.pull_request))"
+                ),
+                "emit": issue_opened,
+                "map": (
+                    '{"repository": payload.repository.full_name,'
+                    ' "number": payload.issue.number, "title": payload.issue.title}'
+                ),
+            }
+        ],
+        "status": [
+            {
+                "when": f'{installation}"deleted"',
+                "connection": "workspace",
+                "state": "removed",
+            },
+            {
+                "when": f'{installation}"suspend"',
+                "connection": "workspace",
+                "state": "suspended",
+            },
+            {
+                "when": f'{installation}"unsuspend"',
+                "connection": "workspace",
+                "state": "ok",
+            },
+        ],
+    }
+    return app
 
 
 def _challenge(verifier: str) -> str:
