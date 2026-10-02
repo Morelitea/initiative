@@ -387,12 +387,14 @@ export function EventDetailPage() {
           <CardContent>
             <div className="flex items-center gap-4">
               <Select
-                value={myRsvpStatus ?? "pending"}
+                // Pending is no answer yet, so it shows as the placeholder
+                // rather than as a choice.
+                value={myRsvpStatus === "pending" ? "" : (myRsvpStatus ?? "")}
                 onValueChange={(value) => handleAnswer(value as RSVPStatus)}
                 disabled={updateRSVP.isPending}
               >
                 <SelectTrigger className="w-[140px]">
-                  <SelectValue />
+                  <SelectValue placeholder={t("rsvpPending")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="accepted">{t("rsvpAccepted")}</SelectItem>
