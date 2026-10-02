@@ -594,8 +594,15 @@ def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
     return _walk(payload)
 
 
+def shows_files(model: type, fields: Iterable[str]) -> bool:
+    """Whether any of ``fields`` is a column ``model``'s rows can show a stored
+    file from."""
+    named = set(fields)
+    return any(m is model and column in named for m, column in _upload_columns())
+
+
 async def claim_uploads(
-    session, *rows: Any, uploaded_by: Set[int] | None = None
+    session, *rows: Any, uploaded_by: Set[int] | None = None, carried: bool = False
 ) -> None:
     """Keep the uploads these saved rows show for the initiative each row
     belongs to — none for content of the whole guild.
@@ -612,6 +619,9 @@ async def claim_uploads(
 
     ``uploaded_by`` keeps the claims to files those people uploaded, for a save
     made on nobody's session (a live-editing room); such a save copies nothing.
+
+    ``carried`` says the rows bring content they already showed, as a move
+    does, rather than content this save wrote.
 
     Flushes first; the caller commits.
     """
@@ -691,7 +701,8 @@ async def claim_uploads(
         return
     if install_context(session) is not None:
         # An installed app reaches a file through the content showing it, so
-        # it copies one only when other content it reads shows it too.
+        # it copies one only when content it reads shows it: other content,
+        # or rows it carried here.
         saving: Dict[type, list[int]] = {}
         for row, *_ in showing:
             saving.setdefault(type(row), []).append(row.id)
@@ -702,7 +713,7 @@ async def claim_uploads(
                 if await _still_shown(
                     session,
                     Path(url).name,
-                    leaving=saving,
+                    leaving={} if carried else saving,
                     tables=set(APP_TABLE_ACCESS),
                 )
             }

@@ -662,7 +662,9 @@ async def move_task(
     # The files the task and its conversation show are kept for the
     # destination's initiative.
     comments = await session.exec(select(Comment).where(Comment.task_id == task.id))
-    await attachments_service.claim_uploads(session, task, *comments.all())
+    await attachments_service.claim_uploads(
+        session, task, *comments.all(), carried=True
+    )
 
     _touch_project(source_project, now)
     _touch_project(target_project, now)

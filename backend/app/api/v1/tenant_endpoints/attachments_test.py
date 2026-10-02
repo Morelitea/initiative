@@ -780,6 +780,53 @@ async def test_an_app_copies_only_a_picture_it_reads_through_content(
     assert shown[1] != in_document
 
 
+async def test_an_app_moving_a_task_carries_its_picture(
+    client: AsyncClient, session, acting_user, role_session
+):
+    """A task an install moves into another initiative it is placed in takes a
+    copy of the picture only it shows: the content came with the task."""
+    from app.models.tenant.app_placement import AppPlacement
+    from app.models.tenant.resource_grant import ResourceAccessLevel
+    from app.testing import (
+        create_project,
+        create_resource_grant,
+        create_task,
+        guild_url,
+        route_session_to_guild,
+    )
+    from app.testing.app_clients import install_app, install_headers
+
+    scopes = ["projects:read", "projects:write"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    seat = installed.seat
+    here = await create_project(session, installed.placed, seat.user)
+    there = await create_project(session, installed.unplaced, seat.user)
+    for project in (here, there):
+        await create_resource_grant(
+            session,
+            project,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.write,
+        )
+    task = await create_task(session, here)
+    await route_session_to_guild(session, installed.guild.id)
+    session.add(
+        AppPlacement(install_id=installed.app.id, initiative_id=installed.unplaced.id)
+    )
+    await session.commit()
+    url = await _paste(client, seat)
+    await _set_description(client, seat, task.id, f"![shot]({url})")
+
+    moved = await client.post(
+        guild_url(installed.guild.id, f"/tasks/{task.id}/move"),
+        headers=install_headers(installed, scopes),
+        json={"target_project_id": there.id},
+    )
+
+    assert moved.status_code == 200, moved.text
+    assert url not in moved.json()["description"]
+
+
 async def test_a_task_moved_to_another_initiative_takes_copies_of_its_pictures(
     client: AsyncClient, session, acting_user
 ):
