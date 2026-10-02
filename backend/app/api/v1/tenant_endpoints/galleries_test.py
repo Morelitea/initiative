@@ -70,7 +70,6 @@ async def test_create_gallery(client: AsyncClient, acting_user, session):
     assert body["name"] == "Live screen, round 4"
     assert body["description"] == "Every canvas from the fourth round."
     assert body["can"]["delete"] is True
-    assert body["image_count"] == 0
     assert body["cover"] is None
     levels = {(g.get("all_initiative_members"), g["level"]) for g in body["grants"]}
     assert (True, "read") in levels
@@ -117,11 +116,11 @@ async def test_create_requires_the_create_permission(
     assert response.json()["detail"] == "GALLERY_CREATE_PERMISSION_REQUIRED"
 
 
-async def test_list_carries_counts_and_newest_picture_as_cover(
+async def test_list_carries_newest_picture_as_cover(
     client: AsyncClient, acting_user, session
 ):
-    """A list of galleries is itself visual: each row says how many pictures
-    it holds and shows one, the newest unless one was chosen."""
+    """A list of galleries is itself visual: each row shows a picture, the
+    newest unless one was chosen."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     await _galleries_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user, name="Store assets")
@@ -142,7 +141,6 @@ async def test_list_carries_counts_and_newest_picture_as_cover(
     )
     assert listing.status_code == 200, listing.text
     (item,) = listing.json()["items"]
-    assert item["image_count"] == 2
     # Nothing chosen: no cover, and the preview is the newest first.
     assert item["cover"] is None
     assert item["cover_image_id"] is None
@@ -683,7 +681,6 @@ async def test_removing_a_picture_trashes_it_and_clears_the_cover(
     assert response.status_code == 204
 
     detail = await client.get(a.g(f"/galleries/{gallery.id}"), headers=a.headers)
-    assert detail.json()["image_count"] == 0
     assert detail.json()["cover"] is None
     assert detail.json()["cover_image_id"] is None
     assert detail.json()["preview"] == []
@@ -967,9 +964,14 @@ async def test_a_copy_has_its_pictures_and_its_cover(
 
     assert response.status_code == 201, response.text
     copy = response.json()
-    assert copy["image_count"] == 2
     assert copy["cover_image_id"] not in (None, cover.id)
     await route_session_to_guild(session, a.guild.id)
+    images = (
+        await session.exec(
+            select(GalleryImage).where(GalleryImage.gallery_id == copy["id"])
+        )
+    ).all()
+    assert len(images) == 2
     versions = (
         await session.exec(
             select(GalleryImageVersion).where(

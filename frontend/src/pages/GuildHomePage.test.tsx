@@ -342,7 +342,6 @@ describe("GuildHomePage", () => {
           id: 3,
           name: "Launch Window",
           initiative_id: INITIATIVE_ID,
-          item_count: 4,
         }),
       ],
     });
@@ -350,9 +349,6 @@ describe("GuildHomePage", () => {
     renderHome({ tool: "queues" });
 
     expect(await screen.findByRole("link", { name: "Launch Window" })).toBeInTheDocument();
-    // The third column is the tool's own — queues count their items.
-    expect(screen.getByRole("columnheader", { name: /items/i })).toBeInTheDocument();
-    expect(screen.getByText("4 items")).toBeInTheDocument();
   });
 
   it("falls back to a reachable tool when the address names an unknown one", async () => {

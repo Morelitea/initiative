@@ -72,9 +72,6 @@ class WikiUpdate(WikiSettings):
 
 
 class WikiSummary(WikiBase, ToolSummaryBase):
-    #: How many pages it holds. Served with the row so a list of wikis can say
-    #: so without a request per card.
-    page_count: int = 0
     #: The page it opens on, or ``null`` where none was chosen.
     home_page_id: Optional[int] = None
     #: What this wiki is for — see :class:`WikiSettings`.

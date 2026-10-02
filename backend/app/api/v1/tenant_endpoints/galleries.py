@@ -164,7 +164,6 @@ async def annotate_gallery_rows(session: RLSSessionDep, galleries: list) -> None
     await comments_service.annotate_comment_counts(
         session, galleries, column="gallery_id"
     )
-    await galleries_service.annotate_image_counts(session, galleries)
     await galleries_service.annotate_covers(session, galleries)
 
 

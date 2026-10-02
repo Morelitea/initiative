@@ -44,11 +44,26 @@ export interface ToolRow {
   initiativeId: number | null;
   tags: TagSummary[];
   updatedAt: string;
-  /** The tool's own column: what this row is, in its own terms. */
-  detail: ReactNode;
-  /** The scalar behind {@link detail}, so that column sorts. */
-  detailSort: string | number;
+  /** The tool's own column: what this row is, in its own terms. Left out
+   *  for a tool without one ({@link TOOL_HAS_DETAIL}). */
+  detail?: ReactNode;
 }
+
+/**
+ * Whether a tool's table has a column of its own ({@link ToolRow.detail}).
+ * Stated for every tool, so a new one has to say.
+ */
+export const TOOL_HAS_DETAIL: Record<Tool, boolean> = {
+  [Tool.project]: true,
+  [Tool.document]: true,
+  [Tool.queue]: false,
+  [Tool.counter_group]: false,
+  [Tool.calendar]: true,
+  [Tool.dashboard]: true,
+  [Tool.post]: true,
+  [Tool.gallery]: false,
+  [Tool.wiki]: false,
+};
 
 /**
  * A page of each tool's list, however the caller fetched it. Exactly one is
@@ -135,7 +150,6 @@ export function buildToolRows(
               {t("detail.tasksDone", { completed, total })}
             </span>
           ),
-          detailSort: percent,
         };
       });
     case Tool.document:
@@ -151,7 +165,6 @@ export function buildToolRows(
         detail: (
           <Badge variant="secondary">{t(`detail.documentType.${document.document_type}`)}</Badge>
         ),
-        detailSort: document.document_type,
       }));
     case Tool.queue:
       return (data[Tool.queue]?.items ?? []).map((queue) => ({
@@ -163,8 +176,6 @@ export function buildToolRows(
         initiativeId: queue.initiative_id,
         tags: queue.tags,
         updatedAt: queue.updated_at,
-        detail: t("detail.queueItems", { count: queue.item_count }),
-        detailSort: queue.item_count,
       }));
     case Tool.counter_group:
       return (data[Tool.counter_group]?.items ?? []).map((group) => ({
@@ -176,8 +187,6 @@ export function buildToolRows(
         initiativeId: group.initiative_id,
         tags: group.tags,
         updatedAt: group.updated_at,
-        detail: t("detail.counters", { count: group.counter_count }),
-        detailSort: group.counter_count,
       }));
     case Tool.calendar:
       return (data[Tool.calendar]?.items ?? []).map((calendar) => ({
@@ -190,7 +199,6 @@ export function buildToolRows(
         tags: calendar.tags,
         updatedAt: calendar.updated_at,
         detail: calendar.description,
-        detailSort: calendar.description ?? "",
       }));
     case Tool.dashboard:
       return (data[Tool.dashboard]?.items ?? []).map((dashboard) => ({
@@ -207,7 +215,6 @@ export function buildToolRows(
         ) : (
           t("detail.builtHere")
         ),
-        detailSort: dashboard.listing_uid ?? "",
       }));
     case Tool.post:
       return (data[Tool.post]?.items ?? []).map((post) => ({
@@ -223,7 +230,6 @@ export function buildToolRows(
         // things people said, and the headline alone rarely distinguishes two
         // of them — the server derives this from the body for exactly here.
         detail: post.excerpt,
-        detailSort: post.excerpt,
       }));
     case Tool.gallery:
       return (data[Tool.gallery]?.items ?? []).map((gallery) => ({
@@ -235,10 +241,6 @@ export function buildToolRows(
         initiativeId: gallery.initiative_id,
         tags: gallery.tags,
         updatedAt: gallery.updated_at,
-        // How many pictures it holds — the one figure that says what kind
-        // of gallery this is before it is opened.
-        detail: gallery.image_count,
-        detailSort: gallery.image_count,
       }));
     case Tool.wiki:
       return (data[Tool.wiki]?.items ?? []).map((wiki) => ({
@@ -250,10 +252,6 @@ export function buildToolRows(
         initiativeId: wiki.initiative_id,
         tags: wiki.tags,
         updatedAt: wiki.updated_at,
-        // How many pages it holds — the one figure that says how far along a
-        // wiki is before it is opened.
-        detail: wiki.page_count,
-        detailSort: wiki.page_count,
       }));
   }
 }

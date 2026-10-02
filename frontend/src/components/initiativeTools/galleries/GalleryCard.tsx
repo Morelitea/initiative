@@ -81,7 +81,6 @@ export const GalleryCard = ({ gallery, className }: GalleryCardProps) => {
           </div>
         )}
         <div className="absolute right-2 bottom-2 flex flex-col items-end gap-1 text-xs">
-          <Badge variant="secondary">{t("card.pictures", { count: gallery.image_count })}</Badge>
           {commentCount !== null && commentCount > 0 && (
             <Badge variant="secondary">{t("card.comments", { count: commentCount })}</Badge>
           )}

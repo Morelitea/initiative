@@ -253,25 +253,6 @@ async def get_image(
     return image
 
 
-async def annotate_image_counts(session: AsyncSession, rows: Sequence[Gallery]) -> None:
-    """Set ``image_count`` on each gallery from one grouped query.
-
-    Trashed pictures are excluded by the soft-delete filter, so a gallery
-    that was emptied into the trash reads as empty rather than as full.
-    """
-    ids = [g.id for g in rows if g.id is not None]
-    if not ids:
-        return
-    result = await session.exec(
-        select(GalleryImage.gallery_id, func.count(GalleryImage.id))
-        .where(GalleryImage.gallery_id.in_(tuple(ids)))
-        .group_by(GalleryImage.gallery_id)
-    )
-    counts = dict(result.all())
-    for gallery in rows:
-        object.__setattr__(gallery, "image_count", counts.get(gallery.id, 0))
-
-
 #: How many pictures a gallery shows from outside when no cover was chosen.
 PREVIEW_COUNT = 4
 

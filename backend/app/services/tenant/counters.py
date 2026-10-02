@@ -37,10 +37,9 @@ from app.services.tenant import tags as tags_service
 
 
 def list_loader_options() -> list:
-    """Eager-load what a counter-group *list* row needs: its counters (for the
-    count), its sharing, the level the request holds on it and its tags."""
+    """Eager-load what a counter-group *list* row needs: its sharing, the level
+    the request holds on it and its tags."""
     return [
-        selectinload(CounterGroup.counters),
         selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
         selectinload(CounterGroup.initiative),
         undefer(CounterGroup.actions),

@@ -26,7 +26,6 @@ export function buildWiki(overrides: Partial<WikiRead> = {}): WikiRead {
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     archived_at: null,
-    page_count: 0,
     home_page_id: null,
     page_order: WikiPageOrder.manual,
     contents_depth: 2,

@@ -173,13 +173,7 @@ class CounterGroupUpdate(SanitizedBaseModel):
 
 
 class CounterGroupSummary(CounterGroupBase, ToolSummaryBase):
-    counter_count: int = 0
-
-    @classmethod
-    def derived_fields(
-        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
-    ) -> dict[str, Any]:
-        return {"counter_count": len(_active_counters(row))}
+    """A counter group in a list: the group alone, without its counters."""
 
 
 class CounterGroupListResponse(PageMeta):
