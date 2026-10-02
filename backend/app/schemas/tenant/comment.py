@@ -149,6 +149,10 @@ class CommentRead(CommentBase):
     # row: a thread renders its chips from one list call. Empty until the
     # loader stamps them (see ``comments_service.attach_reactions``).
     reactions: list[ReactionGroup] = Field(default_factory=list)
+    # Whether the reader may delete this comment: their own, or anybody's
+    # where they administer the community or manage the initiative. Filled by
+    # the service's serializer from the same rule the delete route applies.
+    can_remove: bool = False
 
 
 class CommentListResponse(SanitizedBaseModel):

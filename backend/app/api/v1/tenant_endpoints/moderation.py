@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.api.deps import (
     RLSSessionDep,
@@ -24,6 +24,7 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.core.messages import ModerationMessages
+from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.core.moderation import parse_target
 from app.models.platform.user import User
 from app.schemas.tenant.moderation import (
@@ -82,7 +83,10 @@ def _read(
 @me_router.post(
     "/reports", response_model=ReportAccepted, status_code=status.HTTP_202_ACCEPTED
 )
+# Each report is something a moderator reads.
+@limiter.limit("30/hour", key_func=get_user_or_ip_key)
 async def file_report(
+    request: Request,
     payload: ReportCreate,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],

@@ -829,6 +829,33 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
     assert grant.status == "approved"
 
 
+async def test_billing_handoff_records_the_grant_it_issues(
+    client: AsyncClient, session: AsyncSession, owner, monkeypatch, capfd
+):
+    """A billing grant is self-issued like breaking glass, so it is recorded
+    the same way — once, when it is issued, and not again when it is reused."""
+    from app.core.audit_events import AuditEventType
+    from app.testing.audit import emitted
+
+    _configure_billing(monkeypatch)
+    guild = await create_guild(session)
+    capfd.readouterr()
+
+    first = await client.post(_handoff(guild.id), headers=owner.headers)
+    second = await client.post(_handoff(guild.id), headers=owner.headers)
+    assert first.status_code == second.status_code == 200
+
+    issued = emitted(capfd, AuditEventType.ACCESS_GRANT_SELF_ISSUED)
+    assert len(issued) == 1
+    assert issued[0]["actor_user_id"] == owner.user.id
+    assert issued[0]["guild_id"] == guild.id
+    assert issued[0]["detail"] == {
+        "purpose": "billing",
+        "level": "read",
+        "self_approved": True,
+    }
+
+
 async def test_billing_handoff_reuses_a_live_grant(
     client: AsyncClient, session: AsyncSession, owner, monkeypatch
 ):
@@ -1224,6 +1251,23 @@ async def test_help_requests_switch_on_once_a_stream_is_bound(client, session, o
 
     assert response.status_code == 200, response.text
     assert (await guild_administration(session, guild)).support_enabled is True
+
+
+async def test_the_community_list_says_whether_help_has_somewhere_to_go(
+    client, session, acting_user
+):
+    """The switch is held until a support stream is bound, and the operator
+    flipping it reads that from the list they flip it on — not from the intake
+    settings, which are the owner's."""
+    operator = await acting_user("operator")
+
+    before = await client.get(GUILDS, headers=operator.headers)
+    await _bind_support_stream(session)
+    after = await client.get(GUILDS, headers=operator.headers)
+
+    assert before.status_code == after.status_code == 200, before.text
+    assert before.json()["support_bound"] is False
+    assert after.json()["support_bound"] is True
 
 
 async def test_help_requests_can_always_be_switched_off(client, session, owner):

@@ -74,7 +74,9 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         blueprint="moderation.json",
     ),
     IntakeStream.support: IntakeStreamMeta(
-        sources=frozenset({Source.submitted, Source.manual}),
+        # Alerted too: a community claiming sign-in claim values opens a
+        # support case on its own, with nobody filing it.
+        sources=frozenset({Source.submitted, Source.alerted, Source.manual}),
         submitter=Submitter.member,
         blueprint="support.json",
     ),

@@ -506,3 +506,38 @@ async def test_break_glass_requirements_carry_the_window(
     assert resp.json()["max_duration_minutes"] == service.break_glass_max_minutes(
         service.UserRole.operator
     )
+
+
+async def test_a_grant_past_its_window_is_marked_expired(
+    session: AsyncSession, acting_user, capfd
+):
+    """Liveness is computed, so nothing breaks while the row still says
+    approved — but nothing records the grant ending either. The sweep marks it
+    and says so, once, and leaves a grant still inside its window alone."""
+    from app.core.audit_events import AuditEventType
+    from app.services.platform import access_grants as service
+    from app.testing.audit import emitted
+
+    host = await acting_user(guild_role=GuildRole.admin)
+    other_host = await acting_user(guild_role=GuildRole.admin)
+    grantee = await acting_user("support")
+    lapsed = await _approved_grant(
+        session, grantee=grantee, host=host, expires_in=timedelta(minutes=-5)
+    )
+    live = await _approved_grant(session, grantee=grantee, host=other_host)
+    capfd.readouterr()
+
+    assert await service.expire_due(session) == 1
+    await session.commit()
+    assert await service.expire_due(session) == 0
+    await session.commit()
+
+    await session.refresh(lapsed)
+    await session.refresh(live)
+    assert lapsed.status == "expired"
+    assert live.status == "approved"
+    decided = emitted(capfd, AuditEventType.ACCESS_GRANT_DECIDED)
+    assert [(e["target"]["id"], e["detail"]["decision"]) for e in decided] == [
+        (lapsed.id, "expired")
+    ]
+    assert decided[0]["actor_user_id"] is None

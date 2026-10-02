@@ -755,3 +755,72 @@ class TestEditingAComment:
         )
         assert denied.status_code == 403
         assert denied.json()["detail"] == CommentMessages.AUTHOR_ONLY_EDIT
+
+
+class TestRemovingAComment:
+    """Who may delete a comment, and the thread saying so up front.
+
+    The thread reports ``can_remove`` per comment from the same rule the delete
+    route applies — the author, a community admin, or a manager of the
+    initiative — so the client offers Delete exactly where it would go
+    through. Write access to the thing commented on is not part of the rule.
+    """
+
+    @pytest.fixture
+    async def thread(self, session, acting_user):
+        owner = await acting_user(
+            guild_role=GuildRole.admin, initiative=True, project=True
+        )
+        joined = {
+            name: await acting_user(
+                guild_role=GuildRole.member,
+                guild=owner.guild,
+                initiative=owner.initiative,
+                initiative_role=role,
+            )
+            for name, role in (
+                ("author", "member"),
+                ("writer", "member"),
+                ("manager", "project_manager"),
+            )
+        }
+        await create_resource_grant(
+            session,
+            owner.project,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.write,
+        )
+        task = await create_task(session, owner.project)
+        comment = await create_comment(session, joined["author"].user, task=task)
+        return {"admin": owner, **joined, "task": task, "comment": comment}
+
+    @pytest.mark.parametrize(
+        "reader,removes",
+        [
+            pytest.param("author", True, id="its-author"),
+            pytest.param("admin", True, id="a-community-admin"),
+            pytest.param("manager", True, id="a-manager-of-the-initiative"),
+            pytest.param("writer", False, id="somebody-who-can-only-write"),
+        ],
+    )
+    async def test_the_thread_says_who_may_delete_and_the_route_agrees(
+        self, client, thread, reader, removes
+    ):
+        actor = thread[reader]
+        listed = await client.get(
+            actor.g("/comments/"),
+            headers=actor.headers,
+            params={"task_id": thread["task"].id},
+        )
+        assert listed.status_code == 200, listed.text
+        (shown,) = listed.json()["comments"]
+        assert shown["can_remove"] is removes
+
+        deleted = await client.delete(
+            actor.g(f"/comments/{thread['comment'].id}"), headers=actor.headers
+        )
+        if removes:
+            assert deleted.status_code == 204, deleted.text
+        else:
+            assert deleted.status_code == 403, deleted.text
+            assert deleted.json()["detail"] == CommentMessages.AUTHOR_ONLY_DELETE

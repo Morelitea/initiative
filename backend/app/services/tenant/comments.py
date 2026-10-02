@@ -39,7 +39,7 @@ from app.db.initiative_rls import (
     COMMENT_PARENTS,
     COMMENT_PARENT_COLUMNS as RLS_COMMENT_PARENT_COLUMNS,
 )
-from app.db.session import install_context
+from app.db.session import guild_context, install_context
 from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.comment import Comment
@@ -49,7 +49,6 @@ from app.models.tenant.dashboard import Dashboard
 from app.models.tenant.post import Post
 from app.models.tenant.gallery import Gallery
 from app.models.tenant.document import Document
-from app.models.platform.guild import GUILD_ADMIN_ROLES, GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
@@ -57,7 +56,6 @@ from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.task import Task, TaskAssignee
 from app.models.platform.user import User
 from app.services import keyset_cursor
-from app.services import rls as rls_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import content_references
 from app.services import notifications
@@ -493,6 +491,10 @@ def serialize_comment(comment: Comment, *, viewer_id: Optional[int] = None):
     task_project_id = getattr(comment, "_task_project_id", None)
     if task_project_id is not None:
         read.project_id = task_project_id
+    read.can_remove = viewer_id is not None and (
+        comment.created_by == viewer_id
+        or bool(getattr(comment, "_removes_others", False))
+    )
     rows = getattr(comment, "_reactions", None)
     if rows:
         read.reactions = reactions_service.summarize(rows, viewer_id=viewer_id)
@@ -569,14 +571,39 @@ async def _resolved_parent(
     return ctx
 
 
-def _stamp_task_project(ctx: _ParentContext, *comments: Comment) -> None:
-    """Record the task's project on loaded rows for serialization — a plain
-    attribute, never the ``project_id`` column (that names a comment ON a
-    project)."""
-    if ctx.project is None:
-        return
+def removes_others_comments(
+    session: AsyncSession, initiative_id: Optional[int]
+) -> bool:
+    """Whether this request may take down comments other people wrote in
+    ``initiative_id``: a community admin, or a manager of that initiative.
+
+    Read off the standing the seam computed, so it costs no query and answers
+    exactly what the delete route checks. An installed app and granted access
+    take down nobody's words but their own.
+    """
+    context = guild_context(session)
+    if context is None:
+        return False
+    if context.is_admin:
+        return True
+    return initiative_id is not None and initiative_id in context.manager_initiatives
+
+
+def _stamp_parent(
+    session: AsyncSession, ctx: _ParentContext, *comments: Comment
+) -> None:
+    """Record what the parent says about loaded rows, for serialization.
+
+    The task's project — a plain attribute, never the ``project_id`` column
+    (that names a comment ON a project) — and whether this reader may take
+    down other people's comments in the thread, so the client offers Delete
+    exactly where the route allows it.
+    """
+    removes_others = removes_others_comments(session, ctx.initiative_id)
     for comment in comments:
-        object.__setattr__(comment, "_task_project_id", ctx.project.id)
+        object.__setattr__(comment, "_removes_others", removes_others)
+        if ctx.project is not None:
+            object.__setattr__(comment, "_task_project_id", ctx.project.id)
 
 
 async def get_comment_with_parent(
@@ -618,7 +645,7 @@ async def get_comment_with_parent(
         user=user,
         access=access,
     )
-    _stamp_task_project(ctx, comment)
+    _stamp_parent(session, ctx, comment)
     await attach_reactions(session, comment)
     return comment, ctx
 
@@ -710,7 +737,7 @@ async def create_comment(
     session.add(comment)
     await session.flush()
     await session.refresh(comment, attribute_names=["author"])
-    _stamp_task_project(ctx, comment)
+    _stamp_parent(session, ctx, comment)
     await content_references.sync_for_comment(session, comment, author_id=author.id)
     await attachments_service.claim_uploads(session, comment)
 
@@ -961,7 +988,7 @@ async def list_comments(
         .options(selectinload(Comment.author))
     )
     comments = (await session.exec(stmt)).all()
-    _stamp_task_project(ctx, *comments)
+    _stamp_parent(session, ctx, *comments)
     await attach_reactions(session, *comments)
     return comments, next_cursor
 
@@ -972,7 +999,6 @@ async def delete_comment(
     comment_id: int,
     user: User,
     guild_id: int,
-    guild_role: GuildRole,
 ) -> Comment:
     comment = await _get_comment(session, comment_id=comment_id)
     if not comment:
@@ -985,19 +1011,10 @@ async def delete_comment(
     if ctx is None:
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
     await _ensure_parent_access(session, ctx, user=user, access="read")
-    _stamp_task_project(ctx, comment)
-    initiative_id = ctx.initiative_id
+    _stamp_parent(session, ctx, comment)
 
     is_author = comment.created_by == user.id
-    is_guild_admin = guild_role in GUILD_ADMIN_ROLES
-    is_initiative_manager = False
-    if not is_author and not is_guild_admin and initiative_id is not None:
-        is_initiative_manager = await rls_service.is_initiative_manager(
-            session,
-            initiative_id=initiative_id,
-        )
-
-    if not (is_author or is_guild_admin or is_initiative_manager):
+    if not (is_author or removes_others_comments(session, ctx.initiative_id)):
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
 
     from app.services.tenant.soft_delete import trash
@@ -1044,7 +1061,7 @@ async def update_comment(
     if ctx is None:
         raise CommentNotFoundError(CommentMessages.NOT_FOUND)
     await _ensure_parent_access(session, ctx, user=user, access="read")
-    _stamp_task_project(ctx, comment)
+    _stamp_parent(session, ctx, comment)
 
     previous_content = comment.content
     comment.content = content

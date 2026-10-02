@@ -696,12 +696,21 @@ async def list_grants(
     return list(result.all())
 
 
+#: How often grants past their window are marked expired.
+GRANT_EXPIRY_POLL_SECONDS = 300
+
+
 async def expire_due(session: AsyncSession) -> int:
     """Flip approved-but-past-expiry grants to ``expired`` for clean audit/UX.
 
     Liveness is computed independently, so this is housekeeping, not a
-    correctness requirement. Returns the number of rows updated.
+    correctness requirement: it is what records that a grant *ended*, which
+    nothing else observes. Each one is recorded as decided by nobody.
+    Returns the number of rows updated.
     """
+    from app.core.audit_events import AuditEventType
+    from app.services import audit as audit_service
+
     now = utcnow()
     result = await session.exec(
         select(AccessGrant).where(
@@ -714,9 +723,33 @@ async def expire_due(session: AsyncSession) -> int:
         grant.status = AccessGrantStatus.expired.value
         grant.updated_at = now
         session.add(grant)
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+            actor_user_id=None,
+            guild_id=grant.guild_id,
+            target_type="access_grant",
+            target_id=grant.id,
+            detail={
+                "purpose": grant.purpose,
+                "level": grant.access_level,
+                "decision": AccessGrantStatus.expired.value,
+            },
+        )
     if rows:
         await session.flush()
     return len(rows)
+
+
+async def process_grant_expiry() -> None:
+    """Background sweep: mark the grants whose window has closed."""
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as session:
+        expired = await expire_due(session)
+        await session.commit()
+    if expired:
+        logger.info("access grants: marked %s expired", expired)
 
 
 async def _enrichment(
@@ -801,6 +834,7 @@ __all__ = [
     "get_live_grants",
     "list_grants",
     "expire_due",
+    "process_grant_expiry",
     "to_read",
     "max_minutes_for_role",
     "break_glass_max_minutes",

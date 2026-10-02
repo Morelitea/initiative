@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.api.deps import (
     RLSSessionDep,
@@ -17,6 +17,7 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.core.messages import SupportMessages
+from app.core.rate_limit import get_user_or_ip_key, limiter
 from app.models.platform.user import User
 from app.schemas.tenant.support import (
     SupportAvailability,
@@ -48,7 +49,10 @@ async def support_availability(
 @router.post(
     "", response_model=SupportRequestAccepted, status_code=status.HTTP_202_ACCEPTED
 )
+# Each request is a case somebody works by hand.
+@limiter.limit("10/hour", key_func=get_user_or_ip_key)
 async def ask_for_help(
+    request: Request,
     payload: SupportRequestCreate,
     session: RLSSessionDep,
     context: GuildContextDep,

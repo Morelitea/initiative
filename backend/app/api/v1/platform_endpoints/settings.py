@@ -16,6 +16,7 @@ from app.api.v1.platform_endpoints.session_opening import MOBILE_CALLBACK_URI
 from app.core.audit_events import AuditEventType
 from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
+from app.core.intake import IntakeStream
 from app.core.rate_limit import limiter
 from app.db.query import build_paginated_response, paginated_query
 from app.models.platform.app_setting import AppSetting
@@ -92,6 +93,7 @@ from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_purge
 from app.services.platform import guilds as guilds_service
+from app.services.platform.intake import stream_is_bound
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services import storage_backfill, storage_config
@@ -919,7 +921,8 @@ async def list_platform_guild_storage(
         for g, administration in rows
     ]
     return PlatformGuildStorageListResponse(
-        **build_paginated_response(items, total_count, actual_page, page_size)
+        **build_paginated_response(items, total_count, actual_page, page_size),
+        support_bound=await stream_is_bound(IntakeStream.support),
     )
 
 
@@ -1247,6 +1250,20 @@ async def create_platform_guild_billing_service_handoff(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=BillingMessages.PORTAL_GRANT_UNAVAILABLE,
             ) from exc
+        # Recorded like every other grant somebody issues themselves.
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.ACCESS_GRANT_SELF_ISSUED,
+            actor_user_id=operator.id,
+            guild_id=grant.guild_id,
+            target_type="access_grant",
+            target_id=grant.id,
+            detail={
+                "purpose": grant.purpose,
+                "level": grant.access_level,
+                "self_approved": True,
+            },
+        )
 
     try:
         user_ref, guild_ref = await billing_refs(user_id=operator.id, guild_id=guild_id)
