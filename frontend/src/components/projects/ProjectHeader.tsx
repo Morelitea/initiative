@@ -1,28 +1,29 @@
 import { CalendarRange } from "lucide-react";
-import type { CSSProperties } from "react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import { type ProjectRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
+import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
+import { Progress } from "@/components/ui/progress";
+import { useUpdateProject } from "@/hooks/useProjects";
 import { formatDate } from "@/lib/formatDate";
-import { hexToRgba, resolveInitiativeColor } from "@/lib/initiativeColors";
+import { toolSettingsRoute } from "@/lib/tools";
 
 import { FavoriteProjectButton } from "./FavoriteProjectButton";
 
-type ProjectOverviewCardProps = {
+type ProjectHeaderProps = {
   project: ProjectRead;
   projectIsArchived: boolean;
 };
 
-export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverviewCardProps) => {
-  const { t } = useTranslation("projects");
-  const detailCardStyle = useMemo(() => {
-    const initiativeColor = resolveInitiativeColor(project.initiative?.color);
-    return buildProjectDetailBackground(initiativeColor);
-  }, [project.initiative?.color]);
+export const ProjectHeader = ({ project, projectIsArchived }: ProjectHeaderProps) => {
+  const { t } = useTranslation(["projects", "common"]);
+  const updateProject = useUpdateProject(project.id);
+  const canEdit = project.can.edit;
 
-  // Dates are optional and independent. With neither set the banner shows
+  // Dates are optional and independent. With neither set the header shows
   // nothing at all — an empty schedule is not worth a line of its own.
   const scheduleLabel = useMemo(() => {
     const start = formatDate(project.start_date);
@@ -40,27 +41,48 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
   }, [project.start_date, project.end_date, t]);
 
   return (
-    <div className="space-y-4 rounded-2xl border bg-card/90 p-6 shadow-sm" style={detailCardStyle}>
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        <div className="flex flex-1 items-center gap-2 sm:gap-3">
-          {project.icon ? <span className="text-3xl leading-none">{project.icon}</span> : null}
-          <h1 className="font-semibold text-3xl tracking-tight">{project.name}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <FavoriteProjectButton
-            projectId={project.id}
-            isFavorited={project.is_favorited ?? false}
-          />
-        </div>
-      </div>
-      {scheduleLabel ? (
-        <div className="inline-flex items-center gap-2 rounded-lg border border-foreground/15 bg-background/60 px-3 py-1.5 font-semibold text-sm">
-          <CalendarRange className="h-4 w-4 shrink-0" aria-hidden />
-          {/* The icon carries the meaning visually; name it for screen readers. */}
-          <span className="sr-only">{t("overview.scheduleLabel")}</span>
-          <span>{scheduleLabel}</span>
-        </div>
-      ) : null}
+    <ToolPageHeader
+      tool={Tool.project}
+      initiativeId={project.initiative_id}
+      settingsTo={
+        canEdit ? toolSettingsRoute(Tool.project, project.initiative_id, project.id) : undefined
+      }
+      mark={project.icon ? <span className="text-3xl leading-none">{project.icon}</span> : null}
+      title={project.name}
+      onRename={
+        canEdit && !projectIsArchived ? (name) => updateProject.mutateAsync({ name }) : undefined
+      }
+      chest={
+        <ToolChest tool={Tool.project} entity={project}>
+          <ToolChestSegment label={t("overview.progressLabel")}>
+            <span className="tabular-nums">
+              {t("overview.progress", {
+                completed: project.task_summary.completed,
+                total: project.task_summary.total,
+              })}
+            </span>
+            <Progress
+              value={
+                project.task_summary.total
+                  ? (project.task_summary.completed / project.task_summary.total) * 100
+                  : 0
+              }
+              className="h-1.5 w-12"
+              aria-hidden
+            />
+          </ToolChestSegment>
+          <ToolChestSegment label={t("overview.datesLabel")}>
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              {scheduleLabel ?? t("common:toolChest.none")}
+            </span>
+          </ToolChestSegment>
+        </ToolChest>
+      }
+      titleExtras={
+        <FavoriteProjectButton projectId={project.id} isFavorited={project.is_favorited ?? false} />
+      }
+    >
       {project.is_template ? (
         <p className="rounded-md border border-muted/70 bg-muted/30 px-4 py-2 text-muted-foreground text-sm">
           {t("overview.templateInfo")}
@@ -72,16 +94,6 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
           {t("overview.archivedInfo")}
         </p>
       ) : null}
-    </div>
+    </ToolPageHeader>
   );
-};
-
-const buildProjectDetailBackground = (hexColor: string): CSSProperties => {
-  return {
-    borderColor: hexToRgba(hexColor, 0.35),
-    backgroundImage: `linear-gradient(135deg, ${hexToRgba(hexColor, 0.18)} 0%, ${hexToRgba(
-      hexColor,
-      0.06
-    )} 45%, transparent 100%)`,
-  };
 };

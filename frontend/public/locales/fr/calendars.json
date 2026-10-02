@@ -33,7 +33,6 @@
   "monthly": "Mensuel",
   "yearly": "Annuel",
   "permissions": "Permissions",
-  "settings": "Paramètres",
   "details": "Détails",
   "access": "Accès",
   "advanced": "Avancé",
@@ -43,7 +42,8 @@
     "heading": "Filtres",
     "dates": "Dates",
     "searchLabel": "Nom ou description",
-    "searchCalendars": "Rechercher des calendriers..."
+    "searchCalendars": "Rechercher des calendriers...",
+    "tasks": "Tâches"
   },
   "loading": "Chargement...",
   "loadError": "Échec du chargement des événements",
@@ -102,8 +102,14 @@
     "projectTasks": "Tâches des projets",
     "calendarSettings": "Paramètres de {{name}}"
   },
+  "picker": {
+    "all": "Tous les calendriers",
+    "none": "Aucun calendrier",
+    "some_one": "{{count}} calendrier",
+    "some_other": "{{count}} calendriers",
+    "label": "Choisir les calendriers à afficher"
+  },
   "guildScope": {
-    "title": "Calendrier de la communauté",
     "empty": "Aucun calendrier pour l'instant.",
     "emptyHint": "Créez-en un pour les jours fériés, pour une rencontre régulière ou simplement pour vous."
   },

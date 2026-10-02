@@ -54,21 +54,13 @@
     "detail": {
       "projects": "Fortschritt",
       "documents": "Typ",
-      "queues": "Einträge",
-      "counterGroups": "Zähler",
       "calendars": "Beschreibung",
       "dashboards": "Herkunft",
-      "posts": "Vorschau",
-      "galleries": "Bilder",
-      "wikis": "Seiten"
+      "posts": "Vorschau"
     }
   },
   "detail": {
     "tasksDone": "{{completed}} von {{total}} Aufgaben",
-    "queueItems_one": "{{count}} Eintrag",
-    "queueItems_other": "{{count}} Einträge",
-    "counters_one": "{{count}} Zähler",
-    "counters_other": "{{count}} Zähler",
     "fromMarketplace": "Marktplatz",
     "builtHere": "Selbst erstellt",
     "documentType": {

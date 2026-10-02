@@ -136,12 +136,10 @@
     "noAccess": "Acceso denegado",
     "noAccessDescription": "No tienes permiso para ver este documento. Pide al propietario del documento que te otorgue acceso.",
     "backToDocuments": "← Volver a documentos",
-    "settings": "Configuración del documento",
     "closePanel": "Cerrar panel",
     "openPanel": "Abrir panel",
     "togglePanel": "Alternar panel lateral",
     "titlePlaceholder": "Título del documento",
-    "updated": "Actualizado {{date}}",
     "template": "Plantilla",
     "metadataTitle": "Metadatos",
     "expandMetadata": "Expand metadata",
@@ -150,8 +148,6 @@
     "uploadImage": "Subir imagen destacada",
     "uploading": "Subiendo…",
     "removeImage": "Eliminar imagen",
-    "tagsLabel": "Etiquetas",
-    "tagsPlaceholder": "Agregar etiquetas...",
     "pdfError": "No se pudo cargar el PDF. Intenta descargar el archivo en su lugar.",
     "imageFileRequired": "Por favor selecciona un archivo de imagen.",
     "imageUploaded": "Imagen subida.",
@@ -177,7 +173,8 @@
     "noAttachedProjects": "Este documento aún no está adjunto a ningún proyecto.",
     "attached": "Adjuntado {{date}}",
     "commentsLoadError": "No se pudieron cargar los comentarios en este momento.",
-    "projectFallback": "Proyecto #{{id}}"
+    "projectFallback": "Proyecto #{{id}}",
+    "updatedLabel": "Actualizado"
   },
   "editor": {
     "align": "Alinear",

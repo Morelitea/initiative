@@ -126,10 +126,10 @@ describe("CalendarsView calendar-entries query", () => {
     expect(screen.getByText("Task 1")).toBeInTheDocument();
   });
 
-  it("lists a task calendar per project with in-window tasks and hides its tasks when toggled off", async () => {
-    // The panel derives one read-only calendar per project FROM the tasks
-    // payload — a project with no task in the window gets no row.
-    stubEntries(
+  it("lists a task toggle per project with in-window tasks and hides its tasks when toggled off", async () => {
+    // The filters derive one toggle per project FROM the tasks payload — a
+    // project with no task in the window gets no row.
+    const requests = stubEntries(
       {
         tasks: [
           buildTask({
@@ -151,15 +151,49 @@ describe("CalendarsView calendar-entries query", () => {
 
     expect(await screen.findByText("Apollo task")).toBeInTheDocument();
 
-    // The visibility panel lives behind the filter bar's Calendars dropdown.
-    await user.click(screen.getByRole("button", { name: /calendars/i }));
-    // Only Apollo has a task in the window, so only it gets a panel row.
+    // Which tasks show is a filter: the projects' toggles sit in the panel.
+    await user.click(screen.getByRole("button", { name: /^filters$/i }));
+    // Only Apollo has a task in the window, so only it gets a row.
     expect(await screen.findByRole("checkbox", { name: "Apollo" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: "Zeus" })).toBeNull();
 
-    // Unchecking the project's calendar hides its tasks from the view.
+    // Unchecking the project hides its tasks from the view, and says so.
     await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
     await waitFor(() => expect(screen.queryByText("Apollo task")).toBeNull());
+    expect(screen.getByRole("button", { name: /1 active/i })).toBeInTheDocument();
+
+    // Switching tasks off stops asking for them at all.
+    await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
+    expect(await screen.findByText("Apollo task")).toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "Tasks" }));
+    await waitFor(() => expect(requests.at(-1)?.get("include_tasks")).toBe("false"));
+    expect(screen.queryByText("Apollo task")).toBeNull();
+  });
+
+  it("heads the tab's toolbar with the calendar picker, under the initiative's own title", async () => {
+    stubEntries({}, undefined, [
+      {
+        id: 3,
+        name: "Team",
+        description: null,
+        color: "#6366f1",
+        initiative_id: INITIATIVE_ID,
+        guild_id: 1,
+        created_by: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        can: writerCan(),
+        comments_enabled: true,
+        archived_at: null,
+        tags: [],
+        grants: [],
+      },
+    ]);
+    renderCalendars();
+
+    const heading = await screen.findByRole("heading", { level: 2, name: /all calendars/i });
+    expect(within(heading).getByRole("button", { name: /all calendars/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
 
   it("fetches where the date range meets the month on screen, and exports the range", async () => {
@@ -285,6 +319,12 @@ describe("CalendarsView on a guild calendar", () => {
 
     await waitFor(() => expect(entries.length).toBeGreaterThan(0));
 
+    // Titled with its name and a way to its settings; there is nothing to pick.
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Community calendar" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+
     // Exactly this calendar, no task leg, and no initiative to narrow to.
     expect(entries[0].getAll("calendar_ids")).toEqual([String(guildCalendar.id)]);
     expect(entries[0].get("include_tasks")).toBe("false");
@@ -409,14 +449,16 @@ describe("CalendarsView on the calendar app's own surface", () => {
 
     expect(await screen.findByText("Midsummer")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /calendars/i }));
+    await user.click(screen.getByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
 
     unmount();
     renderGuildScope();
 
-    expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
+    // One calendar left on: the title is its name, with its settings beside it.
+    expect(await screen.findByRole("button", { name: "Game nights" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
     expect(screen.queryByText("Midsummer")).toBeNull();
   });
 
@@ -441,7 +483,7 @@ describe("CalendarsView on the calendar app's own surface", () => {
     expect(exports[0].getAll("calendar_ids")).toEqual([]);
     expect(exports[0].get("start_after")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: /calendars/i }));
+    await user.click(screen.getByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: /^export$/i }));
@@ -450,31 +492,38 @@ describe("CalendarsView on the calendar app's own surface", () => {
     expect(exports[1].getAll("exclude_calendar_ids")).toEqual(["42"]);
   });
 
-  it("puts the picker and the way to add a calendar on the page, not behind the filter button", async () => {
+  it("titles the page with the picker and puts the way to add a calendar on it", async () => {
     stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
 
     renderGuildScope();
 
-    // The picker rides the toolbar row: this surface has no other filter, so
+    // The picker is the page's title: this surface has no other filter, so
     // there is no disclosure to open before reaching it.
-    expect(await screen.findByRole("button", { name: /calendars/i })).toBeInTheDocument();
+    const title = await screen.findByRole("heading", { level: 1, name: "All calendars" });
+    expect(within(title).getByRole("button", { name: "All calendars" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /filters/i })).toBeNull();
     // Adding a calendar is offered on a populated surface too, not only from
     // the empty state.
     expect(screen.getByRole("button", { name: /new calendar/i })).toBeInTheDocument();
   });
 
-  it("says how many calendars are switched off while the picker is shut", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+  it("says how many calendars are showing, and shows them all again from the top", async () => {
+    stubGuildScope([
+      guildCalendar(42, "Holidays"),
+      guildCalendar(43, "Game nights"),
+      guildCalendar(44, "Birthdays"),
+    ]);
 
     const user = userEvent.setup();
     renderGuildScope();
 
-    await user.click(await screen.findByRole("button", { name: /calendars/i }));
+    await user.click(await screen.findByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
-    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("button", { name: "2 calendars" })).toBeInTheDocument();
 
-    expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "All calendars" }));
+    expect(screen.getByRole("checkbox", { name: "Holidays" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "All calendars" })).toBeInTheDocument();
   });
 
   it("offers to make the first one rather than showing an empty grid", async () => {

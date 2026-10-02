@@ -60,8 +60,6 @@
   "noAccessDescription": "Vous n’avez pas l’autorisation de voir ce groupe de compteurs.",
   "backToGroups": "Retour aux groupes de compteurs",
   "backToGroup": "Retour au groupe",
-  "counterCount_one": "{{count}} compteur",
-  "counterCount_other": "{{count}} compteurs",
   "focus": {
     "openFocus": "Ouvrir en plein écran",
     "exit": "Quitter le plein écran",
@@ -71,7 +69,6 @@
     "notFound": "Compteur introuvable dans ce groupe"
   },
   "createFirst": "Créez votre premier groupe de compteurs",
-  "settings": "Paramètres",
   "details": "Détails",
   "access": "Accès",
   "advanced": "Avancé",

@@ -136,12 +136,10 @@
     "noAccess": "Accès refusé",
     "noAccessDescription": "Vous n'avez pas la permission de voir ce document. Demandez au propriétaire du document de vous accorder l'accès.",
     "backToDocuments": "← Retour aux documents",
-    "settings": "Paramètres du document",
     "closePanel": "Fermer le panneau",
     "openPanel": "Ouvrir le panneau",
     "togglePanel": "Basculer le panneau latéral",
     "titlePlaceholder": "Titre du document",
-    "updated": "Mis à jour {{date}}",
     "template": "Modèle",
     "metadataTitle": "Métadonnées",
     "expandMetadata": "Expand metadata",
@@ -150,8 +148,6 @@
     "uploadImage": "Télécharger une image à la une",
     "uploading": "Téléchargement en cours…",
     "removeImage": "Supprimer l'image",
-    "tagsLabel": "Étiquettes",
-    "tagsPlaceholder": "Ajouter des étiquettes...",
     "pdfError": "Échec du chargement du PDF. Essayez de télécharger le fichier à la place.",
     "imageFileRequired": "Veuillez sélectionner un fichier image.",
     "imageUploaded": "Image téléchargée.",
@@ -177,7 +173,8 @@
     "noAttachedProjects": "Ce document n'est encore attaché à aucun projet.",
     "attached": "Attaché {{date}}",
     "commentsLoadError": "Impossible de charger les commentaires pour l'instant.",
-    "projectFallback": "Projet #{{id}}"
+    "projectFallback": "Projet #{{id}}",
+    "updatedLabel": "Mis à jour"
   },
   "editor": {
     "align": "Aligner",

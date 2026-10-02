@@ -2,11 +2,13 @@ import { BookText, Eye, MessageSquare, PanelRight, Pencil, Send } from "lucide-r
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { WikiRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, type WikiRead } from "@/api/generated/initiativeAPI.schemas";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface WikiChromeProps {
@@ -89,6 +91,16 @@ export const WikiChrome = ({
       </span>
 
       <div className="min-w-0 flex-1">
+        {/* Where the wiki lives, sized down to sit over the page's name. */}
+        <div className="[&_li>svg]:size-3 [&_ol]:gap-1 [&_ol]:text-xs">
+          <ToolBreadcrumb
+            tool={Tool.wiki}
+            initiativeId={wiki.initiative_id}
+            trail={[
+              { label: wiki.name, to: toolDetailRoute(Tool.wiki, wiki.initiative_id, wiki.id) },
+            ]}
+          />
+        </div>
         {/* The page's name lives here and nowhere else. A wiki page is a page
             on a site, and a site does not print its own address twice. */}
         {onRename ? (

@@ -1,5 +1,5 @@
-import { Link, useParams } from "@tanstack/react-router";
-import { Plus, Settings } from "lucide-react";
+import { useParams } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,10 +21,10 @@ import {
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { ToolChest } from "@/components/tools/ToolChest";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import {
@@ -84,25 +84,9 @@ export function QueueDetailPage() {
   // Connect WebSocket for live updates
   useQueueRealtime(Number.isFinite(parsedId) ? parsedId : null);
 
-  // Queue name editing
-  const [editingName, setEditingName] = useState(false);
-  const [nameValue, setNameValue] = useState("");
-
   const updateQueue = useUpdateQueue(parsedId, {
-    onSuccess: () => {
-      toast.success(t("queueUpdated"));
-      setEditingName(false);
-    },
+    onSuccess: () => toast.success(t("queueUpdated")),
   });
-
-  const handleNameSave = () => {
-    const trimmed = nameValue.trim();
-    if (!trimmed || trimmed === queue?.name) {
-      setEditingName(false);
-      return;
-    }
-    updateQueue.mutate({ name: trimmed });
-  };
 
   // Turn controls
   const startQueue = useStartQueue(parsedId, {
@@ -176,69 +160,16 @@ export function QueueDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ToolBreadcrumb
-          tool={Tool.queue}
-          initiativeId={queue.initiative_id}
-          trail={[{ label: queue.name }]}
-        />
-
-        <div className="flex items-center gap-2">
-          {canEdit && (
-            <Button variant="outline" size="sm" asChild>
-              <Link
-                to={gp(toolSettingsRoute(Tool.queue, initiativeId, queue.id))}
-                className="inline-flex items-center gap-2"
-              >
-                <Settings className="h-4 w-4" />
-                {t("settings")}
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Editable queue name */}
-      <div className="space-y-2">
-        {editingName ? (
-          <div className="flex items-center gap-2">
-            <Input
-              value={nameValue}
-              onChange={(e) => setNameValue(e.target.value)}
-              placeholder={t("namePlaceholder")}
-              className="h-auto font-semibold text-3xl tracking-tight md:text-3xl"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleNameSave();
-                if (e.key === "Escape") setEditingName(false);
-              }}
-              onBlur={handleNameSave}
-            />
-          </div>
-        ) : (
-          <h1
-            className="font-semibold text-3xl tracking-tight"
-            role={canEdit ? "button" : undefined}
-            tabIndex={canEdit ? 0 : undefined}
-            onClick={() => {
-              if (canEdit) {
-                setNameValue(queue.name);
-                setEditingName(true);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (canEdit && (e.key === "Enter" || e.key === " ")) {
-                setNameValue(queue.name);
-                setEditingName(true);
-              }
-            }}
-          >
-            {queue.name}
-          </h1>
-        )}
+      <ToolPageHeader
+        tool={Tool.queue}
+        initiativeId={queue.initiative_id}
+        settingsTo={canEdit ? toolSettingsRoute(Tool.queue, initiativeId, queue.id) : undefined}
+        title={queue.name}
+        onRename={canEdit ? (name) => updateQueue.mutateAsync({ name }) : undefined}
+        chest={<ToolChest tool={Tool.queue} entity={queue} />}
+      >
         {queue.description && <p className="text-muted-foreground text-sm">{queue.description}</p>}
-      </div>
+      </ToolPageHeader>
 
       {/* Queue Controls */}
       <QueueControls
@@ -255,9 +186,7 @@ export function QueueDetailPage() {
       {/* Items list */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-xl tracking-tight">
-            {sortedItems.length > 0 ? `${t("items")} (${sortedItems.length})` : t("items")}
-          </h2>
+          <h2 className="font-semibold text-xl tracking-tight">{t("items")}</h2>
           <div className="flex items-center gap-2">
             <QueueViewToggle view={view} onChange={setView} />
             {canEdit && (

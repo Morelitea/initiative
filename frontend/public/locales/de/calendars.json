@@ -33,7 +33,6 @@
   "monthly": "Monatlich",
   "yearly": "Jährlich",
   "permissions": "Berechtigungen",
-  "settings": "Einstellungen",
   "details": "Details",
   "access": "Zugriff",
   "advanced": "Erweitert",
@@ -43,7 +42,8 @@
     "heading": "Filter",
     "dates": "Zeitraum",
     "searchLabel": "Name oder Beschreibung",
-    "searchCalendars": "Kalender durchsuchen..."
+    "searchCalendars": "Kalender durchsuchen...",
+    "tasks": "Aufgaben"
   },
   "loading": "Wird geladen...",
   "loadError": "Termine konnten nicht geladen werden",
@@ -102,8 +102,14 @@
     "projectTasks": "Projektaufgaben",
     "calendarSettings": "Einstellungen für {{name}}"
   },
+  "picker": {
+    "all": "Alle Kalender",
+    "none": "Keine Kalender",
+    "some_one": "{{count}} Kalender",
+    "some_other": "{{count}} Kalender",
+    "label": "Anzuzeigende Kalender auswählen"
+  },
   "guildScope": {
-    "title": "Community-Kalender",
     "empty": "Noch keine Kalender.",
     "emptyHint": "Lege einen an — für Feiertage, ein regelmäßiges Treffen oder einfach für dich."
   },

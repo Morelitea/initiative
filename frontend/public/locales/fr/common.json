@@ -269,5 +269,14 @@
   },
   "nativeUpdate": {
     "unsigned": "La mise à jour de ce serveur n'a pas été publiée par Initiative, l'application reste donc en version {{version}}."
+  },
+  "toolHeader": {
+    "rename": "Renommer"
+  },
+  "toolChest": {
+    "status": "Statut",
+    "active": "Actif",
+    "archived": "Archivé",
+    "none": "Aucun"
   }
 }

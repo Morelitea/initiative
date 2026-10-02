@@ -60,8 +60,6 @@
   "noAccessDescription": "You do not have permission to view this counter group.",
   "backToGroups": "Back to Counter Groups",
   "backToGroup": "Back to group",
-  "counterCount_one": "{{count}} counter",
-  "counterCount_other": "{{count}} counters",
   "focus": {
     "openFocus": "Open full screen",
     "exit": "Exit full screen",
@@ -71,7 +69,6 @@
     "notFound": "Counter not found in this group"
   },
   "createFirst": "Create Your First Counter Group",
-  "settings": "Settings",
   "details": "Details",
   "access": "Access",
   "advanced": "Advanced",

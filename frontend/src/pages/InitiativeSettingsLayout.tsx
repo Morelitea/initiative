@@ -31,8 +31,6 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
@@ -85,7 +83,7 @@ export const InitiativeSettingsLayout = () => {
   if (isLoading) {
     return (
       <SkeletonRegion label={t("settings.loadingInitiative")} className="space-y-6">
-        <DetailPageSkeleton actions={0} title={false} description={false}>
+        <DetailPageSkeleton actions={0} description={false}>
           <PageHeaderSkeleton title={false} tabs={5} />
           <FormSkeleton />
         </DetailPageSkeleton>
@@ -139,13 +137,9 @@ export const InitiativeSettingsLayout = () => {
               <Link to={gp(initiativeRoute(initiative.id))}>{initiative.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{t("settings.breadcrumbSettings")}</BreadcrumbPage>
-          </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h1 className="sr-only">{t("settings.title")}</h1>
+      <h1 className="font-semibold text-3xl tracking-tight">{t("settings.title")}</h1>
 
       <SettingsTabsNav
         tabs={tabs}

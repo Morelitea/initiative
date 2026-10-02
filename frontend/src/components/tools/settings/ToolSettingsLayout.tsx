@@ -35,7 +35,7 @@ import {
   type ToolSettingsEntity,
   ToolSettingsProvider,
 } from "@/components/tools/settings/ToolSettingsContext";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { extractSubPath, isGuildScopedPath, useGuildPath } from "@/lib/guildUrl";
 import { matchActiveTab } from "@/lib/tabs";
 import {
@@ -163,16 +163,12 @@ export const ToolSettingsLayout = ({
 
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
+      <ToolPageHeader
         tool={tool}
         initiativeId={entity.initiative_id}
-        trail={[
-          { label: entity.name, to: toolDetailRoute(tool, entity.initiative_id, entity.id) },
-          { label: t("common:toolSettings.title") },
-        ]}
+        trail={[{ label: entity.name, to: toolDetailRoute(tool, entity.initiative_id, entity.id) }]}
+        title={t("common:toolSettings.title")}
       />
-
-      <h1 className="sr-only">{t("common:toolSettings.title")}</h1>
 
       <SettingsTabsNav
         tabs={tabs}

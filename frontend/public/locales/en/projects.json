@@ -118,17 +118,17 @@
     "notFound": "Project not found",
     "notFoundDescription": "This project may have been deleted or you may have followed a broken link.",
     "noAccess": "Access denied",
-    "noAccessDescription": "You don’t have permission to view this project. Ask a project manager to grant you access.",
-    "projectSettings": "Project Settings",
-    "openProjectSettings": "Open project settings"
+    "noAccessDescription": "You don’t have permission to view this project. Ask a project manager to grant you access."
   },
   "overview": {
     "templateInfo": "This project is a template. Use it to create new projects from the Templates tab.",
     "archivedInfo": "This project is archived. Unarchive it from settings to add or update tasks.",
-    "scheduleLabel": "Project dates",
     "scheduleRange": "{{start}} – {{end}}",
     "scheduleStartOnly": "Starts {{start}}",
-    "scheduleEndOnly": "Ends {{end}}"
+    "scheduleEndOnly": "Ends {{end}}",
+    "progressLabel": "Progress",
+    "progress": "{{completed}} of {{total}} done",
+    "datesLabel": "Dates"
   },
   "schedule": {
     "startLabel": "Start date",
