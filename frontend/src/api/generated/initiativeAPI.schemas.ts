@@ -11205,7 +11205,7 @@ export type ListUsersApiV1CGuildIdUsersGetParams = {
 
 export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
   /**
-   * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Real names are matched only in a guild that shows them.
+   * Matches the handle's name part. Type the whole handle (`foobar#1234`) to pin one member; a partial number after `#` is a prefix of the four digits as rendered. Display names members set here are matched too.
    */
   search?: string | null;
   user_id?: number[] | null;
@@ -11218,6 +11218,10 @@ export type SearchUsersApiV1CGuildIdUsersSearchGetParams = {
    */
   tool?: Tool | null;
   resource_id?: number | null;
+  /**
+   * List the caller first, wherever the rest of the order would put them. For the community's members page, where your own row is where you set your name.
+   */
+  self_first?: boolean;
   /**
    * @minimum 1
    */

@@ -420,8 +420,8 @@ async def search_users(
         description=(
             "Matches the handle's name part. Type the whole handle "
             "(`foobar#1234`) to pin one member; a partial number after `#` is a "
-            "prefix of the four digits as rendered. Real names are matched only "
-            "in a guild that shows them."
+            "prefix of the four digits as rendered. Display names members set "
+            "here are matched too."
         ),
     ),
     user_id: Annotated[
@@ -444,6 +444,14 @@ async def search_users(
         ),
     ),
     resource_id: Optional[int] = Query(default=None),
+    self_first: bool = Query(
+        default=False,
+        description=(
+            "List the caller first, wherever the rest of the order would put "
+            "them. For the community's members page, where your own row is "
+            "where you set your name."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
 ) -> UserSummaryListResponse:
@@ -460,7 +468,7 @@ async def search_users(
 
     An installed app (``members:read``) names members by its own references
     and reads what :class:`AppMemberRead` carries: the reference, the handle,
-    the name where the guild shows names, and a picture hosted elsewhere.
+    the display name set in the community, and a picture hosted elsewhere.
     """
     if initiative_id is not None and not (
         initiative_id in guild_context.member_initiatives
@@ -512,7 +520,11 @@ async def search_users(
         base = base.where(MemberProfile.id.in_(user_id))
 
     count_stmt = select(func.count()).select_from(base.subquery())
+    you_first = (
+        ((MemberProfile.id == guild_context.user_id).desc(),) if self_first else ()
+    )
     data_stmt = base.order_by(
+        *you_first,
         *users_service.member_order(closest),
         MemberProfile.username.asc(),
         MemberProfile.discriminator.asc(),

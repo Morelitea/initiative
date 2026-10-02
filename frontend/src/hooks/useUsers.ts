@@ -123,6 +123,8 @@ export interface UserSearchOptions {
   enabled?: boolean;
   /** Read a specific guild instead of the active one (cross-guild surfaces). */
   guildIdOverride?: number;
+  /** List the reader first, ahead of whatever order the rest takes. */
+  selfFirst?: boolean;
 }
 
 /** Shared query params for the three slim member-search endpoints. */
@@ -237,6 +239,7 @@ export const useUserSearch = ({
   enabled = true,
   guildIdOverride,
   canOpen,
+  selfFirst,
 }: UserSearchOptions = {}) => {
   const activeGuildId = useActiveGuildId();
   const guildId = guildIdOverride ?? activeGuildId;
@@ -247,6 +250,7 @@ export const useUserSearch = ({
       page_size: pageSize,
       ...(page != null ? { page } : {}),
       ...(canOpen ? { tool: canOpen.tool, resource_id: canOpen.id } : {}),
+      ...(selfFirst ? { self_first: true } : {}),
     },
     {
       query: {

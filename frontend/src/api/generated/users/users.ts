@@ -3060,7 +3060,7 @@ export function useListUsersApiV1CGuildIdUsersGet<
  *
  * An installed app (``members:read``) names members by its own references
  * and reads what :class:`AppMemberRead` carries: the reference, the handle,
- * the name where the guild shows names, and a picture hosted elsewhere.
+ * the display name set in the community, and a picture hosted elsewhere.
  * @summary Search Users
  */
 export const searchUsersApiV1CGuildIdUsersSearchGet = (

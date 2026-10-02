@@ -101,7 +101,7 @@ describe("a community's members page", () => {
 
     expect(await screen.findByText("ada")).toBeInTheDocument();
     expect(mocks.members).toHaveBeenCalledWith(
-      expect.objectContaining({ guildIdOverride: 7, page: 1 })
+      expect.objectContaining({ guildIdOverride: 7, page: 1, selfFirst: true })
     );
   });
 
@@ -236,15 +236,13 @@ describe("a community's members page", () => {
     expect(screen.getAllByRole("button", { name: /actions for/i })).toHaveLength(1);
   });
 
-  it("sets your own name here from your row, starting from the current one", async () => {
+  it("sets your own name here, wherever your row is, starting from the current one", async () => {
     mocks.setOwnName.mockResolvedValue(undefined);
-    answer([person(99, "me"), person(1, "ada")]);
+    // The reader is not on this page of the roster at all.
+    answer([person(1, "ada")], 60);
     setup("Ana");
 
-    // Only the reader's own row offers it.
-    const [open] = await screen.findAllByRole("button", { name: "Set your display name" });
-    expect(screen.getAllByRole("button", { name: "Set your display name" })).toHaveLength(1);
-    await userEvent.click(open);
+    await userEvent.click(await screen.findByRole("button", { name: "Set your display name" }));
     const input = await screen.findByLabelText("Display name");
     expect(input).toHaveValue("Ana");
     await userEvent.clear(input);

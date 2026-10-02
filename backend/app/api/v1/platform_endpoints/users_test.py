@@ -404,6 +404,26 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
     assert summary["full_name"] is None
 
 
+async def test_search_users_can_list_the_caller_first(client, acting_user):
+    """``self_first`` puts the caller at the top of page one, wherever their
+    handle would sort; everyone else keeps their order."""
+    caller = await acting_user(guild_role=GuildRole.member, username="zzz-caller")
+    await acting_user(guild=caller.guild, username="aaa-other")
+    await acting_user(guild=caller.guild, username="bbb-other")
+
+    response = await client.get(
+        caller.g("/users/search"),
+        headers=caller.headers,
+        params={"self_first": True, "page_size": 2},
+    )
+
+    assert response.status_code == 200, response.text
+    assert [item["username"] for item in response.json()["items"]] == [
+        "zzz-caller",
+        "aaa-other",
+    ]
+
+
 async def test_search_users_says_where_each_member_stands(client, acting_user):
     """The roster says who runs the place.
 

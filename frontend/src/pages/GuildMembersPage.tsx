@@ -52,14 +52,19 @@ export const GuildMembersPage = () => {
   const { user: me } = useAuth();
 
   const id = Number(guildId);
-  // What the reader has asked to be called here, from their own membership.
-  const ownName = useGuilds().guilds.find((guild) => guild.id === id)?.display_name;
+  // The reader's own membership: what they have asked to be called here. A
+  // grant to visit carries no name of its own to set.
+  const ownEntry = useGuilds().guilds.find((guild) => guild.id === id);
+  const canNameSelf = ownEntry !== undefined && ownEntry.accessType !== "grant";
   const [namingSelf, setNamingSelf] = useState(false);
   const members = useUserSearch({
     search: q || undefined,
     page,
     pageSize: USER_SEARCH_PAGE_SIZE,
     guildIdOverride: id,
+    // Your own row is where you set your name, so it leads the first page and
+    // stays on top however the table is sorted.
+    selfFirst: true,
   });
   const rows = useMemo(() => members.data?.items ?? [], [members.data]);
   // One question for the whole page. Asked per row, this is a request per row.
@@ -162,17 +167,8 @@ export const GuildMembersPage = () => {
         cell: ({ row }) => {
           // Your own row carries none of this: starring, ignoring and every
           // way in are refused for yourself, so offering them is offering
-          // errors. What it offers instead is what you are called here.
-          if (row.original.id === me?.id) {
-            return (
-              <div className="flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => setNamingSelf(true)}>
-                  <IdCard className="h-4 w-4" />
-                  {t("displayName.menuItem")}
-                </Button>
-              </div>
-            );
-          }
+          // errors.
+          if (row.original.id === me?.id) return null;
           const person = {
             id: row.original.id,
             username: row.original.username,
@@ -208,9 +204,19 @@ export const GuildMembersPage = () => {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("members.title")}</h1>
-        <p className="text-muted-foreground text-sm">{t("memberCount", { count: total })}</p>
+      {/* Your own name sits up here rather than on your row, which in a big
+          community may be several pages in. */}
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="font-semibold text-3xl tracking-tight">{t("members.title")}</h1>
+          <p className="text-muted-foreground text-sm">{t("memberCount", { count: total })}</p>
+        </div>
+        {canNameSelf ? (
+          <Button variant="outline" size="sm" onClick={() => setNamingSelf(true)}>
+            <IdCard className="h-4 w-4" />
+            {t("displayName.menuItem")}
+          </Button>
+        ) : null}
       </header>
 
       {members.isError ? (
@@ -241,12 +247,13 @@ export const GuildMembersPage = () => {
             setSearch({ page: next.pageIndex + 1 === 1 ? undefined : next.pageIndex + 1 })
           }
           getRowId={(row: UserSummary) => String(row.id)}
+          pinnedRowId={me ? String(me.id) : undefined}
         />
       )}
 
       <MemberDisplayNameDialog
         guildId={id}
-        current={ownName}
+        current={ownEntry?.display_name}
         open={namingSelf}
         onOpenChange={setNamingSelf}
       />
