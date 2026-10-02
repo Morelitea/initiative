@@ -8,7 +8,7 @@ half, shared by the task endpoint and the intake writer, together with the
 pieces every task change reaches for: replacing a task's assignees, rolling a
 recurring task forward to its next occurrence when it is completed (from the
 task routes and from a status change that moves tasks between columns), and
-copying a project's tasks into a copy of it (``copy_tasks``).
+copying tasks (``copy_tasks``), on their own or with their project.
 
 Nothing here commits, so a caller can compose it into a larger transaction.
 """
@@ -16,6 +16,7 @@ Nothing here commits, so a caller can compose it into a larger transaction.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from collections.abc import Callable, Sequence
 from typing import Any, Optional
 
 from fastapi import HTTPException, status as http_status
@@ -304,103 +305,131 @@ def _date_shift(
     return None
 
 
-async def copy_tasks(
+async def copy_project_tasks(
     session: AsyncSession,
-    template: Project,
-    new_project: Project,
+    source: Project,
+    target: Project,
     *,
     status_mapping: dict[int, int],
     fallback_status_ids: dict[TaskStatusCategory, int],
 ) -> list[Task]:
-    """Copy ``template``'s tasks into ``new_project``, a copy of it whose
-    statuses ``status_mapping`` maps; returns the copies. Dates move onto the
-    new project's schedule (:func:`_date_shift`)."""
-    task_stmt = (
-        select(Task)
-        .options(
-            selectinload(Task.assignees),
-            selectinload(Task.task_status),
+    """Copy every task of ``source`` into ``target``, a copy of it whose
+    statuses ``status_mapping`` maps, keeping titles and order; returns the
+    copies. Dates move onto the target's schedule (:func:`_date_shift`), and
+    checklists keep their ticks only from a template, which is copied as
+    written."""
+    tasks = (
+        await session.exec(
+            select(Task)
+            .options(selectinload(Task.assignees), selectinload(Task.task_status))
+            .where(Task.project_id == source.id)
+            .order_by(Task.position.asc(), Task.id.asc())
         )
-        .where(Task.project_id == template.id)
-        .order_by(Task.position.asc(), Task.id.asc())
-    )
-    task_result = await session.exec(task_stmt)
-    template_tasks = task_result.all()
-    if not template_tasks:
+    ).all()
+    if not tasks:
         return []
 
+    def status_of(task: Task) -> int | None:
+        mapped = (
+            status_mapping.get(task.task_status_id) if task.task_status_id else None
+        )
+        if mapped is None and task.task_status is not None:
+            mapped = fallback_status_ids.get(task.task_status.category)
+        if mapped is None and fallback_status_ids:
+            mapped = next(iter(fallback_status_ids.values()))
+        return mapped
+
+    return await copy_tasks(
+        session,
+        tasks,
+        target,
+        status_of=status_of,
+        date_shift=_date_shift(source, target, list(tasks)),
+        keep_done=source.is_template,
+    )
+
+
+async def copy_tasks(
+    session: AsyncSession,
+    sources: Sequence[Task],
+    target: Project,
+    *,
+    status_of: Callable[[Task], int | None] | None = None,
+    date_shift: timedelta | None = None,
+    keep_done: bool = False,
+) -> list[Task]:
+    """Copy ``sources``, loaded with their assignees, into ``target``; returns
+    the copies in the same order. The assignees who can open ``target`` come
+    along, with the tags, the links (a link between two of the sources joins
+    their copies) and, inside one initiative, the property values.
+
+    ``status_of`` gives each copy its status in another project. Without it
+    the copies go beside their sources: the same status, named
+    "<title> (Copy)", at the end of the list. Checklists start unticked unless
+    ``keep_done``.
+    """
+    beside = status_of is None
     now = datetime.now(timezone.utc)
-    categories = await task_completion.status_categories(session, new_project.id)
-    date_shift = _date_shift(template, new_project, list(template_tasks))
-    copies: list[tuple[Task, Task]] = []
-    for template_task in template_tasks:
-        template_status_id = getattr(template_task, "task_status_id", None)
-        mapped_status_id = None
-        if template_status_id is not None:
-            mapped_status_id = status_mapping.get(template_status_id)
-        if mapped_status_id is None:
-            category = getattr(
-                getattr(template_task, "task_status", None), "category", None
-            )
-            if category is not None:
-                mapped_status_id = fallback_status_ids.get(category)
-        if mapped_status_id is None and fallback_status_ids:
-            mapped_status_id = next(iter(fallback_status_ids.values()))
-        start_date = template_task.start_date
-        due_date = template_task.due_date
-        repeat = template_task.recurrence
+    categories = await task_completion.status_categories(session, target.id)
+    end = await next_position(session, target.id) if beside else 0
+    copies: list[Task] = []
+    for index, source in enumerate(sources):
+        status_id = source.task_status_id if status_of is None else status_of(source)
+        start_date, due_date, repeat = (
+            source.start_date,
+            source.due_date,
+            source.recurrence,
+        )
         if date_shift is not None:
-            if start_date is not None:
-                start_date = start_date + date_shift
-            if due_date is not None:
-                due_date = due_date + date_shift
-            if repeat is not None:
-                repeat = recurrence.moved(repeat, date_shift)
-        new_task = Task(
-            project_id=new_project.id,
-            title=template_task.title,
-            description=template_task.description,
-            task_status_id=mapped_status_id,
-            priority=template_task.priority,
+            start_date = start_date + date_shift if start_date else None
+            due_date = due_date + date_shift if due_date else None
+            repeat = recurrence.moved(repeat, date_shift) if repeat else None
+        copy = Task(
+            project_id=target.id,
+            title=f"{source.title} (Copy)" if beside else source.title,
+            description=source.description,
+            task_status_id=status_id,
+            priority=source.priority,
             start_date=start_date,
             due_date=due_date,
             recurrence=repeat,
-            recurrence_shift=template_task.recurrence_shift,
-            recurrence_strategy=template_task.recurrence_strategy,
-            position=template_task.position,
-            checklist=checklist_service.cloned(template_task.checklist, keep_done=True),
+            recurrence_shift=source.recurrence_shift,
+            recurrence_strategy=source.recurrence_strategy,
+            position=end + index if beside else source.position,
+            checklist=checklist_service.cloned(source.checklist, keep_done=keep_done),
         )
-        task_completion.sync_completed_at(
-            new_task, categories.get(mapped_status_id), now=now
-        )
-        session.add(new_task)
-        copies.append((template_task, new_task))
+        # A copy in a done column is complete from the moment it exists:
+        # stamped now, since the copy is not what finished when its source did.
+        task_completion.sync_completed_at(copy, categories.get(status_id), now=now)
+        session.add(copy)
+        copies.append(copy)
     await session.flush()
 
-    # Assignees come along only where they can open the new project.
     can_open = await named_people.readers(
         session,
-        named_people.Governing.of(Tool.project, new_project),
-        {assignee.id for task, _ in copies for assignee in task.assignees},
+        named_people.Governing.of(Tool.project, target),
+        {assignee.id for source in sources for assignee in source.assignees},
     )
-    for template_task, new_task in copies:
+    author_id = require_actor_context(session).user_id
+    for source, copy in zip(sources, copies):
         session.add_all(
-            TaskAssignee(task_id=new_task.id, user_id=assignee.id)
-            for assignee in template_task.assignees
+            TaskAssignee(task_id=copy.id, user_id=assignee.id)
+            for assignee in source.assignees
             if assignee.id in can_open
         )
-        if new_task.description:
+        if copy.description:
             await task_description_service.record_references(
-                session, new_task, author_id=None
+                session, copy, author_id=author_id
             )
-    copied_ids = {
-        s.id: c.id for s, c in copies if s.id is not None and c.id is not None
-    }
+    copied_ids = {s.id: c.id for s, c in zip(sources, copies)}
     await tags_service.copy_entity_tags(
         session, tags_service.TAG_LINKS["task"], copied_ids
     )
+    origin = await session.get(Project, sources[0].project_id) if sources else None
+    if origin is not None and origin.initiative_id == target.initiative_id:
+        await properties_service.copy_values(session, Task, copied_ids)
     await _copy_relationships(session, copied_ids)
-    return [task for _, task in copies]
+    return copies
 
 
 #: Edge types a task copy does not carry. Tags travel through

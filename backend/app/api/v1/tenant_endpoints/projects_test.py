@@ -37,6 +37,7 @@ from app.testing.factories import (
     create_task,
     create_task_status,
 )
+from app.testing import checklist_items
 
 
 async def test_list_projects_as_admin_shows_all(
@@ -601,11 +602,17 @@ async def _relations_of(client: AsyncClient, actor, task_id: int) -> list[dict]:
 
 
 async def _template_with_dependency(session: AsyncSession, admin) -> tuple:
-    """A template whose second task is blocked by its first."""
+    """A template whose second task is blocked by its first, which has one
+    checklist line ticked."""
     template = await create_project(
         session, admin.initiative, admin.user, name="Tpl", is_template=True
     )
-    first = await create_task(session, template, title="Design")
+    first = await create_task(
+        session,
+        template,
+        title="Design",
+        checklist=checklist_items("Sketch", done=True),
+    )
     second = await create_task(session, template, title="Build")
     await create_relationship(
         session,
@@ -656,6 +663,8 @@ async def test_create_from_template_copies_task_relations(
     tasks = await _tasks_by_title(client, admin, response.json()["id"])
     new_first, new_second = tasks["Design"], tasks["Build"]
     assert {new_first["id"], new_second["id"]}.isdisjoint({first.id, second.id})
+    # A template is copied as written, ticks included.
+    assert new_first["checklist_progress"] == {"completed": 1, "total": 1}
 
     blocked = await _relations_of(client, admin, new_second["id"])
     assert [
@@ -675,9 +684,11 @@ async def test_duplicate_project_copies_task_relations(
 ):
     """Duplicating a project carries its task relations, ids remapped, and
     a symmetric relation to something outside the project is kept as-is; each
-    task's tags land on its own copy."""
+    task's tags land on its own copy. A live project's checklists start over."""
     admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
     source, first, second = await _template_with_dependency(session, admin)
+    source.is_template = False
+    session.add(source)
     design = await create_tag(session, admin.guild, name="design")
     build = await create_tag(session, admin.guild, name="build")
     for task, tag in ((first, design), (second, build)):
@@ -722,6 +733,7 @@ async def test_duplicate_project_copies_task_relations(
     ]
     assert [t["name"] for t in new_first["tags"]] == ["design"]
     assert [t["name"] for t in new_second["tags"]] == ["build"]
+    assert new_first["checklist_progress"] == {"completed": 0, "total": 1}
 
 
 async def test_create_from_undated_template_anchors_on_earliest_task(

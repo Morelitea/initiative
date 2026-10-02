@@ -203,7 +203,7 @@ async def duplicate(
     )
     # Definitions belong to an initiative, so values only go where they apply.
     if beside and model in properties_service.PROPERTY_LINKS_BY_MODEL:
-        await properties_service.copy_values(session, source, copy)
+        await properties_service.copy_values(session, model, {source.id: copy.id})
     # Files kept for another initiative are copied for the copy's.
     await attachments_service.claim_uploads(session, copy, *rows)
     return copy
@@ -225,7 +225,7 @@ async def _project_contents(
         status_mapping=status_mapping,
     )
     await filter_presets_service.ensure_default_presets(session, copy.id)
-    return await task_creation.copy_tasks(
+    return await task_creation.copy_project_tasks(
         session,
         source,
         copy,

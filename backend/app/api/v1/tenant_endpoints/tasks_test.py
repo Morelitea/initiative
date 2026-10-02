@@ -692,9 +692,18 @@ async def test_move_task_to_different_project(
 
 
 async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting_user):
-    """Test duplicating a task."""
+    """A copy goes beside the original, at the end of its project, and is
+    linked to what the original is linked to."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     task = await _create_task(session, a.project, "Original Task")
+    blocker = await _create_task(session, a.project, "Blocker")
+    await create_relationship(
+        session,
+        a.guild,
+        source=(SearchEntityType.task, task.id),
+        target=(SearchEntityType.task, blocker.id),
+        relationship_type=RelationshipType.depends_on,
+    )
 
     response = await client.post(
         a.g(f"/tasks/{task.id}/duplicate"), headers=a.headers, json={}
@@ -702,9 +711,10 @@ async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting
 
     assert response.status_code == 201
     data = response.json()
-    assert data["title"] == "Original Task (copy)"
+    assert data["title"] == "Original Task (Copy)"
     assert data["project_id"] == task.project_id
-    assert data["id"] != task.id
+    assert data["position"] > blocker.position
+    assert data["blocked_by_open_count"] == 1
 
 
 async def test_create_task_with_checklist(

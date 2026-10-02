@@ -677,68 +677,18 @@ async def move_task(
 )
 async def duplicate_task(
     task_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: ProjectsWrite,
 ) -> Task:
-    original_task = await _load_for_change(
-        session, task_id, current_user, guild_context
-    )
-    project = original_task.project
-    position = await task_creation_service.next_position(session, project.id)
-
-    # Create the new task with the same properties
-    new_task = Task(
-        title=f"{original_task.title} (copy)",
-        description=original_task.description,
-        project_id=original_task.project_id,
-        task_status_id=original_task.task_status_id,
-        priority=original_task.priority,
-        start_date=original_task.start_date,
-        due_date=original_task.due_date,
-        recurrence=original_task.recurrence,
-        recurrence_shift=original_task.recurrence_shift,
-        recurrence_strategy=original_task.recurrence_strategy,
-        position=position,
-        created_by=current_user.id,
-        checklist=checklist_service.cloned(original_task.checklist),
-    )
-    # The copy keeps the source's status, so a duplicated done task is complete
-    # from the moment it exists — stamped now, not inherited: the copy was not
-    # the thing that finished when the original did.
-    sync_completed_at(
-        new_task,
-        original_task.task_status.category if original_task.task_status else None,
-        now=datetime.now(timezone.utc),
-    )
-    session.add(new_task)
-    await session.flush()
-
-    # Copy assignees
-    assignee_ids = [assignee.id for assignee in original_task.assignees]
-    await task_creation_service.set_task_assignees(
-        session, new_task, assignee_ids, project=project, carried=True
-    )
-
-    # Copy tags (active only — links to trashed tags are not carried forward)
-    await tags_service.copy_entity_tags(
-        session,
-        tags_service.TAG_LINKS["task"],
-        {original_task.id: new_task.id},
-    )
-
-    # Copy property values — duplicate stays in the same project and
-    # therefore the same initiative, so definitions always resolve.
-    await properties_service.copy_values(session, original_task, new_task)
-
-    if new_task.description:
-        await task_description_service.record_references(
-            session, new_task, author_id=current_user.id
-        )
-
-    _touch_project(project, datetime.now(timezone.utc))
+    """Copy the task beside itself, at the end of its project, as
+    "<title> (Copy)", with its assignees, tags, links and properties; its
+    checklist starts unticked."""
+    task = await _load_for_change(session, task_id, current_user, guild_context)
+    (copy,) = await task_creation_service.copy_tasks(session, [task], task.project)
+    _touch_project(task.project, datetime.now(timezone.utc))
     await session.commit()
-    return await _response(session, new_task.id, TaskMessages.DUPLICATE_NOT_FOUND)
+    return await _response(session, copy.id, TaskMessages.DUPLICATE_NOT_FOUND)
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

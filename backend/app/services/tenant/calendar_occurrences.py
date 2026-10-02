@@ -213,7 +213,9 @@ async def _copy_lists(
         await tags_service.replace_entity_tags(session, _TAGS, target.id, [])
         await tags_service.copy_entity_tags(session, _TAGS, {source.id: target.id})
     if "properties" in lists:
-        await properties_service.copy_values(session, source, target)
+        await properties_service.copy_values(
+            session, type(source), {source.id: target.id}
+        )
     await session.flush()
 
 

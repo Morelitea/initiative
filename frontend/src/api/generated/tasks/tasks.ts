@@ -779,6 +779,9 @@ export const useMoveTaskApiV1CGuildIdTasksTaskIdMovePost = <
   );
 };
 /**
+ * Copy the task beside itself, at the end of its project, as
+ * "<title> (Copy)", with its assignees, tags, links and properties; its
+ * checklist starts unticked.
  * @summary Duplicate Task
  */
 export const duplicateTaskApiV1CGuildIdTasksTaskIdDuplicatePost = (
