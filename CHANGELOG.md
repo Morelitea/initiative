@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. A repeating event brings the dates you changed on their own, and a wiki page comes without the pages under it.
+
 ### Changed
 
 - **Duplicate any tool but a notice into any initiative** where you can create one, from **Settings › Advanced**. A calendar brings its events and repeats, and a wiki its published pages. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
