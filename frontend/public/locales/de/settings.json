@@ -976,6 +976,7 @@
     "notLiveBadge": "Nicht aktiv",
     "registryBadge": "Aus der Registry",
     "imageSummary": "Container-Image: {{image}}",
+    "declarativeSummary": "Initiative führt die Aufrufe dieser App selbst aus. Sie braucht keine Adresse und keine Schlüssel, nur ihre Anbieterwerte.",
     "needsAddress": "Läuft als Container. Bearbeite sie und gib die Adresse an, unter der du sie betreibst, damit sie aktiv wird.",
     "publisherSummary": "Herausgeber: {{name}}",
     "listingSummary": "Listing:",

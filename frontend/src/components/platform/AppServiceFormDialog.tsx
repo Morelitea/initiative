@@ -238,6 +238,7 @@ export const AppServiceFormDialog = ({
   };
 
   const vendorFields = editing?.vendor_fields ?? [];
+  const declarative = editing?.kind === "declarative";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -269,179 +270,193 @@ export const AppServiceFormDialog = ({
             </p>
           </div>
 
-          {editing?.compose_service && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="app-service-compose">{t("appServices.composeLabel")}</Label>
-                <CopyButton
-                  value={editing.compose_service}
-                  label={t("appServices.composeCopy")}
-                  copiedMessage={t("appServices.composeCopied")}
-                />
-              </div>
-              <Textarea
-                id="app-service-compose"
-                value={editing.compose_service}
-                readOnly
-                rows={8}
-                className="whitespace-pre font-mono text-xs"
-                wrap="off"
-                spellCheck={false}
-              />
-              <p className="text-muted-foreground text-xs">{t("appServices.composeHelp")}</p>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="app-service-base-url">{t("appServices.baseUrlLabel")}</Label>
-            <Input
-              id="app-service-base-url"
-              value={form.baseUrl}
-              onChange={(event) => setForm((prev) => ({ ...prev, baseUrl: event.target.value }))}
-              placeholder={t("appServices.baseUrlPlaceholder")}
-              maxLength={1000}
-              required
-            />
-            <p className="text-muted-foreground text-xs">{t("appServices.baseUrlHelp")}</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="app-service-embed-origin">{t("appServices.embedOriginLabel")}</Label>
-            <Input
-              id="app-service-embed-origin"
-              value={form.embedOrigin}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, embedOrigin: event.target.value }))
-              }
-              placeholder={t("appServices.embedOriginPlaceholder")}
-              maxLength={1000}
-            />
-            <p className="text-muted-foreground text-xs">{t("appServices.embedOriginHelp")}</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="app-service-origins">{t("appServices.allowedOriginsLabel")}</Label>
-            <Textarea
-              id="app-service-origins"
-              value={form.allowedOrigins}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, allowedOrigins: event.target.value }))
-              }
-              placeholder={t("appServices.allowedOriginsPlaceholder")}
-              rows={3}
-            />
-            <p className="text-muted-foreground text-xs">
-              {editing
-                ? t("appServices.allowedOriginsHelpEdit")
-                : t("appServices.allowedOriginsHelp")}
-            </p>
-          </div>
-
-          <fieldset className="rounded-md border p-3">
-            {/* Floated so the legend sits inside the border like the other headings. */}
-            <legend className="float-left w-full font-medium text-sm">
-              {t("appServices.keysTitle")}
-            </legend>
-            <div className="clear-both space-y-3">
-              <p className="text-muted-foreground text-xs">{t("appServices.keysHelp")}</p>
-
-              {editing?.base_url && (
+          {/* A declarative app runs nowhere and signs nothing: only its
+              vendor values and its switches apply. */}
+          {!declarative && (
+            <>
+              {editing?.compose_service && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-muted-foreground text-xs">{t("appServices.connectHelp")}</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleReadKeys}
-                      disabled={baseUrlEdited || readKeys.isPending || connect.isPending}
-                    >
-                      {readKeys.isPending
-                        ? t("appServices.connectReading")
-                        : t("appServices.connect")}
-                    </Button>
+                    <Label htmlFor="app-service-compose">{t("appServices.composeLabel")}</Label>
+                    <CopyButton
+                      value={editing.compose_service}
+                      label={t("appServices.composeCopy")}
+                      copiedMessage={t("appServices.composeCopied")}
+                    />
                   </div>
-                  {baseUrlEdited && (
-                    <p className="text-muted-foreground text-xs">
-                      {t("appServices.connectSaveFirst")}
-                    </p>
-                  )}
-                  {servedKeys && (
-                    <section
-                      className="space-y-2 rounded-md border p-3"
-                      aria-label={t("appServices.connectKeysTitle")}
-                    >
-                      <p className="font-medium text-sm">{t("appServices.connectKeysTitle")}</p>
-                      <p className="text-muted-foreground text-xs">
-                        {t("appServices.connectKeysHelp")}
-                      </p>
-                      <ul className="space-y-1">
-                        {servedKeys.map((key) => (
-                          <li key={`${key.kid}:${key.fingerprint}`} className="text-xs">
-                            <span className="text-muted-foreground">
-                              {t("appServices.connectKid", { kid: key.kid })}
-                            </span>
-                            <code className="block break-all font-mono">{key.fingerprint}</code>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setServedKeys(null)}
-                          disabled={connect.isPending}
-                        >
-                          {t("appServices.connectDismiss")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={handleConnect}
-                          disabled={baseUrlEdited || connect.isPending}
-                        >
-                          {connect.isPending
-                            ? t("appServices.connectPinning")
-                            : t("appServices.connectConfirm")}
-                        </Button>
-                      </div>
-                    </section>
-                  )}
-                  {connectError && <p className="text-destructive text-xs">{connectError}</p>}
+                  <Textarea
+                    id="app-service-compose"
+                    value={editing.compose_service}
+                    readOnly
+                    rows={8}
+                    className="whitespace-pre font-mono text-xs"
+                    wrap="off"
+                    spellCheck={false}
+                  />
+                  <p className="text-muted-foreground text-xs">{t("appServices.composeHelp")}</p>
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="app-service-jwks">{t("appServices.jwksLabel")}</Label>
-                <Textarea
-                  id="app-service-jwks"
-                  value={form.jwks}
-                  onChange={(event) => setForm((prev) => ({ ...prev, jwks: event.target.value }))}
-                  rows={6}
-                  className="font-mono text-xs"
-                  placeholder={'{\n  "keys": [ … ]\n}'}
+                <Label htmlFor="app-service-base-url">{t("appServices.baseUrlLabel")}</Label>
+                <Input
+                  id="app-service-base-url"
+                  value={form.baseUrl}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, baseUrl: event.target.value }))
+                  }
+                  placeholder={t("appServices.baseUrlPlaceholder")}
+                  maxLength={1000}
+                  required
                 />
-                <p className="text-muted-foreground text-xs">{t("appServices.jwksHelp")}</p>
-                {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
+                <p className="text-muted-foreground text-xs">{t("appServices.baseUrlHelp")}</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="app-service-jwks-uri">{t("appServices.jwksUriLabel")}</Label>
+                <Label htmlFor="app-service-embed-origin">
+                  {t("appServices.embedOriginLabel")}
+                </Label>
                 <Input
-                  id="app-service-jwks-uri"
-                  value={form.jwksUri}
+                  id="app-service-embed-origin"
+                  value={form.embedOrigin}
                   onChange={(event) =>
-                    setForm((prev) => ({ ...prev, jwksUri: event.target.value }))
+                    setForm((prev) => ({ ...prev, embedOrigin: event.target.value }))
                   }
-                  placeholder={t("appServices.jwksUriPlaceholder")}
+                  placeholder={t("appServices.embedOriginPlaceholder")}
                   maxLength={1000}
-                  autoComplete="off"
                 />
-                <p className="text-muted-foreground text-xs">{t("appServices.jwksUriHelp")}</p>
+                <p className="text-muted-foreground text-xs">{t("appServices.embedOriginHelp")}</p>
               </div>
-            </div>
-          </fieldset>
+
+              <div className="space-y-2">
+                <Label htmlFor="app-service-origins">{t("appServices.allowedOriginsLabel")}</Label>
+                <Textarea
+                  id="app-service-origins"
+                  value={form.allowedOrigins}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, allowedOrigins: event.target.value }))
+                  }
+                  placeholder={t("appServices.allowedOriginsPlaceholder")}
+                  rows={3}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {editing
+                    ? t("appServices.allowedOriginsHelpEdit")
+                    : t("appServices.allowedOriginsHelp")}
+                </p>
+              </div>
+
+              <fieldset className="rounded-md border p-3">
+                {/* Floated so the legend sits inside the border like the other headings. */}
+                <legend className="float-left w-full font-medium text-sm">
+                  {t("appServices.keysTitle")}
+                </legend>
+                <div className="clear-both space-y-3">
+                  <p className="text-muted-foreground text-xs">{t("appServices.keysHelp")}</p>
+
+                  {editing?.base_url && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-muted-foreground text-xs">
+                          {t("appServices.connectHelp")}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleReadKeys}
+                          disabled={baseUrlEdited || readKeys.isPending || connect.isPending}
+                        >
+                          {readKeys.isPending
+                            ? t("appServices.connectReading")
+                            : t("appServices.connect")}
+                        </Button>
+                      </div>
+                      {baseUrlEdited && (
+                        <p className="text-muted-foreground text-xs">
+                          {t("appServices.connectSaveFirst")}
+                        </p>
+                      )}
+                      {servedKeys && (
+                        <section
+                          className="space-y-2 rounded-md border p-3"
+                          aria-label={t("appServices.connectKeysTitle")}
+                        >
+                          <p className="font-medium text-sm">{t("appServices.connectKeysTitle")}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {t("appServices.connectKeysHelp")}
+                          </p>
+                          <ul className="space-y-1">
+                            {servedKeys.map((key) => (
+                              <li key={`${key.kid}:${key.fingerprint}`} className="text-xs">
+                                <span className="text-muted-foreground">
+                                  {t("appServices.connectKid", { kid: key.kid })}
+                                </span>
+                                <code className="block break-all font-mono">{key.fingerprint}</code>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setServedKeys(null)}
+                              disabled={connect.isPending}
+                            >
+                              {t("appServices.connectDismiss")}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={handleConnect}
+                              disabled={baseUrlEdited || connect.isPending}
+                            >
+                              {connect.isPending
+                                ? t("appServices.connectPinning")
+                                : t("appServices.connectConfirm")}
+                            </Button>
+                          </div>
+                        </section>
+                      )}
+                      {connectError && <p className="text-destructive text-xs">{connectError}</p>}
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="app-service-jwks">{t("appServices.jwksLabel")}</Label>
+                    <Textarea
+                      id="app-service-jwks"
+                      value={form.jwks}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, jwks: event.target.value }))
+                      }
+                      rows={6}
+                      className="font-mono text-xs"
+                      placeholder={'{\n  "keys": [ … ]\n}'}
+                    />
+                    <p className="text-muted-foreground text-xs">{t("appServices.jwksHelp")}</p>
+                    {jwksError && <p className="text-destructive text-xs">{jwksError}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="app-service-jwks-uri">{t("appServices.jwksUriLabel")}</Label>
+                    <Input
+                      id="app-service-jwks-uri"
+                      value={form.jwksUri}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, jwksUri: event.target.value }))
+                      }
+                      placeholder={t("appServices.jwksUriPlaceholder")}
+                      maxLength={1000}
+                      autoComplete="off"
+                    />
+                    <p className="text-muted-foreground text-xs">{t("appServices.jwksUriHelp")}</p>
+                  </div>
+                </div>
+              </fieldset>
+            </>
+          )}
 
           {editing && vendorFields.length > 0 && (
             <fieldset className="rounded-md border p-3">

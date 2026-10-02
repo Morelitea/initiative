@@ -489,6 +489,7 @@
   "APP_DATA_CONNECTION_REQUIRED": "Verbinde dein eigenes Konto mit dieser App, um hier deine Daten zu sehen.",
   "APP_SERVICE_UNAVAILABLE": "Die App antwortet gerade nicht. Versuch es gleich noch einmal.",
   "APP_SERVICE_REGISTRY_MANAGED": "Diese App stammt aus der Registry, die sie bei jeder Aktualisierung zurückbringt. Schalte sie stattdessen aus.",
+  "APP_SERVICE_DECLARATIVE_NOT_PLACED": "Initiative führt die Aufrufe dieser App selbst aus, deshalb gibt es keine Adresse, Origins oder Schlüssel anzugeben.",
   "APP_SERVICE_STATED_BY_LISTING": "Das legt das Listing der App fest. Hier gibst du nur an, wo sie läuft, ihre Schlüssel, ihren Vendor-Client und ihre Reichweite.",
   "APP_DATA_RESPONSE_TOO_LARGE": "Die App hat mehr Daten geschickt, als ein Widget anzeigen kann.",
   "APP_DATA_BUSY": "Diese App hat zu viele laufende Anfragen. Versuch es gleich noch einmal.",
