@@ -8,9 +8,9 @@
  * view they act on.
  *
  * It runs edge to edge under the page header, and on a narrow screen the strip
- * scrolls sideways rather than wrapping. The header sets `--chest-gutter` to
- * where the page's own column starts, so the first segment lines up with the
- * title above it.
+ * scrolls sideways rather than wrapping, with a scrollbar along its foot to say
+ * so. The header sets `--chest-gutter` to where the page's own column starts,
+ * so the first segment lines up with the title above it.
  */
 import { ChevronDown } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -26,6 +26,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyPanel } from "@/components/properties";
 import { TagBadge, TagPicker } from "@/components/tags";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -96,43 +97,46 @@ export const ToolChest = ({ tool, entity, template, children }: ToolChestProps) 
       {/* The strip scrolls; the properties toggle stays out of it, at its end
           on a wide screen and on its own row under it on a narrow one. */}
       <div className="flex flex-col md:flex-row">
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-stretch divide-x overflow-x-auto overscroll-x-contain [scrollbar-width:none]",
-            "pl-[var(--chest-gutter,1rem)]",
-            hasProperties ? "pr-4 md:pr-0" : "pr-[var(--chest-gutter-right,1rem)]"
-          )}
-        >
-          <ToolChestSegment label={t("toolChest.status")}>
-            <ToolStatus tool={tool} entity={entity} template={template} />
-          </ToolChestSegment>
-          {children}
-          <ToolChestSegment label={t("toolSettings.tags")}>
-            {canEdit ? (
-              <TagPicker
-                selectedTags={tags}
-                className="min-w-40 whitespace-normal"
-                onChange={(next) => {
-                  // Saved on pick, and put back if the write fails.
-                  const previous = tags;
-                  setTags(next);
-                  setToolTags.mutate(
-                    { id: entity.id, tagIds: next.map((tag) => tag.id) },
-                    { onError: () => setTags(previous) }
-                  );
-                }}
-              />
-            ) : tags.length > 0 ? (
-              <span className="flex gap-1">
-                {tags.map((tag) => (
-                  <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-                ))}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">{t("toolChest.none")}</span>
+        <ScrollArea type="auto" className="min-w-0 flex-1">
+          <div
+            className={cn(
+              "flex items-stretch divide-x",
+              "pl-[var(--chest-gutter,1rem)]",
+              hasProperties ? "pr-4 md:pr-0" : "pr-[var(--chest-gutter-right,1rem)]"
             )}
-          </ToolChestSegment>
-        </div>
+          >
+            <ToolChestSegment label={t("toolChest.status")}>
+              <ToolStatus tool={tool} entity={entity} template={template} />
+            </ToolChestSegment>
+            {children}
+            <ToolChestSegment label={t("toolSettings.tags")}>
+              {canEdit ? (
+                <TagPicker
+                  selectedTags={tags}
+                  className="min-w-40 whitespace-normal"
+                  onChange={(next) => {
+                    // Saved on pick, and put back if the write fails.
+                    const previous = tags;
+                    setTags(next);
+                    setToolTags.mutate(
+                      { id: entity.id, tagIds: next.map((tag) => tag.id) },
+                      { onError: () => setTags(previous) }
+                    );
+                  }}
+                />
+              ) : tags.length > 0 ? (
+                <span className="flex gap-1">
+                  {tags.map((tag) => (
+                    <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+                  ))}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">{t("toolChest.none")}</span>
+              )}
+            </ToolChestSegment>
+          </div>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
         {hasProperties ? (
           <button
             type="button"

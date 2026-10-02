@@ -128,8 +128,8 @@ export const ToolPageHeader = ({
             } as CSSProperties
           }
           className={cn(
-            "[--chest-gutter-right:calc(var(--inset-r)+1rem)] [--chest-gutter:calc(var(--inset-l)+1rem)]",
-            "md:pr-[calc(var(--inset-r)+2rem)] md:pb-6 md:pl-[calc(var(--inset-l)+2rem)]",
+            "[--chest-gutter-right:var(--inset-r)] [--chest-gutter:var(--inset-l)]",
+            "md:pr-(--inset-r) md:pb-6 md:pl-(--inset-l)",
             "md:[--chest-gutter-right:0.75rem] md:[--chest-gutter:0.75rem]"
           )}
         >
