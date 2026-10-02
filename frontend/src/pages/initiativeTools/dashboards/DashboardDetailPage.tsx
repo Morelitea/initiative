@@ -145,9 +145,7 @@ export function DashboardDetailPage() {
         entityTitle={dashboard?.name}
       />
 
-      {dashboard != null && (
-        <ToolCommentsPanel tool={Tool.dashboard} entity={dashboard} canModerate={canEdit} />
-      )}
+      {dashboard != null && <ToolCommentsPanel tool={Tool.dashboard} entity={dashboard} />}
 
       {dashboard != null && (
         <WidgetConfigDialog

@@ -71,10 +71,11 @@ const renderRoster = (
   return renderPage(() => <SettingsPlatformUsersPage />, { auth: { user: viewer } });
 };
 
-/** Open the sheet for the row at `index`. */
-const openSheet = async (index = 1) => {
-  const buttons = await screen.findAllByRole("button", { name: /manage account/i });
-  await userEvent.click(buttons[index]);
+/** Open the sheet for the account with this handle. */
+const openSheet = async (handle = "member-one") => {
+  await userEvent.click(
+    await screen.findByRole("button", { name: new RegExp(`manage account @?${handle}`, "i") })
+  );
   return screen.findByRole("dialog");
 };
 
@@ -244,6 +245,20 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
 
     for (const name of shown) expect(lever(sheet, name)).toBeInTheDocument();
     for (const name of hidden) expect(lever(sheet, name)).not.toBeInTheDocument();
+  });
+
+  it("offers nothing on an account above the viewer's own rung", async () => {
+    renderRoster(masked(), buildUser({ role: "moderator" }));
+
+    // Every action on an account is refused above the actor's rung, so the
+    // owner's row offers a moderator nothing to open, while the member's does.
+    await screen.findByText("owner");
+    expect(
+      screen.queryByRole("button", { name: /manage account @?owner/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /manage account @?member-one/i })
+    ).toBeInTheDocument();
   });
 
   it("offers support no way in at all, holding none of the three", async () => {

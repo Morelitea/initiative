@@ -931,7 +931,7 @@ export function CalendarFocusPage() {
         entityTitle={calendar.name}
       />
 
-      <ToolCommentsPanel tool={Tool.calendar} entity={calendar} canModerate={calendar.can.edit} />
+      <ToolCommentsPanel tool={Tool.calendar} entity={calendar} />
     </div>
   );
 }

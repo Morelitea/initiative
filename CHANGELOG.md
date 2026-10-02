@@ -35,6 +35,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.
 - **A project's built-in filter presets** (All, Incomplete, Unassigned, Mine) now show in your language, unless someone has renamed them.
 - **Signing in with a password manager no longer locks your account.** On some phones, a password manager that filled the sign-in form could send it several times at once, or before the password reached it. Each counted as a wrong password, and five lock the account. The form now sends one sign-in, with what the fields hold. The same goes for the authenticator code step.
+- **Delete shows on a comment only for people who can delete it**: its author, the community's admins and the initiative's managers. Anyone who could edit the page used to see it and was refused. Deleting a comment now asks first, and says when its replies go with it.
+- **The operator's Users page no longer offers actions on accounts above your own role**, which the server always refused.
+- **Operators who aren't the owner can switch on help requests for a community.** The switch stayed greyed out for them even where support was set up.
+- **The help form isn't offered while the support project is archived.** It took the request and then said there was nowhere to send it.
+- **An escalated report now carries what its reporters wrote** to the platform, and a report about a whole community names that community on the case.
+- **Access grants are marked expired when their time runs out**, rather than staying "approved" on the Access page, and the audit log records each one. Opening the billing portal from the Communities tab is now recorded in the audit log like any other grant somebody issues themselves.
+- **Help requests and reports are limited per account**, to 10 and 30 an hour.
 
 ## [0.74.0] - 2026-10-01
 

@@ -43,7 +43,6 @@ interface CommentSectionProps {
   hasOlder?: boolean;
   isLoadingOlder?: boolean;
   onLoadOlder?: () => void;
-  canModerate?: boolean;
   initiativeId: number;
 }
 
@@ -89,7 +88,6 @@ export const CommentSection = ({
   hasOlder = false,
   isLoadingOlder = false,
   onLoadOlder,
-  canModerate = false,
   initiativeId,
 }: CommentSectionProps) => {
   const { t } = useTranslation("comments");
@@ -294,7 +292,6 @@ export const CommentSection = ({
                   onReply={handleReply}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
-                  canModerate={canModerate}
                   currentUserId={user?.id}
                   initiativeId={initiativeId}
                   subject={subject}

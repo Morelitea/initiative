@@ -352,7 +352,7 @@ export function CounterGroupDetailPage() {
         entityTitle={group?.name}
       />
 
-      <ToolCommentsPanel tool={Tool.counter_group} entity={group} canModerate={!!canWrite} />
+      <ToolCommentsPanel tool={Tool.counter_group} entity={group} />
 
       {canWrite && (
         <CounterFormDialog

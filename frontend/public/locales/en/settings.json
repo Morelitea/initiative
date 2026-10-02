@@ -1072,7 +1072,7 @@
   "guilds": {
     "title": "Community limits",
     "description": "Set per-community caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
-    "platformOnly": "You need the platform owner role to manage community limits.",
+    "platformOnly": "You need the operator or owner role to manage community limits.",
     "loading": "Loading communities…",
     "loadError": "Could not load communities. Please try again.",
     "filterByName": "Filter communities by name",

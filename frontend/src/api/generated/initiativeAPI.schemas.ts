@@ -2322,6 +2322,7 @@ export interface CommentRead {
   imported_author_name: string | null;
   project_id: number | null;
   reactions: ReactionGroup[];
+  can_remove: boolean;
 }
 
 /**
@@ -6974,6 +6975,7 @@ export interface PlatformGuildStorageListResponse {
   has_next: boolean;
   has_prev: boolean;
   items: PlatformGuildStorageRead[];
+  support_bound: boolean;
 }
 
 /**
