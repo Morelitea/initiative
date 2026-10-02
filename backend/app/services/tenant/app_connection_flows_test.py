@@ -1154,6 +1154,30 @@ class TestRevocation:
         assert vendor.refreshes == 0
         assert vendor.grant_deletions == []
 
+    async def test_a_github_grant_with_no_access_token_sends_nothing(
+        self, vendor, registration
+    ):
+        await app_revocation._deliver(self._grant_intent(sealed_tokens={}))
+
+        assert vendor.grant_deletions == []
+
+    async def test_a_github_grant_with_no_client_secret_sends_nothing(
+        self, session: AsyncSession, vendor
+    ):
+        await create_app_service_registration(
+            session,
+            public_id=PUBLIC_ID,
+            listing_uid=LISTING_UID,
+            base_url="https://app.example.test",
+            vendor_values=sealed_vendor_values(
+                {k: v for k, v in VENDOR_VALUES.items() if k != "client_secret"}
+            ),
+        )
+
+        await app_revocation._deliver(self._grant_intent())
+
+        assert vendor.grant_deletions == []
+
     async def test_revocations_are_sent_together(self, monkeypatch):
         """Each delivery waits for the other, so both finish only when they run
         at once."""
