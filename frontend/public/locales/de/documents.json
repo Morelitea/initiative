@@ -136,12 +136,10 @@
     "noAccess": "Zugriff verweigert",
     "noAccessDescription": "Du hast keine Berechtigung, dieses Dokument anzusehen. Bitte den Eigentümer des Dokuments, dir Zugriff zu gewähren.",
     "backToDocuments": "← Zurück zu den Dokumenten",
-    "settings": "Dokumenteinstellungen",
     "closePanel": "Panel schließen",
     "openPanel": "Panel öffnen",
     "togglePanel": "Seitenpanel umschalten",
     "titlePlaceholder": "Dokumenttitel",
-    "updated": "Aktualisiert {{date}}",
     "template": "Vorlage",
     "metadataTitle": "Metadaten",
     "expandMetadata": "Metadaten ausklappen",
@@ -150,8 +148,6 @@
     "uploadImage": "Beitragsbild hochladen",
     "uploading": "Wird hochgeladen…",
     "removeImage": "Bild entfernen",
-    "tagsLabel": "Tags",
-    "tagsPlaceholder": "Tags hinzufügen...",
     "pdfError": "PDF konnte nicht geladen werden. Versuche stattdessen, die Datei herunterzuladen.",
     "imageFileRequired": "Bitte wähle eine Bilddatei aus.",
     "imageUploaded": "Bild hochgeladen.",
@@ -177,7 +173,8 @@
     "noAttachedProjects": "Dieses Dokument ist noch an kein Projekt angehängt.",
     "attached": "Angehängt {{date}}",
     "commentsLoadError": "Kommentare können derzeit nicht geladen werden.",
-    "projectFallback": "Projekt #{{id}}"
+    "projectFallback": "Projekt #{{id}}",
+    "updatedLabel": "Aktualisiert"
   },
   "editor": {
     "align": "Ausrichten",

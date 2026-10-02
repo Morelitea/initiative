@@ -21,7 +21,7 @@ import {
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
 import { TagPicker } from "@/components/tags";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -272,7 +272,7 @@ export function EventSettingsPage() {
   if (isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
-        <DetailPageSkeleton actions={0} title={false} description={false}>
+        <DetailPageSkeleton actions={0} description={false}>
           <FormSkeleton fields={5} />
         </DetailPageSkeleton>
       </SkeletonRegion>
@@ -292,13 +292,11 @@ export function EventSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
+      <ToolPageHeader
         tool={Tool.calendar}
         initiativeId={initiativeId}
-        trail={[
-          { label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) },
-          { label: t("common:toolSettings.title") },
-        ]}
+        trail={[{ label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) }]}
+        title={t("common:toolSettings.title")}
       />
 
       {/* Details */}

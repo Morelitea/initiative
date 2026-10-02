@@ -1,10 +1,10 @@
 /**
  * THE breadcrumb trail for every tool surface: Initiative → tool list →
- * whatever the page adds (the entity, a content item beneath it, "Settings").
- * The initiative and tool-list crumbs are derived from the `Tool` enum via
- * `src/lib/tools.ts`, so a new tool's pages get the right shape for free and
- * every existing tool renders the same shape by construction rather than by
- * each page hand-rolling its own.
+ * whatever sits above the page (a task's project, a setting's entity). It
+ * names where the page lives, never the page itself — the page's own title
+ * says that, right below it. The initiative and tool-list crumbs are derived
+ * from the `Tool` enum via `src/lib/tools.ts`, so a new tool's pages get the
+ * right shape for free.
  */
 import { Link } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
@@ -16,18 +16,16 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { useInitiativeName } from "@/hooks/useInitiatives";
+import { useListedInitiative } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 import { initiativeRoute, toolListRoute, toolNavLabelKey } from "@/lib/tools";
 
 export interface ToolBreadcrumbSegment {
   label: ReactNode;
-  /** Guild-relative path (e.g. from `toolDetailRoute`). Omit on the last
-   *  segment — it renders as the current page instead of a link. */
-  to?: string;
+  /** Guild-relative path (e.g. from `toolDetailRoute`). */
+  to: string;
 }
 
 export interface ToolBreadcrumbProps {
@@ -35,18 +33,15 @@ export interface ToolBreadcrumbProps {
   /** The initiative this entity lives in. Omit (or null) for a guild-level
    *  entity (e.g. a calendar with no initiative) — that crumb is dropped. */
   initiativeId?: number | null;
-  /** Segments after the tool-list crumb, in order: the entity, a content item
-   *  beneath it, "Settings" — whichever apply on this page. The last one
-   *  renders as the current page; every earlier one needs a `to`. Leave empty
-   *  when the tool-list page itself is the current page. */
+  /** Ancestors after the tool-list crumb, in order: a task's project, the
+   *  entity a settings page belongs to. */
   trail?: ToolBreadcrumbSegment[];
 }
 
 export const ToolBreadcrumb = ({ tool, initiativeId, trail = [] }: ToolBreadcrumbProps) => {
   const { t } = useTranslation("nav");
   const gp = useGuildPath();
-  const initiativeName = useInitiativeName(initiativeId);
-  const toolListIsCurrentPage = trail.length === 0;
+  const initiativeName = useListedInitiative(initiativeId)?.name;
   // A guild-level entity (only calendars have any) belongs to no initiative, so
   // there is no tool tab to go back to — its crumb reads as plain text.
   const hasInitiative = initiativeId != null;
@@ -65,14 +60,14 @@ export const ToolBreadcrumb = ({ tool, initiativeId, trail = [] }: ToolBreadcrum
           </>
         )}
         <BreadcrumbItem>
-          {toolListIsCurrentPage || !hasInitiative ? (
-            <BreadcrumbPage>{t(toolNavLabelKey(tool))}</BreadcrumbPage>
-          ) : (
+          {hasInitiative ? (
             <BreadcrumbLink asChild>
               <Link to={gp(toolListRoute(tool, initiativeId as number))}>
                 {t(toolNavLabelKey(tool))}
               </Link>
             </BreadcrumbLink>
+          ) : (
+            t(toolNavLabelKey(tool))
           )}
         </BreadcrumbItem>
         {trail.map((segment, index) => (
@@ -80,13 +75,9 @@ export const ToolBreadcrumb = ({ tool, initiativeId, trail = [] }: ToolBreadcrum
           <Fragment key={index}>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              {segment.to ? (
-                <BreadcrumbLink asChild>
-                  <Link to={gp(segment.to)}>{segment.label}</Link>
-                </BreadcrumbLink>
-              ) : (
-                <BreadcrumbPage>{segment.label}</BreadcrumbPage>
-              )}
+              <BreadcrumbLink asChild>
+                <Link to={gp(segment.to)}>{segment.label}</Link>
+              </BreadcrumbLink>
             </BreadcrumbItem>
           </Fragment>
         ))}

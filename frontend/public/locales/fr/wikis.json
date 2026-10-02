@@ -22,8 +22,6 @@
   "noAccess": "Accès refusé",
   "noAccessDescription": "Vous n’avez pas la permission de voir ce wiki.",
   "backToWikis": "Retour aux wikis",
-  "pageCount_one": "{{count}} page",
-  "pageCount_other": "{{count}} pages",
   "pages": {
     "title": "Pages",
     "search": "Rechercher des pages",

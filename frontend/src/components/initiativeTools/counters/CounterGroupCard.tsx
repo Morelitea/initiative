@@ -1,9 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
 
 import { type CounterGroupSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { TagBadgeList } from "@/components/tags/TagBadge";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute } from "@/lib/tools";
@@ -15,7 +13,6 @@ interface CounterGroupCardProps {
 }
 
 export const CounterGroupCard = ({ group, className }: CounterGroupCardProps) => {
-  const { t } = useTranslation("counterGroups");
   const gp = useGuildPath();
 
   return (
@@ -36,9 +33,6 @@ export const CounterGroupCard = ({ group, className }: CounterGroupCardProps) =>
           )}
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
-          <div className="flex items-center gap-3 text-muted-foreground text-sm">
-            <Badge variant="outline">{t("counterCount", { count: group.counter_count })}</Badge>
-          </div>
           <TagBadgeList tags={group.tags} tagHref={(tag) => gp(`/tags/${tag.id}`)} nested />
         </CardContent>
       </Card>

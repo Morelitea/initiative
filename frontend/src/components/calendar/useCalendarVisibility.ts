@@ -18,9 +18,10 @@ const readHidden = (storageKey: string) => {
       projects: new Set<string>(
         Array.isArray(parsed?.hiddenProjectKeys) ? parsed.hiddenProjectKeys : []
       ),
+      tasksHidden: parsed?.hideTasks === true,
     };
   } catch {
-    return { calendars: new Set<string>(), projects: new Set<string>() };
+    return { calendars: new Set<string>(), projects: new Set<string>(), tasksHidden: false };
   }
 };
 
@@ -34,10 +35,17 @@ const withKey = (prev: ReadonlySet<string>, key: string, hidden: boolean): Set<s
   return next;
 };
 
+/** The stored keys of `guildId`'s calendars or projects. */
+const guildKeys = (keys: ReadonlySet<string>, guildId: Id): string[] => {
+  const prefix = keyOf(guildId, 0).slice(0, -1);
+  return [...keys].filter((key) => key.startsWith(prefix));
+};
+
 /**
  * Which calendars, and which projects' task calendars, the reader has switched
  * off, kept under `storageKey`. Stored as the hidden sets so a calendar or
- * project that turns up later is shown.
+ * project that turns up later is shown. Tasks as a whole switch off on their
+ * own, leaving the per-project choices as they were for when they come back.
  */
 export const useCalendarVisibility = (storageKey: string) => {
   const [state, setState] = useState(() => ({ storageKey, ...readHidden(storageKey) }));
@@ -53,6 +61,7 @@ export const useCalendarVisibility = (storageKey: string) => {
       JSON.stringify({
         hiddenCalendarKeys: [...current.calendars],
         hiddenProjectKeys: [...current.projects],
+        hideTasks: current.tasksHidden,
       })
     );
   }, [current]);
@@ -82,7 +91,25 @@ export const useCalendarVisibility = (storageKey: string) => {
             : prev
         );
       },
-      clear: () => setState((prev) => ({ ...prev, calendars: new Set(), projects: new Set() })),
+      toggleTasks: () => setState((prev) => ({ ...prev, tasksHidden: !prev.tasksHidden })),
+      /** Every calendar of `guildId` back on, loaded on this page or not. */
+      showAllCalendars: (guildId: Id) =>
+        setState((prev) => {
+          const keys = guildKeys(prev.calendars, guildId);
+          if (keys.length === 0) return prev;
+          const calendars = new Set(prev.calendars);
+          for (const key of keys) calendars.delete(key);
+          return { ...prev, calendars };
+        }),
+      /** Tasks back on, every project's with them. */
+      showTasks: () => setState((prev) => ({ ...prev, projects: new Set(), tasksHidden: false })),
+      clear: () =>
+        setState((prev) => ({
+          ...prev,
+          calendars: new Set(),
+          projects: new Set(),
+          tasksHidden: false,
+        })),
     }),
     []
   );
@@ -97,11 +124,13 @@ export const useCalendarVisibility = (storageKey: string) => {
       /** Every calendar switched off in `guildId`, loaded on this page or not. */
       hiddenCalendarIds: (guildId: Id): number[] => {
         const prefix = keyOf(guildId, 0).slice(0, -1);
-        return [...current.calendars]
-          .filter((key) => key.startsWith(prefix))
-          .map((key) => Number(key.slice(prefix.length)));
+        return guildKeys(current.calendars, guildId).map((key) => Number(key.slice(prefix.length)));
       },
-      hiddenCount: current.calendars.size + current.projects.size,
+      tasksHidden: current.tasksHidden,
+      /** How far the tasks are narrowed: all of them off counts once, and
+       *  makes the per-project choices moot. */
+      hiddenTaskCount: current.tasksHidden ? 1 : current.projects.size,
+      hiddenCount: current.calendars.size + current.projects.size + (current.tasksHidden ? 1 : 0),
     }),
     [actions, current]
   );

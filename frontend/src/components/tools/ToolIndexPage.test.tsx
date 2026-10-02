@@ -51,10 +51,8 @@ const shared = (key: string) => translate(key, { ns: "common" });
  * loudly rather than render a blank.
  */
 const CARD_FIELDS: Partial<Record<Tool, Record<string, unknown>>> = {
-  wiki: { page_count: 0 },
-  gallery: { image_count: 0, cover: null, preview: [] },
-  queue: { item_count: 0, current_round: 1, is_active: true },
-  counter_group: { counter_count: 0 },
+  gallery: { cover: null, preview: [] },
+  queue: { current_round: 1, is_active: true },
 };
 
 const row = (tool: Tool, fields: { id: number; name: string; archived_at?: string | null }) => ({

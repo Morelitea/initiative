@@ -54,21 +54,13 @@
     "detail": {
       "projects": "Progression",
       "documents": "Type",
-      "queues": "Éléments",
-      "counterGroups": "Compteurs",
       "calendars": "Description",
       "dashboards": "Origine",
-      "posts": "Aperçu",
-      "galleries": "Images",
-      "wikis": "Pages"
+      "posts": "Aperçu"
     }
   },
   "detail": {
     "tasksDone": "{{completed}} tâches sur {{total}}",
-    "queueItems_one": "{{count}} élément",
-    "queueItems_other": "{{count}} éléments",
-    "counters_one": "{{count}} compteur",
-    "counters_other": "{{count}} compteurs",
     "fromMarketplace": "Place de marché",
     "builtHere": "Créé ici",
     "documentType": {

@@ -42,12 +42,10 @@ from app.services.tenant import tags as tags_service
 
 
 def list_loader_options() -> list:
-    """Eager-load what a queue *list* row needs: its items (for the count), its
-    sharing and the level the request holds on it.
-    Lighter than :func:`get_queue`, which also walks each item's own links for
-    the detail read."""
+    """Eager-load what a queue *list* row needs: its sharing and the level the
+    request holds on it. Lighter than :func:`get_queue`, which also loads the
+    items for the detail read."""
     return [
-        selectinload(Queue.items),
         selectinload(Queue.grants).selectinload(ResourceGrant.role),
         selectinload(Queue.initiative),
         undefer(Queue.actions),

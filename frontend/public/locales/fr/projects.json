@@ -118,17 +118,17 @@
     "notFound": "Projet introuvable",
     "notFoundDescription": "Ce projet a peut-être été supprimé ou vous avez suivi un lien invalide.",
     "noAccess": "Accès refusé",
-    "noAccessDescription": "Vous n'avez pas la permission de voir ce projet. Demandez à un chef de projet de vous accorder l'accès.",
-    "projectSettings": "Paramètres du projet",
-    "openProjectSettings": "Ouvrir les paramètres du projet"
+    "noAccessDescription": "Vous n'avez pas la permission de voir ce projet. Demandez à un chef de projet de vous accorder l'accès."
   },
   "overview": {
     "templateInfo": "Ce projet est un modèle. Utilisez-le pour créer de nouveaux projets depuis l'onglet Modèles.",
     "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches.",
-    "scheduleLabel": "Dates du projet",
     "scheduleRange": "{{start}} – {{end}}",
     "scheduleStartOnly": "Commence le {{start}}",
-    "scheduleEndOnly": "Se termine le {{end}}"
+    "scheduleEndOnly": "Se termine le {{end}}",
+    "progressLabel": "Progression",
+    "progress": "{{completed}} sur {{total}} terminées",
+    "datesLabel": "Dates"
   },
   "schedule": {
     "startLabel": "Date de début",

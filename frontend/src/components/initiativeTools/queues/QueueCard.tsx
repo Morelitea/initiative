@@ -39,12 +39,11 @@ export const QueueCard = ({ queue, className }: QueueCardProps) => {
           )}
         </CardHeader>
         <CardContent className="space-y-2 pt-0">
-          <div className="flex items-center gap-3 text-muted-foreground text-sm">
-            <Badge variant="outline">{t("itemCount", { count: queue.item_count })}</Badge>
-            {queue.is_active && queue.current_round > 0 && (
-              <span className="text-xs">{t("roundN", { count: queue.current_round })}</span>
-            )}
-          </div>
+          {queue.is_active && queue.current_round > 0 && (
+            <p className="text-muted-foreground text-xs">
+              {t("roundN", { count: queue.current_round })}
+            </p>
+          )}
           <TagBadgeList tags={queue.tags} tagHref={(tag) => gp(`/tags/${tag.id}`)} nested />
         </CardContent>
       </Card>

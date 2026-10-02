@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
  * Until it has been, the classes on the element still take it out to the edges
  * of the column's padding, so nothing jumps.
  */
-const useFullBleed = <T extends HTMLElement>() => {
+export const useFullBleed = <T extends HTMLElement>() => {
   const ref = useRef<T>(null);
   const [style, setStyle] = useState<CSSProperties>();
   // How far in from each of the banner's edges the page's own content column

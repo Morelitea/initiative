@@ -269,5 +269,14 @@
   },
   "nativeUpdate": {
     "unsigned": "La actualización de este servidor no la publicó Initiative, así que la app se queda en la versión {{version}}."
+  },
+  "toolHeader": {
+    "rename": "Cambiar nombre"
+  },
+  "toolChest": {
+    "status": "Estado",
+    "active": "Activo",
+    "archived": "Archivado",
+    "none": "Ninguna"
   }
 }

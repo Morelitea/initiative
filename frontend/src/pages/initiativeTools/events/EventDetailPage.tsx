@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { CalendarDays, MapPin, Repeat, Settings, Trash2, Users } from "lucide-react";
+import { CalendarDays, MapPin, Repeat, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,7 +13,7 @@ import {
 } from "@/components/recurrence/OccurrenceScopeDialog";
 import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -220,7 +220,7 @@ export function EventDetailPage() {
   if (eventQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
-        <DetailPageSkeleton actions={2} title={false} />
+        <DetailPageSkeleton actions={2} />
       </SkeletonRegion>
     );
   }
@@ -272,51 +272,43 @@ export function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ToolBreadcrumb
-          tool={Tool.calendar}
-          initiativeId={initiativeId}
-          trail={[{ label: event.title }]}
-        />
-
-        <div className="flex items-center gap-2">
-          {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
-          {canWrite && (
-            <>
-              {repeating && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => detach.mutate(occurrenceStart)}
-                  disabled={detach.isPending}
-                >
-                  {t("occurrence.detach")}
-                </Button>
-              )}
-              <Button variant="ghost" size="sm" asChild>
-                <Link
-                  to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}
-                  search={event.recurrence && occurrence ? { occurrence } : {}}
-                >
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </Button>
+      <ToolPageHeader
+        tool={Tool.calendar}
+        initiativeId={initiativeId}
+        settingsTo={
+          canWrite ? eventSettingsRoute(initiativeId, event.calendar_id, event.id) : undefined
+        }
+        settingsSearch={event.recurrence && occurrence ? { occurrence } : undefined}
+        title={event.title}
+      >
+        {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
+        {event.all_day || canWrite ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
+            {canWrite && repeating && (
               <Button
-                variant="ghost"
+                variant="outline"
+                size="sm"
+                onClick={() => detach.mutate(occurrenceStart)}
+                disabled={detach.isPending}
+              >
+                {t("occurrence.detach")}
+              </Button>
+            )}
+            {canWrite && (
+              <Button
+                variant="outline"
                 size="sm"
                 className="text-destructive hover:text-destructive"
                 onClick={() => void handleDelete()}
               >
                 <Trash2 className="h-4 w-4" />
+                {t("common:delete")}
               </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <h1 className="sr-only">{event.title}</h1>
-      {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
+            )}
+          </div>
+        ) : null}
+      </ToolPageHeader>
 
       {/* Date, time, and location details */}
       <Card>

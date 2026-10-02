@@ -54,21 +54,13 @@
     "detail": {
       "projects": "Progress",
       "documents": "Type",
-      "queues": "Items",
-      "counterGroups": "Counters",
       "calendars": "Description",
       "dashboards": "Source",
-      "posts": "Preview",
-      "galleries": "Pictures",
-      "wikis": "Pages"
+      "posts": "Preview"
     }
   },
   "detail": {
     "tasksDone": "{{completed}} of {{total}} tasks",
-    "queueItems_one": "{{count}} item",
-    "queueItems_other": "{{count}} items",
-    "counters_one": "{{count}} counter",
-    "counters_other": "{{count}} counters",
     "fromMarketplace": "Marketplace",
     "builtHere": "Built here",
     "documentType": {

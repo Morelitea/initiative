@@ -495,7 +495,7 @@ export const CalendarPageSkeleton = ({ label }: LabelledSkeletonProps) => (
 /** A project's page: breadcrumb, the overview card, and its task table. */
 export const ProjectDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label}>
-    <DetailPageSkeleton actions={1} title={false} description={false}>
+    <DetailPageSkeleton actions={1} description={false}>
       <ContentCardSkeleton lines={3} />
       <ToolbarSkeleton />
       <TableSkeleton rows={6} columns={5} toolbar={false} />
