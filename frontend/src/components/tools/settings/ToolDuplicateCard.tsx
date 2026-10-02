@@ -89,6 +89,13 @@ export const ToolDuplicateCard = () => {
     return null;
   }
 
+  // The destination chosen, while it is still offered: an initiative that
+  // starts keeping its content in with the dialog open takes the choice back
+  // to itself.
+  const destination = creatableInitiatives.some((i) => String(i.id) === initiativeId)
+    ? initiativeId
+    : String(creatableInitiatives[0].id);
+
   const openDialog = () => {
     const here = creatableInitiatives.some((i) => i.id === entity.initiative_id);
     const id = String(here ? entity.initiative_id : creatableInitiatives[0].id);
@@ -99,7 +106,7 @@ export const ToolDuplicateCard = () => {
 
   // A name still the suggestion follows the initiative; one typed stays.
   const chooseInitiative = (id: string) => {
-    if (name === suggestedName(initiativeId)) setName(suggestedName(id));
+    if (name === suggestedName(destination)) setName(suggestedName(id));
     setInitiativeId(id);
   };
 
@@ -107,7 +114,7 @@ export const ToolDuplicateCard = () => {
     if (!name.trim()) return;
     duplicate.mutate({
       id: entity.id,
-      data: { name: name.trim(), target_initiative_id: Number(initiativeId) },
+      data: { name: name.trim(), target_initiative_id: Number(destination) },
     });
   };
 
@@ -139,7 +146,7 @@ export const ToolDuplicateCard = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="duplicate-initiative">{t("toolSettings.duplicate.initiative")}</Label>
-              <Select value={initiativeId} onValueChange={chooseInitiative}>
+              <Select value={destination} onValueChange={chooseInitiative}>
                 <SelectTrigger id="duplicate-initiative">
                   <SelectValue />
                 </SelectTrigger>
