@@ -563,6 +563,7 @@ export interface BillingConfig {
 export interface AppConfig {
   captcha?: CaptchaConfig | null;
   billing?: BillingConfig | null;
+  faro_collector_url?: string | null;
   max_upload_bytes: number;
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;

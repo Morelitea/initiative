@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **See how the app behaves in people's browsers, with their say-so.** Set `FARO_COLLECTOR_URL` to a Grafana Faro collector and the cookie chooser gains an **Analytics** switch. Browsers that turn it on send page views, uncaught errors and Web Vitals, with each page named by its pattern rather than its address and nothing that names the person. Unset, nothing loads. See **Running a server › Configuration**.
+
 ### Changed
 
 - **Duplicate any tool but a notice into any initiative** where you can create one, from **Settings › Advanced**. A calendar brings its events and repeats, and a wiki its published pages. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.

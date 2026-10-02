@@ -6,6 +6,7 @@ import { AgeGateDialog } from "@/components/auth/AgeGateDialog";
 import { SecondFactorStepUpDialog } from "@/components/auth/SecondFactorStepUpDialog";
 import { StepUpDialog } from "@/components/auth/StepUpDialog";
 import { CookieConsent } from "@/components/CookieConsent";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useColorTheme } from "@/hooks/useColorTheme";
 import { useConsentSync } from "@/hooks/useConsentSync";
 import { useDeepLinks } from "@/hooks/useDeepLinks";
@@ -31,6 +32,7 @@ const RootComponent = () => {
   useInterfaceColors();
   useColorTheme();
   useConsentSync();
+  useAnalytics();
   useSafeArea();
   useDeepLinks();
   useTimeFormatSync();

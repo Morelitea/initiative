@@ -272,6 +272,21 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 
     Every series is per process. With several copies of the app running, Prometheus scrapes each one: add request and statement series with `sum`, and take `initiative_users`, `initiative_guilds` and `initiative_sessions_active` with `max`, because every copy counts the same accounts.
 
+## Measuring the app in the browser (Grafana Faro)
+
+Prometheus sees the server. To see what happens in people's browsers (which pages they actually open, as opposed to the ones you spent a weekend on, plus the errors they hit and how fast pages load), point Initiative at a Grafana Faro collector, such as Alloy's `faro.receiver`.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `FARO_COLLECTOR_URL` | Where browsers send measurements: a path on this server (`/collect`, which your proxy passes to the collector) or a full `https://` address. | unset |
+
+**Nobody is measured without saying yes.** Setting it adds an **Analytics** switch to the cookie chooser, and only a browser with that switch on sends anything. Every switch starts off, and the chooser itself appears only once a platform owner turns it on under **Settings › Platform › Branding**. With the chooser off, nothing is sent.
+
+**What gets sent.** Page views, uncaught errors and Web Vitals, grouped by a random session id the browser keeps. A page is named by its pattern (`/c/$guildId/projects/$projectId`), never by its address, and nothing names the person.
+
+??? techspec "Collectors on another address"
+    A full address on another origin is added to the page's `connect-src` automatically. A path is already covered, since it is the app's own origin.
+
 ## After changing settings
 
 Most settings are read at startup, so **restart the container** after editing them:

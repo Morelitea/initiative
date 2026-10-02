@@ -453,6 +453,31 @@ def test_csp_billing_origin_only_when_portal_configured():
     assert "billing.example.com" not in _directive(on, "script-src")
 
 
+def test_csp_collector_origin_only_when_one_is_on_another_origin():
+    """The SPA posts measurements to the named collector, so only its origin
+    joins connect-src; a same-origin path needs nothing beyond 'self'."""
+    assert "faro.example.com" not in _csp(_settings())
+
+    on = _csp(_settings(FARO_COLLECTOR_URL="https://faro.example.com/collect"))
+    assert "https://faro.example.com" in _directive(on, "connect-src")
+    assert "/collect" not in _directive(on, "connect-src")
+
+    path = _csp(_settings(FARO_COLLECTOR_URL="/collect"))
+    assert _directive(path, "connect-src") == _directive(
+        _csp(_settings()), "connect-src"
+    )
+
+
+@pytest.mark.parametrize("value", ["faro.example.com", "//faro.example.com", "ftp://x"])
+def test_collector_url_must_be_a_path_or_http_url(value):
+    with pytest.raises(ValidationError, match="FARO_COLLECTOR_URL"):
+        _settings(FARO_COLLECTOR_URL=value)
+
+
+def test_blank_collector_url_is_unset():
+    assert _settings(FARO_COLLECTOR_URL="  ").FARO_COLLECTOR_URL is None
+
+
 def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     # Swagger's jsDelivr + Cloudflare beacon scripts are permitted ONLY on the
     # docs-scoped policy; the app-wide script-src stays 'self' (pentest MED-001).
