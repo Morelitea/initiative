@@ -9,5 +9,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["electron/src"]
+  "include": ["electron/src"],
+  "exclude": ["electron/src/**/*.test.mts"]
 }

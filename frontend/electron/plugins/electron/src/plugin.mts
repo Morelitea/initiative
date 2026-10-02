@@ -1,3 +1,5 @@
+export { CapacitorUpdater } from "./updater.mjs";
+
 import { hostname, platform, release } from "node:os";
 
 /** What `@capacitor/device` reports for a computer, as Android and iOS report a phone. */

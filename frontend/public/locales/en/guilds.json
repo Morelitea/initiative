@@ -369,6 +369,7 @@
     "version": "Version {{version}}",
     "nativeUpdateRequiredTitle": "App update required",
     "nativeUpdateRequiredDescription": "Version {{version}} is available, but it needs a newer version of the app than the one installed. Please update Initiative from your app store or install the latest APK.",
+    "nativeUpdateRequiredDescriptionDesktop": "Version {{version}} is available, but it needs a newer version of the app than the one installed. Download the latest Initiative for your computer to update.",
     "nativeUpdateRequiredAcknowledge": "Got it"
   },
   "temporaryAccess": "Temporary access",
