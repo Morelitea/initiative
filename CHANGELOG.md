@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **A new front page and Download page.**
+- **Chester is now a jackalope**, from the Beyonders Studio logo.
 - **Search and filters cover the whole list**, not just what's loaded.
 - **All-day events are the same days for everyone**, whatever their timezone.
 - **Comments open on the newest conversations**, with **Load older comments** for the rest.
