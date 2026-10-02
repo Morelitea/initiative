@@ -7,7 +7,7 @@ two in fields typed :data:`PersonId` and :data:`GuildId`, and those two types
 are where the translation happens.
 
 For a person, nothing changes: both are ``int`` on the way in and on the way
-out, with ``int``'s JSON schema.
+out, with ``int``'s JSON schema and a marker naming what the field carries.
 
 For an install, each request passes through three phases, held on an
 :class:`InstallBoundary` that the route's scope dependency sets up once the
@@ -216,9 +216,11 @@ def _serializer(entity: IdentityEntity):
 #: inside a value no :data:`PersonId` field describes.
 serialize_person_id = _serializer(IdentityEntity.user)
 
-#: The schema both types publish, in both modes: what a person sends and
-#: receives, unchanged.
-_INTEGER_SCHEMA = WithJsonSchema({"type": "integer"})
+#: The schema each type publishes, in both modes: an integer, which is what a
+#: person sends and receives, marked with what it names so the app API's
+#: document (``app.api.app_openapi``) can publish it as an install's reference.
+_PERSON_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "person"})
+_GUILD_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "guild"})
 
 #: A person's id in a request or response schema. ``int`` for a person; the
 #: install's reference for an installed app.
@@ -226,7 +228,7 @@ PersonId = Annotated[
     int,
     WrapValidator(_validator(IdentityEntity.user)),
     PlainSerializer(_serializer(IdentityEntity.user), return_type=Any),
-    _INTEGER_SCHEMA,
+    _PERSON_SCHEMA,
 ]
 
 #: A community's id in a request or response schema. ``int`` for a person; the
@@ -235,5 +237,5 @@ GuildId = Annotated[
     int,
     WrapValidator(_validator(IdentityEntity.guild)),
     PlainSerializer(_serializer(IdentityEntity.guild), return_type=Any),
-    _INTEGER_SCHEMA,
+    _GUILD_SCHEMA,
 ]

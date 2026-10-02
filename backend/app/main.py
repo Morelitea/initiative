@@ -30,6 +30,7 @@ from app.api.deps import (
     get_upload_user,
     raise_for_guild_access,
 )
+from app.api.app_openapi import build_app_openapi, mark_app_scopes
 from app.api.embed_csp import app_frame_policy
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.csrf import CsrfOriginMiddleware
@@ -231,7 +232,7 @@ async def lifespan(app: FastAPI):
 
 
 # docs_url is left None: the default route would inherit the app-wide CSP and
-# the jsDelivr-hosted Swagger assets get blocked. A custom route below serves
+# the jsDelivr-hosted Swagger assets get blocked. The custom routes below serve
 # the same UI with a docs-scoped CSP instead.
 app = FastAPI(
     title=PROJECT_NAME,
@@ -257,6 +258,28 @@ def _swagger_ui(openapi_url: str, title: str) -> Response:
 @app.get(f"{API_V1_STR}/docs", include_in_schema=False)
 async def swagger_ui_html() -> Response:
     return _swagger_ui(f"{API_V1_STR}/openapi.json", f"{PROJECT_NAME} - Swagger UI")
+
+
+def app_openapi() -> dict:
+    """The app API's document (``app.api.app_openapi``), built once per
+    process from the main one."""
+    cached = getattr(app.state, "app_openapi_schema", None)
+    if cached is None:
+        cached = build_app_openapi(app.openapi(), app.routes)
+        app.state.app_openapi_schema = cached
+    return cached
+
+
+@app.get(f"{API_V1_STR}/app-platform/openapi.json", include_in_schema=False)
+async def app_openapi_json() -> JSONResponse:
+    return JSONResponse(app_openapi())
+
+
+@app.get(f"{API_V1_STR}/app-platform/docs", include_in_schema=False)
+async def app_swagger_ui_html() -> Response:
+    return _swagger_ui(
+        f"{API_V1_STR}/app-platform/openapi.json", "Initiative app API - Swagger UI"
+    )
 
 
 # Initialize rate limiter (uses shared limiter from app.core.rate_limit)
@@ -767,6 +790,8 @@ def custom_openapi() -> dict:
             )
             if not has_api_key:
                 security.append({"ApiKeyAuth": []})
+
+    mark_app_scopes(openapi_schema, app.routes)
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
