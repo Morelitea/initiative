@@ -60,8 +60,6 @@
   "noAccessDescription": "Du hast keine Berechtigung, diese Zählergruppe anzuzeigen.",
   "backToGroups": "Zurück zu den Zählergruppen",
   "backToGroup": "Zurück zur Gruppe",
-  "counterCount_one": "{{count}} Zähler",
-  "counterCount_other": "{{count}} Zähler",
   "focus": {
     "openFocus": "Vollbild öffnen",
     "exit": "Vollbild verlassen",
@@ -71,7 +69,6 @@
     "notFound": "Zähler in dieser Gruppe nicht gefunden"
   },
   "createFirst": "Erstelle deine erste Zählergruppe",
-  "settings": "Einstellungen",
   "details": "Details",
   "access": "Zugriff",
   "advanced": "Erweitert",

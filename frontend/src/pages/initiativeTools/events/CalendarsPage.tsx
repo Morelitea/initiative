@@ -34,7 +34,7 @@ import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
-  CalendarPanelDropdown,
+  CalendarPicker,
   type ProjectTaskCalendar,
 } from "@/components/initiativeTools/events/CalendarListPanel";
 import { CreateCalendarDialog } from "@/components/initiativeTools/events/CreateCalendarDialog";
@@ -56,7 +56,9 @@ import {
   CardGridSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DateRangeField,
   dateRangeBounds,
@@ -67,6 +69,7 @@ import {
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { Switch } from "@/components/ui/switch";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
@@ -213,7 +216,7 @@ export const CalendarsView = ({
 
   // Per-calendar / per-project visibility, kept per guild.
   const visibility = useCalendarVisibility(`${VISIBILITY_KEY}:${guildId}`);
-  const { showCalendar } = visibility;
+  const { showCalendar, tasksHidden } = visibility;
 
   // A deep-linked calendar is always shown, whatever the stored toggles say.
   useEffect(() => {
@@ -327,7 +330,8 @@ export const CalendarsView = ({
       conditions: taskConditions,
       tz: userTimezone,
       include_events: true,
-      include_tasks: true,
+      // Tasks switched off in the filters are not asked for at all.
+      include_tasks: !tasksHidden,
     };
   }, [
     guildOnly,
@@ -338,6 +342,7 @@ export const CalendarsView = ({
     visibleRange,
     propertyFiltersParam,
     taskConditions,
+    tasksHidden,
     userTimezone,
   ]);
 
@@ -446,7 +451,7 @@ export const CalendarsView = ({
       );
     }
 
-    for (const task of entriesData?.tasks ?? []) {
+    for (const task of tasksHidden ? [] : (entriesData?.tasks ?? [])) {
       if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
         continue;
       }
@@ -454,7 +459,7 @@ export const CalendarsView = ({
       // across the visible projects; the task page is the editing surface.
       entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id), false));
     }
-    for (const task of entriesData?.task_occurrences ?? []) {
+    for (const task of tasksHidden ? [] : (entriesData?.task_occurrences ?? [])) {
       if (task.project_id != null && visibility.isProjectHidden(guildId, task.project_id)) {
         continue;
       }
@@ -462,7 +467,7 @@ export const CalendarsView = ({
     }
 
     return entries;
-  }, [entriesData, visibility, guildId, calendarsById, unread]);
+  }, [entriesData, tasksHidden, visibility, guildId, calendarsById, unread]);
 
   // Create dialog state
   const {
@@ -501,17 +506,18 @@ export const CalendarsView = ({
     fixedInitiativeId,
   });
 
-  // Hidden calendars count too: the reader has narrowed what the grid shows,
-  // and nothing else on screen says so once the panel is closed.
+  // Hidden tasks count too: the reader has narrowed what the grid shows, and
+  // nothing else on screen says so once the panel is closed. Hidden calendars
+  // don't — the title says which calendars are showing.
   const activeFilterCount =
-    visibility.hiddenCount +
+    visibility.hiddenTaskCount +
     statusFilters.length +
     priorityFilters.length +
     propertyFilters.length +
     (isDateRangeSet(dateRange) ? 1 : 0);
 
   const clearFilters = () => {
-    visibility.clear();
+    visibility.showTasks();
     setStatusFilters([]);
     setPriorityFilters([]);
     setPropertyFilters([]);
@@ -605,21 +611,21 @@ export const CalendarsView = ({
     [t]
   );
 
-  // Which calendars are drawn — real calendars plus one read-only calendar per
-  // project with tasks in the window. On the app's own surface this is the only
-  // control the page has, so it rides the toolbar row; an initiative's calendar
-  // tab has a panel full of task-shaped filters for it to sit in.
+  // Which calendars are drawn. The picker is the page's title: it names what
+  // is showing and opens the checklist that changes it.
+  const shownCalendars = solo
+    ? [soloCalendar]
+    : calendars.filter((calendar) => !visibility.isCalendarHidden(guildId, calendar.id));
+  const onlyCalendar = shownCalendars.length === 1 ? shownCalendars[0] : null;
+  const settingsPathFor = (calendar: CalendarSummary) =>
+    gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id));
   const calendarPicker = (
-    <CalendarPanelDropdown
+    <CalendarPicker
       calendars={calendars}
-      projectCalendars={projectCalendars}
       isCalendarHidden={(calendar) => visibility.isCalendarHidden(guildId, calendar.id)}
-      isProjectHidden={(project) => visibility.isProjectHidden(guildId, project.projectId)}
       onToggleCalendar={(calendar) => visibility.toggleCalendar(guildId, calendar.id)}
-      onToggleProject={(project) => visibility.toggleProject(guildId, project.projectId)}
-      settingsPathFor={(calendar) =>
-        gp(toolSettingsRoute(Tool.calendar, calendar.initiative_id, calendar.id))
-      }
+      onShowAll={() => visibility.showAllCalendars(guildId)}
+      settingsPathFor={settingsPathFor}
       canCreate={canCreateCalendars}
       onCreate={() => setCreateCalendarOpen(true)}
     />
@@ -631,20 +637,41 @@ export const CalendarsView = ({
 
   return (
     <div className="space-y-6">
-      {/* Only the standalone surfaces title themselves. Inside an initiative
-          this view is a tab under that initiative's own heading, which already
-          says both where you are and that you're looking at calendars. */}
+      {/* A tab sits under the initiative's own heading, which already says
+          where you are; the standalone surfaces head themselves. */}
       {isInitiativeTab ? null : (
-        <h1 className="font-semibold text-3xl tracking-tight">
-          {solo ? soloCalendar.name : guildScope ? t("guildScope.title") : t("title")}
-        </h1>
+        <ToolPageHeader
+          tool={Tool.calendar}
+          initiativeId={initiativeId}
+          mark={
+            onlyCalendar ? (
+              <span
+                aria-hidden
+                className="h-4 w-4 shrink-0 rounded-full"
+                style={{ backgroundColor: onlyCalendar.color }}
+              />
+            ) : null
+          }
+          settingsTo={
+            onlyCalendar?.can.edit
+              ? toolSettingsRoute(Tool.calendar, onlyCalendar.initiative_id, onlyCalendar.id)
+              : undefined
+          }
+          // The solo deep link is one calendar's surface: nothing to pick.
+          title={solo ? soloCalendar.name : calendarPicker}
+        />
       )}
 
       <ToolListToolbar
-        leading={guildScope ? calendarPicker : undefined}
+        // As a tab, the picker heads the row instead, at a title's size.
+        heading={
+          isInitiativeTab ? (
+            <h2 className="font-semibold text-xl tracking-tight">{calendarPicker}</h2>
+          ) : undefined
+        }
         filters={
-          /* The app surface's filters were only ever the calendar picker, now
-             on the row itself; the solo deep link has one calendar to narrow. */
+          /* Every filter is task- or initiative-shaped, and neither guild
+             surface holds tasks or an initiative. */
           guildOnly
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
@@ -684,8 +711,7 @@ export const CalendarsView = ({
 
       {/* Filters — task- and initiative-shaped, every one of them. Neither
           guild surface holds tasks or an initiative, so they are absent there
-          rather than empty, and the one control those surfaces do want (which
-          calendars are showing) sits on the toolbar row instead. */}
+          rather than empty. Which calendars are showing is the title's. */}
       {!guildOnly && (
         <ToolFilterPanel
           open={filtersOpen}
@@ -695,9 +721,50 @@ export const CalendarsView = ({
           activeCount={activeFilterCount}
         >
           <div className="flex flex-wrap items-end gap-4">
-            {/* Calendar visibility — real calendars + per-project task
-                calendars behind one dropdown, so the grid keeps full width. */}
-            <div className="flex items-end">{calendarPicker}</div>
+            {/* Tasks on the grid: all of them, and each project's. */}
+            <div className="w-full space-y-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="calendar-show-tasks"
+                  checked={!tasksHidden}
+                  onCheckedChange={visibility.toggleTasks}
+                />
+                <Label htmlFor="calendar-show-tasks" className="cursor-pointer font-medium text-sm">
+                  {t("filters.tasks")}
+                </Label>
+              </div>
+              {!tasksHidden && projectCalendars.length > 0 ? (
+                <fieldset className="space-y-1">
+                  <legend className="mb-1 font-medium text-muted-foreground text-xs">
+                    {t("panel.projectTasks")}
+                  </legend>
+                  <ul className="flex flex-wrap gap-x-4 gap-y-1">
+                    {projectCalendars.map((project) => {
+                      const id = `project-calendar-toggle-${project.guildId}-${project.projectId}`;
+                      return (
+                        <li key={id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={id}
+                            checked={!visibility.isProjectHidden(guildId, project.projectId)}
+                            onCheckedChange={() =>
+                              visibility.toggleProject(guildId, project.projectId)
+                            }
+                          />
+                          <span
+                            aria-hidden
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: project.color }}
+                          />
+                          <Label htmlFor={id} className="cursor-pointer font-normal text-sm">
+                            {project.name}
+                          </Label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </fieldset>
+              ) : null}
+            </div>
 
             <div className="w-full sm:w-64">
               <Label

@@ -51,7 +51,6 @@ async def test_create_wiki(client: AsyncClient, acting_user, session):
     body = response.json()
     assert body["name"] == "Club handbook"
     assert body["can"]["delete"] is True
-    assert body["page_count"] == 0
     assert body["home_page_id"] is None
     levels = {(g.get("all_initiative_members"), g["level"]) for g in body["grants"]}
     assert (True, "read") in levels

@@ -911,6 +911,7 @@ export interface AppServiceRegistrationRead {
   id: number;
   public_id: string;
   listing_uid: string | null;
+  kind: string;
   publisher_id: number;
   publisher_prefix: string;
   publisher_name: string;
@@ -2672,6 +2673,9 @@ export interface CounterGroupCreate {
   grants?: ResourceGrantSchema[];
 }
 
+/**
+ * A counter group in a list: the group alone, without its counters.
+ */
 export interface CounterGroupSummary {
   archived_at: string | null;
   can: ToolCan;
@@ -2691,7 +2695,6 @@ export interface CounterGroupSummary {
    */
   name: string;
   description: string | null;
-  counter_count: number;
 }
 
 export interface CounterGroupListResponse {
@@ -2746,7 +2749,6 @@ export interface CounterGroupRead {
    */
   name: string;
   description: string | null;
-  counter_count: number;
   counters: CounterRead[];
 }
 
@@ -4174,7 +4176,6 @@ export interface GallerySummary {
    */
   name: string;
   description: string | null;
-  image_count: number;
   cover_image_id: number | null;
   cover: GalleryCover | null;
   preview: GalleryCover[];
@@ -4213,7 +4214,6 @@ export interface GalleryRead {
    */
   name: string;
   description: string | null;
-  image_count: number;
   cover_image_id: number | null;
   cover: GalleryCover | null;
   preview: GalleryCover[];
@@ -7819,7 +7819,6 @@ export interface QueueSummary {
   description: string | null;
   current_round: number;
   is_active: boolean;
-  item_count: number;
 }
 
 export interface QueueListResponse {
@@ -7852,7 +7851,6 @@ export interface QueueRead {
   description: string | null;
   current_round: number;
   is_active: boolean;
-  item_count: number;
   items: QueueItemRead[];
   current_item: QueueItemRead | null;
 }
@@ -9447,7 +9445,6 @@ export interface WikiSummary {
    */
   name: string;
   description: string | null;
-  page_count: number;
   home_page_id: number | null;
   page_order: WikiPageOrder;
   contents_depth: number;
@@ -9656,7 +9653,6 @@ export interface WikiRead {
    */
   name: string;
   description: string | null;
-  page_count: number;
   home_page_id: number | null;
   page_order: WikiPageOrder;
   contents_depth: number;

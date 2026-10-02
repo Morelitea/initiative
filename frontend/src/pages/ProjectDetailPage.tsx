@@ -1,5 +1,4 @@
-import { Link, useParams, useRouter, useSearch } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,13 +7,11 @@ import { invalidate, q } from "@/api/query-keys";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectDocumentsSection } from "@/components/projects/ProjectDocumentsSection";
-import { ProjectOverviewCard } from "@/components/projects/ProjectOverviewCard";
+import { ProjectHeader } from "@/components/projects/ProjectHeader";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { ProjectDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { clearLastUsedProject } from "@/components/tasks/CreateTaskWizard";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
-import { Button } from "@/components/ui/button";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useReadOnOpen } from "@/hooks/useNotifications";
@@ -22,7 +19,7 @@ import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
-import { taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
+import { taskRoute, toolListRoute } from "@/lib/tools";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -131,26 +128,7 @@ export const ProjectDetailPage = () => {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <ToolBreadcrumb
-            tool={Tool.project}
-            initiativeId={project.initiative_id}
-            trail={[{ label: project.name }]}
-          />
-          {canEdit ? (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              aria-label={t("detail.openProjectSettings")}
-            >
-              <Link to={gp(toolSettingsRoute(Tool.project, initiativeId, project.id))}>
-                <Settings className="h-5 w-5" /> {t("detail.projectSettings")}
-              </Link>
-            </Button>
-          ) : null}
-        </div>
-        <ProjectOverviewCard project={project} projectIsArchived={projectIsArchived} />
+        <ProjectHeader project={project} projectIsArchived={projectIsArchived} />
         <ProjectDocumentsSection
           projectId={project.id}
           projectName={project.name}

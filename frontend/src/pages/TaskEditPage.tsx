@@ -620,17 +620,16 @@ export const TaskEditPage = () => {
       <ToolBreadcrumb
         tool={Tool.project}
         initiativeId={initiativeId}
-        trail={[
-          ...(project
+        trail={
+          project
             ? [
                 {
                   label: project.name,
                   to: toolDetailRoute(Tool.project, initiativeId, project.id),
                 },
               ]
-            : []),
-          { label: title || task?.title },
-        ]}
+            : []
+        }
       />
       {/* The task's title and status are rendered once each, by the form's own
           title field and status select. This row carries only the byline. */}

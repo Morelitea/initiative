@@ -222,7 +222,11 @@ async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> in
         return 401
 
     route = webhooks["route"]
-    value = _route_value(body, route["path"])
+    value = (
+        headers.get(str(route["header"]).lower()) or None
+        if "header" in route
+        else _route_value(body, route["path"])
+    )
     installs = (
         []
         if value is None

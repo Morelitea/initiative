@@ -29,6 +29,7 @@ from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.marketplace import registrations as service
 from app.services.marketplace.registration_lookup import load_registrations
 from app.testing import create_app_service_registration, sample_app_jwks
+from app.testing.fake_vendor import declarative_app
 from app.testing.tuf_repository import service_app_definition
 
 
@@ -659,6 +660,67 @@ async def test_a_registration_another_listing_holds_is_refused(session):
 
     with pytest.raises(CatalogSourceConflict):
         await upsert_listing(session, _app_listing(CONTAINER), source="local")
+
+
+DECLARATIVE = {"kind": "declarative", "scope_ceiling": []}
+
+
+def _declarative_listing(registration) -> dict:
+    return {**_app_listing(registration), "definition": declarative_app("acme.widgets")}
+
+
+async def test_a_declarative_app_is_live_with_its_vendor_values_and_no_location(
+    session,
+):
+    """It runs nowhere and signs nothing: its registration is live once it is
+    on and its vendor values are set, and takes no address or keys."""
+    await upsert_listing(session, _declarative_listing(DECLARATIVE), source="local")
+    await session.commit()
+
+    row = await _registration(session)
+    assert (row.kind, row.base_url, row.jwks) == ("declarative", None, None)
+    assert (await load_registrations(force=True))["acme.widgets"].live is False
+
+    await service.update_registration(
+        session, row.id, vendor_values={"client_id": "abc"}
+    )
+    snapshot = (await load_registrations(force=True))["acme.widgets"]
+    assert (snapshot.live, snapshot.declarative) == (True, True)
+
+    with pytest.raises(HTTPException) as refused:
+        await service.update_registration(session, row.id, base_url=BASE_URL)
+    assert refused.value.detail == AppServiceMessages.DECLARATIVE_NOT_PLACED
+
+
+async def test_a_container_republished_as_declarative_leaves_its_location(session):
+    """What only a container has goes in the same write as the kind."""
+    await _create(session, jwks=sample_app_jwks())
+    await upsert_listing(session, _app_listing(CONTAINER), source="local")
+    await upsert_listing(
+        session,
+        {**_declarative_listing(DECLARATIVE), "version": "2.0.0"},
+        source="local",
+    )
+    await session.commit()
+
+    row = await _registration(session)
+    assert row.kind == "declarative"
+    assert (row.base_url, row.embed_origin, row.jwks, row.jwks_uri) == (None,) * 4
+    assert row.allowed_origins == []
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        _declarative_listing(CONTAINER),
+        _app_listing(DECLARATIVE),
+        _declarative_listing({**DECLARATIVE, "image": IMAGE}),
+    ],
+    ids=["declarative-app-container-block", "container-app-declarative-block", "image"],
+)
+async def test_a_registration_block_says_the_apps_own_kind(session, listing):
+    with pytest.raises(CatalogError):
+        await upsert_listing(session, listing, source="local")
 
 
 # --- boot reconciliation -----------------------------------------------------

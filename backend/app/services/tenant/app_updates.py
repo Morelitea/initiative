@@ -384,7 +384,11 @@ async def _update_guild(
         if offer is None:
             continue
         pending = offer.update
-        mandatory = (await registration_lookup.install_state(app.definition)).mandatory
+        mandatory = (
+            await registration_lookup.install_state(
+                app.definition, listing_uid=app.listing_uid
+            )
+        ).mandatory
         if offer.asks.asks_more and mandatory:
             # The registration stands in for the seat, as at install.
             from_version = app.listing_version

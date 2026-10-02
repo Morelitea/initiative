@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { CalendarDays, ChevronDown, Plus, Settings2 } from "lucide-react";
-import type { ComponentProps } from "react";
+import { type ComponentProps, useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type CalendarSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -37,6 +37,137 @@ interface CalendarListPanelProps {
   canCreate: boolean;
   onCreate: () => void;
 }
+
+interface CalendarPickerProps {
+  calendars: CalendarSummary[];
+  isCalendarHidden: (calendar: CalendarSummary) => boolean;
+  onToggleCalendar: (calendar: CalendarSummary) => void;
+  /** Turns every calendar back on, loaded here or not. */
+  onShowAll: () => void;
+  /** Settings link target for a manageable calendar; null hides the link. */
+  settingsPathFor?: (calendar: CalendarSummary) => string | null;
+  canCreate: boolean;
+  onCreate: () => void;
+}
+
+/** Which calendars the page overlays, as the page's title: the trigger names
+ *  what is showing, and opens a checklist of every calendar with "All
+ *  calendars" at its head. */
+export const CalendarPicker = ({
+  calendars,
+  isCalendarHidden,
+  onToggleCalendar,
+  onShowAll,
+  settingsPathFor,
+  canCreate,
+  onCreate,
+}: CalendarPickerProps) => {
+  const { t } = useTranslation("calendars");
+  const unread = useUnreadTree();
+  const idPrefix = useId();
+  const shown = calendars.filter((calendar) => !isCalendarHidden(calendar));
+  const allShown = shown.length === calendars.length;
+  // What is showing, read as the page's title.
+  const label =
+    calendars.length === 0
+      ? t("panel.calendars")
+      : allShown
+        ? t("picker.all")
+        : shown.length === 1
+          ? shown[0].name
+          : shown.length === 0
+            ? t("picker.none")
+            : t("picker.some", { count: shown.length });
+  const allId = `${idPrefix}-all`;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          // Takes its type from the title it stands in.
+          className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md text-left hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="min-w-0 truncate">{label}</span>
+          <ChevronDown className="h-[0.75em] w-[0.75em] shrink-0 opacity-60" aria-hidden />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="max-h-96 w-80 overflow-y-auto p-2"
+        aria-label={t("picker.label")}
+      >
+        {calendars.length === 0 ? (
+          <p className="px-2 py-1.5 text-muted-foreground text-sm">{t("panel.noCalendars")}</p>
+        ) : (
+          <ul className="space-y-0.5">
+            <li className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent">
+              <Checkbox
+                id={allId}
+                checked={allShown ? true : shown.length > 0 ? "indeterminate" : false}
+                onCheckedChange={onShowAll}
+              />
+              <Label htmlFor={allId} className="min-w-0 flex-1 cursor-pointer font-medium text-sm">
+                {t("picker.all")}
+              </Label>
+            </li>
+            {calendars.map((calendar) => {
+              const settingsPath = calendar.can.edit ? (settingsPathFor?.(calendar) ?? null) : null;
+              const id = `${idPrefix}-${calendar.guild_id}-${calendar.id}`;
+              return (
+                <li
+                  key={`${calendar.guild_id}-${calendar.id}`}
+                  className="group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
+                >
+                  <Checkbox
+                    id={id}
+                    checked={!isCalendarHidden(calendar)}
+                    onCheckedChange={() => onToggleCalendar(calendar)}
+                  />
+                  <span
+                    aria-hidden
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: calendar.color }}
+                  />
+                  <Label
+                    htmlFor={id}
+                    className="min-w-0 flex-1 cursor-pointer truncate font-normal text-sm"
+                  >
+                    {calendar.name}
+                  </Label>
+                  {unread.hasResource(calendar.guild_id, Tool.calendar, calendar.id) ? (
+                    <UnreadDot />
+                  ) : null}
+                  {settingsPath ? (
+                    <Link
+                      to={settingsPath}
+                      // Shown on hover, and whenever it has the keyboard's focus.
+                      className="rounded text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
+                      aria-label={t("panel.calendarSettings", { name: calendar.name })}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                    </Link>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {canCreate ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-1 h-8 w-full justify-start gap-2 px-2 font-normal text-muted-foreground hover:text-foreground"
+            onClick={onCreate}
+          >
+            <Plus className="h-4 w-4" />
+            {t("createCalendar")}
+          </Button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  );
+};
 
 /** The calendar list panel behind a toolbar dropdown: a "Calendars" trigger
  * opening the visibility panel, so the calendar grid keeps the full page

@@ -12,8 +12,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { useParams, useRouter } from "@tanstack/react-router";
-import { ArrowDownUp, LayoutGrid, List, Plus, RotateCcw, Settings } from "lucide-react";
+import { useParams } from "@tanstack/react-router";
+import { ArrowDownUp, LayoutGrid, List, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -31,7 +31,8 @@ import {
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -51,6 +52,7 @@ import {
   useSortCounters,
   useSteppedCount,
   useUpdateCounter,
+  useUpdateCounterGroup,
 } from "@/hooks/useCounters";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
@@ -64,7 +66,6 @@ const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 
 export function CounterGroupDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
-  const router = useRouter();
   const gp = useGuildPath();
   const { guildId, counterGroupId: groupIdParam } = useParams({ strict: false }) as {
     guildId: string;
@@ -90,6 +91,7 @@ export function CounterGroupDetailPage() {
     onSuccess: () => toast.success(t("common:subToolDuplicate.done")),
   });
   const sortCounters = useSortCounters(groupId ?? 0);
+  const updateGroup = useUpdateCounterGroup(groupId ?? 0);
 
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CounterRead | null>(null);
@@ -168,7 +170,7 @@ export function CounterGroupDetailPage() {
   if (groupQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingGroup")}>
-        <DetailPageSkeleton actions={4} title={false}>
+        <DetailPageSkeleton actions={4}>
           <CardGridSkeleton count={3} />
         </DetailPageSkeleton>
       </SkeletonRegion>
@@ -188,102 +190,105 @@ export function CounterGroupDetailPage() {
 
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
+      <ToolPageHeader
         tool={Tool.counter_group}
         initiativeId={group.initiative_id}
-        trail={[{ label: group.name }]}
-      />
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="sr-only">{group.name}</h1>
-          {group.description && (
-            <p className="mt-1 max-w-2xl text-muted-foreground text-sm">{group.description}</p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={toggleLayout}
-            aria-label={
-              layout === "row"
-                ? t("switchToGridView", { defaultValue: "Switch to grid view" })
-                : t("switchToRowView", { defaultValue: "Switch to row view" })
-            }
-            title={
-              layout === "row"
-                ? t("switchToGridView", { defaultValue: "Switch to grid view" })
-                : t("switchToRowView", { defaultValue: "Switch to row view" })
-            }
-          >
-            {layout === "row" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
-          </Button>
-          {canWrite && (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
-                <Plus className="h-4 w-4" />
-                {t("addCounter")}
-              </Button>
-              {counters.length > 1 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={sortCounters.isPending}>
-                      <ArrowDownUp className="h-4 w-4" />
-                      {t("sort")}
+        settingsTo={
+          canManage ? toolSettingsRoute(Tool.counter_group, initiativeId, group.id) : undefined
+        }
+        chest={
+          <ToolChest tool={Tool.counter_group} entity={group}>
+            <ToolChestSegment>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={toggleLayout}
+                  aria-label={
+                    layout === "row"
+                      ? t("switchToGridView", { defaultValue: "Switch to grid view" })
+                      : t("switchToRowView", { defaultValue: "Switch to row view" })
+                  }
+                  title={
+                    layout === "row"
+                      ? t("switchToGridView", { defaultValue: "Switch to grid view" })
+                      : t("switchToRowView", { defaultValue: "Switch to row view" })
+                  }
+                >
+                  {layout === "row" ? (
+                    <LayoutGrid className="h-4 w-4" />
+                  ) : (
+                    <List className="h-4 w-4" />
+                  )}
+                </Button>
+                {canWrite && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                      <Plus className="h-4 w-4" />
+                      {t("addCounter")}
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onSelect={() => sortCounters.mutate({ field: "name", direction: "asc" })}
+                    {counters.length > 1 && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={sortCounters.isPending}>
+                            <ArrowDownUp className="h-4 w-4" />
+                            {t("sort")}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              sortCounters.mutate({ field: "name", direction: "asc" })
+                            }
+                          >
+                            {t("sortNameAsc")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              sortCounters.mutate({ field: "name", direction: "desc" })
+                            }
+                          >
+                            {t("sortNameDesc")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              sortCounters.mutate({ field: "count", direction: "asc" })
+                            }
+                          >
+                            {t("sortCountAsc")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              sortCounters.mutate({ field: "count", direction: "desc" })
+                            }
+                          >
+                            {t("sortCountDesc")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setResetAllOpen(true)}
+                      disabled={counters.length === 0 || resetAll.isPending}
                     >
-                      {t("sortNameAsc")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => sortCounters.mutate({ field: "name", direction: "desc" })}
-                    >
-                      {t("sortNameDesc")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => sortCounters.mutate({ field: "count", direction: "asc" })}
-                    >
-                      {t("sortCountAsc")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => sortCounters.mutate({ field: "count", direction: "desc" })}
-                    >
-                      {t("sortCountDesc")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setResetAllOpen(true)}
-                disabled={counters.length === 0 || resetAll.isPending}
-              >
-                <RotateCcw className="h-4 w-4" />
-                {t("resetAll")}
-              </Button>
-            </>
-          )}
-          {canManage && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                router.navigate({
-                  to: gp(toolSettingsRoute(Tool.counter_group, initiativeId, group.id)),
-                })
-              }
-            >
-              <Settings className="h-4 w-4" />
-              {t("settings")}
-            </Button>
-          )}
-        </div>
-      </div>
+                      <RotateCcw className="h-4 w-4" />
+                      {t("resetAll")}
+                    </Button>
+                  </>
+                )}
+              </div>
+            </ToolChestSegment>
+          </ToolChest>
+        }
+        title={group.name}
+        onRename={canManage ? (name) => updateGroup.mutateAsync({ name }) : undefined}
+      >
+        {group.description && (
+          <p className="max-w-2xl text-muted-foreground text-sm">{group.description}</p>
+        )}
+      </ToolPageHeader>
 
       {counters.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">

@@ -233,16 +233,19 @@ export const useInitiativeManagers = (initiativeId: number) => {
 };
 
 /**
- * An initiative's display name, resolved from the cached initiatives list —
- * the one lookup every tool breadcrumb uses, since most tool read schemas
- * carry only `initiative_id`, not a nested initiative object. Returns
- * undefined until the id is set and the list has loaded (or for a guild-level
- * entity with no initiative_id, forever — callers treat that as "no crumb").
+ * An initiative, resolved from the cached initiatives list — the lookup every
+ * tool page header uses for its breadcrumb and its colour, since most tool
+ * read schemas carry only `initiative_id`, not a nested initiative object.
+ * Returns undefined until the id is set and the list has loaded (or for a
+ * guild-level entity with no initiative_id, forever — callers treat that as
+ * "no crumb").
  */
-export const useInitiativeName = (initiativeId: number | null | undefined): string | undefined => {
+export const useListedInitiative = (
+  initiativeId: number | null | undefined
+): InitiativeRead | undefined => {
   const initiativesQuery = useInitiatives({ enabled: initiativeId != null });
   return useMemo(
-    () => initiativesQuery.data?.find((initiative) => initiative.id === initiativeId)?.name,
+    () => initiativesQuery.data?.find((initiative) => initiative.id === initiativeId),
     [initiativesQuery.data, initiativeId]
   );
 };

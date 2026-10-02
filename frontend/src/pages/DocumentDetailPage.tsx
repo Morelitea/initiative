@@ -1,4 +1,4 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
 import {
   ChevronDown,
@@ -11,7 +11,6 @@ import {
   PanelRight,
   Save,
   ScrollText,
-  Settings,
   X,
 } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,8 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1CGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
-import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
-import { PropertyTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import {
   DocumentOutlinePanel,
@@ -33,12 +31,10 @@ import { DOCUMENT_BODIES } from "@/components/documents/detail/documentBodies";
 import { CollaborationStatusBadge } from "@/components/documents/editor/CollaborationStatusBadge";
 import { clearWhiteboardSceneCache } from "@/components/documents/whiteboardSceneCache";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { PropertyPanel } from "@/components/properties/PropertyPanel";
 import { DocumentDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { TagPicker } from "@/components/tags/TagPicker";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
-import { Badge } from "@/components/ui/badge";
+import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,7 +53,6 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
-import { useSetToolTags } from "@/hooks/useToolTags";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -83,10 +78,8 @@ export const DocumentDetailPage = () => {
   const sidePanel = useDocumentSidePanel();
   const outline = useDocumentOutline();
   const { isEnabled: isAIEnabled } = useAIEnabled();
-  const setDocumentTagsMutation = useSetToolTags(Tool.document);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
-  const [tags, setTags] = useState<TagSummary[]>([]);
   // Persisted collapse state for the metadata card (mirrors the pattern used
   // by the Documents section on project pages).
   const metadataCollapsedStorageKey = "document:metadataCollapsed";
@@ -210,7 +203,6 @@ export const DocumentDetailPage = () => {
     }
     // Tags are written the moment they are picked, so they go on following the
     // server whether or not the rest has been filled in.
-    setTags(document.tags ?? []);
     if (seededDocumentRef.current === document.id) {
       return;
     }
@@ -256,6 +248,11 @@ export const DocumentDetailPage = () => {
     });
   };
 
+  // Only the template flag, from the tool chest's status: kept apart from the
+  // save above, which settles the editor's draft when it lands.
+  const setTemplate = useUpdateDocument(parsedId, {
+    onSuccess: (updated) => setDocumentCache(parsedId, updated),
+  });
   const saveDocument = useUpdateDocument(parsedId, {
     // Suppress the default error toast when the save failed because we're offline —
     // the persistent offline toast already explains the situation to the user.
@@ -586,18 +583,6 @@ export const DocumentDetailPage = () => {
     }
   };
 
-  const handleTagsChange = useCallback(
-    (newTags: TagSummary[]) => {
-      setTags(newTags);
-      // Immediately save tag changes to the server
-      setDocumentTagsMutation.mutate({
-        id: parsedId,
-        tagIds: newTags.map((tg) => tg.id),
-      });
-    },
-    [parsedId, setDocumentTagsMutation]
-  );
-
   if (documentQuery.isLoading) {
     return <DocumentDetailSkeleton label={t("detail.loading")} />;
   }
@@ -614,6 +599,7 @@ export const DocumentDetailPage = () => {
   }
 
   const { Body, Actions, framed, editable, prose } = DOCUMENT_BODIES[document.document_type];
+  const isImageFile = Boolean(document.file_content_type?.startsWith("image/"));
   const showSummaryTab = prose && isAIEnabled;
   const body = (
     <Suspense
@@ -642,113 +628,119 @@ export const DocumentDetailPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ToolBreadcrumb
-          tool={Tool.document}
-          initiativeId={document.initiative_id}
-          trail={[{ label: document.name }]}
-        />
-        <div className="flex items-center gap-2">
-          {canEditDocument && (
-            <Button asChild variant="outline" size="sm">
-              <Link
-                to={gp(toolSettingsRoute(Tool.document, initiativeId, document.id))}
-                className="inline-flex items-center gap-2"
-              >
-                <Settings className="h-4 w-4" />
-                {t("detail.settings")}
-              </Link>
-            </Button>
-          )}
-          {showSummaryTab && (
-            <Button
-              variant={sidePanel.isOpen ? "secondary" : "outline"}
-              size="sm"
-              onClick={sidePanel.toggle}
-              title={sidePanel.isOpen ? t("detail.closePanel") : t("detail.openPanel")}
-            >
-              <PanelRight className="h-4 w-4" />
-              <span className="sr-only">{t("detail.togglePanel")}</span>
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            onFocus={() => setTitleHasFocus(true)}
-            onBlur={() => setTitleHasFocus(false)}
-            placeholder={t("detail.titlePlaceholder")}
-            className="h-auto min-w-0 font-semibold text-3xl tracking-tight md:text-3xl"
-            disabled={!canEditDocument}
-          />
-          {titleIsDirty ? (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                if (!saveDocument.isPending) saveNow();
-              }}
-              disabled={saveDocument.isPending}
-              className="shrink-0"
-            >
-              {saveDocument.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {t("common:save")}
-            </Button>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-          <span>{t("detail.updated", { date: relativeUpdatedAt })}</span>
-          {document.is_template ? <Badge variant="outline">{t("detail.template")}</Badge> : null}
-        </div>
-      </div>
-      <div className="space-y-6">
-        <Card>
-          <Collapsible
-            open={!isMetadataCollapsed}
-            onOpenChange={(open) => {
-              const collapsed = !open;
-              setIsMetadataCollapsed(collapsed);
-              setItem(metadataCollapsedStorageKey, collapsed.toString());
+      <ToolPageHeader
+        tool={Tool.document}
+        initiativeId={document.initiative_id}
+        settingsTo={
+          canEditDocument ? toolSettingsRoute(Tool.document, initiativeId, document.id) : undefined
+        }
+        chest={
+          <ToolChest
+            tool={Tool.document}
+            entity={document}
+            template={{
+              isTemplate: document.is_template,
+              onChange: (isTemplate) => setTemplate.mutateAsync({ is_template: isTemplate }),
             }}
           >
-            <CardHeader>
-              <div className="inline-flex items-center gap-2">
-                <CardTitle>{t("detail.metadataTitle")}</CardTitle>
+            <ToolChestSegment label={t("detail.updatedLabel")}>
+              <span>{relativeUpdatedAt}</span>
+            </ToolChestSegment>
+            {showSummaryTab ? (
+              <ToolChestSegment>
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full"
-                  onClick={() => {
-                    setIsMetadataCollapsed((prev) => {
-                      const next = !prev;
-                      setItem(metadataCollapsedStorageKey, next.toString());
-                      return next;
-                    });
-                  }}
-                  aria-label={
-                    isMetadataCollapsed ? t("detail.expandMetadata") : t("detail.collapseMetadata")
-                  }
+                  variant={sidePanel.isOpen ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={sidePanel.toggle}
+                  title={sidePanel.isOpen ? t("detail.closePanel") : t("detail.openPanel")}
                 >
-                  {isMetadataCollapsed ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronUp className="h-4 w-4" />
-                  )}
+                  <PanelRight className="h-4 w-4" />
+                  <span className="sr-only">{t("detail.togglePanel")}</span>
                 </Button>
-              </div>
-            </CardHeader>
-            <CollapsibleContent className="data-[state=closed]:hidden">
-              <CardContent className="space-y-6">
-                {/* Featured image — hidden for an uploaded image (the image IS the featured image) */}
-                {!document.file_content_type?.startsWith("image/") && (
+              </ToolChestSegment>
+            ) : null}
+          </ToolChest>
+        }
+        title={
+          // The name stays an open field: the collaboration room keeps it in
+          // step with everyone editing the document.
+          <span className="flex items-center gap-2">
+            <Input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              onFocus={() => setTitleHasFocus(true)}
+              onBlur={() => setTitleHasFocus(false)}
+              placeholder={t("detail.titlePlaceholder")}
+              aria-label={t("detail.titlePlaceholder")}
+              className="field-sizing-content h-auto w-auto min-w-0 max-w-full font-semibold text-3xl tracking-tight md:text-3xl"
+              disabled={!canEditDocument}
+            />
+            {titleIsDirty ? (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (!saveDocument.isPending) saveNow();
+                }}
+                disabled={saveDocument.isPending}
+                className="shrink-0"
+              >
+                {saveDocument.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {t("common:save")}
+              </Button>
+            ) : null}
+          </span>
+        }
+      />
+
+      <div className="space-y-6">
+        {/* An uploaded image is its own featured image, so it has no card. */}
+        {isImageFile ? null : (
+          <Card>
+            <Collapsible
+              open={!isMetadataCollapsed}
+              onOpenChange={(open) => {
+                const collapsed = !open;
+                setIsMetadataCollapsed(collapsed);
+                setItem(metadataCollapsedStorageKey, collapsed.toString());
+              }}
+            >
+              <CardHeader>
+                <div className="inline-flex items-center gap-2">
+                  <CardTitle>{t("detail.metadataTitle")}</CardTitle>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-full"
+                    onClick={() => {
+                      setIsMetadataCollapsed((prev) => {
+                        const next = !prev;
+                        setItem(metadataCollapsedStorageKey, next.toString());
+                        return next;
+                      });
+                    }}
+                    aria-label={
+                      isMetadataCollapsed
+                        ? t("detail.expandMetadata")
+                        : t("detail.collapseMetadata")
+                    }
+                  >
+                    {isMetadataCollapsed ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CollapsibleContent className="data-[state=closed]:hidden">
+                <CardContent className="space-y-6">
+                  {/* Featured image */}
                   <div className="space-y-2">
                     <Label>{t("detail.featuredImage")}</Label>
                     <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -807,35 +799,11 @@ export const DocumentDetailPage = () => {
                       </div>
                     </div>
                   </div>
-                )}
-
-                {/* Tags */}
-                <div className="space-y-2">
-                  <Label>{t("detail.tagsLabel")}</Label>
-                  <TagPicker
-                    selectedTags={tags}
-                    onChange={handleTagsChange}
-                    disabled={!canEditDocument}
-                    placeholder={t("detail.tagsPlaceholder")}
-                  />
-                </div>
-
-                {/* Properties */}
-                <div className="space-y-2">
-                  <Label>{t("properties:title")}</Label>
-                  <PropertyPanel
-                    target={PropertyTarget.document}
-                    entityId={parsedId}
-                    saved={document.properties}
-                    disabled={!canEditDocument}
-                    initiativeId={document.initiative_id}
-                    canOpen={{ tool: Tool.document, id: document.id }}
-                  />
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
+        )}
 
         {framed ? (
           // Scoped to the body editor alone: a comment composer further down

@@ -51,6 +51,7 @@ dependencies = [
     "prometheus-client>=0.23,<1",        # /api/v1/metrics, read by Prometheus when METRICS_TOKEN is set
     "tuf>=7.0.1",
     "cryptography>=50.0.0",
+    "jsonata-python>=0.7.0,<0.8",        # JSONata for declarative apps (app/services/marketplace/expressions.py)
 ]
 
 [dependency-groups]

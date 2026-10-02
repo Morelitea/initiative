@@ -22,8 +22,6 @@
   "noAccess": "Zugriff verweigert",
   "noAccessDescription": "Du hast keine Berechtigung, dieses Wiki anzusehen.",
   "backToWikis": "Zurück zu den Wikis",
-  "pageCount_one": "{{count}} Seite",
-  "pageCount_other": "{{count}} Seiten",
   "pages": {
     "title": "Seiten",
     "search": "Seiten durchsuchen",

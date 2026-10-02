@@ -136,13 +136,10 @@
     "noAccess": "Access denied",
     "noAccessDescription": "You don’t have permission to view this document. Ask the document owner to grant you access.",
     "backToDocuments": "← Back to documents",
-    "settings": "Document settings",
     "closePanel": "Close panel",
     "openPanel": "Open panel",
     "togglePanel": "Toggle side panel",
     "titlePlaceholder": "Document title",
-    "updated": "Updated {{date}}",
-    "template": "Template",
     "metadataTitle": "Metadata",
     "expandMetadata": "Expand metadata",
     "collapseMetadata": "Collapse metadata",
@@ -150,8 +147,6 @@
     "uploadImage": "Upload featured image",
     "uploading": "Uploading…",
     "removeImage": "Remove image",
-    "tagsLabel": "Tags",
-    "tagsPlaceholder": "Add tags...",
     "pdfError": "Failed to load PDF. Try downloading the file instead.",
     "imageFileRequired": "Please select an image file.",
     "imageUploaded": "Image uploaded.",
@@ -177,7 +172,8 @@
     "noAttachedProjects": "This document is not attached to any projects yet.",
     "attached": "Attached {{date}}",
     "commentsLoadError": "Unable to load comments right now.",
-    "projectFallback": "Project #{{id}}"
+    "projectFallback": "Project #{{id}}",
+    "updatedLabel": "Updated"
   },
   "editor": {
     "align": "Align",

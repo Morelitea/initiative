@@ -489,6 +489,7 @@
   "APP_DATA_CONNECTION_REQUIRED": "Conecta tu propia cuenta a esta aplicación para ver aquí tus datos.",
   "APP_SERVICE_UNAVAILABLE": "La aplicación no responde en este momento. Inténtalo de nuevo en un rato.",
   "APP_SERVICE_REGISTRY_MANAGED": "Esta aplicación viene del registro, que la trae de vuelta en cada actualización. Desactívala en su lugar.",
+  "APP_SERVICE_DECLARATIVE_NOT_PLACED": "Initiative hace las llamadas de esta aplicación por sí mismo, así que no hay dirección, orígenes ni claves que indicar.",
   "APP_SERVICE_STATED_BY_LISTING": "Eso lo indica la ficha de la aplicación. Aquí solo indicas dónde se ejecuta, sus claves, su cliente del proveedor y su alcance.",
   "APP_DATA_RESPONSE_TOO_LARGE": "La aplicación devolvió más datos de los que puede mostrar un widget.",
   "APP_DATA_BUSY": "Esta aplicación tiene demasiadas peticiones en curso. Inténtalo de nuevo en un rato.",

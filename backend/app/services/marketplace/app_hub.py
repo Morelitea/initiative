@@ -280,7 +280,7 @@ async def call_app(
         initiative_id=caller.initiative_id,
     )
 
-    async def read(request: httpx.Request) -> dict[str, Any]:
+    async def read(request: httpx.Request | app_data.Answered) -> dict[str, Any]:
         return await app_data._read_body(request, transport=transport)
 
     async def call() -> dict[str, Any]:

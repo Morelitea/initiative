@@ -94,7 +94,7 @@ async def resolve_listing_install(
         # get something other than what the listing page showed them.
         raise ListingInstallError(MarketplaceMessages.LISTING_VERSION_INCOMPATIBLE)
     if not already_installed and not await registration_lookup.app_is_offered(
-        version.definition
+        version.definition, listing_uid=listing.uid
     ):
         # An app whose service this deployment does not run is not in this
         # marketplace at all — browse leaves it out and its page answers 404 —

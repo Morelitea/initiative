@@ -26,7 +26,7 @@ the edges are meaning, and they are kept apart on purpose.
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable
 
 from fastapi import HTTPException, status
 from sqlalchemy import cast, func
@@ -540,25 +540,6 @@ def page_headings(content: Any) -> list[dict[str, Any]]:
         for node in content:
             walk(node)
     return found
-
-
-async def annotate_page_counts(session: AsyncSession, rows: Sequence[Wiki]) -> None:
-    """Set ``page_count`` on each wiki from one grouped query.
-
-    Trashed pages are excluded by the soft-delete filter, so a wiki emptied
-    into the trash reads as empty rather than as full.
-    """
-    ids = [w.id for w in rows if w.id is not None]
-    if not ids:
-        return
-    result = await session.exec(
-        select(WikiPage.wiki_id, func.count(WikiPage.id))
-        .where(WikiPage.wiki_id.in_(tuple(ids)))
-        .group_by(WikiPage.wiki_id)
-    )
-    counts = dict(result.all())
-    for wiki in rows:
-        object.__setattr__(wiki, "page_count", counts.get(wiki.id, 0))
 
 
 async def list_wiki_ids_for_export(

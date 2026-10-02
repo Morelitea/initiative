@@ -489,6 +489,7 @@
   "APP_DATA_CONNECTION_REQUIRED": "Connect your own account to this app to see your data here.",
   "APP_SERVICE_UNAVAILABLE": "The app isn't responding right now. Try again shortly.",
   "APP_SERVICE_REGISTRY_MANAGED": "This app came from the registry, which brings it back on every refresh. Switch it off instead.",
+  "APP_SERVICE_DECLARATIVE_NOT_PLACED": "Initiative makes this app's calls itself, so it has no address, origins or keys to give.",
   "APP_SERVICE_STATED_BY_LISTING": "An app's listing states that. Here you give only where it runs, its keys, its vendor client and its reach.",
   "APP_DATA_RESPONSE_TOO_LARGE": "The app sent back more data than a widget can show.",
   "APP_DATA_BUSY": "This app has too many requests in flight. Try again shortly.",

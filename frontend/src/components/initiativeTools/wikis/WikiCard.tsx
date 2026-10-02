@@ -48,12 +48,11 @@ export const WikiCard = ({ wiki, className }: WikiCardProps) => {
           {wiki.description ? (
             <p className="line-clamp-2 text-muted-foreground text-sm">{wiki.description}</p>
           ) : null}
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <Badge variant="secondary">{t("pageCount", { count: wiki.page_count })}</Badge>
-            {commentCount !== null && commentCount > 0 && (
+          {commentCount !== null && commentCount > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
               <Badge variant="secondary">{t("card.comments", { count: commentCount })}</Badge>
-            )}
-          </div>
+            </div>
+          )}
           <p className="text-muted-foreground text-xs">
             {t("card.updated", { date: relativeUpdatedAt })}
           </p>

@@ -33,7 +33,6 @@
   "monthly": "Mensual",
   "yearly": "Anual",
   "permissions": "Permisos",
-  "settings": "Configuración",
   "details": "Detalles",
   "access": "Acceso",
   "advanced": "Avanzado",
@@ -43,7 +42,8 @@
     "heading": "Filtros",
     "dates": "Fechas",
     "searchLabel": "Nombre o descripción",
-    "searchCalendars": "Buscar calendarios..."
+    "searchCalendars": "Buscar calendarios...",
+    "tasks": "Tareas"
   },
   "loading": "Cargando...",
   "loadError": "Error al cargar eventos",
@@ -102,8 +102,14 @@
     "projectTasks": "Tareas de proyectos",
     "calendarSettings": "Configuración de {{name}}"
   },
+  "picker": {
+    "all": "Todos los calendarios",
+    "none": "Ningún calendario",
+    "some_one": "{{count}} calendario",
+    "some_other": "{{count}} calendarios",
+    "label": "Elige qué calendarios mostrar"
+  },
   "guildScope": {
-    "title": "Calendario de la comunidad",
     "empty": "Aún no hay calendarios.",
     "emptyHint": "Crea uno para los días festivos, para una reunión periódica o solo para ti."
   },

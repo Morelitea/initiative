@@ -215,7 +215,9 @@ def reserved_prefix_problem(public_id: str, *, source: str) -> Optional[str]:
 # --- definitions ------------------------------------------------------------
 
 
-def _normalize_app_definition(definition: Any) -> dict[str, Any]:
+def _normalize_app_definition(
+    definition: Any, *, public_id: Optional[str]
+) -> dict[str, Any]:
     """An app's body: which kind it is, and what that kind needs.
 
     ``tool_instance`` and ``embed`` are deliberately narrow — a kind and one
@@ -235,7 +237,7 @@ def _normalize_app_definition(definition: Any) -> dict[str, Any]:
         raise ListingDefinitionError(f"unknown app kind {app_kind!r}")
 
     if app_kind == "service":
-        return normalize_service_app_definition(definition)
+        return normalize_service_app_definition(definition, public_id=public_id)
 
     cleaned: dict[str, Any] = {"app_kind": app_kind}
     tool = definition.get("tool")
@@ -256,11 +258,14 @@ def _normalize_app_definition(definition: Any) -> dict[str, Any]:
     return cleaned
 
 
-def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
+def normalize_listing_definition(
+    kind: str, definition: Any, *, public_id: Optional[str] = None
+) -> dict[str, Any]:
     """Validate and canonicalize a listing's definition for its kind.
 
     A tool's listing is that tool's export envelope, held to the tool's own
     importer (``tool_listings``); the other kinds each have their own shape.
+    ``public_id`` is the listing's, which names a declarative app.
     """
     if kind not in LISTING_KINDS:
         raise ListingDefinitionError(f"unknown listing kind {kind!r}")
@@ -269,7 +274,7 @@ def normalize_listing_definition(kind: str, definition: Any) -> dict[str, Any]:
             "automation listings are not installable in this build yet"
         )
     if kind == "app":
-        return _normalize_app_definition(definition)
+        return _normalize_app_definition(definition, public_id=public_id)
     if kind == "profile_pack":
         return normalize_profile_pack_definition(definition)
     return normalize_tool_listing(TOOL_LISTING_KINDS[kind], definition)

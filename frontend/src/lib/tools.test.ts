@@ -18,6 +18,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_SKETCHES } from "@/components/initiatives/ToolSkeletons";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
+import { TOOL_HAS_DETAIL } from "@/lib/toolRows";
 import {
   counterRoute,
   entityRefRoute,
@@ -142,7 +143,7 @@ describe("tool i18n", () => {
 
   it("guild home names every tool's own table column", () => {
     const detail = guildHome.columns.detail as Record<string, string>;
-    for (const tool of TOOLS) {
+    for (const tool of TOOLS.filter((candidate) => TOOL_HAS_DETAIL[candidate])) {
       expect(
         detail[toolCamelPlural(tool)],
         `missing guildHome.json columns.detail.${toolCamelPlural(tool)}`

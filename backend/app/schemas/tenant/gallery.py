@@ -60,9 +60,6 @@ class GalleryCover(SanitizedBaseModel):
 
 
 class GallerySummary(GalleryBase, ToolSummaryBase):
-    #: How many pictures it holds. Served with the row so a list of galleries
-    #: can say so without a request per card.
-    image_count: int = 0
     #: The chosen cover, or ``null`` where none was chosen. ``cover`` is that
     #: picture; ``preview`` is the newest few, which is what a list draws —
     #: as a small grid — for a gallery nobody chose a cover for.

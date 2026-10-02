@@ -136,7 +136,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         session, listing.latest_version_id
     )
     offered = await registration_lookup.app_is_offered(
-        latest.definition if latest else None
+        latest.definition if latest else None, listing_uid=listing.uid
     ) and await listing_is_offered(session, listing)
     if not offered:
         raise HTTPException(

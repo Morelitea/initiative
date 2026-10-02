@@ -976,6 +976,7 @@
     "notLiveBadge": "No activa",
     "registryBadge": "Del registro",
     "imageSummary": "Imagen de contenedor: {{image}}",
+    "declarativeSummary": "Initiative hace las llamadas de esta aplicación por sí mismo. No necesita dirección ni claves, solo sus valores del proveedor.",
     "needsAddress": "Se ejecuta como contenedor. Edítala e indica la dirección donde la ejecutas para activarla.",
     "publisherSummary": "Editor: {{name}}",
     "listingSummary": "Ficha:",

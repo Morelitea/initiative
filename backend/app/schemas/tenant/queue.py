@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
+from typing import List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
@@ -141,13 +141,6 @@ class QueueUpdate(SanitizedBaseModel):
 class QueueSummary(QueueBase, ToolSummaryBase):
     current_round: int
     is_active: bool
-    item_count: int = 0
-
-    @classmethod
-    def derived_fields(
-        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
-    ) -> dict[str, Any]:
-        return {"item_count": len(getattr(row, "items", None) or [])}
 
 
 class QueueListResponse(PageMeta):

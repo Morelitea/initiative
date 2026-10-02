@@ -1,20 +1,25 @@
 """Service apps: what a manifest may declare, and nothing else.
 
-A ``service`` app is one whose features are realized by a container the operator
-runs. Its definition is the widest thing this build accepts from a publisher, so
-it is also the strictest: a closed vocabulary, an explicit cap on every string,
-list and opaque body, and unknown keys dropped rather than stored.
+A ``service`` app is a container the operator runs, or declarative: one with no
+``service`` block, whose calls Initiative makes itself from requests and JSONata
+expressions in the manifest. One app is never both. Its definition is the
+widest thing this build accepts from a publisher, so it is also the strictest:
+a closed vocabulary, an explicit cap on every string, list and opaque body, and
+unknown keys dropped rather than stored (an endpoint's refused).
 
 Three properties hold by construction, and they are why a definition is safe to
 keep and later hand to a guild:
 
-* **It names capabilities, not addresses.** Every route an app offers is a
-  *path*; the base URL comes from a deployment-level registration. There is
-  nowhere in here to put a host.
-* **Nothing in it runs here.** ``module_source`` is a widget's browser-side
+* **It names capabilities, not its own address.** Every route a container
+  offers is a *path*; the base URL comes from a deployment-level registration.
+  The hosts a declarative app names are its vendor's, which every request it
+  renders is held to.
+* **No code in it runs here.** ``module_source`` is a widget's browser-side
   module: it is measured and stored as an opaque string, and this build has no
   path that parses, compiles, imports, or evaluates it. The browser's sandbox is
-  the only thing that ever executes it.
+  the only thing that ever executes it. A declarative app's expressions are
+  standard JSONata, evaluated with bounds in worker processes
+  (:mod:`app.services.marketplace.expressions`).
 * **Blocks this build assigns no meaning to stay opaque.** The ``automation``
   body belongs to the automation service; it is checked for shape and size and
   passed through verbatim, with no vocabulary here describing its contents.
@@ -32,7 +37,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from app.core.app_scopes import ALL_SCOPES, app_scope_target
-from app.services.marketplace import contract
+from app.services.marketplace import contract, expressions
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
     MAX_IDENTIFIER_LENGTH,
@@ -241,6 +246,38 @@ ACTOR_KINDS: frozenset[str] = contract.enum("actorKind")
 #: when the thing eventually runs.
 RETURN_TYPES: frozenset[str] = contract.enum("returnValueType")
 
+#: A declarative app's requests: the methods, how paging ends, what an error
+#: rule matches, the states a connection is in, and the codes Initiative itself
+#: answers ``unavailable`` with. ``transient`` is an error rule's word for a
+#: passing failure, which is answered as one to retry.
+HTTP_METHODS: frozenset[str] = contract.enum("httpMethod")
+PAGE_LIMITS: frozenset[str] = contract.enum("pageLimit")
+STATUS_RANGES: frozenset[str] = contract.enum("statusRange")
+CONNECTION_STATES: frozenset[str] = contract.enum("connectionState")
+PLATFORM_CODES: frozenset[str] = contract.enum("platformCode")
+TRANSIENT_CODE = "transient"
+PAGING_KINDS: frozenset[str] = frozenset(
+    contract.objects()[name]["properties"]["kind"]["const"]
+    for name in ("pageNumberPaging", "linkHeaderPaging", "cursorPaging")
+)
+QUERY_NAME_CHARS = contract.charset("queryName")
+HOST_LABEL_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789-")
+GRAPHQL_NAME_CHARS = frozenset(
+    "_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+)
+#: The header and prefix a credential is sent with when ``auth`` says nothing.
+DEFAULT_AUTH_HEADER: str = contract.objects()["vendorAuth"]["properties"]["header"][
+    "default"
+]
+DEFAULT_AUTH_PREFIX: str = contract.objects()["vendorAuth"]["properties"]["prefix"][
+    "default"
+]
+#: Every term an endpoint may carry. The contract closes the object, so a
+#: misspelt term is refused rather than dropped.
+ENDPOINT_TERMS: frozenset[str] = frozenset(contract.fields("endpoint"))
+#: The endpoint terms that make it declarative.
+DECLARATIVE_ENDPOINT_TERMS = ("request", "steps", "map", "errors")
+
 # --- caps -------------------------------------------------------------------
 #
 # Counts first, then bodies. Together they bound what one published version can
@@ -300,6 +337,22 @@ MAX_ENDPOINT_ID_LENGTH = contract.cap("endpointIdLength")
 MAX_CACHE_TTL_SECONDS = contract.cap("cacheTtlSeconds")
 #: Returns that may be joined into one address. An address, not a record.
 MAX_IDENTITY_KEY_PARTS = contract.cap("identityKeyParts")
+#: A declarative app's requests.
+MAX_HOSTS = contract.cap("hosts")
+MAX_HOST_LENGTH = contract.cap("hostLength")
+MAX_STEPS = contract.cap("steps")
+MAX_PAGES = contract.cap("pages")
+MAX_PER_PAGE = contract.cap("perPage")
+MAX_REQUEST_QUERY = contract.cap("requestQuery")
+MAX_REQUEST_HEADERS = contract.cap("requestHeaders")
+MAX_ERROR_RULES = contract.cap("errorRules")
+MAX_UNAVAILABLE_CODES = contract.cap("unavailableCodes")
+MAX_WEBHOOK_EVENTS = contract.cap("webhookEvents")
+MAX_WEBHOOK_STATUSES = contract.cap("webhookStatuses")
+MAX_HEALTH_STATES = contract.cap("healthStates")
+MAX_STATUS = contract.cap("statusCode")
+MAX_EXPRESSION_LENGTH = contract.cap("expressionLength")
+MAX_GRAPHQL_LENGTH = contract.cap("graphqlLength")
 
 #: A widget's browser-side module. Never parsed here — only measured.
 MAX_MODULE_SOURCE_BYTES = contract.cap("moduleSourceBytes")
@@ -702,6 +755,8 @@ def _flow(
     scope: str,
     field_keys: set[str],
     vendor_keys: set[str],
+    declarative: bool,
+    auth_header: str,
 ) -> dict[str, Any]:
     """How Initiative establishes a connection: an OAuth 2.0 authorization code
     flow, with the vendor client's values named from the vendor block."""
@@ -725,8 +780,19 @@ def _flow(
         "token_url": template("token_url", https=True),
         "client_id": template("client_id"),
         "pkce": flow.get("pkce") is not False,
-        "after_connect": flow.get("after_connect") is True,
+        "after_connect": _after_connect(
+            flow.get("after_connect"),
+            what=f"{what} flow.after_connect",
+            auth_header=auth_header,
+        ),
     }
+    if declarative and cleaned["after_connect"] is True:
+        fail(
+            f"{what}: a declarative app gives after_connect's request and map; "
+            "there is no hook to call"
+        )
+    if not declarative and isinstance(cleaned["after_connect"], dict):
+        fail(f"{what}: a container app sets after_connect true and answers it")
     secret = template("client_secret", required=False)
     if secret is not None:
         cleaned["client_secret"] = secret
@@ -776,6 +842,8 @@ def _flow(
     if revoke is not None:
         if revoke not in REVOKE_METHODS:
             fail(f"{what} flow: unknown revoke {revoke!r}")
+        if declarative and revoke == "hook":
+            fail(f"{what} flow: a declarative app has no revoke hook")
         cleaned["revoke"] = revoke
     revoke_url = template("revoke_url", required=False, https=True)
     if revoke_url is not None:
@@ -823,7 +891,9 @@ def _token(
     }
 
 
-def _connection(raw: Any, *, vendor_keys: set[str]) -> dict[str, Any]:
+def _connection(
+    raw: Any, *, vendor_keys: set[str], declarative: bool, auth_header: str
+) -> dict[str, Any]:
     connection = require_mapping(raw, "connection")
     connection_id = check_identifier(connection.get("id"), what="connection id")
     what = f"connection {connection_id!r}"
@@ -871,6 +941,8 @@ def _connection(raw: Any, *, vendor_keys: set[str]) -> dict[str, Any]:
             scope=scope,
             field_keys=seen,
             vendor_keys=vendor_keys,
+            declarative=declarative,
+            auth_header=auth_header,
         )
         for field in fields:
             if field.get("managed") is not True:
@@ -896,6 +968,12 @@ def _connection(raw: Any, *, vendor_keys: set[str]) -> dict[str, Any]:
     hint = _access_hint(connection.get("access_hint"), what=what)
     if hint is not None:
         cleaned["access_hint"] = hint
+    if connection.get("health") is not None:
+        if not declarative:
+            fail(f"{what}: health is a declarative app's; a container checks its own")
+        cleaned["health"] = _health(
+            connection["health"], what=f"{what} health", auth_header=auth_header
+        )
     return cleaned
 
 
@@ -912,7 +990,11 @@ def _drawn_from(value: Any, *, what: str, chars: frozenset[str], limit: int) -> 
 
 
 def _webhooks(
-    raw: Any, *, vendor_keys: set[str], connections: list[dict[str, Any]]
+    raw: Any,
+    *,
+    vendor_keys: set[str],
+    connections: list[dict[str, Any]],
+    declarative: bool,
 ) -> dict[str, Any] | None:
     """How Initiative receives the vendor's webhooks for the app: the signature
     it checks, the header naming a delivery, and the static connection field a
@@ -981,20 +1063,83 @@ def _webhooks(
             f"service app: webhooks.route names {field!r}, which is not a field of "
             f"the connection {connection_id!r}"
         )
-    return {
-        "verify": cleaned_verify,
-        "dedup": header(hooks.get("dedup"), "service app: webhooks.dedup"),
-        "route": {
+    # Exactly one of a body path and a header carries the routed value.
+    if (route.get("path") is None) == (route.get("header") is None):
+        fail("service app: webhooks.route names exactly one of 'path' and 'header'")
+    cleaned_route: dict[str, Any] = (
+        {
             "path": _drawn_from(
-                route.get("path"),
+                route["path"],
                 what="service app: webhooks.route.path",
                 chars=FIELD_PATH_CHARS,
                 limit=MAX_PATH_LENGTH,
-            ),
-            "connection": connection_id,
-            "field": field,
-        },
+            )
+        }
+        if route.get("path") is not None
+        else {"header": header(route["header"], "service app: webhooks.route.header")}
+    )
+    cleaned: dict[str, Any] = {
+        "verify": cleaned_verify,
+        "dedup": header(hooks.get("dedup"), "service app: webhooks.dedup"),
+        "route": {**cleaned_route, "connection": connection_id, "field": field},
     }
+
+    events = require_list(
+        hooks.get("events"), "service app: webhooks.events", MAX_WEBHOOK_EVENTS
+    )
+    statuses = require_list(
+        hooks.get("status"), "service app: webhooks.status", MAX_WEBHOOK_STATUSES
+    )
+    if not declarative:
+        if events or statuses:
+            fail("service app: a container app's webhook hook receives each delivery")
+        return cleaned
+    if not events and not statuses:
+        fail(
+            "service app: a declarative app maps deliveries with 'events' or "
+            "'status'; there is no hook to forward them to"
+        )
+    if events:
+        cleaned["events"] = []
+        for index, entry in enumerate(events):
+            what = f"service app: webhooks.events.{index}"
+            row = require_mapping(entry, what)
+            cleaned["events"].append(
+                {
+                    "when": _checked(row.get("when"), what=f"{what}.when"),
+                    "emit": _endpoint_id_chars(row.get("emit"), what=f"{what}.emit"),
+                    "map": _checked(row.get("map"), what=f"{what}.map"),
+                }
+            )
+    if statuses:
+        declared = {entry["id"] for entry in connections}
+        cleaned["status"] = []
+        for index, entry in enumerate(statuses):
+            what = f"service app: webhooks.status.{index}"
+            row = require_mapping(entry, what)
+            named = check_identifier(row.get("connection"), what=f"{what}.connection")
+            if named not in declared:
+                fail(f"{what}: {named!r} is not a connection this app declares")
+            state = row.get("state")
+            if state not in CONNECTION_STATES - {"unavailable"}:
+                fail(
+                    f"{what}: a delivery says a connection is ok, suspended or removed"
+                )
+            cleaned["status"].append(
+                {
+                    "when": _checked(row.get("when"), what=f"{what}.when"),
+                    "connection": named,
+                    "state": state,
+                }
+            )
+    return cleaned
+
+
+def _endpoint_id_chars(raw: Any, *, what: str) -> str:
+    """An endpoint id's shape, before what it names is known."""
+    return _drawn_from(
+        raw, what=what, chars=ENDPOINT_ID_CHARS, limit=MAX_ENDPOINT_ID_LENGTH
+    )
 
 
 def schedule_minutes(every: str) -> int:
@@ -1015,22 +1160,430 @@ def _schedules(raw: Any) -> list[dict[str, str]]:
         )
         if any(kept["id"] == schedule_id for kept in schedules):
             fail(f"service app: two schedules share the id {schedule_id!r}")
-        every = schedule.get("every")
-        what = f"service app: schedule {schedule_id!r}"
-        if not (
-            isinstance(every, str)
-            and 2 <= len(every) <= MAX_SCHEDULE_EVERY_LENGTH
-            and every[-1] in "mh"
-            and all(character in "0123456789" for character in every[:-1])
-        ):
-            fail(f"{what}: every is a whole number of minutes or hours, like '15m'")
-        if not SCHEDULE_MIN_MINUTES <= schedule_minutes(every) <= SCHEDULE_MAX_MINUTES:
-            fail(
-                f"{what}: every is at least {SCHEDULE_MIN_MINUTES}m and at most "
-                f"{SCHEDULE_MAX_MINUTES // 60}h"
-            )
+        every = _every(
+            schedule.get("every"), what=f"service app: schedule {schedule_id!r} every"
+        )
         schedules.append({"id": schedule_id, "every": every})
     return schedules
+
+
+def _every(every: Any, *, what: str) -> str:
+    """An interval, a schedule's or a health check's: a whole number of minutes
+    or hours, within the schedule bounds."""
+    if not (
+        isinstance(every, str)
+        and 2 <= len(every) <= MAX_SCHEDULE_EVERY_LENGTH
+        and every[-1] in "mh"
+        and all(character in "0123456789" for character in every[:-1])
+    ):
+        fail(f"{what} is a whole number of minutes or hours, like '15m'")
+    if not SCHEDULE_MIN_MINUTES <= schedule_minutes(every) <= SCHEDULE_MAX_MINUTES:
+        fail(
+            f"{what} is at least {SCHEDULE_MIN_MINUTES}m and at most "
+            f"{SCHEDULE_MAX_MINUTES // 60}h"
+        )
+    return every
+
+
+# --- what a declarative app calls -------------------------------------------
+#
+# A declarative app has no container: Initiative makes its calls itself, from
+# requests and JSONata expressions written here. Shape and parsing are checked
+# on publish; what an expression answers is the executor's to read.
+
+
+def _expression(raw: Any, *, what: str) -> Any:
+    """A JSONata expression that parses, and its syntax tree."""
+    if not isinstance(raw, str) or not raw:
+        fail(f"{what} is required")
+    if len(raw) > MAX_EXPRESSION_LENGTH:
+        fail(f"{what} is longer than {MAX_EXPRESSION_LENGTH} characters")
+    try:
+        return expressions.parse(raw)
+    except expressions.ExpressionError as exc:
+        where = "" if exc.position is None else f" (at character {exc.position})"
+        fail(f"{what} does not parse: {exc}{where}")
+
+
+def _reads_only(tree: Any, *, steps: set[str] | None, what: str) -> None:
+    """With ``steps`` given, an expression reads only those steps."""
+    if steps is None:
+        return
+    for name in sorted(expressions.step_reads(tree) - steps):
+        fail(f"{what} reads steps.{name}, which is not a step before it")
+
+
+def _checked(raw: Any, *, what: str, steps: set[str] | None = None) -> str:
+    _reads_only(_expression(raw, what=what), steps=steps, what=what)
+    return raw
+
+
+def _host(raw: Any) -> str:
+    """A host, exact or with one leading ``*.`` label: lowercase labels of 1
+    to 63 characters, not edged with '-', and a name rather than an address."""
+    if not isinstance(raw, str) or not raw or len(raw) > MAX_HOST_LENGTH:
+        fail(f"service app: host {raw!r} is not a host name")
+    labels = (raw[2:] if raw.startswith("*.") else raw).split(".")
+    if (
+        len(labels) < 2
+        or any(
+            not 1 <= len(label) <= 63
+            or label.startswith("-")
+            or label.endswith("-")
+            or any(character not in HOST_LABEL_CHARS for character in label)
+            for label in labels
+        )
+        or all(character in "0123456789" for character in labels[-1])
+    ):
+        fail(f"service app: {raw!r} is not a host name")
+    return raw
+
+
+def _hosts(raw: Any) -> list[str]:
+    hosts = [
+        _host(entry) for entry in require_list(raw, "service app: hosts", MAX_HOSTS)
+    ]
+    if len(set(hosts)) != len(hosts):
+        fail("service app: hosts names a host twice")
+    return hosts
+
+
+def _auth(raw: Any) -> dict[str, str]:
+    """How the credential is put on a request; absent, ``Authorization: Bearer``."""
+    auth = require_mapping(raw, "service app: auth")
+    prefix = auth.get("prefix", DEFAULT_AUTH_PREFIX)
+    if not isinstance(prefix, str) or len(prefix) > MAX_IDENTIFIER_LENGTH:
+        fail(f"service app: auth.prefix is at most {MAX_IDENTIFIER_LENGTH} characters")
+    return {
+        "header": _drawn_from(
+            auth.get("header", DEFAULT_AUTH_HEADER),
+            what="service app: auth.header",
+            chars=HEADER_NAME_CHARS,
+            limit=MAX_IDENTIFIER_LENGTH,
+        ),
+        "prefix": check_single_line(prefix, what="service app: auth.prefix"),
+    }
+
+
+def _named_expressions(
+    raw: Any, *, what: str, chars: frozenset[str], limit: int, steps: set[str] | None
+) -> dict[str, str]:
+    """Query parameters or headers: names in ``chars``, each an expression."""
+    named = require_mapping(raw, what)
+    if len(named) > limit:
+        fail(f"{what} holds more than {limit} entries")
+    return {
+        _drawn_from(
+            name, what=f"{what} name", chars=chars, limit=MAX_IDENTIFIER_LENGTH
+        ): _checked(value, what=f"{what}.{name}", steps=steps)
+        for name, value in named.items()
+    }
+
+
+def _page_count(raw: Any, *, what: str, low: int, high: int) -> int:
+    if isinstance(raw, bool) or not isinstance(raw, int) or not low <= raw <= high:
+        fail(f"{what} must be a whole number from {low} to {high}")
+    return raw
+
+
+def _paging(
+    raw: Any, *, what: str, graphql: bool, steps: set[str] | None
+) -> dict[str, Any]:
+    """One of the three ways a request reads more than one page."""
+    paging = require_mapping(raw, what)
+    kind = paging.get("kind")
+    if kind not in PAGING_KINDS:
+        fail(f"{what}: unknown kind {kind!r}")
+    on_limit = paging.get("on_limit")
+    if on_limit not in PAGE_LIMITS:
+        fail(f"{what}: on_limit must be one of {sorted(PAGE_LIMITS)}")
+    cleaned: dict[str, Any] = {
+        "kind": kind,
+        "max_pages": _page_count(
+            paging.get("max_pages"), what=f"{what}.max_pages", low=1, high=MAX_PAGES
+        ),
+        "on_limit": on_limit,
+    }
+    if paging.get("items") is not None:
+        cleaned["items"] = _checked(paging["items"], what=f"{what}.items", steps=steps)
+
+    def query_name(key: str) -> str:
+        return _drawn_from(
+            paging.get(key),
+            what=f"{what}.{key}",
+            chars=QUERY_NAME_CHARS,
+            limit=MAX_IDENTIFIER_LENGTH,
+        )
+
+    if kind == "page_number":
+        cleaned["page_param"] = query_name("page_param")
+        if paging.get("per_page_param") is not None:
+            cleaned["per_page_param"] = query_name("per_page_param")
+        cleaned["per_page"] = _page_count(
+            paging.get("per_page"), what=f"{what}.per_page", low=1, high=MAX_PER_PAGE
+        )
+    elif kind == "cursor":
+        for key in ("next", "more"):
+            cleaned[key] = _checked(paging.get(key), what=f"{what}.{key}", steps=steps)
+        param, variable = paging.get("param"), paging.get("variable")
+        if (param is None) == (variable is None):
+            fail(f"{what}: a cursor is sent in exactly one of 'param' and 'variable'")
+        if param is not None:
+            cleaned["param"] = query_name("param")
+        else:
+            if not graphql:
+                fail(
+                    f"{what}: a cursor is sent in a variable only of a GraphQL request"
+                )
+            name = _drawn_from(
+                variable,
+                what=f"{what}.variable",
+                chars=GRAPHQL_NAME_CHARS,
+                limit=MAX_IDENTIFIER_LENGTH,
+            )
+            if name[0] in "0123456789":
+                fail(f"{what}.variable is not a GraphQL name")
+            cleaned["variable"] = name
+    return cleaned
+
+
+def _vendor_request(
+    raw: Any,
+    *,
+    what: str,
+    auth_header: str,
+    connection_ids: set[str] | None,
+    steps: set[str] | None = None,
+) -> dict[str, Any]:
+    """One call to the vendor, rendered from expressions.
+
+    ``connection_ids`` is the connections an endpoint's request may name, and
+    it must name one; ``None`` is a connection's own request (``after_connect``
+    and ``health``), which carries that connection's credential and names none.
+    """
+    request = require_mapping(raw, what)
+    method = request.get("method")
+    if method not in HTTP_METHODS:
+        fail(f"{what}: method must be one of {sorted(HTTP_METHODS)}")
+    cleaned: dict[str, Any] = {
+        "method": method,
+        "url": _checked(request.get("url"), what=f"{what}.url", steps=steps),
+    }
+    if request.get("query") is not None:
+        cleaned["query"] = _named_expressions(
+            request["query"],
+            what=f"{what}.query",
+            chars=QUERY_NAME_CHARS,
+            limit=MAX_REQUEST_QUERY,
+            steps=steps,
+        )
+    if request.get("headers") is not None:
+        headers = _named_expressions(
+            request["headers"],
+            what=f"{what}.headers",
+            chars=HEADER_NAME_CHARS,
+            limit=MAX_REQUEST_HEADERS,
+            steps=steps,
+        )
+        if any(name.lower() == auth_header.lower() for name in headers):
+            fail(f"{what}.headers: the credential's header is Initiative's to set")
+        cleaned["headers"] = headers
+    graphql = request.get("graphql")
+    if request.get("body") is not None:
+        if graphql is not None:
+            fail(f"{what}: a request sends a body or a GraphQL query, not both")
+        cleaned["body"] = _checked(request["body"], what=f"{what}.body", steps=steps)
+    if graphql is not None:
+        if method != "POST":
+            fail(f"{what}: a GraphQL request is sent by POST")
+        document = require_mapping(graphql, f"{what}.graphql")
+        cleaned["graphql"] = {
+            "query": clean_text(
+                document.get("query"),
+                what=f"{what}.graphql.query",
+                limit=MAX_GRAPHQL_LENGTH,
+            )
+        }
+        if document.get("variables") is not None:
+            cleaned["graphql"]["variables"] = _checked(
+                document["variables"], what=f"{what}.graphql.variables", steps=steps
+            )
+    connection = request.get("connection")
+    if connection_ids is None:
+        if connection is not None:
+            fail(f"{what}: carries the credential of the connection it belongs to")
+    else:
+        connection = check_identifier(connection, what=f"{what}.connection")
+        if connection not in connection_ids:
+            fail(f"{what}: {connection!r} is not a connection this app declares")
+        cleaned["connection"] = connection
+    if request.get("paging") is not None:
+        cleaned["paging"] = _paging(
+            request["paging"],
+            what=f"{what}.paging",
+            graphql=graphql is not None,
+            steps=steps,
+        )
+    return cleaned
+
+
+def _status_match(raw: Any, *, what: str) -> int | str:
+    """One HTTP status, or a range of a hundred (``"4xx"``)."""
+    if raw in STATUS_RANGES:
+        return raw
+    if (
+        isinstance(raw, bool)
+        or not isinstance(raw, int)
+        or not 100 <= raw <= MAX_STATUS
+    ):
+        fail(
+            f"{what} must be a status from 100 to {MAX_STATUS} or one of {sorted(STATUS_RANGES)}"
+        )
+    return raw
+
+
+def _after_connect(raw: Any, *, what: str, auth_header: str) -> bool | dict[str, Any]:
+    """``true`` (a container's hook), or a declarative app's request and map."""
+    if raw is None or isinstance(raw, bool):
+        return raw is True
+    after = require_mapping(raw, what)
+    cleaned: dict[str, Any] = {
+        "request": _vendor_request(
+            after.get("request"),
+            what=f"{what}.request",
+            auth_header=auth_header,
+            connection_ids=None,
+        ),
+        "map": _checked(after.get("map"), what=f"{what}.map"),
+    }
+    refuse_when, code = after.get("refuse_when"), after.get("code")
+    if (refuse_when is None) != (code is None):
+        fail(f"{what}: a refusal gives both 'refuse_when' and the 'code' it answers")
+    if refuse_when is not None:
+        cleaned["refuse_when"] = _checked(refuse_when, what=f"{what}.refuse_when")
+        cleaned["code"] = check_identifier(code, what=f"{what}.code")
+    return cleaned
+
+
+def _health(raw: Any, *, what: str, auth_header: str) -> dict[str, Any]:
+    """A connection's health check: its request, how often, and the states."""
+    health = require_mapping(raw, what)
+    every = _every(health.get("every"), what=f"{what}.every")
+    states: list[dict[str, Any]] = []
+    rows = require_list(health.get("states"), f"{what}.states", MAX_HEALTH_STATES)
+    if not rows:
+        fail(f"{what}.states names at least one state")
+    for index, entry in enumerate(rows):
+        row = require_mapping(entry, f"{what}.states.{index}")
+        state = row.get("state")
+        if state not in CONNECTION_STATES:
+            fail(f"{what}.states.{index}: unknown state {state!r}")
+        cleaned: dict[str, Any] = {"state": state}
+        if row.get("status") is not None:
+            cleaned["status"] = _status_match(
+                row["status"], what=f"{what}.states.{index}.status"
+            )
+        if row.get("when") is not None:
+            cleaned["when"] = _checked(row["when"], what=f"{what}.states.{index}.when")
+        states.append(cleaned)
+    return {
+        "request": _vendor_request(
+            health.get("request"),
+            what=f"{what}.request",
+            auth_header=auth_header,
+            connection_ids=None,
+        ),
+        "every": every,
+        "states": states,
+    }
+
+
+def _declarative_endpoint(
+    endpoint: dict[str, Any],
+    cleaned: dict[str, Any],
+    *,
+    what: str,
+    auth_header: str,
+    connection_ids: set[str],
+) -> None:
+    """A declarative read or write: its request or steps, its map and its
+    error rules, written onto ``cleaned``."""
+    request, steps_raw = endpoint.get("request"), endpoint.get("steps")
+    if (request is None) == (steps_raw is None):
+        fail(
+            f"{what}: a declarative endpoint gives exactly one of 'request' and 'steps'"
+        )
+    names: set[str] = set()
+    if request is not None:
+        cleaned["request"] = _vendor_request(
+            request,
+            what=f"{what} request",
+            auth_header=auth_header,
+            connection_ids=connection_ids,
+            steps=names,
+        )
+    else:
+        rows = require_list(steps_raw, f"{what} steps", MAX_STEPS)
+        if not rows:
+            fail(f"{what} steps names at least one step")
+        steps: list[dict[str, Any]] = []
+        for index, entry in enumerate(rows):
+            step = require_mapping(entry, f"{what} steps.{index}")
+            name = check_identifier(step.get("name"), what=f"{what} steps.{index}.name")
+            if name in names:
+                fail(f"{what}: {name!r} names two steps")
+            steps.append(
+                {
+                    "name": name,
+                    "request": _vendor_request(
+                        step.get("request"),
+                        what=f"{what} steps.{index}.request",
+                        auth_header=auth_header,
+                        connection_ids=connection_ids,
+                        steps=set(names),
+                    ),
+                }
+            )
+            names.add(name)
+        cleaned["steps"] = steps
+    cleaned["map"] = _checked(endpoint.get("map"), what=f"{what} map", steps=names)
+
+    known = {*cleaned.get("unavailable", []), *PLATFORM_CODES, TRANSIENT_CODE}
+    rules: list[dict[str, Any]] = []
+    for index, entry in enumerate(
+        require_list(endpoint.get("errors"), f"{what} errors", MAX_ERROR_RULES)
+    ):
+        rule = require_mapping(entry, f"{what} errors.{index}")
+        code = check_identifier(rule.get("code"), what=f"{what} errors.{index}.code")
+        if code not in known:
+            fail(f"{what} errors.{index}: {code!r} is not one of this endpoint's codes")
+        cleaned_rule: dict[str, Any] = {
+            "status": _status_match(
+                rule.get("status"), what=f"{what} errors.{index}.status"
+            ),
+            "code": code,
+        }
+        if rule.get("when") is not None:
+            cleaned_rule["when"] = _checked(
+                rule["when"], what=f"{what} errors.{index}.when", steps=names
+            )
+        rules.append(cleaned_rule)
+    if rules:
+        cleaned["errors"] = rules
+
+
+def _unavailable_codes(endpoint: dict[str, Any], *, what: str) -> list[str]:
+    """The codes a read or write may answer ``unavailable`` with, beyond
+    Initiative's own."""
+    codes = [
+        check_identifier(code, what=f"{what} unavailable entry")
+        for code in require_list(
+            endpoint.get("unavailable"), f"{what} unavailable", MAX_UNAVAILABLE_CODES
+        )
+    ]
+    if len(set(codes)) != len(codes):
+        fail(f"{what}: unavailable names a code twice")
+    return codes
 
 
 # --- what an app offers -----------------------------------------------------
@@ -1104,7 +1657,13 @@ def _endpoint_id(raw: Any, *, service_public_id: str, what: str) -> str:
 
 
 def _endpoint(
-    raw: Any, *, connection_ids: set[str], service_public_id: str
+    raw: Any,
+    *,
+    connection_ids: set[str],
+    service_public_id: str,
+    declarative: bool,
+    auth_header: str,
+    interactive_ids: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """One thing the app will do when something connects to it.
 
@@ -1123,6 +1682,9 @@ def _endpoint(
     )
     what = f"endpoint {endpoint_id!r}"
     _refuse_retired_audience(endpoint, what=what)
+    unknown = sorted(set(endpoint) - ENDPOINT_TERMS)
+    if unknown:
+        fail(f"{what}: {', '.join(map(repr, unknown))} is not a term of the contract")
 
     direction = endpoint.get("direction")
     if direction not in DIRECTIONS:
@@ -1202,10 +1764,30 @@ def _endpoint(
             "actors",
             "admin_only",
             "public",
+            "unavailable",
+            *DECLARATIVE_ENDPOINT_TERMS,
         ):
             if endpoint.get(absent) is not None:
                 fail(f"{what}: an emit endpoint has no {absent}")
         return cleaned
+
+    codes = _unavailable_codes(endpoint, what=what)
+    if codes:
+        cleaned["unavailable"] = codes
+    # A declarative app's reads and writes are a request and a map; a
+    # container's are its handler, and carry neither.
+    if declarative:
+        _declarative_endpoint(
+            endpoint,
+            cleaned,
+            what=what,
+            auth_header=auth_header,
+            connection_ids=connection_ids,
+        )
+    else:
+        for term in DECLARATIVE_ENDPOINT_TERMS:
+            if endpoint.get(term) is not None:
+                fail(f"{what}: a container app's endpoint is answered by its handler")
 
     # Whoever the call is for, stored whichever way it was declared so every
     # pinned endpoint answers the question the same way.
@@ -1236,7 +1818,24 @@ def _endpoint(
     )
     if requires is not None:
         cleaned["requires"] = requires
+    # A member's own connection is resolved for the caller by ``requires``, so
+    # a request carrying one names it there too.
+    required = {term for terms in (requires or {}).values() for term in terms}
+    for request in _requests(cleaned):
+        named = request.get("connection")
+        if named in interactive_ids and named not in required:
+            fail(
+                f"{what}: its request uses the member connection {named!r}, "
+                "which requires does not name"
+            )
     return cleaned
+
+
+def _requests(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
+    """A declarative endpoint's requests, its one or each step's."""
+    if "request" in endpoint:
+        return [endpoint["request"]]
+    return [step["request"] for step in endpoint.get("steps") or []]
 
 
 def _public(raw: dict[str, Any], *, what: str) -> bool:
@@ -1840,16 +2439,53 @@ def _check_option_sources(
                     )
 
 
-def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
-    """Validate and canonicalize a service app's definition."""
+def normalize_service_app_definition(
+    definition: Any, *, public_id: Optional[str] = None
+) -> dict[str, Any]:
+    """Validate and canonicalize a service app's definition.
+
+    A container app names itself in its ``service`` block. A declarative app
+    has none, and is named by its listing's ``public_id``, which its endpoints
+    are namespaced under. One app is never both.
+    """
     body = require_mapping(definition, "service app definition")
 
-    service = _service_block(body.get("service"))
+    declarative = body.get("service") is None
+    service: dict[str, Any] | None = None
+    hosts: list[str] = []
+    auth: dict[str, str] | None = None
+    if declarative:
+        if public_id is None:
+            fail("service app: a declarative app is named by its listing")
+        app_public_id = check_public_id(public_id, what="service app: public_id")
+        hosts = _hosts(body.get("hosts"))
+        if not hosts:
+            fail("service app: a declarative app names the hosts it calls")
+        if body.get("auth") is not None:
+            auth = _auth(body["auth"])
+        for term in ("schedules", "embeds"):
+            if body.get(term) is not None:
+                fail(f"service app: a declarative app has no {term}")
+    else:
+        service = _service_block(body.get("service"))
+        app_public_id = service["public_id"]
+        for term in ("hosts", "auth"):
+            if body.get(term) is not None:
+                fail(
+                    f"service app: {term!r} is a declarative app's term; a "
+                    "container app makes its own calls"
+                )
+    auth_header = (auth or {}).get("header", DEFAULT_AUTH_HEADER)
     vendor = _vendor(body.get("vendor"))
     vendor_keys = {field["key"] for field in (vendor or {}).get("fields", [])}
 
     connections = [
-        _connection(entry, vendor_keys=vendor_keys)
+        _connection(
+            entry,
+            vendor_keys=vendor_keys,
+            declarative=declarative,
+            auth_header=auth_header,
+        )
         for entry in require_list(
             body.get("connections"), "service app: connections", MAX_CONNECTIONS
         )
@@ -1860,7 +2496,10 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
             fail(f"service app: two connections share the id {connection['id']!r}")
         connection_ids.add(connection["id"])
     webhooks = _webhooks(
-        body.get("webhooks"), vendor_keys=vendor_keys, connections=connections
+        body.get("webhooks"),
+        vendor_keys=vendor_keys,
+        connections=connections,
+        declarative=declarative,
     )
     schedules = _schedules(body.get("schedules"))
 
@@ -1870,7 +2509,12 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         _endpoint(
             entry,
             connection_ids=connection_ids,
-            service_public_id=service["public_id"],
+            service_public_id=app_public_id,
+            declarative=declarative,
+            auth_header=auth_header,
+            interactive_ids=frozenset(
+                entry["id"] for entry in connections if entry["scope"] == "interactive"
+            ),
         )
         for entry in require_list(
             body.get("endpoints"), "service app: endpoints", MAX_ENDPOINTS
@@ -1884,6 +2528,15 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
         endpoint_ids.add(endpoint["id"])
         if endpoint["direction"] in WIDGET_BINDABLE_DIRECTIONS:
             readable_ids.add(endpoint["id"])
+    emits = {
+        endpoint["id"] for endpoint in endpoints if endpoint["direction"] == "emit"
+    }
+    for index, event in enumerate((webhooks or {}).get("events", [])):
+        if event["emit"] not in emits:
+            fail(
+                f"service app: webhooks.events.{index} emits {event['emit']!r}, "
+                "which is not an emit endpoint this app declares"
+            )
 
     # A parameter naming where its values come from, checked once every endpoint
     # is known. Nothing downstream refuses a bad one: a form asks this
@@ -1915,9 +2568,14 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
 
     cleaned: dict[str, Any] = {
         "app_kind": "service",
-        "service": service,
         "features": _features(body.get("features")),
     }
+    if service is not None:
+        cleaned["service"] = service
+    else:
+        cleaned["hosts"] = hosts
+        if auth is not None:
+            cleaned["auth"] = auth
     # Empty blocks are left out entirely, so "does this app offer widgets?" has
     # one answer rather than two shapes that mean the same thing.
     if vendor is not None:
@@ -1958,7 +2616,7 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
                     "service app: two dashboards share the public_id "
                     f"{dashboard['public_id']!r}"
                 )
-            if dashboard["public_id"] == service["public_id"]:
+            if dashboard["public_id"] == app_public_id:
                 fail(
                     f"service app: dashboard {dashboard['uid']} uses the app's own "
                     "public_id; a bundled dashboard is its own listing"
@@ -1974,7 +2632,7 @@ def normalize_service_app_definition(definition: Any) -> dict[str, Any]:
     if summary is not None:
         summary_id = _endpoint_id(
             summary,
-            service_public_id=service["public_id"],
+            service_public_id=app_public_id,
             what="service app: guild_summary",
         )
         if summary_id not in readable_ids:

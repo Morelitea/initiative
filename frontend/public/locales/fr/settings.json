@@ -976,6 +976,7 @@
     "notLiveBadge": "Inactive",
     "registryBadge": "Du registre",
     "imageSummary": "Image de conteneur : {{image}}",
+    "declarativeSummary": "Initiative effectue lui-même les appels de cette application. Elle n'a besoin ni d'adresse ni de clés, seulement de ses valeurs du fournisseur.",
     "needsAddress": "S'exécute dans un conteneur. Modifiez-la et indiquez l'adresse où vous l'exécutez pour la rendre active.",
     "publisherSummary": "Éditeur : {{name}}",
     "listingSummary": "Fiche :",

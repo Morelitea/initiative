@@ -223,6 +223,10 @@ async def lifespan(app: FastAPI):
         from app.db import cohorts
 
         await cohorts.settle_all()
+        # The expression evaluators of declarative apps, if any started.
+        from app.services.marketplace import expressions
+
+        expressions.shutdown()
 
 
 # Gate the interactive docs + raw OpenAPI schema behind a setting. When

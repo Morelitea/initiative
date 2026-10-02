@@ -489,6 +489,7 @@
   "APP_DATA_CONNECTION_REQUIRED": "Connectez votre propre compte à cette application pour voir vos données ici.",
   "APP_SERVICE_UNAVAILABLE": "L'application ne répond pas pour le moment. Réessayez dans un instant.",
   "APP_SERVICE_REGISTRY_MANAGED": "Cette application vient du registre, qui la ramène à chaque actualisation. Désactivez-la plutôt.",
+  "APP_SERVICE_DECLARATIVE_NOT_PLACED": "Initiative effectue lui-même les appels de cette application : il n'y a ni adresse, ni origines, ni clés à indiquer.",
   "APP_SERVICE_STATED_BY_LISTING": "C'est la fiche de l'application qui l'indique. Ici, vous indiquez seulement où elle s'exécute, ses clés, son client fournisseur et sa portée.",
   "APP_DATA_RESPONSE_TOO_LARGE": "L'application a renvoyé plus de données qu'un widget ne peut afficher.",
   "APP_DATA_BUSY": "Cette application a trop de requêtes en cours. Réessayez dans un instant.",

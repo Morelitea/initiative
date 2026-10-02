@@ -110,13 +110,18 @@ def owns_install(app: GuildApp, registration: RegisteredApp) -> bool:
     listing this registration speaks for, and the definition the guild pinned
     names this same app as its service. Either alone would be enough in the
     ordinary case; requiring both means a registration re-pointed at another
-    listing still cannot reach installs it was not wired for.
+    listing still cannot reach installs it was not wired for. A declarative
+    app names no service: it is its listing's, so the listing is the one
+    statement there is.
     """
     if app.app_kind != "service":
         return False
     if not registration.listing_uid or app.listing_uid != registration.listing_uid:
         return False
-    return service_public_id(app.definition) == registration.public_id
+    return (
+        service_public_id(app.definition, listing_public_id=registration.public_id)
+        == registration.public_id
+    )
 
 
 async def _route(session: AsyncSession, guild_id: int, *, read_only: bool) -> None:

@@ -30,15 +30,17 @@ import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { guildPath } from "@/lib/guildUrl";
 import type { AppColumn, AppColumnDef } from "@/lib/table";
-import type { ToolRow } from "@/lib/toolRows";
+import { TOOL_HAS_DETAIL, type ToolRow } from "@/lib/toolRows";
 import { initiativeRoute, toolCamelPlural } from "@/lib/tools";
 
-/** The leaf keys under `guildHome.columns.detail` — one per tool. */
+/** The leaf keys under `guildHome.columns.detail` — one per tool that has the
+ *  column. */
 type DetailColumnKey = Extract<ParseKeys<"guildHome">, `columns.detail.${string}`>;
 
 /** guildHome.json header key for a tool's own column, e.g.
- *  `columns.detail.counterGroups` — derived the same way as the nav labels in
- *  `lib/tools`, and pinned for every tool by the tool-registry drift test. */
+ *  `columns.detail.projects` — derived the same way as the nav labels in
+ *  `lib/tools`, and pinned for every tool that has one by the tool-registry
+ *  drift test. */
 const detailColumnKey = (tool: Tool): DetailColumnKey =>
   `columns.detail.${toolCamelPlural(tool)}` as DetailColumnKey;
 
@@ -240,18 +242,23 @@ export const ToolTable = ({
         cell: ({ row }) => <InitiativeCell row={row.original} initiatives={initiativesByKey} />,
         enableSorting: sortFields.includes("initiative"),
       },
-      {
-        id: "detail",
-        // Each tool names this column in its own terms ("Progress", "Items",
-        // …), and each means something different by it, so there is no one
-        // ordering for the endpoints to agree on. It does not sort.
-        header: t(detailColumnKey(tool)),
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.detail || <span className="text-muted-foreground">—</span>}
-          </span>
-        ),
-      },
+      ...(TOOL_HAS_DETAIL[tool]
+        ? [
+            {
+              id: "detail",
+              // Each tool names this column in its own terms ("Progress",
+              // "Type", …), and each means something different by it, so there
+              // is no one ordering for the endpoints to agree on. It does not
+              // sort.
+              header: t(detailColumnKey(tool)),
+              cell: ({ row }) => (
+                <span className="text-sm">
+                  {row.original.detail || <span className="text-muted-foreground">—</span>}
+                </span>
+              ),
+            } satisfies AppColumnDef<ToolRow>,
+          ]
+        : []),
       {
         id: "tags",
         header: t("columns.tags"),

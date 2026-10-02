@@ -93,7 +93,6 @@ async def annotate_wiki_rows(session: RLSSessionDep, wikis: list) -> None:
     await tags_service.annotate_tags(session, wikis)
     await properties_service.annotate_properties(session, wikis)
     await comments_service.annotate_comment_counts(session, wikis, column="wiki_id")
-    await wikis_service.annotate_page_counts(session, wikis)
 
 
 async def _refetch_wiki(

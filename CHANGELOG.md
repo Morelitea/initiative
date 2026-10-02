@@ -16,8 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Duplicate any tool but a notice into any initiative** where you can create one, from **Settings › Advanced**. A calendar brings its events and repeats, and a wiki its published pages. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
 - **A duplicated task keeps its links** to other tasks, and is named "(Copy)" like every other copy. Checklists keep their ticks only when copied from a template; a duplicated project's start over.
 - **A tidier interface.** Page titles, section headings and spacing now match from page to page, and pages no longer say the same thing twice: a project or document no longer repeats its initiative under the breadcrumb, and the "Active" tag is gone.
+- **One header for every tool page.** A band in the initiative's colour holds the breadcrumb and **Settings**, then the name and description. Click a name to rename it (documents keep their title field). Under it, a strip shows the tool's status, its tags and its properties, all changeable in place (a project or document can be turned into a template from its status), with whatever that tool has of its own beside them, such as a project's progress and dates. Tools no longer show a count of what is in them.
+- **Pick which calendars to see from the calendar's title**, and show or hide project tasks from **Filters**.
 - **No initiative is the default any more.** Communities that were given a "Default Initiative" can now rename it, archive it or delete it like any other. **App and API integrations:** initiatives no longer carry `is_default`.
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
+- **App and API integrations:** galleries, queues, counter groups and wikis no longer report `image_count`, `item_count`, `counter_count` or `page_count`.
 
 ### Fixed
 
