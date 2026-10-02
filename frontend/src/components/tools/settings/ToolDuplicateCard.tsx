@@ -65,7 +65,7 @@ export const ToolDuplicateCard = () => {
 
   const [open, setOpen] = useState(false);
   const [initiativeId, setInitiativeId] = useState("");
-  const [name, setName] = useState("");
+  const [typedName, setTypedName] = useState<string | null>(null);
 
   const suggestedName = (id: string) =>
     id === String(entity.initiative_id)
@@ -95,19 +95,15 @@ export const ToolDuplicateCard = () => {
   const destination = creatableInitiatives.some((i) => String(i.id) === initiativeId)
     ? initiativeId
     : String(creatableInitiatives[0].id);
+  // A name typed stays; until then it is the suggestion for the destination.
+  const name = typedName ?? suggestedName(destination);
 
   const openDialog = () => {
     const here = creatableInitiatives.some((i) => i.id === entity.initiative_id);
     const id = String(here ? entity.initiative_id : creatableInitiatives[0].id);
     setInitiativeId(id);
-    setName(suggestedName(id));
+    setTypedName(null);
     setOpen(true);
-  };
-
-  // A name still the suggestion follows the initiative; one typed stays.
-  const chooseInitiative = (id: string) => {
-    if (name === suggestedName(destination)) setName(suggestedName(id));
-    setInitiativeId(id);
   };
 
   const submit = () => {
@@ -146,7 +142,7 @@ export const ToolDuplicateCard = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="duplicate-initiative">{t("toolSettings.duplicate.initiative")}</Label>
-              <Select value={destination} onValueChange={chooseInitiative}>
+              <Select value={destination} onValueChange={setInitiativeId}>
                 <SelectTrigger id="duplicate-initiative">
                   <SelectValue />
                 </SelectTrigger>
@@ -164,7 +160,7 @@ export const ToolDuplicateCard = () => {
               <Input
                 id="duplicate-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => setTypedName(event.target.value)}
                 placeholder={t("toolSettings.namePlaceholder")}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") submit();

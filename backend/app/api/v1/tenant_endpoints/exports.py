@@ -626,6 +626,19 @@ async def download_export_artifact(
     if job.source == "guild":
         require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     await _require_reach(session, current_user, job.initiative_ids)
+    # An initiative's export is served, as it is taken, to those who manage it.
+    if job.source == InitiativeExportAdapter.source:
+        held = await session.exec(
+            select(Initiative.actions).where(
+                Initiative.id.in_(job.initiative_ids),
+                Initiative.deleted_at.is_(None),
+            )
+        )
+        if any("manage" not in (actions or ()) for actions in held):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=InitiativeMessages.MANAGER_REQUIRED,
+            )
     # The backups take an initiative that keeps its content in; any other file
     # is refused once one of the initiatives it holds does.
     if job.source not in (

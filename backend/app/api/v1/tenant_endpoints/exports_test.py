@@ -2486,6 +2486,22 @@ async def test_initiative_backup_includes_read_only_projects(
     project_entries = [e for e in manifest["entries"] if e["tool"] == "project"]
     assert {e["title"] for e in project_entries} == {"Theirs"}
 
+    # No longer managing it, the exporter is not served the file either.
+    roles = await client.get(
+        owner.g(f"/initiatives/{owner.initiative.id}/roles"), headers=owner.headers
+    )
+    member_role = next(r["id"] for r in roles.json() if r["name"] == "member")
+    demoted = await client.patch(
+        owner.g(f"/initiatives/{owner.initiative.id}/members/{exporter.user.id}"),
+        headers=owner.headers,
+        json={"role_id": member_role},
+    )
+    assert demoted.status_code == 200, demoted.text
+    dl = await client.get(
+        exporter.g(f"/exports/{resp.json()['id']}/download"), headers=exporter.headers
+    )
+    assert dl.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED", dl.text
+
 
 async def test_a_backup_lists_its_assignees_among_its_people(
     client: AsyncClient, acting_user, session, monkeypatch, role_session
