@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A post that goes up after its poll's deadline** opens the poll instead of posting it already closed. The author can set a new deadline.
 - Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.
 - **A project's built-in filter presets** (All, Incomplete, Unassigned, Mine) now show in your language, unless someone has renamed them.
+- **Signing in with a password manager no longer locks your account.** On some phones, a password manager that filled the sign-in form could send it several times at once, or before the password reached it. Each counted as a wrong password, and five lock the account. The form now sends one sign-in, with what the fields hold. The same goes for the authenticator code step.
 
 ## [0.74.0] - 2026-10-01
 
