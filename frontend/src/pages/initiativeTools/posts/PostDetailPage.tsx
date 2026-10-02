@@ -174,7 +174,11 @@ export function PostDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          {post && <h1 className="sr-only">{post.name}</h1>}
+          {post ? (
+            <h1 className="font-semibold text-3xl tracking-tight">{post.name}</h1>
+          ) : (
+            <Skeleton className="h-9 w-64" />
+          )}
           {/* Signed, the way the board signs it. A notice is somebody saying
               something, and its own page is the last place that should be
               left off. Under the headline here rather than above it, because

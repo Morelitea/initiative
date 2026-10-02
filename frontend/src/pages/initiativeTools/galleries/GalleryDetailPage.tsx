@@ -295,7 +295,11 @@ export function GalleryDetailPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          {gallery && <h1 className="sr-only">{gallery.name}</h1>}
+          {gallery ? (
+            <h1 className="font-semibold text-3xl tracking-tight">{gallery.name}</h1>
+          ) : (
+            <Skeleton className="h-9 w-64" />
+          )}
           {gallery?.description ? (
             <p className="max-w-prose text-muted-foreground">{gallery.description}</p>
           ) : null}

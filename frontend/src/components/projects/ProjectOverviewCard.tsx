@@ -44,7 +44,7 @@ export const ProjectOverviewCard = ({ project, projectIsArchived }: ProjectOverv
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         <div className="flex flex-1 items-center gap-2 sm:gap-3">
           {project.icon ? <span className="text-3xl leading-none">{project.icon}</span> : null}
-          <h1 className="sr-only">{project.name}</h1>
+          <h1 className="font-semibold text-3xl tracking-tight">{project.name}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <FavoriteProjectButton
