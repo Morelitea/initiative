@@ -26,7 +26,6 @@ from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant.collaboration import collaboration_manager
-from app.services.tenant.relationships import Endpoint
 from app.db.session import routed_guild_id
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -219,8 +218,8 @@ async def copy_contents(
 ) -> list[Any]:
     """Finish ``copy``, a duplicate of ``source`` already shared. Its pictures
     and stored file are copied rather than shared, so each document's can be
-    released on its own; a file document's copy starts again at version 1; the
-    links its body makes are recorded. Makes no rows inside it."""
+    released on its own; a file document's copy starts again at version 1.
+    Makes no rows inside it."""
     content = normalize_document_content(copy.content, document_type=copy.document_type)
     copies = await attachments_service.copy_uploads(
         session,
@@ -259,12 +258,6 @@ async def copy_contents(
                 created_by=author,
             )
         )
-    await content_references.sync_for_entity(
-        session,
-        Endpoint(SearchEntityType.document, copy.id),
-        body=copy.content,
-        author_id=actor.user_id,
-    )
     return []
 
 
@@ -301,7 +294,6 @@ async def unresolve_wikilinks_to_document(
     those links. Trashed ones are included — a document restored after the purge
     must not come back with a dangling link.
     """
-    from app.services.tenant import content_references
 
     linking_documents = await content_references.referencing_documents(
         session, deleted_document_id

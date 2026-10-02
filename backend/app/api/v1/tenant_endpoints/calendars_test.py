@@ -463,3 +463,132 @@ async def test_a_guild_calendar_is_hidden_when_it_is_not_shared(
     assert (
         await client.get(a.g(f"/calendars/{calendar.id}"), headers=a.headers)
     ).status_code == 403
+
+
+async def test_a_copy_has_its_series_its_changed_occurrences_and_invitees(
+    client: AsyncClient, acting_user, session
+):
+    """An occurrence changed on its own follows its series' copy, and an
+    invitee comes along with their answer starting over."""
+    from datetime import timedelta
+
+    from app.models.tenant.calendar_event import CalendarEventAttendee, RSVPStatus
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _calendars_enabled(session, a.initiative)
+    calendar = await create_calendar(session, a.initiative, a.user)
+    weekly = await create_calendar_event(
+        session, calendar, a.user, title="Standup", recurrence="RRULE:FREQ=WEEKLY"
+    )
+    week_two = weekly.start_at + timedelta(days=7)
+    await create_calendar_event(
+        session,
+        calendar,
+        a.user,
+        title="Standup, moved",
+        series_id=weekly.id,
+        original_start=week_two,
+        start_at=week_two + timedelta(hours=2),
+        end_at=week_two + timedelta(hours=3),
+        overridden_fields=["title", "start_at", "end_at"],
+    )
+    session.add(
+        CalendarEventAttendee(
+            calendar_event_id=weekly.id,
+            user_id=a.user.id,
+            rsvp_status=RSVPStatus.accepted,
+        )
+    )
+    await session.commit()
+
+    response = await client.post(
+        a.g(f"/calendars/{calendar.id}/duplicate"), headers=a.headers
+    )
+
+    assert response.status_code == 201, response.text
+    await route_session_to_guild(session, a.guild.id)
+    events = (
+        await session.exec(
+            select(CalendarEvent).where(
+                CalendarEvent.calendar_id == response.json()["id"]
+            )
+        )
+    ).all()
+    (series,) = [e for e in events if e.series_id is None]
+    (moved,) = [e for e in events if e.series_id is not None]
+    assert (series.title, series.recurrence) == ("Standup", "RRULE:FREQ=WEEKLY")
+    assert (moved.series_id, moved.title, moved.original_start) == (
+        series.id,
+        "Standup, moved",
+        week_two,
+    )
+    invited = (
+        await session.exec(
+            select(CalendarEventAttendee).where(
+                CalendarEventAttendee.calendar_event_id == series.id
+            )
+        )
+    ).all()
+    assert [(i.user_id, i.rsvp_status) for i in invited] == [
+        (a.user.id, RSVPStatus.pending)
+    ]
+
+
+async def test_a_copy_elsewhere_lets_go_of_invitees_who_cannot_read_it(
+    client: AsyncClient, acting_user, session
+):
+    from app.models.tenant.calendar_event import CalendarEventAttendee
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+    )
+    await _calendars_enabled(session, a.initiative)
+    elsewhere = await create_initiative(
+        session, a.guild, a.user, calendars_enabled=True
+    )
+    calendar = await create_calendar(session, a.initiative, a.user)
+    event = await create_calendar_event(session, calendar, a.user)
+    session.add_all(
+        CalendarEventAttendee(calendar_event_id=event.id, user_id=user.id)
+        for user in (a.user, b.user)
+    )
+    await session.commit()
+
+    response = await client.post(
+        a.g(f"/calendars/{calendar.id}/duplicate"),
+        headers=a.headers,
+        json={"target_initiative_id": elsewhere.id},
+    )
+
+    assert response.status_code == 201, response.text
+    await route_session_to_guild(session, a.guild.id)
+    invited = (
+        await session.exec(
+            select(CalendarEventAttendee.user_id)
+            .join(CalendarEvent)
+            .where(CalendarEvent.calendar_id == response.json()["id"])
+        )
+    ).all()
+    assert invited == [a.user.id]
+
+
+async def test_a_copy_of_the_communitys_calendar_names_its_initiative(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _calendars_enabled(session, a.initiative)
+    calendar = await create_guild_calendar(session, a.guild, a.user)
+    path = a.g(f"/calendars/{calendar.id}/duplicate")
+
+    nowhere = await client.post(path, headers=a.headers)
+    placed = await client.post(
+        path, headers=a.headers, json={"target_initiative_id": a.initiative.id}
+    )
+
+    assert nowhere.status_code == 404
+    assert nowhere.json()["detail"] == "INITIATIVE_NOT_FOUND"
+    assert placed.status_code == 201, placed.text
+    assert placed.json()["initiative_id"] == a.initiative.id

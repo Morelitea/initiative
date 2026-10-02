@@ -31,6 +31,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   createCalendarApiV1CGuildIdCalendarsPost,
   deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete,
+  duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost,
   getListCalendarsApiV1CGuildIdCalendarsGetQueryKey,
   getReadCalendarApiV1CGuildIdCalendarsCalendarIdGetQueryKey,
   listCalendarsApiV1CGuildIdCalendarsGet,
@@ -142,6 +143,7 @@ import {
 import {
   createWikiApiV1CGuildIdWikisPost,
   deleteWikiApiV1CGuildIdWikisWikiIdDelete,
+  duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost,
   getListWikisApiV1CGuildIdWikisGetQueryKey,
   getReadWikiApiV1CGuildIdWikisWikiIdGetQueryKey,
   listWikisApiV1CGuildIdWikisGet,
@@ -162,11 +164,10 @@ import type { QueryOpts } from "@/types/query";
 type CacheKey = readonly unknown[];
 
 /** Copies one into an initiative: `POST /{tool}/{id}/duplicate`, one route shape for every tool. */
-type Duplicate = (
-  guildId: number,
-  id: number,
-  data: ToolDuplicateRequest
-) => Promise<{ id: number; initiative_id: number }>;
+type Duplicate = (guildId: number, id: number, data: ToolDuplicateRequest) => Promise<Duplicated>;
+
+/** What a duplicate answers with: the copy's id and where it went. */
+type Duplicated = { id: number; initiative_id: number | null };
 
 /**
  * The narrowing every tool's guild-wide list understands.
@@ -394,7 +395,7 @@ interface ToolEndpoints<TRead, TList, TMyList, TCreate, TUpdate, TParams> {
   update: (guildId: number, id: number, data: TUpdate) => Promise<TRead>;
   remove: (guildId: number, id: number) => Promise<void>;
   setGrants: (guildId: number, id: number, grants: ResourceGrantSchema[]) => Promise<TRead>;
-  duplicate?: Duplicate;
+  duplicate: Duplicate;
   /** Which tool this is — what its writes make stale follows from it. */
   tool: Tool;
 }
@@ -434,6 +435,7 @@ const calendarEndpoints = {
   update: updateCalendarApiV1CGuildIdCalendarsCalendarIdPatch,
   remove: deleteCalendarApiV1CGuildIdCalendarsCalendarIdDelete,
   setGrants: setCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut,
+  duplicate: duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost,
   tool: Tool.calendar,
 };
 
@@ -578,6 +580,7 @@ const wikiEndpoints = {
   update: updateWikiApiV1CGuildIdWikisWikiIdPatch,
   remove: deleteWikiApiV1CGuildIdWikisWikiIdDelete,
   setGrants: setWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut,
+  duplicate: duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost,
   tool: Tool.wiki,
 };
 
@@ -606,7 +609,7 @@ interface ToolQueries {
     data: { name: string; initiative_id: number }
   ) => Promise<{ id: number }>;
   /** Copies one into an initiative — what the settings page's duplicate card sends. */
-  duplicate?: Duplicate;
+  duplicate: Duplicate;
 }
 
 /**
@@ -634,21 +637,11 @@ export const TOOL_HOOKS = {
  */
 export const useDuplicateTool = (
   tool: Tool,
-  options?: MutationOpts<
-    { id: number; initiative_id: number },
-    { id: number; data: ToolDuplicateRequest }
-  >
+  options?: MutationOpts<Duplicated, { id: number; data: ToolDuplicateRequest }>
 ) =>
-  useGuildMutation<
-    { id: number; initiative_id: number },
-    { id: number; data: ToolDuplicateRequest }
-  >(
+  useGuildMutation<Duplicated, { id: number; data: ToolDuplicateRequest }>(
     {
-      mutationFn: (guildId, { id, data }) => {
-        const duplicate = TOOL_HOOKS[tool].duplicate;
-        if (!duplicate) throw new Error(`${tool} cannot be duplicated`);
-        return duplicate(guildId, id, data);
-      },
+      mutationFn: (guildId, { id, data }) => TOOL_HOOKS[tool].duplicate(guildId, id, data),
       invalidate: () => invalidate(q.toolList(tool)),
       errorKey: "common:toolSettings.duplicate.error",
     },

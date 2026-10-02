@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Duplicate a project, document, queue, counter group, gallery or dashboard into any initiative** where you can create one, from **Settings › Advanced**. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
+- **Duplicate any tool but a notice into any initiative** where you can create one, from **Settings › Advanced**. A calendar brings its events and repeats, and a wiki its published pages. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
 - **A duplicated task keeps its links** to other tasks, and is named "(Copy)" like every other copy. Checklists keep their ticks only when copied from a template; a duplicated project's start over.
 - **A tidier interface.** Page titles, section headings and spacing now match from page to page, and pages no longer say the same thing twice: a project or document no longer repeats its initiative under the breadcrumb, and the "Active" tag is gone.
 - **No initiative is the default any more.** Communities that were given a "Default Initiative" can now rename it, archive it or delete it like any other. **App and API integrations:** initiatives no longer carry `is_default`.

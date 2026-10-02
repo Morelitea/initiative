@@ -97,6 +97,7 @@ Every tool, without exception:
 - **Has a comment thread**, switchable off per item under **Settings → Details**.
 - **Can be pointed at** with `#` from any comment or document. See [Mentions & links](mentions-and-links.md).
 - **Goes to the Trash** when deleted, not to oblivion.
+- **Can be duplicated**, with everything inside it, from **Settings → Advanced** — into this initiative or any other you can make one in. Notices are the exception: a notice is posted once, and the next one is a new notice.
 - **Turns up in [My Tools](your-space.md#my-tools)**, gathered with everything else of its kind from every community you're in.
 
 Learn it once and it's true of the next one. That's the entire point of doing it this way — including for the tools that don't exist yet, since the list has grown before and will again.

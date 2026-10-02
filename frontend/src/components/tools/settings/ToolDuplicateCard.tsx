@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TOOL_HOOKS, useDuplicateTool } from "@/hooks/toolHooks";
+import { useDuplicateTool } from "@/hooks/toolHooks";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -46,9 +46,7 @@ import { toolDetailRoute } from "@/lib/tools";
  *  is made to be copied. Where the copy may go is the dialog's question. A
  *  notice is published rather than reused, so posts offer no copy here. */
 export const canUseDuplicateCard = (tool: Tool, entity: ToolSettingsEntity): boolean =>
-  tool !== Tool.post &&
-  Boolean(TOOL_HOOKS[tool].duplicate) &&
-  (entity.can.edit || Boolean(entity.is_template));
+  tool !== Tool.post && (entity.can.edit || Boolean(entity.is_template));
 
 export const ToolDuplicateCard = () => {
   const { t } = useTranslation("common");

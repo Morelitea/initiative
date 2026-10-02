@@ -24,6 +24,7 @@ import type {
   HTTPValidationError,
   ListWikisApiV1CGuildIdWikisGetParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
   WikiCreate,
   WikiListResponse,
   WikiPageCreate,
@@ -2100,6 +2101,115 @@ export const useSetWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut = <
 > => {
   return useMutation(
     getSetWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Wiki
+ */
+export const duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost = (
+  guildId: number,
+  wikiId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WikiRead>(
+    {
+      url: `/api/v1/c/${guildId}/wikis/${wikiId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationKey = () =>
+  ["duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost"] as const;
+
+export const getDuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost>>,
+    TError,
+    DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost>>,
+  TError,
+  DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost>>,
+    DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, wikiId, data } = props ?? {};
+
+    return duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost(
+      guildId,
+      wikiId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost>>
+>;
+export type DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationVariables = {
+  guildId: number;
+  wikiId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Wiki
+ */
+export const useDuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost>>,
+      TError,
+      DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePost>>,
+  TError,
+  DuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateWikiApiV1CGuildIdWikisWikiIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };
