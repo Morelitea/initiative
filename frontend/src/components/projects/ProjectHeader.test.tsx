@@ -5,10 +5,10 @@ import { buildProject, resetFactories } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectHeader } from "@/components/projects/ProjectHeader";
 
-const renderHeader = (dates: { start_date?: string | null; end_date?: string | null }) =>
-  renderPage(() => <ProjectHeader project={buildProject(dates)} projectIsArchived={false} />);
+const renderHeader = (overrides: Parameters<typeof buildProject>[0]) =>
+  renderPage(() => <ProjectHeader project={buildProject(overrides)} projectIsArchived={false} />);
 
-describe("ProjectHeader schedule", () => {
+describe("ProjectHeader", () => {
   beforeEach(() => {
     resetFactories();
   });
@@ -32,10 +32,15 @@ describe("ProjectHeader schedule", () => {
     expect(await screen.findByText("Ends Sep 30, 2026")).toBeInTheDocument();
   });
 
-  it("shows nothing at all when neither date is set", async () => {
+  it("says None when neither date is set", async () => {
     renderHeader({});
 
-    await screen.findByRole("heading", { level: 1 });
-    expect(screen.queryByText("Project dates")).not.toBeInTheDocument();
+    expect(await screen.findByText("None")).toBeInTheDocument();
+  });
+
+  it("reads a template's status as Template, among the choices an editor has", async () => {
+    renderHeader({ is_template: true });
+
+    expect(await screen.findByRole("combobox", { name: "Status" })).toHaveTextContent("Template");
   });
 });

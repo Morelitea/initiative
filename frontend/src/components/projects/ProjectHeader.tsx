@@ -53,7 +53,14 @@ export const ProjectHeader = ({ project, projectIsArchived }: ProjectHeaderProps
         canEdit && !projectIsArchived ? (name) => updateProject.mutateAsync({ name }) : undefined
       }
       chest={
-        <ToolChest tool={Tool.project} entity={project}>
+        <ToolChest
+          tool={Tool.project}
+          entity={project}
+          template={{
+            isTemplate: project.is_template,
+            onChange: (isTemplate) => updateProject.mutateAsync({ is_template: isTemplate }),
+          }}
+        >
           <ToolChestSegment label={t("overview.progressLabel")}>
             <span className="tabular-nums">
               {t("overview.progress", {

@@ -277,6 +277,7 @@
     "status": "Status",
     "active": "Active",
     "archived": "Archived",
-    "none": "None"
+    "none": "None",
+    "template": "Template"
   }
 }
