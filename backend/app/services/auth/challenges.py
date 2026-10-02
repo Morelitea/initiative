@@ -108,6 +108,10 @@ class ChallengePurpose(str, Enum):
     #: is that the gates a registration has to pass were passed before the
     #: browser was sent to an authenticator.
     passkey_sign_up = "passkey_sign_up"
+    #: An operator has been sent to an app's vendor to create its client, and
+    #: the vendor will send them back with a code. The row names the operator;
+    #: the answer is the registration the setup is for.
+    app_vendor_setup = "app_vendor_setup"
 
 
 @dataclass(frozen=True)

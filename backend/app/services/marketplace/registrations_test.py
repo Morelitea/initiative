@@ -515,6 +515,12 @@ def _app_listing(registration, *, uid=LISTING_UID, public_id="acme.widgets") -> 
 
 
 CONTAINER = {"kind": "container", "scope_ceiling": ["projects:write", "comments:read"]}
+IMAGE = "ghcr.io/acme/widgets@sha256:" + "0" * 64
+COMPOSE = {
+    "service": "widgets:\n  image: ${IMAGE}\n  environment:\n"
+    "    INITIATIVE_URL: ${INITIATIVE_URL}\n    PRICE: $$5\n",
+    "base_url": "http://widgets:8080",
+}
 
 
 async def _registration(session, public_id="acme.widgets") -> AppServiceRegistration:
@@ -544,6 +550,22 @@ async def test_a_listing_from_any_source_writes_the_app_facts(session, source):
     # Where it runs and its keys are the deployment's to give.
     assert (row.base_url, row.jwks) == (None, None)
     assert (await load_registrations(force=True))["acme.widgets"].live is False
+
+
+async def test_a_listing_carries_the_compose_service_its_publisher_wrote(session):
+    await upsert_listing(
+        session,
+        _app_listing({**CONTAINER, "image": IMAGE, "compose": COMPOSE}),
+        source="local",
+    )
+    await session.commit()
+
+    row = await _registration(session)
+    assert row.compose == COMPOSE
+    assert service.filled_compose(row) == (
+        f"widgets:\n  image: {IMAGE}\n  environment:\n"
+        f"    INITIATIVE_URL: {settings.APP_URL.rstrip('/')}\n    PRICE: $$5\n"
+    )
 
 
 async def test_a_listing_fills_in_the_registration_set_up_before_it(session):
@@ -584,10 +606,36 @@ async def test_a_listing_republished_without_a_scope_takes_it_away(session):
         {**CONTAINER, "base_url": BASE_URL},
         {**CONTAINER, "jwks": {"keys": []}},
         {**CONTAINER, "image": "ghcr.io/acme/widgets:latest"},
+        *(
+            {**CONTAINER, "image": IMAGE, "compose": {**COMPOSE, **change}}
+            for change in (
+                {"service": "widgets:\n  image: ${IMAGES}\n"},
+                {"service": "widgets:\n  image: ${IMAGE\n"},
+                {"service": "x" * 4097},
+                {"base_url": "ftp://widgets"},
+                {"base_url": "http://widgets:8080/a b"},
+                {"base_url": f"http://{'w' * 506}"},
+                {"ports": []},
+            )
+        ),
+        {**CONTAINER, "compose": COMPOSE},
     ],
-    ids=["hosted", "location", "keys", "unpinned-image"],
+    ids=[
+        "hosted",
+        "location",
+        "keys",
+        "unpinned-image",
+        "unknown-placeholder",
+        "unclosed-placeholder",
+        "long-service",
+        "not-http",
+        "space",
+        "long-url",
+        "unknown-term",
+        "image-placeholder-without-image",
+    ],
 )
-async def test_a_listing_block_is_a_container_with_no_location_or_keys(session, block):
+async def test_a_listing_block_with_a_fact_it_cannot_state_is_refused(session, block):
     with pytest.raises(CatalogError):
         await upsert_listing(session, _app_listing(block), source="local")
 

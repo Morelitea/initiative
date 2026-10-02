@@ -25,6 +25,9 @@ __all__ = [
     "AppServiceRegistrationCreate",
     "AppServiceRegistrationRead",
     "AppServiceRegistrationUpdate",
+    "AppServiceVendorSetup",
+    "AppServiceVendorSetupComplete",
+    "AppServiceVendorSetupStart",
     "AppVendorFieldRead",
 ]
 
@@ -79,6 +82,13 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     source: str = "operator"
     #: The container image its listing names, pinned by digest.
     image_digest: Optional[str] = None
+    #: The Compose service its listing's publisher wrote, with the image and
+    #: this deployment's public address filled in, for the operator to copy.
+    #: YAML text, shown as text.
+    compose_service: Optional[RawTextStr] = None
+    #: Where that service answers on the Compose network: the base URL to give
+    #: it.
+    compose_base_url: Optional[str] = None
     #: The values the listing's manifest asks the operator for, in order.
     vendor_fields: List[AppVendorFieldRead] = []
     #: The plain values of the non-secret vendor fields that hold one.
@@ -87,6 +97,9 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     vendor_set: List[str] = []
     #: Whether every required vendor value is set.
     vendor_ready: bool = True
+    #: The flow at the vendor that can create its client and fill in the
+    #: vendor values (``github_app_manifest``), when the listing declares one.
+    vendor_setup: Optional[str] = None
     #: The two addresses to register with the vendor's client: where it
     #: returns a person with a code, and where its install page returns them.
     connection_callback_url: str
@@ -175,6 +188,33 @@ class AppServiceConnect(SanitizedBaseModel):
 
     #: The keys the operator was shown and confirmed.
     keys: List[AppServicePublishedKey] = Field(min_length=1, max_length=20)
+
+
+class AppServiceVendorSetupStart(SanitizedBaseModel):
+    """Start the vendor's own setup for the app's client."""
+
+    #: The GitHub organization to own the new app. Empty: the operator's own
+    #: account.
+    organization: Optional[str] = Field(default=None, max_length=100)
+
+
+class AppServiceVendorSetup(SanitizedBaseModel):
+    """What the operator's browser posts to the vendor: ``manifest`` as a form
+    field, to ``action`` with ``state`` in its query."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    action: str
+    #: The manifest, as JSON text.
+    manifest: RawTextStr
+    state: str
+
+
+class AppServiceVendorSetupComplete(SanitizedBaseModel):
+    """What the vendor sent the operator back with."""
+
+    code: str = Field(min_length=1, max_length=200)
+    state: str = Field(min_length=1, max_length=200)
 
 
 class AppPublisherRead(SanitizedBaseModel):

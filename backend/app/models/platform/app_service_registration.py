@@ -5,9 +5,10 @@ A marketplace **listing** says what an app is and what it declares. A
 splits the same way, whatever published its listing:
 
 * **App facts** come from the app's listing, and only a listing apply writes
-  them: ``listing_uid``, ``scope_ceiling``, ``image_digest`` and
-  ``reference_sectors``. Every source reads the same ``registration`` block
-  (the registry, a local upload, the operator's catalog directory, the build).
+  them: ``listing_uid``, ``scope_ceiling``, ``image_digest``,
+  ``reference_sectors`` and ``compose``. Every source reads the same
+  ``registration`` block (the registry, a local upload, the operator's catalog
+  directory, the build).
 * **Deployment facts** come from the operator, through ``APP_SERVICES_CONFIG``
   or the settings form: where the app runs, the public keys its container signs
   with, its vendor values, the switch, the mandatory flag and the origins.
@@ -105,6 +106,7 @@ LISTING_STATED_FIELDS: tuple[str, ...] = (
     "image_digest",
     "reference_sectors",
     "registry",
+    "compose",
 )
 
 
@@ -234,6 +236,13 @@ class AppServiceRegistration(SQLModel, table=True):
     reference_sectors: List[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Text), nullable=False, server_default=text("'{}'")),
+    )
+    # The Compose service its listing's publisher wrote for running the app
+    # beside Initiative: ``{"service": <YAML text>, "base_url": <address on
+    # the Compose network>}``, its placeholders unfilled. NULL when the listing
+    # carries none.
+    compose: Optional[dict] = Field(
+        default=None, sa_column=Column(JSONB, nullable=True)
     )
     # Whether the registry listing behind this row was verified under the root
     # shipped in the image. Reference sectors are honoured only when it was.

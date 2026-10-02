@@ -5,6 +5,10 @@ deployment facts; its app facts come from the app's listing. A registration is
 shown whole, since none of it is secret.
 """
 
+import ipaddress
+import json
+from datetime import timedelta
+
 import httpx
 import pytest
 from httpx import AsyncClient
@@ -18,7 +22,10 @@ from app.models.platform.app_service_registration import (
     AppServiceRegistration,
 )
 from app.models.platform.user import UserRole
-from app.services.marketplace import app_keys
+from app.services import safe_http
+from app.services.marketplace import app_keys, vendor_setup
+from app.services.marketplace.vendor_values import load_vendor_values
+from app.services.webhook_target_url import ValidatedTarget
 from app.testing import emitted
 from app.testing.oidc import IDP_KEY, OTHER_KEY, jwks_doc
 from app.testing.factories import (
@@ -98,6 +105,16 @@ async def test_non_owner_tiers_are_refused(
             f"{BASE}{row.id}/connect",
             headers=headers,
             json={"keys": [{"kid": "k", "fingerprint": "x"}]},
+        )
+    ).status_code == 403
+    assert (
+        await client.post(f"{BASE}{row.id}/vendor-setup", headers=headers, json={})
+    ).status_code == 403
+    assert (
+        await client.post(
+            f"{BASE}{row.id}/vendor-setup/complete",
+            headers=headers,
+            json={"code": "c", "state": "s"},
         )
     ).status_code == 403
 
@@ -589,3 +606,274 @@ async def test_a_value_the_listing_does_not_ask_for_is_refused(
 
     assert response.status_code == 400
     assert response.json()["detail"] == AppServiceMessages.UNKNOWN_VENDOR_FIELD
+
+
+# --- the compose snippet ------------------------------------------------------
+
+
+async def test_the_form_shows_the_compose_service_filled_in(
+    client: AsyncClient, session: AsyncSession
+):
+    headers = await _owner_headers(session)
+    image = "ghcr.io/acme/widgets@sha256:" + "0" * 64
+    row = await _seed(
+        session,
+        image_digest=image,
+        compose={
+            "service": "widgets:\n  image: ${IMAGE}\n"
+            "  environment:\n    INITIATIVE_URL: ${INITIATIVE_URL}\n",
+            "base_url": "http://widgets:8080",
+        },
+    )
+
+    body = await _listed(client, headers, row.id)
+
+    assert body["compose_service"] == (
+        f"widgets:\n  image: {image}\n"
+        f"  environment:\n    INITIATIVE_URL: {settings.APP_URL.rstrip('/')}\n"
+    )
+    assert body["compose_base_url"] == "http://widgets:8080"
+
+
+# --- the vendor's own setup ------------------------------------------------------
+
+
+GITHUB_APP = {
+    "name": "Widgets",
+    "url": "https://widgets.example.com",
+    "default_permissions": {"issues": "write"},
+    "default_events": ["issues"],
+}
+GITHUB_DEFINITION = {
+    **VENDOR_DEFINITION,
+    "vendor": {
+        "fields": [
+            {"key": key, "type": kind, "required": True, "label": {"en": key}}
+            for key, kind in (
+                ("app_id", "string"),
+                ("client_id", "string"),
+                ("client_secret", "secret"),
+                ("private_key", "secret"),
+                ("webhook_secret", "secret"),
+            )
+        ],
+        "setup": {
+            "kind": "github_app_manifest",
+            "app": GITHUB_APP,
+            "values": {
+                "app_id": "id",
+                "client_id": "client_id",
+                "client_secret": "client_secret",
+                "private_key": "pem",
+                "webhook_secret": "webhook_secret",
+            },
+        },
+    },
+}
+CONVERSION = {
+    "id": 4242,
+    "slug": "widgets",
+    "client_id": "Iv1.widgets",
+    "client_secret": "client-secret",
+    "pem": "-----BEGIN RSA PRIVATE KEY-----\nkey\n-----END RSA PRIVATE KEY-----\n",
+    "webhook_secret": "hook-secret",
+}
+
+
+def _github(monkeypatch, *, status: int = 201) -> list[httpx.Request]:
+    """GitHub answering a manifest conversion; the requests it was sent."""
+    sent: list[httpx.Request] = []
+
+    async def resolve(url: str, *, allow_private: bool = False) -> ValidatedTarget:
+        return ValidatedTarget(
+            hostname=httpx.URL(url).host,
+            addresses=(ipaddress.ip_address("140.82.112.6"),),
+        )
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(status, json=CONVERSION if status < 400 else {})
+
+    monkeypatch.setattr(safe_http, "resolve_validated_target_async", resolve)
+    monkeypatch.setattr(vendor_setup, "http_transport", httpx.MockTransport(handle))
+    return sent
+
+
+async def _github_registration(session: AsyncSession) -> AppServiceRegistration:
+    await create_marketplace_listing(
+        session,
+        uid=LISTING_UID,
+        public_id="acme.widgets",
+        kind="app",
+        definition=GITHUB_DEFINITION,
+    )
+    return await _seed(session)
+
+
+async def _start(client: AsyncClient, headers, row_id: int, **body) -> dict:
+    response = await client.post(
+        f"{BASE}{row_id}/vendor-setup", headers=headers, json=body
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_the_github_setup_carries_initiatives_own_addresses(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user()
+    row = await _github_registration(session)
+
+    assert (await _listed(client, a.headers, row.id))["vendor_setup"] == (
+        "github_app_manifest"
+    )
+    started = await _start(client, a.headers, row.id)
+
+    app_url = settings.APP_URL.rstrip("/")
+    assert started["action"] == "https://github.com/settings/apps/new"
+    assert started["state"]
+    assert json.loads(started["manifest"]) == {
+        **GITHUB_APP,
+        "public": False,
+        "redirect_url": (
+            f"{app_url}/settings/platform/integrations/vendor-setup/{row.id}"
+        ),
+        "callback_urls": [f"{app_url}/api/v1/app-connections/callback"],
+        "setup_url": f"{app_url}/api/v1/app-connections/setup",
+        "hook_attributes": {
+            "url": f"{app_url}/api/v1/app-hooks/acme.widgets",
+            "active": True,
+        },
+    }
+    owned = await _start(client, a.headers, row.id, organization="acme-org")
+    assert owned["action"] == (
+        "https://github.com/organizations/acme-org/settings/apps/new"
+    )
+    refused = await client.post(
+        f"{BASE}{row.id}/vendor-setup",
+        headers=a.headers,
+        json={"organization": "acme/org"},
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == (
+        AppServiceMessages.VENDOR_SETUP_INVALID_ORGANIZATION
+    )
+
+
+async def test_an_app_with_no_setup_offers_none(
+    client: AsyncClient, session: AsyncSession
+):
+    await _vendor_listing(session)
+    headers = await _owner_headers(session)
+    row = await _seed(session)
+
+    assert (await _listed(client, headers, row.id))["vendor_setup"] is None
+    response = await client.post(
+        f"{BASE}{row.id}/vendor-setup", headers=headers, json={}
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == AppServiceMessages.VENDOR_SETUP_UNAVAILABLE
+
+
+async def test_completing_the_github_setup_writes_the_vendor_values(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch, capfd
+):
+    sent = _github(monkeypatch)
+    a = await acting_user()
+    row = await _github_registration(session)
+    started = await _start(client, a.headers, row.id)
+    capfd.readouterr()
+
+    response = await client.post(
+        f"{BASE}{row.id}/vendor-setup/complete",
+        headers=a.headers,
+        json={"code": "abc123", "state": started["state"]},
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["vendor_values"] == {"app_id": "4242", "client_id": "Iv1.widgets"}
+    assert body["vendor_set"] == [
+        "app_id",
+        "client_id",
+        "client_secret",
+        "private_key",
+        "webhook_secret",
+    ]
+    assert body["vendor_ready"] is True
+    assert "client-secret" not in response.text
+    (request,) = sent
+    assert request.method == "POST"
+    assert (request.headers["host"], request.url.path) == (
+        "api.github.com",
+        "/app-manifests/abc123/conversions",
+    )
+    assert await load_vendor_values("acme.widgets") == {
+        "app_id": "4242",
+        "client_id": "Iv1.widgets",
+        "client_secret": "client-secret",
+        "private_key": CONVERSION["pem"].strip(),
+        "webhook_secret": "hook-secret",
+    }
+    (record,) = emitted(capfd, AuditEventType.APP_SERVICE_UPDATED)
+    assert record["actor_user_id"] == a.user.id
+    assert record["detail"]["vendor_values"] == [
+        "app_id",
+        "client_id",
+        "client_secret",
+        "private_key",
+        "webhook_secret",
+    ]
+
+    again = await client.post(
+        f"{BASE}{row.id}/vendor-setup/complete",
+        headers=a.headers,
+        json={"code": "abc123", "state": started["state"]},
+    )
+    assert again.status_code == 400
+    assert again.json()["detail"] == AppServiceMessages.VENDOR_SETUP_EXPIRED
+    assert len(sent) == 1
+
+
+@pytest.mark.parametrize("whose", ["another_owner", "another_app", "expired"])
+async def test_a_setup_is_finished_only_by_who_started_it_for_that_app(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch, whose
+):
+    sent = _github(monkeypatch)
+    a = await acting_user()
+    row = await _github_registration(session)
+    other = await _seed(session, public_id="acme.other", listing_uid=None)
+    if whose == "expired":
+        monkeypatch.setattr(vendor_setup, "STATE_TTL", timedelta(seconds=-1))
+    started = await _start(client, a.headers, row.id)
+    headers = (await acting_user()).headers if whose == "another_owner" else a.headers
+    target = other.id if whose == "another_app" else row.id
+
+    response = await client.post(
+        f"{BASE}{target}/vendor-setup/complete",
+        headers=headers,
+        json={"code": "abc123", "state": started["state"]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == AppServiceMessages.VENDOR_SETUP_EXPIRED
+    assert sent == []
+
+
+async def test_a_conversion_github_refuses_writes_nothing(
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
+):
+    _github(monkeypatch, status=404)
+    a = await acting_user()
+    row = await _github_registration(session)
+    started = await _start(client, a.headers, row.id)
+
+    response = await client.post(
+        f"{BASE}{row.id}/vendor-setup/complete",
+        headers=a.headers,
+        json={"code": "abc123", "state": started["state"]},
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == AppServiceMessages.VENDOR_SETUP_FAILED
+    assert await load_vendor_values("acme.widgets") == {}
