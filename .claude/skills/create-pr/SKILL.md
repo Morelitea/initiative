@@ -182,6 +182,10 @@ The CI workflow's jobs on this repo include **Backend Lint & Tests**,
 2. Reproduce and fix locally. Common repo-specific gotchas:
    - **Locale keys**: `locale-keys.test.ts` requires every `en` key be
      mirrored in `de`/`es`/`fr`. Add new keys to all four locale files.
+   - **API compatibility** (a step in Check Generated Types): the change
+     breaks what the last release's API took. Keep the old shape, or, if
+     the break is intended, add the lines it printed to
+     `backend/api-breaking-changes.md` and say why in the PR body.
    - **Generated types**: if backend schemas changed, regenerate per
      `CLAUDE.md` (Orval) and commit the output.
 3. Other jobs may still be running — fix the one you have while they finish. If

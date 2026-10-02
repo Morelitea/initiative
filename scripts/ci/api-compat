@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Whether this tree's API still takes what the last release's did. The two
+# OpenAPI specs are compared by oasdiff: this tree's exported from the backend,
+# the release's exported from its published image. A breaking change fails
+# unless backend/api-breaking-changes.md lists it.
+#
+# Usage:
+#   scripts/ci/api-compat           # against the newest release
+#   scripts/ci/api-compat v0.73.2   # against a named one
+#
+# Needs backend/.venv (cd backend && uv sync) and docker.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+
+OASDIFF=docker.io/tufin/oasdiff:v1.32.1@sha256:3b14fe0112e5d1bf862f91ab234a4bcd161a3f399e98f8b0b665ce70857694ac
+ACCEPTED=backend/api-breaking-changes.md
+
+release="${1:-$(git ls-remote --tags --refs origin 'v*' | sed 's#.*refs/tags/##' \
+  | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)}"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+(cd backend && uv run --no-sync python scripts/export_openapi.py "$work/current.json")
+# The image ships no scripts/, so the export is spelled out; export_openapi.py
+# gives Settings the same placeholder key.
+docker run --rm --entrypoint python \
+  -e SECRET_KEY=0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0 \
+  "docker.io/morelitea/initiative:${release#v}" \
+  -c 'import json; from app.main import app; print(json.dumps(app.openapi()))' \
+  > "$work/release.json"
+cp "$ACCEPTED" "$work/accepted.md"
+
+# Path parameters are matched by name: the spec drops a route's converter,
+# so /exports/{job_id:int} and /exports/{tool} would otherwise read as one
+# endpoint declared twice. A renamed path parameter then reads as a route
+# removed and another added, though a client's URLs are unchanged.
+if docker run --rm -v "$work:/specs:ro" "$OASDIFF" breaking --fail-on ERR --include-path-params \
+  --err-ignore /specs/accepted.md /specs/release.json /specs/current.json; then
+  echo "The API takes everything $release's did, or lists the break in $ACCEPTED."
+else
+  echo
+  echo "These break what $release's API took (errors above; warnings do not fail)."
+  echo "Keep the old shape, or, to make the break on purpose, add each error's"
+  echo "method, path and message to $ACCEPTED under the release it ships in."
+  exit 1
+fi
