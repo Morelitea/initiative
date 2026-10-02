@@ -14,25 +14,22 @@
  */
 
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, Users } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CommunityGuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { AgeConfirmationDialog } from "@/components/guilds/AgeConfirmationDialog";
+import { GuildCardFace } from "@/components/guilds/GuildCardFace";
 import { GuildAvatar } from "@/components/guilds/GuildSidebar";
 import { ReportButton } from "@/components/moderation/ReportButton";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useJoinCommunityGuild } from "@/hooks/useCommunities";
 import { useGuilds } from "@/hooks/useGuilds";
-import { renderableBanner } from "@/lib/banner";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { guildCategoryLabel } from "@/lib/guildCategories";
 import { guildPath } from "@/lib/guildUrl";
 
 export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
@@ -86,8 +83,6 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
     void performJoin();
   };
 
-  const banner = renderableBanner(guild.banner);
-
   return (
     <>
       <AgeConfirmationDialog
@@ -95,99 +90,39 @@ export const CommunityCard = ({ guild }: { guild: CommunityGuildRead }) => {
         onOpenChange={setAskingAge}
         onConfirmed={() => void performJoin()}
       />
-      <Card className="flex h-full flex-col overflow-hidden">
-        {banner.image_url ? (
-          <img
-            src={banner.image_url}
-            alt=""
-            className="aspect-[4/1] w-full object-cover"
-            loading="lazy"
+      <GuildCardFace
+        guild={guild}
+        avatar={<GuildAvatar name={guild.name} icon={guild.icon_url} active={false} />}
+        aside={
+          // A listing is the deployment's to answer for, not the community's
+          // own — so no community is sent with it.
+          <ReportButton
+            targetType="directory_listing"
+            targetId={guild.id}
+            guildId={null}
+            className="-mt-1 shrink-0"
           />
-        ) : (
-          <div
-            className="aspect-[4/1] w-full"
-            style={{ backgroundColor: banner.color }}
-            aria-hidden="true"
-          />
-        )}
-        <CardContent className="flex flex-1 flex-col gap-3 p-4">
-          <div className="flex items-start gap-3">
-            <GuildAvatar name={guild.name} icon={guild.icon_url} active={false} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="min-w-0 truncate font-semibold text-base" title={guild.name}>
-                  {guild.name}
-                </h3>
-                {/* A listing is the deployment's to answer for, not the
-                    community's own — so no community is sent with it. */}
-                <ReportButton
-                  targetType="directory_listing"
-                  targetId={guild.id}
-                  guildId={null}
-                  className="-mt-1 shrink-0"
-                />
-              </div>
-              <p className="flex flex-wrap items-center gap-x-1.5 text-muted-foreground text-xs">
-                {/* Who is here now, then how many there are in all. A guild with
-                  nobody in it says nothing rather than "0 online", which reads
-                  as a verdict on the guild rather than on the moment. */}
-                {guild.online_count > 0 ? (
-                  <>
-                    <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-                      <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                      {t("guilds:community.onlineCount", { count: guild.online_count })}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                  </>
-                ) : null}
-                <span className="flex items-center gap-1">
-                  <Users className="h-3 w-3" aria-hidden="true" />
-                  {t("guilds:memberCount", { count: guild.member_count })}
-                </span>
-              </p>
-            </div>
-          </div>
-
-          <p
-            className={
-              guild.description
-                ? "line-clamp-3 text-muted-foreground text-sm"
-                : "text-muted-foreground/70 text-sm italic"
-            }
-          >
-            {guild.description || t("guilds:community.noDescription")}
-          </p>
-
-          {guild.categories.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {guild.categories.map((category) => (
-                <Badge key={category} variant="secondary" className="font-normal">
-                  {guildCategoryLabel(category, t)}
-                </Badge>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="mt-auto pt-1">
-            {guild.already_member ? (
-              <Button variant="outline" className="w-full" onClick={open}>
-                {t("guilds:community.open")}
-              </Button>
-            ) : (
-              <Button className="w-full" onClick={handleJoin} disabled={join.isPending}>
-                {join.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    {t("guilds:community.joining")}
-                  </>
-                ) : (
-                  t("guilds:community.join")
-                )}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        }
+      >
+        <div className="mt-auto pt-1">
+          {guild.already_member ? (
+            <Button variant="outline" className="w-full" onClick={open}>
+              {t("guilds:community.open")}
+            </Button>
+          ) : (
+            <Button className="w-full" onClick={handleJoin} disabled={join.isPending}>
+              {join.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  {t("guilds:community.joining")}
+                </>
+              ) : (
+                t("guilds:community.join")
+              )}
+            </Button>
+          )}
+        </div>
+      </GuildCardFace>
     </>
   );
 };

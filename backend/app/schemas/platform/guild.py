@@ -210,6 +210,9 @@ class GuildRead(GuildBase):
     # the banner's: this payload lists every guild the caller is in, and the
     # icon used to be a data URI inlined into all of them.
     icon_url: Optional[str] = None
+    # The banner's card rendition, for the guild's card in the switcher — the
+    # strip its directory card shows. ``None`` when the banner has no artwork.
+    banner_card_url: Optional[str] = None
 
 
 class GuildPaymentIssueRead(SanitizedBaseModel):
