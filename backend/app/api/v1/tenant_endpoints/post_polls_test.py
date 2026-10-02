@@ -817,7 +817,7 @@ async def test_an_unanswered_poll_is_not_locked(
     assert seen["is_locked"] is False
 
 
-async def test_a_copy_is_a_draft_with_an_open_poll_and_none_of_its_votes(
+async def test_a_copy_is_a_draft_whose_lapsed_poll_opens_when_posted(
     client: AsyncClient, acting_user, session
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
@@ -848,12 +848,12 @@ async def test_a_copy_is_a_draft_with_an_open_poll_and_none_of_its_votes(
     options = copy["poll"]["options"]
     assert [o["text"] for o in options] == ["Tuesday", "Thursday"]
     assert not any(o["voted_by_me"] for o in options)
-    # The original's poll had closed; the draft's opens when it is posted.
-    assert copy["poll"]["closes_at"] is None
-    # A deadline still to come is the copy's too.
-    later = datetime.now(timezone.utc) + timedelta(days=7)
-    upcoming = await create_post(session, a.initiative, a.user)
-    await create_post_poll(session, upcoming, closes_at=later)
-    kept = await client.post(a.g(f"/posts/{upcoming.id}/duplicate"), headers=a.headers)
-    assert kept.status_code == 201, kept.text
-    assert datetime.fromisoformat(kept.json()["poll"]["closes_at"]) == later
+    # The deadline is copied as written, and posting the draft after it has
+    # passed opens the poll.
+    assert datetime.fromisoformat(copy["poll"]["closes_at"]) == poll.closes_at
+    posted = await client.patch(
+        a.g(f"/posts/{copy['id']}"), headers=a.headers, json={"scheduled_for": None}
+    )
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["published_at"] is not None
+    assert posted.json()["poll"]["closes_at"] is None

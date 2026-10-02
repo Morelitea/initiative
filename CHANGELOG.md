@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A post that goes up after its poll's deadline** opens the poll instead of posting it already closed. The author can set a new deadline.
 - Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.
 - **A project's built-in filter presets** (All, Incomplete, Unassigned, Mine) now show in your language, unless someone has renamed them.
 
