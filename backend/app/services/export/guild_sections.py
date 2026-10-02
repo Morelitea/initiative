@@ -92,7 +92,6 @@ async def _build_settings(ctx: SectionContext) -> tuple[dict[str, Any], int] | N
         "name": guild.name,
         "description": guild.description,
         "is_community": guild.is_community,
-        "show_member_names": guild.show_member_names,
         "categories": list(guild.categories or []),
         "has_adult_content": guild.has_adult_content,
         "allow_api_keys": guild.allow_api_keys,
@@ -165,7 +164,7 @@ async def _build_members(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
             {
                 "user_id": membership.user_id,
                 "handle": handle_of(profile) if profile else None,
-                "name": getattr(profile, "full_name", None),
+                "name": getattr(profile, "display_name", None),
                 "role": _enum_value(membership.role),
                 "joined_at": _iso(getattr(membership, "created_at", None)),
             }

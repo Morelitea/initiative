@@ -225,15 +225,14 @@ class PostReadReceipt(SanitizedBaseModel):
 
 
 class PostReader(SanitizedBaseModel):
-    """One person on a notice's roster, named the way reactors are named — so a
-    guild that renders handles rather than real names does so here too."""
+    """One person on a notice's roster, named the way reactors are named."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     username: str
     discriminator: int
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     avatar_url: Optional[str] = None
     #: What they have put around their picture. Carried on the person rather
     #: than fetched per row, so the roster dresses its avatars the way every
@@ -265,7 +264,7 @@ def post_reader(profile: Any, *, read_at: Optional[datetime] = None) -> PostRead
         id=profile.id,
         username=profile.username,
         discriminator=profile.discriminator,
-        full_name=getattr(profile, "full_name", None),
+        display_name=getattr(profile, "display_name", None),
         avatar_url=getattr(profile, "avatar_url", None),
         profile_decorations=ProfileDecorations.model_validate(
             getattr(profile, "profile_decorations", None) or {}

@@ -815,12 +815,6 @@ class Settings(BaseSettings):
             "FIRST_OWNER_PASSWORD", "FIRST_SUPERUSER_PASSWORD"
         ),
     )
-    FIRST_OWNER_FULL_NAME: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices(
-            "FIRST_OWNER_FULL_NAME", "FIRST_SUPERUSER_FULL_NAME"
-        ),
-    )
     DISABLE_GUILD_CREATION: bool = False
     # Communities one account may create in a day; 0 means no limit. Accounts
     # holding ``guilds.manage`` are not held to it.

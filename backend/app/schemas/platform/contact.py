@@ -18,9 +18,9 @@ from app.schemas.platform.user import ProfileDecorations, UserSummary
 class ContactRead(UserSummary):
     """One person, on one row of the page.
 
-    Inherits ``UserSummary``'s guild-name visibility: ``full_name`` survives
-    only where the guild this row was read under renders real names, which the
-    cross-guild loop sets per guild.
+    Inherits ``UserSummary``'s ``display_name``: the name the person set in
+    the guild this row was read under, which the cross-guild loop reads per
+    guild.
     """
 
     model_config = ConfigDict(

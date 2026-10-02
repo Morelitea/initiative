@@ -15,7 +15,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.sql import text
-from sqlalchemy.orm import validates
 from sqlmodel import Field, Index, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
@@ -307,15 +306,6 @@ class Guild(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    # Whether this guild renders members' real names. On by default, which is
-    # what a private workspace expects; off renders handles instead and is the
-    # only option for a listed guild — ck_guilds_community_member_names makes
-    # that structural, so the effective rule is this one column rather than a
-    # pair to reconcile.
-    show_member_names: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
     # Which shelves the guild files itself under (see GuildCategory). A listed
     # guild must be on at least one — a card nobody can find by browsing is not
     # a listing — which the ck_guilds_community_categories CHECK enforces.
@@ -422,19 +412,6 @@ class Guild(SQLModel, table=True):
         back_populates="guild",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-
-    @validates("is_community")
-    def _listing_a_guild_renders_handles(self, _key: str, listed: bool) -> bool:
-        """Listing a guild turns its real names off, in the same write.
-
-        ``ck_guilds_community_member_names`` says a listed guild renders
-        handles. Doing it here rather than at each caller means the one place
-        that sets ``is_community`` is the place it happens, and the constraint
-        has nothing left to catch.
-        """
-        if listed:
-            self.show_member_names = False
-        return listed
 
 
 class GuildRole(str, Enum):

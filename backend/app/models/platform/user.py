@@ -176,7 +176,6 @@ class User(SQLModel, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    full_name: Optional[str] = Field(default=None)
     # NULL = no password set (SSO-only account) — password verification treats
     # a missing hash as "never a match", so such an account can only sign in
     # through its identity provider until it explicitly sets a password.

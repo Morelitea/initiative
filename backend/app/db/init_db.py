@@ -55,9 +55,8 @@ async def init_owner() -> None:
 
         # Create the first superuser (the platform owner)...
         user = User(
-            full_name=settings.FIRST_OWNER_FULL_NAME,
-            username=usernames.from_full_name(settings.FIRST_OWNER_FULL_NAME)
-            or usernames.random_name(),
+            # Assigned, not picked: the owner chooses one on first sign-in.
+            username=usernames.random_name(),
             discriminator=usernames.random_discriminator(),
             hashed_password=get_password_hash(settings.FIRST_OWNER_PASSWORD),
             password_set_at=datetime.now(timezone.utc),

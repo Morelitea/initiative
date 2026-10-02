@@ -16,7 +16,7 @@ async def test_mention_email_escapes_malicious_display_name(session, monkeypatch
     """A mention email whose actor display name contains markup must show the
     literal text in the HTML part (no live link inside the brand-styled body)
     while the plain-text alternative keeps the raw text."""
-    user = await create_user(session, full_name="Victim")
+    user = await create_user(session)
 
     captured: dict = {}
 
@@ -83,7 +83,7 @@ async def test_join_request_email_renders_and_escapes_the_note(session, monkeypa
     the keys exist and that the note renders as text, not markup, in the
     brand-styled body.
     """
-    manager = await create_user(session, full_name="Grace")
+    manager = await create_user(session)
 
     captured: dict = {}
 
@@ -148,7 +148,7 @@ async def test_join_request_outcome_emails_render(
 ):
     """The requester's copy resolves for both outcomes, and omits the note line
     entirely when there is nothing to quote."""
-    requester = await create_user(session, full_name="Ada")
+    requester = await create_user(session)
 
     captured: dict = {}
 

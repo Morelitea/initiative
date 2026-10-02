@@ -90,7 +90,7 @@ async def test_deleting_keeps_the_account_and_everything_it_holds(
     # When it was asked for, which is what the erasure date counts from.
     assert row.status_changed_at is not None
     # Its personal details are untouched — nothing has been erased yet.
-    assert row.full_name == user.full_name
+    assert (row.username, row.discriminator) == (user.username, user.discriminator)
 
     roster = (
         await session.exec(

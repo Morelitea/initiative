@@ -3368,9 +3368,7 @@ async def test_guild_export_status_says_who_took_the_last_one_and_when(
     ).json()
     assert body["latest"]["id"] == job_id
     assert body["latest"]["status"] == ExportJobStatus.queued.value
-    assert body["latest_started_by"] == (
-        a.user.full_name or f"{a.user.username}#{a.user.discriminator:04d}"
-    )
+    assert body["latest_started_by"] == f"{a.user.username}#{a.user.discriminator:04d}"
 
     # The countdown the page shows and the door the create route shuts are the
     # same number, read from the same job.

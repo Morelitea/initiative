@@ -254,7 +254,7 @@ def test_a_member_for_an_install_is_a_reference_a_handle_a_name_and_a_picture():
         id=11,
         username="ada",
         discriminator=1234,
-        full_name="Ada Lovelace",
+        display_name="Ada Lovelace",
         avatar_url="https://pictures.example/ada.png",
     )
     member = AppMemberRead.from_public(public)
@@ -262,7 +262,7 @@ def test_a_member_for_an_install_is_a_reference_a_handle_a_name_and_a_picture():
         "id",
         "username",
         "discriminator",
-        "full_name",
+        "display_name",
         "avatar_url",
     }
     assert member.avatar_url == "https://pictures.example/ada.png"

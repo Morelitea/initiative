@@ -149,7 +149,6 @@ async def create_user(
         # not about the age gate should never meet it. The gate's own tests
         # pass ``age_confirmed_at=None`` to get an account that has not.
         "age_confirmed_at": datetime.now(timezone.utc),
-        "full_name": "Test User",
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,
         "status": UserStatus.active,

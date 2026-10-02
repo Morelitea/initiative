@@ -188,7 +188,7 @@ async def list_all_users(
 _PLATFORM_CSV_HEADERS = [
     "user_id",
     "email",
-    "full_name",
+    "handle",
     "platform_role",
     "status",
     "email_verified",
@@ -229,7 +229,7 @@ async def export_platform_users_csv(
             [
                 record.id,
                 record.email,
-                record.full_name or "",
+                handle_of(record),
                 record.role.value if hasattr(record.role, "value") else record.role,
                 record.status.value
                 if hasattr(record.status, "value")

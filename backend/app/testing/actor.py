@@ -89,7 +89,7 @@ async def make_actor(
     pass an existing ``Initiative`` to join it with ``initiative_role``.
     ``project=True`` creates one owned by the actor inside the initiative;
     pass an existing ``Project`` to reference it without any grant.
-    ``**overrides`` go to ``create_user`` (e.g. ``email=``, ``full_name=``).
+    ``**overrides`` go to ``create_user`` (e.g. ``email=``, ``username=``).
     """
     if guild is not None and guild_role is None:
         guild_role = GuildRole.member

@@ -10,11 +10,8 @@ rather than by anything a statement says. So a query about people is a query
 about *these* people, the ones a roster or a member picker would already show
 the same reader.
 
-``full_name`` is the guild's decision too, taken one layer further down — the
-projection answers with a name only where the guild renders real names, so a
-guild that does not has nothing here to select. ``display_name`` is the column
-to group by either way: the real name where there is one, the handle where
-there is not.
+``display_name`` is the column to group by: the name the member set in this
+guild where there is one, the handle where there is not.
 """
 
 from __future__ import annotations

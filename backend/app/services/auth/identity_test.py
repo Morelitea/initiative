@@ -88,7 +88,6 @@ async def _resolve(session, provider, **overrides) -> IdentityResolution:
         "subject": "sub-1",
         "email": "alice@example.com",
         "email_verified": True,
-        "full_name": "Alice",
     }
     kwargs.update(overrides)
     return await resolve_oidc_identity(session, provider=provider, **kwargs)
@@ -198,7 +197,6 @@ async def test_unknown_user_is_provisioned_and_linked(session):
     assert user.role == UserRole.member
     assert user.status == UserStatus.active
     assert (await _address(session, user.id)).verified_at is not None
-    assert user.full_name == "Alice"
     # SSO-only: no password is set — a NULL hash never verifies, so this
     # account signs in exclusively through its provider.
     assert user.hashed_password is None
@@ -257,7 +255,6 @@ async def test_provision_recovers_from_subject_race_without_orphan(session):
         subject="sub-1",
         email="loser@example.com",
         email_verified=True,
-        full_name="Loser",
         avatar_url=None,
     )
     assert result.outcome is ResolutionOutcome.LINKED
@@ -288,7 +285,6 @@ async def test_provision_recovers_from_email_race_as_email_match(session):
         subject="sub-new",
         email="shared@example.com",
         email_verified=True,
-        full_name="Loser",
         avatar_url=None,
     )
     assert result.outcome is ResolutionOutcome.EMAIL_MATCH
@@ -310,7 +306,6 @@ async def test_provision_email_race_unverified_is_refused(session):
         subject="sub-new",
         email="victim@example.com",
         email_verified=False,
-        full_name="Attacker",
         avatar_url=None,
     )
     assert result.outcome is ResolutionOutcome.EMAIL_UNVERIFIED

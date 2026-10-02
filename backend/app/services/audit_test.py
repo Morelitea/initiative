@@ -35,8 +35,8 @@ def _audit_lines(out: str) -> list[dict]:
 async def test_the_envelope_carries_ids_and_no_identity(session, capfd):
     """Names are resolved by whoever reads the stream, from ids. A name
     written into the record would outlive the erasure of the account."""
-    actor = await create_user(session, full_name="Ada Admin")
-    subject = await create_user(session, full_name="Sam Subject")
+    actor = await create_user(session, username="ada-admin")
+    subject = await create_user(session, username="sam-subject")
     actor_id, subject_id = actor.id, subject.id
     capfd.readouterr()
 
@@ -53,7 +53,7 @@ async def test_the_envelope_carries_ids_and_no_identity(session, capfd):
     (line,) = _audit_lines(capfd.readouterr().out)
     assert line == envelope
     serialized = json.dumps(line)
-    assert "Ada Admin" not in serialized and "Sam Subject" not in serialized
+    assert "ada-admin" not in serialized and "sam-subject" not in serialized
     assert line["schema_version"] == SCHEMA_VERSION
     assert line["service"] == SERVICE
     assert line["event_type"] == "user.avatar_removed"

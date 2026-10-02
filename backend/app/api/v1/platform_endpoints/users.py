@@ -948,7 +948,7 @@ async def read_user_communities(
 _GUILD_CSV_HEADERS = [
     "user_id",
     "handle",
-    "full_name",
+    "display_name",
     "guild_role",
     "oidc_managed",
     "status",
@@ -994,7 +994,7 @@ async def export_users_csv(
             [
                 user.id,
                 handle_of(user),
-                user.full_name or "",
+                user.display_name or "",
                 guild_role.value,
                 oidc_provider_id is not None,
                 user.status.value if hasattr(user.status, "value") else user.status,
@@ -1365,10 +1365,6 @@ async def update_users_me(
         payload.has_password = has_usable_password(current_user.hashed_password)
         payload.password_required = await password_confirms(session, current_user)
         return payload
-
-    new_full_name = update_data.get("full_name")
-    if new_full_name is not None:
-        current_user.full_name = new_full_name or None
 
     password = update_data.get("password")
     if password:

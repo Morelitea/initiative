@@ -231,13 +231,12 @@ async def test_each_guild_names_someone_by_what_they_set_there(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """One response, two guilds, one person — named in each by the display name
-    set there, and searchable by it only there. The account's own name is
-    neither."""
+    set there, and searchable by it only there."""
     a = await acting_user()
     named = await create_guild(session)
     unnamed = await create_guild(session)
     await _rail(session, a.user, named, unnamed)
-    other = await create_user(session, username="qqqhandle", full_name="Ada Real")
+    other = await create_user(session, username="qqqhandle")
     await _join(session, named, other)
     await _join(session, unnamed, other)
     await create_guild_membership(
@@ -245,13 +244,11 @@ async def test_each_guild_names_someone_by_what_they_set_there(
     )
 
     payload = (await client.get(SECTIONS, headers=a.headers)).json()
-    assert _section(payload, named.id)["items"][0]["full_name"] == "Ada Lovelace"
-    assert _section(payload, unnamed.id)["items"][0]["full_name"] is None
+    assert _section(payload, named.id)["items"][0]["display_name"] == "Ada Lovelace"
+    assert _section(payload, unnamed.id)["items"][0]["display_name"] is None
 
     searched = await client.get(f"{SECTIONS}?search=Lovelace", headers=a.headers)
     assert [s["guild_id"] for s in searched.json()["sections"]] == [named.id]
-    real = await client.get(f"{SECTIONS}?search=Real", headers=a.headers)
-    assert real.json()["sections"] == []
 
 
 # --- the shared-guild chip --------------------------------------------------
@@ -470,9 +467,9 @@ async def test_suspended_favorite_drops_out_and_returns(
 async def test_favorites_search_matches_the_handle(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """A profile carries no real name, so the handle is all there is to match."""
+    """A profile carries no name, so the handle is all there is to match."""
     a = await acting_user()
-    hit = await create_user(session, username="findable", full_name="Ada Lovelace")
+    hit = await create_user(session, username="findable")
     miss = await create_user(session, username="otherperson")
     await client.put(f"{FAVORITES}/{hit.id}", headers=a.headers)
     await client.put(f"{FAVORITES}/{miss.id}", headers=a.headers)
@@ -481,11 +478,6 @@ async def test_favorites_search_matches_the_handle(
         await client.get(f"{FAVORITES}?search=findable", headers=a.headers)
     ).json()
     assert [item["id"] for item in by_handle["items"]] == [hit.id]
-
-    by_name = (
-        await client.get(f"{FAVORITES}?search=Lovelace", headers=a.headers)
-    ).json()
-    assert by_name["items"] == []
 
 
 async def test_a_favorites_list_is_private(

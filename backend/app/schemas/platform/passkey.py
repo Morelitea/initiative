@@ -104,7 +104,6 @@ class PasskeySignUpStart(SanitizedBaseModel):
     # The name part of the handle. The number behind it is drawn server-side —
     # it is never anyone's to choose.
     username: str = Field(max_length=64)
-    full_name: Optional[TitleStr] = None
     timezone: Optional[str] = Field(default=None, max_length=64)
     captcha_token: Optional[str] = Field(default=None, max_length=4096)
     community: Optional[NewCommunity] = None

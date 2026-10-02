@@ -610,13 +610,12 @@ def _rehydrate_value(
         if user is None:
             return {"id": row.value_user_id} if row.value_user_id else None
         # The same person shape the rest of the API ships. ``value_user`` is
-        # the guild projection, so its name is already whatever this guild
-        # renders.
+        # the guild projection, so its name is the one set in this guild.
         return {
             "id": user.id,
             "username": user.username,
             "discriminator": user.discriminator,
-            "full_name": user.full_name,
+            "display_name": user.display_name,
             "avatar_url": user.avatar_url,
         }
     return None  # pragma: no cover

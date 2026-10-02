@@ -46,6 +46,7 @@ from app.api.v1.platform_endpoints.session_opening import (
     upgrade_session,
 )
 from app.core.audit_events import AuditEventType
+from app.core.user_display import handle_of
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, NativeMessages
 from app.core.transitions import NATIVE_SIGN_IN_CODE
@@ -222,14 +223,13 @@ async def begin_passkey_registration(
         await addresses.primary_address(system_session, user_id=current_user.id)
         or current_user.username
     )
-    display_name = current_user.full_name or current_user.username
 
     try:
         ceremony = await passkey_service.begin_registration(
             system_session,
             user_id=current_user.id,
             account_name=account_name,
-            display_name=display_name,
+            display_name=handle_of(current_user),
         )
     except passkey_service.PasskeyLimitReached:
         raise _limit_reached() from None

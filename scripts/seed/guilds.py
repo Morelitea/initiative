@@ -239,7 +239,6 @@ async def list_in_directory(
         [c.value for c in categories]
     )
     guild.has_adult_content = False
-    guild.show_member_names = False
     session.add(guild)
     await session.flush()
 

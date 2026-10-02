@@ -1724,7 +1724,9 @@ async def test_read_task_includes_creator_summary(
         initiative=True,
         project=True,
         username="ada-c",
-        full_name="Ada C.",
+    )
+    await create_guild_membership(
+        session, user=a.user, guild=a.guild, display_name="Ada C."
     )
     create = await client.post(
         a.g("/tasks/"),
@@ -1740,10 +1742,9 @@ async def test_read_task_includes_creator_summary(
     assert body["created_by"] == a.user.id
     assert body["creator"] is not None
     assert body["creator"]["id"] == a.user.id
-    # The handle is always there; the name comes too, because this guild
-    # takes the default and shows them.
+    # The handle is always there, and the name she set in this guild with it.
     assert body["creator"]["username"] == "ada-c"
-    assert body["creator"]["full_name"] == "Ada C."
+    assert body["creator"]["display_name"] == "Ada C."
 
 
 async def _assignment_fixture(session, actor):

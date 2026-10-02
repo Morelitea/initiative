@@ -176,7 +176,7 @@ async def trash_page(
             window,
             MemberProfile.id.label("profile_id"),
             MemberProfile.status,
-            MemberProfile.full_name,
+            MemberProfile.display_name,
             MemberProfile.username,
             MemberProfile.discriminator,
         )

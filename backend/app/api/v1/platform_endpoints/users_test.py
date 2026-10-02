@@ -58,7 +58,7 @@ def _profile_url(user: User) -> str:
 
 async def test_get_current_user(client, acting_user):
     """The account read answers with the account's own details."""
-    a = await acting_user(email="test@example.com", full_name="Test User")
+    a = await acting_user(email="test@example.com")
 
     response = await client.get("/api/v1/users/me", headers=a.headers)
 
@@ -66,7 +66,6 @@ async def test_get_current_user(client, acting_user):
     data = response.json()
     assert data["id"] == a.user.id
     assert data["email"] == "test@example.com"
-    assert data["full_name"] == "Test User"
     assert data["status"] == "active"
 
 
@@ -120,8 +119,10 @@ async def test_the_users_router_answers_403_without_the_standing(
 
 async def test_update_current_user_profile(client, acting_user):
     """Test updating current user's profile."""
-    a = await acting_user(full_name="Old Name")
+    a = await acting_user()
 
+    # An older client that still sends an account name is not refused; the
+    # name has nowhere to go.
     response = await client.patch(
         "/api/v1/users/me",
         headers=a.headers,
@@ -130,7 +131,7 @@ async def test_update_current_user_profile(client, acting_user):
 
     assert response.status_code == 200
     data = response.json()
-    assert data["full_name"] == "New Name"
+    assert "full_name" not in data
     assert data["timezone"] == "America/New_York"
 
 
@@ -314,14 +315,12 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
     caller = await acting_user(
         guild_role=GuildRole.member,
         username="user-one",
-        full_name="User One",
         initiative=True,
     )
     await acting_user(
         guild_role=GuildRole.member,
         guild=caller.guild,
         username="zed-two",
-        full_name="Zed Two",
     )
     await acting_user(guild_role=GuildRole.member)  # somebody in another guild
 
@@ -360,11 +359,9 @@ async def test_list_users_lists_this_guilds_members(client, acting_user):
 async def test_search_users_returns_slim_paginated_envelope(client, acting_user):
     """The slim search endpoint returns a UserSummary envelope (no email /
     role / initiative_roles) and honours page_size."""
-    caller = await acting_user(
-        guild_role=GuildRole.member, username="aaa-caller", full_name="Aaa"
-    )
-    await acting_user(guild=caller.guild, username="bbb-other", full_name="Bbb")
-    await acting_user(guild=caller.guild, username="ccc-third", full_name="Ccc")
+    caller = await acting_user(guild_role=GuildRole.member, username="aaa-caller")
+    await acting_user(guild=caller.guild, username="bbb-other")
+    await acting_user(guild=caller.guild, username="ccc-third")
 
     response = await client.get(
         caller.g("/users/search"),
@@ -390,7 +387,7 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
         "id",
         "username",
         "discriminator",
-        "full_name",
+        "display_name",
         "avatar_url",
         "status",
         "profile_decorations",
@@ -400,8 +397,8 @@ async def test_search_users_returns_slim_paginated_envelope(client, acting_user)
     # key-set check passes just as happily on an endpoint that never fills it
     # in -- which is the state this test was written against.
     assert summary["guild_role"] == "member"
-    # The account's own name does not reach a guild; nobody set one here.
-    assert summary["full_name"] is None
+    # Nobody set a name in this guild.
+    assert summary["display_name"] is None
 
 
 async def test_search_users_can_list_the_caller_first(client, acting_user):
@@ -530,13 +527,9 @@ async def test_search_users_finds_the_name_that_was_typed(
     """`search` matches the part of the handle this guild renders, without
     regard to case. Reading a roster is how you learn a colleague's spelling,
     so a dropped letter and a transposition both still find the person."""
-    caller = await acting_user(
-        guild_role=GuildRole.member, username="asmith", full_name="Alice Smith"
-    )
-    await acting_user(guild=caller.guild, username="bjones", full_name="Bob Jones")
-    await acting_user(
-        guild=caller.guild, username="thorn-ironforge", full_name="Thorn Ironforge"
-    )
+    caller = await acting_user(guild_role=GuildRole.member, username="asmith")
+    await acting_user(guild=caller.guild, username="bjones")
+    await acting_user(guild=caller.guild, username="thorn-ironforge")
 
     response = await client.get(
         caller.g("/users/search"), headers=caller.headers, params={"search": typed}
@@ -550,14 +543,8 @@ async def test_search_users_finds_the_name_that_was_typed(
 async def test_search_users_never_reaches_another_guild(client, acting_user):
     """Matching a name more loosely must not widen WHOSE names are matched.
     Only this guild's members are ever searched, exact spelling or not."""
-    caller = await acting_user(
-        guild_role=GuildRole.member, username="asmith", full_name="Alice Smith"
-    )
-    await acting_user(
-        guild_role=GuildRole.member,
-        username="thorn-ironforge",
-        full_name="Thorn Ironforge",
-    )
+    caller = await acting_user(guild_role=GuildRole.member, username="asmith")
+    await acting_user(guild_role=GuildRole.member, username="thorn-ironforge")
 
     for typed in ("ironforge", "irnforge", "thorn"):
         response = await client.get(
@@ -568,26 +555,6 @@ async def test_search_users_never_reaches_another_guild(client, acting_user):
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["total_count"] == 0, f"{typed} reached {body['items']}"
-
-
-async def test_search_users_matches_real_names_only_where_they_are_shown(
-    client, session, acting_user
-):
-    """A real name is searchable exactly where it is shown. In a guild that
-    hides them, neither the spelling of one nor a near miss at it matches."""
-    guild = await create_guild(session, show_member_names=False)
-    caller = await acting_user(guild=guild, username="asmith", full_name="Alice Smith")
-    await acting_user(guild=guild, username="qzx", full_name="Bartholomew Higgins")
-
-    for typed in ("Bartholomew", "Bartholemew", "Higgins"):
-        response = await client.get(
-            caller.g("/users/search"),
-            headers=caller.headers,
-            params={"search": typed},
-        )
-        assert response.status_code == 200, response.text
-        body = response.json()
-        assert body["total_count"] == 0, f"{typed} matched a name this guild hides"
 
 
 async def test_search_users_filters_by_user_id(client, acting_user):
@@ -962,7 +929,7 @@ async def test_export_users_csv_as_admin(client, session, csv_guild):
     assert header_row == [
         "user_id",
         "handle",
-        "full_name",
+        "display_name",
         "guild_role",
         "oidc_managed",
         "status",
@@ -1116,7 +1083,7 @@ async def test_updating_yourself_reports_your_own_linked_identity(
     await create_federated_identity(session, linked.user)
     plain = await acting_user()
 
-    for body in ({}, {"full_name": "Renamed"}):
+    for body in ({}, {"timezone": "Europe/Berlin"}):
         response = await client.patch(
             "/api/v1/users/me", headers=linked.headers, json=body
         )
@@ -1124,7 +1091,7 @@ async def test_updating_yourself_reports_your_own_linked_identity(
         assert response.json()["has_federated_identity"] is True
 
     response = await client.patch(
-        "/api/v1/users/me", headers=plain.headers, json={"full_name": "Plain"}
+        "/api/v1/users/me", headers=plain.headers, json={"timezone": "Europe/Berlin"}
     )
     assert response.status_code == 200, response.text
     assert response.json()["has_federated_identity"] is False
@@ -1235,14 +1202,13 @@ async def test_profile_carries_the_basics(client, session, acting_user):
     picked, and when they joined.
 
     The handle is the name here, and the page is the same one for everyone, so
-    it carries nothing a guild decides the visibility of — the real name on
-    this very account included.
+    it carries nothing a guild decides the visibility of — the name somebody
+    set in a guild included.
     """
     caller = await acting_user()
     subject = await create_user(
         session,
         username="tinker",
-        full_name="Tinker Bell",
         avatar_url="https://example.com/tinker.png",
         custom_status={"emoji": "\N{GAME DIE}", "text": "rolling for initiative"},
         profile_decorations={"banner": "core.aurora", "trophies": ["core.fan"]},
@@ -1268,8 +1234,7 @@ async def test_profile_carries_the_basics(client, session, acting_user):
     }
     assert body["presence"] == "offline"
     assert body["joined_at"]
-    assert "full_name" not in body
-    # Nor anything else the account keeps to itself.
+    # Nothing the account keeps to itself.
     assert set(body.keys()) == {
         "id",
         "username",

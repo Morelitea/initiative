@@ -83,7 +83,6 @@ async def resolve_oidc_identity(
     subject: str,
     email: str | None,
     email_verified: bool,
-    full_name: str | None = None,
     avatar_url: str | None = None,
 ) -> IdentityResolution:
     """Resolve ``(provider, subject)`` to a user.
@@ -162,7 +161,6 @@ async def resolve_oidc_identity(
         subject=subject,
         email=email,
         email_verified=email_verified,
-        full_name=full_name,
         avatar_url=avatar_url,
     )
 
@@ -531,7 +529,6 @@ async def _provision(
     subject: str,
     email: str | None,
     email_verified: bool,
-    full_name: str | None,
     avatar_url: str | None,
 ) -> IdentityResolution:
     # No email claim: a synthetic address keyed off the IdP-controlled subject,
@@ -555,10 +552,8 @@ async def _provision(
             select(func.pg_advisory_xact_lock(_address_lock_key(normalized)))
         )
 
-    # A random handle, not one built from the claims. The claims feed the
-    # suggestions on the pick screen instead, so an account abandoned partway
-    # through is left holding nothing that identifies its owner — and a
-    # corporate IdP's ``preferred_username`` is offered rather than imposed.
+    # A random handle, not one built from the claims, so an account abandoned
+    # partway through is left holding nothing that identifies its owner.
     handle, discriminator = await username_service.allocate_from_seed(session)
 
     user = User(
@@ -566,9 +561,6 @@ async def _provision(
         discriminator=discriminator,
         # Assigned, not picked: its owner chooses one on their next sign-in.
         username_chosen=False,
-        # An address is not a display name. With no name claim there is simply
-        # no name, and the handle carries the display.
-        full_name=full_name,
         # SSO-only account: no password. Verification treats a NULL hash as
         # never-a-match, so this account signs in only through its provider.
         hashed_password=None,

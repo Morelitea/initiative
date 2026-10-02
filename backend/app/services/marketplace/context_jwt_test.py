@@ -127,7 +127,7 @@ class TestClaims:
             "connection_refs",
         }
         body = json.dumps(claims)
-        for identity in ("user_id", "email", "full_name", "username", "sub"):
+        for identity in ("user_id", "email", "display_name", "username", "sub"):
             assert identity not in body
 
     def test_connection_refs_travel_only_when_a_member_credential_is_involved(self):

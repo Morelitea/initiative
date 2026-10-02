@@ -110,7 +110,7 @@ async def test_a_suspended_account_reads_its_own_rows(session):
 @pytest.mark.parametrize(
     "statement",
     [
-        "UPDATE users SET full_name = 'changed' WHERE id = :uid",
+        "UPDATE users SET timezone = 'UTC' WHERE id = :uid",
         "INSERT INTO notifications (user_id, type, data) "
         f"VALUES (:uid, '{NotificationType.account_suspended.value}', '{{}}')",
         "DELETE FROM notifications WHERE user_id = :uid",

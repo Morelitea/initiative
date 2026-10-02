@@ -1122,7 +1122,7 @@ class _ScopeBuilder:
                     "handle": handle_of(profiles[member.user_id])
                     if member.user_id in profiles
                     else None,
-                    "name": getattr(profiles.get(member.user_id), "full_name", None),
+                    "name": getattr(profiles.get(member.user_id), "display_name", None),
                     # By role NAME: role ids are per-initiative and mean
                     # nothing once the archive is opened somewhere else.
                     "role": role_names.get(member.role_id),

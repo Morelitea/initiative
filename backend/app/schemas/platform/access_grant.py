@@ -137,9 +137,8 @@ class AccessGrantRead(SanitizedBaseModel):
     # re-fetching users/guilds). Optional so ``model_validate`` over a bare
     # ORM row still works.
     #: Masked (``u***1@e***m``). An approver reads this row to decide on a
-    #: request; the full name and user id beside it identify the requester.
+    #: request; the handle and user id beside it identify the requester.
     user_email: Optional[str] = None
-    user_full_name: Optional[str] = None
     guild_name: Optional[str] = None
     # The grant's guild lifecycle status, so an operator holding the grant sees
     # a suspended / read-only guild they're acting in (surfaced in the access

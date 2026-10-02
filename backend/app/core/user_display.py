@@ -18,7 +18,6 @@ from app.core import usernames
 class Nameable(Protocol):
     username: str
     discriminator: int
-    full_name: str | None
 
 
 def display_name(user: Nameable | None, fallback: str = "") -> str:
@@ -27,12 +26,13 @@ def display_name(user: Nameable | None, fallback: str = "") -> str:
 
     Whether there is one is the guild's answer, not this function's. A
     guild-routed session reads people through ``guild_member_profiles``, whose
-    ``full_name`` is the display name the person set in that guild — so where
-    they set none, this arrives with nothing to use and gives the handle.
+    ``display_name`` is the name the person set in that guild — so where they
+    set none, or where ``user`` is an account rather than a member, this has
+    nothing to use and gives the handle.
     """
     if user is None:
         return fallback
-    name = (getattr(user, "full_name", None) or "").strip()
+    name = (getattr(user, "display_name", None) or "").strip()
     return name or handle_of(user)
 
 
