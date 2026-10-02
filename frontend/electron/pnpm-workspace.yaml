@@ -1,0 +1,3 @@
+# Its own pnpm project, so installing the frontend never downloads Electron.
+packages:
+  - "."
