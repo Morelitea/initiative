@@ -3,6 +3,7 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
+import { SignInFrame } from "@/components/auth/SignInFrame";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -66,7 +67,7 @@ export const ResetPasswordPage = () => {
   // the server refuses the reset it asks for.
   if (!passwordLoginEnabled) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <SignInFrame>
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
             <CardTitle>{t("passwordsOff.title")}</CardTitle>
@@ -78,13 +79,13 @@ export const ResetPasswordPage = () => {
             </Link>
           </CardFooter>
         </Card>
-      </div>
+      </SignInFrame>
     );
   }
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+      <SignInFrame>
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader>
             <CardTitle>{t("resetPassword.titleInvalid")}</CardTitle>
@@ -96,12 +97,12 @@ export const ResetPasswordPage = () => {
             </Link>
           </CardFooter>
         </Card>
-      </div>
+      </SignInFrame>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/60 px-4 py-12">
+    <SignInFrame>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader>
           <CardTitle>{t("resetPassword.title")}</CardTitle>
@@ -163,6 +164,6 @@ export const ResetPasswordPage = () => {
           </CardFooter>
         ) : null}
       </Card>
-    </div>
+    </SignInFrame>
   );
 };

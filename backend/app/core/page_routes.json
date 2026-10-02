@@ -108,7 +108,6 @@
   "/c/$guildId/tags/$tagId",
   "/communities",
   "/community/$guildId/login",
-  "/connect",
   "/download",
   "/forgot-password",
   "/invite/$code",

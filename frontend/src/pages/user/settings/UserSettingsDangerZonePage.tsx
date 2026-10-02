@@ -40,7 +40,7 @@ export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZ
   const handleDisconnectServer = async () => {
     await logout();
     clearServerUrl();
-    router.navigate({ to: "/connect", replace: true });
+    router.navigate({ to: "/login", replace: true });
   };
 
   return (

@@ -2,6 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
 import { setApiBaseUrl } from "@/api/client";
+import { queryClient } from "@/lib/queryClient";
 import { clearAllStorage, getStoredServerUrl, setStoredServerUrl } from "@/lib/serverStorage";
 
 interface ServerContextValue {
@@ -35,7 +36,7 @@ export const ServerContext = createContext<ServerContextValue | undefined>(undef
 /**
  * Normalize a server URL to include /api/v1 suffix
  */
-function normalizeServerUrl(url: string): string {
+export function normalizeServerUrl(url: string): string {
   let normalized = url.trim();
 
   // Add https:// if no protocol
@@ -143,6 +144,8 @@ export const ServerProvider = ({ children }: { children: ReactNode }) => {
     const normalizedUrl = normalizeServerUrl(url);
     setStoredServerUrl(normalizedUrl);
     setApiBaseUrl(normalizedUrl);
+    // Nothing the previous server said holds for this one.
+    queryClient.clear();
     setServerUrlState(normalizedUrl);
   }, []);
 
