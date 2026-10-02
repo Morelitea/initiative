@@ -405,7 +405,6 @@ async def read_counter(
     which is what a read-back after a delete depends on.
     """
     counter = await resource_access.load_child(session, Counter, counter_id)
-    await properties_service.annotate_properties(session, [counter])
     return serialize_counter(counter, context=guild_context)
 
 
