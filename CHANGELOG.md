@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
 - **App and API integrations:** galleries, queues, counter groups and wikis no longer report `image_count`, `item_count`, `counter_count` or `page_count`.
 - **The app's first screen asks where your Initiative runs.** Pick **Self-hosted** and enter your server's address.
+- **The app opens faster.** The sign-in page loads less than half the code it used to, in 30 files rather than nearly 170, and the rest of the app loads as you reach it.
 
 ### Fixed
 
