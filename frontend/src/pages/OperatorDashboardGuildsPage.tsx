@@ -329,6 +329,7 @@ export const OperatorDashboardGuildsPage = () => {
         onOpenChange={(next) => {
           if (!next) setManagingId(null);
         }}
+        supportBound={guildsQuery.data?.support_bound ?? false}
       />
     </Card>
   );

@@ -10,9 +10,10 @@ from app.core.moderation import ReportOutcome, ReportVenue
 from app.core.tools import Tool
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildRole
-from app.core.intake import IntakeStream
+from app.core.intake import CaseField, IntakeStream
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.intake import IntakeBinding, IntakeCase
+from app.models.tenant.property import PropertyDefinition, PropertyValue
 from app.models.tenant.comment import Comment
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.task import Task
@@ -467,7 +468,9 @@ async def test_escalating_with_nowhere_to_send_leaves_the_report_open(
 
 async def test_escalating_opens_a_platform_case(client, session, scene, operations):
     """The one crossing between the two shapes, carrying the reporters."""
-    report_id = await _filed_report_id(client, session, scene, reason="illegal")
+    report_id = await _filed_report_id(
+        client, session, scene, reason="illegal", detail="They posted my address."
+    )
 
     response = await client.post(
         f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle",
@@ -487,6 +490,8 @@ async def test_escalating_opens_a_platform_case(client, session, scene, operatio
     # The reporters travel with an escalation: the platform is where good
     # faith is judged.
     assert str(scene["member"].user.id) in (task.description or "")
+    # And so do their own words, which are what the platform judges.
+    assert "They posted my address." in (task.description or "")
     # Named with its community, since content ids are numbered per community.
     case = (await session.exec(select(IntakeCase))).one()
     assert case.dedupe_key == (
@@ -524,6 +529,41 @@ async def test_any_account_can_be_reported_by_profile(
 
     assert response.status_code == 202
     assert response.json()["venue"] == ReportVenue.platform.value
+
+
+async def test_a_reported_community_is_the_cases_subject(
+    client, session, scene, operations
+):
+    """A community reported from the directory or by name is what its case is
+    about, so the case names it the way a community's content does."""
+    response = await _report(
+        client,
+        scene["member"],
+        target_type="guild",
+        target_id=scene["guild"].id,
+        reason="illegal",
+    )
+    assert response.status_code == 202, response.text
+
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
+    task = (
+        await session.exec(
+            select(Task).where(Task.project_id == operations["project"].id)
+        )
+    ).one()
+    subject_guild = (
+        await session.exec(
+            select(PropertyValue.value_number)
+            .join(
+                PropertyDefinition,
+                PropertyDefinition.id == PropertyValue.property_id,
+            )
+            .where(PropertyValue.entity_type == "task")
+            .where(PropertyValue.entity_id == task.id)
+            .where(PropertyDefinition.name == CaseField.subject_guild.value)
+        )
+    ).one()
+    assert int(subject_guild) == scene["guild"].id
 
 
 async def test_a_community_the_reporter_cannot_see_is_not_reportable(

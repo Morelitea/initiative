@@ -157,7 +157,19 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
         return False
     async with cohorts.system_session(guild_id) as session:
         await set_rls_context(session, SystemGuild(guild_id))
-        return await _binding_for(session, stream) is not None
+        binding = await _binding_for(session, stream)
+        if binding is None:
+            return False
+        # The same test :func:`open_case` applies before it files anything: a
+        # project that is archived or in the trash takes no new cases.
+        project = (
+            await session.exec(
+                select(Project.archived_at, Project.deleted_at).where(
+                    Project.id == binding.project_id
+                )
+            )
+        ).first()
+        return project is not None and project[0] is None and project[1] is None
 
 
 async def _hold_key(

@@ -957,7 +957,6 @@ export const DocumentDetailPage = () => {
         <ToolCommentsPanel
           tool={Tool.document}
           entity={document}
-          canModerate={canEditDocument}
           onCountChange={updateDocumentCommentCount}
         />
       </div>

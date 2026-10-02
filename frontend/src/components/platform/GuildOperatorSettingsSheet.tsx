@@ -24,7 +24,6 @@ import type {
   PlatformGuildStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
-import { useReadIntakeSettingsApiV1SettingsIntakeGet } from "@/api/generated/intake/intake";
 import { BillingConsoleButton } from "@/components/platform/BillingConsoleButton";
 import { GuildRestoreWizard } from "@/components/platform/GuildRestoreWizard";
 import { Section, SettingRow } from "@/components/platform/SettingRow";
@@ -75,10 +74,16 @@ export const GuildOperatorSettingsSheet = ({
   guild,
   open,
   onOpenChange,
+  supportBound,
 }: {
   guild: PlatformGuildStorageRead | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Whether the deployment has somewhere to send help requests. Help
+   *  requests become cases in its support stream, so the switch is only
+   *  meaningful once something is bound to receive them — the deployment's
+   *  binding, one for every community, served beside the list. */
+  supportBound: boolean;
 }) => {
   const { t, i18n } = useTranslation("settings");
   const { billing } = useAppConfig();
@@ -108,10 +113,6 @@ export const GuildOperatorSettingsSheet = ({
       if (guild) syncDrafts(guild);
       toast.error(getErrorMessage(err, "settings:guilds.saveError"));
     },
-  });
-
-  const intake = useReadIntakeSettingsApiV1SettingsIntakeGet({
-    query: { enabled: open, staleTime: 60_000 },
   });
 
   // The drafts follow whichever community the sheet was opened for.
@@ -145,14 +146,6 @@ export const GuildOperatorSettingsSheet = ({
     }
     patch({ max_users: limit });
   };
-
-  // Help requests become cases in the deployment's support stream, so the
-  // switch is only meaningful once something is bound to receive them. Read
-  // here rather than inferred from the community: the binding is the
-  // deployment's, one for all of them.
-  const supportBound = (intake.data?.bindings ?? []).some(
-    (binding) => binding.stream === "support" && binding.enabled && binding.project_id !== null
-  );
 
   const options = guild.auth_options ?? [];
   const toggleOption = (option: GuildAuthOption, checked: boolean) =>

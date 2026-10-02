@@ -11,6 +11,7 @@ from app.core.intake import CaseField, IntakeStream
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.intake import IntakeBinding, IntakeCase
+from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
 from app.models.tenant.property import PropertyDefinition
@@ -123,6 +124,24 @@ async def test_a_disabled_binding_receives_nothing(session, bound):
     session.add(binding)
     await session.commit()
 
+    assert await intake_service.open_case(IntakeStream.support, title="Help") is None
+
+
+async def test_a_stream_bound_to_an_archived_project_is_not_bound(session, bound):
+    """A form is offered only where a case can land, and an archived project
+    takes none — so asking whether the stream is bound answers the same way
+    filing would."""
+    assert await intake_service.stream_is_bound(IntakeStream.support) is True
+
+    await set_rls_context(session, SystemGuild(bound["guild"].id))
+    project = (
+        await session.exec(select(Project).where(Project.id == bound["project"].id))
+    ).one()
+    project.archived_at = datetime.now(timezone.utc)
+    session.add(project)
+    await session.commit()
+
+    assert await intake_service.stream_is_bound(IntakeStream.support) is False
     assert await intake_service.open_case(IntakeStream.support, title="Help") is None
 
 

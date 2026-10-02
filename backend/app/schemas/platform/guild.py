@@ -381,6 +381,9 @@ class PlatformGuildStorageListResponse(PageMeta):
     """One page of the operator's community list."""
 
     items: List[PlatformGuildStorageRead]
+    #: Whether the deployment has somewhere to send help requests. A
+    #: community's help requests can only be switched on while it does.
+    support_bound: bool = False
 
 
 class PlatformGuildRestore(SanitizedBaseModel):

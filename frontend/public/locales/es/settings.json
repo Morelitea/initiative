@@ -1158,7 +1158,7 @@
   "guilds": {
     "title": "Límites por comunidad",
     "description": "Establece límites por comunidad para el almacenamiento y el número de usuarios. Bajar un límite por debajo del uso actual bloquea las nuevas subidas o miembros, pero nunca elimina los archivos ni los miembros existentes.",
-    "platformOnly": "Necesitas el rol de propietario de la plataforma para gestionar los límites de las comunidades.",
+    "platformOnly": "Necesitas el rol de operador o de propietario para gestionar los límites de las comunidades.",
     "loading": "Cargando comunidades…",
     "loadError": "No se pudieron cargar las comunidades. Inténtalo de nuevo.",
     "filterByName": "Filtrar comunidades por nombre",

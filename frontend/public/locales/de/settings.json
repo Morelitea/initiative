@@ -1158,7 +1158,7 @@
   "guilds": {
     "title": "Community-Limits",
     "description": "Lege pro Community Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
-    "platformOnly": "Du benötigst die Plattform-Eigentümerrolle, um Community-Limits zu verwalten.",
+    "platformOnly": "Du benötigst die Operator- oder Eigentümerrolle, um Community-Limits zu verwalten.",
     "loading": "Communitys werden geladen…",
     "loadError": "Communitys konnten nicht geladen werden. Bitte versuche es erneut.",
     "filterByName": "Communitys nach Namen filtern",
