@@ -51,6 +51,7 @@ from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_secret import GuildAppSecret
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.services.marketplace import expressions
 from app.services.marketplace.registration_lookup import load_registrations
 from app.services.tenant import app_connection_flows, app_revocation, app_schedules
 from app.testing import (
@@ -1641,9 +1642,8 @@ async def _declarative_install(session: AsyncSession, actor, **overrides) -> Gui
         session,
         actor.guild,
         actor.user,
-        definition=DECLARATIVE,
         listing_uid=DECLARATIVE_UID,
-        **overrides,
+        **{"definition": DECLARATIVE, **overrides},
     )
 
 
@@ -1822,6 +1822,110 @@ class TestDeclarativeApps:
         assert response.status_code == 202, response.text
         [(_, _, payload)] = await _events(session, seat.guild.id)
         assert payload["repository"] == "acme/web"
+
+    async def test_a_mapping_that_may_answer_later_is_asked_again(
+        self,
+        client: AsyncClient,
+        acting_user,
+        session,
+        vendor,
+        declarative,
+        monkeypatch,
+    ):
+        """No evaluator answered: nothing is recorded and the vendor is told
+        to send it again, and the delivery maps when it comes back."""
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        holds = expressions.holds
+        busy = [True]
+
+        async def once_busy(*args, **kwargs):
+            if busy.pop() if busy else False:
+                raise expressions.ExpressionError("no evaluator", transient=True)
+            return await holds(*args, **kwargs)
+
+        monkeypatch.setattr(expressions, "holds", once_busy)
+        body, headers = vendor.webhook(_issue())
+
+        first = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+        assert first.status_code == 503, first.text
+        assert await _deliveries(session, seat.guild.id) == []
+
+        again = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+        assert again.status_code == 202, again.text
+        assert [event for event, _, _ in await _events(session, seat.guild.id)] == [
+            ISSUE_OPENED
+        ]
+
+    async def test_a_mapping_that_cannot_answer_is_logged_and_the_state_kept(
+        self, client: AsyncClient, acting_user, session, vendor, declarative, caplog
+    ):
+        """The event's payload does not fit its returns, which no redelivery
+        changes: the delivery is recorded, the failure logged, and the status
+        row it also matched still sets the state."""
+        broken = declarative_github(DECLARATIVE_ID)
+        broken["webhooks"]["events"][0].update(
+            when="$exists(payload.action)", map='{"number": "twelve"}'
+        )
+        await _declarative_listing(session, broken)
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _declarative_install(
+            session, seat, definition=broken, config=_connected("42")
+        )
+        body, headers = vendor.webhook(
+            {"action": "deleted", "installation": {"id": 42}}
+        )
+        headers["X-GitHub-Event"] = "installation"
+
+        for _ in range(2):
+            response = await client.post(
+                DECLARATIVE_HOOKS, content=body, headers=headers
+            )
+            assert response.status_code == 202, response.text
+
+        assert await _events(session, seat.guild.id) == []
+        stored = await _reload(session, seat.guild.id, app.id)
+        assert stored.config_state_detail == "workspace_removed"
+        [recorded] = await _deliveries(session, seat.guild.id)
+        assert recorded.delivery_id == "delivery-1"
+        logged = [
+            record.getMessage()
+            for record in caplog.records
+            if "could not map delivery delivery-1" in record.getMessage()
+        ]
+        assert len(logged) == 1 and DECLARATIVE_ID in logged[0]
+
+    async def test_an_install_pinned_to_an_older_route_is_still_reached(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        """The listing now routes by a header; an install still pinned to the
+        version that read the body is found by it, and its own mapping runs."""
+        await _declarative_listing(session)
+        moved = declarative_github(DECLARATIVE_ID)
+        moved["webhooks"]["route"] = {
+            "header": "X-Installation-Target",
+            "connection": "workspace",
+            "field": "installation_id",
+        }
+        await create_marketplace_listing(
+            session,
+            uid=DECLARATIVE_UID,
+            public_id=DECLARATIVE_ID,
+            kind="app",
+            version="2.0.0",
+            definition=moved,
+        )
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue())
+
+        response = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        assert [event for event, _, _ in await _events(session, seat.guild.id)] == [
+            ISSUE_OPENED
+        ]
 
     async def test_health_reports_a_failure_read_twice_and_recovery_at_once(
         self, acting_user, session, role_session, vendor, declarative

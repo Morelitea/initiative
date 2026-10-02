@@ -11,7 +11,9 @@ answer is ``{"value"}``, ``{"undefined": true}`` or ``{"error", "position"}``.
 Bounds are the library's own time and depth guardrails, a check on the
 answer's size as JSON, and a limit on the process's address space where the
 platform has one. An evaluation that runs out of memory is answered with
-``"replace": true``, and the worker exits. An answer is JSON as ``JSON.stringify`` writes it.
+``"replace": true``, and the worker exits. One that ran out of time or memory
+also carries ``"transient": true``: asked again, it may answer. An answer is
+JSON as ``JSON.stringify`` writes it.
 """
 
 from __future__ import annotations
@@ -28,6 +30,9 @@ from typing import Any, Optional
 import jsonata
 from jsonata.parser import Parser
 from jsonata.utils import Utils
+
+#: The library's code for an evaluation past its time bound.
+_TIMEOUT = "D1012"
 
 _LENGTH = struct.Struct(">I")
 
@@ -107,11 +112,20 @@ def answer(request: dict[str, Any], bounds: tuple) -> dict[str, Any]:
             return {"value": truth is True}
         return {"value": value}
     except jsonata.JException as error:
-        return {"error": str(error), "position": error.location}
+        reply = {"error": str(error), "position": error.location}
+        if error.error == _TIMEOUT:
+            # The time bound depends on the machine's load as well as the
+            # expression.
+            reply["transient"] = True
+        return reply
     except RecursionError:
         return {"error": "Stack overflow"}
     except MemoryError:
-        return {"error": "the evaluation ran out of memory", "replace": True}
+        return {
+            "error": "the evaluation ran out of memory",
+            "replace": True,
+            "transient": True,
+        }
     except Exception as error:  # noqa: BLE001 - every evaluation failure is one answer
         return {"error": str(error) or type(error).__name__}
 

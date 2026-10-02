@@ -6,10 +6,12 @@ the vendor. :func:`receive` takes each delivery through four steps:
 
 1. The signature is checked with the registration's vendor secret. A delivery
    that does not verify is refused (401).
-2. The route value is read from the JSON body, at the path the manifest's
-   ``webhooks.route`` names, or from the header it names, and matched against
-   the install index (:func:`app_installs.routed`). A delivery nothing
-   matches is answered 202 and nothing is stored.
+2. The route value is read from the delivery wherever a version of the
+   listing's ``webhooks.route`` reads it (a path in the JSON body, or a
+   header), and each value is matched against the install index
+   (:func:`app_installs.routed`). An install is matched only when the route
+   of the version it is pinned to reads its value. A delivery nothing matches
+   is answered 202 and nothing is stored.
 3. For each matched install, in its own community and several communities at
    once, read as the version that install is pinned to: a delivery id the
    install has already accepted (``app_hook_deliveries``) is skipped.
@@ -18,9 +20,11 @@ the vendor. :func:`receive` takes each delivery through four steps:
    install, and a 2xx records the id for 24 hours. A declarative app's install
    maps it with its ``events`` and ``status``: the event goes to the outbox as
    a container's emission does, the state to the install's configuration
-   state, and the id is recorded with them.
-4. 202 when every matched install accepted it or already had; otherwise 502,
-   so the vendor's redelivery reaches only the ones that did not.
+   state, and the id is recorded with them. A mapping that cannot succeed is
+   logged and recorded; one that may succeed if asked again records nothing.
+4. 202 when every matched install accepted it or already had; otherwise 503
+   when a mapping is to be asked again, or 502, so the vendor's redelivery
+   reaches only the ones that did not.
 
 The index row that routes a delivery is written only when a community's
 connect stored the routed value, which the app's ``after_connect`` hook
@@ -45,6 +49,10 @@ from app.core import metrics
 from app.db import cohorts
 from app.db import session as db_session
 from app.db.session import set_rls_context
+from app.models.platform.marketplace import (
+    MarketplaceListing,
+    MarketplaceListingVersion,
+)
 from app.models.tenant.app_hook_delivery import DELIVERY_ID_MAX_LENGTH, AppHookDelivery
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import app_installs, declarative, registration_lookup
@@ -101,14 +109,19 @@ def _verified(
     )
 
 
-def _route_value(body: bytes, path: str) -> Optional[str]:
-    """The value at ``path`` (keys joined by ``.``) in a JSON body, as the
-    install index stores it, or ``None``."""
+def _route_value(
+    route: Mapping[str, Any], headers: Mapping[str, str], body: bytes
+) -> Optional[str]:
+    """The value a ``webhooks.route`` reads from a delivery, as the install
+    index stores it, or ``None``: the header it names, or the value at its
+    ``path`` (keys joined by ``.``) in the JSON body."""
+    if "header" in route:
+        return headers.get(str(route["header"]).lower()) or None
     try:
         value: Any = json.loads(body)
     except ValueError:
         return None
-    for key in path.split("."):
+    for key in str(route.get("path") or "").split("."):
         if not isinstance(value, dict):
             return None
         value = value.get(key)
@@ -137,13 +150,67 @@ async def _webhooks(registration: RegistrationSnapshot) -> Optional[dict[str, An
     return webhooks if isinstance(webhooks, dict) else None
 
 
+def _route_spec(route: Any) -> Optional[tuple[str, str]]:
+    """Where a ``webhooks.route`` reads its value: a header, or a body path."""
+    if not isinstance(route, Mapping):
+        return None
+    if isinstance(route.get("header"), str):
+        return ("header", route["header"].lower())
+    if isinstance(route.get("path"), str):
+        return ("path", route["path"])
+    return None
+
+
+async def _route_specs(listing_uid: str) -> set[tuple[str, str]]:
+    """Every place a version of the listing reads its route value from: an
+    install is pinned to one of them."""
+    route = col(MarketplaceListingVersion.definition)["webhooks"]["route"]
+    async with db_session.SystemSessionLocal() as session:
+        rows = (
+            await session.exec(
+                select(route)
+                .join(
+                    MarketplaceListing,
+                    col(MarketplaceListing.id) == MarketplaceListingVersion.listing_id,
+                )
+                .where(MarketplaceListing.uid == listing_uid)
+                .distinct()
+            )
+        ).all()
+    return {spec for row in rows if (spec := _route_spec(row)) is not None}
+
+
+async def _routed(
+    listing_uid: str,
+    specs: set[tuple[str, str]],
+    headers: Mapping[str, str],
+    body: bytes,
+) -> list[app_installs.IndexedInstall]:
+    """The installs a delivery's route values name, one index lookup for each
+    value the listing's versions read from it."""
+    values = {
+        value
+        for kind, where in specs
+        if (value := _route_value({kind: where}, headers, body)) is not None
+    }
+    found: dict[tuple[int, int], app_installs.IndexedInstall] = {}
+    for value in sorted(values):
+        for install in await app_installs.routed(listing_uid, value):
+            found.setdefault((install.guild_id, install.install_id), install)
+    return [found[key] for key in sorted(found)]
+
+
 async def _pending(
     install: app_installs.IndexedInstall,
     registration: RegistrationSnapshot,
     delivery_id: str,
+    *,
+    headers: Mapping[str, str],
+    body: bytes,
 ) -> Optional[GuildApp]:
     """The install a delivery is still owed to, as it is pinned, or ``None``
-    when there is no install of this app to take it or it already has."""
+    when there is no install of this app to take it, its pinned route does not
+    read the value it is indexed by from this delivery, or it already has it."""
     async with cohorts.system_session(install.guild_id) as session:
         await set_rls_context(session, SystemGuild(install.guild_id, read_only=True))
         app = (
@@ -152,6 +219,10 @@ async def _pending(
             )
         ).first()
         if app is None or not app.enabled or not owns_install(app, registration):
+            return None
+        route = ((app.definition or {}).get("webhooks") or {}).get("route")
+        indexed = app_installs.hook_route(app)
+        if indexed is None or _route_value(route, headers, body) != indexed:
             return None
         seen = (
             await session.exec(
@@ -195,7 +266,7 @@ async def _forward(
     delivery_id: str,
     headers: Mapping[str, str],
     body: bytes,
-) -> bool:
+) -> int:
     """A container's install: the delivery goes to its ``webhook`` hook, as
     its pinned ``webhooks`` describe it."""
     try:
@@ -218,9 +289,9 @@ async def _forward(
             install.guild_id,
             exc,
         )
-        return False
+        return 502
     await _record(install, delivery_id)
-    return True
+    return 202
 
 
 async def _map(
@@ -232,10 +303,14 @@ async def _map(
     delivery_id: str,
     headers: Mapping[str, str],
     body: bytes,
-) -> bool:
+) -> int:
     """A declarative app's install: its pinned ``webhooks`` map the delivery
     to an event, emitted as a container's is, and to a connection's state.
-    The delivery is recorded with them, so a redelivery emits nothing."""
+    The delivery is recorded with them, so a redelivery emits nothing.
+
+    A mapping that may answer if asked again records nothing and answers 503,
+    so the vendor sends it again; one that cannot is recorded beside whatever
+    did map."""
     try:
         payload: Any = json.loads(body)
     except ValueError:
@@ -250,19 +325,28 @@ async def _map(
         )
     except ExpressionError as exc:
         logger.warning(
-            "app hooks: %s could not map a delivery for guild %s (%s)",
+            "app hooks: %s will map delivery %s for guild %s when it comes again (%s)",
             registration.public_id,
+            delivery_id,
             install.guild_id,
             exc,
         )
-        delivered = declarative.Delivered()
+        return 503
+    for failure in delivered.failures:
+        logger.warning(
+            "app hooks: %s could not map delivery %s for guild %s (%s)",
+            registration.public_id,
+            delivery_id,
+            install.guild_id,
+            failure,
+        )
     async with cohorts.system_session(install.guild_id) as session:
         await set_rls_context(session, SystemGuild(install.guild_id))
         claimed = (
             await session.exec(_remember(install.install_id, delivery_id))
         ).first()
         if claimed is None:
-            return True
+            return 202
         if delivered.event is not None:
             event_type, event = delivered.event
             try:
@@ -276,9 +360,11 @@ async def _map(
                 )
             except AppChannelError as exc:
                 logger.warning(
-                    "app hooks: %s emitted %s for guild %s, which was refused (%s)",
+                    "app hooks: %s emitted %s from delivery %s for guild %s, "
+                    "which was refused (%s)",
                     registration.public_id,
                     event_type,
+                    delivery_id,
                     install.guild_id,
                     exc.code,
                 )
@@ -287,7 +373,7 @@ async def _map(
             if locked is not None and set_connection_state(locked, *delivered.status):
                 session.add(locked)
         await session.commit()
-    return True
+    return 202
 
 
 async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> int:
@@ -308,17 +394,11 @@ async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> in
         metrics.app_hook_deliveries.labels(outcome="refused").inc()
         return 401
 
-    route = webhooks["route"]
-    value = (
-        headers.get(str(route["header"]).lower()) or None
-        if "header" in route
-        else _route_value(body, route["path"])
-    )
-    installs = (
-        []
-        if value is None
-        else await app_installs.routed(registration.listing_uid, value)
-    )
+    specs = await _route_specs(registration.listing_uid)
+    current = _route_spec(webhooks["route"])
+    if current is not None:
+        specs.add(current)
+    installs = await _routed(registration.listing_uid, specs, headers, body)
     if not installs:
         metrics.app_hook_deliveries.labels(outcome="unroutable").inc()
         return 202
@@ -328,14 +408,16 @@ async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> in
         return 400
     limit = asyncio.Semaphore(FORWARD_CONCURRENCY)
 
-    async def bounded(install: app_installs.IndexedInstall) -> bool:
+    async def bounded(install: app_installs.IndexedInstall) -> int:
         async with limit:
-            app = await _pending(install, registration, delivery_id)
+            app = await _pending(
+                install, registration, delivery_id, headers=headers, body=body
+            )
             if app is None:
-                return True
+                return 202
             pinned = (app.definition or {}).get("webhooks")
             if not isinstance(pinned, dict):
-                return True
+                return 202
             # A declarative registration has no hook to forward to, whatever
             # version an install is still pinned to.
             declared = registration.declarative or is_declarative(app.definition)
@@ -350,7 +432,9 @@ async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> in
                 body=body,
             )
 
-    held = await asyncio.gather(*(bounded(install) for install in installs))
-    outcome = "delivered" if all(held) else "failed"
+    # The worst answer stands: 503 when one install will map it once it comes
+    # again, 502 when one did not accept it.
+    status = max(await asyncio.gather(*(bounded(install) for install in installs)))
+    outcome = "delivered" if status == 202 else "failed"
     metrics.app_hook_deliveries.labels(outcome=outcome).inc()
-    return 202 if all(held) else 502
+    return status

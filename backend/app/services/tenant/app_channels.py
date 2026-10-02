@@ -49,7 +49,10 @@ from app.models.tenant.guild_app import GuildApp
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace.registration_lookup import service_public_id
-from app.services.marketplace.service_apps import ENDPOINT_ID_PREFIX
+from app.services.marketplace.service_apps import (
+    CONNECTION_STATES,
+    ENDPOINT_ID_PREFIX,
+)
 from app.services.tenant import app_config as app_config_service
 from app.services.tenant import app_connection_flows as flows
 from app.services.tenant import guild_apps as guild_apps_service
@@ -416,15 +419,13 @@ def set_connection_state(app: GuildApp, connection_id: str, state: str) -> bool:
     the state (``workspace_suspended``). ``ok`` clears a verdict about this
     connection and leaves one about another as it is.
     """
-    prefix = f"{connection_id}_"
+    about = {f"{connection_id}_{other}" for other in CONNECTION_STATES if other != "ok"}
     if state == "ok":
-        if app.config_state == "invalid" and not (
-            app.config_state_detail or ""
-        ).startswith(prefix):
+        if app.config_state == "invalid" and app.config_state_detail not in about:
             return False
         verdict: tuple[str, Optional[str]] = ("ok", None)
     else:
-        verdict = ("invalid", f"{prefix}{state}"[:MAX_CONFIG_STATE_DETAIL])
+        verdict = ("invalid", f"{connection_id}_{state}")
     if (app.config_state, app.config_state_detail) == verdict:
         return False
     app.config_state, app.config_state_detail = verdict

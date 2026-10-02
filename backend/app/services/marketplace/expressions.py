@@ -78,11 +78,18 @@ UNDEFINED: Any = _Undefined()
 
 
 class ExpressionError(Exception):
-    """An expression that does not parse, failed, or passed one of its bounds."""
+    """An expression that does not parse, failed, or passed one of its bounds.
 
-    def __init__(self, message: str, position: Optional[int] = None) -> None:
+    ``transient`` is a failure the same expression may not meet again: it ran
+    out of time or memory, or no evaluator answered.
+    """
+
+    def __init__(
+        self, message: str, position: Optional[int] = None, *, transient: bool = False
+    ) -> None:
         super().__init__(message)
         self.position = position
+        self.transient = transient
 
 
 def _failure(error: BaseException) -> ExpressionError:
@@ -178,9 +185,13 @@ async def _evaluate(
     try:
         reply = await asyncio.to_thread(_the_pool().ask, request)
     except PoolError as exc:
-        raise ExpressionError(str(exc)) from exc
+        raise ExpressionError(str(exc), transient=True) from exc
     if "error" in reply:
-        raise ExpressionError(reply["error"], reply.get("position"))
+        raise ExpressionError(
+            reply["error"],
+            reply.get("position"),
+            transient=bool(reply.get("transient")),
+        )
     return reply
 
 

@@ -273,18 +273,21 @@ async def test_an_expression_answers_what_the_sdk_answers(
 
 
 @pytest.mark.parametrize(
-    "expression,why",
+    "expression,why,transient",
     [
-        ("($f := function($n) { $f($n + 1) + 1 }; $f(0))", "Stack overflow"),
-        (f'$pad("", {expressions.OUTPUT_BYTES}, "x")', "over 1048576 bytes"),
-        ("[1..10000000].($ * 2)", "timeout after 1000 milliseconds"),
-        ('$pad("", 2000000000, "x")', "ran out of memory"),
+        ("($f := function($n) { $f($n + 1) + 1 }; $f(0))", "Stack overflow", False),
+        (f'$pad("", {expressions.OUTPUT_BYTES}, "x")', "over 1048576 bytes", False),
+        ("[1..10000000].($ * 2)", "timeout after 1000 milliseconds", True),
+        ('$pad("", 2000000000, "x")', "ran out of memory", True),
     ],
     ids=["depth", "output", "time", "memory"],
 )
-async def test_an_evaluation_is_bounded(expression, why):
-    with pytest.raises(ExpressionError, match=why):
+async def test_an_evaluation_is_bounded(expression, why, transient):
+    """Running out of time or memory may not happen again; the other bounds
+    are the expression's own."""
+    with pytest.raises(ExpressionError, match=why) as refused:
         await expressions.evaluate(expression, {})
+    assert refused.value.transient is transient
 
 
 async def test_a_step_that_never_yields_is_stopped():
@@ -292,10 +295,11 @@ async def test_a_step_that_never_yields_is_stopped():
     expression, is stopped with its worker, and the next evaluation runs on a
     fresh one."""
     started = time.monotonic()
-    with pytest.raises(ExpressionError, match="timeout"):
+    with pytest.raises(ExpressionError, match="timeout") as refused:
         await expressions.evaluate(
             '$match("a" & $pad("", 40, "a") & "!", /(a+)+$/)', {}
         )
+    assert refused.value.transient
     assert time.monotonic() - started < expressions.TIME_MS / 1000 + 2
     assert await expressions.evaluate("1 + 1", {}) == 2
 

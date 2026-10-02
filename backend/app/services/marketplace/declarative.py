@@ -719,6 +719,10 @@ class Delivered:
     event: Optional[tuple[str, dict[str, Any]]] = None
     #: The connection and its state.
     status: Optional[tuple[str, str]] = None
+    #: Why ``events`` or ``status`` answered nothing, when an expression of
+    #: theirs failed or a payload did not fit: the same delivery fails the
+    #: same way again.
+    failures: tuple[str, ...] = ()
 
 
 async def map_delivery(
@@ -735,9 +739,10 @@ async def map_delivery(
     ``status`` row sets. A delivery nothing matches answers neither.
 
     The expressions read ``headers`` (names in lowercase), ``payload``, the
-    routed connection's non-secret fields as ``connection``, and ``now``. An
-    expression that fails, or a payload that does not fit, raises
-    :class:`ExpressionError`.
+    routed connection's non-secret fields as ``connection``, and ``now``.
+    ``events`` and ``status`` are read apart: one failing leaves the other's
+    answer, and the failure is in ``failures``. An evaluation that may answer
+    if asked again raises :class:`ExpressionError` with ``transient`` set.
     """
     millis, at = _clock(now or datetime.now(timezone.utc))
     document = {
@@ -752,22 +757,43 @@ async def map_delivery(
         for entry in definition.get("endpoints") or []
         if isinstance(entry, dict)
     }
+    failures: list[str] = []
+
+    async def first(what: str) -> Optional[tuple[int, dict[str, Any]]]:
+        """The first row of ``what`` whose ``when`` holds."""
+        for index, row in enumerate(webhooks.get(what) or []):
+            try:
+                if await expressions.holds(row["when"], document, millis=millis):
+                    return index, row
+            except ExpressionError as exc:
+                if exc.transient:
+                    raise
+                failures.append(f"{what}/{index}/when: {exc}")
+                return None
+        return None
+
     event: Optional[tuple[str, dict[str, Any]]] = None
-    for row in webhooks.get("events") or []:
-        if not await expressions.holds(row["when"], document, millis=millis):
-            continue
-        mapped = await expressions.evaluate(row["map"], document, millis=millis)
-        problem = _fits(mapped, returns.get(row["emit"]) or [])
-        if problem is not None:
-            raise ExpressionError(f"the {row['emit']} event {problem}")
-        event = (row["emit"], mapped)
-        break
+    matched = await first("events")
+    if matched is not None:
+        index, row = matched
+        where = f"events/{index}/map"
+        try:
+            mapped = await expressions.evaluate(row["map"], document, millis=millis)
+        except ExpressionError as exc:
+            if exc.transient:
+                raise
+            failures.append(f"{where}: {exc}")
+        else:
+            problem = _fits(mapped, returns.get(row["emit"]) or [])
+            if problem is None:
+                event = (row["emit"], mapped)
+            else:
+                failures.append(f"{where}: the {row['emit']} event {problem}")
     status: Optional[tuple[str, str]] = None
-    for row in webhooks.get("status") or []:
-        if await expressions.holds(row["when"], document, millis=millis):
-            status = (row["connection"], row["state"])
-            break
-    return Delivered(event=event, status=status)
+    matched = await first("status")
+    if matched is not None:
+        status = (matched[1]["connection"], matched[1]["state"])
+    return Delivered(event=event, status=status, failures=tuple(failures))
 
 
 # --- the call behind ``_call_app`` -------------------------------------------
