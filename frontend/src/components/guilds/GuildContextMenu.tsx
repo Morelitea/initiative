@@ -3,7 +3,6 @@ import {
   Copy,
   CreditCard,
   GripVertical,
-  IdCard,
   LogOut,
   Plus,
   Settings,
@@ -14,7 +13,7 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createGuildInviteApiV1CommunitiesGuildIdInvitesPost } from "@/api/generated/communities/communities";
-import type { GuildInviteRead } from "@/api/generated/initiativeAPI.schemas";
+import type { GuildInviteRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import {
   ContextMenu,
@@ -25,16 +24,15 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
-import { type GuildEntry, useGuilds } from "@/hooks/useGuilds";
+import { useGuilds } from "@/hooks/useGuilds";
 import { holdsBillingSeat } from "@/lib/billingSummary";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
-import { MemberDisplayNameDialog } from "./MemberDisplayNameDialog";
 
 interface GuildContextMenuProps {
-  guild: GuildEntry;
+  guild: GuildRead;
   children: ReactNode;
   /**
    * When provided, the menu offers a "Reorder guilds" action. Touch devices
@@ -50,7 +48,6 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
   const { switchGuild, activeGuildId } = useGuilds();
   const { canSell, openPortal } = useBillingPortal();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
-  const [nameDialogOpen, setNameDialogOpen] = useState(false);
 
   const isAdmin = guild.can.administer;
   // A suspended community offers nothing to open, and its membership cannot
@@ -149,13 +146,6 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
                 <Users className="mr-2 h-4 w-4" />
                 {t("viewMembers")}
               </ContextMenuItem>
-              {/* A name is a membership's; a grant to visit has none. */}
-              {guild.accessType !== "grant" && (
-                <ContextMenuItem onClick={() => setNameDialogOpen(true)}>
-                  <IdCard className="mr-2 h-4 w-4" />
-                  {t("displayName.menuItem")}
-                </ContextMenuItem>
-              )}
             </>
           )}
           {isAdmin && !closed && (
@@ -221,12 +211,6 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
         </ContextMenuContent>
       </ContextMenu>
       <LeaveGuildDialog guild={guild} open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen} />
-      <MemberDisplayNameDialog
-        guildId={guild.id}
-        current={guild.display_name}
-        open={nameDialogOpen}
-        onOpenChange={setNameDialogOpen}
-      />
     </>
   );
 };

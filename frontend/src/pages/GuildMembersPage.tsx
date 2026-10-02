@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { PaginationState } from "@tanstack/react-table";
-import { UsersRound } from "lucide-react";
+import { IdCard, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,15 +9,18 @@ import { GuildRole } from "@/api/generated/initiativeAPI.schemas";
 import { ContactActionButtons } from "@/components/contacts/ContactActionButtons";
 import { ContactActionsMenu } from "@/components/contacts/ContactActionsMenu";
 import { FavoriteToggle } from "@/components/contacts/FavoriteToggle";
+import { MemberDisplayNameDialog } from "@/components/guilds/MemberDisplayNameDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useFavoriteContacts, useToggleFavoriteContact } from "@/hooks/useContacts";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDmPermissions } from "@/hooks/useDirectMessages";
+import { useGuilds } from "@/hooks/useGuilds";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { USER_SEARCH_PAGE_SIZE, useUserSearch } from "@/hooks/useUsers";
 import { isAdminRole } from "@/lib/permissions";
@@ -49,6 +52,9 @@ export const GuildMembersPage = () => {
   const { user: me } = useAuth();
 
   const id = Number(guildId);
+  // What the reader has asked to be called here, from their own membership.
+  const ownName = useGuilds().guilds.find((guild) => guild.id === id)?.display_name;
+  const [namingSelf, setNamingSelf] = useState(false);
   const members = useUserSearch({
     search: q || undefined,
     page,
@@ -156,8 +162,17 @@ export const GuildMembersPage = () => {
         cell: ({ row }) => {
           // Your own row carries none of this: starring, ignoring and every
           // way in are refused for yourself, so offering them is offering
-          // errors.
-          if (row.original.id === me?.id) return null;
+          // errors. What it offers instead is what you are called here.
+          if (row.original.id === me?.id) {
+            return (
+              <div className="flex justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setNamingSelf(true)}>
+                  <IdCard className="h-4 w-4" />
+                  {t("displayName.menuItem")}
+                </Button>
+              </div>
+            );
+          }
           const person = {
             id: row.original.id,
             username: row.original.username,
@@ -228,6 +243,13 @@ export const GuildMembersPage = () => {
           getRowId={(row: UserSummary) => String(row.id)}
         />
       )}
+
+      <MemberDisplayNameDialog
+        guildId={id}
+        current={ownName}
+        open={namingSelf}
+        onOpenChange={setNamingSelf}
+      />
     </div>
   );
 };

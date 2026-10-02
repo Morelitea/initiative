@@ -10,6 +10,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildGuild } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 
 // The reader, so a row can be told apart from their own.
@@ -27,6 +28,12 @@ const mocks = vi.hoisted(() => ({
   setFavorite: vi.fn(),
   ignored: vi.fn(),
   ignore: vi.fn(),
+  setOwnName: vi.fn(),
+}));
+
+vi.mock("@/api/generated/communities/communities", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  setOwnDisplayNameApiV1CommunitiesGuildIdMembershipDisplayNamePut: mocks.setOwnName,
 }));
 
 vi.mock("@/hooks/useContacts", async (importOriginal) => ({
@@ -70,10 +77,11 @@ const answer = (items: ReturnType<typeof person>[], total = items.length) =>
     isError: false,
   });
 
-const setup = () =>
+const setup = (displayName: string | null = null) =>
   renderPage(() => <GuildMembersPage />, {
     initialRoute: "/c/$guildId/members",
     routeParams: { guildId: "7" },
+    guilds: { guilds: [buildGuild({ id: 7, display_name: displayName })] },
   });
 
 beforeEach(() => {
@@ -226,6 +234,38 @@ describe("a community's members page", () => {
     // One row has the controls; the reader's own has none.
     expect(screen.getAllByRole("button", { name: /to favorites/i })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /actions for/i })).toHaveLength(1);
+  });
+
+  it("sets your own name here from your row, starting from the current one", async () => {
+    mocks.setOwnName.mockResolvedValue(undefined);
+    answer([person(99, "me"), person(1, "ada")]);
+    setup("Ana");
+
+    // Only the reader's own row offers it.
+    const [open] = await screen.findAllByRole("button", { name: "Set your display name" });
+    expect(screen.getAllByRole("button", { name: "Set your display name" })).toHaveLength(1);
+    await userEvent.click(open);
+    const input = await screen.findByLabelText("Display name");
+    expect(input).toHaveValue("Ana");
+    await userEvent.clear(input);
+    await userEvent.type(input, "  Ana B ");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(mocks.setOwnName).toHaveBeenCalledWith(7, { display_name: "Ana B" })
+    );
+  });
+
+  it("clears your name when it is left empty", async () => {
+    mocks.setOwnName.mockResolvedValue(undefined);
+    answer([person(99, "me")]);
+    setup("Ana");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Set your display name" }));
+    await userEvent.clear(await screen.findByLabelText("Display name"));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mocks.setOwnName).toHaveBeenCalledWith(7, { display_name: null }));
   });
 
   it("says so when the roster cannot be read", async () => {

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Duplicate a counter, queue item, event or wiki page** on its own, the way a task already could. The copy sits beside the original as "(Copy)" with its tags, links and properties. Opened at one of its dates, a repeating event asks whether to copy that date or the whole series, and a wiki page comes without the pages under it.
-- **A display name for each community.** Right-click a community and choose **Set your display name** to be known by something other than your handle there, and only there. Community admins can set one for a member from **Settings › Members**. It shows wherever the community shows people, in place of the handle or the full name. Leave it empty to go back.
+- **A display name for each community.** On a community's **Members** page, choose **Set your display name** on your own row to be known by something other than your handle there, and only there. Community admins can set one for a member from **Settings › Members**. It shows wherever the community shows people, in place of the handle or the full name. Leave it empty to go back.
 
 ### Changed
 
