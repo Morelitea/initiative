@@ -226,6 +226,9 @@ class UserGuildMember(UserGuildRead):
     #: whether it administers the place.
     guild_role: Optional[str] = None
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
+    #: The name set for this member in this guild, as set; ``full_name`` is
+    #: already the result of it. ``None`` when nobody set one.
+    display_name: Optional[str] = None
 
 
 class UserGuildMemberListResponse(PageMeta):

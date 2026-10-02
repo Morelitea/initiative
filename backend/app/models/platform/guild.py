@@ -24,6 +24,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild_administration import GuildAdministration
 
 
+#: The longest name a member may give themselves in one community.
+MEMBER_DISPLAY_NAME_MAX_LENGTH = 64
+
+
 class GuildStatus(str, Enum):
     """Lifecycle status of a guild.
 
@@ -544,6 +548,13 @@ class GuildMembership(SQLModel, table=True):
     position: int = Field(
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    #: What this person is called in this community, set by them or by its
+    #: administrators. NULL — the usual case — leaves the name the guild
+    #: renders anyway. ``guild_member_profiles`` answers with it (0438).
+    display_name: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(MEMBER_DISPLAY_NAME_MAX_LENGTH), nullable=True),
     )
     #: The provider whose claims put this person here, and the only one whose
     #: sign-in may take it away again. NULL is a membership nobody manages —

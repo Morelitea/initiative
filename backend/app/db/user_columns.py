@@ -61,7 +61,8 @@ PUBLIC_PROFILE_COLUMNS: tuple[str, ...] = (
 #: name, which is what a roster, a picker and an @mention render in a guild
 #: that asked for names. The column is in the view; whether the view answers
 #: with it is the guild's own ``show_member_names``, which the view reads for
-#: the guild the request is routed into (migration 0280).
+#: the guild the request is routed into (migration 0280) — unless the member
+#: set a name for that guild, which the view answers with instead (0438).
 GUILD_MEMBER_PROFILE_COLUMNS: tuple[str, ...] = (
     "id",
     "username",

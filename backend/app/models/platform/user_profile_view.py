@@ -12,7 +12,9 @@ catalog rather than by whoever writes the next query:
   page is not in one, which is why the name is in this view and not that one.
   It arrives only from a guild that renders names: the view reads that guild's
   own ``show_member_names`` for the guild the request is routed into, and
-  answers ``NULL`` otherwise.
+  answers ``NULL`` otherwise. A name the member set for that guild
+  (``guild_memberships.display_name``, migration 0438) comes first, whatever
+  the setting.
 
 Which columns those are lives in ``app.db.user_columns``.
 

@@ -958,7 +958,7 @@ async def summaries_with_guild_role(
 
 
 def name_closeness(
-    term: str, *, shows_names: bool, profile=MemberProfile
+    term: str, *, match_names: bool = True, profile=MemberProfile
 ) -> ColumnElement[float]:
     """How close a member's name is to what was typed, as a rankable number.
 
@@ -967,11 +967,13 @@ def name_closeness(
     that substring matching cannot — and its real work is the ORDER, putting the
     nearest name at the top of a page rather than whoever sorts first.
 
-    ``shows_names`` is the guild's own setting, so a real name is matched
+    ``match_names`` reads the profile's ``full_name`` too. On the guild
+    projection that is the name the guild shows — the member's own name there,
+    or the real one where the guild renders names — so a name is matched
     exactly where it is shown and nowhere else.
     """
     closest = func.word_similarity(term, profile.username)
-    if shows_names:
+    if match_names:
         closest = func.greatest(
             closest,
             func.word_similarity(term, func.coalesce(profile.full_name, "")),
@@ -980,13 +982,13 @@ def name_closeness(
 
 
 def member_match(
-    term: str, *, shows_names: bool, profile=MemberProfile
+    term: str, *, match_names: bool = True, profile=MemberProfile
 ) -> tuple[ColumnElement[bool], ColumnElement[float] | None]:
     """How a typed name selects members, and what to order the answer by.
 
     One implementation for every surface that looks people up — the guild
     roster, an initiative's, a project's, the picker behind an @mention. The
-    handle always; the real name alongside it where the guild shows names; a
+    handle always; the name alongside it where the guild shows one; a
     whole ``foobar#1234`` pinning the one person who owns it; and a name typed
     nearly right still finding them.
 
@@ -1005,19 +1007,22 @@ def member_match(
             None,
         )
     matches = profile.username.ilike(f"%{name_part}%")
-    if shows_names:
+    if match_names:
         matches = or_(matches, profile.full_name.ilike(f"%{name_part}%"))
-    closest = name_closeness(name_part, shows_names=shows_names, profile=profile)
+    closest = name_closeness(name_part, match_names=match_names, profile=profile)
     return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
 
 
 def member_order(
-    closest: ColumnElement[float] | None, *, shows_names: bool
+    closest: ColumnElement[float] | None, *, match_names: bool = True
 ) -> tuple[ColumnElement, ...]:
-    """Nearest first while searching, alphabetical while reading a roster."""
+    """Nearest first while searching, alphabetical by the name shown while
+    reading a roster."""
     if closest is not None:
         return (closest.desc(),)
-    return (MemberProfile.full_name.asc(),) if shows_names else ()
+    if not match_names:
+        return ()
+    return (func.coalesce(MemberProfile.full_name, MemberProfile.username).asc(),)
 
 
 def visible_to_other_people(status_column=None):

@@ -1131,7 +1131,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             app_admin=DML,
             app_user=frozenset({SELECT}),
             # 0145 revoked UPDATE — ``role`` is the system engine's column — and 0266
-            # re-granted it on ``position`` alone, as a column grant. 0354 took INSERT
+            # re-granted it on ``position`` alone, as a column grant; 0438 added
+            # ``display_name``, the member's own name here. 0354 took INSERT
             # back: joining is the system engine's (invite redemption, a community
             # join, sign-in sync). What remains at the table level is leaving (DELETE
             # of the reader's own row) and reading the routed community's roster

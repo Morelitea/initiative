@@ -630,19 +630,23 @@ async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
 
 
 async def test_guild_membership_role_is_writable_only_by_the_system_engine(engine):
-    """``position`` is the only membership column a request writes.
+    """``position`` and ``display_name`` are the membership columns a request
+    writes.
 
     A guild membership's ``role`` is changed on the system engine (the
     guild-admin endpoint), as is the OIDC flag; ``guild_id``, ``user_id`` and
     ``joined_at`` are set once, when the row is created. That leaves the guild
-    list's own order, so the request-path floors hold a column-scoped UPDATE of
-    ``position`` alone — enough for the ``SELECT ... FOR UPDATE`` row locks the
-    self-leave and last-admin checks take — and ``app_admin`` keeps the full
-    grant (migrations 0145, 0266)."""
-    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    list's own order, which both request-path floors hold a column-scoped
+    UPDATE of — enough for the ``SELECT ... FOR UPDATE`` row locks the
+    self-leave and last-admin checks take — and the name a member gives
+    themselves in a community, which only the routed guild floor writes.
+    ``app_admin`` keeps the full grant (migrations 0145, 0266, 0438)."""
+    request_roles = {
+        "app_guild_base": {"position", "display_name"},
+        f"{settings.PLATFORM_ROLE_PREFIX}platform_base": {"position"},
+    }
     async with engine.connect() as conn:
-        expected = {"position"}
-        for role in request_roles:
+        for role, expected in request_roles.items():
             rows = (
                 await conn.execute(
                     text(
@@ -661,8 +665,7 @@ async def test_guild_membership_role_is_writable_only_by_the_system_engine(engin
                 "role change is system-engine-only"
             )
             assert writable == expected, (
-                f"{role} UPDATE columns on guild_memberships drifted from "
-                f"'position alone': missing {sorted(expected - writable)}, "
+                f"{role} UPDATE columns on guild_memberships drifted: missing {sorted(expected - writable)}, "
                 f"unexpected {sorted(writable - expected)}"
             )
         admin_can = (

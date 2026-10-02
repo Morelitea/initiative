@@ -707,6 +707,56 @@ async def test_reorder_guilds(
     assert [g["id"] for g in listing.json()] == wanted
 
 
+async def test_a_member_names_themselves_in_one_community(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The member's own row, on the routed session: set, read back on the
+    community, and cleared by a blank. Another community keeps no name."""
+    a = await acting_user(guild_role=GuildRole.member)
+    other = await create_guild(session, name="Elsewhere")
+    await create_guild_membership(session, user=a.user, guild=other)
+    route = f"/api/v1/communities/{a.guild.id}/membership/display-name"
+
+    async def names() -> dict[int, str | None]:
+        listing = await client.get("/api/v1/communities/", headers=a.headers)
+        return {g["id"]: g["display_name"] for g in listing.json()}
+
+    named = await client.put(route, headers=a.headers, json={"display_name": " Ana "})
+    assert named.status_code == 204, named.text
+    assert await names() == {a.guild.id: "Ana", other.id: None}
+
+    cleared = await client.put(route, headers=a.headers, json={"display_name": "  "})
+    assert cleared.status_code == 204, cleared.text
+    assert await names() == {a.guild.id: None, other.id: None}
+
+
+async def test_an_admin_names_a_member(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    route = (
+        f"/api/v1/communities/{admin.guild.id}/members/{member.user.id}/display-name"
+    )
+
+    named = await client.put(route, headers=admin.headers, json={"display_name": "Bo"})
+    assert named.status_code == 204, named.text
+    roster = await client.get(
+        f"/api/v1/c/{admin.guild.id}/users/", headers=admin.headers
+    )
+    rows = {row["id"]: row for row in roster.json()["items"]}
+    assert rows[member.user.id]["display_name"] == "Bo"
+    assert rows[member.user.id]["full_name"] == "Bo"
+
+    stranger = await create_user(session)
+    missing = await client.put(
+        f"/api/v1/communities/{admin.guild.id}/members/{stranger.id}/display-name",
+        headers=admin.headers,
+        json={"display_name": "Nobody"},
+    )
+    assert missing.status_code == 404, missing.text
+
+
 async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
     """An admin mints an invite, with a use count and an expiry it chooses."""
     admin = await acting_user(guild_role=GuildRole.admin)
@@ -922,6 +972,11 @@ ADMIN_ONLY_ROUTES = (
     ("GET", "/api/v1/communities/{guild}/invites", None),
     ("DELETE", "/api/v1/communities/{guild}/invites/{invite}", None),
     ("POST", "/api/v1/communities/{guild}/billing/handoff", None),
+    (
+        "PUT",
+        "/api/v1/communities/{guild}/members/{admin}/display-name",
+        {"display_name": "Renamed"},
+    ),
 )
 
 #: Surfaces any signed-in account may call, listed here for the one caller they
@@ -933,6 +988,11 @@ SIGNED_IN_ROUTES = (
     ("POST", "/api/v1/communities/invite/accept", {"code": "notarealcode000000"}),
     ("GET", "/api/v1/communities/{guild}/leave/eligibility", None),
     ("DELETE", "/api/v1/communities/{guild}/leave", None),
+    (
+        "PUT",
+        "/api/v1/communities/{guild}/membership/display-name",
+        {"display_name": "Me"},
+    ),
 )
 
 #: Leaving is about a membership, so an account holding none in this guild is
@@ -989,6 +1049,7 @@ async def guild_gate_world(session: AsyncSession, acting_user, monkeypatch):
     return {
         "guild": admin.guild.id,
         "invite": invite.id,
+        "admin": admin.user.id,
         "member": member.headers,
         "stranger": stranger.headers,
         "anonymous": None,
@@ -1013,7 +1074,11 @@ async def test_each_guild_surface_answers_by_what_the_caller_holds(
     """
     response = await client.request(
         method,
-        path.format(guild=guild_gate_world["guild"], invite=guild_gate_world["invite"]),
+        path.format(
+            guild=guild_gate_world["guild"],
+            invite=guild_gate_world["invite"],
+            admin=guild_gate_world["admin"],
+        ),
         headers=guild_gate_world[actor_kind],
         json=body,
     )

@@ -478,6 +478,14 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
     assert invites.status_code == 403, invites.text
     assert invites.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
 
+    named = await client.put(
+        f"/api/v1/communities/{guild.id}/members/{owner.id}/display-name",
+        headers=headers,
+        json={"display_name": "Named By Support"},
+    )
+    assert named.status_code == 403, named.text
+    assert named.json()["detail"] == "ACCESS_GRANT_WRITE_REQUIRED"
+
     roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
     assert roster.status_code == 200, roster.text
     assert {row["id"] for row in roster.json()["items"]} == {owner.id}
@@ -529,6 +537,15 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
 
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     assert content.status_code == 200, content.text
+
+    named = await client.put(
+        f"/api/v1/communities/{guild.id}/members/{owner.id}/display-name",
+        headers=headers,
+        json={"display_name": "Named By Support"},
+    )
+    assert named.status_code == 204, named.text
+    roster = await client.get(f"/api/v1/c/{guild.id}/users/", headers=headers)
+    assert roster.json()["items"][0]["display_name"] == "Named By Support"
 
     # Running the roster is not joining it: the grant cannot accept an invite
     # into the community it reaches, even one it minted.

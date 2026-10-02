@@ -122,3 +122,23 @@ async def test_a_grant_into_a_quiet_guild_still_reads_no_name(session, role_sess
             select(MemberProfile.full_name).where(MemberProfile.id == user.id)
         )
     ).one() is None
+
+
+async def test_a_name_set_in_a_guild_is_read_there_and_nowhere_else(
+    session, role_session
+):
+    """A member's own name for one community comes before the guild's rule —
+    in a guild that renders handles and one that renders real names alike —
+    and stays in the community it was set for."""
+    user = await create_user(session, full_name="Ana Real")
+    quiet = await create_guild(session, creator=user, show_member_names=False)
+    loud = await create_guild(session, creator=user, show_member_names=True)
+    elsewhere = await create_guild(session, creator=user, show_member_names=True)
+    for guild, name in ((quiet, "Ana Q"), (loud, "Ana L"), (elsewhere, None)):
+        await create_guild_membership(
+            session, user=user, guild=guild, display_name=name
+        )
+
+    assert await _name_read_in(role_session, user=user, guild=quiet) == "Ana Q"
+    assert await _name_read_in(role_session, user=user, guild=loud) == "Ana L"
+    assert await _name_read_in(role_session, user=user, guild=elsewhere) == "Ana Real"
