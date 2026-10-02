@@ -16,7 +16,7 @@ You have a page of your own, at a link worth sharing — `/u/jordan1234`, your h
 
 It shows your picture, your handle, your status, the banner and frame and trophies you're wearing, how you're around right now, and when you joined. Underneath, the communities you're in — of the ones that have listed themselves in the [community directory](../guides/communities.md#finding-a-community-to-join). A private community is nobody else's business and never appears.
 
-It's public, and it's the same page whoever opens it, because it belongs to *you* rather than to any one community. Which is why it shows your handle rather than your real name, wherever it's opened from.
+It's public, and it's the same page whoever opens it, because it belongs to *you* rather than to any one community. Your handle is the only name your account has. To go by something friendlier in one community, give yourself a [display name](../guides/communities.md#your-name-in-a-community) there.
 
 ![A profile page](../images/account/profile-page.png)
 
@@ -25,7 +25,6 @@ It's public, and it's the same page whoever opens it, because it belongs to *you
 Everything on that page, with a live preview at the top — pick something and the card changes before you save, so you never have to imagine the result.
 
 - **Picture** — upload one, or point at an image URL. An uploaded picture saves the moment you choose it.
-- **Full name** — kept on your account and used when we email you. Communities show your handle, or a [display name](../guides/communities.md#your-name-in-a-community) you set in that community.
 - **Status** — an emoji, a line about what you're up to, or both. Set it by clicking the bubble on the card rather than filling in a form. Up to 100 characters; clearing it takes it off.
 - **Presence** — the dot under your picture. See [Saying how you're around](#saying-how-youre-around).
 - **Your packs** — the decoration packs you've downloaded, and how to remove one.
@@ -121,13 +120,13 @@ The **Danger Zone** tab. Two paths, and Initiative walks you through either with
 
 ### Deactivate
 
-Temporarily switches your account off. You can't sign in, and you're removed from your communities (rejoining needs a fresh invite), but your name, email and content are kept. Whoever runs the server can reactivate you. Good for "I'm stepping away for a while."
+Temporarily switches your account off. You can't sign in, and you're removed from your communities (rejoining needs a fresh invite), but your handle, email and content are kept. Whoever runs the server can reactivate you. Good for "I'm stepping away for a while."
 
 ### Delete
 
 You disappear for everyone else straight away. What you hold is kept a while longer, and then erased.
 
-- **Anonymize** — your name, email and avatar go, and you can't sign in, but things you wrote stay in place as "Deleted user". This keeps your teammates' history intact while removing *your* personal details.
+- **Anonymize** — your email and picture go, and you can't sign in, but things you wrote stay in place as "Deleted user". This keeps your teammates' history intact while removing *your* personal details.
 - **Hard delete** (platform operators) — everything goes, including content you authored.
 
 Before deletion, Initiative makes sure your **owned projects are transferred**, so nothing your group depends on disappears with you.
