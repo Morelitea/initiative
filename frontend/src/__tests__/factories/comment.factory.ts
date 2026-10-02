@@ -40,6 +40,7 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
       presence: "offline",
     },
     reactions: [],
+    can_remove: false,
     ...overrides,
   };
 }

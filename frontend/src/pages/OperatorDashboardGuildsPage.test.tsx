@@ -127,7 +127,11 @@ let updateCallbacks: {
 } = {};
 
 vi.mock("@/hooks/useSettings", () => ({
-  usePlatformGuilds: () => ({ data: buildPage(guildsData), isLoading: false, isError: false }),
+  usePlatformGuilds: () => ({
+    data: { ...buildPage(guildsData), support_bound: supportBound },
+    isLoading: false,
+    isError: false,
+  }),
   useUpdateGuildStorage: (options: typeof updateCallbacks) => {
     updateCallbacks = options ?? {};
     return { mutate, isPending: false };
@@ -147,18 +151,10 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
   usePlatformUsers: () => ({ data: buildPage([]), isLoading: false }),
 }));
 
-// What the deployment has set up to receive operations work. The help-request
-// entitlement reads it: a community can only be offered the form where there is
-// somewhere to send what is written in it.
-let intakeBindings: { stream: string; enabled: boolean; project_id: number | null }[] = [
-  { stream: "support", enabled: true, project_id: 4 },
-];
-
-vi.mock("@/api/generated/intake/intake", () => ({
-  useReadIntakeSettingsApiV1SettingsIntakeGet: () => ({
-    data: { operations_guild_id: 9, bindings: intakeBindings },
-  }),
-}));
+// Whether the deployment has somewhere to send help requests, served with the
+// list. The help-request entitlement reads it: a community can only be offered
+// the form where there is somewhere to send what is written in it.
+let supportBound = true;
 
 import { OperatorDashboardGuildsPage } from "./OperatorDashboardGuildsPage";
 
@@ -198,7 +194,7 @@ describe("OperatorDashboardGuildsPage", () => {
     restore.mockClear();
     mintHandoff.mockReset();
     billingConfig = { url: "https://billing.example.com", operator_handoff: true };
-    intakeBindings = [{ stream: "support", enabled: true, project_id: 4 }];
+    supportBound = true;
     narrowings = [];
   });
 
@@ -431,7 +427,7 @@ describe("OperatorDashboardGuildsPage", () => {
     });
 
     it("cannot offer help requests where nothing receives them", async () => {
-      intakeBindings = [];
+      supportBound = false;
       await openSheet("Capped Community");
 
       expect(screen.getByLabelText("Help requests")).toBeDisabled();

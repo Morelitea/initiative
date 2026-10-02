@@ -224,3 +224,24 @@ async def test_what_is_stored_is_what_was_meant(
     case = (await session.exec(select(IntakeCase))).one()
     task = (await session.exec(select(Task).where(Task.id == case.task_id))).one()
     assert task.title == "Padded"
+
+
+async def test_one_account_can_only_ask_so_often(
+    client, session, acting_user, operations, monkeypatch
+):
+    """Every request is a case somebody works by hand, so one account's run of
+    them is held to a pace a person can answer."""
+    from app.core.rate_limit import limiter
+
+    member = await acting_user(guild_role=GuildRole.member)
+    await _set_support(session, member.guild.id, True)
+    monkeypatch.setattr(limiter, "enabled", True)
+    limiter.reset()
+    try:
+        for _ in range(10):
+            assert (await _ask(client, member, member.guild.id)).status_code == 202
+        refused = await _ask(client, member, member.guild.id)
+    finally:
+        limiter.reset()
+
+    assert refused.status_code == 429, refused.text

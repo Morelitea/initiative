@@ -262,7 +262,7 @@ export function QueueDetailPage() {
         entityTitle={queue?.name}
       />
 
-      <ToolCommentsPanel tool={Tool.queue} entity={queue} canModerate={canEdit} />
+      <ToolCommentsPanel tool={Tool.queue} entity={queue} />
 
       {/* Add Item Dialog */}
       <AddQueueItemDialog

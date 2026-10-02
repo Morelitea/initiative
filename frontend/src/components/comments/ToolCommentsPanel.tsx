@@ -31,7 +31,6 @@ interface ToolCommentsPanelProps {
   /** The thread itself, where it is not the tool entity's own — a wiki page.
    *  Its `type` is the comment target's field name. */
   target?: { type: CommentEntity; id: number };
-  canModerate?: boolean;
   title?: string;
   /** Called with +1/-1 when the thread grows or shrinks, for a page that shows
    *  a comment count of its own. */
@@ -42,7 +41,6 @@ export const ToolCommentsPanel = ({
   tool,
   entity,
   target,
-  canModerate = false,
   title,
   onCountChange,
 }: ToolCommentsPanelProps) => {
@@ -82,7 +80,6 @@ export const ToolCommentsPanel = ({
         hasOlder={commentsQuery.hasNextPage}
         isLoadingOlder={commentsQuery.isFetchingNextPage}
         onLoadOlder={() => void commentsQuery.fetchNextPage()}
-        canModerate={canModerate}
         initiativeId={initiativeId}
         onCommentCreated={(comment) => {
           cache.putComment(comment);

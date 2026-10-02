@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -32,6 +32,34 @@ const postComment = async (text: string) => {
 };
 
 describe("CommentSection", () => {
+  it("offers Delete only where the server says the reader may, and asks first", async () => {
+    let deleted: string | null = null;
+    server.use(
+      guildHttp.delete("/comments/:commentId", ({ params }) => {
+        deleted = String(params.commentId);
+        return new HttpResponse(null, { status: 204 });
+      })
+    );
+    const mine = buildComment({ content: "Removable", task_id: 3, can_remove: true });
+    const theirs = buildComment({ content: "Not removable", task_id: 3, can_remove: false });
+
+    renderPage(() => (
+      <CommentSection entityType="task" entityId={3} comments={[mine, theirs]} initiativeId={7} />
+    ));
+
+    await screen.findByText("Removable");
+    const deleteButtons = screen.getAllByRole("button", { name: /^delete$/i });
+    expect(deleteButtons).toHaveLength(1);
+
+    await userEvent.click(deleteButtons[0]);
+    expect(deleted).toBeNull();
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Delete this comment?");
+    await userEvent.click(within(dialog).getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => expect(deleted).toBe(String(mine.id)));
+  });
+
   it("posts a queue comment under queue_id", async () => {
     const created = captureCreate();
 

@@ -16,7 +16,7 @@ import logging
 from datetime import timedelta
 from typing import Optional, Sequence, cast
 
-from sqlalchemy import or_, text
+from sqlalchemy import or_, text, update as sa_update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -696,27 +696,68 @@ async def list_grants(
     return list(result.all())
 
 
+#: How often grants past their window are marked expired.
+GRANT_EXPIRY_POLL_SECONDS = 300
+
+
 async def expire_due(session: AsyncSession) -> int:
     """Flip approved-but-past-expiry grants to ``expired`` for clean audit/UX.
 
     Liveness is computed independently, so this is housekeeping, not a
-    correctness requirement. Returns the number of rows updated.
+    correctness requirement: it is what records that a grant *ended*, which
+    nothing else observes. Each one is recorded as decided by nobody.
+    Returns the number of rows updated.
     """
+    from app.core.audit_events import AuditEventType
+    from app.services import audit as audit_service
+
     now = utcnow()
-    result = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.status == AccessGrantStatus.approved.value,
-            AccessGrant.expires_at <= now,
+    # One statement claims the rows it changes: a second sweep running at the
+    # same moment, or a revocation landing first, finds the row no longer
+    # approved and leaves it alone, so each ending is recorded exactly once.
+    claimed = (
+        await session.exec(
+            sa_update(AccessGrant)
+            .where(
+                AccessGrant.status == AccessGrantStatus.approved.value,
+                AccessGrant.expires_at <= now,
+            )
+            .values(status=AccessGrantStatus.expired.value, updated_at=now)
+            .returning(
+                AccessGrant.id,
+                AccessGrant.guild_id,
+                AccessGrant.purpose,
+                AccessGrant.access_level,
+            )
+            .execution_options(synchronize_session=False)
         )
-    )
-    rows = result.all()
-    for grant in rows:
-        grant.status = AccessGrantStatus.expired.value
-        grant.updated_at = now
-        session.add(grant)
-    if rows:
-        await session.flush()
-    return len(rows)
+    ).all()
+    for grant_id, guild_id, purpose, level in claimed:
+        await audit_service.record(
+            session,
+            event_type=AuditEventType.ACCESS_GRANT_DECIDED,
+            actor_user_id=None,
+            guild_id=guild_id,
+            target_type="access_grant",
+            target_id=grant_id,
+            detail={
+                "purpose": purpose,
+                "level": level,
+                "decision": AccessGrantStatus.expired.value,
+            },
+        )
+    return len(claimed)
+
+
+async def process_grant_expiry() -> None:
+    """Background sweep: mark the grants whose window has closed."""
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as session:
+        expired = await expire_due(session)
+        await session.commit()
+    if expired:
+        logger.info("access grants: marked %s expired", expired)
 
 
 async def _enrichment(
@@ -801,6 +842,7 @@ __all__ = [
     "get_live_grants",
     "list_grants",
     "expire_due",
+    "process_grant_expiry",
     "to_read",
     "max_minutes_for_role",
     "break_glass_max_minutes",

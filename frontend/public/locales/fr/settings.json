@@ -1150,7 +1150,7 @@
   "guilds": {
     "title": "Limites par communauté",
     "description": "Définissez des limites par communauté pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
-    "platformOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des communautés.",
+    "platformOnly": "Vous devez avoir le rôle d'opérateur ou de propriétaire pour gérer les limites des communautés.",
     "loading": "Chargement des communautés…",
     "loadError": "Impossible de charger les communautés. Veuillez réessayer.",
     "filterByName": "Filtrer les communautés par nom",

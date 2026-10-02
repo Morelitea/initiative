@@ -419,7 +419,7 @@ export function PostDetailPage() {
           <Skeleton className="h-40 w-full" />
         )}
 
-        {post != null && <ToolCommentsPanel tool={Tool.post} entity={post} canModerate={canEdit} />}
+        {post != null && <ToolCommentsPanel tool={Tool.post} entity={post} />}
 
         <ConfirmDialog
           open={blocker.status === "blocked"}

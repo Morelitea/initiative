@@ -478,9 +478,7 @@ export function GalleryDetailPage() {
         defaultLayout="carousel"
       />
 
-      {gallery != null && (
-        <ToolCommentsPanel tool={Tool.gallery} entity={gallery} canModerate={canEdit} />
-      )}
+      {gallery != null && <ToolCommentsPanel tool={Tool.gallery} entity={gallery} />}
 
       <Lightbox
         open={openIndex >= 0}

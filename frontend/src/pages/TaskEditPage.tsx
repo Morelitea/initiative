@@ -484,8 +484,6 @@ export const TaskEditPage = () => {
     : projectIsArchived
       ? t("edit.readOnlyArchived")
       : null;
-  // Pure DAC: comment moderation requires write permission on project
-  const canModerateComments = hasWritePermission;
 
   const writableProjectsQuery = useWritableProjects({
     enabled: Boolean(canWriteProject && !projectIsArchived),
@@ -858,7 +856,6 @@ export const TaskEditPage = () => {
         onCommentCreated={commentsCache.putComment}
         onCommentDeleted={commentsCache.removeComment}
         onCommentUpdated={commentsCache.putComment}
-        canModerate={canModerateComments}
         initiativeId={projectQuery.data?.initiative_id ?? 0}
       />
 

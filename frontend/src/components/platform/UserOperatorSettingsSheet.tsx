@@ -76,15 +76,23 @@ export type UserSheetAbilities = {
   canManageRoles: boolean;
 };
 
+/**
+ * Whether the viewer's rung reaches this account. Every operator action on an
+ * account is refused above the actor's own rung, so nothing is offered there.
+ */
+export const withinRank = (actorRole: UserRole, target: OperatorUserRead): boolean =>
+  platformRoleRank(actorRole) >= platformRoleRank(target.role);
+
 /** True when at least one control would be drawn, i.e. the sheet is worth opening. */
 export const canManageUser = (
   abilities: UserSheetAbilities,
   target: OperatorUserRead,
-  actorId: number | undefined
+  actorId: number | undefined,
+  actorRole: UserRole
 ): boolean => {
   const isSelf = target.id === actorId;
   const anonymized = target.status === "anonymized";
-  if (anonymized) return false;
+  if (anonymized || !withinRank(actorRole, target)) return false;
   if (abilities.canModerateContent && !isSelf) return true;
   if (abilities.canModerateContent && target.avatar_url) return true;
   if (
@@ -173,18 +181,17 @@ export const UserOperatorSettingsSheet = ({
   if (!user) return null;
 
   const isSelf = user.id === actorId;
-  const targetRank = platformRoleRank(user.role);
-  const actorRank = platformRoleRank(actorRole);
+  const reachable = withinRank(actorRole, user);
   const isSuspended = user.status === "suspended";
 
   // Each section carries the capability its endpoint requires, and the state
-  // the endpoint requires of the target.
-  const showIdentity = abilities.canModerateContent && !isSelf;
-  const showAvatar = abilities.canModerateContent && Boolean(user.avatar_url);
+  // the endpoint requires of the target — including that the account sits at
+  // or below the viewer's own rung, which every one of them checks.
+  const showIdentity = abilities.canModerateContent && !isSelf && reachable;
+  const showAvatar = abilities.canModerateContent && Boolean(user.avatar_url) && reachable;
   const showSuspension =
-    abilities.canManageUsers && !isSelf && (user.status === "active" || isSuspended);
-  const showRole =
-    abilities.canManageRoles && !isSelf && user.status === "active" && actorRank >= targetRank;
+    abilities.canManageUsers && !isSelf && reachable && (user.status === "active" || isSuspended);
+  const showRole = abilities.canManageRoles && !isSelf && user.status === "active" && reachable;
 
   const commitUsername = () => {
     const next = usernameDraft.trim().toLowerCase();
@@ -299,7 +306,7 @@ export const UserOperatorSettingsSheet = ({
                             // You cannot mint a role above your own rung.
                             // Demoting the platform's last owner is refused
                             // by the server, which says so.
-                            disabled={platformRoleRank(role) > actorRank}
+                            disabled={platformRoleRank(role) > platformRoleRank(actorRole)}
                           >
                             <div className="flex flex-col gap-0.5">
                               <span className="font-medium">
