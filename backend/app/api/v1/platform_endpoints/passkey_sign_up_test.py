@@ -29,7 +29,6 @@ FINISH = "/api/v1/auth/register/passkey/finish"
 DETAILS = {
     "email": "keys-only@example.com",
     "username": "keysonly",
-    "full_name": "Keys Only",
 }
 
 

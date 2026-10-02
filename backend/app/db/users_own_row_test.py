@@ -124,7 +124,7 @@ class TestGuildSession:
         guild — so the own-row write goes with the rest."""
         admin, _member, _guild = guild_with_two_members
         with pytest.raises(ProgrammingError):
-            await _update_returning(guild_session, admin.id, "full_name", "Renamed")
+            await _update_returning(guild_session, admin.id, "timezone", "UTC")
         await guild_session.rollback()
 
     async def test_reads_another_member_through_the_projection(

@@ -37,7 +37,7 @@ The **first person to register** on a new server becomes the **owner**. The owne
 
 ## Managing platform users
 
-**Operator dashboard → Users** lists every account on the server. A row names somebody by their handle and their address — whatever they filled in as a real name is theirs, and none of this needs it.
+**Operator dashboard → Users** lists every account on the server. A row names somebody by their handle and their address, which is all an account has to go by.
 
 **Manage** opens everything you can change about one account:
 

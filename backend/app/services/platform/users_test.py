@@ -242,9 +242,7 @@ async def test_deactivate_user(session: AsyncSession, monkeypatch):
     reactivate."""
     from app.services.platform import billing_ping
 
-    user = await create_user(
-        session, email="todeactivate@example.com", full_name="Original Name"
-    )
+    user = await create_user(session, email="todeactivate@example.com")
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
 
@@ -269,7 +267,6 @@ async def test_deactivate_user(session: AsyncSession, monkeypatch):
     assert deactivated.status == UserStatus.deactivated
     assert deactivated.token_version == original_token_version + 1
     # PII preserved — an operator can reactivate.
-    assert deactivated.full_name == "Original Name"
     assert await addresses.holds_address(
         session, user_id=deactivated.id, email="todeactivate@example.com"
     )
@@ -291,7 +288,6 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     user = await create_user(
         session,
         email="toanonymize@example.com",
-        full_name="Anonymizer Test",
         avatar_url="https://example.com/avatar.png",
         role=UserRole.operator,
     )
@@ -350,7 +346,6 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     # elevated privileges.
     assert anonymized.role == UserRole.member
     # PII gone.
-    assert anonymized.full_name is None
     assert anonymized.avatar_url is None
     # The picture is a row of its own, so the column going null is not enough.
     assert (
@@ -782,7 +777,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
     from app.testing.schema_harness import route_session_to_guild
 
     author = await create_user(session, email="author@example.com")
-    victim = await create_user(session, email="victim@example.com", full_name="Vic Tim")
+    victim = await create_user(session, email="victim@example.com")
     guild = await create_guild(session, creator=author)
     await create_guild_membership(session, user=victim, guild=guild)
     initiative = await create_initiative(session, guild, author)

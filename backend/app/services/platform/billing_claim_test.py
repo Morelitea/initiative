@@ -186,7 +186,6 @@ async def test_registration_claims_the_guild_it_creates(
         json={
             "email": "claim-register@example.com",
             "username": "claimregister",
-            "full_name": "Claim Register",
             "password": "securepassword123",
             "community": {"name": "Claimed", "plan": "tier-1"},
         },

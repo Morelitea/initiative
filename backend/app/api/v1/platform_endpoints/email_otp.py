@@ -385,7 +385,6 @@ async def register_with_code(
         details=RegistrationDetails(
             email=address,
             username=payload.username,
-            full_name=payload.full_name,
             timezone=payload.timezone,
             community=payload.community,
             birthdate=payload.birthdate,

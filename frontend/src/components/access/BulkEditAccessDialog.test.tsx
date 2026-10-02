@@ -28,7 +28,7 @@ const INITIATIVE_ID = 50;
 const BOB_ID = 101;
 const EDITOR_ROLE_ID = 200;
 
-const bob = buildUserSummary({ id: BOB_ID, full_name: "Bob Builder" });
+const bob = buildUserSummary({ id: BOB_ID, display_name: "Bob Builder" });
 
 const initiative = buildInitiative({ id: INITIATIVE_ID, name: "Init" });
 

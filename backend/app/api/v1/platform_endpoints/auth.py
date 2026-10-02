@@ -101,7 +101,6 @@ from app.models.platform.user import (
     UserStatus,
 )
 from app.models.platform.guild import Guild, GuildInvite, GuildRole
-from app.schemas.base import MAX_TITLE_LENGTH, strip_to_plain_text
 from app.schemas.platform.token import Token
 from app.schemas.platform.second_factor import SecondFactorChallengeAnswer
 from app.schemas.platform.auth import (
@@ -229,7 +228,6 @@ class RegistrationDetails:
 
     email: str
     username: str
-    full_name: str | None = None
     timezone: str | None = None
     captcha_token: str | None = None
     community: NewCommunity | None = None
@@ -275,7 +273,6 @@ async def register_user(
         details=RegistrationDetails(
             email=user_in.email,
             username=user_in.username,
-            full_name=user_in.full_name,
             timezone=user_in.timezone,
             captcha_token=user_in.captcha_token,
             community=user_in.community,
@@ -457,7 +454,6 @@ async def _register_account(
             username="",
             discriminator=0,
             username_chosen=True,
-            full_name=details.full_name,
             hashed_password=hashed_password,
             password_set_at=(
                 datetime.now(timezone.utc) if hashed_password is not None else None
@@ -673,7 +669,7 @@ async def begin_passkey_sign_up(
 
     ceremony = passkey_service.begin_sign_up(
         account_name=payload.email.lower().strip(),
-        display_name=(payload.full_name or payload.username).strip(),
+        display_name=payload.username.strip(),
     )
     await challenge_service.create(
         session,
@@ -756,7 +752,6 @@ async def finish_passkey_sign_up(
         details=RegistrationDetails(
             email=payload.email,
             username=payload.username,
-            full_name=payload.full_name,
             timezone=payload.timezone,
             captcha_token=payload.captcha_token,
             community=payload.community,
@@ -1816,13 +1811,6 @@ async def _complete_provider_login(
     # Trust the IdP's ``email_verified`` claim only as an explicit ``true``; a
     # missing/false claim is treated as unverified (some IdPs omit it entirely).
     email_verified = claims.get("email_verified") is True
-    name_claim = claims.get("name") or claims.get("preferred_username")
-    # Held to the same plain-text rule and length as a name typed on the profile.
-    full_name = (
-        strip_to_plain_text(name_claim).strip()[:MAX_TITLE_LENGTH] or None
-        if isinstance(name_claim, str)
-        else None
-    )
     picture_claim = claims.get("picture")
     avatar_url = (
         picture_claim if isinstance(picture_claim, str) and picture_claim else None
@@ -1834,7 +1822,6 @@ async def _complete_provider_login(
         subject=completion.subject,
         email=email,
         email_verified=email_verified,
-        full_name=full_name,
         avatar_url=avatar_url,
     )
 
@@ -1922,8 +1909,6 @@ async def _complete_provider_login(
         )
 
     # Profile refresh from the verified claims.
-    if full_name and user.full_name != full_name:
-        user.full_name = full_name
     if avatar_url and user.avatar_url != avatar_url:
         user.avatar_url = avatar_url
     # Record the login on the identity link: the IdP refresh token (rotated by

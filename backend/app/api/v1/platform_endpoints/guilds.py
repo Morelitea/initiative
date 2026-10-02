@@ -241,7 +241,6 @@ def _serialize_guild(
         # only mean the settings page could not render its own state.
         is_community=guild.is_community,
         categories=[GuildCategory(value) for value in guild.categories],
-        show_member_names=guild.show_member_names,
         has_adult_content=guild.has_adult_content,
         # Where the guild's pictures are, not the pictures. Callers that have
         # no reason to have looked them up pass nothing, which reads the same
@@ -266,7 +265,6 @@ _GUILD_PROFILE_FIELDS = (
     "is_community",
     "categories",
     "has_adult_content",
-    "show_member_names",
 )
 
 
@@ -729,7 +727,6 @@ async def update_guild(
             has_adult_content_provided=has_adult_content_provided,
             banner=(updates.banner.model_dump(mode="json") if updates.banner else None),
             banner_provided=banner_provided,
-            show_member_names=updates.show_member_names,
         )
     except guilds_service.CommunityDirectoryDisabledError as exc:
         # No directory on this deployment, so there is nothing to list in.

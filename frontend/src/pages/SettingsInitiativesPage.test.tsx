@@ -70,13 +70,13 @@ function stubTable(managers: ReturnType<typeof buildInitiativeMember>[]) {
           buildUserSummary({
             id: ADMIN_ID,
             username: "ada",
-            full_name: "Ada Lovelace",
+            display_name: "Ada Lovelace",
             guild_role: "admin",
           }),
           buildUserSummary({
             id: MEMBER_ID,
             username: "bo",
-            full_name: "Bo Diddley",
+            display_name: "Bo Diddley",
             guild_role: "member",
           }),
         ])
@@ -126,10 +126,10 @@ describe("SettingsInitiativesPage project managers", () => {
   it("reads every manager, starting again when the roster changes between pages", async () => {
     stubTable([]);
     const ada = buildInitiativeMember({
-      user: buildUserPublic({ id: ADMIN_ID, full_name: "Ada Lovelace" }),
+      user: buildUserPublic({ id: ADMIN_ID, display_name: "Ada Lovelace" }),
     });
     const bo = buildInitiativeMember({
-      user: buildUserPublic({ id: MEMBER_ID, full_name: "Bo Diddley" }),
+      user: buildUserPublic({ id: MEMBER_ID, display_name: "Bo Diddley" }),
     });
     const asked: number[] = [];
     server.use(

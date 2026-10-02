@@ -18,8 +18,7 @@ class CommentAuthor(SanitizedBaseModel):
     """Who wrote a comment.
 
     An address never reaches a guild, so there is none here; the handle names
-    the author, and ``full_name`` arrives only from a guild that shows real
-    names.
+    the author, and ``display_name`` is the name they set in this guild.
 
     It carries what a picture needs to be drawn the way it is drawn everywhere
     else — the decorations and how they are appearing — because a comment is
@@ -32,7 +31,7 @@ class CommentAuthor(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     avatar_url: AvatarUrl = None
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
 

@@ -207,17 +207,6 @@ def _user_locale(user: User) -> str:
     return getattr(user, "locale", None) or "en"
 
 
-def _display_name(user: User) -> str:
-    """What to call the person this email is addressed to.
-
-    Their own name, if they have set one — this is the only place someone is
-    named to themselves, and it is the same greeting whichever guild the mail
-    was written from, or none at all. Everyone *else* an email mentions is
-    named by the caller, which passes the handle.
-    """
-    return (user.full_name or "").strip() or handle_of(user)
-
-
 def _inline_css(html: str) -> str:
     """Inline <style> rules into element style attributes via premailer.
 
@@ -338,7 +327,7 @@ async def send_verification_email(
 ) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     link = _frontend_url(f"/verify-email?token={token}")
     button = _cta_button(
         email_t("verification.buttonLabel", locale=locale), link, accent
@@ -464,7 +453,7 @@ def render_single(
 ) -> tuple[str, str]:
     """One notification as its own message — the shape this app has always
     sent. Returns ``(html, text)``."""
-    name = _display_name(user)
+    name = handle_of(user)
     button = ""
     if pieces.link:
         label = pieces.link_label or email_t("mention.buttonLabel", locale=locale)
@@ -504,7 +493,7 @@ def render_digest(
     ``reason`` is why this batch is going out now — a cadence
     (``hourly``/``daily``/``weekly``) or ``away``, for a batch a hold released.
     """
-    name = _display_name(user)
+    name = handle_of(user)
     total = len(lines)
     title = email_t(f"digest.{reason}.title", locale=locale)
     subject = email_t(
@@ -627,7 +616,7 @@ async def send_address_verification_email(
     """
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     link = _frontend_url(f"/verify-email?token={token}")
     button = _cta_button(
         email_t("verification.buttonLabel", locale=locale), link, accent
@@ -657,7 +646,7 @@ async def send_password_reset_email(
 ) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     link = _frontend_url(f"/reset-password?token={token}")
     button = _cta_button(
         email_t("passwordReset.buttonLabel", locale=locale), link, accent
@@ -698,7 +687,7 @@ async def send_sign_in_code_email(
     """
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     shown = (
         f'<p style="margin:24px 0;font-size:32px;font-weight:700;'
         f'letter-spacing:0.25em;color:{accent};">{code}</p>'

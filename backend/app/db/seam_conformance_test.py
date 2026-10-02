@@ -36,18 +36,13 @@ from typing import Awaitable, Callable, get_args
 
 import pytest
 from fastapi.routing import APIWebSocketRoute
-from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.testclient import TestClient
 
-from app.api import content_socket
 from app.api.content_socket import MSG_AUTH
-from app.db import cohorts, gucs
-from app.db import session as db_session
+from app.db import gucs
 from app.db.bootstrap import login_roles
 from app.db.request_context import (
     Billing,
@@ -358,41 +353,6 @@ async def test_the_catalog_reads_only_declared_variables(session, acting_user):
 # ---------------------------------------------------------------------------
 # Sockets
 # ---------------------------------------------------------------------------
-
-
-def _unpooled(bind: AsyncEngine) -> AsyncEngine:
-    return create_async_engine(bind.url, poolclass=NullPool)
-
-
-@pytest.fixture
-def socket_client(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    """Starlette's ``TestClient``, which drives the app's sockets.
-
-    It serves the app on an event loop of its own. The pools the socket
-    endpoints draw from are swapped, for the test, for ones that open a
-    connection per checkout, so a connection opened on one loop is never handed
-    to the other. A quiet socket beats at once, so an admitted one says so
-    without the test waiting out the interval.
-    """
-    monkeypatch.setattr(content_socket, "HEARTBEAT_SECONDS", 0.05)
-    for name in ("_request_makers", "_system_makers"):
-        makers = getattr(cohorts, name)
-        monkeypatch.setattr(
-            cohorts,
-            name,
-            cohorts._cohort_makers([_unpooled(m.kw["bind"]) for m in makers]),
-        )
-    monkeypatch.setattr(
-        db_session,
-        "AsyncSessionLocal",
-        async_sessionmaker(
-            bind=_unpooled(db_session.engine),
-            autoflush=False,
-            expire_on_commit=False,
-            class_=AsyncSession,
-        ),
-    )
-    return TestClient(app)
 
 
 def _registered(user_id: int, guild_id: int | None) -> bool:

@@ -28,7 +28,7 @@ const buildEntry = (overrides: Partial<RecentActivityEntry> = {}): RecentActivit
     project_id: 2,
     project_name: "Apollo",
     initiative_id: 1,
-    author: { id: 9, full_name: "Ada Lovelace", email: "ada@example.com" },
+    author: { id: 9, display_name: "Ada Lovelace", email: "ada@example.com" },
     reactions: [],
     ...overrides,
   }) as RecentActivityEntry;

@@ -45,8 +45,6 @@
     }
   },
   "profile": {
-    "fullNameLabel": "Full name",
-    "fullNamePlaceholder": "Your name",
     "currentPasswordLabel": "Current password",
     "currentPasswordPlaceholder": "Enter your current password",
     "currentPasswordRequired": "Enter your current password to set a new one.",
@@ -1702,11 +1700,10 @@
   },
   "account": {
     "identityTitle": "How you sign in",
-    "identityDescription": "Your name, your address, your handle, and the clock you are on.",
+    "identityDescription": "Your handle and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
     "passwordsOffDescription": "Password sign-in is turned off on this server, so there is no password to set or change here.",
-    "fullNameHelp": "Used when we email you. Communities show your handle, or the display name you set in each one.",
     "setPasswordTitle": "Set a password",
     "setPasswordDescription": "Your account signs in without one. Set a password here to have another way in.",
     "removePassword": "Remove your password",

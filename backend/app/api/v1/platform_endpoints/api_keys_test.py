@@ -179,7 +179,7 @@ async def test_cannot_delete_other_users_api_key(
 
 async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSession):
     """Test that API keys can be used for authentication."""
-    user = await create_user(session, email="test@example.com", full_name="Test User")
+    user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
 
     # Create an API key
@@ -197,7 +197,6 @@ async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSess
     assert auth_response.status_code == 200
     data = auth_response.json()
     assert data["email"] == "test@example.com"
-    assert data["full_name"] == "Test User"
 
     # Use is recorded, but a key used again within the hour is not rewritten.
     key = (

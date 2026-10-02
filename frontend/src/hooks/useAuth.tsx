@@ -87,7 +87,6 @@ interface RegisterPayload {
   password: string;
   /** The name part of the handle. The number behind it is drawn server-side. */
   username: string;
-  full_name?: string;
   inviteCode?: string;
   /** Optional IANA timezone name resolved from the browser at submit
    *  time. Forwarded so a new account starts at the user's wall clock

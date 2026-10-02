@@ -69,7 +69,6 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     require_second_factor: null,
     is_community: false,
     categories: [],
-    show_member_names: false,
     has_adult_content: null,
     ...overrides,
   };

@@ -7,11 +7,10 @@ catalog rather than by whoever writes the next query:
 
 * ``public.user_profiles`` (migration 0214) — the eight columns a profile is,
   read by the cross-guild profile page on a ``platform_base`` session.
-* ``public.guild_member_profiles`` — those plus ``full_name``, read by every
-  guild-routed session. The column holds the name the member set for the guild
-  the request is routed into (``guild_memberships.display_name``, migration
-  0438), not the account's own name, and is ``NULL`` where they set none; the
-  handle is what renders then.
+* ``public.guild_member_profiles`` — those plus ``display_name``, read by
+  every guild-routed session: the name the member set for the guild the
+  request is routed into (``guild_memberships.display_name``, migrations 0438
+  and 0439), ``NULL`` where they set none, when the handle renders.
 
 Which columns those are lives in ``app.db.user_columns``.
 
@@ -75,7 +74,7 @@ guild_member_profiles = Table(
     Column("id", Integer, primary_key=True),
     Column("username", String(32)),
     Column("discriminator", SmallInteger),
-    Column("full_name", String),
+    Column("display_name", String),
     Column("avatar_url", String),
     _status_column(),
     Column("custom_status", JSONB),
@@ -94,7 +93,6 @@ current_guild_members = Table(
     Column("id", Integer, primary_key=True),
     Column("username", String(32)),
     Column("discriminator", SmallInteger),
-    Column("full_name", String),
     Column("avatar_url", String),
     _status_column(),
     Column("custom_status", JSONB),
@@ -124,7 +122,7 @@ class MemberProfile:
     id: int
     username: str
     discriminator: int
-    full_name: Optional[str]
+    display_name: Optional[str]
     avatar_url: Optional[str]
     status: UserStatus
     custom_status: dict
@@ -152,7 +150,6 @@ class GuildMember:
     id: int
     username: str
     discriminator: int
-    full_name: Optional[str]
     avatar_url: Optional[str]
     status: UserStatus
     custom_status: dict

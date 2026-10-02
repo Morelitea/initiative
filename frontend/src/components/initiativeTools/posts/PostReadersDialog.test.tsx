@@ -25,7 +25,7 @@ const person = (id: number, username: string, extra: Record<string, unknown> = {
   id,
   username,
   discriminator: 1000 + id,
-  full_name: null,
+  display_name: null,
   avatar_url: null,
   profile_decorations: { banner: null, frame: null, frame_tint: [], trophies: [] },
   read_at: null,

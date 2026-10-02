@@ -66,7 +66,6 @@ async def test_registering_on_a_hosted_deployment_records_the_agreement(
         json={
             "email": "legal-signup@example.com",
             "username": "legalsignup",
-            "full_name": "Legal Signup",
             "password": "securepassword123",
         },
     )
@@ -89,7 +88,6 @@ async def test_registering_on_a_self_hosted_deployment_records_nothing(
         json={
             "email": "selfhost-signup@example.com",
             "username": "selfhostsignup",
-            "full_name": "Self Host",
             "password": "securepassword123",
         },
     )
@@ -108,7 +106,6 @@ async def test_an_account_that_signed_up_is_never_asked_again(
         json={
             "email": "legal-noask@example.com",
             "username": "legalnoask",
-            "full_name": "No Ask",
             "password": "securepassword123",
         },
     )

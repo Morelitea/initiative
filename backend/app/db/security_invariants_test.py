@@ -28,11 +28,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.models.platform.user import UserRole
-from app.db.user_columns import (
-    GUILD_MEMBER_PROFILE_COLUMNS,
-    PUBLIC_PROFILE_COLUMNS,
-    PUBLISHED_COLUMNS,
-)
+from app.db.user_columns import PUBLIC_PROFILE_COLUMNS, PUBLISHED_COLUMNS
 from app.db.public_rls import PUBLIC_RLS, role_name
 from app.db.system_grants import ROLE_GRANTS, tier_table_grants
 
@@ -375,8 +371,8 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             ).all()
             if row[1]
         }
-        # The reader owns both projections, so its column grant is their
-        # union — the profile's eight plus the name the guild view adds.
+        # The reader owns both projections, and both read the profile's
+        # columns of the account and nothing more.
         expected = set(PUBLISHED_COLUMNS)
         assert readable == expected, (
             "app_profile_reader reads columns of public.users that are not "
@@ -384,9 +380,8 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             f"{sorted(expected - readable)}"
         )
 
-        # The projection reads the name rule off the guild (0280), so the
-        # reader holds one column of ``guilds`` as well. Bound it: that column
-        # and the id it looks up by, and nothing else on the table.
+        # Neither projection reads anything off the guild, so the reader holds
+        # no column of ``guilds`` and no verb on it.
         guild_readable = {
             row[0]
             for row in (
@@ -401,9 +396,9 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             ).all()
             if row[1]
         }
-        assert guild_readable == {"id", "show_member_names"}, (
-            "app_profile_reader reads columns of public.guilds beyond the name "
-            f"rule: {sorted(guild_readable - {'id', 'show_member_names'})}"
+        assert not guild_readable, (
+            "app_profile_reader reads columns of public.guilds: "
+            f"{sorted(guild_readable)}"
         )
         for verb in ("INSERT", "UPDATE", "DELETE"):
             can_write = (
@@ -926,11 +921,11 @@ async def test_guild_member_view_publishes_the_guild_projection(engine):
     """What a guild-routed session may read of a person is a catalog fact.
 
     ``public.guild_member_profiles`` carries the profile's columns plus
-    ``full_name``, and the guild path holds SELECT on the view and nothing
+    ``display_name``, and the guild path holds SELECT on the view and nothing
     else — the schema's default privileges would otherwise have granted all
     four verbs (migration 0220).
     """
-    expected = set(GUILD_MEMBER_PROFILE_COLUMNS)
+    expected = set(PUBLIC_PROFILE_COLUMNS) | {"display_name"}
     base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
     async with engine.connect() as conn:
         view_columns = {
@@ -984,6 +979,6 @@ async def test_guild_member_view_publishes_the_guild_projection(engine):
             )
         ).scalar()
         assert not base_can_read, (
-            f"{base} must not read the guild projection — a real name is "
-            "readable inside a guild, not from the platform path"
+            f"{base} must not read the guild projection — a member's name is "
+            "readable inside its guild, not from the platform path"
         )

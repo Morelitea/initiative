@@ -193,10 +193,6 @@ class GuildRead(GuildBase):
     # anyway), and the settings page shows the controls to admins.
     is_community: bool = False
     categories: List[GuildCategory] = []
-    # Whether this guild renders members' real names. Off — the default —
-    # means it renders handles. A listed guild is always off and cannot be
-    # switched on.
-    show_member_names: bool = True
     # The 18+ declaration. ``None`` — unanswered — is the normal state for a
     # guild that has never been listed; listing requires an explicit ``False``.
     has_adult_content: Optional[bool] = None
@@ -313,10 +309,6 @@ class GuildUpdate(SanitizedBaseModel):
     # opt-in has no third state).
     is_community: Optional[bool] = None
     categories: Optional[List[GuildCategory]] = None
-    # Whether to render members' real names instead of their handles. Listing
-    # the guild turns it off in the same write and the endpoint refuses to set
-    # both, which ck_guilds_community_member_names also enforces.
-    show_member_names: Optional[bool] = None
     # The whole banner, replaced. Omit-to-skip like the fields above; an
     # explicit null puts it back to the default rather than clearing it, since
     # a banner is never colourless and never without a layout.

@@ -96,7 +96,6 @@ async def test_register_first_user(client: AsyncClient, session: AsyncSession):
     user_data = {
         "email": "first@example.com",
         "username": "first",
-        "full_name": "First User",
         "password": "securepassword123",
     }
 
@@ -105,7 +104,6 @@ async def test_register_first_user(client: AsyncClient, session: AsyncSession):
     assert response.status_code == 201
     data = response.json()
     assert data["email"] == "first@example.com"
-    assert data["full_name"] == "First User"
     assert data["status"] == "active"
     assert data["role"] == "owner"  # First user bootstraps as owner
     held = await session.exec(
@@ -212,7 +210,6 @@ async def test_register_with_invite_blocked_when_guild_full(
         json={
             "email": "reg-newuser@example.com",
             "username": "reg-newuser",
-            "full_name": "New User",
             "password": "password1234",
         },
     )
@@ -330,7 +327,6 @@ async def test_register_duplicate_email(client: AsyncClient, session: AsyncSessi
     user_data = {
         "email": "existing@example.com",
         "username": "existing",
-        "full_name": "Duplicate User",
         "password": "password1234",
     }
 
@@ -358,7 +354,6 @@ async def test_closed_registration_says_nothing_about_the_address(
             json={
                 "email": email,
                 "username": "closed",
-                "full_name": "Closed Door",
                 "password": "password1234",
             },
         )
@@ -372,7 +367,6 @@ async def test_register_normalizes_email(client: AsyncClient):
     user_data = {
         "email": "  TEST@EXAMPLE.COM  ",
         "username": "test",
-        "full_name": "Test User",
         "password": "password1234",
     }
 
@@ -396,7 +390,6 @@ async def test_register_persists_browser_timezone(
         json={
             "email": "tz-user@example.com",
             "username": "tz-user",
-            "full_name": "TZ User",
             "password": "password1234",
             "timezone": "America/Los_Angeles",
         },
@@ -421,7 +414,6 @@ async def test_register_rejects_invalid_timezone(client: AsyncClient):
         json={
             "email": "bad-tz@example.com",
             "username": "bad-tz",
-            "full_name": "Bad TZ",
             "password": "password1234",
             "timezone": "Mars/Olympus_Mons",
         },
@@ -442,7 +434,6 @@ async def test_register_without_timezone_keeps_utc_default(
         json={
             "email": "no-tz@example.com",
             "username": "no-tz",
-            "full_name": "No TZ",
             "password": "password1234",
         },
     )
@@ -475,7 +466,6 @@ async def test_register_requires_captcha_token_when_configured(
             json={
                 "email": "needs-captcha@example.com",
                 "username": "needs-captcha",
-                "full_name": "Needs Captcha",
                 "password": "password1234",
             },
         )
@@ -495,7 +485,6 @@ async def test_register_skips_captcha_for_bootstrap_first_user(
             json={
                 "email": "bootstrap@example.com",
                 "username": "bootstrap",
-                "full_name": "Bootstrap",
                 "password": "password1234",
             },
         )
@@ -519,7 +508,6 @@ async def test_register_no_captcha_required_when_provider_unset(
         json={
             "email": "no-captcha@example.com",
             "username": "no-captcha",
-            "full_name": "No Captcha",
             "password": "password1234",
         },
     )
@@ -547,7 +535,6 @@ async def test_register_with_valid_captcha_token_succeeds(
             json={
                 "email": "good-token@example.com",
                 "username": "good-token",
-                "full_name": "Good Token",
                 "password": "password1234",
                 "captcha_token": "stub-valid-token",
             },
@@ -562,7 +549,6 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
     await create_user(
         session,
         email="login@example.com",
-        full_name="Login User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -590,7 +576,6 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
     await create_user(
         session,
         email="test@example.com",
-        full_name="Test User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -620,7 +605,6 @@ async def test_password_token_refusal_does_not_reveal_account_resolution(
     await create_user(
         session,
         email=f"sso-{endpoint}@example.com",
-        full_name="No Password",
         hashed_password=None,
     )
 
@@ -799,7 +783,6 @@ async def test_login_refused_for_account_without_password(
     await create_user(
         session,
         email="sso-only@example.com",
-        full_name="SSO Only",
         hashed_password=None,
         status=UserStatus.active,
         email_verified=True,
@@ -823,7 +806,6 @@ async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
     await create_user(
         session,
         email="inactive@example.com",
-        full_name="Inactive User",
         hashed_password=get_password_hash(password),
         status=UserStatus.deactivated,  # Deactivated user
         email_verified=True,
@@ -847,7 +829,6 @@ async def test_login_unverified_email(client: AsyncClient, session: AsyncSession
     await create_user(
         session,
         email="unverified@example.com",
-        full_name="Unverified User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=False,  # Email not verified
@@ -885,7 +866,6 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
     await create_user(
         session,
         email="test@example.com",
-        full_name="Test User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -924,7 +904,6 @@ async def test_login_rehashes_legacy_bcrypt_password(
     user = await create_user(
         session,
         email="legacy@example.com",
-        full_name="Legacy User",
         hashed_password=legacy_hash,
         status=UserStatus.active,
         email_verified=True,
@@ -1403,8 +1382,7 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """Happy path: a verified id_token provisions the unknown user, links the
-    federated identity, and issues the web session cookie. The name claim is
-    stored as plain text."""
+    federated identity, and issues the web session cookie."""
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -1416,7 +1394,6 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
             "email": "new@example.com",
             "username": "new",
             "email_verified": True,
-            "name": "<b>New</b> User",
         },
     )
     assert response.status_code in (302, 307)
@@ -1430,7 +1407,6 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
             .where(UserEmail.email_hash == hash_email("new@example.com"))
         )
     ).one()
-    assert user.full_name == "New User"
     assert await addresses.has_proven_address(session, user_id=user.id)
     # SSO-only account: no password hash — the identity link carries the
     # subject, sync stamp, and (companion) refresh token.
@@ -2059,7 +2035,6 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     existing = await create_user(
         session,
         email="victim@example.com",
-        full_name="Victim",
         email_verified=False,
     )
     await _enable_platform_oidc(session)
@@ -2076,11 +2051,9 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     # No session was issued and no link was written.
     assert "session_token" not in response.cookies
     assert await _federated_identities(session) == []
-    # The account must not have been silently promoted to verified, and its
-    # profile must not have been overwritten by the IdP's claims.
+    # The account must not have been silently promoted to verified.
     await session.refresh(existing)
     assert not await addresses.has_proven_address(session, user_id=existing.id)
-    assert existing.full_name == "Victim"
 
 
 async def test_oidc_callback_links_existing_account_when_email_verified(
@@ -2094,7 +2067,6 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     existing = await create_user(
         session,
         email="member@example.com",
-        full_name="Member",
         email_verified=False,
     )
     await _enable_platform_oidc(session)
@@ -2250,21 +2222,18 @@ async def test_oidc_callback_enriches_missing_email_from_userinfo(
             "email": "fromuserinfo@example.com",
             "username": "fromuserinfo",
             "email_verified": True,
-            "name": "Info User",
         }
     )
     _wire_fake_idp(monkeypatch, idp)
 
     response = await _run_oidc_flow(client, idp, id_token_claims={"email": None})
     assert response.status_code in (302, 307)
-    user = (
-        await session.exec(
-            select(User)
-            .join(UserEmail, UserEmail.user_id == User.id)
-            .where(UserEmail.email_hash == hash_email("fromuserinfo@example.com"))
-        )
-    ).one()
-    assert user.full_name == "Info User"
+    provisioned = await session.exec(
+        select(User)
+        .join(UserEmail, UserEmail.user_id == User.id)
+        .where(UserEmail.email_hash == hash_email("fromuserinfo@example.com"))
+    )
+    assert provisioned.one_or_none() is not None
 
 
 async def test_oidc_callback_ignores_userinfo_with_mismatched_sub(
@@ -2308,7 +2277,6 @@ async def test_register_rejects_password_shorter_than_minimum(client: AsyncClien
         json={
             "email": "tooshort@example.com",
             "username": "tooshort",
-            "full_name": "Too Short",
             "password": "elevenchars",  # 11 chars
         },
     )
@@ -2331,7 +2299,6 @@ async def test_register_rejects_breached_password(client: AsyncClient, monkeypat
         json={
             "email": "breached@example.com",
             "username": "breached",
-            "full_name": "Breached",
             "password": "long-enough-but-pwned",
         },
     )
@@ -2348,7 +2315,6 @@ async def test_register_accepts_compliant_password(client: AsyncClient):
         json={
             "email": "ok@example.com",
             "username": "ok-user",
-            "full_name": "OK User",
             "password": "twelve-chars",  # exactly 12 chars
         },
     )
@@ -2365,7 +2331,6 @@ async def test_login_grandfathers_existing_short_password(
     await create_user(
         session,
         email="legacy-short@example.com",
-        full_name="Legacy Short",
         hashed_password=get_password_hash(short_password),
         status=UserStatus.active,
         email_verified=True,
@@ -2527,7 +2492,6 @@ async def test_register_rolls_back_when_guild_seed_fails(
         json={
             "email": "seedfail@example.com",
             "username": "seedfail",
-            "full_name": "Seed Fail",
             "password": "securepassword123",
             "community": {"name": "Seed Fail"},
         },
@@ -2560,7 +2524,6 @@ async def _make_login_user(
     user = await create_user(
         session,
         email=email,
-        full_name="Refresh User",
         hashed_password=get_password_hash(password),
         status=UserStatus.active,
         email_verified=True,
@@ -2828,7 +2791,6 @@ async def test_registering_records_when_the_password_was_set(
         json={
             "email": "stamped@example.com",
             "username": "stamped",
-            "full_name": "Stamped",
             "password": "a-perfectly-fine-secret-1",
         },
     )

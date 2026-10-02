@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { slugifyUsername } from "@/lib/usernames";
 
 /**
  * The screen an account meets when it was handed a handle rather than picking
@@ -23,7 +22,7 @@ export const ChooseHandle = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const suggestion = slugifyUsername(user?.full_name) || user?.username || "";
+  const suggestion = user?.username ?? "";
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

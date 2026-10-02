@@ -1245,12 +1245,6 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("app_guild_base_ro",),
                     using=routed_admin("id"),
                 ),
-                Policy(
-                    "profile_reader_reads_the_name_rule",
-                    SELECT,
-                    ("app_profile_reader",),
-                    using=OPEN,
-                ),
                 # An installed app's standing reads the status of the community it
                 # is routed into (its column grant is id and status alone).
                 Policy(
@@ -1267,7 +1261,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # 0138 revoked INSERT and UPDATE at the table level. UPDATE survives as
             # column grants on the identity columns a community's admin edits (name,
             # description, banner, categories, is_community, has_adult_content,
-            # show_member_names, updated_at — 0138, 0196, 0200, 0203).
+            # updated_at — 0138, 0196, 0200).
             # guild_select_routed narrows SELECT to the routed community (0360). 0357
             # took DELETE back: creating, deleting and purging a community run on the
             # system engine.

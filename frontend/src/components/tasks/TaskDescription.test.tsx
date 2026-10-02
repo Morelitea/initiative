@@ -14,7 +14,12 @@ describe("a task's description", () => {
       http.get("*/api/v1/c/:guildId/users/search", () =>
         HttpResponse.json({
           items: [
-            buildUserSummary({ id: 12, username: "ada", discriminator: 7, full_name: "Ada King" }),
+            buildUserSummary({
+              id: 12,
+              username: "ada",
+              discriminator: 7,
+              display_name: "Ada King",
+            }),
           ],
           total: 1,
           page: 1,

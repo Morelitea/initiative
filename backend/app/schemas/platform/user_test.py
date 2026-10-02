@@ -56,22 +56,21 @@ def test_the_guild_read_of_an_account_carries_no_name() -> None:
 
     The membership surfaces read an account back to say what it is now. None of
     the account's own business travels with the answer, and neither does the
-    person's name: this shape draws nobody, so the field is not declared and
-    there is nothing for ``show_member_names`` to govern.
+    person's name: this shape draws nobody, so the field is not declared.
     """
-    for absent in ("full_name", "email", "role"):
+    for absent in ("display_name", "email", "role"):
         assert absent not in UserGuildRead.model_fields
 
 
 def test_the_shape_everything_is_built_from_has_no_name() -> None:
     """``UserIdentity`` is the half every user shape shares, and the name is
     deliberately not in it — a shape adds one only by saying so."""
-    assert "full_name" not in UserIdentity.model_fields
+    assert "display_name" not in UserIdentity.model_fields
 
 
 @pytest.mark.parametrize("schema", [UserPublic, UserGuildMember, UserSummary])
 def test_a_guild_shape_declares_the_name_it_may_render(schema) -> None:
-    assert "full_name" in schema.model_fields
+    assert "display_name" in schema.model_fields
 
 
 @pytest.mark.always
@@ -79,10 +78,9 @@ def test_no_guild_content_reads_a_person_from_the_users_table() -> None:
     """Why none of those shapes needs a rule of its own about names.
 
     Guild content reaches a person through ``guild_member_profiles``, which
-    carries ``full_name`` only where that guild renders real names. A
-    relationship pointing at ``users`` instead would arrive with the name
-    whatever the guild said, and would need somebody to remember to drop it —
-    which is the arrangement this replaced.
+    carries ``display_name``, the name the member set in that guild. A
+    relationship pointing at ``users`` instead would reach the account, which
+    has no such name and no business in a guild's payload.
     """
     import pathlib as _pathlib
     import re as _re

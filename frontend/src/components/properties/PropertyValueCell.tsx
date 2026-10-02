@@ -80,7 +80,7 @@ interface UserValue {
   id: number;
   username?: string | null;
   discriminator?: number | null;
-  full_name?: string | null;
+  display_name?: string | null;
   avatar_url?: string | null;
 }
 

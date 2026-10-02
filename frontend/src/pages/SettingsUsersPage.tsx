@@ -227,7 +227,7 @@ export const SettingsUsersPage = () => {
 
   // The handle leads: every member has one. A name is only the display name
   // somebody set here, so the column shows once someone on the page has one.
-  const showsNames = rows.some((row) => row.full_name?.trim());
+  const showsNames = rows.some((row) => row.display_name?.trim());
 
   const userColumns: AppColumnDef<UserGuildMember>[] = [
     {
@@ -260,7 +260,7 @@ export const SettingsUsersPage = () => {
             header: t("users.userColumn"),
             cell: ({ row }) => (
               <div>
-                <p className="font-medium">{row.original.full_name?.trim() || "—"}</p>
+                <p className="font-medium">{row.original.display_name?.trim() || "—"}</p>
               </div>
             ),
           } satisfies AppColumnDef<UserGuildMember>,

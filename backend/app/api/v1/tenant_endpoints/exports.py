@@ -510,8 +510,8 @@ async def read_guild_export_status(
             .limit(1)
         )
     ).first()
-    # Read through the member view, so a community that renders handles gets a
-    # handle here as it does everywhere else. Empty where the account is gone;
+    # Read through the member view, so the name is the one set in this
+    # community, or the handle, as everywhere else. Empty where the account is gone;
     # the page says who it was missing in its own words.
     started_by = None
     if latest is not None:

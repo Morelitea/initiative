@@ -204,7 +204,7 @@ export const InitiativeSettingsMembersTab = ({
 
   // A name is only the display name somebody set in this community, so the
   // name column shows once someone here has one.
-  const showsNames = members.some((member) => member.user.full_name?.trim());
+  const showsNames = members.some((member) => member.user.display_name?.trim());
 
   const memberColumns: AppColumnDef<InitiativeMemberRead>[] = useMemo(() => {
     const getRoleDisplayName = (member: InitiativeMemberRead): string => {
@@ -230,10 +230,10 @@ export const InitiativeSettingsMembersTab = ({
         ? [
             {
               id: "name",
-              accessorKey: "user.full_name",
+              accessorKey: "user.display_name",
               header: t("settings.nameColumn"),
               cell: ({ row }) => (
-                <span className="font-medium">{row.original.user.full_name?.trim() || "—"}</span>
+                <span className="font-medium">{row.original.user.display_name?.trim() || "—"}</span>
               ),
             } satisfies AppColumnDef<InitiativeMemberRead>,
           ]

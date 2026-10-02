@@ -527,8 +527,8 @@ class TestGroupingByPerson:
     async def test_a_name_the_guild_does_not_render_falls_back_to_the_handle(
         self, client, session, acting_user
     ):
-        """``display_name`` is what a chart groups by either way, so a guild
-        that shows no real names still gets one column per person."""
+        """``display_name`` is what a chart groups by either way, so a member
+        who set no name in the guild still gets a column of their own."""
         actor = await acting_user(guild_role=GuildRole.member, initiative=True)
         response = await client.post(
             actor.g("/query"),

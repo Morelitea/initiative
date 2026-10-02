@@ -248,24 +248,6 @@ def slugify(seed: str | None) -> str | None:
     return slug
 
 
-def from_full_name(full_name: str | None) -> str | None:
-    """A handle offered from a display name: first initial, then last name.
-
-    ``Jordan Janzen`` -> ``jjanzen``. A single-word name has no last name to
-    join, so it stands on its own. ``None`` when nothing usable survives —
-    including an address, which is never the source of a handle.
-    """
-    text = (full_name or "").strip()
-    if not text:
-        return None
-    tokens = text.split()
-    if len(tokens) == 1:
-        return slugify(tokens[0])
-    # Joined before slugifying, so accent folding and the length and reserved
-    # rules all apply to the finished handle rather than to its halves.
-    return slugify(f"{tokens[0][0]}{tokens[-1]}")
-
-
 def random_name() -> str:
     """A pronounceable name part for an account that seeded none."""
     return f"{secrets.choice(_ADJECTIVES)}-{secrets.choice(_NOUNS)}"

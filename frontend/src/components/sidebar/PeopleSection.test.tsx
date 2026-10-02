@@ -38,7 +38,7 @@ const member = (overrides: Partial<GuildRosterMember>): GuildRosterMember => ({
   id: 1,
   username: "someone",
   discriminator: 1234,
-  full_name: null,
+  display_name: null,
   avatar_url: null,
   status: "active",
   guild_role: "member",

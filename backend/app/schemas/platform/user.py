@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.schemas.base import RawTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.schemas.platform.guild import NewCommunity
 from app.schemas.query import PageMeta
 
@@ -56,10 +56,10 @@ from app.core.config import settings
 #   ``OperatorUserRead``, which is ``UserRead`` with the address
 #   shortened (``app.core.email_masking``) — enough to recognise one you
 #   already have.
-# * In a guild, ``full_name`` is the display name the member set there and
-#   nothing else (``guild_memberships.display_name``, read through the guild
-#   projection). Only the shapes that draw a person carry it; ``UserIdentity``
-#   — what everything else is built from — has no name field.
+# * An account has no name. In a guild, ``display_name`` is the name the
+#   member set there (``guild_memberships.display_name``, read through the
+#   guild projection). Only the shapes that draw a person carry it;
+#   ``UserIdentity`` — what everything else is built from — has no name field.
 #
 # What is always present is the handle: ``username`` plus ``discriminator``,
 # rendered ``foobar#1234`` with the number muted. They are two fields rather
@@ -68,7 +68,6 @@ from app.core.config import settings
 
 class UserBase(SanitizedBaseModel):
     email: EmailStr
-    full_name: Optional[str] = None
     role: UserRole = UserRole.member
 
 
@@ -86,7 +85,6 @@ class UserCreate(SanitizedBaseModel):
     # The name part of the handle. The number behind it is drawn server-side —
     # it is never anyone's to choose.
     username: str = Field(max_length=64)
-    full_name: Optional[TitleStr] = None
     # ``max_length`` is a cheap bound so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
@@ -136,9 +134,8 @@ class UserIdentity(SanitizedBaseModel):
     identifier that keeps an old thread legible.
 
     Every shape below is this plus something, and the name is never part of the
-    "this": a shape that shows one declares ``full_name`` itself and takes
-    ``GuildNameVisibility`` along with it, so the field and the rule that
-    governs it always arrive together.
+    "this": a shape that draws a person in a guild declares ``display_name``
+    itself.
     """
 
     model_config = ConfigDict(
@@ -153,17 +150,17 @@ class UserIdentity(SanitizedBaseModel):
 
 
 class UserPublic(UserIdentity):
-    """A person, as everyone else sees them — the handle, and the name where
-    the guild being read renders one."""
+    """A person, as everyone else sees them — the handle, and the name they
+    set in the guild being read."""
 
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
 
 
 class AppMemberRead(SanitizedBaseModel):
     """A member, as an installed app reads them under ``members:read``.
 
     What its install calls them (``id``, a :data:`PersonId`), their handle,
-    the name where the guild renders one, and their picture. Built from the
+    the name they set in that guild, and their picture. Built from the
     shape the guild's own roster serves, so it carries no address to drop.
     A picture this API serves is addressed by the member's row id, so only a
     picture hosted elsewhere comes along.
@@ -172,7 +169,7 @@ class AppMemberRead(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     avatar_url: Optional[str] = None
 
     @classmethod
@@ -184,7 +181,7 @@ class AppMemberRead(SanitizedBaseModel):
             id=user.id,
             username=user.username,
             discriminator=user.discriminator,
-            full_name=getattr(user, "full_name", None),
+            display_name=getattr(user, "display_name", None),
             avatar_url=avatar,
         )
 
@@ -198,11 +195,8 @@ class UserGuildRead(UserIdentity):
     own business comes with it — no address, no platform tier, no word on
     whether the address was ever confirmed, no preferences.
 
-    Nor does the name, and it is absent here rather than blanked on the way
-    out. A real name is rendered on the surfaces that draw people — a roster, a
-    picker, a byline — and only in a guild that asked for names; those shapes
-    say so by carrying ``GuildNameVisibility``. Reading back an account is not
-    one of them, so the field is not in the shape at all.
+    Nor does the member's name: that belongs to the surfaces that draw people
+    — a roster, a picker, a byline — and reading back an account is not one.
     """
 
     status: UserStatus
@@ -214,19 +208,17 @@ class UserGuildMember(UserGuildRead):
     """A member, for the guild's own member-management surface.
 
     :class:`UserGuildRead` plus the membership facts a guild admin manages —
-    guild role, whether the membership is OIDC-managed — and a name, where the
-    guild shows names. Two members are told apart by their handle, which is
-    unique.
+    guild role, whether the membership is OIDC-managed — and the name they go
+    by here. Two members are told apart by their handle, which is unique.
     """
 
-    full_name: Optional[str] = None
     #: The rung this member holds in the guild, set by the endpoint. Shown as
     #: it stands, and asked of the ladder where a surface needs to know
     #: whether it administers the place.
     guild_role: Optional[str] = None
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
-    #: The name set for this member in this guild, as set; ``full_name`` is
-    #: already the result of it. ``None`` when nobody set one.
+    #: The name set for this member in this guild. ``None`` when nobody set
+    #: one, and the handle renders.
     display_name: Optional[str] = None
 
 
@@ -254,7 +246,7 @@ class UserSummary(UserIdentity):
     catalog shape it names is declared further down this file.
     """
 
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     profile_decorations: Optional["ProfileDecorations"] = None
     #: The rung this member holds in the guild this was read under. Absent
     #: where the caller asked outside a guild, which is why it is optional
@@ -492,9 +484,8 @@ class UserProfile(SanitizedBaseModel):
 
     A profile is public. It carries the handle — which is the name in this
     product, unique and never withheld — the face, the line they wrote, the
-    look they picked, how they appear right now, and when they joined. It never
-    carries a real name: ``full_name`` is a guild's business (a guild decides
-    whether it renders names at all), and this shape has no guild in it.
+    look they picked, how they appear right now, and when they joined. The name
+    a member goes by is a guild's business, and this shape has no guild in it.
 
     Nothing here is private to a guild, so nothing here is reached through
     one. What it does not carry is the whole point of it being its own shape:
@@ -800,7 +791,6 @@ class UserInitiativeRole(SanitizedBaseModel):
 
 
 class UserSelfUpdate(SanitizedBaseModel):
-    full_name: Optional[TitleStr] = None
     password: Optional[RawTextStr] = Field(default=None, max_length=256)
     # Required to set a new ``password`` (verified server-side). Exempt for
     # OIDC-only accounts, which have no local password to confirm.

@@ -91,7 +91,6 @@ describe("SettingsPlatformUsersPage", () => {
 
   it("identifies an account by its handle, and shows no address or name", async () => {
     const rows = masked();
-    rows[1].full_name = "Wilhelmina Fitzgerald";
     renderRoster(rows);
 
     await screen.findByText("owner");
@@ -103,8 +102,6 @@ describe("SettingsPlatformUsersPage", () => {
     // A row is identified by handle, which is what the filter box searches.
     expect(screen.getByText("owner")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/filter by handle/i)).toBeInTheDocument();
-    // The name somebody filled in is theirs, and an operator needs none of it.
-    expect(screen.queryByText("Wilhelmina Fitzgerald")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Name/ })).not.toBeInTheDocument();
   });
 

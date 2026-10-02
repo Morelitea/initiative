@@ -41,6 +41,7 @@ import { useWizard } from "@/hooks/useWizard";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { OPERATOR_SETTABLE_STATUSES } from "@/lib/guildStatus";
+import { getUserHandle } from "@/lib/userDisplay";
 
 type Step = "seat" | "status";
 
@@ -92,7 +93,7 @@ export const GuildRestoreWizard = ({
 
   const userItems = (usersQuery.data?.items ?? []).map((user) => ({
     value: String(user.id),
-    label: user.full_name ? `${user.full_name} (${user.username})` : user.username,
+    label: getUserHandle(user),
     hint: user.email,
   }));
 

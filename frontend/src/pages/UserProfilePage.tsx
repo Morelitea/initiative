@@ -34,9 +34,9 @@ import { cn } from "@/lib/utils";
  * and the tray holds the communities the person is in.
  *
  * Public, and the same page whoever opens it: the handle is the name in this
- * product, so nothing here depends on a community deciding whether it renders
- * real names, and how they appear is a fact about the person rather than about
- * a place they happen to share with the reader.
+ * product, so nothing here depends on the name a person set in one community,
+ * and how they appear is a fact about the person rather than about a place
+ * they happen to share with the reader.
  *
  * Your own status is editable in place; nothing else on it is. The rest is
  * written on Settings → Profile, so there is one place a person edits

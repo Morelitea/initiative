@@ -34,8 +34,7 @@ interface UserSettingsProfilePageProps {
  * Your packs sit under your look rather than over it: what you are wearing is
  * why you came, and what you own is where you go to change it.
  *
- * How you sign in — and the real name that communities showing real names use
- * — is Settings › Account. Nothing on this page is private.
+ * How you sign in is Settings › Account. Nothing on this page is private.
  */
 export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfilePageProps) => {
   const { t } = useTranslation(["profiles", "common"]);

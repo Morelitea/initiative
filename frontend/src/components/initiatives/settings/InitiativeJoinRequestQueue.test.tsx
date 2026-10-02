@@ -47,7 +47,7 @@ function stubQueue(requests: unknown[]) {
         buildInitiativeJoinRequest({
           id: Number(params.requestId),
           status: "approved",
-          user: buildUserSummary({ id: 42, full_name: "Ada Lovelace" }),
+          user: buildUserSummary({ id: 42, display_name: "Ada Lovelace" }),
         })
       );
     }),
@@ -57,7 +57,7 @@ function stubQueue(requests: unknown[]) {
         buildInitiativeJoinRequest({
           id: Number(params.requestId),
           status: "denied",
-          user: buildUserSummary({ id: 42, full_name: "Ada Lovelace" }),
+          user: buildUserSummary({ id: 42, display_name: "Ada Lovelace" }),
         })
       );
     })
@@ -69,7 +69,7 @@ const knock = (overrides = {}) =>
   buildInitiativeJoinRequest({
     id: 11,
     initiative_id: INITIATIVE_ID,
-    user: buildUserSummary({ id: 42, full_name: "Ada Lovelace" }),
+    user: buildUserSummary({ id: 42, display_name: "Ada Lovelace" }),
     message: "I run the Thursday session.",
     ...overrides,
   });
@@ -170,7 +170,10 @@ describe("InitiativeJoinRequestQueue", () => {
   });
 
   it("counts the queue in its heading", async () => {
-    stubQueue([knock(), knock({ id: 12, user: buildUserSummary({ id: 43, full_name: "Grace" }) })]);
+    stubQueue([
+      knock(),
+      knock({ id: 12, user: buildUserSummary({ id: 43, display_name: "Grace" }) }),
+    ]);
 
     renderQueue();
 

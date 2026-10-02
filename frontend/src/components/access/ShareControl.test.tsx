@@ -13,8 +13,8 @@ import type {
 // The component only reads ``.data`` off each query, so a simple stub is enough
 // and keeps the test free of network/MSW plumbing.
 
-const alice = buildUserPublic({ id: 101, full_name: "Alice" });
-const bob = buildUserPublic({ id: 102, full_name: "Bob" });
+const alice = buildUserPublic({ id: 101, display_name: "Alice" });
+const bob = buildUserPublic({ id: 102, display_name: "Bob" });
 
 const roles: InitiativeRoleRead[] = [
   {

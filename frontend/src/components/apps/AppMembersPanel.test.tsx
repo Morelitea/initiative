@@ -51,8 +51,8 @@ vi.mock("@/hooks/useUsers", () => ({
   useUserSearch: () => ({
     data: {
       items: [
-        { id: 5, full_name: "Ada" },
-        { id: 6, full_name: "Grace" },
+        { id: 5, display_name: "Ada" },
+        { id: 6, display_name: "Grace" },
       ],
     },
   }),

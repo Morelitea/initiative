@@ -746,7 +746,6 @@ async def test_an_admin_names_a_member(
     )
     rows = {row["id"]: row for row in roster.json()["items"]}
     assert rows[member.user.id]["display_name"] == "Bo"
-    assert rows[member.user.id]["full_name"] == "Bo"
 
     stranger = await create_user(session)
     missing = await client.put(

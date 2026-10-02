@@ -12,16 +12,13 @@ once:
 
 * ``PUBLIC_PROFILE_COLUMNS`` — what a profile is, anywhere in the platform.
   Behind ``public.user_profiles`` (migration 0214), read by the cross-guild
-  profile page.
-* ``GUILD_MEMBER_PROFILE_COLUMNS`` — the same plus ``full_name``, the columns
-  the reader behind ``public.guild_member_profiles`` holds. Since migration
-  0438 that view answers its ``full_name`` from the member's display name in
-  the routed guild rather than from this column.
+  profile page, and behind ``public.guild_member_profiles``, which adds the
+  name a member set in the routed guild from ``guild_memberships`` (0438).
 
 Everything else is ``PRIVATE_COLUMNS``, which is *derived* rather than listed:
-a column added to the model tomorrow is private because it is not in either
-family, and ``user_columns_test`` fails if the families ever name a column the
-model does not have. The request path holds no privilege on ``public.users``
+a column added to the model tomorrow is private because it is not in that
+tuple, and ``user_columns_test`` fails if the tuple ever names a column the model
+does not have. The request path holds no privilege on ``public.users``
 itself, so a private column is not something a guild-routed query returns null
 for — it is something it cannot name at all.
 
@@ -36,7 +33,6 @@ from app.models.platform.user import User
 
 __all__ = [
     "PUBLIC_PROFILE_COLUMNS",
-    "GUILD_MEMBER_PROFILE_COLUMNS",
     "PUBLISHED_COLUMNS",
     "PRIVATE_COLUMNS",
     "all_user_columns",
@@ -57,25 +53,8 @@ PUBLIC_PROFILE_COLUMNS: tuple[str, ...] = (
     "created_at",
 )
 
-#: The columns the guild projection's reader holds on ``public.users``: the
-#: profile plus ``full_name``. The view's own ``full_name`` is the member's
-#: display name in the routed guild (migration 0438), not this column.
-GUILD_MEMBER_PROFILE_COLUMNS: tuple[str, ...] = (
-    "id",
-    "username",
-    "discriminator",
-    "full_name",
-    "avatar_url",
-    "status",
-    "custom_status",
-    "profile_decorations",
-    "created_at",
-)
-
 #: Every column any request-path role can reach, by any route.
-PUBLISHED_COLUMNS: frozenset[str] = frozenset(PUBLIC_PROFILE_COLUMNS) | frozenset(
-    GUILD_MEMBER_PROFILE_COLUMNS
-)
+PUBLISHED_COLUMNS: frozenset[str] = frozenset(PUBLIC_PROFILE_COLUMNS)
 
 
 def all_user_columns() -> frozenset[str]:

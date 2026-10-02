@@ -246,7 +246,6 @@ export interface AccessGrantRead {
   expires_at: string | null;
   revoked_at: string | null;
   user_email: string | null;
-  user_full_name: string | null;
   guild_name: string | null;
   guild_status: GuildStatus | null;
   approved_by_email: string | null;
@@ -1652,7 +1651,7 @@ export interface PropertyOption {
  *
  * ``value`` is rehydrated from the correct typed column by the service
  * layer. For ``user_reference`` properties the service attaches a
- * minimal ``{id, full_name}`` dict.
+ * minimal person dict (``id``, the handle, ``display_name``, ``avatar_url``).
  */
 export interface PropertySummary {
   property_id: number;
@@ -1777,14 +1776,14 @@ export const UserStatus = {
  *
  * A person appears here, so it follows the same two rules every other
  * guild-scoped shape does: the handle is always present and is what renders
- * when there is no name to show, and ``full_name`` arrives only from a guild
- * that shows real names.
+ * when there is no name to show, and ``display_name`` is the name the person
+ * set in this guild.
  */
 export interface TaskAssigneeSummary {
   id: number;
   username: string;
   discriminator: number;
-  full_name: string | null;
+  display_name: string | null;
   avatar_url: string | null;
   status: UserStatus;
 }
@@ -1840,8 +1839,8 @@ export interface CalendarEntriesResponse {
 }
 
 /**
- * A person, as everyone else sees them — the handle, and the name where
- * the guild being read renders one.
+ * A person, as everyone else sees them — the handle, and the name they
+ * set in the guild being read.
  */
 export interface UserPublic {
   id: number;
@@ -1849,7 +1848,7 @@ export interface UserPublic {
   discriminator: number;
   avatar_url: string | null;
   status: UserStatus;
-  full_name: string | null;
+  display_name: string | null;
 }
 
 export type RSVPStatus = (typeof RSVPStatus)[keyof typeof RSVPStatus];
@@ -2239,8 +2238,7 @@ export const Presence = {
  * Who wrote a comment.
  *
  * An address never reaches a guild, so there is none here; the handle names
- * the author, and ``full_name`` arrives only from a guild that shows real
- * names.
+ * the author, and ``display_name`` is the name they set in this guild.
  *
  * It carries what a picture needs to be drawn the way it is drawn everywhere
  * else — the decorations and how they are appearing — because a comment is
@@ -2251,7 +2249,7 @@ export interface CommentAuthor {
   id: number;
   username: string;
   discriminator: number;
-  full_name?: string | null;
+  display_name?: string | null;
   avatar_url?: string | null;
   profile_decorations?: ProfileDecorationsOutput;
   /**
@@ -2289,7 +2287,7 @@ export interface ReactionUser {
   id: number;
   username: string;
   discriminator: number;
-  full_name?: string | null;
+  display_name?: string | null;
   avatar_url?: string | null;
 }
 
@@ -2536,9 +2534,9 @@ export interface ContactGrantsResponse {
 /**
  * One person, on one row of the page.
  *
- * Inherits ``UserSummary``'s guild-name visibility: ``full_name`` survives
- * only where the guild this row was read under renders real names, which the
- * cross-guild loop sets per guild.
+ * Inherits ``UserSummary``'s ``display_name``: the name the person set in
+ * the guild this row was read under, which the cross-guild loop reads per
+ * guild.
  */
 export interface ContactRead {
   id: number;
@@ -2546,7 +2544,7 @@ export interface ContactRead {
   discriminator: number;
   avatar_url: string | null;
   status: UserStatus;
-  full_name: string | null;
+  display_name: string | null;
   profile_decorations: ProfileDecorationsOutput;
   guild_role: string | null;
   presence: Presence;
@@ -3658,7 +3656,6 @@ export interface EmailOtpRegister {
    * @maxLength 64
    */
   username: string;
-  full_name?: string | null;
   timezone?: string | null;
   invite_code?: string | null;
   community?: NewCommunity | null;
@@ -5086,7 +5083,6 @@ export interface GuildRead {
   require_second_factor: boolean | null;
   is_community: boolean;
   categories: GuildCategory[];
-  show_member_names: boolean;
   has_adult_content: boolean | null;
   banner: GuildBannerRead;
   online_count: number;
@@ -5107,7 +5103,7 @@ export interface GuildRosterMember {
   discriminator: number;
   avatar_url: string | null;
   status: UserStatus;
-  full_name: string | null;
+  display_name: string | null;
   profile_decorations: ProfileDecorationsOutput | null;
   guild_role: string | null;
   presence: Presence;
@@ -5151,7 +5147,6 @@ export interface GuildUpdate {
   retention_days?: number | null;
   is_community?: boolean | null;
   categories?: GuildCategory[] | null;
-  show_member_names?: boolean | null;
   banner?: GuildBannerWrite | null;
   has_adult_content?: boolean | null;
 }
@@ -5388,7 +5383,7 @@ export interface UserSummary {
   discriminator: number;
   avatar_url: string | null;
   status: UserStatus;
-  full_name: string | null;
+  display_name: string | null;
   profile_decorations: ProfileDecorationsOutput | null;
   guild_role: string | null;
 }
@@ -6485,7 +6480,6 @@ export interface UserInitiativeRole {
  */
 export interface OperatorUserRead {
   email: string;
-  full_name: string | null;
   role: UserRole;
   id: number;
   username: string;
@@ -6740,7 +6734,6 @@ export interface PasskeySignUpFinish {
   email: string;
   /** @maxLength 64 */
   username: string;
-  full_name?: string | null;
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
@@ -6779,7 +6772,6 @@ export interface PasskeySignUpStart {
   email: string;
   /** @maxLength 64 */
   username: string;
-  full_name?: string | null;
   timezone?: string | null;
   captcha_token?: string | null;
   community?: NewCommunity | null;
@@ -7047,7 +7039,7 @@ export interface PollVoter {
   id: number;
   username: string;
   discriminator: number;
-  full_name?: string | null;
+  display_name?: string | null;
   avatar_url?: string | null;
   profile_decorations?: ProfileDecorationsOutput;
 }
@@ -7237,14 +7229,13 @@ export interface PostReadReceipt {
 }
 
 /**
- * One person on a notice's roster, named the way reactors are named — so a
- * guild that renders handles rather than real names does so here too.
+ * One person on a notice's roster, named the way reactors are named.
  */
 export interface PostReader {
   id: number;
   username: string;
   discriminator: number;
-  full_name?: string | null;
+  display_name?: string | null;
   avatar_url?: string | null;
   profile_decorations?: ProfileDecorationsOutput;
   read_at?: string | null;
@@ -8991,7 +8982,6 @@ export interface UserCreate {
   email: string;
   /** @maxLength 64 */
   username: string;
-  full_name?: string | null;
   /** @maxLength 256 */
   password: string;
   timezone?: string | null;
@@ -9029,9 +9019,8 @@ export interface UserEmailListResponse {
  * A member, for the guild's own member-management surface.
  *
  * :class:`UserGuildRead` plus the membership facts a guild admin manages —
- * guild role, whether the membership is OIDC-managed — and a name, where the
- * guild shows names. Two members are told apart by their handle, which is
- * unique.
+ * guild role, whether the membership is OIDC-managed — and the name they go
+ * by here. Two members are told apart by their handle, which is unique.
  */
 export interface UserGuildMember {
   id: number;
@@ -9041,7 +9030,6 @@ export interface UserGuildMember {
   status: UserStatus;
   created_at: string;
   initiative_roles: UserInitiativeRole[];
-  full_name: string | null;
   guild_role: string | null;
   oidc_managed: boolean;
   display_name: string | null;
@@ -9064,9 +9052,8 @@ export interface UserGuildMemberListResponse {
  *
  * A profile is public. It carries the handle — which is the name in this
  * product, unique and never withheld — the face, the line they wrote, the
- * look they picked, how they appear right now, and when they joined. It never
- * carries a real name: ``full_name`` is a guild's business (a guild decides
- * whether it renders names at all), and this shape has no guild in it.
+ * look they picked, how they appear right now, and when they joined. The name
+ * a member goes by is a guild's business, and this shape has no guild in it.
  *
  * Nothing here is private to a guild, so nothing here is reached through
  * one. What it does not carry is the whole point of it being its own shape:
@@ -9086,7 +9073,6 @@ export interface UserProfile {
 
 export interface UserRead {
   email: string | null;
-  full_name: string | null;
   role: UserRole;
   id: number;
   username: string;
@@ -9132,7 +9118,6 @@ export interface UserRead {
 }
 
 export interface UserSelfUpdate {
-  full_name?: string | null;
   password?: string | null;
   current_password?: string | null;
   avatar_url?: string | null;

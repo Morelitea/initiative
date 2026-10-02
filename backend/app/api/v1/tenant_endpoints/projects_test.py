@@ -108,7 +108,6 @@ async def test_people_search_names_who_can_open_the_project(
         initiative=admin.initiative,
         initiative_role="member",
         username="quill",
-        full_name="Wanda Writer",
     )
     reader = await acting_user(
         guild_role=GuildRole.member,
@@ -116,7 +115,6 @@ async def test_people_search_names_who_can_open_the_project(
         initiative=admin.initiative,
         initiative_role="member",
         username="lantern",
-        full_name="Rob Reader",
     )
     # A member of the initiative with no grant at all.
     none = await acting_user(
@@ -125,7 +123,6 @@ async def test_people_search_names_who_can_open_the_project(
         initiative=admin.initiative,
         initiative_role="member",
         username="thistle",
-        full_name="Nora None",
     )
 
     await create_resource_grant(
@@ -150,7 +147,7 @@ async def test_people_search_names_who_can_open_the_project(
         "id",
         "username",
         "discriminator",
-        "full_name",
+        "display_name",
         "avatar_url",
         "status",
         "profile_decorations",
@@ -173,7 +170,10 @@ async def test_people_search_names_who_can_open_the_project(
     body = response.json()
     assert [item["username"] for item in body["items"]] == ["quill"]
 
-    # And her name too, because this guild takes the default and shows names.
+    # And the name she set in this guild.
+    await create_guild_membership(
+        session, user=writer.user, guild=admin.guild, display_name="Wanda Writer"
+    )
     response = await client.get(
         admin.g("/users/search"),
         headers=admin.headers,

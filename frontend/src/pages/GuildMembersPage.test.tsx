@@ -62,7 +62,7 @@ const person = (id: number, username: string, overrides: Record<string, unknown>
   id,
   username,
   discriminator: 1234,
-  full_name: null,
+  display_name: null,
   avatar_url: null,
   status: "active" as const,
   // The server answers "does this one administer the place"; a role override

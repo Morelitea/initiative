@@ -131,7 +131,7 @@ class ContactGrantRead(SanitizedBaseModel):
     discriminator: int
     avatar_url: Optional[str] = None
     #: Carried so a grant renders as an ordinary contact row wherever one is
-    #: listed. No ``full_name``: a real name is a per-guild disclosure, and a
+    #: listed. No ``display_name``: that name belongs to one community, and a
     #: grant may name somebody the reader shares no community with.
     status: UserStatus = UserStatus.active
     presence: Presence = Presence.offline

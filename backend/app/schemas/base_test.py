@@ -214,7 +214,7 @@ def test_every_schema_extends_sanitized_base() -> None:
 # RESERVED_SIGILS via TitleStr or is listed in _SIGIL_EXEMPT below, so a new
 # tool's Create schema cannot quietly join the searched surface without a
 # decision being recorded here.
-_NAME_FIELDS = frozenset({"name", "title", "label", "full_name"})
+_NAME_FIELDS = frozenset({"name", "title", "label"})
 
 #: Request-body fields deliberately outside the rule, and why.
 _SIGIL_EXEMPT: frozenset[str] = frozenset(

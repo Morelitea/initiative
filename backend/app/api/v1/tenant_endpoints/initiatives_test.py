@@ -545,7 +545,7 @@ async def test_search_initiative_members_slim_and_filtered(
 ):
     """The slim members search returns a UserSummary envelope and filters by
     name, with the same membership gate as the full roster."""
-    admin = await acting_user(guild_role=GuildRole.admin, full_name="Zed Admin")
+    admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Search Initiative"
     )
@@ -556,7 +556,6 @@ async def test_search_initiative_members_slim_and_filtered(
         initiative_role="member",
         email="alice@example.com",
         username="wonderland",
-        full_name="Alice Wonderland",
     )
     bob = await acting_user(
         guild_role=GuildRole.member,
@@ -564,7 +563,6 @@ async def test_search_initiative_members_slim_and_filtered(
         initiative=initiative,
         initiative_role="member",
         email="bob@example.com",
-        full_name="Bob Builder",
     )
 
     # Unfiltered: slim envelope over every member (creator + 2).
@@ -579,7 +577,7 @@ async def test_search_initiative_members_slim_and_filtered(
         "id",
         "username",
         "discriminator",
-        "full_name",
+        "display_name",
         "avatar_url",
         "status",
         "profile_decorations",
@@ -604,8 +602,7 @@ async def test_search_initiative_members_slim_and_filtered(
     assert body["total_count"] == 1
     assert body["items"][0]["username"] == "wonderland"
 
-    # The account's own name does not reach the guild, so a term that appears
-    # only there finds nobody...
+    # A term outside her handle finds nobody while she has no name here...
     response = await client.get(
         admin.g(f"/initiatives/{initiative.id}/members/search"),
         headers=admin.headers,
@@ -631,7 +628,7 @@ async def test_search_initiative_members_filters_by_user_id(
 ):
     """`user_id` resolves a known selection, narrowing the same member set —
     a guild member outside the initiative is never resolved through it."""
-    admin = await acting_user(guild_role=GuildRole.admin, full_name="Zed Admin")
+    admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
         session, admin.guild, admin.user, name="Id Filter Initiative"
     )
@@ -642,13 +639,11 @@ async def test_search_initiative_members_filters_by_user_id(
         initiative_role="member",
         email="alice-ids@example.com",
         username="alice-ids",
-        full_name="Alice Wonderland",
     )
     outsider = await acting_user(
         guild_role=GuildRole.member,
         guild=admin.guild,
         email="outsider-ids@example.com",
-        full_name="Olive Outsider",
     )
 
     response = await client.get(
@@ -1633,9 +1628,7 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
     reachable by asking for them."""
     manager = await acting_user(guild_role=GuildRole.member)
     initiative = await _requestable(session, manager, name="Knockable")
-    member = await acting_user(
-        guild_role=GuildRole.member, guild=manager.guild, full_name="Ada Lovelace"
-    )
+    member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
 
     first = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
@@ -1667,7 +1660,7 @@ async def test_the_pending_queue_carries_what_the_decision_needs(
     assert queue[0]["message"] == "second try"
     assert queue[0]["user"]["id"] == member.user.id
     # The queue names who is asking the way this guild names anyone —
-    # by handle, since it does not show real names.
+    # by handle, since they set no name here.
     assert queue[0]["user"]["username"] == member.user.username
     assert queue[0]["prior_denials"] == 1
 
@@ -2057,7 +2050,6 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     member = await acting_user(
         guild_role=GuildRole.member,
         guild=manager.guild,
-        full_name="Ada Lovelace",
         username="ada",
         discriminator=1815,
     )

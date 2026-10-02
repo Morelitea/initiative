@@ -265,11 +265,11 @@ describe("ModerationPage", () => {
         const member =
           page === 2
             ? buildInitiativeMember({
-                user: buildUserPublic({ full_name: "Bea Second" }),
+                user: buildUserPublic({ display_name: "Bea Second" }),
                 role_display_name: "Member",
               })
             : buildInitiativeMember({
-                user: buildUserPublic({ full_name: "Ada First" }),
+                user: buildUserPublic({ display_name: "Ada First" }),
                 role_display_name: "Moderator",
                 override_share_restrictions: true,
               });

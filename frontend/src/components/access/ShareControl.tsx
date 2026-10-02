@@ -223,7 +223,7 @@ export const ShareControl = ({
   const userHandle = useCallback(
     (userId: number): string | null => {
       const member = findMember(userId);
-      if (!member?.full_name?.trim()) return null;
+      if (!member?.display_name?.trim()) return null;
       return getUserHandle(member) || null;
     },
     [findMember]
@@ -480,7 +480,7 @@ export const ShareControl = ({
                             >
                               <div className="flex flex-col">
                                 <span className="truncate text-sm">{displayName}</span>
-                                {member.full_name?.trim() && (
+                                {member.display_name?.trim() && (
                                   <span className="truncate text-muted-foreground text-xs">
                                     {getUserHandle(member)}
                                   </span>

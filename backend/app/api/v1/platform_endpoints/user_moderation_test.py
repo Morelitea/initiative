@@ -590,7 +590,7 @@ class TestTimeOut:
     async def test_everything_else_is_refused(self, client, suspended):
         headers = get_auth_headers(suspended)
         for method, path, body in (
-            ("patch", "/api/v1/users/me", {"full_name": "Changed"}),
+            ("patch", "/api/v1/users/me", {"timezone": "UTC"}),
             ("post", "/api/v1/communities/", {"name": "Mine"}),
             ("post", "/api/v1/users/me/delete-account", {}),
             ("get", "/api/v1/me/contacts", None),

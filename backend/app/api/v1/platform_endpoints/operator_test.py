@@ -61,7 +61,7 @@ async def test_export_platform_users_csv_as_operator(client, platform_people):
     assert header_row == [
         "user_id",
         "email",
-        "full_name",
+        "handle",
         "platform_role",
         "status",
         "email_verified",

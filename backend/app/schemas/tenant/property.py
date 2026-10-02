@@ -177,7 +177,7 @@ class PropertySummary(SanitizedBaseModel):
 
     ``value`` is rehydrated from the correct typed column by the service
     layer. For ``user_reference`` properties the service attaches a
-    minimal ``{id, full_name}`` dict.
+    minimal person dict (``id``, the handle, ``display_name``, ``avatar_url``).
     """
 
     model_config = ConfigDict(

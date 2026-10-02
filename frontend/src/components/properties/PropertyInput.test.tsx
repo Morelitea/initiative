@@ -170,13 +170,13 @@ describe("PropertyInput", () => {
             items: [
               {
                 id: 7,
-                full_name: "Ada Lovelace",
+                display_name: "Ada Lovelace",
                 avatar_url: null,
                 status: "active",
               },
               {
                 id: 8,
-                full_name: "Grace Hopper",
+                display_name: "Grace Hopper",
                 avatar_url: null,
                 status: "active",
               },

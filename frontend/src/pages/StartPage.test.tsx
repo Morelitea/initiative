@@ -215,7 +215,6 @@ describe("what the account is made with", () => {
       username_offer: "signed-42",
       community: { name: "chesterfan's space" },
     });
-    expect(sent).not.toHaveProperty("full_name");
   });
 
   it("holds a handle the server refuses on the step where it can be changed", async () => {

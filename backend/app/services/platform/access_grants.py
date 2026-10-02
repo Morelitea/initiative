@@ -50,7 +50,7 @@ from app.services.auth import addresses
 from app.services.platform import auth_posture
 from app.services.platform import guilds as guilds_service
 from app.services.platform import notice_outbox
-from app.core.user_display import display_name
+from app.core.user_display import handle_of
 from app.core.clock import utcnow
 
 logger = logging.getLogger(__name__)
@@ -291,7 +291,7 @@ async def request_grants(
         created.append(grant)
     await session.flush()
 
-    requester_name = display_name(requester)
+    requester_name = handle_of(requester)
     for approver in await _approvers(session):
         await _tell(
             session,
@@ -776,7 +776,6 @@ async def to_read(
         grantee = users.get(g.user_id)
         if grantee is not None:
             read.user_email = addresses_by_user.get(g.user_id)
-            read.user_full_name = grantee.full_name
         guild = guilds.get(g.guild_id)
         if guild is not None:
             read.guild_name = guild.name

@@ -103,7 +103,7 @@ beforeEach(() => {
 
 describe("bootstrapping with no answer from the server", () => {
   it("keeps the last-known user, marked unverified", async () => {
-    snapshot = buildUser({ full_name: "Alice" });
+    snapshot = buildUser();
     const stored = snapshot;
     get.mockRejectedValue({ request: {}, message: "Network Error" });
 

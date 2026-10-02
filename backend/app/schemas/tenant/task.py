@@ -29,8 +29,8 @@ class TaskAssigneeSummary(SanitizedBaseModel):
 
     A person appears here, so it follows the same two rules every other
     guild-scoped shape does: the handle is always present and is what renders
-    when there is no name to show, and ``full_name`` arrives only from a guild
-    that shows real names.
+    when there is no name to show, and ``display_name`` is the name the person
+    set in this guild.
     """
 
     model_config = ConfigDict(
@@ -40,7 +40,7 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    full_name: Optional[str] = None
+    display_name: Optional[str] = None
     avatar_url: AvatarUrl = None
     status: UserStatus = UserStatus.active
 

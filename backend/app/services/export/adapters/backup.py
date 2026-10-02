@@ -1025,16 +1025,23 @@ class _ScopeBuilder:
 
     async def _guild_profiles(self) -> dict[int, Any]:
         """The community's member profiles by user id, read once per build.
-        The projection already narrows to this guild's members; an
-        initiative's roster is a subset of it."""
+        Narrowed to this guild's members; an initiative's roster is a subset
+        of it. ``display_name`` is the name the member set, or ``None``."""
         if self._profiles is None:
             from sqlmodel import select
 
-            from app.models.platform.user_profile_view import GuildMember
+            from app.models.platform.user_profile_view import (
+                GuildMember,
+                MemberProfile,
+            )
 
             self._profiles = {
                 profile.id: profile
-                for profile in await self.session.exec(select(GuildMember))
+                for profile in await self.session.exec(
+                    select(MemberProfile).where(
+                        MemberProfile.id.in_(select(GuildMember.id))
+                    )
+                )
             }
         return self._profiles
 
@@ -1122,7 +1129,7 @@ class _ScopeBuilder:
                     "handle": handle_of(profiles[member.user_id])
                     if member.user_id in profiles
                     else None,
-                    "name": getattr(profiles.get(member.user_id), "full_name", None),
+                    "name": getattr(profiles.get(member.user_id), "display_name", None),
                     # By role NAME: role ids are per-initiative and mean
                     # nothing once the archive is opened somewhere else.
                     "role": role_names.get(member.role_id),

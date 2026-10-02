@@ -296,7 +296,6 @@ async def test_withdrawing_password_closes_its_routes(
             "email": "new@example.com",
             "username": "newperson",
             "password": "a-long-enough-password-1",
-            "full_name": "New Person",
         },
     )
     assert register.status_code == 403

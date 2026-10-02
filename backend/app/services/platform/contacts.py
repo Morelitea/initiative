@@ -78,8 +78,8 @@ async def ordered_member_guilds(
 def _reads(users: Iterable[MemberProfile]) -> list[ContactRead]:
     """Validate inside the caller's current guild context.
 
-    ``ContactRead`` inherits the guild-name visibility validator, so where this
-    runs decides whether ``full_name`` survives.
+    Each ``MemberProfile`` was read in its guild's routed context, so its
+    ``display_name`` is the name the person set there.
     """
     reads = []
     for user in users:
@@ -102,7 +102,7 @@ async def guild_sections(
 
     Each guild is visited in its own routed context, which is what makes both
     reads below possible: ``guild_memberships`` answers for the current guild
-    there, and ``full_name`` renders per that guild's own setting.
+    there, and ``display_name`` is the name each person set in that guild.
     """
     if not guilds:
         return []
@@ -256,9 +256,9 @@ async def favorites(
 
     Read from ``public.user_profiles`` — the view that *is* the public
     projection of an account — so a favorite the reader shares no guild with
-    still resolves. That view carries no ``full_name``, a real name being a
-    per-guild disclosure rather than a public fact, so a search here matches
-    the handle and nothing else.
+    still resolves. That view carries no ``display_name``, a member's name
+    belonging to one guild rather than to the account, so a search here
+    matches the handle and nothing else.
     """
     stmt = (
         select(

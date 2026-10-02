@@ -607,7 +607,6 @@ async def soft_delete_user(
     # Strip the rest of the PII surface. The IdP subject and refresh token
     # live on the identity links — remove the links themselves.
     await identity_service.delete_user_identities(session, user_id=user_id)
-    user.full_name = None
     user.avatar_url = None
     # The picture is a row of its own now, so nulling the column is not enough
     # — the husk must not keep a face.
@@ -967,16 +966,15 @@ def name_closeness(
     that substring matching cannot — and its real work is the ORDER, putting the
     nearest name at the top of a page rather than whoever sorts first.
 
-    ``match_names`` reads the profile's ``full_name`` too. On the guild
-    projection that is the name the guild shows — the member's own name there,
-    or the real one where the guild renders names — so a name is matched
-    exactly where it is shown and nowhere else.
+    ``match_names`` reads the profile's ``display_name`` too: on the guild
+    projection, the name the member set there, so a name is matched exactly
+    where it is shown and nowhere else.
     """
     closest = func.word_similarity(term, profile.username)
     if match_names:
         closest = func.greatest(
             closest,
-            func.word_similarity(term, func.coalesce(profile.full_name, "")),
+            func.word_similarity(term, func.coalesce(profile.display_name, "")),
         )
     return closest
 
@@ -1008,7 +1006,7 @@ def member_match(
         )
     matches = profile.username.ilike(f"%{name_part}%")
     if match_names:
-        matches = or_(matches, profile.full_name.ilike(f"%{name_part}%"))
+        matches = or_(matches, profile.display_name.ilike(f"%{name_part}%"))
     closest = name_closeness(name_part, match_names=match_names, profile=profile)
     return or_(matches, closest >= MEMBER_MATCH_THRESHOLD), closest
 
@@ -1022,7 +1020,7 @@ def member_order(
         return (closest.desc(),)
     if not match_names:
         return ()
-    return (func.coalesce(MemberProfile.full_name, MemberProfile.username).asc(),)
+    return (func.coalesce(MemberProfile.display_name, MemberProfile.username).asc(),)
 
 
 def visible_to_other_people(status_column=None):

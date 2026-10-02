@@ -50,6 +50,7 @@ from app.api.content_socket import admit, hold_open
 from app.api import resource_access
 from app.core.request_audit import record_privileged_edit
 from app.core.user_display import display_name, handle_of
+from app.models.platform.user_profile_view import MemberProfile
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -203,9 +204,11 @@ async def _collaborate(
 
     async def open_room(session: AsyncSession, user: User) -> None:
         nonlocal room
+        # Named as the rest of this guild names them, not from the account.
+        member = await session.get(MemberProfile, user.id)
         meta.update(
             {
-                "name": display_name(user),
+                "name": display_name(member, fallback=handle_of(user)),
                 "can_write": bool(editing.can_write),
                 "avatar_url": user.avatar_url,
             }
