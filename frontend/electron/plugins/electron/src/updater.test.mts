@@ -1,7 +1,7 @@
 /**
  * The desktop app's bundle updater: a bundle is kept only when it matches its
- * checksum and stays inside its folder, and one the platform rolled back is
- * not offered again.
+ * checksum and stays inside its folder, one the platform rolled back is not
+ * offered again, and only bundles it downloaded can be deleted.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
@@ -93,5 +93,12 @@ describe("the desktop bundle updater", () => {
 
     expect((await updater.list()).bundles[0].status).toBe("error");
     expect((await updater.current()).bundle.id).toBe("builtin");
+  });
+
+  it("deletes only a bundle it downloaded", async () => {
+    const updater = new CapacitorUpdater({ services: { bundles: platform() } });
+
+    await expect(updater.delete({ id: ".." })).rejects.toThrow(/not one this app downloaded/);
+    expect(existsSync(paths.userData)).toBe(true);
   });
 });

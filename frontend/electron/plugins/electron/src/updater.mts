@@ -119,11 +119,14 @@ export class CapacitorUpdater {
   }
 
   async delete({ id }: { id: string }) {
+    const state = this.read();
+    if (!state.bundles.some((b) => b.id === id)) {
+      throw new Error(`Bundle ${id} is not one this app downloaded.`);
+    }
     if (this.bundles.getActiveBundlePath() === this.dir(id)) {
       throw new Error(`Bundle ${id} is the one running.`);
     }
     rmSync(this.dir(id), { recursive: true, force: true });
-    const state = this.read();
     this.write({ ...state, bundles: state.bundles.filter((b) => b.id !== id) });
   }
 
