@@ -164,7 +164,7 @@ async def _build_members(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
             {
                 "user_id": membership.user_id,
                 "handle": handle_of(profile) if profile else None,
-                "name": getattr(profile, "display_name", None),
+                "name": membership.display_name,
                 "role": _enum_value(membership.role),
                 "joined_at": _iso(getattr(membership, "created_at", None)),
             }

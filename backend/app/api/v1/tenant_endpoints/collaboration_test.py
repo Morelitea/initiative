@@ -8,6 +8,7 @@ native. A ``?token=`` in the URL authenticates nothing here.
 """
 
 import base64
+import json
 from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
@@ -16,7 +17,10 @@ from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.content_socket import MSG_AUTH
+from app.api.v1.tenant_endpoints.collaboration import MSG_AWARENESS
 from app.core.security import create_upload_token
+from app.core.user_display import handle_of
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.tenant.document import Document
@@ -365,3 +369,28 @@ async def test_a_read_grant_cannot_hand_over(
 
     assert response.status_code == 403
     assert response.json()["detail"] == "DOCUMENT_WRITE_ACCESS_REQUIRED"
+
+
+async def test_the_roster_names_a_collaborator_as_their_community_does(
+    session: AsyncSession, acting_user, socket_client
+) -> None:
+    """Who is editing reads the same as everywhere else in the community: the
+    name set there, the handle where there is none."""
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
+    path = _document_url(owner.guild.id, doc.id)
+
+    def roster_name() -> str:
+        with socket_client.websocket_connect(path) as ws:
+            auth = {"token": get_auth_token(owner.user)}
+            ws.send_bytes(bytes([MSG_AUTH]) + json.dumps(auth).encode())
+            while True:
+                frame = ws.receive().get("bytes") or b""
+                if frame[:1] == bytes([MSG_AWARENESS]):
+                    return json.loads(frame[1:])["data"][0]["name"]
+
+    assert roster_name() == handle_of(owner.user)
+    owner.membership.display_name = "Quill"
+    session.add(owner.membership)
+    await session.commit()
+    assert roster_name() == "Quill"

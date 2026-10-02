@@ -3086,6 +3086,8 @@ async def test_guild_backup_carries_the_community_itself(
     # names, the same shape a byline or a mention renders.
     assert all(m.get("handle") for m in members)
     assert not any("@" in json.dumps(m) for m in members)
+    # A name is exported only where one was set, never the handle in its place.
+    assert [m["name"] for m in members if m["user_id"] == a.user.id] == [None]
 
     manifest = json.loads(archive.read("manifest.json"))
     assert {s["key"] for s in manifest["guild_sections"]} >= {
@@ -3133,6 +3135,9 @@ async def test_backup_carries_initiative_roles_and_members(
     assert structure["type"] == "initiative-structure"
     assert structure["initiative_id"] == a.initiative.id
     assert a.user.id in {m["user_id"] for m in structure["members"]}
+    assert [m["name"] for m in structure["members"] if m["user_id"] == a.user.id] == [
+        None
+    ]
     # Roles and memberships travel by NAME: an id means nothing in whatever
     # instance the archive is opened in.
     role_names = {r["name"] for r in structure["roles"]}
