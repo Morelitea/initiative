@@ -225,11 +225,9 @@ export const SettingsUsersPage = () => {
     return <p className="text-destructive text-sm">{t("users.unableToLoadSettings")}</p>;
   }
 
-  // The handle leads: every guild has one for every member. A guild that
-  // renders handles sends no names beyond the ones members set here, so that
-  // column would mostly be em-dashes unless somebody on the page has one.
-  const showsNames =
-    Boolean(activeGuild?.show_member_names) || rows.some((row) => row.full_name?.trim());
+  // The handle leads: every member has one. A name is only the display name
+  // somebody set here, so the column shows once someone on the page has one.
+  const showsNames = rows.some((row) => row.full_name?.trim());
 
   const userColumns: AppColumnDef<UserGuildMember>[] = [
     {

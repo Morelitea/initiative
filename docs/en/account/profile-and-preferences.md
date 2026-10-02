@@ -25,7 +25,7 @@ It's public, and it's the same page whoever opens it, because it belongs to *you
 Everything on that page, with a live preview at the top — pick something and the card changes before you save, so you never have to imagine the result.
 
 - **Picture** — upload one, or point at an image URL. An uploaded picture saves the moment you choose it.
-- **Display name** — your real name, used only in communities set to show real names. Everywhere else you're your handle.
+- **Full name** — kept on your account and used when we email you. Communities show your handle, or a [display name](../guides/communities.md#your-name-in-a-community) you set in that community.
 - **Status** — an emoji, a line about what you're up to, or both. Set it by clicking the bubble on the card rather than filling in a form. Up to 100 characters; clearing it takes it off.
 - **Presence** — the dot under your picture. See [Saying how you're around](#saying-how-youre-around).
 - **Your packs** — the decoration packs you've downloaded, and how to remove one.

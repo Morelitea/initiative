@@ -29,8 +29,8 @@ interface MemberDisplayNameDialogProps extends DialogProps {
 }
 
 /**
- * What somebody is called in one community. Empty clears it, and the
- * community's usual name for them shows again.
+ * What somebody is called in one community. Empty clears it, and their
+ * handle shows again.
  */
 export const MemberDisplayNameDialog = ({
   guildId,

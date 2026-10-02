@@ -1706,7 +1706,7 @@
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
     "passwordsOffDescription": "La connexion par mot de passe est désactivée sur ce serveur : il n'y a donc aucun mot de passe à définir ou à changer ici.",
-    "fullNameHelp": "Seules les communautés réglées pour afficher les vrais noms l'utilisent. Ailleurs, vous êtes votre pseudo.",
+    "fullNameHelp": "Utilisé quand nous vous envoyons des e-mails. Les communautés affichent votre pseudo, ou le nom d'affichage que vous y définissez.",
     "setPasswordTitle": "Définir un mot de passe",
     "setPasswordDescription": "Votre compte se connecte sans mot de passe. Définissez-en un ici pour disposer d'un autre moyen d'accès.",
     "removePassword": "Supprimer votre mot de passe",

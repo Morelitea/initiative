@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuilds } from "@/hooks/useGuilds";
 import {
   useAddInitiativeMember,
   useInitiativeRoster,
@@ -203,14 +202,9 @@ export const InitiativeSettingsMembersTab = ({
     addMember.mutate({ initiativeId, data: { user_id: userId, role_id: roleId } });
   };
 
-  const { activeGuild } = useGuilds();
-
-  // What this guild calls people, which decides whether a handle column adds
-  // anything to the member column beside it. A name a member set here counts
-  // too, wherever the guild otherwise renders handles.
-  const showsNames =
-    Boolean(activeGuild?.show_member_names) ||
-    members.some((member) => member.user.full_name?.trim());
+  // A name is only the display name somebody set in this community, so the
+  // name column shows once someone here has one.
+  const showsNames = members.some((member) => member.user.full_name?.trim());
 
   const memberColumns: AppColumnDef<InitiativeMemberRead>[] = useMemo(() => {
     const getRoleDisplayName = (member: InitiativeMemberRead): string => {
@@ -230,8 +224,8 @@ export const InitiativeSettingsMembersTab = ({
         header: t("settings.handleColumn"),
         cell: ({ row }) => <UserHandle user={row.original.user} />,
       },
-      // A guild that renders handles sends no names, so this column would be a
-      // full one of em-dashes.
+      // Without a display name on the page this column would be a full one of
+      // em-dashes.
       ...(showsNames
         ? [
             {

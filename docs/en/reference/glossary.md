@@ -28,7 +28,7 @@ Worth knowing because they all behave alike — same sharing, same tags, same co
 
 Your name plus a four-digit number, written `jordan#1234`. The number is what lets two people share a name, and it's part of the handle rather than decoration — somebody typing `jordan` alone won't find you.
 
-It's how you're identified everywhere real names aren't shown, and it addresses your profile at `/u/jordan1234`.
+It's how you're identified everywhere you haven't set a [display name](../guides/communities.md#your-name-in-a-community), and it addresses your profile at `/u/jordan1234`.
 
 ### Presence
 

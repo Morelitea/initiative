@@ -381,8 +381,8 @@ type SetDisplayNameVars = { guildId: number; userId?: number; displayName: strin
 /**
  * What somebody is called in one community — their own, without `userId`, or
  * a member's, by an administrator. The name is drawn wherever the community
- * draws people, so its content and its roster refresh along with the
- * community list.
+ * draws people, so its content, its rosters and the contacts lists refresh
+ * along with the community list.
  */
 export const useSetMemberDisplayName = (options?: MutationOpts<void, SetDisplayNameVars>) =>
   useApiMutation<void, SetDisplayNameVars>(
@@ -397,7 +397,7 @@ export const useSetMemberDisplayName = (options?: MutationOpts<void, SetDisplayN
               body
             ));
       },
-      invalidate: () => invalidate(q.guildContent(), q.guildMembers(), q.allGuilds()),
+      invalidate: () => invalidate(q.guildContent(), q.guildMembers(), q.contacts(), q.allGuilds()),
     },
     options
   );

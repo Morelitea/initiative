@@ -5,7 +5,6 @@ import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communi
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { GuildArtworkPanel } from "@/components/guilds/GuildArtworkPanel";
 import { GuildDiscoveryPanel } from "@/components/guilds/GuildDiscoveryPanel";
-import { GuildNameDisplayPanel } from "@/components/guilds/GuildNameDisplayPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -101,7 +100,6 @@ export const SettingsGuildPage = () => {
         </CardContent>
       </Card>
       <GuildArtworkPanel guild={activeGuild} />
-      <GuildNameDisplayPanel />
       <GuildDiscoveryPanel />
     </div>
   );

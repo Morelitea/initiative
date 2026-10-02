@@ -141,10 +141,10 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ## Your account
 
 ??? question "Can I change my username?"
-    Not on your own — your handle is how people find and mention you, so changing it is a job for whoever runs the server. Your **display name** is yours to change any time under [Profile & preferences](account/profile-and-preferences.md).
+    Not on your own — your handle is how people find and mention you, so changing it is a job for whoever runs the server. What you *can* change any time is your **display name**, one per community — see [Your name in a community](guides/communities.md#your-name-in-a-community).
 
 ??? question "Why does my name show in one community and not another?"
-    Each community decides whether it shows real names or just handles. In a handles-only community your display name isn't rendered to anyone there.
+    A display name belongs to the community you set it in. Every other community shows your handle until you set one there too, from its **Members** page.
 
     Your **timezone** is wrong. It's almost always the timezone. Fix it in **User settings → Interface** and everything snaps back into place.
 
