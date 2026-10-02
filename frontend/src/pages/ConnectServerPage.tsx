@@ -3,10 +3,12 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { LogoIcon } from "@/components/LogoIcon";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useServer } from "@/hooks/useServer";
 
 export const ConnectServerPage = () => {
@@ -74,6 +76,37 @@ export const ConnectServerPage = () => {
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleSubmit}>
+              {/* Initiative Cloud is not open yet, so self-hosted is the only choice. */}
+              <RadioGroup
+                defaultValue="selfHosted"
+                aria-label={t("connectServer.whereLabel")}
+                className="gap-3"
+              >
+                {(["cloud", "selfHosted"] as const).map((where) => (
+                  <Label
+                    key={where}
+                    htmlFor={`connect-${where}`}
+                    className="flex cursor-pointer items-start gap-3 rounded-xl border-2 bg-card p-3 font-normal transition-colors hover:border-primary/40 has-[:disabled]:cursor-not-allowed has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 has-[:disabled]:opacity-60 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:disabled]:hover:border-border"
+                  >
+                    <span className="min-w-0 flex-1 space-y-1">
+                      <span className="flex items-center gap-2 font-semibold">
+                        {t(`connectServer.${where}`)}
+                        {where === "cloud" ? (
+                          <Badge variant="secondary">{t("connectServer.cloudSoon")}</Badge>
+                        ) : null}
+                      </span>
+                      <span className="block text-muted-foreground text-sm">
+                        {t(`connectServer.${where}Hint`)}
+                      </span>
+                    </span>
+                    <RadioGroupItem
+                      id={`connect-${where}`}
+                      value={where}
+                      disabled={where === "cloud"}
+                    />
+                  </Label>
+                ))}
+              </RadioGroup>
               <div className="space-y-2">
                 <Label htmlFor="serverUrl">{t("connectServer.serverUrlLabel")}</Label>
                 <Input
