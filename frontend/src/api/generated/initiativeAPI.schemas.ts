@@ -6047,7 +6047,7 @@ export interface MemberAIView {
 
 /**
  * What a member is called in one community. ``None`` or blank clears it,
- * and the guild's usual name shows again.
+ * and their handle shows again.
  */
 export interface MemberDisplayNameUpdate {
   display_name?: string | null;
@@ -11189,7 +11189,7 @@ export type ListGuildTrashApiV1CGuildIdTrashGetParams = {
 
 export type ListUsersApiV1CGuildIdUsersGetParams = {
   /**
-   * Matches members the way ``/search`` does: the handle, a whole handle pinning one member, and real names in a guild that shows them.
+   * Matches members the way ``/search`` does: the handle, a whole handle pinning one member, and the display names members set here.
    */
   search?: string | null;
   /**
