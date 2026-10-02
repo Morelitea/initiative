@@ -247,6 +247,8 @@ class AuditEventType(str, Enum):
     TRASH_PURGED = "trash.purged"
     API_KEY_CREATED = "api_key.created"
     API_KEY_DELETED = "api_key.deleted"
+    #: Switched off by staff rather than deleted by its holder, who still sees it.
+    API_KEY_REVOKED = "api_key.revoked"
     APP_INSTALLED = "app.installed"
     APP_UNINSTALLED = "app.uninstalled"
     WEBHOOK_CREATED = "webhook.created"
@@ -545,6 +547,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.API_KEY_DELETED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.API_KEY_REVOKED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     # Lifecycle.

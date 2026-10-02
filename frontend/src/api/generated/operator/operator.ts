@@ -1287,6 +1287,102 @@ export const useLiftSignInLockApiV1OperatorUsersUserIdSignInLockDelete = <
   );
 };
 /**
+ * Switch off every API key on an account that still works.
+ *
+ * The keys stay on the account's own list, marked off, so its holder can see
+ * what stopped and make new ones. Gated on ``users.manage``, like a
+ * suspension.
+ * @summary Revoke User Api Keys
+ */
+export const revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OperatorUserRead>(
+    { url: `/api/v1/operator/users/${userId}/api-keys`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getRevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationKey = () =>
+  ["revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete"] as const;
+
+export const getRevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete>>,
+    TError,
+    RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete>>,
+  TError,
+  RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete>>,
+    RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationVariables
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete>>
+>;
+
+export type RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+export type RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationVariables = {
+  userId: number;
+};
+
+/**
+ * @summary Revoke User Api Keys
+ */
+export const useRevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete>>,
+      TError,
+      RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete>>,
+  TError,
+  RevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getRevokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Let an account answer the age question again.
  *
  * An account that answered as under age keeps that answer, and the question

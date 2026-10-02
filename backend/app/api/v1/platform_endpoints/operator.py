@@ -43,6 +43,7 @@ from app.core.messages import (
     UserMessages,
 )
 from app.services.platform import account_stream
+from app.services.platform import api_keys as api_keys_service
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -732,6 +733,31 @@ async def lift_sign_in_lock(
         target_id=user_id,
         detail={},
     )
+    await session.commit()
+    return await users_service.to_operator_read_one(user)
+
+
+@router.delete("/users/{user_id}/api-keys", response_model=OperatorUserRead)
+async def revoke_user_api_keys(
+    user_id: int,
+    session: SystemSessionDep,
+    current_user: UsersManageDep,
+) -> OperatorUserRead:
+    """Switch off every API key on an account that still works.
+
+    The keys stay on the account's own list, marked off, so its holder can see
+    what stopped and make new ones. Gated on ``users.manage``, like a
+    suspension.
+    """
+    user = await _account_within_rank(session, user_id, current_user)
+    revoked = await api_keys_service.deactivate_user_api_keys(
+        session, user_id=user_id, revoked_by=current_user.id
+    )
+    if not revoked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.NO_LIVE_API_KEYS,
+        )
     await session.commit()
     return await users_service.to_operator_read_one(user)
 
