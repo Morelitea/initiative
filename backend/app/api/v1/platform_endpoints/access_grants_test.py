@@ -541,3 +541,30 @@ async def test_a_grant_past_its_window_is_marked_expired(
         (lapsed.id, "expired")
     ]
     assert decided[0]["actor_user_id"] is None
+
+
+async def test_a_revoked_grant_is_not_recorded_as_expiring(
+    session: AsyncSession, acting_user, capfd
+):
+    """A grant that ended some other way already has its ending recorded; the
+    sweep claims only grants still marked approved."""
+    from app.core.audit_events import AuditEventType
+    from app.services.platform import access_grants as service
+    from app.testing.audit import emitted
+
+    host = await acting_user(guild_role=GuildRole.admin)
+    grantee = await acting_user("support")
+    revoked = await _approved_grant(
+        session, grantee=grantee, host=host, expires_in=timedelta(minutes=-5)
+    )
+    revoked.status = "revoked"
+    session.add(revoked)
+    await session.commit()
+    capfd.readouterr()
+
+    assert await service.expire_due(session) == 0
+    await session.commit()
+
+    await session.refresh(revoked)
+    assert revoked.status == "revoked"
+    assert emitted(capfd, AuditEventType.ACCESS_GRANT_DECIDED) == []

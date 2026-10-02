@@ -16,7 +16,7 @@ import logging
 from datetime import timedelta
 from typing import Optional, Sequence, cast
 
-from sqlalchemy import or_, text
+from sqlalchemy import or_, text, update as sa_update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -712,33 +712,41 @@ async def expire_due(session: AsyncSession) -> int:
     from app.services import audit as audit_service
 
     now = utcnow()
-    result = await session.exec(
-        select(AccessGrant).where(
-            AccessGrant.status == AccessGrantStatus.approved.value,
-            AccessGrant.expires_at <= now,
+    # One statement claims the rows it changes: a second sweep running at the
+    # same moment, or a revocation landing first, finds the row no longer
+    # approved and leaves it alone, so each ending is recorded exactly once.
+    claimed = (
+        await session.exec(
+            sa_update(AccessGrant)
+            .where(
+                AccessGrant.status == AccessGrantStatus.approved.value,
+                AccessGrant.expires_at <= now,
+            )
+            .values(status=AccessGrantStatus.expired.value, updated_at=now)
+            .returning(
+                AccessGrant.id,
+                AccessGrant.guild_id,
+                AccessGrant.purpose,
+                AccessGrant.access_level,
+            )
+            .execution_options(synchronize_session=False)
         )
-    )
-    rows = result.all()
-    for grant in rows:
-        grant.status = AccessGrantStatus.expired.value
-        grant.updated_at = now
-        session.add(grant)
+    ).all()
+    for grant_id, guild_id, purpose, level in claimed:
         await audit_service.record(
             session,
             event_type=AuditEventType.ACCESS_GRANT_DECIDED,
             actor_user_id=None,
-            guild_id=grant.guild_id,
+            guild_id=guild_id,
             target_type="access_grant",
-            target_id=grant.id,
+            target_id=grant_id,
             detail={
-                "purpose": grant.purpose,
-                "level": grant.access_level,
+                "purpose": purpose,
+                "level": level,
                 "decision": AccessGrantStatus.expired.value,
             },
         )
-    if rows:
-        await session.flush()
-    return len(rows)
+    return len(claimed)
 
 
 async def process_grant_expiry() -> None:
