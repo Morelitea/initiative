@@ -282,6 +282,20 @@ describe("LoginPage second factor", () => {
     expect(field).toHaveValue("");
   });
 
+  it("sends a code filled in without the page hearing it", async () => {
+    const user = userEvent.setup();
+    mocks.login.mockRejectedValue(new SecondFactorRequiredError("a-challenge"));
+    renderLogin();
+    await signIn(user);
+
+    fillWithoutTelling(await screen.findByLabelText(/authentication code/i), "123456");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(mocks.completeSecondFactor).toHaveBeenCalledWith(
+      expect.objectContaining({ challenge: "a-challenge", code: "123456" })
+    );
+  });
+
   it("starting over puts the password back", async () => {
     const user = userEvent.setup();
     mocks.login.mockRejectedValue(new SecondFactorRequiredError("a-challenge"));

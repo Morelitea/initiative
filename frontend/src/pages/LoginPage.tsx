@@ -336,9 +336,10 @@ export const LoginPage = () => {
   const handleCodeSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!challenge || submitInFlightRef.current) return;
-    submitInFlightRef.current = true;
     // From the field, for the same reason as the password.
     const enteredCode = String(new FormData(event.currentTarget).get("second-factor-code") ?? "");
+    if (!enteredCode.trim()) return;
+    submitInFlightRef.current = true;
     setCode(enteredCode);
     setSubmitting(true);
     setError(null);
@@ -447,7 +448,9 @@ export const LoginPage = () => {
                   required
                 />
               </div>
-              <Button className="w-full" type="submit" disabled={submitting || !code.trim()}>
+              {/* Not held back on an empty `code`: a filled field may not have
+                  reached state yet, and `required` stops an empty one. */}
+              <Button className="w-full" type="submit" disabled={submitting}>
                 {submitting ? t("login.submitting") : t("secondFactor.submit")}
               </Button>
               <div className="flex items-center justify-between text-sm">
