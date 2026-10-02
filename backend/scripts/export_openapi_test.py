@@ -15,12 +15,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 SCRIPT = BACKEND_DIR / "scripts" / "export_openapi.py"
 
 
-def test_export_runs_without_app_env(tmp_path):
+@pytest.mark.parametrize(
+    ("flags", "path"), [([], "/api/v1/auth/token"), (["--app"], "/projects/")]
+)
+def test_export_runs_without_app_env(tmp_path, flags, path):
     out = tmp_path / "openapi.json"
     env = {
         k: v
@@ -30,7 +35,7 @@ def test_export_runs_without_app_env(tmp_path):
         if not (k.startswith(("DATABASE_URL", "SECRET_KEY", "APP_URL")))
     }
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), str(out)],
+        [sys.executable, str(SCRIPT), *flags, str(out)],
         cwd=BACKEND_DIR,
         env=env,
         capture_output=True,
@@ -41,4 +46,4 @@ def test_export_runs_without_app_env(tmp_path):
 
     spec = json.loads(out.read_text())
     assert spec["info"]["title"]
-    assert "/api/v1/auth/token" in spec["paths"]
+    assert path in spec["paths"]
