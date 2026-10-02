@@ -35,6 +35,7 @@ address, as an endpoint call does.
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import time
@@ -1384,18 +1385,21 @@ def token_response(tokens: TokenSet) -> dict[str, Any]:
 # --- ending a grant ----------------------------------------------------------
 
 
-async def revoke_request(url: str, form: dict[str, str]) -> None:
-    """One revocation request (RFC 7009 §2.1). A 2xx answer is success,
+async def revoke_request(
+    url: str,
+    *,
+    method: str = "POST",
+    headers: Mapping[str, str],
+    content: bytes,
+) -> None:
+    """One request that ends a grant at the vendor. A 2xx answer is success,
     whatever its body."""
     try:
         response = await request_public_target(
-            "POST",
+            method,
             url,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            content=urlencode(form).encode("ascii"),
+            headers={"Accept": "application/json", **headers},
+            content=content,
             timeout=VENDOR_TIMEOUT_SECONDS,
             transport=http_transport,
             max_bytes=VENDOR_MAX_RESPONSE_BYTES,
@@ -1450,9 +1454,40 @@ async def revocation_sender(
             form["client_secret"] = secret
 
         async def send_revocation() -> None:
-            await revoke_request(url, form)
+            # RFC 7009 §2.1: a form post with the client's credentials.
+            await revoke_request(
+                url,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                content=urlencode(form).encode("ascii"),
+            )
 
         return send_revocation
+
+    if method == "github_grant":
+        if not tokens.get("access_token"):
+            return None
+        vendor = await load_vendor_values(public_id)
+        url = _render_url(flow.get("revoke_url"), vendor=vendor, fields=fields)
+        client_id, secret = _client(flow, vendor=vendor, fields=fields)
+        if not secret:
+            raise ConnectionFlowError(GuildAppMessages.CONNECTION_VENDOR_NOT_CONFIGURED)
+        # GitHub's "Delete an app authorization": the client's credentials as
+        # HTTP Basic auth, and the grant's access token in a JSON body.
+        basic = base64.b64encode(f"{client_id}:{secret}".encode()).decode("ascii")
+        body = json.dumps({"access_token": tokens["access_token"]}).encode()
+
+        async def send_grant_deletion() -> None:
+            await revoke_request(
+                url,
+                method="DELETE",
+                headers={
+                    "Authorization": f"Basic {basic}",
+                    "Content-Type": "application/json",
+                },
+                content=body,
+            )
+
+        return send_grant_deletion
 
     if method != "hook":
         return None

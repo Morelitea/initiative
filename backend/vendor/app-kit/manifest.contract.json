@@ -38,6 +38,7 @@
       "jwt_bearer"
     ],
     "revokeMethod": [
+      "github_grant",
       "hook",
       "rfc7009"
     ],
@@ -695,12 +696,12 @@
         },
         "revoke": {
           "enum": "revokeMethod",
-          "description": "How a grant is ended at the vendor when the connection ends: 'rfc7009' posts to 'revoke_url' with the client's credentials, 'hook' calls the app's revoke hook with the tokens. Absent: the tokens are deleted and nothing is sent."
+          "description": "How a grant is ended at the vendor when the connection ends: 'rfc7009' posts to 'revoke_url' with the client's credentials; 'github_grant' sends DELETE to 'revoke_url' (GitHub's 'Delete an app authorization') with the client's credentials as HTTP Basic auth and the access token in the JSON body as 'access_token'; 'hook' calls the app's revoke hook with the tokens. Absent: the tokens are deleted and nothing is sent."
         },
         "revoke_url": {
           "type": "string",
           "maxLength": "urlLength",
-          "description": "The vendor's revocation endpoint (RFC 7009). Required when 'revoke' is 'rfc7009'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
+          "description": "The vendor's revocation endpoint: RFC 7009's for 'rfc7009', or GitHub's grant address (https://api.github.com/applications/{vendor.client_id}/grant) for 'github_grant'. Required when 'revoke' is either. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
         }
       }
     },

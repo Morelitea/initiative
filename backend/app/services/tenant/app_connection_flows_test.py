@@ -11,6 +11,7 @@ and ending a connection ends the grant at the vendor.
 from __future__ import annotations
 
 import asyncio
+import base64
 import time
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -1064,6 +1065,46 @@ class TestRevocation:
 
         assert response.status_code == 204
         assert len(vendor.revocations) == app_revocation.REVOKE_ATTEMPTS
+
+    @pytest.mark.parametrize(
+        ("status", "tries"), [(204, 1), (503, app_revocation.REVOKE_ATTEMPTS)]
+    )
+    async def test_a_github_grant_is_deleted_with_the_client_credentials(
+        self, vendor, registration, status, tries
+    ):
+        vendor.grant_status = status
+        intent = app_revocation.RevocationIntent(
+            guild_id=1,
+            app_id=1,
+            listing_uid=LISTING_UID,
+            connection_id="account",
+            public_id=PUBLIC_ID,
+            flow={
+                **FLOW,
+                "revoke": "github_grant",
+                "revoke_url": "https://github.test/applications/{vendor.client_id}/grant",
+            },
+            sealed_tokens={
+                "access_token": encrypt_field("gho_stored", SALT_APP_CONFIG),
+                "refresh_token": encrypt_field("ghr_stored", SALT_APP_CONFIG),
+            },
+        )
+
+        await app_revocation._deliver(intent)
+
+        basic = base64.b64encode(b"client-123:client-secret-456").decode()
+        assert (
+            vendor.grant_deletions
+            == [
+                (
+                    "DELETE",
+                    "/applications/client-123/grant",
+                    f"Basic {basic}",
+                    {"access_token": "gho_stored"},
+                )
+            ]
+            * tries
+        )
 
     async def test_revocations_are_sent_together(self, monkeypatch):
         """Each delivery waits for the other, so both finish only when they run

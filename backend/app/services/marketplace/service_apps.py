@@ -780,8 +780,8 @@ def _flow(
     revoke_url = template("revoke_url", required=False, https=True)
     if revoke_url is not None:
         cleaned["revoke_url"] = revoke_url
-    if revoke == "rfc7009" and revoke_url is None:
-        fail(f"{what}: rfc7009 revocation posts to revoke_url, which is missing")
+    if revoke in ("rfc7009", "github_grant") and revoke_url is None:
+        fail(f"{what}: {revoke} revocation is sent to revoke_url, which is missing")
     return cleaned
 
 

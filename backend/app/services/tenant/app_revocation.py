@@ -8,6 +8,8 @@ it too, the way the connection's manifest says (``flow.revoke``):
 
 * ``rfc7009`` — a revocation request to the vendor's ``revoke_url`` (RFC 7009),
   with the vendor client's credentials;
+* ``github_grant`` — a ``DELETE`` to GitHub's grant address (``revoke_url``),
+  with the vendor client's credentials and the access token;
 * ``hook`` — the app's revoke hook, with the tokens, for a vendor whose
   revocation the app knows how to ask for;
 * absent — the tokens are deleted and nothing is sent.
@@ -248,7 +250,7 @@ async def _dispatch_one(intent: RevocationIntent) -> None:
 async def _deliver(intent: RevocationIntent) -> None:
     """End one grant the way its flow says, with three tries."""
     method = (intent.flow or {}).get("revoke")
-    if method not in ("rfc7009", "hook") or not intent.sealed_tokens:
+    if method not in ("rfc7009", "github_grant", "hook") or not intent.sealed_tokens:
         return
     if not intent.public_id:
         logger.info(
