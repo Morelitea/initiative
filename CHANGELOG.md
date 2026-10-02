@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Duplicate a project, document or counter group into any initiative** where you can create one, from **Settings › Advanced**. The copy keeps its tags, and its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
+- **A duplicated task keeps its links** to other tasks, and is named "(Copy)" like every other copy. Checklists keep their ticks only when copied from a template; a duplicated project's start over.
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
 
 ### Fixed

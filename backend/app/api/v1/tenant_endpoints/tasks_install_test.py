@@ -229,6 +229,9 @@ async def test_a_write_needs_the_write_scope(
             headers=headers,
             json={"done": True},
         ),
+        lambda: client.post(
+            guild_url(gid, f"/tasks/{task.id}/duplicate"), headers=headers
+        ),
     ]
     for attempt in attempts:
         response = await attempt()
@@ -305,7 +308,7 @@ async def test_an_assignee_named_by_row_id_or_foreign_reference_is_refused(
         assert response.status_code == 422, response.text
 
 
-async def test_updates_moves_and_ticks_what_it_may_write(
+async def test_updates_moves_ticks_and_duplicates_what_it_may_write(
     client, session, acting_user, role_session
 ):
     await lift_person_and_guild_ids(session)
@@ -359,6 +362,14 @@ async def test_updates_moves_and_ticks_what_it_may_write(
     assert got.status_code == 200, got.text
     assert got.json()["project_id"] == second
     assert_names_nobody(got.text, [installed.seat.user.id, gid])
+
+    copied = await client.post(
+        guild_url(gid, f"/tasks/{task_id}/duplicate"), headers=headers
+    )
+    assert copied.status_code == 201, copied.text
+    assert copied.json()["title"] == "Final (Copy)"
+    assert [a["id"] for a in copied.json()["assignees"]] == [seat_ref]
+    assert_names_nobody(copied.text, [installed.seat.user.id, gid])
 
 
 async def test_makes_a_project_from_a_template_with_its_task_links(

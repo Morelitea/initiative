@@ -31,6 +31,7 @@ from typing import (
     Dict,
     Iterable,
     List,
+    Mapping,
     Optional,
     Sequence,
     Set,
@@ -39,7 +40,7 @@ from typing import (
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 from pydantic_core import PydanticCustomError
-from sqlalchemy import exists, func, insert, literal, true
+from sqlalchemy import Integer, column, exists, func, insert, literal, true, values
 from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -491,33 +492,39 @@ async def _write_in_place(
 
 
 async def copy_values(
-    session: AsyncSession,
-    source: Any,
-    destination: Any,
+    session: AsyncSession, model: type[SQLModel], copies: Mapping[int, int]
 ) -> None:
-    """Give ``destination`` the values ``source`` holds, replacing its own.
+    """Give each copy the values its source holds (``{source_id: copy_id}``,
+    rows of ``model``), replacing its own. Two statements however many rows.
 
-    For a duplicate or an occurrence: the same definitions apply, so the two
-    rows must share an initiative — a caller copying across initiatives copies
+    For a duplicate or an occurrence: the same definitions apply, so each pair
+    must share an initiative — a caller copying across initiatives copies
     nothing instead.
     """
-    src, dst = link_for(source), link_for(destination)
-    # The destination's pending changes first (a series' override takes its
-    # calendar just before), so its values are held to where it now sits.
+    if not copies:
+        return
+    target = link_for(model).target
+    # The copies' pending changes first (a series' override takes its calendar
+    # just before), so their values are held to where they now sit.
     await session.flush()
-    await session.exec(delete(PropertyValue).where(_of(dst.target, [destination.id])))
+    await session.exec(delete(PropertyValue).where(_of(target, copies.values())))
+    pairs = values(
+        column("source_id", Integer), column("copy_id", Integer), name="pairs"
+    ).data(list(copies.items()))
     columns = ("property_id", *VALUE_COLUMNS)
     now = datetime.now(timezone.utc)
     await session.exec(
         insert(PropertyValue).from_select(
             ["entity_type", "entity_id", *columns, "created_at", "updated_at"],
             select(
-                literal(dst.target),
-                literal(destination.id),
+                literal(target),
+                pairs.c.copy_id,
                 *(getattr(PropertyValue, c) for c in columns),
                 literal(now),
                 literal(now),
-            ).where(_of(src.target, [source.id])),
+            )
+            .join(pairs, PropertyValue.entity_id == pairs.c.source_id)
+            .where(_of(target, copies.keys())),
         )
     )
 
