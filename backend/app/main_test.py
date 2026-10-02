@@ -252,11 +252,10 @@ async def test_no_hsts_in_test_env_http(client: AsyncClient) -> None:
     assert "strict-transport-security" not in resp.headers
 
 
-# --- API docs gating ---
+# --- API docs ---
 
 
-async def test_docs_and_openapi_served_when_enabled(client: AsyncClient) -> None:
-    # ENABLE_API_DOCS defaults True, so docs + schema are reachable in dev.
+async def test_docs_and_openapi_are_served(client: AsyncClient) -> None:
     docs = await client.get("/api/v1/docs")
     schema = await client.get("/api/v1/openapi.json")
     assert docs.status_code == 200
@@ -278,42 +277,6 @@ async def test_docs_page_serves_scoped_csp(client: AsyncClient) -> None:
     other_csp = config_resp.headers.get("content-security-policy", "")
     assert "script-src" in other_csp
     assert "cdn.jsdelivr.net" not in other_csp.split("script-src")[1].split(";")[0]
-
-
-def test_docs_routes_return_404_when_disabled() -> None:
-    """HTTP-level check for the disabled path.
-
-    ``app.main`` builds its app at import time, so the real app can't be
-    reconstructed with ``ENABLE_API_DOCS=False`` inside the suite. Instead this
-    constructs FastAPI with the exact wiring ``app.main`` uses and proves over
-    HTTP that the docs/openapi routes don't exist (404), not merely that the
-    attributes are ``None``. The enabled path is covered against the real app
-    by ``test_docs_and_openapi_served_when_enabled``.
-
-    Mirrors the real wiring: ``docs_url`` is always ``None`` (docs are served by
-    a custom route, registered only when enabled), and with docs disabled that
-    route is never added, so ``openapi_url`` is ``None`` too.
-    """
-    cfg = Settings(ENABLE_API_DOCS=False)  # ty: ignore[missing-argument]
-    disabled = FastAPI(
-        docs_url=None,
-        openapi_url=(f"{API_V1_STR}/openapi.json" if cfg.ENABLE_API_DOCS else None),
-        redoc_url=None,
-    )
-    http = TestClient(disabled)
-    assert http.get("/api/v1/docs").status_code == 404
-    assert http.get("/api/v1/openapi.json").status_code == 404
-
-
-def test_real_app_serves_docs_only_when_enabled() -> None:
-    # The deployed app object reflects the (default-on) setting — guards
-    # against the wiring in app.main drifting from ENABLE_API_DOCS. docs_url is
-    # None because docs are served by a custom route (with a scoped CSP), so we
-    # assert that route is registered rather than the built-in attribute.
-    assert main_module.app.docs_url is None
-    assert main_module.app.openapi_url == "/api/v1/openapi.json"
-    docs_routes = {getattr(r, "path", None) for r in main_module.app.routes}
-    assert "/api/v1/docs" in docs_routes
 
 
 def test_mcp_is_served_with_or_without_the_trailing_slash() -> None:

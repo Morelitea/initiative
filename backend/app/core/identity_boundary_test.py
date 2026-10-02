@@ -1,8 +1,9 @@
 """The two identity types, with and without an installed app's boundary.
 
-For a person both are ``int``, schema and all. Under an install's boundary
-they read references in its input phase, stay ``int`` in its handler phase,
-and write markers (or the community's known reference) in its response phase.
+For a person both are ``int``, schema and all, the schema marked with what
+each names. Under an install's boundary they read references in its input
+phase, stay ``int`` in its handler phase, and write markers (or the
+community's known reference) in its response phase.
 """
 
 from __future__ import annotations
@@ -76,9 +77,17 @@ def _errors(exc: ValidationError) -> list[tuple[str, str]]:
 
 
 @pytest.mark.parametrize("mode", ["validation", "serialization"])
-def test_the_published_schema_is_an_integer(mode):
+def test_the_published_schema_is_a_marked_integer(mode):
     ours = _Payload.model_json_schema(mode=mode)
     plain = _Plain.model_json_schema(mode=mode)
+    properties = ours["properties"]
+    for schema, identity in (
+        (properties["guild_id"], "guild"),
+        (properties["owner"], "person"),
+        (properties["helpers"]["items"], "person"),
+        (properties["reviewer"]["anyOf"][0], "person"),
+    ):
+        assert schema.pop("x-identity") == identity
     ours.pop("title")
     plain.pop("title")
     assert ours == plain

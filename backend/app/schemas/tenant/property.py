@@ -188,7 +188,15 @@ class PropertySummary(SanitizedBaseModel):
     name: str
     type: PropertyType
     options: Optional[List[PropertyOption]] = None
-    value: Any = None
+    value: Any = Field(
+        default=None,
+        description=(
+            "Shaped by the property's type. For user_reference, a person: id, "
+            "username, discriminator, display_name and avatar_url, with id "
+            "the reader's own reference to them when the reader is an "
+            "installed app."
+        ),
+    )
 
     @field_serializer("value")
     def _value_out(self, value: Any) -> Any:

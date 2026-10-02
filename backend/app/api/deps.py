@@ -1370,6 +1370,12 @@ APP_SCOPE_ATTRIBUTE = "__app_scope__"
 #: scope of :func:`app_scope`, each of :func:`app_scope_by`'s and of
 #: :func:`app_scope_checked`'s.
 APP_SCOPES_ATTRIBUTE = "__app_scopes__"
+#: What the dependency declares, as the API's documents publish it: the scope
+#: of :func:`app_scope`; the parameter and its scope per value of
+#: :func:`app_scope_by` (``{"by": …, "scopes": {…}}``); what decides
+#: :func:`app_scope_checked`'s and the scopes it may ask (``{"per": …,
+#: "any_of": […]}``).
+APP_SCOPE_DECLARATION_ATTRIBUTE = "__app_scope_declaration__"
 
 
 def _refuse_install_credential() -> HTTPException:
@@ -1537,6 +1543,7 @@ def app_scope(scope: str) -> Callable[..., Awaitable[ActorContext]]:
 
     setattr(dependency, APP_SCOPE_ATTRIBUTE, scope)
     setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset({scope}))
+    setattr(dependency, APP_SCOPE_DECLARATION_ATTRIBUTE, scope)
     dependency.__name__ = f"app_scope_{scope.replace(':', '_')}"
     dependency.__qualname__ = dependency.__name__
     return dependency
@@ -1589,6 +1596,11 @@ def app_scope_by(
 
     setattr(dependency, APP_SCOPE_ATTRIBUTE, f"by {param}")
     setattr(dependency, APP_SCOPES_ATTRIBUTE, frozenset(scopes.values()))
+    setattr(
+        dependency,
+        APP_SCOPE_DECLARATION_ATTRIBUTE,
+        {"by": param, "scopes": dict(sorted(scopes.items()))},
+    )
     dependency.__name__ = f"app_scope_by_{param}"
     dependency.__qualname__ = dependency.__name__
     return dependency
@@ -1635,6 +1647,11 @@ def app_scope_checked(
     label = per.replace(" ", "_")
     setattr(dependency, APP_SCOPE_ATTRIBUTE, f"per {per}")
     setattr(dependency, APP_SCOPES_ATTRIBUTE, asked)
+    setattr(
+        dependency,
+        APP_SCOPE_DECLARATION_ATTRIBUTE,
+        {"per": label, "any_of": sorted(asked)},
+    )
     dependency.__name__ = f"app_scope_per_{label}"
     dependency.__qualname__ = dependency.__name__
     return dependency
@@ -1664,31 +1681,36 @@ async def get_actor_user(
 ActorUserDep = Annotated[Optional[User], Depends(get_actor_user)]
 
 
-def route_app_scope(route: Any) -> str | None:
-    """The app scope a route names, or ``None``: read from its dependencies."""
+def _route_dependency_value(route: Any, attribute: str) -> Any:
+    """The first value of ``attribute`` among a route's dependencies, or
+    ``None``."""
     dependant = getattr(route, "dependant", None)
     pending = list(getattr(dependant, "dependencies", ()) or ())
     while pending:
         current = pending.pop()
-        found = getattr(current.call, APP_SCOPE_ATTRIBUTE, None)
-        if isinstance(found, str):
+        found = getattr(current.call, attribute, None)
+        if found is not None:
             return found
         pending.extend(current.dependencies or ())
     return None
 
 
+def route_app_scope(route: Any) -> str | None:
+    """The app scope a route names, or ``None``: read from its dependencies."""
+    return _route_dependency_value(route, APP_SCOPE_ATTRIBUTE)
+
+
 def route_app_scopes(route: Any) -> frozenset[str]:
     """Every app scope a route may ask of a request: read from its
     dependencies. Empty for a route that names none."""
-    dependant = getattr(route, "dependant", None)
-    pending = list(getattr(dependant, "dependencies", ()) or ())
-    while pending:
-        current = pending.pop()
-        found = getattr(current.call, APP_SCOPES_ATTRIBUTE, None)
-        if isinstance(found, frozenset):
-            return found
-        pending.extend(current.dependencies or ())
-    return frozenset()
+    return _route_dependency_value(route, APP_SCOPES_ATTRIBUTE) or frozenset()
+
+
+def route_app_scope_declaration(route: Any) -> str | dict[str, Any] | None:
+    """What a route's app scope dependency declares
+    (:data:`APP_SCOPE_DECLARATION_ATTRIBUTE`), or ``None`` for a route that
+    names no app scope."""
+    return _route_dependency_value(route, APP_SCOPE_DECLARATION_ATTRIBUTE)
 
 
 async def get_actor_session(request: Request, session: SessionDep) -> AsyncSession:

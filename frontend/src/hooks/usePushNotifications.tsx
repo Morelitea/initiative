@@ -21,12 +21,14 @@ interface UsePushNotificationsReturn {
 export const usePushNotifications = (): UsePushNotificationsReturn => {
   const { user } = useAuth();
   const { isNativePlatform, serverUrl } = useServer();
+  // Push reaches the phone apps; the desktop app has none.
+  const pushPlatform = isNativePlatform && Capacitor.getPlatform() !== "electron";
   const router = useRouter();
   const [permissionStatus, setPermissionStatus] = useState<PermissionState>("prompt");
   const [fcmEnabled, setFcmEnabled] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isNativePlatform || !user) {
+    if (!pushPlatform || !user) {
       return;
     }
 
@@ -150,11 +152,11 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
       void pushReceivedListener?.remove();
       void pushActionListener?.remove();
     };
-  }, [user, isNativePlatform, serverUrl, router]);
+  }, [user, pushPlatform, serverUrl, router]);
 
   const requestPermission = async () => {
-    if (!isNativePlatform) {
-      console.warn("Push notifications not supported on web");
+    if (!pushPlatform) {
+      console.warn("Push notifications not supported on this platform");
       return;
     }
 
@@ -205,6 +207,6 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
   return {
     permissionStatus,
     requestPermission,
-    isSupported: isNativePlatform && fcmEnabled,
+    isSupported: pushPlatform && fcmEnabled,
   };
 };
