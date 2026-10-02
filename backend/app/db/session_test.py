@@ -1,4 +1,4 @@
-"""Statement timing on the engines."""
+"""Statement timing on the engines, and the tools a commit created."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from app.core import audit_context, metrics
 from app.db import session as db_session
+from app.testing import create_initiative, create_project, create_guild, create_user
 
 
 @pytest.fixture
@@ -80,3 +81,35 @@ async def test_ddl_is_timed_but_never_flagged(
 
     assert _statements_timed("ddl") == before + 1
     assert not [r for r in caplog.records if "ddl" in r.getMessage()]
+
+
+def _tools_created(tool: str) -> float:
+    return (
+        REGISTRY.get_sample_value("initiative_tools_created_total", {"tool": tool})
+        or 0.0
+    )
+
+
+async def test_a_tool_is_counted_once_its_creation_commits(session):
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    before = _tools_created("project")
+
+    # Committed: counted.
+    await create_project(session, initiative, user)
+    # Flushed in a savepoint that rolls back, inside a transaction that
+    # commits: not counted.
+    savepoint = await session.begin_nested()
+    await create_project(session, initiative, user, commit=False)
+    await session.flush()
+    await savepoint.rollback()
+    await session.commit()
+    # Flushed in a savepoint that is released, inside a transaction that rolls
+    # back: not counted.
+    async with session.begin_nested():
+        await create_project(session, initiative, user, commit=False)
+        await session.flush()
+    await session.rollback()
+
+    assert _tools_created("project") == before + 1

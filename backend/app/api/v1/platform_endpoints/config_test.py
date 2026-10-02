@@ -184,3 +184,13 @@ async def test_config_names_the_collector_and_asks_about_analytics(
     assert response.status_code == 200
     assert response.json()["faro_collector_url"] == "/collect"
     assert response.json()["cookie_categories"] == ["analytics"]
+
+
+async def test_config_asks_for_page_views_only_where_metrics_are_read(
+    client: AsyncClient, monkeypatch
+):
+    monkeypatch.setattr(settings, "METRICS_TOKEN", None)
+    assert (await client.get("/api/v1/config")).json()["count_page_views"] is False
+
+    monkeypatch.setattr(settings, "METRICS_TOKEN", "s3cret-token")
+    assert (await client.get("/api/v1/config")).json()["count_page_views"] is True

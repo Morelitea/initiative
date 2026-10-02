@@ -72,6 +72,9 @@ class AppConfig(BaseModel):
     # has granted the ``analytics`` category. ``None`` (the default) ⇒ the SPA
     # loads no measurement at all.
     faro_collector_url: Optional[str] = None
+    # Whether the SPA reports each page it opens to ``/page-views``. True only
+    # where Prometheus reads the counts (``METRICS_TOKEN`` is set).
+    count_page_views: bool = False
     # The upload size cap the server enforces on file endpoints. The SPA reads
     # it for pre-flight checks so the number lives in exactly one place.
     max_upload_bytes: int
@@ -153,6 +156,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         captcha=captcha,
         billing=billing,
         faro_collector_url=settings.FARO_COLLECTOR_URL,
+        count_page_views=settings.METRICS_TOKEN is not None,
         max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,

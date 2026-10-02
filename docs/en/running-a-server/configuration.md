@@ -260,6 +260,9 @@ Point `targets` at the app's own port, or at your proxy with `scheme: https` add
 | `initiative_db_pool_connections` | Database connections each engine holds, by `state`: `checked_out`, `idle`, `overflow`. |
 | `initiative_users`, `initiative_guilds` | Accounts and communities, by `status`. |
 | `initiative_sessions_active` | Sign-ins that haven't expired or been signed out. |
+| `initiative_active_users` | Accounts that did something in the last day, week and month, by `window`: `1d`, `7d`, `30d`. |
+| `initiative_tools_created_total` | Tools created, by `tool` (`project`, `document`, `wiki`, …). Imports and copies count too. |
+| `initiative_page_views_total` | Pages opened in the app, by `route`, the page's pattern (`/c/$guildId/i/$initiativeId/projects/$projectId/`). Counted only while `METRICS_TOKEN` is set. Nothing is kept in the browser and nothing says whose visit it was. |
 | `initiative_build_info` | The version running, in its `version` label. |
 | `process_*`, `python_*` | Memory, CPU and garbage collection for the app's process. |
 

@@ -564,6 +564,7 @@ export interface AppConfig {
   captcha?: CaptchaConfig | null;
   billing?: BillingConfig | null;
   faro_collector_url?: string | null;
+  count_page_views?: boolean;
   max_upload_bytes: number;
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
@@ -6604,6 +6605,11 @@ export type OwnershipTransferResponseCounts = { [key: string]: number };
 export interface OwnershipTransferResponse {
   counts: OwnershipTransferResponseCounts;
   total: number;
+}
+
+export interface PageView {
+  /** @maxLength 256 */
+  route: string;
 }
 
 export type PasskeyAuthenticationOptionsOptions = { [key: string]: unknown };
