@@ -39,6 +39,7 @@ import type {
   ReadPostApiV1CGuildIdPostsPostIdGetParams,
   ResourceGrantSchema,
   TimelineResponse,
+  ToolDuplicateRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -2225,6 +2226,115 @@ export const useSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPut = <
 > => {
   return useMutation(
     getSetPostGrantsApiV1CGuildIdPostsPostIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Post
+ */
+export const duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost = (
+  guildId: number,
+  postId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PostRead>(
+    {
+      url: `/api/v1/c/${guildId}/posts/${postId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationKey = () =>
+  ["duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost"] as const;
+
+export const getDuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost>>,
+    TError,
+    DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost>>,
+  TError,
+  DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost>>,
+    DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, postId, data } = props ?? {};
+
+    return duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost(
+      guildId,
+      postId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost>>
+>;
+export type DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationVariables = {
+  guildId: number;
+  postId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Post
+ */
+export const useDuplicatePostApiV1CGuildIdPostsPostIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost>>,
+      TError,
+      DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicatePostApiV1CGuildIdPostsPostIdDuplicatePost>>,
+  TError,
+  DuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicatePostApiV1CGuildIdPostsPostIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };

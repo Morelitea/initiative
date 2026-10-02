@@ -17,6 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
+from app.models.tenant.post_poll import PostPoll
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
@@ -27,6 +28,7 @@ from app.testing import (
     create_initiative,
     create_initiative_member,
     create_post,
+    create_post_poll,
     create_user,
     drain_notices,
     route_session_to_guild,
@@ -79,9 +81,17 @@ async def _notifications(session: AsyncSession, user_id: int) -> list[Notificati
 
 
 async def test_a_due_notice_is_published_and_announced(session: AsyncSession):
+    """It goes up once, to the people it was shared with, and a poll whose
+    deadline passed while it waited is open."""
     author, reader, initiative, _ = await _board(session)
     author_id, reader_id = author.id, reader.id
     post_id = await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
+    # Its poll's deadline passed while it waited.
+    await create_post_poll(
+        session,
+        await session.get(Post, post_id),
+        closes_at=datetime.now(timezone.utc) - timedelta(seconds=30),
+    )
 
     await route_session_to_guild(session, guild_of(initiative))
     published = await publish_due_posts(session, now=datetime.now(timezone.utc))
@@ -94,6 +104,10 @@ async def test_a_due_notice_is_published_and_announced(session: AsyncSession):
     assert refreshed.scheduled_for is not None
     assert len(await _notifications(session, reader_id)) == 1
     assert await _notifications(session, author_id) == []
+    poll = (
+        await session.exec(select(PostPoll).where(PostPoll.post_id == post_id))
+    ).one()
+    assert poll.closes_at is None
 
 
 async def test_a_notice_not_yet_due_is_left_alone(session: AsyncSession):

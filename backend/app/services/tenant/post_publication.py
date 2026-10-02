@@ -48,6 +48,7 @@ from app.services.notifications import AppAuthor
 from app.models.platform.notification import NotificationType
 from app.core.tools import Tool
 from app.services.platform import accounts as accounts_service
+from app.services.tenant import post_polls as post_polls_service
 from app.services.tenant import posts as posts_service
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -138,6 +139,7 @@ async def publish_due_posts(session: AsyncSession, *, now: datetime) -> list[int
     post_ids = [row[0] for row in claimed]
     if not post_ids:
         return []
+    await post_polls_service.open_lapsed_polls(session, post_ids, now=now)
 
     # The claim is durable before a single email or push goes out. Sending
     # first would mean a failure anywhere below rolls ``published_at`` back

@@ -40,6 +40,7 @@ import type {
   ReadGalleryApiV1CGuildIdGalleriesGalleryIdGetParams,
   ResourceGrantSchema,
   TimelineResponse,
+  ToolDuplicateRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -2534,6 +2535,116 @@ export const useSetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPut = <
 > => {
   return useMutation(
     getSetGalleryGrantsApiV1CGuildIdGalleriesGalleryIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Gallery
+ */
+export const duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost = (
+  guildId: number,
+  galleryId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GalleryRead>(
+    {
+      url: `/api/v1/c/${guildId}/galleries/${galleryId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationKey = () =>
+  ["duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost"] as const;
+
+export const getDuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost>>,
+    TError,
+    DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost>>,
+  TError,
+  DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost>>,
+    DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, galleryId, data } = props ?? {};
+
+    return duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost(
+      guildId,
+      galleryId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost>>
+  >;
+export type DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationVariables = {
+  guildId: number;
+  galleryId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Gallery
+ */
+export const useDuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost>>,
+      TError,
+      DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePost>>,
+  TError,
+  DuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateGalleryApiV1CGuildIdGalleriesGalleryIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };

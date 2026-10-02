@@ -40,7 +40,7 @@ from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
-from sqlmodel import delete as sa_delete, select
+from sqlmodel import delete as sa_delete, select, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.post import Post
@@ -168,6 +168,20 @@ async def lock_open_poll(
         )
     ).first()
     return row is not None
+
+
+async def open_lapsed_polls(
+    session: AsyncSession, post_ids: Sequence[int], *, now: datetime
+) -> None:
+    """Clear the deadline of these posts' polls where it passed before the post
+    went up: a poll is open when its post is published, and its author can set
+    a new deadline."""
+    if post_ids:
+        await session.exec(
+            sa_update(PostPoll)
+            .where(PostPoll.post_id.in_(post_ids), PostPoll.closes_at <= now)
+            .values(closes_at=None)
+        )
 
 
 async def has_votes(session: AsyncSession, poll: PostPoll) -> bool:

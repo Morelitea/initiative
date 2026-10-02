@@ -27,20 +27,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
 from app.core.messages import TaskMessages
-from app.core.relationships import (
-    DERIVED_TYPES,
-    Provenance,
-    RelationshipType,
-    node_id,
-)
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.db.session import require_actor_context
 from app.models.tenant.project import Project
-from app.models.tenant.relationship import EntityRelationship
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.services import notifications as notifications_service
-from app.services.tenant import content_references, relationships
+from app.services.tenant import relationships
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people
 from app.services.tenant import properties as properties_service
@@ -357,10 +350,13 @@ async def copy_tasks(
     status_of: Callable[[Task], int | None] | None = None,
     date_shift: timedelta | None = None,
     keep_done: bool = False,
+    assignees: set[int] | None = None,
 ) -> list[Task]:
     """Copy ``sources``, loaded with their assignees, into ``target``; returns
-    the copies in the same order. The assignees who can open ``target`` come
-    along, with the tags, the links (a link between two of the sources joins
+    the copies in the same order. The assignees come along (only those in
+    ``assignees`` when it is given; otherwise all, for the caller to sweep with
+    ``named_people.sweep`` once ``target``'s sharing is readable), with the
+    tags, the links (a link between two of the sources joins
     their copies) and, inside one initiative, the property values.
 
     ``status_of`` gives each copy its status in another project. Without it
@@ -405,17 +401,12 @@ async def copy_tasks(
         copies.append(copy)
     await session.flush()
 
-    can_open = await named_people.readers(
-        session,
-        named_people.Governing.of(Tool.project, target),
-        {assignee.id for source in sources for assignee in source.assignees},
-    )
     author_id = require_actor_context(session).user_id
     for source, copy in zip(sources, copies):
         session.add_all(
             TaskAssignee(task_id=copy.id, user_id=assignee.id)
             for assignee in source.assignees
-            if assignee.id in can_open
+            if assignees is None or assignee.id in assignees
         )
         if copy.description:
             await task_description_service.record_references(
@@ -428,71 +419,5 @@ async def copy_tasks(
     origin = await session.get(Project, sources[0].project_id) if sources else None
     if origin is not None and origin.initiative_id == target.initiative_id:
         await properties_service.copy_values(session, Task, copied_ids)
-    await _copy_relationships(session, copied_ids)
+    await relationships.copy_links(session, SearchEntityType.task, copied_ids)
     return copies
-
-
-#: Edge types a task copy does not carry. Tags travel through
-#: ``copy_entity_tags``, and a derived edge is read out of a body on save
-#: rather than asserted, so neither is copied here.
-_UNCOPIED_RELATIONSHIP_TYPES = frozenset({RelationshipType.tagged_with}) | DERIVED_TYPES
-
-
-async def _copy_relationships(
-    session: AsyncSession, task_mapping: dict[int, int]
-) -> None:
-    """Carry the source tasks' relations onto their copies.
-
-    Every live edge touching a source task is re-created on the copy. An end
-    that is itself a source task is remapped to its copy, so a dependency
-    between two template tasks becomes a dependency between the two new tasks;
-    any other end (a document, a task outside the template) is kept as-is.
-
-    Each copy is a link made on the creator's behalf, so it goes through
-    ``relationships.link_many`` like any other, and one it refuses is left behind:
-    a far end the creator cannot open, one in another initiative than the new
-    project, an archived one, or a source they cannot edit.
-    """
-    if not task_mapping or not content_references.records_edges(session):
-        return
-    source_nodes = [node_id(SearchEntityType.task, task_id) for task_id in task_mapping]
-    live = EntityRelationship.removed_at.is_(None)  # type: ignore[union-attr]
-    outbound = await session.exec(
-        select(EntityRelationship).where(
-            EntityRelationship.source_node.in_(source_nodes),  # type: ignore[union-attr]
-            live,
-        )
-    )
-    inbound = await session.exec(
-        select(EntityRelationship).where(
-            EntityRelationship.target_node.in_(source_nodes),  # type: ignore[union-attr]
-            live,
-        )
-    )
-    edges: dict[int, EntityRelationship] = {}
-    for row in [*outbound.all(), *inbound.all()]:
-        if row.id is not None:
-            edges[row.id] = row
-
-    def remapped(kind: str, entity_id: int) -> relationships.Endpoint:
-        entity_kind = SearchEntityType(kind)
-        if entity_kind is SearchEntityType.task:
-            entity_id = task_mapping.get(entity_id, entity_id)
-        return relationships.Endpoint(entity_kind, entity_id)
-
-    await relationships.link_many(
-        session,
-        [
-            relationships.Link(
-                source=remapped(row.source_type, row.source_id),
-                relationship_type=RelationshipType(row.relationship_type),
-                target=remapped(row.target_type, row.target_id),
-                provenance=Provenance(row.provenance),
-                confidence=row.confidence,
-            )
-            for row in sorted(edges.values(), key=lambda r: (r.created_at, r.id or 0))
-            if RelationshipType(row.relationship_type)
-            not in _UNCOPIED_RELATIONSHIP_TYPES
-        ],
-        user_id=require_actor_context(session).user_id,
-    )

@@ -54,6 +54,7 @@ from app.services import notifications as notifications_service
 from app.services.tenant import ownership as ownership_service
 from app.services import permissions as permissions_service
 from app.services import reachability
+from app.services.tenant import named_people
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import archive as archive_service
@@ -607,8 +608,14 @@ async def create_project(
         await filter_presets_service.ensure_default_presets(session, project.id)
         await attachments_service.claim_uploads(session, project)
     await properties_service.write_on_create(session, project, project_in.properties)
-    project_id = project.id
+    settled = named_people.Governing.of(Tool.project, project)
     await session.commit()
+    if project_in.template_id is not None:
+        # As for any copy: those the new project's sharing does not reach are
+        # let go of its tasks once that sharing is committed.
+        await named_people.sweep(session, settled)
+        await session.commit()
+    project_id = settled.resource_id
 
     project = await _get_project_or_404(
         project_id, session, guild_context.guild_id, user_id=guild_context.user_id

@@ -56,6 +56,8 @@ from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
 from app.services.tenant import task_creation as task_creation_service
+from app.core.tools import Tool
+from app.services.tenant import named_people
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_queries
 from app.services.tenant import task_series
@@ -685,7 +687,16 @@ async def duplicate_task(
     "<title> (Copy)", with its assignees, tags, links and properties; its
     checklist starts unticked."""
     task = await _load_for_change(session, task_id, current_user, guild_context)
-    (copy,) = await task_creation_service.copy_tasks(session, [task], task.project)
+    # The copy stays in the project, whose sharing is already committed, so
+    # who it may name is asked of the copy's own assignees alone.
+    keep = await named_people.readers(
+        session,
+        named_people.Governing.of(Tool.project, task.project),
+        {assignee.id for assignee in task.assignees},
+    )
+    (copy,) = await task_creation_service.copy_tasks(
+        session, [task], task.project, assignees=keep
+    )
     _touch_project(task.project, datetime.now(timezone.utc))
     await session.commit()
     return await _response(session, copy.id, TaskMessages.DUPLICATE_NOT_FOUND)

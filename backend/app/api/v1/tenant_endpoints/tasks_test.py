@@ -693,9 +693,16 @@ async def test_move_task_to_different_project(
 
 async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting_user):
     """A copy goes beside the original, at the end of its project, and is
-    linked to what the original is linked to."""
+    linked to what the original is linked to. It names only assignees who can
+    open the project, and leaves every other task's assignees as they are."""
+    from app.models.tenant.task import TaskAssignee
+
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    task = await _create_task(session, a.project, "Original Task")
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    task = await create_task(
+        session, a.project, title="Original Task", assignees=[a.user, outsider.user]
+    )
+    other = await create_task(session, a.project, assignees=[outsider.user])
     blocker = await _create_task(session, a.project, "Blocker")
     await create_relationship(
         session,
@@ -715,6 +722,11 @@ async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting
     assert data["project_id"] == task.project_id
     assert data["position"] > blocker.position
     assert data["blocked_by_open_count"] == 1
+    assert [assignee["id"] for assignee in data["assignees"]] == [a.user.id]
+    still = await session.exec(
+        select(TaskAssignee.user_id).where(TaskAssignee.task_id == other.id)
+    )
+    assert still.all() == [outsider.user.id]
 
 
 async def test_create_task_with_checklist(

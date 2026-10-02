@@ -945,3 +945,36 @@ async def test_trashing_a_gallery_takes_its_pictures(
         )
     ).one()
     assert row.deleted_at is not None
+
+
+async def test_a_copy_has_its_pictures_and_its_cover(
+    client: AsyncClient, acting_user, session
+):
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _galleries_enabled(session, a.initiative)
+    gallery = await create_gallery(session, a.initiative, a.user)
+    cover = await create_gallery_image(session, gallery, a.user, write_blob=False)
+    await create_gallery_image(session, gallery, a.user, write_blob=False)
+    gallery.cover_image_id = cover.id
+    session.add(gallery)
+    await session.commit()
+
+    response = await client.post(
+        a.g(f"/galleries/{gallery.id}/duplicate"), headers=a.headers
+    )
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert copy["image_count"] == 2
+    assert copy["cover_image_id"] not in (None, cover.id)
+    await route_session_to_guild(session, a.guild.id)
+    versions = (
+        await session.exec(
+            select(GalleryImageVersion).where(
+                GalleryImageVersion.gallery_image_id == copy["cover_image_id"]
+            )
+        )
+    ).all()
+    assert [(v.version_number, v.file_url) for v in versions] == [(1, cover.file_url)]

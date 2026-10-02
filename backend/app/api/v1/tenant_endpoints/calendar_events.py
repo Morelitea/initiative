@@ -75,7 +75,6 @@ from app.services.permissions import Action
 from app.services.tenant import calendar_events as events_service
 from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import calendars as calendars_service
-from app.services.tenant import content_references
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.tenant import ical_service
 from app.services import notifications as notifications_service
@@ -795,7 +794,7 @@ async def create_calendar_event(
             tag_ids=event_in.tag_ids,
         )
     if event_in.document_ids:
-        if not content_references.records_edges(session):
+        if not relationships.records_edges(session):
             # Attaching a document is a relationship, which an installed app
             # writes under its relationships scope.
             raise HTTPException(

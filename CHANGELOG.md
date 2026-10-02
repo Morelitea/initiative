@@ -9,12 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Duplicate a project, document or counter group into any initiative** where you can create one, from **Settings › Advanced**. The copy keeps its tags, and its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
+- **Duplicate a project, document, queue, counter group, gallery or dashboard into any initiative** where you can create one, from **Settings › Advanced**. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
 - **A duplicated task keeps its links** to other tasks, and is named "(Copy)" like every other copy. Checklists keep their ticks only when copied from a template; a duplicated project's start over.
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
 
 ### Fixed
 
+- **A post that goes up after its poll's deadline** opens the poll instead of posting it already closed. The author can set a new deadline.
 - Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.
 - **A project's built-in filter presets** (All, Incomplete, Unassigned, Mine) now show in your language, unless someone has renamed them.
 
