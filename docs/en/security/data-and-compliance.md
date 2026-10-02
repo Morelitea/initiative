@@ -72,7 +72,9 @@ Signing out clears the session and renewal cookies. Clearing your browser's site
 
 ### Optional
 
-Initiative knows two: **analytics** — which pages get used and where people get stuck, counted in aggregate — and **marketing**, which link brought you here and reaching you about Initiative elsewhere.
+Initiative knows two: **analytics** — which pages get used, the errors people run into and how fast pages load, with the browser and device, grouped by a random id for each visit and never by account — and **marketing**, which link brought you here and reaching you about Initiative elsewhere.
+
+Separately, a deployment that collects server metrics counts pages opened by their pattern (`/c/$guildId/…`). That count keeps nothing in the browser and records nothing about who opened the page, so it needs no switch.
 
 **You are only asked about the ones your deployment actually uses.** Both ship switched off, so a server run by a group for itself uses neither and never asks about either. Where a deployment has configured one, it gets a switch, and that switch starts off. Ignoring the question, closing the chooser, or never being asked all leave everything optional off.
 
