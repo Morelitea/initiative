@@ -4,8 +4,8 @@ A community no longer starts with an initiative, so none is singled out: the
 one older communities were given is now an initiative like any other, and can
 be deleted. Dropping ``is_default`` drops the partial unique index on it too.
 
-Revision ID: 20261001_0435
-Revises: 20261001_0434
+Revision ID: 20261001_0436
+Revises: 20261001_0435
 Create Date: 2026-10-01
 """
 
@@ -14,8 +14,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261001_0435"
-down_revision = "20261001_0434"
+revision = "20261001_0436"
+down_revision = "20261001_0435"
 branch_labels = None
 depends_on = None
 
