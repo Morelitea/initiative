@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   roster: [] as OperatorUserRead[],
   search: undefined as string | null | undefined,
   clearSecondFactor: vi.fn(),
+  revokeApiKeys: vi.fn(),
   authenticatorAskedAtSignIn: true,
   passwordLoginEnabled: true,
 }));
@@ -51,6 +52,7 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
   useOperatorRestoreUser: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
+  useOperatorRevokeApiKeys: () => ({ mutate: state.revokeApiKeys, isPending: false }),
   useExportPlatformUsersCsv: () => ({ mutate: vi.fn() }),
 }));
 
@@ -245,6 +247,30 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
 
     for (const name of shown) expect(lever(sheet, name)).toBeInTheDocument();
     for (const name of hidden) expect(lever(sheet, name)).not.toBeInTheDocument();
+  });
+
+  it.each<[string, UserRole, number, boolean]>([
+    ["a moderator revokes the keys that still work", "moderator", 2, true],
+    ["nothing to revoke on an account without working keys", "moderator", 0, false],
+  ])("%s", async (_label, role, count, offered) => {
+    state.revokeApiKeys.mockClear();
+    const rows = masked();
+    rows[1].api_key_count = count;
+    renderRoster(rows, buildUser({ role }));
+
+    const sheet = await openSheet();
+    const revoke = within(sheet).queryByRole("button", { name: "Revoke" });
+    if (!offered) {
+      expect(revoke).not.toBeInTheDocument();
+      return;
+    }
+
+    // Whatever runs on them stops at once, so it asks first.
+    await userEvent.click(revoke as HTMLElement);
+    const dialog = await screen.findByRole("alertdialog");
+    expect(state.revokeApiKeys).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Revoke" }));
+    expect(state.revokeApiKeys).toHaveBeenCalledWith(rows[1].id);
   });
 
   it("offers nothing on an account above the viewer's own rung", async () => {

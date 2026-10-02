@@ -26,6 +26,7 @@ import {
   removeUserAvatarApiV1OperatorUsersUserIdAvatarDelete,
   resendVerificationEmailApiV1OperatorUsersUserIdVerificationEmailPost,
   restoreDeletedUserApiV1OperatorUsersUserIdRestorePost,
+  revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete,
   setUserSuspensionApiV1OperatorUsersUserIdSuspensionPost,
   setUserUsernameApiV1OperatorUsersUserIdUsernamePatch,
   triggerPasswordResetApiV1OperatorUsersUserIdResetPasswordPost,
@@ -213,6 +214,17 @@ export const useOperatorClearSecondFactor = (options?: MutationOpts<void, number
   useApiMutation<void, number>(
     {
       mutationFn: (userId) => clearSecondFactorApiV1OperatorUsersUserIdSecondFactorDelete(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
+    },
+    options
+  );
+
+/** Switch off every API key on an account that still works (``users.manage``).
+ *  The holder sees them marked off and can make new ones. */
+export const useOperatorRevokeApiKeys = (options?: MutationOpts<OperatorUserRead, number>) =>
+  useApiMutation<OperatorUserRead, number>(
+    {
+      mutationFn: (userId) => revokeUserApiKeysApiV1OperatorUsersUserIdApiKeysDelete(userId),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options

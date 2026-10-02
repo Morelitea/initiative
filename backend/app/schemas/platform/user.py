@@ -740,6 +740,10 @@ class OperatorUserRead(UserRead):
     #: roster offers to clear when its holder has lost it.
     second_factor_enrolled: bool = False
 
+    #: How many of the account's API keys still work — what the sheet offers
+    #: to revoke.
+    api_key_count: int = 0
+
     @field_validator("email", mode="after")
     @classmethod
     def _mask_email(cls, value: str) -> str:

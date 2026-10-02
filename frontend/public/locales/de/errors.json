@@ -532,6 +532,7 @@
   "USER_AGE_ANSWER_STANDS": "Du hast die Altersfrage bereits beantwortet. Die Person, die diesen Server betreibt, kann sie zurücksetzen.",
   "USER_AGE_NOT_BLOCKED": "Für dieses Konto gibt es keine Alterssperre, die aufgehoben werden könnte.",
   "USER_SIGN_IN_NOT_LOCKED": "Die Anmeldung mit Passwort ist für dieses Konto nicht ausgeschaltet.",
+  "USER_NO_LIVE_API_KEYS": "Dieses Konto hat keine API-Schlüssel, die noch funktionieren.",
   "DM_USER_NOT_FOUND": "Dieses Konto ist nicht verfügbar.",
   "DM_AGE_CONFIRMATION_REQUIRED": "Bestätige dein Alter, bevor du änderst, wer dir schreiben darf.",
   "DM_CANNOT_IGNORE_SELF": "Du kannst dein eigenes Konto nicht ignorieren.",

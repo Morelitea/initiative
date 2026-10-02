@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.main import app
 from app.models.platform.guild import GuildRole
 from app.models.platform.notification import Notification, NotificationType
@@ -372,6 +373,61 @@ class TestLiftingASignInLock:
         assert response.status_code == 403
 
 
+class TestRevokingApiKeys:
+    async def test_a_moderator_switches_off_the_keys_that_still_work(
+        self, client, session, capfd
+    ):
+        from datetime import datetime, timedelta, timezone
+
+        from app.services.platform import api_keys as api_keys_service
+
+        moderator = await create_user(session, role=UserRole.moderator)
+        subject = await create_user(session)
+        secret, _key = await api_keys_service.create_api_key(
+            session, user=subject, name="ci"
+        )
+        await api_keys_service.create_api_key(
+            session,
+            user=subject,
+            name="old",
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        listed = await client.get(
+            "/api/v1/operator/users", headers=get_auth_headers(moderator)
+        )
+        row = next(u for u in listed.json()["items"] if u["id"] == subject.id)
+        # The expired key no longer works, so it is not one to revoke.
+        assert row["api_key_count"] == 1
+
+        revoked = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/api-keys",
+            headers=get_auth_headers(moderator),
+        )
+        assert revoked.status_code == 200, revoked.text
+        assert revoked.json()["api_key_count"] == 0
+        assert await api_keys_service.authenticate_api_key(session, secret) is None
+        assert [
+            (e["actor_user_id"], e["target_user_id"])
+            for e in emitted(capfd, AuditEventType.API_KEY_REVOKED)
+        ] == [(moderator.id, subject.id)]
+
+        again = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/api-keys",
+            headers=get_auth_headers(moderator),
+        )
+        assert again.status_code == 400
+        assert again.json()["detail"] == "USER_NO_LIVE_API_KEYS"
+
+    async def test_support_cannot(self, client, session):
+        support = await create_user(session, role=UserRole.support)
+        subject = await create_user(session)
+        response = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/api-keys",
+            headers=get_auth_headers(support),
+        )
+        assert response.status_code == 403
+
+
 class TestNothingElse:
     """The operator surface writes a fixed set of things about an account, and
     each one is gated deliberately. One more appearing here is a decision, not
@@ -397,6 +453,8 @@ class TestNothingElse:
             ("/api/v1/operator/users/{user_id}/suspension", "POST"),
             # Turns password and code sign-in back on after wrong answers.
             ("/api/v1/operator/users/{user_id}/sign-in-lock", "DELETE"),
+            # Switches off the account's API keys; its holder can make new ones.
+            ("/api/v1/operator/users/{user_id}/api-keys", "DELETE"),
             ("/api/v1/operator/users/{user_id}/reactivate", "POST"),
             ("/api/v1/operator/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.
@@ -419,6 +477,7 @@ class TestNothingElse:
             ("DELETE", "/avatar", None),
             ("PATCH", "/username", {"username": "renamed"}),
             ("DELETE", "/sign-in-lock", None),
+            ("DELETE", "/api-keys", None),
             ("POST", "/reactivate", None),
             ("POST", "/restore", None),
             ("DELETE", "/second-factor", None),

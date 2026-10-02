@@ -13,7 +13,7 @@
  * viewer is offered the controls their capabilities carry and no others.
  */
 
-import { ImageOff } from "lucide-react";
+import { ImageOff, KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +36,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import {
   useOperatorRemoveAvatar,
+  useOperatorRevokeApiKeys,
   useOperatorSetSuspension,
   useOperatorSetUsername,
   useOperatorUpdatePlatformRole,
@@ -70,7 +71,7 @@ const platformRoleDescription = (role: UserRole, t: TranslateFn): string =>
 export type UserSheetAbilities = {
   /** ``content.moderate`` — rename, and take a picture down. */
   canModerateContent: boolean;
-  /** ``users.manage`` — suspend and lift. */
+  /** ``users.manage`` — suspend and lift, and revoke API keys. */
   canManageUsers: boolean;
   /** ``roles.assign`` — move somebody up or down the ladder. */
   canManageRoles: boolean;
@@ -103,6 +104,7 @@ export const canManageUser = (
     return true;
   }
   if (abilities.canManageRoles && !isSelf && target.status === "active") return true;
+  if (abilities.canManageUsers && !isSelf && target.api_key_count > 0) return true;
   return false;
 };
 
@@ -129,6 +131,7 @@ export const UserOperatorSettingsSheet = ({
   const [suspendReason, setSuspendReason] = useState("");
   const [roleConfirm, setRoleConfirm] = useState<UserRole | null>(null);
   const [avatarConfirm, setAvatarConfirm] = useState(false);
+  const [apiKeysConfirm, setApiKeysConfirm] = useState(false);
 
   const setUsername = useOperatorSetUsername({
     onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
@@ -172,6 +175,17 @@ export const UserOperatorSettingsSheet = ({
     },
   });
 
+  const revokeApiKeys = useOperatorRevokeApiKeys({
+    onSuccess: () => {
+      toast.success(t("platformUsers.sheet.apiKeysRevoked"));
+      setApiKeysConfirm(false);
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+      setApiKeysConfirm(false);
+    },
+  });
+
   // The draft follows whichever account the sheet was opened for.
   if (user && loadedFor !== user.id) {
     setLoadedFor(user.id);
@@ -191,6 +205,7 @@ export const UserOperatorSettingsSheet = ({
   const showAvatar = abilities.canModerateContent && Boolean(user.avatar_url) && reachable;
   const showSuspension =
     abilities.canManageUsers && !isSelf && reachable && (user.status === "active" || isSuspended);
+  const showApiKeys = abilities.canManageUsers && !isSelf && reachable && user.api_key_count > 0;
   const showRole = abilities.canManageRoles && !isSelf && user.status === "active" && reachable;
 
   const commitUsername = () => {
@@ -261,25 +276,45 @@ export const UserOperatorSettingsSheet = ({
               </Section>
             )}
 
-            {showSuspension && (
+            {(showSuspension || showApiKeys) && (
               <Section title={t("platformUsers.sheet.access")}>
-                <SettingRow
-                  label={t("platformUsers.sheet.suspendLabel")}
-                  help={t("platformUsers.sheet.suspendHelp")}
-                  htmlFor="operator-user-suspended"
-                  control={
-                    <Switch
-                      id="operator-user-suspended"
-                      checked={isSuspended}
-                      onCheckedChange={(checked) => {
-                        // Lifting takes no explanation; imposing does.
-                        if (checked) setSuspendOpen(true);
-                        else setSuspension.mutate({ userId: user.id, suspended: false });
-                      }}
-                      disabled={setSuspension.isPending}
-                    />
-                  }
-                />
+                {showSuspension && (
+                  <SettingRow
+                    label={t("platformUsers.sheet.suspendLabel")}
+                    help={t("platformUsers.sheet.suspendHelp")}
+                    htmlFor="operator-user-suspended"
+                    control={
+                      <Switch
+                        id="operator-user-suspended"
+                        checked={isSuspended}
+                        onCheckedChange={(checked) => {
+                          // Lifting takes no explanation; imposing does.
+                          if (checked) setSuspendOpen(true);
+                          else setSuspension.mutate({ userId: user.id, suspended: false });
+                        }}
+                        disabled={setSuspension.isPending}
+                      />
+                    }
+                  />
+                )}
+                {showApiKeys && (
+                  <SettingRow
+                    label={t("platformUsers.sheet.apiKeysLabel")}
+                    help={t("platformUsers.sheet.apiKeysHelp", { count: user.api_key_count })}
+                    control={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setApiKeysConfirm(true)}
+                        disabled={revokeApiKeys.isPending}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        {t("platformUsers.sheet.apiKeysRevoke")}
+                      </Button>
+                    }
+                  />
+                )}
               </Section>
             )}
 
@@ -390,6 +425,22 @@ export const UserOperatorSettingsSheet = ({
         destructive
         isLoading={removeAvatar.isPending}
         onConfirm={() => removeAvatar.mutate(user.id)}
+      />
+
+      <ConfirmDialog
+        open={apiKeysConfirm}
+        onOpenChange={setApiKeysConfirm}
+        title={t("platformUsers.sheet.apiKeysConfirmTitle")}
+        description={t("platformUsers.sheet.apiKeysConfirmBody", {
+          handle: getUserHandle(user),
+          count: user.api_key_count,
+        })}
+        confirmLabel={t("platformUsers.sheet.apiKeysRevoke")}
+        cancelLabel={t("common:cancel")}
+        loadingLabel={t("common:submitting")}
+        destructive
+        isLoading={revokeApiKeys.isPending}
+        onConfirm={() => revokeApiKeys.mutate(user.id)}
       />
     </>
   );

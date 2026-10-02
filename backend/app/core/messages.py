@@ -686,6 +686,8 @@ class UserMessages:
     AGE_NOT_BLOCKED = "USER_AGE_NOT_BLOCKED"
     #: Asked to turn password sign-in back on for an account where it is on.
     SIGN_IN_NOT_LOCKED = "USER_SIGN_IN_NOT_LOCKED"
+    #: Asked to revoke an account's API keys when none of them still work.
+    NO_LIVE_API_KEYS = "USER_NO_LIVE_API_KEYS"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
     INVALID_WEEK_START = "USER_INVALID_WEEK_START"

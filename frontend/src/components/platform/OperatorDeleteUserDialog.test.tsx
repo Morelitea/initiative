@@ -16,6 +16,7 @@ const targetUser: OperatorUserRead = {
   purge_at: null,
   sign_in_locked_until: null,
   second_factor_enrolled: false,
+  api_key_count: 0,
 };
 
 const eligibilityWithGuildBlocker = {

@@ -532,6 +532,7 @@
   "USER_AGE_ANSWER_STANDS": "You have already answered the age question. Whoever runs this server can reset it for you.",
   "USER_AGE_NOT_BLOCKED": "That account has no age block to lift.",
   "USER_SIGN_IN_NOT_LOCKED": "Password sign-in isn't turned off for that account.",
+  "USER_NO_LIVE_API_KEYS": "That account has no API keys that still work.",
   "DM_USER_NOT_FOUND": "That account is not available.",
   "DM_AGE_CONFIRMATION_REQUIRED": "Confirm your age before changing who can message you.",
   "DM_CANNOT_IGNORE_SELF": "You cannot ignore your own account.",

@@ -32,6 +32,7 @@ from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
 from app.services.auth import challenges as challenge_service
 from app.services.auth import totp as totp_service
+from app.services.platform import api_keys as api_keys_service
 from app.services.platform import billing_ping
 from app.services.platform import identity_refs
 from app.services.platform import user_avatars as user_avatars_service
@@ -1073,14 +1074,16 @@ async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:
         )
 
 
-async def _sign_in_state(
+async def _credential_state(
     user_ids: List[int],
-) -> tuple[dict[int, "SignInLock"], set[int]]:
-    """The sign-in locks standing on these accounts, and which of them hold a
-    second factor, on the system engine.
+) -> tuple[dict[int, "SignInLock"], set[int], dict[int, int]]:
+    """The sign-in locks standing on these accounts, which of them hold a
+    second factor, and how many working API keys each holds, on the system
+    engine.
 
-    ``sign_in_locks`` and ``user_totp`` carry no request-path grants, for the
-    reason ``user_emails`` does not. One query each for the whole page.
+    ``sign_in_locks``, ``user_totp`` and ``user_api_keys`` carry no
+    request-path grants, for the reason ``user_emails`` does not. One query
+    each for the whole page.
     """
     from app.db.session import SystemSessionLocal
     from app.services.auth import sign_in_locks
@@ -1089,6 +1092,7 @@ async def _sign_in_state(
         return (
             await sign_in_locks.closed(system_session, user_ids),
             await totp_service.enrolled_among(system_session, user_ids=user_ids),
+            await api_keys_service.live_counts(system_session, user_ids=user_ids),
         )
 
 
@@ -1120,7 +1124,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
     from app.schemas.platform.user import OperatorUserRead
 
     primary, proven = await _reach([u.id for u in users])
-    locks, enrolled = await _sign_in_state([u.id for u in users])
+    locks, enrolled, key_counts = await _credential_state([u.id for u in users])
     # Only asked when somebody on this page is actually waiting out a window,
     # which on an ordinary roster is nobody.
     retention = (
@@ -1135,6 +1139,7 @@ async def to_operator_read(users: List[User]) -> List["OperatorUserRead"]:
         payload.email_verified = user.id in proven
         payload.purge_at = _erase_at(user, retention)
         payload.second_factor_enrolled = user.id in enrolled
+        payload.api_key_count = key_counts.get(user.id, 0)
         lock = locks.get(user.id)
         if lock is not None:
             payload.sign_in_locked_until = lock.locked_until
