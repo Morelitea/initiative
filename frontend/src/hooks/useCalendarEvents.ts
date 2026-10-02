@@ -5,6 +5,7 @@ import {
   createCalendarEventApiV1CGuildIdCalendarEventsPost,
   deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete,
   detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost,
+  duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost,
   getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey,
   importIcalEventsApiV1CGuildIdCalendarEventsImportPost,
   openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost,
@@ -128,6 +129,17 @@ export const useDeleteCalendarEvent = (
         deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete(guildId, eventId, target),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
+    },
+    options
+  );
+
+export const useDuplicateCalendarEvent = (options?: MutationOpts<CalendarEventRead, number>) =>
+  useGuildMutation<CalendarEventRead, number>(
+    {
+      mutationFn: (guildId, eventId) =>
+        duplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePost(guildId, eventId),
+      invalidate: () => invalidate(q.allCalendarEvents()),
+      errorKey: "common:error",
     },
     options
   );

@@ -112,6 +112,11 @@
   "createAccess": {
     "advancedOptions": "Advanced options"
   },
+  "subToolDuplicate": {
+    "action": "Duplicate",
+    "duplicating": "Duplicating…",
+    "done": "Duplicated"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archive",

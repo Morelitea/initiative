@@ -112,6 +112,11 @@
     "advancedOptions": "Opciones avanzadas"
   },
   "deletedUserName": "Usuario eliminado #{{id}}",
+  "subToolDuplicate": {
+    "action": "Duplicar",
+    "duplicating": "Duplicando…",
+    "done": "Duplicado"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archivo",

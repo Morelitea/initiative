@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { CalendarDays, MapPin, Repeat, Settings, Trash2, Users } from "lucide-react";
+import { CalendarDays, Copy, MapPin, Repeat, Settings, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,
+  useDuplicateCalendarEvent,
   useOccurrenceAction,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
@@ -181,6 +182,13 @@ export function EventDetailPage() {
     },
   });
 
+  const duplicateEvent = useDuplicateCalendarEvent({
+    onSuccess: (copy) => {
+      toast.success(t("common:subToolDuplicate.done"));
+      void navigate({ to: gp(eventRoute(initiativeId, copy.calendar_id, copy.id)) });
+    },
+  });
+
   // RSVP
   const updateRSVP = useUpdateEventRSVP(parsedId, {
     onSuccess: () => {
@@ -301,6 +309,16 @@ export function EventDetailPage() {
                 >
                   <Settings className="h-4 w-4" />
                 </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => duplicateEvent.mutate(parsedId)}
+                disabled={duplicateEvent.isPending}
+                aria-label={t("common:subToolDuplicate.action")}
+                title={t("common:subToolDuplicate.action")}
+              >
+                <Copy className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"

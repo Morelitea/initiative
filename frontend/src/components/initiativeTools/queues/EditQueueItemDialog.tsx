@@ -1,4 +1,4 @@
-import { Loader2, Trash2 } from "lucide-react";
+import { Copy, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -28,7 +28,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useDeleteQueueItem, useSetQueueItemLinks, useUpdateQueueItem } from "@/hooks/useQueues";
+import {
+  useDeleteQueueItem,
+  useDuplicateQueueItem,
+  useSetQueueItemLinks,
+  useUpdateQueueItem,
+} from "@/hooks/useQueues";
 import { toast } from "@/lib/chesterToast";
 import { sameIds } from "@/lib/relationships";
 import type { DialogProps } from "@/types/dialog";
@@ -107,6 +112,14 @@ export const EditQueueItemDialog = ({
     onSuccess: () => {
       toast.success(t("itemRemoved"));
       setDeleteConfirmOpen(false);
+      onOpenChange(false);
+      onSuccess?.();
+    },
+  });
+
+  const duplicateItem = useDuplicateQueueItem(queueId, {
+    onSuccess: () => {
+      toast.success(t("common:subToolDuplicate.done"));
       onOpenChange(false);
       onSuccess?.();
     },
@@ -295,16 +308,30 @@ export const EditQueueItemDialog = ({
 
           {!readOnly && (
             <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() => setDeleteConfirmOpen(true)}
-                disabled={isSaving || isDeleting}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t("removeItem")}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  disabled={isSaving || isDeleting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t("removeItem")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => duplicateItem.mutate(item.id)}
+                  disabled={isSaving || isDeleting || duplicateItem.isPending}
+                >
+                  <Copy className="h-4 w-4" />
+                  {duplicateItem.isPending
+                    ? t("common:subToolDuplicate.duplicating")
+                    : t("common:subToolDuplicate.action")}
+                </Button>
+              </div>
               <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
                 {isSaving ? (
                   <>

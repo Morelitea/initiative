@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost,
   deleteCounterApiV1CGuildIdCounterGroupsGroupIdCountersCounterIdDelete,
+  duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost,
   getReadCounterGroupApiV1CGuildIdCounterGroupsGroupIdGetQueryKey,
   resetAllCountersApiV1CGuildIdCounterGroupsGroupIdResetAllPost,
   resetCounterApiV1CGuildIdCountersCounterIdResetPost,
@@ -104,6 +105,17 @@ export const useAddCounter = (
         addCounterApiV1CGuildIdCounterGroupsGroupIdCountersPost(guildId, groupId, data),
       invalidate: () => invalidateGroupAndList(groupId),
       errorKey: "counterGroups:error",
+    },
+    options
+  );
+
+export const useDuplicateCounter = (groupId: number, options?: MutationOpts<CounterRead, number>) =>
+  useGuildMutation<CounterRead, number>(
+    {
+      mutationFn: (guildId, counterId) =>
+        duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost(guildId, counterId),
+      invalidate: () => invalidateGroupAndList(groupId),
+      errorKey: "common:error",
     },
     options
   );
