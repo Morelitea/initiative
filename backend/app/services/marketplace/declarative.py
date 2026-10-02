@@ -14,9 +14,11 @@ connection's ``after_connect`` (``runAfterConnect``) and ``health``
 connection (``runWebhook``).
 
 * **What an expression sees**: ``params``, the non-secret fields of the
-  request's connection, ``now``, each earlier step's answer as
-  ``steps.<name>`` and, once a call is answered, ``response``. A credential
-  never enters one: it is added to the request as the app's ``auth`` says.
+  request's connection as ``connection`` and of each connection the endpoint's
+  ``requires`` names that this call holds as ``connections.<id>``, ``now``,
+  each earlier step's answer as ``steps.<name>`` and, once a call is answered,
+  ``response``. A credential never enters one: it is added to the request as
+  the app's ``auth`` says.
 * **Where a request may go**: https, on one of the app's ``hosts``, to a public
   address, following no redirect.
 * **What an answer means**: the endpoint's ``errors`` rows first, then the
@@ -50,6 +52,7 @@ from app.services.marketplace.app_data import (
     MAX_RESPONSE_BYTES,
     REQUEST_TIMEOUT_SECONDS,
     AppDataError,
+    _required_connection_ids,
 )
 from app.services.marketplace.expressions import UNDEFINED, ExpressionError
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
@@ -544,7 +547,9 @@ async def run_endpoint(
     <code>}``.
 
     ``connections`` holds each connection's non-secret fields and
-    ``credentials`` its token, by connection id. A passing failure raises
+    ``credentials`` its token, by connection id. Expressions read a request's
+    own connection as ``connection`` and every connection the endpoint's
+    ``requires`` names as ``connections.<id>``. A passing failure raises
     :class:`AppDataError` as the app being unavailable.
     """
     run = _Run(
@@ -553,7 +558,16 @@ async def run_endpoint(
         credentials=credentials,
         now=now,
     )
-    base = {"params": dict(params), "now": run.now}
+    required, _ = _required_connection_ids(endpoint)
+    base = {
+        "params": dict(params),
+        "connections": {
+            connection_id: dict(connections[connection_id])
+            for connection_id in required
+            if connection_id in connections
+        },
+        "now": run.now,
+    }
     steps = endpoint.get("steps") or [{"name": "", "request": endpoint["request"]}]
     named = "steps" in endpoint
     answers: dict[str, Any] = {}
@@ -834,18 +848,20 @@ async def _credentials(
     registration: RegistrationSnapshot,
     app: GuildApp,
     guild_id: int,
-    connection_ids: list[str],
+    endpoint: Mapping[str, Any],
     refs: Mapping[str, str],
     actor: Optional[str],
 ) -> tuple[dict[str, str], dict[str, dict[str, Any]], bool]:
-    """Each named connection's token and non-secret fields, and whether any
-    is a member's own.
+    """Each connection the endpoint's requests name: its token and non-secret
+    fields, and whether any is a member's own.
 
     A static connection's is the community's, which a call on a member's
-    behalf does not carry; an interactive one's is the acting member's, by the
-    handle the endpoint's ``requires`` resolved for them. Tokens are refreshed
-    or minted as the app channel hands them out.
+    behalf carries only when the endpoint's ``requires`` names it; an
+    interactive one's is the acting member's, by the handle the endpoint's
+    ``requires`` resolved for them. Tokens are refreshed or minted as the app
+    channel hands them out.
     """
+    required, _ = _required_connection_ids(endpoint)
     tokens: dict[str, str] = {}
     fields: dict[str, dict[str, Any]] = {}
     member = False
@@ -856,7 +872,7 @@ async def _credentials(
             )
         except AppChannelError as exc:
             raise AppDataError(exc.code, exc.status_code) from exc
-        for connection_id in connection_ids:
+        for connection_id in _connection_ids(endpoint):
             connection = connection_by_id(install.definition, connection_id)
             interactive = (connection or {}).get("scope") == "interactive"
             refusal = AppDataError(
@@ -868,7 +884,7 @@ async def _credentials(
             ref = refs.get(connection_id)
             if connection is None or (interactive and ref is None):
                 raise refusal
-            if not interactive and actor == "member":
+            if not interactive and actor == "member" and connection_id not in required:
                 raise refusal
             try:
                 if interactive:
@@ -915,10 +931,15 @@ async def call_endpoint(
     endpoint_id: str,
     params: Mapping[str, Any],
     refs: Mapping[str, str],
+    fields: Mapping[str, Mapping[str, Any]],
     actor: Optional[str],
 ) -> dict[str, Any]:
     """One declarative endpoint of an install, answered as a container
     answers: ``{endpoint, actor, result}``.
+
+    ``fields`` is each satisfied connection's non-secret fields as the
+    caller's resolution read them, which the response cache key holds, so
+    the expressions read those.
 
     Held to the envelope's time and size, as a container's answer is; each
     vendor answer to the connection egress limits.
@@ -937,11 +958,11 @@ async def call_endpoint(
         raise AppDataError(AppDataMessages.ENDPOINT_NOT_FOUND, 404)
     try:
         async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
-            tokens, fields, member = await _credentials(
+            tokens, used, member = await _credentials(
                 registration=registration,
                 app=app,
                 guild_id=guild_id,
-                connection_ids=_connection_ids(endpoint),
+                endpoint=endpoint,
                 refs=refs,
                 actor=actor,
             )
@@ -949,7 +970,7 @@ async def call_endpoint(
                 app.definition,
                 endpoint,
                 params=_typed(endpoint, params),
-                connections=fields,
+                connections={**used, **fields},
                 credentials=tokens,
                 now=datetime.now(timezone.utc),
             )
