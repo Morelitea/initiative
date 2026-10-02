@@ -1,7 +1,6 @@
 {
   "layout": {
     "title": "Meine Einstellungen",
-    "subtitle": "Verwalte dein Profil, deine Oberflächeneinstellungen und Benachrichtigungen.",
     "tabs": {
       "profile": "Profil",
       "account": "Konto",
@@ -19,7 +18,6 @@
   },
   "guildLayout": {
     "title": "Community-Einstellungen",
-    "subtitle": "Verwalte die Mitgliedschaft im Arbeitsbereich und die Community-Details.",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
     "viewOnly": "Du siehst diese Einstellungen über eine Zugriffsfreigabe. Um sie zu ändern, ist zusätzlich eine Lese-/Schreibfreigabe nötig.",
     "restricted": {
@@ -955,7 +953,6 @@
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
-    "subtitle": "Anmeldung, Sicherheit, Branding, E-Mail, Push-Benachrichtigungen, das Community-Verzeichnis, Integrationen, Speicher und Eingang für die gesamte Installation.",
     "tabs": {
       "auth": "Authentifizierung",
       "branding": "Branding",
@@ -1066,7 +1063,6 @@
   },
   "operatorDashboard": {
     "title": "Operator-Dashboard",
-    "subtitle": "Verwalte Plattformbenutzer und zeitlich begrenzte Zugriffsrechte.",
     "tabs": {
       "users": "Benutzer",
       "access": "Zugriff",

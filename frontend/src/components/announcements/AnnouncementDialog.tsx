@@ -1,10 +1,10 @@
 import {
   ChevronLeft,
   ChevronRight,
+  Gift,
   Megaphone,
   Rocket,
   ShieldAlert,
-  Sparkles,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
@@ -32,7 +32,7 @@ import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
 const CATEGORY_ICON: Record<AnnouncementCategory, typeof Megaphone> = {
   release: Rocket,
-  feature: Sparkles,
+  feature: Gift,
   breaking: TriangleAlert,
   maintenance: Wrench,
   security: ShieldAlert,

@@ -1,7 +1,6 @@
 {
   "layout": {
     "title": "My Settings",
-    "subtitle": "Manage your profile, interface preferences, and notifications.",
     "tabs": {
       "profile": "Profile",
       "account": "Account",
@@ -19,7 +18,6 @@
   },
   "guildLayout": {
     "title": "Community settings",
-    "subtitle": "Manage workspace membership and community details.",
     "permissionDenied": "You need additional permissions to view this page.",
     "viewOnly": "You're viewing these settings on an access grant. Changing them takes a read/write grant beside it.",
     "restricted": {
@@ -955,7 +953,6 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Sign-in, security, branding, email, push notifications, the community directory, integrations, storage and intake for the whole deployment.",
     "tabs": {
       "auth": "Authentication",
       "branding": "Branding",
@@ -1178,7 +1175,6 @@
   },
   "operatorDashboard": {
     "title": "Operator dashboard",
-    "subtitle": "Manage platform users and time-bound access grants.",
     "tabs": {
       "users": "Users",
       "access": "Access",

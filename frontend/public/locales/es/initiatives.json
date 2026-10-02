@@ -105,7 +105,6 @@
   },
   "settings": {
     "title": "Configuración de la iniciativa",
-    "subtitle": "Actualiza detalles, gestiona miembros y roles, y controla acciones peligrosas.",
     "breadcrumbSettings": "Configuración",
     "loadingInitiative": "Cargando iniciativa...",
     "backToInitiatives": "← Volver a Mis iniciativas",

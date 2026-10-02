@@ -117,7 +117,7 @@ export interface PageHeaderSkeletonProps {
 /** A page's title block: title, an optional badge, blurb, counts, and tabs. */
 export const PageHeaderSkeleton = ({
   dot = false,
-  description = true,
+  description = false,
   meta = false,
   action = false,
   tabs = 0,
@@ -399,11 +399,11 @@ export const ToolListSkeleton = ({
 );
 
 /** A whole page with nothing known about it yet — the router's stand-in while
- *  a route's data is on its way. Title, blurb, then a block of content. */
+ *  a route's data is on its way. Title, then a block of content. */
 export const PageSkeleton = ({ label, className }: { label?: string; className?: string }) => (
   <SkeletonRegion label={label} className={className}>
     <div className="space-y-6">
-      <PageHeaderSkeleton description />
+      <PageHeaderSkeleton />
       <CardGridSkeleton count={3} />
     </div>
   </SkeletonRegion>
@@ -517,7 +517,7 @@ export const TaskEditSkeleton = ({ label }: LabelledSkeletonProps) => (
 /** A tag's page: its name and counts, then everything that carries it. */
 export const TagDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label} className="space-y-6">
-    <PageHeaderSkeleton dot description={false} meta action />
+    <PageHeaderSkeleton dot meta action />
     <ToolbarSkeleton />
     <TableSkeleton rows={6} columns={5} toolbar={false} />
   </SkeletonRegion>

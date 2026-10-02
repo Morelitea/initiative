@@ -140,7 +140,6 @@
       "description": "Descarga una copia: un archivo que puedes importar aquí o en otro servidor, o un informe para leer. Solo quien puede eliminar esto puede exportarlo."
     },
     "title": "Configuración",
-    "description": "Gestiona los detalles, el acceso y las opciones avanzadas.",
     "tabDetails": "Detalles",
     "tabAccess": "Acceso",
     "tabAdvanced": "Avanzado",

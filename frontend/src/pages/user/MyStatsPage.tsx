@@ -41,10 +41,7 @@ export function MyStatsPage() {
     <div className="space-y-6">
       {/* Header with Guild filter */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-bold text-3xl">{t("page.title")}</h1>
-          <p className="mt-1 text-muted-foreground text-sm">{t("page.subtitle")}</p>
-        </div>
+        <h1 className="font-bold text-3xl">{t("page.title")}</h1>
         <div className="w-full sm:w-[200px]">
           <Select value={selectedGuildId} onValueChange={handleGuildChange}>
             <SelectTrigger>

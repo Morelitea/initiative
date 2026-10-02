@@ -1,7 +1,6 @@
 {
   "page": {
     "title": "Mis estadísticas",
-    "subtitle": "Rastrea tu productividad y métricas de finalización de tareas",
     "guildFilterPlaceholder": "Seleccionar comunidad",
     "allGuilds": "Todas las comunidades",
     "loading": "Cargando estadísticas\u2026",

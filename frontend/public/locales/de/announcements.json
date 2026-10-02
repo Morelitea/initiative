@@ -115,7 +115,6 @@
   },
   "archive": {
     "title": "Ankündigungen",
-    "subtitle": "Alles, was Initiative angekündigt hat, neueste zuerst.",
     "empty": "Bisher wurde nichts angekündigt.",
     "read": "Lesen",
     "unread": "Ungelesen",

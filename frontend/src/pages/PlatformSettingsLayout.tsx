@@ -104,10 +104,7 @@ export const PlatformSettingsLayout = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-semibold text-3xl tracking-tight">{t("platformLayout.title")}</h1>
-        <p className="text-muted-foreground">{t("platformLayout.subtitle")}</p>
-      </div>
+      <h1 className="font-semibold text-3xl tracking-tight">{t("platformLayout.title")}</h1>
       <SettingsTabsNav
         tabs={tabs}
         activeTab={activeTab}

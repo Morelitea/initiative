@@ -140,7 +140,6 @@
       "description": "Eine Kopie herunterladen – als Datei, die sich hier oder auf einem anderen Server importieren lässt, oder als Bericht zum Lesen. Exportieren kann nur, wer dies auch löschen darf."
     },
     "title": "Einstellungen",
-    "description": "Verwalte Details, Zugriff und erweiterte Optionen.",
     "tabDetails": "Details",
     "tabAccess": "Zugriff",
     "tabAdvanced": "Erweitert",

@@ -45,10 +45,7 @@ export const AnnouncementsArchivePage = () => {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-semibold text-3xl tracking-tight">{t("archive.title")}</h1>
-          <p className="text-muted-foreground">{t("archive.subtitle")}</p>
-        </div>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("archive.title")}</h1>
         {items.length > 0 ? (
           <ToggleGroup
             type="single"

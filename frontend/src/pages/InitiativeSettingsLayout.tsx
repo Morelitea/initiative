@@ -142,10 +142,7 @@ export const InitiativeSettingsLayout = () => {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <div className="space-y-1">
-        <h1 className="font-semibold text-3xl tracking-tight">{t("settings.title")}</h1>
-        <p className="text-muted-foreground text-sm">{t("settings.subtitle")}</p>
-      </div>
+      <h1 className="font-semibold text-3xl tracking-tight">{t("settings.title")}</h1>
 
       <SettingsTabsNav
         tabs={tabs}

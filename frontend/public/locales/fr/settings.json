@@ -1,7 +1,6 @@
 {
   "layout": {
     "title": "Mes paramètres",
-    "subtitle": "Gérez votre profil, vos préférences d'interface et vos notifications.",
     "tabs": {
       "profile": "Profil",
       "account": "Compte",
@@ -19,7 +18,6 @@
   },
   "guildLayout": {
     "title": "Paramètres de la communauté",
-    "subtitle": "Gérez les membres de l'espace de travail et les détails de la communauté.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
     "viewOnly": "Vous consultez ces paramètres grâce à une autorisation d'accès. Pour les modifier, une autorisation en lecture-écriture est également requise.",
     "restricted": {
@@ -955,7 +953,6 @@
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
-    "subtitle": "Connexion, sécurité, image de marque, e-mail, notifications push, l'annuaire des communautés, intégrations, stockage et réception pour l'ensemble du déploiement.",
     "tabs": {
       "auth": "Authentification",
       "branding": "Image de marque",
@@ -1066,7 +1063,6 @@
   },
   "operatorDashboard": {
     "title": "Tableau de bord opérateur",
-    "subtitle": "Gérez les utilisateurs de la plateforme et les accès temporaires.",
     "tabs": {
       "users": "Utilisateurs",
       "access": "Accès",

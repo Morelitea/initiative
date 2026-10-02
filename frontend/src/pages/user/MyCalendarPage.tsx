@@ -308,10 +308,7 @@ export const MyCalendarPage = () => {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-4">
-        <div>
-          <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
-          <p className="text-muted-foreground">{t("tasks:myCalendar.subtitle")}</p>
-        </div>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("tasks:myCalendar.title")}</h1>
 
         <ToolListToolbar
           filters={{
