@@ -976,6 +976,7 @@
     "notLiveBadge": "Not live",
     "registryBadge": "From the registry",
     "imageSummary": "Container image: {{image}}",
+    "declarativeSummary": "Initiative makes this app's calls itself. It needs no address or keys, only its vendor values.",
     "needsAddress": "Runs as a container. Edit it and give the address where you run it to make it live.",
     "publisherSummary": "Publisher: {{name}}",
     "listingSummary": "Listing:",

@@ -1136,9 +1136,7 @@ class TestCanonicalShape:
                 }
             ],
             vendor=VENDOR,
-            endpoints=[
-                {"id": READ_ID, "direction": "read", "base_url": "http://x.test"}
-            ],
+            endpoints=[{"id": READ_ID, "direction": "read"}],
             embeds=[
                 {
                     "id": "orders",
@@ -1151,7 +1149,6 @@ class TestCanonicalShape:
         rendered = repr(definition)
         assert "http://" not in rendered
         assert "widget.test" not in rendered
-        assert "x.test" not in rendered
         assert "default_url" not in definition["service"]
 
     def test_the_whole_document_is_size_capped(self):

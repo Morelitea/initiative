@@ -69,7 +69,10 @@ from app.db import cohorts
 from app.db.guild_standing import ISSUABLE_SCOPES_SQL
 from app.db.session import set_rls_context
 from app.models.platform.app_assertion_jti import ASSERTION_JTI_MAX_LENGTH
-from app.models.platform.app_service_registration import registration_live_sql
+from app.models.platform.app_service_registration import (
+    RegistrationKind,
+    registration_live_sql,
+)
 from app.models.platform.guild import GuildMembership
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.app_member_consent import ConsentAccess, is_valid_purpose
@@ -240,6 +243,7 @@ _BURN_JTI_SQL = (
     "FROM public.app_service_registrations r "
     "JOIN public.publishers p ON p.id = r.publisher_id "
     "WHERE r.public_id = :public_id "
+    f"AND r.kind = '{RegistrationKind.CONTAINER}' "
     f"AND {registration_live_sql('r', 'p')} "
     "ON CONFLICT DO NOTHING "
     "RETURNING registration_id"
@@ -275,7 +279,8 @@ async def _verify_signed_assertion(
         raise fail("client_id does not match the assertion")
 
     snapshot = (await registration_lookup.load_registrations()).get(issuer)
-    if snapshot is None or not snapshot.live:
+    # Only a container signs: a declarative app has no code to hold a key.
+    if snapshot is None or not snapshot.live or snapshot.declarative:
         raise fail("unknown client")
     key = await app_keys.key_for(snapshot, kid)
     if key is None:

@@ -34,6 +34,7 @@ from app.core.security import SESSION_COOKIE_NAME
 from app.core.encryption import SALT_APP_CONFIG, decrypt_field, encrypt_field
 from app.core.messages import AccessGrantMessages, AppChannelMessages
 from app.db import cohorts
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.db.session import set_rls_context
 from app.models.platform.access_grant import (
     AccessGrant,
@@ -43,6 +44,7 @@ from app.models.platform.access_grant import (
 )
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.app_install import AppInstall
+from app.models.platform.app_service_registration import RegistrationKind
 from app.models.tenant.app_hook_delivery import AppHookDelivery
 from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
@@ -1114,6 +1116,38 @@ class TestRevocation:
 
         assert vendor.grant_deletions == [self._deletion("gho_stored")] * tries
         assert vendor.refreshes == 0
+
+    async def test_a_declarative_apps_grant_is_deleted_under_its_listings_name(
+        self, session, vendor, registration
+    ):
+        """It names no service: the registration its listing applied says
+        which vendor client ends the grant."""
+        registration.kind = RegistrationKind.DECLARATIVE
+        session.add(registration)
+        await session.commit()
+        invalidate_registrations()
+        granted = self._grant_intent()
+        intent = app_revocation._intent_for(
+            guild_id=1,
+            app_id=1,
+            listing_uid=LISTING_UID,
+            definition={
+                "app_kind": "service",
+                "hosts": ["api.github.test"],
+                "connections": [
+                    {"id": "account", "scope": "interactive", "flow": granted.flow}
+                ],
+            },
+            connection_id="account",
+            config={"expires_at": granted.expires_at},
+            secrets=granted.sealed_tokens,
+            reason="disconnected",
+        )
+        assert intent.public_id is None
+
+        await app_revocation._deliver(intent)
+
+        assert vendor.grant_deletions == [self._deletion("gho_stored")]
 
     async def test_a_lapsed_github_token_is_refreshed_before_the_deletion(
         self, vendor, registration

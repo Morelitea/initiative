@@ -64,6 +64,7 @@ def _to_read(
         id=row.id,
         public_id=row.public_id,
         listing_uid=row.listing_uid,
+        kind=row.kind,
         publisher_id=view.publisher.id,
         publisher_prefix=view.publisher.prefix,
         publisher_name=view.publisher.display_name,

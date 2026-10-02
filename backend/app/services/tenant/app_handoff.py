@@ -146,7 +146,9 @@ async def require_live_registration(
     deployment never wired up, and one whose registration the operator turned
     off, are equally unreachable from here.
     """
-    registration = await registration_lookup.registration_for_definition(app.definition)
+    registration = await registration_lookup.registration_for_definition(
+        app.definition, listing_uid=app.listing_uid
+    )
     if registration is None or not registration.live:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

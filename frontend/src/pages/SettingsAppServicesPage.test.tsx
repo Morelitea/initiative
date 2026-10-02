@@ -12,6 +12,7 @@ const buildRegistration = (
   id: 1,
   public_id: "core.github",
   listing_uid: "gh7k2m9p4q1x8z",
+  kind: "container",
   publisher_id: 1,
   publisher_prefix: "core",
   publisher_name: "Core Apps",
@@ -311,6 +312,34 @@ describe("SettingsAppServicesPage", () => {
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(updateMutate.mock.calls[0][0].data.vendor_values).toEqual({ client_id: "gh-app-2" });
+    });
+
+    it("asks a declarative app for its vendor values and nothing about where it runs", async () => {
+      const user = userEvent.setup();
+      registrations = [
+        buildRegistration({
+          kind: "declarative",
+          base_url: null,
+          jwks: null,
+          vendor_fields: [
+            { key: "client_id", type: "string", required: true, label: { en: "Client id" } },
+          ],
+        }),
+      ];
+      renderAsOperator();
+
+      expect(screen.getByText(/makes this app's calls itself/)).toBeInTheDocument();
+      expect(screen.queryByText(/give the address where you run it/)).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await user.type(await screen.findByLabelText(/Client id/), "gh-app");
+      expect(screen.queryByLabelText("Base URL")).toBeNull();
+      expect(screen.queryByLabelText("Pasted key set (JWKS)")).toBeNull();
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(updateMutate.mock.calls[0][0].data).toEqual({
+        mandatory: false,
+        vendor_values: { client_id: "gh-app" },
+      });
     });
 
     it("shows the compose service to copy, and its address as the base URL", async () => {

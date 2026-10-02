@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence
 from urllib.parse import urlparse
@@ -63,6 +63,7 @@ from app.models.platform.app_service_registration import (
     MAX_APP_ID_LENGTH,
     REFERENCE_SECTORS,
     AppServiceRegistration,
+    RegistrationKind,
     RegistrationSource,
 )
 from app.models.platform.publisher import (
@@ -84,6 +85,7 @@ from app.services.marketplace import vendor_values as vendor_values_service
 from app.services.marketplace.publishers import ensure_publisher
 from app.services.marketplace.registration_lookup import (
     invalidate_registrations,
+    is_declarative,
     live_registration_clause,
     service_public_id,
 )
@@ -95,6 +97,7 @@ logger = logging.getLogger(__name__)
 AUDITED_FIELDS: tuple[str, ...] = (
     "public_id",
     "listing_uid",
+    "kind",
     "publisher_id",
     "base_url",
     "embed_origin",
@@ -580,6 +583,14 @@ async def update_registration(
     """
     row = await get_registration(session, registration_id)
     before = audit_service.snapshot(row, AUDITED_FIELDS)
+    placement = (base_url, embed_origin, allowed_origins, jwks, jwks_uri)
+    if row.kind == RegistrationKind.DECLARATIVE and any(
+        value is not None for value in placement
+    ):
+        raise _bad_request(
+            AppServiceMessages.DECLARATIVE_NOT_PLACED,
+            "a declarative app has no address, origins or keys",
+        )
     _write_placement(
         row,
         base_url=base_url,
@@ -837,6 +848,8 @@ class ListingRegistration:
     listing_uid: str
     #: The catalog source of the listing (``registry``, ``operator``, …).
     source: str
+    #: ``container`` or ``declarative`` (``RegistrationKind``).
+    kind: str
     image: Optional[str]
     scope_ceiling: list[str]
     reference_sectors: list[str]
@@ -957,16 +970,19 @@ async def read_listing_registration(
 ) -> ListingRegistration:
     """Read a listing's ``registration`` block, before the listing is written.
 
-    The block is the same from every source: ``kind: "container"``, an
-    optional ``image`` pinned by digest, the ``scope_ceiling``, and
-    ``reference_sectors``, which only a registry listing may name. It names no
-    location and no keys. The registration it writes is the one for the
-    service the listing's definition names, under the listing's own prefix;
-    one another listing already holds is refused.
+    The block is the same from every source: ``kind`` — ``container``, or
+    ``declarative`` for an app with no service block — an optional ``image``
+    pinned by digest and its Compose service (a container's only), the
+    ``scope_ceiling``, and ``reference_sectors``, which only a registry listing
+    may name. It names no location and no keys. The registration it writes is
+    the one for the app the listing's definition names, under the listing's own
+    prefix; one another listing already holds is refused.
     """
     if not isinstance(spec, Mapping):
         raise ListingRegistrationError("registration is not an object")
-    service_id = service_public_id(definition)
+    declarative = is_declarative(definition)
+    kind = RegistrationKind.DECLARATIVE if declarative else RegistrationKind.CONTAINER
+    service_id = service_public_id(definition, listing_public_id=listing_public_id)
     if service_id is None:
         raise ListingRegistrationError("only a service app carries a registration")
     try:
@@ -976,8 +992,10 @@ async def read_listing_registration(
     prefix = publisher_prefix(public_id)
     if prefix != publisher_prefix(listing_public_id):
         raise ListingRegistrationError("the service is published under another prefix")
-    if spec.get("kind") != "container":
-        raise ListingRegistrationError('registration.kind must be "container"')
+    if spec.get("kind") != kind:
+        raise ListingRegistrationError(f'registration.kind must be "{kind}"')
+    if declarative and any(key in spec for key in ("image", "compose")):
+        raise ListingRegistrationError("a declarative app runs no container")
     stated = [key for key in _DEPLOYMENT_KEYS if key in spec]
     if stated:
         raise ListingRegistrationError(
@@ -1033,6 +1051,7 @@ async def read_listing_registration(
         public_id=public_id,
         listing_uid=listing_uid,
         source=source,
+        kind=kind,
         image=image,
         scope_ceiling=ceiling,
         reference_sectors=sectors,
@@ -1062,6 +1081,12 @@ async def apply_listing_registration(
         )
     before = {} if created else audit_service.snapshot(row, AUDITED_FIELDS)
     row.listing_uid = registration.listing_uid
+    row.kind = registration.kind
+    if registration.kind == RegistrationKind.DECLARATIVE:
+        # Runs nowhere and signs nothing: a location and keys a container
+        # version left behind go with it.
+        row.base_url = row.embed_origin = row.jwks = row.jwks_uri = None
+        row.allowed_origins = []
     row.scope_ceiling = registration.scope_ceiling
     row.reference_sectors = registration.reference_sectors
     row.image_digest = registration.image
@@ -1237,6 +1262,9 @@ def apply_deployment_facts(row: AppServiceRegistration, facts: DeploymentFacts) 
         )
 
     was = state()
+    if row.kind == RegistrationKind.DECLARATIVE:
+        # Runs nowhere and signs nothing: an entry's placement does not apply.
+        facts = replace(facts, base_url=None, allowed_origins=None)
     _write_placement(
         row,
         base_url=facts.base_url,

@@ -987,6 +987,11 @@ class Settings(BaseSettings):
     # How often the background refresh asks for new metadata. ~15 minutes keeps
     # a withdrawal reaching deployments promptly without polling a static host.
     MARKETPLACE_REGISTRY_TTL_SECONDS: int = Field(default=900, ge=60)
+    # How many processes each server process may run to evaluate declarative
+    # apps' expressions at once. Started on first use; an idle one exits after
+    # five minutes. A server process with more evaluations than this waits for
+    # one to come free.
+    EXPRESSION_WORKERS: int = Field(default=2, ge=1, le=16)
 
     # Local-dev only: when true, outbound webhook / custom-AI targets may
     # use http and resolve to private/loopback addresses, for round-tripping

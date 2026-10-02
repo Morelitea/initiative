@@ -54,6 +54,9 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     public_id: str
     #: The catalog listing its app facts come from. Null until it arrives.
     listing_uid: Optional[str] = None
+    #: ``container``, or ``declarative`` for an app whose calls Initiative
+    #: makes itself: it has no address, origins or keys.
+    kind: str = "container"
     #: The publisher the public_id's prefix names.
     publisher_id: int
     publisher_prefix: str
@@ -106,8 +109,8 @@ class AppServiceRegistrationRead(SanitizedBaseModel):
     connection_setup_url: str
     #: The address to give the vendor for this app's webhooks.
     webhook_url: str
-    #: Enabled, its publisher enabled, an address, a key set to verify
-    #: against, and every required vendor value set.
+    #: Enabled, its publisher enabled, every required vendor value set and,
+    #: for a container, an address and a key set to verify against.
     live: bool
     created_at: datetime
     updated_at: datetime

@@ -40,7 +40,9 @@ from app.testing import (
     emitted,
     route_session_to_guild,
 )
+from app.services.tenant.app_connection_flows import TokenSet, seal_tokens
 from app.testing.app_clients import CLIENT, InstalledApp, install_app
+from app.testing.fake_vendor import FakeVendor, declarative_app
 
 
 TARGET = "tests.github"
@@ -171,9 +173,12 @@ async def _hub(
     granted: tuple[str, ...] = (APPS_SCOPE,),
     place_target: bool = True,
     install_target: bool = True,
+    declarative: bool = False,
 ) -> tuple[InstalledApp, Optional[GuildApp]]:
     """A caller asking for ``apps:tests.github``, and the target installed in
-    the same community, placed where the caller is unless told otherwise."""
+    the same community, placed where the caller is unless told otherwise. A
+    ``declarative`` target is called by Initiative itself, on the community's
+    stored token."""
     installed = await install_app(
         session,
         acting_user,
@@ -181,20 +186,40 @@ async def _hub(
         granted=list(granted),
         requested=[APPS_SCOPE, "documents:read"],
     )
-    await create_app_service_registration(
-        session, public_id=TARGET, listing_uid=TARGET_UID, base_url=TARGET_BASE
-    )
+    if declarative:
+        await create_app_service_registration(
+            session,
+            public_id=TARGET,
+            listing_uid=TARGET_UID,
+            base_url=None,
+            allowed_origins=[],
+            jwks={},
+            kind="declarative",
+        )
+    else:
+        await create_app_service_registration(
+            session, public_id=TARGET, listing_uid=TARGET_UID, base_url=TARGET_BASE
+        )
     if not install_target:
         return installed, None
+    config, secrets = seal_tokens(
+        TokenSet(access_token="gho_community"), config={}, secrets={}
+    )
     target = await create_guild_app(
         session,
         installed.guild,
         installed.seat.user,
-        definition=_target_definition(),
+        definition=declarative_app(TARGET) if declarative else _target_definition(),
         listing_uid=TARGET_UID,
         name="GitHub",
-        config={"workspace": {"org": "acme"}},
-        connection_refs={"workspace": "gcr_workspace"},
+        **(
+            {"config": {"workspace": config}, "secrets": {"workspace": secrets}}
+            if declarative
+            else {
+                "config": {"workspace": {"org": "acme"}},
+                "connection_refs": {"workspace": "gcr_workspace"},
+            }
+        ),
     )
     if place_target:
         await route_session_to_guild(session, installed.guild.id)
@@ -612,3 +637,71 @@ async def test_a_member_token_for_a_member_who_left_is_refused(
 
     assert response.status_code == 401
     assert upstream.calls == []
+
+
+# ---------------------------------------------------------------------------
+# A declarative target
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "endpoint,answer,status,body",
+    [
+        (
+            "issues",
+            {"body": [{"title": "Broken build"}]},
+            200,
+            {
+                "endpoint": f"app.{TARGET}.issues",
+                "actor": "installation",
+                "result": {"titles": ["Broken build"], "total": 1},
+            },
+        ),
+        ("issues", {"status": 404}, 200, None),
+        ("label", {"status": 422, "body": {"message": "locked"}}, 422, "locked"),
+        ("label", {"status": 403}, 403, "not-authorized"),
+        ("label", {"status": 429}, 502, AppDataMessages.SERVICE_UNAVAILABLE),
+    ],
+    ids=["read", "read-refused", "write-rule", "write-default", "throttled"],
+)
+async def test_a_declarative_target_is_called_by_initiative(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    monkeypatch,
+    endpoint,
+    answer,
+    status,
+    body,
+):
+    """The hub's checks are the same; the call is Initiative's own, on the
+    community's credential. A read answers its unavailable code; a write is
+    refused with it; a throttle is the app being unavailable, which a caller
+    retries."""
+    vendor = FakeVendor()
+    vendor.install(monkeypatch)
+    vendor.api_answers = [answer]
+    installed, _target = await _hub(
+        session, acting_user, role_session, declarative=True
+    )
+
+    response = await client.post(
+        _url(f"app.{TARGET}.{endpoint}"),
+        json={
+            "params": {
+                "repo": "acme/web",
+                **({"number": 7} if endpoint == "label" else {}),
+            }
+        },
+        headers=_installation_headers(installed),
+    )
+
+    assert response.status_code == status, response.text
+    if status != 200:
+        assert response.json()["detail"] == body
+    elif body is None:
+        assert response.json()["result"] == {"unavailable": "not-found"}
+    else:
+        assert response.json() == body
+    assert vendor.api_requests[0]["headers"]["authorization"] == "Bearer gho_community"

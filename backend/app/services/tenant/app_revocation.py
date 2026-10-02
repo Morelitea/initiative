@@ -38,14 +38,18 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Awaitable, Callable, Iterable, Mapping, Optional
 
 from fastapi import BackgroundTasks
 
 from app.db.session import routed_guild_id
 from app.models.tenant.guild_app import GuildApp
-from app.services.marketplace.registration_lookup import service_public_id
+from app.services.marketplace import registration_lookup
+from app.services.marketplace.registration_lookup import (
+    is_declarative,
+    service_public_id,
+)
 from app.services.tenant.app_config import RESERVED_TOKEN_KEYS, without_tokens
 
 logger = logging.getLogger(__name__)
@@ -91,6 +95,8 @@ class RevocationIntent:
     user_id: Optional[int] = None
     reason: str = "revoked"
     public_id: Optional[str] = None
+    #: The app is declarative, and is named by its listing.
+    declarative: bool = False
     flow: Optional[dict[str, Any]] = None
     fields: dict[str, Any] = field(default_factory=dict)
     sealed_tokens: dict[str, str] = field(default_factory=dict)
@@ -127,6 +133,7 @@ def _intent_for(
         user_id=user_id,
         reason=reason,
         public_id=service_public_id(definition),
+        declarative=is_declarative(definition),
         flow=dict(flow) if isinstance(flow, dict) else None,
         fields=without_tokens(config),
         sealed_tokens={
@@ -260,6 +267,14 @@ async def _deliver(intent: RevocationIntent) -> None:
     method = (intent.flow or {}).get("revoke")
     if method not in ("rfc7009", "github_grant", "hook") or not intent.sealed_tokens:
         return
+    if intent.public_id is None and intent.declarative:
+        # A declarative app is its listing's: the registration that listing
+        # applied names it.
+        registration = await registration_lookup.declarative_registration(
+            intent.listing_uid
+        )
+        if registration is not None:
+            intent = replace(intent, public_id=registration.public_id)
     if not intent.public_id:
         logger.info(
             "app credential revocation: app %s names no service; dropped",

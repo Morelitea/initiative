@@ -181,6 +181,7 @@ The panel also says when it last updated, how many listings came from it, and wh
 | `MARKETPLACE_REGISTRY_ROOT` | A path to a different signing key, for a registry somebody else signs. Its listings and apps arrive as usual. | The key built into Initiative |
 | `MARKETPLACE_REGISTRY_TOKEN` | A token for a registry that asks for one. It is sent only to the registry's own address. | None |
 | `MARKETPLACE_REGISTRY_TTL_SECONDS` | How often the server checks for updates. At least 60. | `900` |
+| `EXPRESSION_WORKERS` | How many small helper processes each server process may run for apps whose calls Initiative makes itself. They start on first use and an idle one leaves after five minutes. 1 to 16. | `2` |
 
 ### Apps from the registry
 

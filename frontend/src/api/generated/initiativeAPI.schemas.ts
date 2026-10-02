@@ -911,6 +911,7 @@ export interface AppServiceRegistrationRead {
   id: number;
   public_id: string;
   listing_uid: string | null;
+  kind: string;
   publisher_id: number;
   publisher_prefix: string;
   publisher_name: string;

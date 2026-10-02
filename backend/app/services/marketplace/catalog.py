@@ -196,11 +196,12 @@ async def _unoffered_app() -> Exists:
         .where(
             latest.id == MarketplaceListing.latest_version_id,
             latest.definition["app_kind"].astext == "service",
-            # COALESCE so a definition with no service id reads as one nothing
-            # is registered for, rather than as a NULL that matches no branch.
-            func.coalesce(latest.definition["service"]["public_id"].astext, "").notin_(
-                offered
-            ),
+            # A declarative app has no service block and is its listing's
+            # public id.
+            func.coalesce(
+                latest.definition["service"]["public_id"].astext,
+                MarketplaceListing.public_id,
+            ).notin_(offered),
         )
         .exists()
     )
@@ -408,7 +409,9 @@ async def upsert_listing(
     version_str = _check_version(str(manifest.get("version", "")))
 
     try:
-        definition = normalize_listing_definition(kind, manifest.get("definition"))
+        definition = normalize_listing_definition(
+            kind, manifest.get("definition"), public_id=public_id
+        )
         example = normalize_listing_example(kind, manifest.get("example"), definition)
 
         # Required on every ingestion path: seeding, an operator upload, a

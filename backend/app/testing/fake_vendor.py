@@ -8,7 +8,8 @@ the host it names.
 
 The vendor side is an OAuth 2.0 authorization server with PKCE, refresh,
 revocation and a GitHub-style installation token exchange, and signs the
-webhooks it sends. The app side answers the hooks.
+webhooks it sends. Its API at ``api_host`` answers a declarative app's calls
+from recorded answers, in order. The app side answers the hooks.
 """
 
 from __future__ import annotations
@@ -29,9 +30,94 @@ import httpx
 from app.services import safe_http
 from app.services.webhook_target_url import ValidatedTarget
 
-__all__ = ["FakeVendor"]
+__all__ = ["FakeVendor", "declarative_app"]
 
 VENDOR_HOST = "github.test"
+API_HOST = "api.github.test"
+
+
+def declarative_app(public_id: str) -> dict[str, Any]:
+    """A declarative app calling this vendor's API on a community connection:
+    a read of a repository's issues and a write that labels one."""
+    api = f'"https://{API_HOST}/repos/" & params.repo'
+    return {
+        "app_kind": "service",
+        "features": ["endpoints"],
+        "hosts": [API_HOST],
+        "vendor": {
+            "fields": [
+                {
+                    "key": "client_id",
+                    "type": "string",
+                    "required": True,
+                    "label": {"en": "Client id"},
+                }
+            ]
+        },
+        "connections": [
+            {
+                "id": "workspace",
+                "scope": "static",
+                "label": {"en": "Workspace"},
+                "fields": [],
+                "flow": {
+                    "type": "oauth2",
+                    "authorize_url": f"https://{VENDOR_HOST}/login/oauth/authorize",
+                    "token_url": f"https://{VENDOR_HOST}/login/oauth/access_token",
+                    "client_id": "{vendor.client_id}",
+                },
+            }
+        ],
+        "endpoints": [
+            {
+                "id": f"app.{public_id}.issues",
+                "direction": "read",
+                "public": True,
+                "actors": ["installation"],
+                "cache_ttl_seconds": 60,
+                "params": [
+                    {"key": "repo", "type": "string", "label": {"en": "Repository"}}
+                ],
+                "returns": [
+                    {"key": "titles", "type": "string", "list": True},
+                    {"key": "total", "type": "int"},
+                    {"key": "unavailable", "type": "string"},
+                ],
+                "request": {
+                    "method": "GET",
+                    "url": f'{api} & "/issues"',
+                    "connection": "workspace",
+                },
+                "map": '{"titles": response.body.title[], "total": $count(response.body)}',
+            },
+            {
+                "id": f"app.{public_id}.label",
+                "direction": "write",
+                "public": True,
+                "actors": ["installation"],
+                "params": [
+                    {"key": "repo", "type": "string", "label": {"en": "Repository"}},
+                    {"key": "number", "type": "int", "label": {"en": "Issue"}},
+                ],
+                "returns": [{"key": "number", "type": "int"}],
+                "unavailable": ["locked"],
+                "request": {
+                    "method": "PUT",
+                    "url": f'{api} & "/issues/" & params.number & "/labels"',
+                    "body": '{"labels": ["bug"]}',
+                    "connection": "workspace",
+                },
+                "map": '{"number": response.body.number}',
+                "errors": [
+                    {
+                        "status": 422,
+                        "when": 'response.body.message = "locked"',
+                        "code": "locked",
+                    }
+                ],
+            },
+        ],
+    }
 
 
 def _challenge(verifier: str) -> str:
@@ -62,6 +148,12 @@ class FakeVendor:
     grant_status: int = 204
     #: What the vendor signs its webhooks with.
     webhook_secret: str = "webhook-secret-789"
+    #: Where its API answers, and what it answers, in order: each a recorded
+    #: answer's ``status`` (200 when left out), ``headers`` and JSON ``body``.
+    api_host: str = API_HOST
+    api_answers: list[dict[str, Any]] = field(default_factory=list)
+    #: Each API request: its method, address, headers and JSON body.
+    api_requests: list[dict[str, Any]] = field(default_factory=list)
 
     codes: dict[str, str] = field(default_factory=dict)
     token_requests: list[dict[str, str]] = field(default_factory=list)
@@ -120,6 +212,8 @@ class FakeVendor:
     def handle(self, request: httpx.Request) -> httpx.Response:
         host = request.headers.get("host", "")
         path = request.url.path
+        if host == self.api_host:
+            return self._api(request, host)
         if host == VENDOR_HOST:
             if path == "/login/oauth/access_token":
                 return self._token(request)
@@ -157,6 +251,26 @@ class FakeVendor:
                 return httpx.Response(204)
             return httpx.Response(200, json=self.after_connect_answer)
         return httpx.Response(404)
+
+    def _api(self, request: httpx.Request, host: str) -> httpx.Response:
+        self.api_requests.append(
+            {
+                "method": request.method,
+                "url": f"https://{host}{request.url.raw_path.decode('ascii')}",
+                "headers": dict(request.headers),
+                "body": json.loads(request.content) if request.content else None,
+            }
+        )
+        answer = self.api_answers.pop(0)
+        if "body" not in answer:
+            return httpx.Response(
+                answer.get("status", 200), headers=answer.get("headers")
+            )
+        return httpx.Response(
+            answer.get("status", 200),
+            headers=answer.get("headers"),
+            json=answer["body"],
+        )
 
     def _issue(self) -> dict[str, Any]:
         serial = next(self._serial)
