@@ -94,6 +94,8 @@ class RevocationIntent:
     flow: Optional[dict[str, Any]] = None
     fields: dict[str, Any] = field(default_factory=dict)
     sealed_tokens: dict[str, str] = field(default_factory=dict)
+    #: When the stored access token lapses, from the connection's values.
+    expires_at: Optional[int] = None
 
 
 def _intent_for(
@@ -132,6 +134,12 @@ def _intent_for(
             for key, value in (secrets or {}).items()
             if key in RESERVED_TOKEN_KEYS and isinstance(value, str)
         },
+        expires_at=(
+            expiry
+            if isinstance(expiry := (config or {}).get("expires_at"), int)
+            and not isinstance(expiry, bool)
+            else None
+        ),
     )
 
 
@@ -273,6 +281,7 @@ async def _deliver(intent: RevocationIntent) -> None:
             guild_id=intent.guild_id,
             install_id=intent.app_id,
             connection_id=intent.connection_id,
+            expires_at=intent.expires_at,
         )
     except flows.ConnectionFlowError as exc:
         logger.warning(

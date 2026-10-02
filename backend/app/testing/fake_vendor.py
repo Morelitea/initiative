@@ -67,6 +67,8 @@ class FakeVendor:
     token_requests: list[dict[str, str]] = field(default_factory=list)
     refreshes: int = 0
     revocations: list[dict[str, str]] = field(default_factory=list)
+    #: Access tokens the grant deletion no longer accepts (answered 404).
+    lapsed_tokens: set[str] = field(default_factory=set)
     #: Each grant deletion: its method, path, Authorization header and body.
     grant_deletions: list[tuple[str, str, str, Any]] = field(default_factory=list)
     hooks: list[tuple[str, dict[str, Any], str]] = field(default_factory=list)
@@ -125,14 +127,17 @@ class FakeVendor:
                 self.revocations.append(dict(parse_qsl(request.content.decode())))
                 return httpx.Response(self.revoke_status)
             if path.startswith("/applications/") and path.endswith("/grant"):
+                body = json.loads(request.content or b"null")
                 self.grant_deletions.append(
                     (
                         request.method,
                         path,
                         request.headers.get("authorization", ""),
-                        json.loads(request.content or b"null"),
+                        body,
                     )
                 )
+                if (body or {}).get("access_token") in self.lapsed_tokens:
+                    return httpx.Response(404)
                 return httpx.Response(self.grant_status)
             if path.startswith("/app/installations/"):
                 return self._exchange(request)
