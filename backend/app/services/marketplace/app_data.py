@@ -431,8 +431,9 @@ async def _resolve_connections(
     endpoint: Mapping[str, Any],
     user_id: int | None,
     actor: str | None = None,
-) -> dict[str, str]:
-    """Decide whether this endpoint can run, and collect the handles it runs with.
+) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+    """Decide whether this endpoint can run, and collect the handles it runs
+    with and each satisfied connection's non-secret fields, by connection id.
 
     Satisfaction is presence alone — which fields hold a value. This build never
     inspects a credential, calls a vendor, or learns a scope; whether a stored
@@ -450,7 +451,7 @@ async def _resolve_connections(
     """
     required, needs_all = _required_connection_ids(endpoint)
     if not required:
-        return {}
+        return {}, {}
 
     config = app.config or {}
     secret_fields = app.secret_fields or {}
@@ -458,6 +459,7 @@ async def _resolve_connections(
     #: The connections whose handle is a member's own.
     member_refs: set[str] = set()
     satisfied: list[str] = []
+    fields: dict[str, dict[str, Any]] = {}
     #: The first reason a candidate failed, reported when nothing satisfies.
     refusal: AppDataError | None = None
 
@@ -499,6 +501,7 @@ async def _resolve_connections(
             refs[connection_id] = row.connection_ref
             member_refs.add(connection_id)
             satisfied.append(connection_id)
+            fields[connection_id] = app_config_service.without_tokens(row.config)
             continue
 
         if not app_config_service.is_satisfied(
@@ -514,6 +517,9 @@ async def _resolve_connections(
         if isinstance(guild_ref, str) and guild_ref:
             refs[connection_id] = guild_ref
         satisfied.append(connection_id)
+        fields[connection_id] = app_config_service.without_tokens(
+            config.get(connection_id)
+        )
 
     if needs_all and len(satisfied) != len(required):
         raise refusal or AppDataError(AppDataMessages.NEEDS_CONFIGURATION, 409)
@@ -524,8 +530,8 @@ async def _resolve_connections(
     # key either way, so an answer is only ever replayed to a caller holding the
     # same set.
     if actor == "member":
-        return {key: ref for key, ref in refs.items() if key in member_refs}
-    return refs
+        refs = {key: ref for key, ref in refs.items() if key in member_refs}
+    return refs, fields
 
 
 async def _member_connection(
@@ -615,6 +621,7 @@ def _cache_key(
     endpoint_id: str,
     canonical_params: str,
     refs: Mapping[str, str],
+    fields: Mapping[str, Mapping[str, Any]],
 ) -> str:
     """Every credential the response depended on, in one string.
 
@@ -625,14 +632,19 @@ def _cache_key(
     a widget, and narrowing it would trade a cheap hash for the chance of
     serving a body a withdrawn credential produced.
     """
+    depends: dict[str, Any] = {
+        "version": app.listing_version,
+        "config": app.config or {},
+        "secret_fields": app.secret_fields or {},
+        "refs": dict(sorted(refs.items())),
+    }
+    if is_declarative(app.definition):
+        # What a declarative endpoint's expressions read, a member's own
+        # connection's fields among them.
+        depends["fields"] = fields
     fingerprint = hashlib.sha256(
         json.dumps(
-            {
-                "version": app.listing_version,
-                "config": app.config or {},
-                "secret_fields": app.secret_fields or {},
-                "refs": dict(sorted(refs.items())),
-            },
+            depends,
             sort_keys=True,
             separators=(",", ":"),
             default=str,
@@ -811,6 +823,7 @@ async def _call_app(
     endpoint_id: str,
     params: Mapping[str, Any],
     refs: Mapping[str, str],
+    fields: Mapping[str, Mapping[str, Any]],
     transport: httpx.AsyncBaseTransport | None,
     read: Callable[[httpx.Request | Answered], Awaitable[T]],
     caller: Optional[CallingApp] = None,
@@ -850,6 +863,7 @@ async def _call_app(
                         endpoint_id=endpoint_id,
                         params=params,
                         refs=refs,
+                        fields=fields,
                         actor=caller.actor if caller is not None else None,
                     )
                 )
@@ -945,7 +959,7 @@ async def fetch_app_source(
 
     registration = await _load_registration(None, app=app)
     params, canonical = validate_params(endpoint, raw_params)
-    refs = await _resolve_connections(
+    refs, fields = await _resolve_connections(
         session, app=app, endpoint=endpoint, user_id=user_id
     )
 
@@ -955,6 +969,7 @@ async def fetch_app_source(
         endpoint_id=endpoint_id,
         canonical_params=canonical,
         refs=refs,
+        fields=fields,
     )
 
     async def read(
@@ -970,6 +985,7 @@ async def fetch_app_source(
             endpoint_id=endpoint_id,
             params=params,
             refs=refs,
+            fields=fields,
             transport=transport,
             read=read,
         )

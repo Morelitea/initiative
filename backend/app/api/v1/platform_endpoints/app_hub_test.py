@@ -831,3 +831,61 @@ async def test_a_member_write_reads_the_community_connection_without_its_secrets
     assert sent["body"] == {
         "seen": {"workspace": {"owner": "acme"}, "account": {"login": "alice"}}
     }
+
+
+async def test_a_cached_read_follows_the_members_connection_fields(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    monkeypatch,
+):
+    """The same parameters on the same connection are answered from the
+    cache until the connection's fields change."""
+    definition = _with_member_account({"all_of": ["workspace", "account"]})
+    definition["endpoints"][0]["request"]["url"] = (
+        f'"https://{API_HOST}/repos/" & connections.account.login & "/issues"'
+    )
+    vendor = FakeVendor()
+    vendor.install(monkeypatch)
+    vendor.api_answers = [
+        {"body": [{"title": "Alice's"}]},
+        {"body": [{"title": "Bob's"}]},
+    ]
+    installed, target = await _hub(
+        session, acting_user, role_session, declarative=True, definition=definition
+    )
+    assert target is not None
+    member = await _member(session, acting_user, installed)
+    await _connect(session, installed, target, member)
+
+    async def titles() -> list[str]:
+        response = await client.post(
+            _url(ISSUES),
+            json={"params": {"repo": "web"}},
+            headers=_member_headers(installed, member),
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["result"]["titles"]
+
+    assert await titles() == ["Alice's"]
+    assert await titles() == ["Alice's"]
+    assert len(vendor.api_requests) == 1
+
+    await route_session_to_guild(session, installed.guild.id)
+    row = (
+        await session.exec(
+            select(GuildAppUserConnection).where(
+                GuildAppUserConnection.connection_ref == "cr_member_account"
+            )
+        )
+    ).one()
+    row.config = {**row.config, "login": "bob"}
+    session.add(row)
+    await session.commit()
+
+    assert await titles() == ["Bob's"]
+    assert [request["url"] for request in vendor.api_requests] == [
+        f"https://{API_HOST}/repos/alice/issues",
+        f"https://{API_HOST}/repos/bob/issues",
+    ]
