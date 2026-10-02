@@ -604,6 +604,14 @@ class Settings(BaseSettings):
         if billing_origin:
             connect_src.append(billing_origin)
 
+        # The measurement collector, where one is named on another origin. A
+        # same-origin path is already covered by 'self'.
+        collector_origin = (
+            _origin_of(self.FARO_COLLECTOR_URL) if self.FARO_COLLECTOR_URL else None
+        )
+        if collector_origin:
+            connect_src.append(collector_origin)
+
         # Only the surface being opened. Already canonical origins by the time
         # they are stored on a registration, and re-reduced here so a value that
         # somehow carried a path cannot widen the directive.
@@ -852,6 +860,32 @@ class Settings(BaseSettings):
     CAPTCHA_PROVIDER: str | None = None
     CAPTCHA_SITE_KEY: str | None = None
     CAPTCHA_SECRET_KEY: str | None = None
+    # Optional frontend measurement: where the SPA sends page views, errors
+    # and Web Vitals, in the Grafana Faro format (an Alloy ``faro.receiver``
+    # speaks it). A same-origin path (``/collect``) or an absolute http(s)
+    # URL. Unset (the default) ⇒ the SPA loads nothing and the cookie chooser
+    # offers no analytics switch. Set ⇒ the chooser offers one, and only a
+    # browser that switched it on sends anything.
+    FARO_COLLECTOR_URL: str | None = None
+
+    @field_validator("FARO_COLLECTOR_URL", mode="before")
+    @classmethod
+    def _validate_faro_collector_url(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        url = value.strip()
+        if not url:
+            return None
+        parts = urlsplit(url)
+        same_origin_path = url.startswith("/") and not url.startswith("//")
+        absolute = parts.scheme in ("http", "https") and bool(parts.netloc)
+        if not (same_origin_path or absolute):
+            raise ValueError(
+                "FARO_COLLECTOR_URL must be a path starting with / or an "
+                f"http(s) URL; got {value!r}"
+            )
+        return url
+
     # RSA private key (PEM) for signing handoff JWTs. Handoff tokens cross a
     # trust boundary — the receiving service verifies them with the matching
     # public key — so signing is always RS256 and no secret is shared across

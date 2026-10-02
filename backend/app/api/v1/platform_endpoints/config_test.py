@@ -160,10 +160,27 @@ async def test_config_says_cookie_consent_is_off_by_default(client: AsyncClient)
     assert response.json()["cookie_consent_enabled"] is False
 
 
-async def test_config_asks_about_nothing_a_deployment_does_not_do(client: AsyncClient):
+async def test_config_asks_about_nothing_a_deployment_does_not_do(
+    client: AsyncClient, monkeypatch
+):
     """The chooser offers a switch per category here. Self-host default:
     nothing optional is configured, so there is nothing to offer."""
+    monkeypatch.setattr(settings, "FARO_COLLECTOR_URL", None)
+
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
     assert response.json()["cookie_categories"] == []
+    assert response.json()["faro_collector_url"] is None
+
+
+async def test_config_names_the_collector_and_asks_about_analytics(
+    client: AsyncClient, monkeypatch
+):
+    monkeypatch.setattr(settings, "FARO_COLLECTOR_URL", "/collect")
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["faro_collector_url"] == "/collect"
+    assert response.json()["cookie_categories"] == ["analytics"]

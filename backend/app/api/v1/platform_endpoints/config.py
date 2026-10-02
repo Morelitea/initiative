@@ -68,6 +68,10 @@ class AppConfig(BaseModel):
 
     captcha: Optional[CaptchaConfig] = None
     billing: Optional[BillingConfig] = None
+    # Where the SPA sends page views, errors and Web Vitals, once a browser
+    # has granted the ``analytics`` category. ``None`` (the default) ⇒ the SPA
+    # loads no measurement at all.
+    faro_collector_url: Optional[str] = None
     # The upload size cap the server enforces on file endpoints. The SPA reads
     # it for pre-flight checks so the number lives in exactly one place.
     max_upload_bytes: int
@@ -148,6 +152,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
     return AppConfig(
         captcha=captcha,
         billing=billing,
+        faro_collector_url=settings.FARO_COLLECTOR_URL,
         max_upload_bytes=MAX_DOCUMENT_FILE_SIZE,
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
