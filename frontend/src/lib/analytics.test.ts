@@ -90,4 +90,28 @@ describe("frontend measurement", () => {
     expect(sdk.faro.unpause).toHaveBeenCalledOnce();
     expect(sdk.initializeFaro).toHaveBeenCalledOnce();
   });
+
+  it("stops sending when the deployment names another collector", async () => {
+    const { startAnalytics } = await load();
+    await startAnalytics("/collect");
+
+    await startAnalytics("https://faro.example.com/collect");
+
+    expect(sdk.faro.pause).toHaveBeenCalledOnce();
+    expect(sdk.faro.unpause).not.toHaveBeenCalled();
+    expect(sdk.initializeFaro).toHaveBeenCalledOnce();
+  });
+
+  it("tries again after the SDK fails to start", async () => {
+    const { startAnalytics } = await load();
+    sdk.initializeFaro.mockImplementationOnce(() => {
+      throw new Error("blocked");
+    });
+
+    await startAnalytics("/collect");
+    await startAnalytics("/collect");
+
+    expect(sdk.initializeFaro).toHaveBeenCalledTimes(2);
+    expect(sdk.faro.api.pushEvent).toHaveBeenCalledOnce();
+  });
 });

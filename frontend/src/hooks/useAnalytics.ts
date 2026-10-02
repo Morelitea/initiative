@@ -7,14 +7,16 @@ import { pauseAnalytics, recordPageView, startAnalytics } from "@/lib/analytics"
 import { ConsentCategory } from "@/lib/consent";
 
 /**
- * Measures while the deployment names a collector and this browser allows
- * `analytics`, and stops the moment either is no longer true.
+ * Measures while the deployment names a collector, asks visitors about
+ * cookies, and this browser allows `analytics`, and stops the moment any of
+ * them is no longer true. A grant given while the chooser was on counts for
+ * nothing once it is off, since nobody can then take it back.
  */
 export const useAnalytics = () => {
-  const { config } = useAppConfig();
+  const { config, cookieConsentEnabled } = useAppConfig();
   const { allows } = useConsent();
   const collectorUrl = config?.faro_collector_url ?? null;
-  const allowed = allows(ConsentCategory.analytics);
+  const allowed = cookieConsentEnabled && allows(ConsentCategory.analytics);
 
   // A new location is a page view even where the template is the same, as
   // when moving from one project to the next.

@@ -17,6 +17,11 @@ let faro: Faro | null = null;
 let loading: Promise<void> | null = null;
 /** Whether sending is wanted right now, which can change while the SDK loads. */
 let wanted = false;
+/** The collector the SDK was loaded for, and the one most recently named. The
+ *  SDK sends to one collector for its lifetime, so a tab told of another one
+ *  stops sending until it is reloaded. */
+let loadedFor: string | null = null;
+let named: string | null = null;
 /** The route template of the page on screen. */
 let route = "unknown";
 
@@ -31,37 +36,50 @@ export const labelWithRoute = (item: TransportItem): TransportItem => ({
 
 const pageView = () => faro?.api.pushEvent("page_view", undefined, undefined, { skipDedupe: true });
 
+const sending = () => wanted && named === loadedFor;
+
 /** Start sending, or resume where measurement was paused. */
 export const startAnalytics = (collectorUrl: string): Promise<void> => {
   wanted = true;
+  named = collectorUrl;
   if (faro) {
-    faro.unpause();
+    if (sending()) faro.unpause();
+    else faro.pause();
     return Promise.resolve();
   }
-  loading ??= import("@grafana/faro-web-sdk").then(
-    ({
-      initializeFaro,
-      ErrorsInstrumentation,
-      SessionInstrumentation,
-      WebVitalsInstrumentation,
-    }) => {
-      faro = initializeFaro({
-        url: collectorUrl,
-        app: { name: "initiative", version: __APP_VERSION__ },
-        // Errors, Web Vitals and the session they belong to. The console and
-        // request timings are left out: both carry addresses and text.
-        instrumentations: [
-          new ErrorsInstrumentation(),
-          new WebVitalsInstrumentation(),
-          new SessionInstrumentation(),
-        ],
-        beforeSend: labelWithRoute,
-        preventGlobalExposure: true,
-        paused: !wanted,
+  if (!loading) {
+    loadedFor = collectorUrl;
+    loading = import("@grafana/faro-web-sdk")
+      .then(
+        ({
+          initializeFaro,
+          ErrorsInstrumentation,
+          SessionInstrumentation,
+          WebVitalsInstrumentation,
+        }) => {
+          faro = initializeFaro({
+            url: collectorUrl,
+            app: { name: "initiative", version: __APP_VERSION__ },
+            // Errors, Web Vitals and the session they belong to. The console
+            // and request timings are left out: both carry addresses and text.
+            instrumentations: [
+              new ErrorsInstrumentation(),
+              new WebVitalsInstrumentation(),
+              new SessionInstrumentation(),
+            ],
+            beforeSend: labelWithRoute,
+            preventGlobalExposure: true,
+            paused: !sending(),
+          });
+          if (sending()) pageView();
+        }
+      )
+      .catch(() => {
+        // Nothing was measured; the next call tries again.
+        loading = null;
+        loadedFor = null;
       });
-      if (wanted) pageView();
-    }
-  );
+  }
   return loading;
 };
 
