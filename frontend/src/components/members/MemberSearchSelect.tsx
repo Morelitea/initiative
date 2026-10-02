@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 /** The slim user shape these pickers render (the search endpoints' `UserSummary`). */
 export type MemberSummary = Pick<
   UserSummary,
-  "id" | "username" | "discriminator" | "full_name" | "avatar_url" | "status" | "guild_role"
+  "id" | "username" | "discriminator" | "display_name" | "avatar_url" | "status" | "guild_role"
 >;
 
 /** A member we can render from partial info — a full {@link MemberSummary} from
@@ -266,7 +266,7 @@ export const MemberMultiSelect = ({
               {selectedIds.length > 0 ? (
                 <div className="flex flex-wrap gap-1">
                   {selectedIds.map((id) => {
-                    const user = seen.get(id) ?? { id, full_name: null };
+                    const user = seen.get(id) ?? { id, display_name: null };
                     const label = getUserDisplayName(user);
                     return (
                       <span

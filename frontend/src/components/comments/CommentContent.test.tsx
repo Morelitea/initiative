@@ -86,7 +86,7 @@ describe("CommentContent", () => {
 
   it("links a mention to the profile of whoever that id is now", async () => {
     answerWithPeople(
-      buildUserSummary({ id: 12, username: "ada", discriminator: 7, full_name: "Ada King" })
+      buildUserSummary({ id: 12, username: "ada", discriminator: 7, display_name: "Ada King" })
     );
 
     renderResolvedContent("thanks @[Ada Lovelace](12)!");
@@ -98,7 +98,7 @@ describe("CommentContent", () => {
 
   it("keeps a mention out of a link when the body itself is one", async () => {
     answerWithPeople(
-      buildUserSummary({ id: 12, username: "ada", discriminator: 7, full_name: "Ada King" })
+      buildUserSummary({ id: 12, username: "ada", discriminator: 7, display_name: "Ada King" })
     );
 
     const { container } = renderResolvedContent("thanks @[Ada Lovelace](12)!", true);

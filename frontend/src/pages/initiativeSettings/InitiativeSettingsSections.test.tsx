@@ -72,7 +72,7 @@ describe("initiative settings sections", () => {
           buildInitiativeJoinRequest({
             id: 11,
             initiative_id: INITIATIVE_ID,
-            user: buildUserSummary({ id: 42, full_name: "Ada Lovelace" }),
+            user: buildUserSummary({ id: 42, display_name: "Ada Lovelace" }),
           }),
         ])
       )

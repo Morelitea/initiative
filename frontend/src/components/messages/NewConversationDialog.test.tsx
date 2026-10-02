@@ -56,7 +56,7 @@ const person = (id: number, username: string): ContactRead => ({
   id,
   username,
   discriminator: 1234,
-  full_name: null,
+  display_name: null,
   avatar_url: null,
   status: "active",
   profile_decorations: { banner: null, frame: null, frame_tint: [], trophies: [], grad_year: null },

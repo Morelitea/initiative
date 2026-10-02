@@ -61,7 +61,7 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
       id: 1,
       username: `author${counter}`,
       discriminator: 1000,
-      full_name: null,
+      display_name: null,
       avatar_url: null,
       profile_decorations: {
         banner: null,

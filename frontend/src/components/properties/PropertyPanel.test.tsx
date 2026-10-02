@@ -146,7 +146,7 @@ describe("PropertyPanel", () => {
         property_id: 1,
         name: "Reviewer",
         type: PropertyType.user_reference,
-        value: { id: 7, full_name: "Grace" },
+        value: { id: 7, display_name: "Grace" },
       }),
       buildPropertySummary({ property_id: 2, name: "Owner", type: PropertyType.text, value: "" }),
     ];

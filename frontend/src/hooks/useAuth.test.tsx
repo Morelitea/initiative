@@ -89,9 +89,9 @@ describe("useAuth identity ordering", () => {
 
   it("keeps the newer account when an older read finishes last", async () => {
     // Boot, so the provider settles before the interesting part.
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "At boot" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "At boot" }) });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("At boot"));
+    await waitFor(() => expect(auth.user?.username).toBe("At boot"));
 
     const older = deferred<{ data: unknown }>();
     const newer = deferred<{ data: unknown }>();
@@ -106,21 +106,21 @@ describe("useAuth identity ordering", () => {
 
     // The newer request answers first; the older one straggles in behind it.
     await act(async () => {
-      newer.resolve({ data: buildUser({ full_name: "Newer" }) });
+      newer.resolve({ data: buildUser({ username: "Newer" }) });
       await secondDone;
-      older.resolve({ data: buildUser({ full_name: "Older" }) });
+      older.resolve({ data: buildUser({ username: "Older" }) });
       await firstDone;
     });
 
-    expect(auth.user?.full_name).toBe("Newer");
+    expect(auth.user?.username).toBe("Newer");
   });
 
   it("keeps the newer account when the older read finishes first", async () => {
     // The other order, and the one a turn-counter gets wrong: the older read
     // lands first, and must not make the newer answer look stale.
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "At boot" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "At boot" }) });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("At boot"));
+    await waitFor(() => expect(auth.user?.username).toBe("At boot"));
 
     const older = deferred<{ data: unknown }>();
     const newer = deferred<{ data: unknown }>();
@@ -134,13 +134,13 @@ describe("useAuth identity ordering", () => {
     });
 
     await act(async () => {
-      older.resolve({ data: buildUser({ full_name: "Older" }) });
+      older.resolve({ data: buildUser({ username: "Older" }) });
       await firstDone;
-      newer.resolve({ data: buildUser({ full_name: "Newer" }) });
+      newer.resolve({ data: buildUser({ username: "Newer" }) });
       await secondDone;
     });
 
-    expect(auth.user?.full_name).toBe("Newer");
+    expect(auth.user?.username).toBe("Newer");
   });
 
   it("hands back the same account object when the re-read says nothing new", async () => {
@@ -148,10 +148,10 @@ describe("useAuth identity ordering", () => {
     // most of those answers are identical. A fresh object for one of them
     // re-runs every effect keyed on the user — including the socket that asked
     // for the read, which would then ask again, forever.
-    const account = buildUser({ full_name: "Unchanged" });
+    const account = buildUser({ username: "Unchanged" });
     get.mockResolvedValue({ data: account });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("Unchanged"));
+    await waitFor(() => expect(auth.user?.username).toBe("Unchanged"));
     const before = auth.user;
 
     await act(async () => {
@@ -162,22 +162,22 @@ describe("useAuth identity ordering", () => {
   });
 
   it("still swaps the object when the account actually moved", async () => {
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Before" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Before" }) });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("Before"));
+    await waitFor(() => expect(auth.user?.username).toBe("Before"));
     const before = auth.user;
 
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "After" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "After" }) });
     await act(async () => {
       await auth.refreshUser();
     });
 
     expect(auth.user).not.toBe(before);
-    expect(auth.user?.full_name).toBe("After");
+    expect(auth.user?.username).toBe("After");
   });
 
   it("does not let a read in flight undo a sign-out", async () => {
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
     renderAuth();
     await waitFor(() => expect(auth.user).not.toBeNull());
 
@@ -195,7 +195,7 @@ describe("useAuth identity ordering", () => {
 
     // The read it never got to finish comes back after the sign-out.
     await act(async () => {
-      slow.resolve({ data: buildUser({ full_name: "Signed in" }) });
+      slow.resolve({ data: buildUser({ username: "Signed in" }) });
       await reading;
     });
 
@@ -206,7 +206,7 @@ describe("useAuth identity ordering", () => {
     // A decrypted conversation must not outlive the session that read it, and
     // the sign-out itself must not depend on that going through.
     forgetMessages.mockRejectedValueOnce(new Error("offline"));
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
     renderAuth();
     await waitFor(() => expect(auth.user).not.toBeNull());
 
@@ -225,7 +225,7 @@ describe("useAuth identity ordering", () => {
     getItem.mockImplementation((key) =>
       key === CREDENTIAL_KEYS.refreshToken ? "rt-this-device" : null
     );
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
     renderAuth();
     await waitFor(() => expect(auth.user).not.toBeNull());
 
@@ -239,7 +239,7 @@ describe("useAuth identity ordering", () => {
   it("ends an expired session here without telling the server to sign out", async () => {
     // Signing out is a deliberate act that revokes the session server-side,
     // and nothing here asked for that one — the session is already gone.
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
     renderAuth();
     await waitFor(() => expect(auth.user).not.toBeNull());
     post.mockClear();
@@ -257,16 +257,16 @@ describe("useAuth identity ordering", () => {
   });
 
   it("applies a read that nothing overtook", async () => {
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "At boot" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "At boot" }) });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("At boot"));
+    await waitFor(() => expect(auth.user?.username).toBe("At boot"));
 
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Fresh" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Fresh" }) });
     await act(async () => {
       await auth.refreshUser();
     });
 
-    expect(auth.user?.full_name).toBe("Fresh");
+    expect(auth.user?.username).toBe("Fresh");
   });
 });
 
@@ -320,9 +320,9 @@ describe("useAuth second factor", () => {
   });
 
   it("answers the challenge with the code and signs in", async () => {
-    get.mockResolvedValue({ data: buildUser({ full_name: "Signed in" }) });
+    get.mockResolvedValue({ data: buildUser({ username: "Signed in" }) });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("Signed in"));
+    await waitFor(() => expect(auth.user?.username).toBe("Signed in"));
 
     post.mockResolvedValueOnce({ data: { access_token: "fresh-token" } });
     await act(async () => {
@@ -362,11 +362,11 @@ describe("useAuth passkey sign-in", () => {
   });
 
   it("takes the session the ceremony produced and reads the account", async () => {
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Nobody yet" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Nobody yet" }) });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("Nobody yet"));
+    await waitFor(() => expect(auth.user?.username).toBe("Nobody yet"));
 
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Signed in" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
     await act(async () => {
       await auth.applyPasskeySignIn({ access_token: "fresh-token", token_type: "bearer" });
     });
@@ -374,7 +374,7 @@ describe("useAuth passkey sign-in", () => {
     expect(setAuthToken).toHaveBeenCalledWith("fresh-token", false);
     expect(auth.token).toBe("fresh-token");
     expect(auth.isDeviceToken).toBe(false);
-    expect(auth.user?.full_name).toBe("Signed in");
+    expect(auth.user?.username).toBe("Signed in");
   });
 
   it("refuses an answer with no session in it", async () => {
@@ -400,12 +400,12 @@ describe("useAuth passkey step-up", () => {
   });
 
   it("takes the session the ceremony produced, as the code step-up does", async () => {
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "Half in" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "Half in" }) });
     renderAuth();
-    await waitFor(() => expect(auth.user?.full_name).toBe("Half in"));
+    await waitFor(() => expect(auth.user?.username).toBe("Half in"));
 
     presentPasskey.mockResolvedValueOnce({ access_token: "stepped-up", token_type: "bearer" });
-    get.mockResolvedValueOnce({ data: buildUser({ full_name: "All the way in" }) });
+    get.mockResolvedValueOnce({ data: buildUser({ username: "All the way in" }) });
     await act(async () => {
       await auth.stepUpWithPasskey();
     });
@@ -413,7 +413,7 @@ describe("useAuth passkey step-up", () => {
     expect(setAuthToken).toHaveBeenCalledWith("stepped-up", false);
     expect(auth.token).toBe("stepped-up");
     expect(auth.isDeviceToken).toBe(false);
-    expect(auth.user?.full_name).toBe("All the way in");
+    expect(auth.user?.username).toBe("All the way in");
   });
 
   it("leaves the session alone when the ceremony produced nothing", async () => {

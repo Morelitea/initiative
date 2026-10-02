@@ -335,7 +335,7 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
             className="flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-b-0"
           >
             <span className="min-w-0 truncate text-sm">
-              {member.user.full_name || member.user.username}
+              {member.user.display_name || member.user.username}
             </span>
             <div className="flex items-center gap-2">
               {member.override_share_restrictions && (

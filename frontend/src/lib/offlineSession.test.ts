@@ -27,7 +27,7 @@ afterEach(() => {
 
 describe("the session snapshot", () => {
   it("hands back the user it was saved with", () => {
-    const user = buildUser({ full_name: "Alice" });
+    const user = buildUser();
     saveOfflineSession(user, SERVER);
     expect(readOfflineSession(SERVER)?.id).toBe(user.id);
   });

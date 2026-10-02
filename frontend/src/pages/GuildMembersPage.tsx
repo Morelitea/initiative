@@ -154,9 +154,9 @@ export const GuildMembersPage = () => {
         id: "name",
         meta: { label: t("members.name") },
         header: () => <span className="font-medium">{t("members.name")}</span>,
-        accessorFn: (row) => row.full_name ?? "",
+        accessorFn: (row) => row.display_name ?? "",
         cell: ({ row }) => (
-          <span className="truncate text-muted-foreground">{row.original.full_name ?? ""}</span>
+          <span className="truncate text-muted-foreground">{row.original.display_name ?? ""}</span>
         ),
       },
       {

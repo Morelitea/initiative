@@ -160,7 +160,7 @@ describe("InitiativeSettingsMembersPage", () => {
         lookedUp.push(ids);
         return HttpResponse.json(
           buildPage(
-            ids.includes("56") ? [buildUserSummary({ id: 56, full_name: "Bo Member" })] : []
+            ids.includes("56") ? [buildUserSummary({ id: 56, display_name: "Bo Member" })] : []
           )
         );
       }),
@@ -179,8 +179,8 @@ describe("InitiativeSettingsMembersPage", () => {
         searches.push(new URL(request.url).searchParams.get("search"));
         return HttpResponse.json(
           buildPage([
-            buildUserSummary({ id: 55, full_name: "Ada Admin", guild_role: "admin" }),
-            buildUserSummary({ id: 56, full_name: "Bo Member" }),
+            buildUserSummary({ id: 55, display_name: "Ada Admin", guild_role: "admin" }),
+            buildUserSummary({ id: 56, display_name: "Bo Member" }),
           ])
         );
       }),

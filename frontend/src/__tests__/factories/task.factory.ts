@@ -19,7 +19,7 @@ export function buildTaskAssignee(
     id: counter,
     username: `assignee-${counter}`,
     discriminator: 2000 + counter,
-    full_name: `Assignee ${counter}`,
+    display_name: `Assignee ${counter}`,
     avatar_url: null,
     status: "active",
     ...overrides,

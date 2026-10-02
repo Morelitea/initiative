@@ -45,8 +45,6 @@
     }
   },
   "profile": {
-    "fullNameLabel": "Nom complet",
-    "fullNamePlaceholder": "Votre nom",
     "currentPasswordLabel": "Mot de passe actuel",
     "currentPasswordPlaceholder": "Saisissez votre mot de passe actuel",
     "currentPasswordRequired": "Saisissez votre mot de passe actuel pour en définir un nouveau.",
@@ -1702,11 +1700,10 @@
   },
   "account": {
     "identityTitle": "Comment vous vous connectez",
-    "identityDescription": "Votre nom, votre adresse, votre pseudo et l'horloge sur laquelle vous êtes.",
+    "identityDescription": "Votre pseudo et l'horloge sur laquelle vous êtes.",
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
     "passwordsOffDescription": "La connexion par mot de passe est désactivée sur ce serveur : il n'y a donc aucun mot de passe à définir ou à changer ici.",
-    "fullNameHelp": "Utilisé quand nous vous envoyons des e-mails. Les communautés affichent votre pseudo, ou le nom d'affichage que vous y définissez.",
     "setPasswordTitle": "Définir un mot de passe",
     "setPasswordDescription": "Votre compte se connecte sans mot de passe. Définissez-en un ici pour disposer d'un autre moyen d'accès.",
     "removePassword": "Supprimer votre mot de passe",

@@ -53,7 +53,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
   // namespaces mid-submit.
   const { t } = useTranslation(["settings", "auth", "errors", "common"]);
   const { isNativePlatform } = useServer();
-  const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -191,9 +190,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
             }
           }
           const payload: Record<string, unknown> = {};
-          if (fullName !== user.full_name) {
-            payload.full_name = fullName;
-          }
           if (timezone !== (user.timezone ?? "UTC")) {
             payload.timezone = timezone;
           }
@@ -212,18 +208,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
           title={t("account.identityTitle")}
           description={t("account.identityDescription")}
         >
-          <div className="space-y-2">
-            <Label htmlFor="full-name">{t("profile.fullNameLabel")}</Label>
-            <Input
-              id="full-name"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              placeholder={t("profile.fullNamePlaceholder")}
-              maxLength={255}
-            />
-            <p className="text-muted-foreground text-xs">{t("account.fullNameHelp")}</p>
-          </div>
-
           <div className="space-y-2">
             {/* Shown, not editable — the same arrangement the address has.
                 It is how everyone else sees you, so it is the one thing on
@@ -272,7 +256,6 @@ export const UserSettingsAccountPage = ({ user, refreshUser }: UserSettingsAccou
                   setPassword("");
                   setCurrentPassword("");
                   setConfirmPassword("");
-                  setFullName(user.full_name ?? "");
                   setTimezone(user.timezone ?? "UTC");
                   setError(null);
                 }}

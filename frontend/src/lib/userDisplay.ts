@@ -11,15 +11,15 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
  * this shape. ``status`` is optional because some lightweight endpoints don't
  * include it; absent ``status`` is treated as a live user.
  *
- * ``full_name`` arrives only from a guild that shows real names; everywhere
- * else the server has already left it out, so nothing here has to know which
- * guild it is rendering for.
+ * ``display_name`` is the person's name in the community the object came
+ * from; it is null when they set none, and absent outside a community, where
+ * a person is their handle.
  */
 export interface DisplayableUser {
   id?: number | null;
   username?: string | null;
   discriminator?: number | null;
-  full_name?: string | null;
+  display_name?: string | null;
   status?: UserStatus | string | null;
 }
 
@@ -55,18 +55,18 @@ export const getUrlHandle = (user: DisplayableUser | null | undefined): string =
 /**
  * The single source of truth for "what string do we render for this user".
  *
- * A real name where the guild shows names, the handle otherwise — and the
- * handle for an account that is no longer in use, whose name the server has
- * already withheld. A handle is never redacted: it is a pseudonym and a unique
+ * The person's name in this community when they set one, the handle
+ * otherwise — and the handle for an account that is no longer in use, whose
+ * name the server has already withheld. A handle is never redacted: it is a pseudonym and a unique
  * identifier at once, and an old thread stays legible only if it survives.
  *
- * Use this anywhere you would have written `user.full_name ?? "User"`.
+ * Use this anywhere you would have written `user.display_name ?? "User"`.
  */
 export const getUserDisplayName = (
   user: DisplayableUser | null | undefined,
   fallback?: string
 ): string => {
-  const name = user?.full_name?.trim();
+  const name = user?.display_name?.trim();
   if (name) return name;
   const handle = getUserHandle(user);
   if (handle) return handle;
@@ -102,7 +102,7 @@ export const isInactiveUser = (user: DisplayableUser | null | undefined): boolea
  * need to resolve from the server instead of rendering "User #<id>".
  */
 export const hasDisplayName = (user: DisplayableUser | null | undefined): boolean =>
-  Boolean(user?.full_name?.trim() || user?.username?.trim());
+  Boolean(user?.display_name?.trim() || user?.username?.trim());
 
 /**
  * Initials to render in an avatar fallback for the given user. Returns the
@@ -112,7 +112,7 @@ export const hasDisplayName = (user: DisplayableUser | null | undefined): boolea
 export const getInitialsForUser = (user: DisplayableUser | null | undefined): string => {
   if (!user) return getInitials(undefined);
   if (user.status === "anonymized") return ANONYMIZED_INITIALS;
-  return getInitials(user.full_name ?? undefined, user.username ?? undefined);
+  return getInitials(user.display_name ?? undefined, user.username ?? undefined);
 };
 
 /** The minimum shape needed to resolve an avatar image source. */

@@ -42,10 +42,7 @@ interface Props {
   inviteCode?: string | null;
   /** What the start flow already asked: the handle fills the last step, and
    *  the rest is sent with the account the code makes. */
-  registration?: Omit<
-    Partial<EmailOtpRegister>,
-    "registration_ticket" | "invite_code" | "full_name"
-  >;
+  registration?: Omit<Partial<EmailOtpRegister>, "registration_ticket" | "invite_code">;
 }
 
 /** Strip the spaces a pasted code brings with it. */

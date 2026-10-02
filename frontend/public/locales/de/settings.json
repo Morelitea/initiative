@@ -45,8 +45,6 @@
     }
   },
   "profile": {
-    "fullNameLabel": "Vollständiger Name",
-    "fullNamePlaceholder": "Dein Name",
     "currentPasswordLabel": "Aktuelles Passwort",
     "currentPasswordPlaceholder": "Aktuelles Passwort eingeben",
     "currentPasswordRequired": "Gib dein aktuelles Passwort ein, um ein neues festzulegen.",
@@ -1702,11 +1700,10 @@
   },
   "account": {
     "identityTitle": "Deine Anmeldung",
-    "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
+    "identityDescription": "Dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
     "passwordsOffDescription": "Die Anmeldung per Passwort ist auf diesem Server ausgeschaltet, daher kannst du hier kein Passwort festlegen oder ändern.",
-    "fullNameHelp": "Wird verwendet, wenn wir dir E-Mails schicken. Communitys zeigen dein Handle oder den Anzeigenamen, den du dort festlegst.",
     "setPasswordTitle": "Passwort festlegen",
     "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
     "removePassword": "Passwort entfernen",

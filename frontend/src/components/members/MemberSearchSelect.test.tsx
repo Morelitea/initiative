@@ -10,8 +10,8 @@ import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
 import { MemberMultiSelect, MemberSelect } from "./MemberSearchSelect";
 
-const ADA = buildUserSummary({ id: 42, full_name: "Ada Lovelace" });
-const GRACE = buildUserSummary({ id: 43, full_name: "Grace Hopper" });
+const ADA = buildUserSummary({ id: 42, display_name: "Ada Lovelace" });
+const GRACE = buildUserSummary({ id: 43, display_name: "Grace Hopper" });
 
 const ROSTER = [ADA, GRACE];
 const MISSING_ID = 999;

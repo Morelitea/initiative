@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { UserSummary } from "@/api/generated/initiativeAPI.schemas";
 import { UserHandle } from "@/components/UserHandle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarSrc, getInitialsForUser, getUrlHandle, hasDisplayName } from "@/lib/userDisplay";
+import { getAvatarSrc, getInitialsForUser, getUrlHandle } from "@/lib/userDisplay";
 
 /**
  * One member found.
@@ -14,6 +14,7 @@ import { getAvatarSrc, getInitialsForUser, getUrlHandle, hasDisplayName } from "
  * community the search ran in — so the link leaves the community tree.
  */
 export function MemberResultRow({ member }: { member: UserSummary }) {
+  const name = member.display_name?.trim();
   return (
     <Link
       to="/u/$handle"
@@ -25,10 +26,10 @@ export function MemberResultRow({ member }: { member: UserSummary }) {
         <AvatarFallback className="text-xs">{getInitialsForUser(member)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0">
-        {hasDisplayName(member) && <div className="truncate font-medium">{member.full_name}</div>}
+        {name && <div className="truncate font-medium">{name}</div>}
         <UserHandle
           user={member}
-          className={hasDisplayName(member) ? "text-muted-foreground text-sm" : "font-medium"}
+          className={name ? "text-muted-foreground text-sm" : "font-medium"}
         />
       </div>
     </Link>

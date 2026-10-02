@@ -18,7 +18,6 @@ export interface AuthContextValue {
     email: string;
     password: string;
     username: string;
-    full_name?: string;
     inviteCode?: string;
   }) => Promise<unknown>;
   completeOidcLogin: (credential?: NativeSession | { deviceToken: string }) => Promise<void>;

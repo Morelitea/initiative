@@ -234,8 +234,11 @@ export const SidebarUserFooter = ({
                                 className="-mt-6 size-14"
                               />
                               <div className="min-w-0 flex-1 pb-0.5">
-                                <p className="truncate font-semibold text-sm">{displayName}</p>
-                                <UserHandle user={user} className="text-muted-foreground text-xs" />
+                                <UserHandle
+                                  user={user}
+                                  className="max-w-full font-semibold text-sm"
+                                  nameClassName="truncate"
+                                />
                               </div>
                             </div>
                           </div>
