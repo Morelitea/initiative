@@ -57,6 +57,7 @@ from app.services.tenant.relationships import Endpoint
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_creation
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import wikis as wikis_service
 from app.services.tenant.names import ensure_name_free
 
 #: async (session, source, copy, actor) -> the rows made inside ``copy``
@@ -470,8 +471,9 @@ async def _calendar_contents(
 async def _wiki_contents(
     session: AsyncSession, source: Wiki, copy: Wiki, actor: ActorContext
 ) -> list[WikiPage]:
-    """Its published pages, each under its nearest published ancestor, and the
-    home and template pages pointed at their copies. Drafts stay behind."""
+    """Its published pages, each under its nearest published ancestor, with
+    the borrowed documents filed the same way, and the home and template pages
+    pointed at their copies. Drafts stay behind."""
     pages = (
         await session.exec(select(WikiPage).where(WikiPage.wiki_id == source.id))
     ).all()
@@ -493,6 +495,16 @@ async def _wiki_contents(
 
     for page, clone in pairs:
         clone.parent_page_id = placed_under(page.parent_page_id)
+    copy.document_positions = {}
+    for document_id in source.document_positions or {}:
+        wikis_service.file_document(
+            copy,
+            int(document_id),
+            parent_page_id=placed_under(
+                wikis_service.document_parent(source, int(document_id))
+            ),
+            position=wikis_service.document_position(source, int(document_id)),
+        )
     copy.home_page_id = clones.get(source.home_page_id)
     copy.template_page_id = clones.get(source.template_page_id)
     return [clone for _, clone in pairs]

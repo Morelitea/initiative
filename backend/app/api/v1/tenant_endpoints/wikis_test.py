@@ -1153,8 +1153,9 @@ async def test_an_unshared_wiki_is_invisible_to_a_co_member(
 async def test_a_copy_has_its_published_pages_in_their_tree(
     client: AsyncClient, acting_user, session
 ):
-    """Drafts stay behind; a published page under a draft moves up to the
-    draft's own parent, and the home page points at its copy."""
+    """Drafts stay behind; a published page or borrowed document under a
+    draft moves up to the draft's own parent, and the home page points at its
+    copy."""
     from sqlmodel import select
 
     from app.models.tenant.wiki import Wiki, WikiPage
@@ -1168,10 +1169,19 @@ async def test_a_copy_has_its_published_pages_in_their_tree(
         session, wiki, a.user, title="Draft", parent_page_id=home.id, is_draft=True
     )
     await create_wiki_page(session, wiki, a.user, title="Leaf", parent_page_id=draft.id)
+    document = await create_document(session, a.initiative, a.user, name="Borrowed")
     wiki = await session.get(Wiki, wiki.id)
     wiki.home_page_id = home.id
     session.add(wiki)
     await session.commit()
+    await client.put(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}"), headers=a.headers
+    )
+    await client.post(
+        a.g(f"/wikis/{wiki.id}/documents/{document.id}/move"),
+        headers=a.headers,
+        json={"parent_page_id": draft.id, "position": 0},
+    )
 
     response = await client.post(a.g(f"/wikis/{wiki.id}/duplicate"), headers=a.headers)
 
@@ -1194,3 +1204,6 @@ async def test_a_copy_has_its_published_pages_in_their_tree(
         )
     ).one()
     assert copied.home_page_id == pages["Home"].id
+    listed = await client.get(a.g(f"/wikis/{copy_id}/pages"), headers=a.headers)
+    (borrowed,) = [row for row in listed.json()["items"] if row["kind"] == "document"]
+    assert borrowed["parent_page_id"] == pages["Home"].id
