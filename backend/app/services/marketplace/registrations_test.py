@@ -692,6 +692,23 @@ async def test_a_declarative_app_is_live_with_its_vendor_values_and_no_location(
     assert refused.value.detail == AppServiceMessages.DECLARATIVE_NOT_PLACED
 
 
+async def test_a_container_republished_as_declarative_leaves_its_location(session):
+    """What only a container has goes in the same write as the kind."""
+    await _create(session, jwks=sample_app_jwks())
+    await upsert_listing(session, _app_listing(CONTAINER), source="local")
+    await upsert_listing(
+        session,
+        {**_declarative_listing(DECLARATIVE), "version": "2.0.0"},
+        source="local",
+    )
+    await session.commit()
+
+    row = await _registration(session)
+    assert row.kind == "declarative"
+    assert (row.base_url, row.embed_origin, row.jwks, row.jwks_uri) == (None,) * 4
+    assert row.allowed_origins == []
+
+
 @pytest.mark.parametrize(
     "listing",
     [

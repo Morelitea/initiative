@@ -1663,6 +1663,7 @@ def _endpoint(
     service_public_id: str,
     declarative: bool,
     auth_header: str,
+    interactive_ids: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """One thing the app will do when something connects to it.
 
@@ -1817,7 +1818,24 @@ def _endpoint(
     )
     if requires is not None:
         cleaned["requires"] = requires
+    # A member's own connection is resolved for the caller by ``requires``, so
+    # a request carrying one names it there too.
+    required = {term for terms in (requires or {}).values() for term in terms}
+    for request in _requests(cleaned):
+        named = request.get("connection")
+        if named in interactive_ids and named not in required:
+            fail(
+                f"{what}: its request uses the member connection {named!r}, "
+                "which requires does not name"
+            )
     return cleaned
+
+
+def _requests(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
+    """A declarative endpoint's requests, its one or each step's."""
+    if "request" in endpoint:
+        return [endpoint["request"]]
+    return [step["request"] for step in endpoint.get("steps") or []]
 
 
 def _public(raw: dict[str, Any], *, what: str) -> bool:
@@ -2494,6 +2512,9 @@ def normalize_service_app_definition(
             service_public_id=app_public_id,
             declarative=declarative,
             auth_header=auth_header,
+            interactive_ids=frozenset(
+                entry["id"] for entry in connections if entry["scope"] == "interactive"
+            ),
         )
         for entry in require_list(
             body.get("endpoints"), "service app: endpoints", MAX_ENDPOINTS

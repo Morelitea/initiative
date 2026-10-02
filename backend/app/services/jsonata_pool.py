@@ -88,7 +88,8 @@ class _Worker:
 
 class Pool:
     """Up to ``size`` workers, each answering within ``time_ms`` and a grace
-    period, and exiting after ``idle_seconds`` without a request."""
+    period, held to ``address_space_bytes`` of memory, and exiting after
+    ``idle_seconds`` without a request."""
 
     def __init__(
         self,
@@ -98,6 +99,7 @@ class Pool:
         depth: int,
         output_bytes: int,
         idle_seconds: int,
+        address_space_bytes: int,
         grace_seconds: float = 1.0,
     ) -> None:
         self._size = max(1, size)
@@ -107,6 +109,7 @@ class Pool:
             str(depth),
             str(output_bytes),
             str(idle_seconds),
+            str(address_space_bytes),
         ]
         self._lock = threading.Condition()
         self._idle: list[_Worker] = []
@@ -159,8 +162,14 @@ class Pool:
                 self._release(None)
                 raise
             if reply is not None:
-                self._release(worker)
-                return json.loads(reply)
+                answered = json.loads(reply)
+                if answered.get("replace"):
+                    # It ran out of memory, and exits.
+                    worker.stop()
+                    self._release(None)
+                else:
+                    self._release(worker)
+                return answered
             worker.stop()
             self._release(None)
             if not was_idle:

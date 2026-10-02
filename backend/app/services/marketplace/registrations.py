@@ -1082,6 +1082,11 @@ async def apply_listing_registration(
     before = {} if created else audit_service.snapshot(row, AUDITED_FIELDS)
     row.listing_uid = registration.listing_uid
     row.kind = registration.kind
+    if registration.kind == RegistrationKind.DECLARATIVE:
+        # Runs nowhere and signs nothing: a location and keys a container
+        # version left behind go with it.
+        row.base_url = row.embed_origin = row.jwks = row.jwks_uri = None
+        row.allowed_origins = []
     row.scope_ceiling = registration.scope_ceiling
     row.reference_sectors = registration.reference_sectors
     row.image_digest = registration.image

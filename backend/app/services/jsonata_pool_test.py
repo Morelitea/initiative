@@ -14,6 +14,7 @@ def _pool(**overrides) -> Pool:
             "depth": 500,
             "output_bytes": 1024,
             "idle_seconds": 300,
+            "address_space_bytes": 256 * 1024 * 1024,
             **overrides,
         }
     )
@@ -51,4 +52,18 @@ def test_an_answer_past_the_output_bound_is_an_error():
     started = time.monotonic()
     assert "over 1024 bytes" in pool.ask({"expression": '$pad("", 2000, "x")'})["error"]
     assert time.monotonic() - started < 2
+    pool.shutdown()
+
+
+def test_an_evaluation_that_runs_out_of_memory_is_an_error_and_its_worker_goes():
+    pool = _pool()
+    pool.ask({"expression": "1"})
+    (worker,) = pool._idle
+
+    reply = pool.ask({"expression": '$pad("", 2000000000, "x")'})
+
+    assert reply["error"] == "the evaluation ran out of memory"
+    worker.process.wait(timeout=5)
+    assert pool._idle == [] and pool._live == 0
+    assert pool.ask({"expression": "2"}) == {"value": 2}
     pool.shutdown()

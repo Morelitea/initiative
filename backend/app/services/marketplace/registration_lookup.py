@@ -45,6 +45,7 @@ __all__ = [
     "InstallState",
     "RegistrationSnapshot",
     "app_is_offered",
+    "declarative_registration",
     "enabled_service_ids",
     "frame_origins",
     "install_state",
@@ -261,20 +262,26 @@ async def registration_for_definition(
     wired that service up". A declarative app's is the one its listing,
     ``listing_uid``, applied.
     """
-    snapshots = await load_registrations()
     if is_declarative(definition):
-        return next(
-            (
-                snapshot
-                for snapshot in snapshots.values()
-                if listing_uid and snapshot.listing_uid == listing_uid
-            ),
-            None,
-        )
+        return await declarative_registration(listing_uid)
     public_id = service_public_id(definition)
     if public_id is None:
         return None
-    return snapshots.get(public_id)
+    return (await load_registrations()).get(public_id)
+
+
+async def declarative_registration(
+    listing_uid: Optional[str],
+) -> Optional[RegistrationSnapshot]:
+    """The registration a declarative app's listing, ``listing_uid``, applied."""
+    return next(
+        (
+            snapshot
+            for snapshot in (await load_registrations()).values()
+            if listing_uid and snapshot.listing_uid == listing_uid
+        ),
+        None,
+    )
 
 
 @dataclass(frozen=True)

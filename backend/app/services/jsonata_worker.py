@@ -1,15 +1,17 @@
 """One JSONata evaluator process, run as a script by :mod:`jsonata_pool`.
 
 Started as ``python -I jsonata_worker.py <time ms> <depth> <output bytes>
-<idle seconds>``, so it imports the standard library and the JSONata library
-and nothing of Initiative. It reads one request at a time from stdin and
+<idle seconds> <address space bytes>``, so it imports the standard library
+and the JSONata library and nothing of Initiative. It reads one request at a time from stdin and
 writes one answer to stdout, each a length-prefixed JSON document, and exits
 when stdin closes or no request arrives for the idle time.
 
 A request is ``{"expression", "document"?, "millis"?, "predicate"?}``; the
 answer is ``{"value"}``, ``{"undefined": true}`` or ``{"error", "position"}``.
-Bounds are the library's own time and depth guardrails and a check on the
-answer's size as JSON. An answer is JSON as ``JSON.stringify`` writes it.
+Bounds are the library's own time and depth guardrails, a check on the
+answer's size as JSON, and a limit on the process's address space where the
+platform has one. An evaluation that runs out of memory is answered with
+``"replace": true``, and the worker exits. An answer is JSON as ``JSON.stringify`` writes it.
 """
 
 from __future__ import annotations
@@ -108,6 +110,8 @@ def answer(request: dict[str, Any], bounds: tuple) -> dict[str, Any]:
         return {"error": str(error), "position": error.location}
     except RecursionError:
         return {"error": "Stack overflow"}
+    except MemoryError:
+        return {"error": "the evaluation ran out of memory", "replace": True}
     except Exception as error:  # noqa: BLE001 - every evaluation failure is one answer
         return {"error": str(error) or type(error).__name__}
 
@@ -133,8 +137,14 @@ def main(arguments: list[str]) -> None:
     # The depth bound is the library's; this only keeps Python's own limit
     # from being reached first.
     sys.setrecursionlimit(20_000)
-    time_ms, depth, output, idle = (int(value) for value in arguments)
+    time_ms, depth, output, idle, address_space = (int(value) for value in arguments)
     bounds = (time_ms, depth, output)
+    try:
+        import resource
+
+        resource.setrlimit(resource.RLIMIT_AS, (address_space, address_space))
+    except (ImportError, ValueError, OSError):
+        pass
     stdin, stdout = sys.stdin.fileno(), sys.stdout.fileno()
     while True:
         ready, _, _ = select.select([stdin], [], [], idle)
@@ -148,6 +158,8 @@ def main(arguments: list[str]) -> None:
             return
         reply = answer(json.loads(body), bounds)
         _write(stdout, json.dumps(reply, ensure_ascii=False).encode("utf-8"))
+        if reply.get("replace"):
+            return
 
 
 if __name__ == "__main__":

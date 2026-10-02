@@ -21,9 +21,14 @@ from app.core.app_access_token import (
     InstallAccessToken,
     unseal_access_token,
 )
+from app.models.platform.app_service_registration import (
+    AppServiceRegistration,
+    RegistrationKind,
+)
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import app_oauth
 from app.services.marketplace.app_refs import ensure_app_guild_ref
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import app_revocation, app_updates
 from app.testing import route_session_to_guild
 from app.testing.app_clients import (
@@ -654,6 +659,31 @@ async def test_a_disabled_registration_is_an_invalid_client(
     await install_app(
         session, acting_user, role_session, granted=["documents:read"], enabled=False
     )
+
+    response = await _ask(client)
+
+    assert response.status_code == 401
+    assert _error(response) == "invalid_client"
+
+
+async def test_a_declarative_registration_is_never_a_client(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """A declarative app runs no code, so keys left on its registration
+    authenticate nothing."""
+    await install_app(session, acting_user, role_session, granted=["documents:read"])
+    registration = (
+        await session.exec(
+            select(AppServiceRegistration).where(
+                AppServiceRegistration.public_id == CLIENT
+            )
+        )
+    ).one()
+    registration.kind = RegistrationKind.DECLARATIVE
+    session.add(registration)
+    await session.commit()
+    invalidate_registrations()
+    assert registration.jwks
 
     response = await _ask(client)
 

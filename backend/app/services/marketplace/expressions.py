@@ -53,6 +53,11 @@ OUTPUT_BYTES = contract.cap("expressionOutputBytes")
 
 #: How long a worker waits for its next evaluation before it exits.
 _IDLE_SECONDS = 300
+#: A worker's address space. Measured: about 42 MB at rest and about 60 MB
+#: evaluating a 4.5 MB document. What a document can grow to is set by an
+#: endpoint's steps and pages at the vendor response cap, not by the answer's
+#: cap, so the limit is a fixed size well above that.
+_ADDRESS_SPACE_BYTES = 256 * 1024 * 1024
 
 
 class _Undefined:
@@ -148,6 +153,7 @@ def _the_pool() -> Pool:
                 depth=DEPTH,
                 output_bytes=OUTPUT_BYTES,
                 idle_seconds=_IDLE_SECONDS,
+                address_space_bytes=_ADDRESS_SPACE_BYTES,
             )
         return _pool
 

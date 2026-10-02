@@ -278,8 +278,9 @@ async def test_an_expression_answers_what_the_sdk_answers(
         ("($f := function($n) { $f($n + 1) + 1 }; $f(0))", "Stack overflow"),
         (f'$pad("", {expressions.OUTPUT_BYTES}, "x")', "over 1048576 bytes"),
         ("[1..10000000].($ * 2)", "timeout after 1000 milliseconds"),
+        ('$pad("", 2000000000, "x")', "ran out of memory"),
     ],
-    ids=["depth", "output", "time"],
+    ids=["depth", "output", "time", "memory"],
 )
 async def test_an_evaluation_is_bounded(expression, why):
     with pytest.raises(ExpressionError, match=why):

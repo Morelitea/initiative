@@ -98,6 +98,9 @@ def issues_app(**changes) -> dict:
         },
         "search": {
             "direction": "read",
+            # The SDK's test app leaves this out; Initiative requires a member
+            # connection a request uses to be named in requires.
+            "requires": {"all_of": ["account"]},
             "returns": [{"key": "ids", "type": "string", "list": True}],
             "request": {
                 "method": "POST",

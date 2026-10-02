@@ -55,7 +55,10 @@ from app.core.tools import Tool
 from app.db import gucs
 from app.db.authorization import LIVE_GRANT, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
-from app.models.platform.app_service_registration import registration_live_sql
+from app.models.platform.app_service_registration import (
+    RegistrationKind,
+    registration_live_sql,
+)
 from app.models.platform.guild import (
     GUILD_LADDER,
     LIVE_STATUS_VALUES,
@@ -452,6 +455,7 @@ install AS (
       JOIN public.publishers p ON p.id = r.publisher_id
       WHERE r.listing_uid = a.listing_uid
         AND r.public_id = {gucs.TOKEN_CLIENT_ID}
+        AND r.kind = '{RegistrationKind.CONTAINER}'
         AND {registration_live_sql("r", "p")}
     )
     AND ({gucs.USER_ID} IS NULL OR (

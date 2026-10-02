@@ -715,6 +715,25 @@ def test_a_setup_writes_each_answer_once_and_secrets_only_to_a_secret(values):
 # --- container or declarative ----------------------------------------------
 
 
+def _member_request_not_required(body: dict) -> None:
+    """A request on a member's connection the endpoint does not require."""
+    body["connections"].append(
+        {
+            "id": "account",
+            "scope": "interactive",
+            "label": {"en": "Your account"},
+            "fields": [],
+            "flow": {
+                "type": "oauth2",
+                "authorize_url": "https://tracker.example/authorize",
+                "token_url": "https://tracker.example/token",
+                "client_id": "{vendor.client_id}",
+            },
+        }
+    )
+    body["endpoints"][0]["request"]["connection"] = "account"
+
+
 def _with(build, change):
     body = build()
     change(body)
@@ -768,6 +787,7 @@ def _with(build, change):
         _with(
             maximal_declarative_manifest, lambda b: b["endpoints"][0].update(retries=3)
         ),
+        _with(maximal_declarative_manifest, _member_request_not_required),
     ],
     ids=[
         "container-hosts",
@@ -782,6 +802,7 @@ def _with(build, change):
         "declarative-url-does-not-parse",
         "declarative-sets-the-credential",
         "unknown-endpoint-term",
+        "member-connection-not-in-requires",
     ],
 )
 def test_one_app_is_one_kind_and_says_only_what_its_kind_says(body):
