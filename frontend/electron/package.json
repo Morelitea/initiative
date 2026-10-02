@@ -1,0 +1,17 @@
+{
+  "name": "initiative-electron",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The Initiative desktop app.",
+  "main": "build/main.js",
+  "scripts": {
+    "build": "tsc",
+    "build:plugins": "tsc -p plugins",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "electron": "^44.5.1",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,4 +1,5 @@
 import { App } from "@capacitor/app";
+import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { type BundleInfo, CapacitorUpdater } from "@capgo/capacitor-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -131,7 +132,9 @@ const awaitReadyBundle = async (version: string, timeoutMs = 60_000): Promise<Bu
  */
 export const useNativeUpdate = () => {
   const { t } = useTranslation("common");
-  const { serverUrl, isNativePlatform } = useServer();
+  const { serverUrl, isNativePlatform: native } = useServer();
+  // The desktop app's bundle updater is not built yet.
+  const isNativePlatform = native && Capacitor.getPlatform() !== "electron";
 
   const [updateReady, setUpdateReady] = useState<PromptState>(HIDDEN);
   const [nativeUpdateRequired, setNativeUpdateRequired] = useState<PromptState>(HIDDEN);

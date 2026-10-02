@@ -77,6 +77,9 @@ importers:
       '@capacitor/splash-screen':
         specifier: ^8.0.2
         version: 8.0.2(@capacitor/core@8.5.2)
+      '@capawesome/capacitor-electron':
+        specifier: ^0.1.1
+        version: 0.1.1(@capacitor/core@8.5.2)
       '@capgo/capacitor-updater':
         specifier: ^8.51.3
         version: 8.51.15(@capacitor/core@8.5.2)
@@ -435,6 +438,9 @@ importers:
       husky:
         specifier: ^9.1.7
         version: 9.1.7
+      initiative-desktop-plugins:
+        specifier: link:electron/plugins
+        version: link:electron/plugins
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1(@noble/hashes@1.8.0)
@@ -703,6 +709,16 @@ packages:
     resolution: {integrity: sha512-0C6rYScr13WfAE9nPl4ScOQynmjFv9NT3Th+RZkD4ezYHmER6mcl1/lDYsv7jg3Rj3FOvLrlTlmNkUrr83kZzQ==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
+
+  '@capawesome/capacitor-electron@0.1.1':
+    resolution: {integrity: sha512-ALzLTcdcWEfYQCQ/hPper2Nwhk9Hes/s9yusKGXggxOzDL0Rt/r1BF6HcQq2CshG1oB5i2UY4CQ/cRS9JdD2PA==}
+    hasBin: true
+    peerDependencies:
+      '@capacitor/core': '>=6.0.0'
+      electron: '>=28.0.0'
+    peerDependenciesMeta:
+      electron:
+        optional: true
 
   '@capgo/capacitor-updater@8.51.15':
     resolution: {integrity: sha512-eJxQrwMYjlaRY79r+1jJWzetgqeyVdXkkHTngVLVQq3/1BK6itOkO45wRzyFrrB9WZD84fY1ziGp8ItGCN3hWA==}
@@ -7068,6 +7084,10 @@ snapshots:
       '@capacitor/core': 8.5.2
 
   '@capacitor/splash-screen@8.0.2(@capacitor/core@8.5.2)':
+    dependencies:
+      '@capacitor/core': 8.5.2
+
+  '@capawesome/capacitor-electron@0.1.1(@capacitor/core@8.5.2)':
     dependencies:
       '@capacitor/core': 8.5.2
 
