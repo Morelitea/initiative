@@ -94,11 +94,12 @@ async def may_read_image(
         guild = await session.get(Guild, guild_id)
         return guild is not None and guild.status in LIVE_STATUS_VALUES
 
-    grant = await access_grants_service.get_live_grant(
+    if await access_grants_service.get_live_grants(
         session, user_id=user_id, guild_id=guild_id
-    )
-    if grant is not None:
-        # PAM deliberately overrides lifecycle status, as everywhere else.
+    ):
+        # PAM deliberately overrides lifecycle status, as everywhere else. A
+        # grant of either purpose: the pictures are what the guild's front page
+        # shows and part of the configuration its settings hold.
         return True
 
     if not IMAGE_SPECS[variant].published:
