@@ -169,7 +169,9 @@ def vendor(monkeypatch) -> FakeVendor:
     return vendor
 
 
-async def _run(name: str, *, params=None, definition=None) -> dict:
+async def _run(
+    name: str, *, params=None, definition=None, connections=WORKSPACE
+) -> dict:
     definition = definition or issues_app()
     endpoint = next(
         entry for entry in definition["endpoints"] if entry["id"].endswith(f".{name}")
@@ -178,7 +180,7 @@ async def _run(name: str, *, params=None, definition=None) -> dict:
         definition,
         endpoint,
         params=params or {},
-        connections=WORKSPACE,
+        connections=connections,
         credentials=CREDENTIALS,
         now=NOW,
     )
@@ -268,6 +270,44 @@ async def test_an_answer_means_what_its_rule_or_the_default_says(
     else:
         assert await _run("label", params={"number": 7}) == {"unavailable": answered}
     assert [request["method"] for request in vendor.api_requests] == ["GET"]
+
+
+async def test_connections_holds_each_connection_requires_names(vendor):
+    """A request on the member's connection reads the community's by id; a
+    connection ``requires`` does not name is not there."""
+    definition = issues_app(
+        comment={
+            "direction": "write",
+            "requires": {"all_of": ["workspace", "account"]},
+            "returns": [{"key": "id", "type": "int"}],
+            "request": {
+                "method": "POST",
+                "url": f'{_api("/repos/")} & connections.workspace.owner & "/comments"',
+                "body": '{"seen": connections, "login": connection.login}',
+                "connection": "account",
+            },
+            "map": '{"id": response.body.id}',
+        }
+    )
+    vendor.api_answers = [{"body": {"id": 9}}]
+    result = await _run(
+        "comment",
+        definition=definition,
+        connections={
+            **WORKSPACE,
+            "account": {"login": "alice"},
+            "other": {"owner": "elsewhere"},
+        },
+    )
+
+    sent = vendor.api_requests[0]
+    assert sent["url"] == f"{API}/repos/acme/comments"
+    assert sent["headers"]["authorization"] == "Bearer tok-account"
+    assert sent["body"] == {
+        "seen": {"workspace": {"owner": "acme"}, "account": {"login": "alice"}},
+        "login": "alice",
+    }
+    assert result == {"id": 9}
 
 
 async def test_a_graphql_cursor_is_sent_in_its_variable_from_the_second_page(vendor):

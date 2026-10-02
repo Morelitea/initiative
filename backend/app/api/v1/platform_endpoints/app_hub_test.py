@@ -42,7 +42,7 @@ from app.testing import (
 )
 from app.services.tenant.app_connection_flows import TokenSet, seal_tokens
 from app.testing.app_clients import CLIENT, InstalledApp, install_app
-from app.testing.fake_vendor import FakeVendor, declarative_app
+from app.testing.fake_vendor import API_HOST, FakeVendor, declarative_app
 
 
 TARGET = "tests.github"
@@ -60,6 +60,8 @@ COMMENT = f"app.{TARGET}.comment"
 OPEN_ISSUE = f"app.{TARGET}.open_issue"
 #: A read that is not part of the public surface.
 PRIVATE = f"app.{TARGET}.private"
+#: Long after any test ends, as a stored token's expiry.
+_LATER = 4102444800
 
 
 def _url(endpoint_id: str, public_id: str = TARGET) -> str:
@@ -174,6 +176,7 @@ async def _hub(
     place_target: bool = True,
     install_target: bool = True,
     declarative: bool = False,
+    definition: Optional[dict[str, Any]] = None,
 ) -> tuple[InstalledApp, Optional[GuildApp]]:
     """A caller asking for ``apps:tests.github``, and the target installed in
     the same community, placed where the caller is unless told otherwise. A
@@ -203,13 +206,16 @@ async def _hub(
     if not install_target:
         return installed, None
     config, secrets = seal_tokens(
-        TokenSet(access_token="gho_community"), config={}, secrets={}
+        TokenSet(access_token="gho_community", expires_at=_LATER),
+        config={"owner": "acme"},
+        secrets={},
     )
     target = await create_guild_app(
         session,
         installed.guild,
         installed.seat.user,
-        definition=declarative_app(TARGET) if declarative else _target_definition(),
+        definition=definition
+        or (declarative_app(TARGET) if declarative else _target_definition()),
         listing_uid=TARGET_UID,
         name="GitHub",
         **(
@@ -290,6 +296,11 @@ def _member_headers(installed: InstalledApp, member) -> dict[str, str]:
 
 async def _connect(session: AsyncSession, installed, target, member) -> None:
     """The member's own account on the target."""
+    config, secrets = seal_tokens(
+        TokenSet(access_token="gho_member", expires_at=_LATER),
+        config={"login": "alice"},
+        secrets={},
+    )
     await route_session_to_guild(session, installed.guild.id)
     session.add(
         GuildAppUserConnection(
@@ -297,7 +308,8 @@ async def _connect(session: AsyncSession, installed, target, member) -> None:
             connection_id="account",
             user_id=member.user.id,
             connection_ref="cr_member_account",
-            config={"login": "alice"},
+            config=config,
+            config_secrets=secrets,
             status="connected",
         )
     )
@@ -705,3 +717,117 @@ async def test_a_declarative_target_is_called_by_initiative(
     else:
         assert response.json() == body
     assert vendor.api_requests[0]["headers"]["authorization"] == "Bearer gho_community"
+
+
+def _with_member_account(requires: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """:func:`declarative_app` with a member's own account beside the
+    community's workspace: its read open to members, on the workspace, under
+    ``requires``; and a member's comment on their account."""
+    definition = declarative_app(TARGET)
+    (workspace,) = definition["connections"]
+    workspace["fields"] = [{"key": "owner", "type": "string", "label": {"en": "O"}}]
+    definition["connections"].append(
+        {**workspace, "id": "account", "scope": "interactive", "fields": []}
+    )
+    issues, label = definition["endpoints"]
+    issues["actors"] = ["installation", "member"]
+    if requires is not None:
+        issues["requires"] = requires
+    definition["endpoints"].append(
+        {
+            **label,
+            "id": COMMENT,
+            "actors": ["member"],
+            "requires": {"all_of": ["workspace", "account"]},
+            "request": {
+                "method": "POST",
+                "url": (
+                    f'"https://{API_HOST}/repos/" & connections.workspace.owner'
+                    ' & "/" & params.repo & "/issues/" & params.number & "/comments"'
+                ),
+                "body": '{"seen": connections}',
+                "connection": "account",
+            },
+        }
+    )
+    return definition
+
+
+@pytest.mark.parametrize(
+    "requires,status",
+    [({"all_of": ["workspace"]}, 200), ({"any_of": ["workspace"]}, 200), (None, 409)],
+    ids=["all-of", "any-of", "not-named"],
+)
+async def test_a_member_call_reads_on_the_community_connection_its_requires_names(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    monkeypatch,
+    requires,
+    status,
+):
+    vendor = FakeVendor()
+    vendor.install(monkeypatch)
+    vendor.api_answers = [{"body": [{"title": "Broken build"}]}]
+    installed, _target = await _hub(
+        session,
+        acting_user,
+        role_session,
+        declarative=True,
+        definition=_with_member_account(requires),
+    )
+    member = await _member(session, acting_user, installed)
+
+    response = await client.post(
+        _url(ISSUES),
+        json={"params": {"repo": "acme/web"}},
+        headers=_member_headers(installed, member),
+    )
+
+    assert response.status_code == status, response.text
+    if status == 200:
+        assert response.json()["result"] == {"titles": ["Broken build"], "total": 1}
+        assert vendor.api_requests[0]["headers"]["authorization"] == (
+            "Bearer gho_community"
+        )
+    else:
+        assert response.json()["detail"] == AppDataMessages.NEEDS_CONFIGURATION
+        assert vendor.api_requests == []
+
+
+async def test_a_member_write_reads_the_community_connection_without_its_secrets(
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    monkeypatch,
+):
+    vendor = FakeVendor()
+    vendor.install(monkeypatch)
+    vendor.api_answers = [{"body": {"number": 7}}]
+    installed, target = await _hub(
+        session,
+        acting_user,
+        role_session,
+        declarative=True,
+        definition=_with_member_account(None),
+    )
+    assert target is not None
+    member = await _member(session, acting_user, installed)
+    await _connect(session, installed, target, member)
+
+    response = await client.post(
+        _url(COMMENT),
+        json={"params": {"repo": "web", "number": 7}},
+        headers=_member_headers(installed, member),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["actor"] == "member"
+    sent = vendor.api_requests[0]
+    assert sent["url"] == f"https://{API_HOST}/repos/acme/web/issues/7/comments"
+    assert sent["headers"]["authorization"] == "Bearer gho_member"
+    assert sent["body"] == {
+        "seen": {"workspace": {"owner": "acme"}, "account": {"login": "alice"}}
+    }

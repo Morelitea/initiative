@@ -14,9 +14,11 @@ connection's ``after_connect`` (``runAfterConnect``) and ``health``
 connection (``runWebhook``).
 
 * **What an expression sees**: ``params``, the non-secret fields of the
-  request's connection, ``now``, each earlier step's answer as
-  ``steps.<name>`` and, once a call is answered, ``response``. A credential
-  never enters one: it is added to the request as the app's ``auth`` says.
+  request's connection as ``connection`` and of each connection the endpoint's
+  ``requires`` names that this call holds as ``connections.<id>``, ``now``,
+  each earlier step's answer as ``steps.<name>`` and, once a call is answered,
+  ``response``. A credential never enters one: it is added to the request as
+  the app's ``auth`` says.
 * **Where a request may go**: https, on one of the app's ``hosts``, to a public
   address, following no redirect.
 * **What an answer means**: the endpoint's ``errors`` rows first, then the
@@ -50,6 +52,7 @@ from app.services.marketplace.app_data import (
     MAX_RESPONSE_BYTES,
     REQUEST_TIMEOUT_SECONDS,
     AppDataError,
+    _required_connection_ids,
 )
 from app.services.marketplace.expressions import UNDEFINED, ExpressionError
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
@@ -62,7 +65,11 @@ from app.services.marketplace.service_apps import (
 from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.tenant import app_connection_flows as flows
 from app.services.tenant.app_channels import AppChannelError, load_install
-from app.services.tenant.app_config import connection_by_id, without_tokens
+from app.services.tenant.app_config import (
+    connection_by_id,
+    is_satisfied,
+    without_tokens,
+)
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -544,7 +551,9 @@ async def run_endpoint(
     <code>}``.
 
     ``connections`` holds each connection's non-secret fields and
-    ``credentials`` its token, by connection id. A passing failure raises
+    ``credentials`` its token, by connection id. Expressions read a request's
+    own connection as ``connection`` and every connection the endpoint's
+    ``requires`` names as ``connections.<id>``. A passing failure raises
     :class:`AppDataError` as the app being unavailable.
     """
     run = _Run(
@@ -553,7 +562,16 @@ async def run_endpoint(
         credentials=credentials,
         now=now,
     )
-    base = {"params": dict(params), "now": run.now}
+    required, _ = _required_connection_ids(endpoint)
+    base = {
+        "params": dict(params),
+        "connections": {
+            connection_id: dict(connections[connection_id])
+            for connection_id in required
+            if connection_id in connections
+        },
+        "now": run.now,
+    }
     steps = endpoint.get("steps") or [{"name": "", "request": endpoint["request"]}]
     named = "steps" in endpoint
     answers: dict[str, Any] = {}
@@ -834,18 +852,22 @@ async def _credentials(
     registration: RegistrationSnapshot,
     app: GuildApp,
     guild_id: int,
-    connection_ids: list[str],
+    endpoint: Mapping[str, Any],
     refs: Mapping[str, str],
     actor: Optional[str],
 ) -> tuple[dict[str, str], dict[str, dict[str, Any]], bool]:
-    """Each named connection's token and non-secret fields, and whether any
-    is a member's own.
+    """The token of each connection the endpoint's requests name; the
+    non-secret fields of those and of each connection its ``requires`` names
+    that this call holds; and whether any token is a member's own.
 
     A static connection's is the community's, which a call on a member's
-    behalf does not carry; an interactive one's is the acting member's, by the
-    handle the endpoint's ``requires`` resolved for them. Tokens are refreshed
-    or minted as the app channel hands them out.
+    behalf carries only when the endpoint's ``requires`` names it; an
+    interactive one's is the acting member's, by the handle the endpoint's
+    ``requires`` resolved for them. Tokens are refreshed or minted as the app
+    channel hands them out.
     """
+    used = _connection_ids(endpoint)
+    required, _ = _required_connection_ids(endpoint)
     tokens: dict[str, str] = {}
     fields: dict[str, dict[str, Any]] = {}
     member = False
@@ -856,19 +878,48 @@ async def _credentials(
             )
         except AppChannelError as exc:
             raise AppDataError(exc.code, exc.status_code) from exc
-        for connection_id in connection_ids:
+
+        async def member_fields(ref: str) -> Optional[dict[str, Any]]:
+            row = (
+                await session.exec(
+                    select(GuildAppUserConnection).where(
+                        GuildAppUserConnection.app_id == install.id,
+                        GuildAppUserConnection.connection_ref == ref,
+                    )
+                )
+            ).first()
+            return without_tokens(row.config) if row is not None else None
+
+        for connection_id in dict.fromkeys([*used, *required]):
             connection = connection_by_id(install.definition, connection_id)
             interactive = (connection or {}).get("scope") == "interactive"
+            ref = refs.get(connection_id)
+            if connection_id not in used:
+                # Named by ``requires`` alone: its fields, when this call holds it.
+                if interactive and ref is not None:
+                    values = await member_fields(str(ref))
+                elif connection is not None and not interactive:
+                    stored = (install.config or {}).get(connection_id)
+                    satisfied = is_satisfied(
+                        connection,
+                        stored,
+                        (install.secret_fields or {}).get(connection_id),
+                    )
+                    values = without_tokens(stored) if satisfied else None
+                else:
+                    values = None
+                if values is not None:
+                    fields[connection_id] = values
+                continue
             refusal = AppDataError(
                 AppDataMessages.CONNECTION_REQUIRED
                 if interactive
                 else AppDataMessages.NEEDS_CONFIGURATION,
                 409,
             )
-            ref = refs.get(connection_id)
             if connection is None or (interactive and ref is None):
                 raise refusal
-            if not interactive and actor == "member":
+            if not interactive and actor == "member" and connection_id not in required:
                 raise refusal
             try:
                 if interactive:
@@ -879,15 +930,7 @@ async def _credentials(
                         connection_ref=str(ref),
                         guild_id=guild_id,
                     )
-                    row = (
-                        await session.exec(
-                            select(GuildAppUserConnection).where(
-                                GuildAppUserConnection.app_id == install.id,
-                                GuildAppUserConnection.connection_ref == ref,
-                            )
-                        )
-                    ).first()
-                    values = row.config if row is not None else None
+                    values = await member_fields(str(ref))
                     member = True
                 else:
                     held = await flows.community_token(
@@ -897,13 +940,13 @@ async def _credentials(
                         connection_id=connection_id,
                         guild_id=guild_id,
                     )
-                    values = (install.config or {}).get(connection_id)
+                    values = without_tokens((install.config or {}).get(connection_id))
             except flows.ConnectionFlowError as exc:
                 raise refusal from exc
             if held is None:
                 raise refusal
             tokens[connection_id] = held.access_token
-            fields[connection_id] = without_tokens(values)
+            fields[connection_id] = values or {}
     return tokens, fields, member
 
 
@@ -941,7 +984,7 @@ async def call_endpoint(
                 registration=registration,
                 app=app,
                 guild_id=guild_id,
-                connection_ids=_connection_ids(endpoint),
+                endpoint=endpoint,
                 refs=refs,
                 actor=actor,
             )
