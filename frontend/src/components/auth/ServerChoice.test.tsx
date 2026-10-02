@@ -7,8 +7,10 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { getSelfHostedAddress, setSelfHostedAddress } from "@/lib/serverStorage";
+import { freshAnswers, readStartDraft, saveStartDraft } from "@/lib/startFlow";
 
 import { ServerChoice } from "./ServerChoice";
 
@@ -25,13 +27,21 @@ describe("ServerChoice", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("connects the app to a self-hosted address and keeps it", async () => {
+  it("moves the app to another self-hosted server, signed out of the last", async () => {
     const user = userEvent.setup();
     setSelfHostedAddress("https://old.example.com");
+    saveStartDraft(freshAnswers("personal"));
+    const logout = vi.fn();
     const setServerUrl = vi.fn();
     const testServerConnection = vi.fn().mockResolvedValue({ valid: true });
     renderWithProviders(<ServerChoice pick />, {
-      server: { isNativePlatform: true, serverUrl: null, setServerUrl, testServerConnection },
+      auth: { user: buildUser(), logout },
+      server: {
+        isNativePlatform: true,
+        serverUrl: "https://old.example.com/api/v1",
+        setServerUrl,
+        testServerConnection,
+      },
     });
 
     const address = screen.getByRole("textbox", { name: /server address/i });
@@ -42,6 +52,10 @@ describe("ServerChoice", () => {
 
     expect(testServerConnection).toHaveBeenCalledWith("https://new.example.com");
     expect(setServerUrl).toHaveBeenCalledWith("https://new.example.com");
+    expect(logout.mock.invocationCallOrder[0]).toBeLessThan(
+      setServerUrl.mock.invocationCallOrder[0]
+    );
+    expect(readStartDraft()).toBeNull();
     expect(getSelfHostedAddress()).toBe("https://new.example.com");
   });
 

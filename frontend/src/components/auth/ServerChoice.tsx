@@ -11,8 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
 import { normalizeServerUrl, useServer } from "@/hooks/useServer";
 import { getSelfHostedAddress, setSelfHostedAddress } from "@/lib/serverStorage";
+import { clearStart } from "@/lib/startFlow";
 
 /** The server dropdown. Initiative Cloud is listed but not open yet. */
 const ServerSelect = ({
@@ -64,6 +66,7 @@ export const ServerChoice = ({ pick = false }: { pick?: boolean }) => {
 const ServerPicker = () => {
   const { t } = useTranslation("auth");
   const { serverUrl, setServerUrl, testServerConnection, getServerOrigin } = useServer();
+  const { user, logout } = useAuth();
   // Initiative Cloud is not open yet, so self-hosted is the only choice.
   const [where, setWhere] = useState("selfHosted");
   const [address, setAddress] = useState(() => getSelfHostedAddress() ?? getServerOrigin() ?? "");
@@ -85,6 +88,9 @@ const ServerPicker = () => {
         setError(result.error ?? t("server.connectError"));
         return;
       }
+      // Leaving a server signs out of it, and a sign-up begun there stays there.
+      if (user) await logout();
+      await clearStart();
       setSelfHostedAddress(trimmed);
       await setServerUrl(trimmed);
     } finally {
