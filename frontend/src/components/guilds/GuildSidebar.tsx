@@ -531,7 +531,7 @@ const GuildRow = ({
             // guild the caller is in, and the full banner is many times heavier.
             guild={{ ...guild, banner: { ...guild.banner, image_url: guild.banner_card_url } }}
             className={cn(
-              "transition-[translate,scale,box-shadow,border-color] duration-200 ease-out group-hover:shadow-md group-active:scale-[0.98] motion-safe:group-hover:-translate-y-0.5",
+              "transition-[translate,scale,box-shadow,border-color] duration-200 ease-out group-hover:shadow-md motion-safe:group-hover:-translate-y-0.5 motion-safe:group-active:scale-[0.98]",
               highlighted && "border-primary/60 ring-2 ring-primary/30",
               isGrant && !highlighted && "border-muted-foreground/40 border-dashed",
               reorderMode && "ring-2 ring-primary/40"
