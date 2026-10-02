@@ -45,6 +45,7 @@ from app.models.platform.access_grant import (
 from app.models.platform.guild import GuildMembership, GuildRole
 from app.models.platform.app_install import AppInstall
 from app.models.platform.app_service_registration import RegistrationKind
+from app.models.tenant.app_event_outbox import AppEventOutbox
 from app.models.tenant.app_hook_delivery import AppHookDelivery
 from app.models.tenant.app_schedule_run import AppScheduleRun
 from app.models.tenant.guild_app import GuildApp
@@ -60,7 +61,7 @@ from app.testing import (
     route_session_to_guild,
     sealed_vendor_values,
 )
-from app.testing.fake_vendor import FakeVendor
+from app.testing.fake_vendor import FakeVendor, declarative_github
 from app.db.request_context import SystemGuild
 
 
@@ -1430,6 +1431,35 @@ class TestVendorWebhooks:
         [recorded] = await _deliveries(session, seat.guild.id)
         assert recorded.delivery_id == "delivery-1"
 
+    async def test_a_delivery_is_described_by_the_version_each_install_pinned(
+        self, client: AsyncClient, acting_user, session, vendor, registration
+    ):
+        """The listing has moved on and calls its connection something else;
+        the install's delivery still names the connection its version does."""
+        moved = {
+            **DEFINITION,
+            "connections": [ACCOUNT, HOOKED, {**WORKSPACE, "id": "installation"}],
+            "webhooks": {
+                **DEFINITION["webhooks"],
+                "route": {
+                    **DEFINITION["webhooks"]["route"],
+                    "connection": "installation",
+                },
+            },
+        }
+        await create_marketplace_listing(
+            session, uid=LISTING_UID, public_id=PUBLIC_ID, kind="app", definition=moved
+        )
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook({"installation": {"id": 42}})
+
+        response = await client.post(HOOK_ROUTE, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        [(name, call, _)] = vendor.hooks
+        assert (name, call["connection"]) == ("webhook", "workspace")
+
     async def test_disconnecting_and_uninstalling_remove_the_route(
         self, client: AsyncClient, acting_user, session, vendor, registration
     ):
@@ -1569,3 +1599,258 @@ class TestSchedules:
             waits.append((run.failures, minutes))
 
         assert waits == [(1, 30), (2, 60), (3, 120), (4, 150)]
+
+
+# ---------------------------------------------------------------------------
+# A declarative app: Initiative runs its connection and maps its deliveries
+# ---------------------------------------------------------------------------
+
+DECLARATIVE_ID = "tests.ghd"
+DECLARATIVE_UID = "TESTAPP0000010"
+DECLARATIVE = declarative_github(DECLARATIVE_ID)
+ISSUE_OPENED = f"app.{DECLARATIVE_ID}.issue-opened"
+DECLARATIVE_HOOKS = f"/api/v1/app-hooks/{DECLARATIVE_ID}"
+
+
+@pytest.fixture
+async def declarative(session: AsyncSession):
+    return await create_app_service_registration(
+        session,
+        public_id=DECLARATIVE_ID,
+        listing_uid=DECLARATIVE_UID,
+        base_url=None,
+        allowed_origins=[],
+        jwks={},
+        kind="declarative",
+        vendor_values=sealed_vendor_values(VENDOR_VALUES),
+    )
+
+
+async def _declarative_listing(session: AsyncSession, definition: dict = DECLARATIVE):
+    return await create_marketplace_listing(
+        session,
+        uid=DECLARATIVE_UID,
+        public_id=DECLARATIVE_ID,
+        kind="app",
+        definition=definition,
+    )
+
+
+async def _declarative_install(session: AsyncSession, actor, **overrides) -> GuildApp:
+    return await create_guild_app(
+        session,
+        actor.guild,
+        actor.user,
+        definition=DECLARATIVE,
+        listing_uid=DECLARATIVE_UID,
+        **overrides,
+    )
+
+
+def _installations(*owners: tuple[int, str]) -> dict:
+    """One page of the person's installations, as GitHub lists them."""
+    return {
+        "body": {
+            "installations": [
+                {"id": number, "account": {"login": login}} for number, login in owners
+            ]
+        }
+    }
+
+
+async def _events(session: AsyncSession, guild_id: int) -> list[tuple]:
+    await route_session_to_guild(session, guild_id)
+    session.expunge_all()
+    rows = (await session.exec(select(AppEventOutbox))).all()
+    return [(row.event_type, row.initiative_id, row.payload) for row in rows]
+
+
+def _issue(**issue) -> dict:
+    return {
+        "action": "opened",
+        "installation": {"id": 42},
+        "repository": {"full_name": "acme/web"},
+        "issue": {"number": 12, "title": "Broken build", **issue},
+    }
+
+
+class TestDeclarativeApps:
+    async def _connect(self, client: AsyncClient, actor, app: GuildApp, vendor):
+        """The install page, then one authorization, returning installation
+        42."""
+        start = await _start(client, actor, app, "workspace")
+        setup = await client.get(
+            "/api/v1/app-connections/setup",
+            headers=_cookie(actor),
+            params={
+                "state": start["state"],
+                "installation_id": "42",
+                "setup_action": "install",
+            },
+        )
+        assert setup.status_code == 303, setup.text
+        query = {
+            key: values[0]
+            for key, values in parse_qs(
+                urlparse(setup.headers["location"]).query
+            ).items()
+        }
+        code = vendor.authorize(query["code_challenge"])
+        return await _callback(client, actor, state=query["state"], code=code)
+
+    async def test_after_connect_finds_the_installation_among_the_persons(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        """Initiative lists the person's installations, every page, with the
+        token it just obtained, and keeps the one the install page returned."""
+        vendor.api_answers = [
+            _installations((7, "other"), (8, "else")),
+            _installations((42, "acme")),
+        ]
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _declarative_install(session, a)
+
+        landing = await self._connect(client, a, app, vendor)
+
+        assert landing["outcome"] == "connected"
+        assert vendor.hooks == []
+        assert [request["url"] for request in vendor.api_requests] == [
+            "https://api.github.test/user/installations?page=1&per_page=2",
+            "https://api.github.test/user/installations?page=2&per_page=2",
+        ]
+        assert vendor.api_requests[0]["headers"]["authorization"].startswith(
+            "Bearer gho_access_"
+        )
+        stored = await _reload(session, a.guild.id, app.id)
+        assert stored.config["workspace"] == {"owner": "acme", "installation_id": "42"}
+        assert (await _indexed(session, a.guild.id, app.id)).hook_route == "42"
+
+    async def test_after_connect_refuses_an_installation_not_the_persons(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        vendor.api_answers = [_installations((7, "other"))]
+        a = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _declarative_install(session, a)
+
+        landing = await self._connect(client, a, app, vendor)
+
+        assert landing["outcome"] == "refused"
+        stored = await _reload(session, a.guild.id, app.id)
+        assert "workspace" not in (stored.config or {})
+        assert (await _indexed(session, a.guild.id, app.id)).hook_route is None
+
+    async def test_an_opened_issue_is_emitted_once(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        """The delivery becomes the app's event, through the outbox a
+        container's emission is kept in, and is never forwarded to a hook. A
+        redelivery emits nothing."""
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue())
+
+        for _ in range(2):
+            response = await client.post(
+                DECLARATIVE_HOOKS, content=body, headers=headers
+            )
+            assert response.status_code == 202, response.text
+
+        assert await _events(session, seat.guild.id) == [
+            (
+                ISSUE_OPENED,
+                None,
+                {"repository": "acme/web", "number": 12, "title": "Broken build"},
+            )
+        ]
+        assert vendor.hooks == []
+        [recorded] = await _deliveries(session, seat.guild.id)
+        assert recorded.delivery_id == "delivery-1"
+
+    async def test_a_pull_request_is_not_an_opened_issue(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue(pull_request={"url": "https://x"}))
+
+        response = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        assert await _events(session, seat.guild.id) == []
+        assert vendor.hooks == []
+
+    async def test_an_installation_event_sets_the_connections_state(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        await _declarative_listing(session)
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _declarative_install(session, seat, config=_connected("42"))
+
+        states = []
+        for serial, action in enumerate(("deleted", "unsuspend")):
+            body, headers = vendor.webhook(
+                {"action": action, "installation": {"id": 42}},
+                delivery=f"delivery-{serial}",
+            )
+            headers["X-GitHub-Event"] = "installation"
+            response = await client.post(
+                DECLARATIVE_HOOKS, content=body, headers=headers
+            )
+            assert response.status_code == 202, response.text
+            stored = await _reload(session, seat.guild.id, app.id)
+            states.append((stored.config_state, stored.config_state_detail))
+
+        assert states == [("invalid", "workspace_removed"), ("ok", None)]
+        assert await _events(session, seat.guild.id) == []
+
+    async def test_the_pinned_mapping_is_used_when_the_listing_moved_on(
+        self, client: AsyncClient, acting_user, session, vendor, declarative
+    ):
+        moved = declarative_github(DECLARATIVE_ID)
+        moved["webhooks"]["events"][0]["map"] = (
+            '{"repository": "moved/on", "number": payload.issue.number}'
+        )
+        await _declarative_listing(session, moved)
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        await _declarative_install(session, seat, config=_connected("42"))
+        body, headers = vendor.webhook(_issue())
+
+        response = await client.post(DECLARATIVE_HOOKS, content=body, headers=headers)
+
+        assert response.status_code == 202, response.text
+        [(_, _, payload)] = await _events(session, seat.guild.id)
+        assert payload["repository"] == "acme/web"
+
+    async def test_health_reports_a_failure_read_twice_and_recovery_at_once(
+        self, acting_user, session, role_session, vendor, declarative
+    ):
+        """The check runs with the installation's own token. One answer that
+        the installation is gone is not reported; two in a row are, and the
+        first answer that it works again is."""
+        seat = await acting_user(guild_role=GuildRole.superadmin)
+        app = await _declarative_install(session, seat, config=_connected("42"))
+        assert set(await _runs(session, seat.guild.id)) == {"workspace"}
+        worker = await role_session()
+
+        states = []
+        for answer in ({"status": 404}, {"status": 404}, {"body": {}}):
+            vendor.api_answers = [answer]
+            await _due(session, seat.guild.id)
+            await _run_due(worker, seat.guild.id)
+            stored = await _reload(session, seat.guild.id, app.id)
+            states.append((stored.config_state, stored.config_state_detail))
+
+        assert states == [
+            ("unverified", None),
+            ("invalid", "workspace_removed"),
+            ("ok", None),
+        ]
+        assert {request["url"] for request in vendor.api_requests} == {
+            "https://api.github.test/installation/repositories"
+        }
+        assert vendor.api_requests[0]["headers"]["authorization"].startswith(
+            "Bearer ghs_installation_"
+        )
+        assert vendor.hooks == []

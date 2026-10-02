@@ -64,8 +64,10 @@ __all__ = [
     "connection_payload",
     "connection_token",
     "emit_event",
+    "keep_event",
     "load_install",
     "report_config_state",
+    "set_connection_state",
 ]
 
 #: What one event body may carry. An event is a notification that something
@@ -404,6 +406,32 @@ async def report_config_state(
     }
 
 
+def set_connection_state(app: GuildApp, connection_id: str, state: str) -> bool:
+    """Record what a declarative app learned of one connection at the vendor
+    (a delivery's ``status``, or its health check) as the install's
+    configuration state, where a container's verdict is shown. Answers whether
+    it moved; the caller writes it.
+
+    A state other than ``ok`` is ``invalid``, its detail the connection and
+    the state (``workspace_suspended``). ``ok`` clears a verdict about this
+    connection and leaves one about another as it is.
+    """
+    prefix = f"{connection_id}_"
+    if state == "ok":
+        if app.config_state == "invalid" and not (
+            app.config_state_detail or ""
+        ).startswith(prefix):
+            return False
+        verdict: tuple[str, Optional[str]] = ("ok", None)
+    else:
+        verdict = ("invalid", f"{prefix}{state}"[:MAX_CONFIG_STATE_DETAIL])
+    if (app.config_state, app.config_state_detail) == verdict:
+        return False
+    app.config_state, app.config_state_detail = verdict
+    app.updated_at = datetime.now(timezone.utc)
+    return True
+
+
 # --- events in --------------------------------------------------------------
 
 
@@ -425,19 +453,43 @@ async def emit_event(
     initiative_id: Optional[int],
     token_initiative_id: Optional[int],
 ) -> None:
-    """Keep one event the app emits, for the outbox poller to deliver.
+    """Keep one event the app emits (:func:`keep_event`), and commit it."""
+    await keep_event(
+        session,
+        app,
+        registration,
+        event_type=event_type,
+        payload=payload,
+        initiative_id=initiative_id,
+        token_initiative_id=token_initiative_id,
+    )
+    await session.commit()
+
+
+async def keep_event(
+    session: AsyncSession,
+    app: GuildApp,
+    registration: RegisteredApp,
+    *,
+    event_type: str,
+    payload: dict[str, Any],
+    initiative_id: Optional[int],
+    token_initiative_id: Optional[int] = None,
+) -> None:
+    """Keep one event an app emits, for the outbox poller to deliver: a
+    container's, or one a declarative app's webhook mapping emits.
 
     The type is an ``emit`` endpoint the *pinned* definition declares,
-    namespaced under the calling app. `emit` and not merely declared: reads
+    namespaced under the emitting app. `emit` and not merely declared: reads
     and writes share the id space, and an app that could announce under a
     read's id would be emitting something a subscriber has no way to have
     asked for.
 
     An event about an initiative names one the install is placed in; a token
     narrowed to an initiative emits in that one. The row is written in the
-    request's transaction, which wakes the outbox drain as a captured change
-    does, and the poller delivers it to the community's subscriptions with the
-    change log, retrying until each accepts it.
+    caller's transaction, which wakes the outbox drain as a captured change
+    does once it commits, and the poller delivers it to the community's
+    subscriptions with the change log, retrying until each accepts it.
     """
     definition = app.definition if isinstance(app.definition, dict) else {}
     declared = definition.get("endpoints")
@@ -480,4 +532,3 @@ async def emit_event(
             "SELECT pg_notify(:channel, current_schema() || ':' || txid_current())"
         ).bindparams(channel=OUTBOX_CHANNEL)
     )
-    await session.commit()
