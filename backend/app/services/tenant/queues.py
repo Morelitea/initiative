@@ -26,6 +26,7 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.task import Task
+from app.services.permissions import with_tool
 from app.services.tenant import relationships
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -113,12 +114,14 @@ async def get_queue_item(
     *,
     populate_existing: bool = False,
 ) -> QueueItem | None:
-    """Fetch a queue item with tag/document/task/user relationships loaded."""
+    """Fetch a queue item with its person, tags and properties, and its queue
+    as authorizing it reads it."""
     stmt = (
         select(QueueItem)
         .where(QueueItem.id == item_id)
         .options(
             selectinload(QueueItem.user),
+            with_tool(QueueItem.queue),
         )
     )
     if populate_existing:

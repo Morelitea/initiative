@@ -22,6 +22,7 @@ from app.models.tenant.counter import (
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
 from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -105,7 +106,12 @@ async def get_counter(
     *,
     populate_existing: bool = False,
 ) -> Counter | None:
-    stmt = select(Counter).where(Counter.id == counter_id)
+    """One counter, with its group as authorizing it reads it."""
+    stmt = (
+        select(Counter)
+        .where(Counter.id == counter_id)
+        .options(with_tool(Counter.group))
+    )
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     counter = (await session.exec(stmt)).one_or_none()

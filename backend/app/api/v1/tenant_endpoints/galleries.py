@@ -24,7 +24,7 @@ picture that cannot be thumbnailed is still stored.
 
 import logging
 from datetime import datetime, timezone
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, cast
 
 from fastapi import (
     APIRouter,
@@ -167,52 +167,10 @@ async def annotate_gallery_rows(session: RLSSessionDep, galleries: list) -> None
     await galleries_service.annotate_covers(session, galleries)
 
 
-async def _refetch_image(
-    session: RLSSessionDep, gallery_id: int, image_id: int
-) -> GalleryImage:
-    image = await galleries_service.get_image(
-        session, gallery_id, image_id, populate_existing=True
-    )
-    if image is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GalleryMessages.IMAGE_NOT_FOUND,
-        )
+async def _refetch_image(session: RLSSessionDep, image_id: int) -> GalleryImage:
+    image = await resource_access.reload_child(session, GalleryImage, image_id)
     await galleries_service.annotate_version_counts(session, [image])
     return image
-
-
-async def _load_image(
-    session: RLSSessionDep,
-    gallery_id: int,
-    image_id: int,
-    current_user: User,
-    guild_context: GuildContext,
-    *,
-    access: str = "read",
-    action: Action | None = None,
-) -> tuple[Gallery, GalleryImage]:
-    """The gallery, authorized at ``access``, and one of its pictures.
-
-    Authorization is the gallery's: a picture is the gallery's content, and
-    reaching one means reaching the other.
-    """
-    gallery = await resource_access.load_authorized(
-        session,
-        Tool.gallery,
-        gallery_id,
-        current_user,
-        guild_context,
-        access=access,
-        action=action,
-    )
-    image = await galleries_service.get_image(session, gallery.id, image_id)
-    if image is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GalleryMessages.IMAGE_NOT_FOUND,
-        )
-    return gallery, image
 
 
 async def _read_picture(
@@ -445,7 +403,9 @@ async def update_gallery(
     if "cover_image_id" in update_data:
         cover_id = update_data["cover_image_id"]
         if cover_id is not None:
-            cover = await galleries_service.get_image(session, gallery.id, cover_id)
+            cover = await galleries_service.get_image(
+                session, cover_id, gallery_id=gallery.id
+            )
             if cover is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -669,7 +629,7 @@ async def upload_gallery_image(
         _discard_orphans(guild_context.guild_id, [file_url, thumbnail_url], failed)
         raise
 
-    hydrated = await _refetch_image(session, gallery.id, image.id)
+    hydrated = await _refetch_image(session, image.id)
     return serialize_gallery_image(hydrated, context=guild_context)
 
 
@@ -681,8 +641,8 @@ async def read_gallery_image(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> GalleryImageRead:
-    _, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context
+    image = await resource_access.load_child(
+        session, GalleryImage, image_id, parent_id=gallery_id
     )
     await galleries_service.annotate_version_counts(session, [image])
     return serialize_gallery_image(image, context=guild_context)
@@ -699,8 +659,8 @@ async def update_gallery_image(
 ) -> GalleryImageRead:
     """Retitle, caption, retag or set the properties of a picture. Requires
     write access on the gallery."""
-    gallery, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context, access="write"
+    image = await resource_access.load_child(
+        session, GalleryImage, image_id, access="write", parent_id=gallery_id
     )
     update_data = image_in.model_dump(exclude_unset=True)
     if "title" in update_data:
@@ -720,7 +680,7 @@ async def update_gallery_image(
     session.add(image)
     await attachments_service.claim_uploads(session, image)
     await session.commit()
-    hydrated = await _refetch_image(session, gallery.id, image.id)
+    hydrated = await _refetch_image(session, image.id)
     return serialize_gallery_image(hydrated, context=guild_context)
 
 
@@ -738,9 +698,10 @@ async def delete_gallery_image(
     removing a picture is editing the gallery, and it can be restored."""
     from app.services.tenant.soft_delete import trash
 
-    gallery, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context, access="write"
+    image = await resource_access.load_child(
+        session, GalleryImage, image_id, access="write", parent_id=gallery_id
     )
+    gallery = cast(Gallery, image.gallery)
     await trash(
         session,
         image,
@@ -824,9 +785,10 @@ async def upload_gallery_image_version(
 ) -> GalleryImageVersionRead:
     """Replace a picture with a new rendition, keeping the old one as history.
     Requires write access on the gallery."""
-    gallery, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context, access="write"
+    image = await resource_access.load_child(
+        session, GalleryImage, image_id, access="write", parent_id=gallery_id
     )
+    gallery = image.gallery
     await storage_config.ensure_storage_config_fresh(session)
     contents, mime, extension, width, height, thumb = await _read_picture(
         session, guild_context, file
@@ -882,8 +844,8 @@ async def list_gallery_image_versions(
     guild_context: GuildContextDep,
 ) -> List[GalleryImageVersionRead]:
     """Every stored rendition of a picture, newest first."""
-    _, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context
+    image = await resource_access.load_child(
+        session, GalleryImage, image_id, parent_id=gallery_id
     )
     result = await session.exec(
         select(GalleryImageVersion)
@@ -908,8 +870,8 @@ async def delete_gallery_image_version(
     """Delete one rendition of a picture. Owner only. Deleting the current
     one promotes the previous; deleting the last is refused — remove the
     picture instead."""
-    _, image = await _load_image(
-        session, gallery_id, image_id, current_user, guild_context, action=Action.delete
+    image = await resource_access.load_child(
+        session, GalleryImage, image_id, action=Action.delete, parent_id=gallery_id
     )
     # Serialize concurrent deletes on the same picture: two owner DELETEs that
     # both observe two versions could otherwise each remove one and leave none.

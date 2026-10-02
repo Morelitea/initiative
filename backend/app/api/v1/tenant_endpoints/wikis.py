@@ -24,7 +24,6 @@ from copy import deepcopy
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select
 
 from app.db.session import routed_guild_id
 from app.api import resource_access, tool_copy
@@ -106,34 +105,6 @@ async def _refetch_wiki(
         )
     await annotate_wiki_rows(session, [wiki])
     return wiki
-
-
-async def _load_page(
-    session: RLSSessionDep,
-    wiki_id: int,
-    page_id: int,
-    current_user: User | None,
-    guild_context: ActorContext,
-    *,
-    access: str = "read",
-) -> tuple[Wiki, WikiPage]:
-    """The wiki, authorized at ``access``, and one of its pages.
-
-    Authorization is the wiki's: a page is the wiki's content, and reaching
-    one means reaching the other.
-    """
-    wiki = await resource_access.load_authorized(
-        session, Tool.wiki, wiki_id, current_user, guild_context, access=access
-    )
-    page = await wikis_service.get_page(session, wiki.id, page_id)
-    # A draft is its writers' (the wiki_pages read policy); to anyone else it
-    # is missing, the same answer as for a page that was never written.
-    if page is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WikiMessages.PAGE_NOT_FOUND,
-        )
-    return wiki, page
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +206,7 @@ async def update_wiki(
             continue
         page_id = data[field]
         if page_id is not None:
-            page = await wikis_service.get_page(session, wiki.id, page_id)
+            page = await wikis_service.get_page(session, page_id, wiki_id=wiki.id)
             if page is None:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail=refusal
@@ -395,7 +366,8 @@ async def move_wiki_document(
         )
 
     if move.parent_page_id is not None and (
-        await wikis_service.get_page(session, wiki.id, move.parent_page_id) is None
+        await wikis_service.get_page(session, move.parent_page_id, wiki_id=wiki.id)
+        is None
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
@@ -463,7 +435,9 @@ async def create_wiki_page(
     title = (page_in.title or "").strip()
 
     if page_in.parent_page_id is not None:
-        parent = await wikis_service.get_page(session, wiki.id, page_in.parent_page_id)
+        parent = await wikis_service.get_page(
+            session, page_in.parent_page_id, wiki_id=wiki.id
+        )
         if parent is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -475,7 +449,9 @@ async def create_wiki_page(
     # hundred character pages the same shape without anybody policing it.
     content = page_in.content
     if content is None and wiki.template_page_id is not None:
-        template = await wikis_service.get_page(session, wiki.id, wiki.template_page_id)
+        template = await wikis_service.get_page(
+            session, wiki.template_page_id, wiki_id=wiki.id
+        )
         if template is not None:
             content = deepcopy(template.content or {})
 
@@ -527,17 +503,7 @@ async def read_wiki_page(
 ) -> WikiPageRead:
     """One page by its own id, which is all a link to it, a mention or a
     stored notification names."""
-    wiki_id = (
-        await session.exec(select(WikiPage.wiki_id).where(WikiPage.id == page_id))
-    ).first()
-    if wiki_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WikiMessages.PAGE_NOT_FOUND,
-        )
-    _wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id)
     await tags_service.annotate_tags(session, [page])
     await properties_service.annotate_properties(session, [page])
     return serialize_wiki_page(page, context=guild_context)
@@ -556,17 +522,8 @@ async def duplicate_wiki_page(
 ) -> WikiPageRead:
     """Copy the page, without the pages under it, to the end of where it is
     filed, as "<title> (Copy)", with its tags, links and properties."""
-    wiki_id = (
-        await session.exec(select(WikiPage.wiki_id).where(WikiPage.id == page_id))
-    ).first()
-    if wiki_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WikiMessages.PAGE_NOT_FOUND,
-        )
-    wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context, access="write"
-    )
+    page = await resource_access.load_child(session, WikiPage, page_id, access="write")
+    wiki = page.wiki
     copy = await tool_copy.duplicate_child(
         session,
         page,
@@ -592,8 +549,8 @@ async def update_wiki_page(
     current_user: CurrentUserDep,
     guild_context: GuildContextDep,
 ) -> WikiPageRead:
-    _wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context, access="write"
+    page = await resource_access.load_child(
+        session, WikiPage, page_id, access="write", parent_id=wiki_id
     )
     data = page_in.model_dump(exclude_unset=True)
     content_updated = "content" in data and data["content"] is not None
@@ -672,9 +629,10 @@ async def move_wiki_page(
     Only the page's new neighbours are renumbered: a position means something
     among the pages filed together and nothing across the wiki.
     """
-    wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context, access="write"
+    page = await resource_access.load_child(
+        session, WikiPage, page_id, access="write", parent_id=wiki_id
     )
+    wiki = page.wiki
     await wikis_service.validate_reparent(session, page, move.parent_page_id)
     await wikis_service.place_in_list(
         session, wiki, page, move.position, move.parent_page_id
@@ -694,8 +652,8 @@ async def delete_wiki_page(
 ) -> None:
     """Send a page to the trash. Its children go with it — a section is put
     away whole."""
-    _wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context, access="write"
+    page = await resource_access.load_child(
+        session, WikiPage, page_id, access="write", parent_id=wiki_id
     )
     # Sub-pages go with it through CASCADE_CHILDREN, the same way a comment
     # thread follows its root.
@@ -721,8 +679,8 @@ async def read_wiki_page_links(
     ``[[ ]]`` extractor writes to, so a page that somebody linked to from a
     task knows about it without the task having to say so twice.
     """
-    _wiki, page = await _load_page(
-        session, wiki_id, page_id, current_user, guild_context
+    page = await resource_access.load_child(
+        session, WikiPage, page_id, parent_id=wiki_id
     )
     outgoing, incoming = await wikis_service.page_links(session, page)
 

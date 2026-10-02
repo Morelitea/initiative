@@ -8,7 +8,7 @@ into the trash with it is ``soft_delete_test``'s; restoring it is ``trash_test``
 ``POST /{tool}/{id}/duplicate`` is mounted for every tool in
 ``tool_copy.TOOL_COPIERS``, and its shared steps are proved here per tool; what
 each tool carries inside it is that tool's own test. So is the duplicate of a
-row inside a tool (``tool_copy.CHILD_COPIERS``), which each sub-tool routes
+row inside a tool (``resource_access.SUB_TOOLS``), which each sub-tool routes
 itself.
 
 The queue and counter-group signal tests this replaces asserted the same thing
@@ -19,15 +19,17 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.resource_access import governing_tool
-from app.api.tool_copy import CHILD_COPIERS, TOOL_COPIERS
+from app.api.resource_access import SUB_TOOLS, governing_tool, parent_column
+from app.api.tool_copy import TOOL_COPIERS
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
 from app.core.tools import Tool
 from app.models.platform.guild import GuildRole
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter
+from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.queue import QueueItem
+from app.models.tenant.task import Task
 from app.models.tenant.wiki import WikiPage
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.tenant.lifecycle_tree import CASCADE_CHILDREN
@@ -39,6 +41,7 @@ from app.testing import (
     create_queue_item,
     create_resource_grant,
     create_tag,
+    create_task,
     create_tool_entity,
     enable_all_tools,
     create_wiki_page,
@@ -202,6 +205,7 @@ def test_every_table_inside_a_tool_is_copied_or_left_on_purpose(tool: Tool):
 
 #: Where each row inside a tool is addressed, and how one called ``name`` is made.
 CHILDREN = {
+    Task: ("tasks", lambda s, tool, user, name: create_task(s, tool, title=name)),
     Counter: (
         "counters",
         lambda s, tool, user, name: create_counter(s, tool, name=name),
@@ -218,21 +222,28 @@ CHILDREN = {
         "wiki-pages",
         lambda s, tool, user, name: create_wiki_page(s, tool, user, title=name),
     ),
+    # Copied with its gallery, not on its own.
+    GalleryImage: None,
 }
 
 
 @pytest.mark.parametrize(
-    "model", list(CHILD_COPIERS), ids=[m.__tablename__ for m in CHILD_COPIERS]
+    "model", list(SUB_TOOLS), ids=[m.__tablename__ for m in SUB_TOOLS]
 )
 async def test_a_row_inside_a_tool_is_copied_beside_itself_by_its_writers(
     client: AsyncClient, session: AsyncSession, acting_user, model: type
 ):
-    segment, make = CHILDREN[model]
-    copier = CHILD_COPIERS[model]
+    entry = CHILDREN[model]
+    if entry is None:
+        pytest.skip("not copied on its own")
+    segment, make = entry
+    column = SUB_TOOLS[model].name
+    length = model.__table__.c[column].type.length
     a = await acting_user(guild_role=GuildRole.member, initiative=True)
     tool = await _entity(session, a, governing_tool(model.__tablename__))
     # As long as the column takes, so the copy's name has to be shortened.
     name = "Plan" + "n" * 251
+    expected = (name[: length - 7] if length else name) + " (Copy)"
     row = await make(session, tool, a.user, name)
     tagged = any(spec.entity is model for spec in TAG_LINKS.values())
     if tagged:
@@ -255,5 +266,5 @@ async def test_a_row_inside_a_tool_is_copied_beside_itself_by_its_writers(
     assert copied.status_code == 201, copied.text
     body = copied.json()
     assert body["id"] != row.id
-    assert (body[copier.name], body[copier.parent]) == (name[:248] + " (Copy)", tool.id)
+    assert (body[column], body[parent_column(model)]) == (expected, tool.id)
     assert len(body.get("tags", [])) == int(tagged)

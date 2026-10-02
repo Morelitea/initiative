@@ -14,7 +14,6 @@ from fastapi import (
     status,
 )
 
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import routed_guild_id
 from app.api.actor_route import ActorRoute
@@ -28,7 +27,6 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import CounterMessages
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -77,24 +75,6 @@ CounterGroupsWrite = Annotated[ActorContext, Depends(app_scope("counter_groups:w
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _get_counter_for_group(
-    session: RLSSessionDep,
-    group_id: int,
-    counter_id: int,
-) -> Counter:
-    counter = await counters_service.get_counter(session, counter_id)
-    if (
-        not counter
-        or counter.counter_group_id != group_id
-        or counter.deleted_at is not None
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=CounterMessages.NOT_FOUND,
-        )
-    return counter
 
 
 async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
@@ -269,13 +249,7 @@ async def add_counter(
     await properties_service.write_on_create(session, counter, counter_in.properties)
     await session.commit()
 
-    hydrated = await counters_service.get_counter(
-        session, counter.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
+    hydrated = await resource_access.reload_child(session, Counter, counter.id)
     result = serialize_counter(hydrated, context=guild_context)
     sockets.signal(
         routed_guild_id(session), Tool.counter_group, group_id, "counter_added"
@@ -292,15 +266,9 @@ async def update_counter(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> CounterRead:
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write", parent_id=group_id
     )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
 
     update_data = counter_in.model_dump(exclude_unset=True)
 
@@ -366,13 +334,7 @@ async def update_counter(
         session.add(counter)
         await session.commit()
 
-    hydrated = await counters_service.get_counter(
-        session, counter.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
+    hydrated = await resource_access.reload_child(session, Counter, counter.id)
     result = serialize_counter(hydrated, context=guild_context)
     sockets.signal(
         routed_guild_id(session), Tool.counter_group, group_id, "counter_updated"
@@ -392,15 +354,9 @@ async def delete_counter(
 ) -> None:
     from app.services.tenant.soft_delete import trash
 
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write", parent_id=group_id
     )
-    counter = await _get_counter_for_group(session, group_id, counter_id)
     await trash(
         session,
         counter,
@@ -425,13 +381,7 @@ async def _commit_and_broadcast_count(
     context: ActorContext,
 ) -> CounterRead:
     await session.commit()
-    hydrated = await counters_service.get_counter(
-        session, counter.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
+    hydrated = await resource_access.reload_child(session, Counter, counter.id)
     result = serialize_counter(hydrated, context=context)
     sockets.signal(
         routed_guild_id(session), Tool.counter_group, group_id, "count_changed"
@@ -454,46 +404,9 @@ async def read_counter(
     mismatch — and no hand-written deleted check to contradict the request,
     which is what a read-back after a delete depends on.
     """
-    counter = await counters_service.get_counter(session, counter_id)
-    if not counter:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        counter.counter_group_id,
-        current_user,
-        guild_context,
-        access="read",
-    )
+    counter = await resource_access.load_child(session, Counter, counter_id)
+    await properties_service.annotate_properties(session, [counter])
     return serialize_counter(counter, context=guild_context)
-
-
-async def _writable_counter(
-    session: AsyncSession,
-    counter_id: int,
-    current_user: User | None,
-    guild_context: ActorContext,
-) -> Counter:
-    """A live counter the caller may write, addressed by its own id.
-
-    Authorized on the group it belongs to, as reading it is.
-    """
-    counter = await counters_service.get_counter(session, counter_id)
-    if counter is None or counter.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
-    await resource_access.load_authorized(
-        session,
-        Tool.counter_group,
-        counter.counter_group_id,
-        current_user,
-        guild_context,
-        access="write",
-    )
-    return counter
 
 
 @counters_router.post(
@@ -509,7 +422,9 @@ async def duplicate_counter(
 ) -> CounterRead:
     """Copy the counter to the end of its group as "<name> (Copy)", with its
     count, tags and properties."""
-    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
     copy = await tool_copy.duplicate_child(
         session,
         counter,
@@ -518,13 +433,7 @@ async def duplicate_counter(
         ),
     )
     await session.commit()
-    hydrated = await counters_service.get_counter(
-        session, copy.id, populate_existing=True
-    )
-    if not hydrated:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
-        )
+    hydrated = await resource_access.reload_child(session, Counter, copy.id)
     result = serialize_counter(hydrated, context=guild_context)
     sockets.signal(
         routed_guild_id(session),
@@ -544,7 +453,9 @@ async def set_counter_count(
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     """Put a counter at a number, held within its bounds."""
-    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
     await counters_service.set_count(session, counter, payload.count)
     return await _commit_and_broadcast_count(
         session, counter.counter_group_id, counter, context=guild_context
@@ -561,7 +472,9 @@ async def step_counter(
 ) -> CounterRead:
     """Move a counter up or down, by ``amount`` or by its own step, held within
     its bounds. Two steps landing together each count."""
-    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
     await counters_service.step_counter(
         session, counter.id, up=payload.direction == "up", amount=payload.amount
     )
@@ -578,7 +491,9 @@ async def reset_counter(
     guild_context: CounterGroupsWrite,
 ) -> CounterRead:
     """Put a counter back to the value it starts from."""
-    counter = await _writable_counter(session, counter_id, current_user, guild_context)
+    counter = await resource_access.load_child(
+        session, Counter, counter_id, access="write"
+    )
     await counters_service.reset_counter(session, counter)
     return await _commit_and_broadcast_count(
         session, counter.counter_group_id, counter, context=guild_context

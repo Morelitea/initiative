@@ -257,34 +257,6 @@ def occurrences(
     return found
 
 
-async def _get_event_or_404(
-    session: ActorSessionDep,
-    event_id: int,
-    user: User | None,
-    guild_context: ActorContext,
-    *,
-    action: Action | None = None,
-) -> CalendarEvent:
-    event = await events_service.get_event(session, event_id)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=CalendarEventMessages.NOT_FOUND,
-        )
-    # Feature gate + DAC, both resolved on the parent calendar: read to see the
-    # event, contribute for any mutation. The parent's tool comes from the registry
-    # the event table's own policy is rendered from, so the two agree on what
-    # governs an event by construction.
-    resource_access.authorize(
-        resource_access.governing_tool("calendar_events"),
-        event.calendar,
-        user,
-        action=action,
-        context=guild_context,
-    )
-    return event
-
-
 async def _get_writable_calendar(
     session: ActorSessionDep,
     calendar_id: int,
@@ -304,13 +276,7 @@ async def _get_writable_calendar(
 
 
 async def _refetch_event(session: ActorSessionDep, event_id: int) -> CalendarEvent:
-    event = await events_service.get_event(session, event_id, populate_existing=True)
-    if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=CalendarEventMessages.NOT_FOUND,
-        )
-    return event
+    return await resource_access.reload_child(session, CalendarEvent, event_id)
 
 
 async def _notify_about_event(
@@ -727,7 +693,7 @@ async def read_calendar_event(
         description="One occurrence of a repeating event, whose answers to show.",
     ),
 ) -> CalendarEventRead:
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
+    event = await resource_access.load_child(session, CalendarEvent, event_id)
     return await _serialized_event(
         session,
         event,
@@ -843,8 +809,8 @@ async def duplicate_calendar_event(
     repeating event comes with its occurrences changed on their own; one
     changed occurrence, or the ``occurrence`` named, is copied as an event of
     its own."""
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, action=Action.contribute
+    event = await resource_access.load_child(
+        session, CalendarEvent, event_id, action=Action.contribute
     )
     copy = await tool_copy.duplicate_event(session, event, event.calendar, occurrence)
     invited = (
@@ -880,8 +846,8 @@ async def update_calendar_event(
     series, its times moving every occurrence by as much as they move the one
     named. Changing an occurrence that has a row of its own changes that row,
     unless the scope says otherwise."""
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, action=Action.contribute
+    event = await resource_access.load_child(
+        session, CalendarEvent, event_id, action=Action.contribute
     )
     changes = event_in.model_dump(
         exclude_unset=True, exclude={"scope", "occurrence", "tz"}
@@ -904,12 +870,8 @@ async def update_calendar_event(
         occurrences_service.unmark(event, changes)
         session.add(event)
         at = event.original_start
-        event = await _get_event_or_404(
-            session,
-            event.series_id,
-            current_user,
-            guild_context,
-            action=Action.contribute,
+        event = await resource_access.load_child(
+            session, CalendarEvent, event.series_id, action=Action.contribute
         )
 
     if event.recurrence and scope == "this":
@@ -1189,19 +1151,15 @@ async def delete_calendar_event(
     otherwise."""
     from app.services.tenant.soft_delete import trash
 
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, action=Action.contribute
+    event = await resource_access.load_child(
+        session, CalendarEvent, event_id, action=Action.contribute
     )
     # Whose attendees hear of it: an occurrence's own row's, or the event's.
     told = event
     if event.series_id is not None:
         at = event.original_start
-        event = await _get_event_or_404(
-            session,
-            event.series_id,
-            current_user,
-            guild_context,
-            action=Action.contribute,
+        event = await resource_access.load_child(
+            session, CalendarEvent, event.series_id, action=Action.contribute
         )
         scope = scope or "this"
     else:
@@ -1295,12 +1253,8 @@ async def _scoped_list_target(
         occurrences_service.unmark(event, [field])
         session.add(event)
         at = event.original_start
-        event = await _get_event_or_404(
-            session,
-            event.series_id,
-            current_user,
-            guild_context,
-            action=Action.contribute,
+        event = await resource_access.load_child(
+            session, CalendarEvent, event.series_id, action=Action.contribute
         )
     if event.recurrence and scope == "this":
         target = await occurrences_service.occurrence(
@@ -1329,8 +1283,8 @@ async def _repeating_or_404(
     current_user: User | None,
     guild_context: ActorContext,
 ) -> CalendarEvent:
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, action=Action.contribute
+    event = await resource_access.load_child(
+        session, CalendarEvent, event_id, action=Action.contribute
     )
     if not event.recurrence:
         raise HTTPException(
@@ -1449,8 +1403,8 @@ async def set_attendees(
     Everyone newly on the list is invited by whoever set it: the person, or an
     installed app by its name. ``scope`` works as it does on an update.
     """
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, action=Action.contribute
+    event = await resource_access.load_child(
+        session, CalendarEvent, event_id, action=Action.contribute
     )
     event = await _scoped_list_target(
         session, event, "attendees", scope, occurrence, current_user, guild_context
@@ -1487,7 +1441,7 @@ async def update_rsvp(
 
     An answer is for one event: a repeating event is answered one occurrence
     at a time, named by ``occurrence``."""
-    event = await _get_event_or_404(session, event_id, current_user, guild_context)
+    event = await resource_access.load_child(session, CalendarEvent, event_id)
     answer = rsvp_in.rsvp_status
     if event.recurrence:
         await occurrences_service.answer_occurrence(

@@ -38,6 +38,7 @@ from app.core.image_headers import ImageHeader, read_image_header
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 
@@ -231,19 +232,23 @@ async def get_gallery(
 
 async def get_image(
     session: AsyncSession,
-    gallery_id: int,
     image_id: int,
     *,
+    gallery_id: int | None = None,
     populate_existing: bool = False,
 ) -> GalleryImage | None:
-    """One picture, by id, in the gallery the request named — a picture is
-    only ever reached through its gallery, so an id from another one is
-    nothing here."""
+    """One picture, with its gallery as authorizing it reads it. ``gallery_id``
+    makes a picture of another gallery read as missing."""
     stmt = (
         select(GalleryImage)
-        .where(GalleryImage.id == image_id, GalleryImage.gallery_id == gallery_id)
-        .options(*image_loader_options())
+        .where(GalleryImage.id == image_id)
+        .options(
+            *image_loader_options(),
+            with_tool(GalleryImage.gallery),
+        )
     )
+    if gallery_id is not None:
+        stmt = stmt.where(GalleryImage.gallery_id == gallery_id)
     if populate_existing:
         stmt = stmt.execution_options(populate_existing=True)
     image = (await session.exec(stmt)).one_or_none()
