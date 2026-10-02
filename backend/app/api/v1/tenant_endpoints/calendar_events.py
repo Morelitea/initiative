@@ -1116,7 +1116,13 @@ async def _apply_update(
                 data={"time_changed": time_changed},
             )
 
-        await attachments_service.claim_uploads(session, event)
+        # A move that writes nothing a file shows from carries the event's own.
+        await attachments_service.claim_uploads(
+            session,
+            event,
+            carried="calendar_id" in update_data
+            and not attachments_service.shows_files(CalendarEvent, update_data),
+        )
     session.add(event)
     await session.commit()
 

@@ -241,6 +241,13 @@ async def copy_contents(
     copy.featured_image_url = copied(copy.featured_image_url)
     copy.file_url = copied(copy.file_url)
     if copy.file_url is not None:
+        # An app is never an author: its copy names the file's uploader.
+        author = actor.user_id or await session.scalar(
+            select(DocumentFileVersion.created_by)
+            .where(DocumentFileVersion.document_id == source.id)
+            .order_by(DocumentFileVersion.version_number.desc())
+            .limit(1)
+        )
         session.add(
             DocumentFileVersion(
                 document_id=copy.id,
@@ -249,7 +256,7 @@ async def copy_contents(
                 file_content_type=copy.file_content_type,
                 file_size=copy.file_size,
                 original_filename=copy.original_filename,
-                created_by=actor.user_id,
+                created_by=author,
             )
         )
     await content_references.sync_for_entity(

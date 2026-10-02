@@ -615,7 +615,8 @@ _APP_SECTION = """\
 -- (nothing, for a resource no scope writes). An install reads the initiatives
 -- it is placed in whatever its scopes, since its own standing and the
 -- lifecycle checks on its writes read them. An install sees and changes its
--- own event subscriptions and no one else's. The change log and the search
+-- own event subscriptions and no one else's, and the stored files of the
+-- initiatives it is placed in. The change log and the search
 -- index are written by triggers, and an install writes them only there; it
 -- reads a search entry with the read scope of the entry's kind and of the tool
 -- governing it, and a narrowed token reads no entry of a tool that belongs to
@@ -790,6 +791,14 @@ def _app_predicates(table: str) -> dict[str, str]:
         own = f"({_IID} IS NULL OR app_install_id = {_IID})"
         return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), own)
     if access.kind is AppTableKind.side_effect:
+        if table == "uploads":
+            # Stored and claimed as a step of saving content, in the
+            # initiatives the install is placed in.
+            placed = (
+                f"({_IID} IS NULL OR uploads.initiative_id IN "
+                f"{_app_placed_initiatives()})"
+            )
+            return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), placed)
         if table not in _TRIGGER_WRITTEN_INSERT:
             return {}
         by_trigger = f"({_IID} IS NULL OR pg_trigger_depth() > 0)"

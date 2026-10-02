@@ -48,7 +48,6 @@ def test_structure_is_read_only(table):
         "guild_settings",
         "guild_apps",
         "initiative_role_permissions",
-        "uploads",
         "project_favorites",
         "post_reads",
         "intake_cases",
@@ -58,7 +57,8 @@ def test_administration_and_personal_state_are_out_of_reach(table):
     assert table not in APP_TABLE_ACCESS
 
 
-def test_side_effects_are_never_written_directly():
-    access = APP_TABLE_ACCESS["event_outbox"]
+@pytest.mark.parametrize("table", ["event_outbox", "uploads"])
+def test_side_effects_are_never_written_directly(table):
+    access = APP_TABLE_ACCESS[table]
     assert access.kind is AppTableKind.side_effect
     assert not access.writable

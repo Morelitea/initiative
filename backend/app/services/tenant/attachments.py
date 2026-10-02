@@ -306,14 +306,19 @@ async def guild_wide(guild_id: int) -> AsyncIterator[Any]:
 Leaving = Mapping[type, Iterable[int]]
 
 
-async def _still_shown(session, filename: str, *, leaving: Leaving) -> bool:
+async def _still_shown(
+    session, filename: str, *, leaving: Leaving, tables: Set[str] | None = None
+) -> bool:
     """Whether anything stored — archived or in the trash included — other than
-    the rows ``leaving`` shows this stored file."""
+    the rows ``leaving`` shows this stored file, looking only in ``tables`` when
+    they are named."""
     from sqlalchemy import Text, cast
 
     from app.db.soft_delete_filter import select_including_deleted
 
     for model, column in _upload_columns():
+        if tables is not None and model.__tablename__ not in tables:
+            continue
         stmt = select_including_deleted(model.id).where(  # type: ignore[attr-defined]
             cast(getattr(model, column), Text).like(_like(filename))
         )
@@ -589,8 +594,15 @@ def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
     return _walk(payload)
 
 
+def shows_files(model: type, fields: Iterable[str]) -> bool:
+    """Whether any of ``fields`` is a column ``model``'s rows can show a stored
+    file from."""
+    named = set(fields)
+    return any(m is model and column in named for m, column in _upload_columns())
+
+
 async def claim_uploads(
-    session, *rows: Any, uploaded_by: Set[int] | None = None
+    session, *rows: Any, uploaded_by: Set[int] | None = None, carried: bool = False
 ) -> None:
     """Keep the uploads these saved rows show for the initiative each row
     belongs to — none for content of the whole guild.
@@ -608,6 +620,9 @@ async def claim_uploads(
     ``uploaded_by`` keeps the claims to files those people uploaded, for a save
     made on nobody's session (a live-editing room); such a save copies nothing.
 
+    ``carried`` says the rows bring content they already showed, as a move
+    does, rather than content this save wrote.
+
     Flushes first; the caller commits.
     """
     from sqlalchemy import inspect, text
@@ -615,8 +630,9 @@ async def claim_uploads(
     from sqlalchemy.orm.attributes import flag_modified
     from sqlmodel import select
 
+    from app.db.app_rls import APP_TABLE_ACCESS
     from app.db.initiative_rls import INITIATIVE_PATHS
-    from app.db.session import guild_context
+    from app.db.session import guild_context, install_context
     from app.models.tenant.upload import Upload
     from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
 
@@ -683,6 +699,24 @@ async def claim_uploads(
     person = guild_context(session)
     if not wanted or (person is None and uploaded_by is not None):
         return
+    if install_context(session) is not None:
+        # An installed app reaches a file through the content showing it, so
+        # it copies one only when content it reads shows it: other content,
+        # or rows it carried here.
+        saving: Dict[type, list[int]] = {}
+        for row, *_ in showing:
+            saving.setdefault(type(row), []).append(row.id)
+        for initiative_id, urls in wanted.items():
+            wanted[initiative_id] = {
+                url
+                for url in urls
+                if await _still_shown(
+                    session,
+                    Path(url).name,
+                    leaving={} if carried else saving,
+                    tables=set(APP_TABLE_ACCESS),
+                )
+            }
     copies = {
         initiative_id: await copy_uploads(
             session,
@@ -907,21 +941,29 @@ async def get_guild_storage_usage(guild_id: int) -> int:
 _QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
 
 
-async def storage_left(session, *, guild_id: int) -> int | None:
-    """What the guild's ``max_storage_bytes`` still allows, or ``None`` when it
-    has no limit. A reading for planning, not a reservation: the write that
-    follows still goes through :func:`enforce_storage_quota`."""
+async def _storage_limit(guild_id: int) -> int | None:
+    """The guild's ``max_storage_bytes``, ``None`` for no limit. A setting of
+    the community rather than of whoever is writing, so it is read on
+    :func:`guild_wide`, as the usage it is compared with is."""
     from sqlmodel import select
 
     from app.models.platform.guild_administration import GuildAdministration
 
-    limit = (
-        await session.exec(
-            select(GuildAdministration.max_storage_bytes).where(
-                GuildAdministration.guild_id == guild_id
+    async with guild_wide(guild_id) as session:
+        return (
+            await session.exec(
+                select(GuildAdministration.max_storage_bytes).where(
+                    GuildAdministration.guild_id == guild_id
+                )
             )
-        )
-    ).one_or_none()
+        ).one_or_none()
+
+
+async def storage_left(guild_id: int) -> int | None:
+    """What the guild's ``max_storage_bytes`` still allows, or ``None`` when it
+    has no limit. A reading for planning, not a reservation: the write that
+    follows still goes through :func:`enforce_storage_quota`."""
+    limit = await _storage_limit(guild_id)
     if limit is None:
         return None
     return max(0, limit - await get_guild_storage_usage(guild_id))
@@ -931,9 +973,9 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     """Reject an upload that would exceed the guild's ``max_storage_bytes``.
 
     NULL / absent limit means unlimited (the default), so this is a no-op until a
-    quota is set on the guild. The limit lives on the shared
-    ``guild_administration`` row (read-only to every request-path role); the
-    usage is :func:`get_guild_storage_usage`, every upload the guild stores.
+    quota is set on the guild. The limit is :func:`_storage_limit` and the
+    usage :func:`get_guild_storage_usage`, every upload the guild stores, both
+    read for the community whoever is writing.
 
     Must be called within the SAME transaction that then inserts the ``uploads``
     row and commits. When a limit is set, it takes a transaction-scoped advisory
@@ -944,17 +986,8 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     uploads to other guilds are unaffected.
     """
     from sqlalchemy import text
-    from sqlmodel import select
 
-    from app.models.platform.guild_administration import GuildAdministration
-
-    limit = (
-        await session.exec(
-            select(GuildAdministration.max_storage_bytes).where(
-                GuildAdministration.guild_id == guild_id
-            )
-        )
-    ).one_or_none()
+    limit = await _storage_limit(guild_id)
     if limit is None:
         return
     # Serialize concurrent uploads for this guild for the remainder of the

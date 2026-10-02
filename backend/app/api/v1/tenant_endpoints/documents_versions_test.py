@@ -18,6 +18,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.upload import Upload
 from app.testing import create_resource_grant
+from app.testing.app_clients import install_app, install_headers
 
 PDF_BYTES = b"%PDF-1.4 first version body"
 PDF_BYTES_V2 = b"%PDF-1.4 second version body that differs"
@@ -79,6 +80,43 @@ async def test_upload_and_duplicate_each_start_at_version_one(
     )
     assert downloaded.status_code == 200
     assert downloaded.content == PDF_BYTES
+
+
+async def test_an_app_copies_a_file_document_under_its_uploader(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+) -> None:
+    """An app with the document scopes copies the file a document shows, and
+    the copy's version 1 names the file's uploader: an app is never an
+    author."""
+    scopes = ["documents:read", "documents:write"]
+    installed = await install_app(session, acting_user, role_session, granted=scopes)
+    # Uploaded documents are shared with the initiative the install is placed
+    # in, and read is enough to copy a template.
+    doc = await _upload_initial_file_doc(
+        client, installed.seat, initiative=installed.placed
+    )
+    template = await session.get(Document, doc["id"])
+    assert template is not None
+    template.is_template = True
+    session.add(template)
+    await session.commit()
+
+    response = await client.post(
+        installed.seat.g(f"/documents/{doc['id']}/duplicate"),
+        headers=install_headers(installed, scopes),
+    )
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert copy["file_url"] != doc["file_url"]
+    version = (
+        await session.exec(
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == copy["id"]
+            )
+        )
+    ).one()
+    assert version.created_by == installed.seat.user.id
 
 
 async def test_upload_version_creates_v2_and_mirrors_document(
