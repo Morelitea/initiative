@@ -22,7 +22,7 @@ _APP_DIR = Path(__file__).resolve().parent.parent
 #: describes, so the app API's document cannot type it as a reference.
 _UNTYPED_PERSON_IDS = {
     # ``value`` holds whatever the property's type stores; a person for a
-    # ``user_reference`` property.
+    # ``user_reference`` property, which the field's description states.
     "schemas/tenant/property.py:PropertySummary._value_out",
 }
 

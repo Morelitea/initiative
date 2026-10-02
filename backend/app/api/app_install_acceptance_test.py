@@ -111,6 +111,11 @@ async def test_reads_the_documents_open_to_its_initiative(
     assert listed.status_code == 200, listed.text
     assert [d["name"] for d in listed.json()["items"]] == ["Open in A"]
 
+    # The app API's document serves from /c/0: the token names the community.
+    advertised = await client.get(guild_url(0, "/documents/"), headers=headers)
+    assert advertised.status_code == 200, advertised.text
+    assert advertised.json() == listed.json()
+
     read = await client.get(
         guild_url(installed.guild.id, f"/documents/{shared.id}"), headers=headers
     )
