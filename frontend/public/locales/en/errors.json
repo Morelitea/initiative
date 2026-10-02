@@ -75,6 +75,7 @@
   "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING": "You already have a request waiting on this initiative",
   "INITIATIVE_JOIN_REQUEST_NOT_FOUND": "Join request not found",
   "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED": "This join request has already been answered",
+  "INITIATIVE_CONTENT_KEPT_IN": "This initiative keeps its content in: nothing in it can be exported or copied to another initiative",
   "OIDC_NOT_ENABLED": "OIDC is not enabled",
   "OIDC_METADATA_INCOMPLETE": "OIDC metadata incomplete",
   "AUTH_PROVIDER_NOT_FOUND": "Sign-in provider not found",

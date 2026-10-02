@@ -142,6 +142,11 @@
       "lockedNote": "Un administrateur de communauté a activé l’adhésion automatique pour cette initiative, elle doit donc rester ouverte à tous. Demandez à un administrateur de la désactiver avant de changer ceci.",
       "turnedOff": "L’adhésion automatique est désactivée : elle n’est possible que tant que tout le monde peut rejoindre."
     },
+    "keepContentIn": {
+      "title": "Garder le contenu dans cette initiative",
+      "label": "Bloquer les exports et les copies vers d’autres initiatives",
+      "help": "Tant que c’est activé, personne ne peut exporter quoi que ce soit de cette initiative ni le copier vers une autre initiative, y compris les responsables et les admins de la communauté. Les copies au sein de cette initiative fonctionnent toujours, tout comme l’export de l’initiative ci-dessous."
+    },
     "membersTitle": "Membres",
     "membersDescription": "Les chefs de projet et les administrateurs de la communauté peuvent gérer les membres.",
     "filterByName": "Filtrer par nom",

@@ -25,7 +25,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
-from app.core.messages import DocumentMessages
+from app.core.messages import DocumentMessages, InitiativeMessages
 from app.core.tools import Tool
 from app.db.guild_standing import ActorContext
 from app.db.session import require_actor_context
@@ -52,6 +52,7 @@ from app.services import notifications as notifications_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import documents as documents_service
+from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people, project_grants
 from app.services.tenant import properties as properties_service
@@ -222,7 +223,8 @@ async def duplicate(
 ) -> Any:
     """Copy ``source`` into ``initiative_id`` (its own when ``None``), held to
     what a create there is held to. Beside its source the copy is called
-    "<name> (Copy)" unless ``name`` is given; elsewhere it keeps the name.
+    "<name> (Copy)" unless ``name`` is given; elsewhere it keeps the name,
+    unless the source's initiative keeps its content in, which refuses it.
 
     ``values`` overrides carried columns (a project made from a template takes
     its own dates), and ``grants`` replaces the source's sharing. Raises
@@ -233,6 +235,13 @@ async def duplicate(
     model = type(source)
     initiative_id = initiative_id or source.initiative_id
     beside = initiative_id == source.initiative_id
+    if not beside and await initiatives_service.keeps_content_in(
+        session, [source.initiative_id]
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=InitiativeMessages.CONTENT_KEPT_IN,
+        )
     await resource_access.prepare_create(session, tool, initiative_id, user, actor)
     name = (name or "").strip() or (
         copy_name(source.name, _length(model, "name")) if beside else source.name

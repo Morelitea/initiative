@@ -276,6 +276,25 @@ describe("ToolSettingsAdvancedPage", () => {
     await waitFor(() => expect(sent).toEqual({ name: "Q3 Roadmap", target_initiative_id: 4 }));
   });
 
+  it("copies an initiative that keeps its content in only beside itself", async () => {
+    resetFactories();
+    const can = initiativeCan({ create: [Tool.counter_group] });
+    const here = buildInitiative({ id: 3, name: "Here", can, keep_content_in: true });
+    server.use(
+      guildHttp.get("/initiatives/", () =>
+        HttpResponse.json([here, buildInitiative({ id: 4, name: "There", can })])
+      ),
+      guildHttp.get("/initiatives/:id", () => HttpResponse.json(here))
+    );
+    renderSection(ToolSettingsAdvancedPage, buildEntity(), Tool.counter_group);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Duplicate" }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByLabelText("Initiative"));
+    expect(await screen.findByRole("option", { name: "Here" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "There" })).not.toBeInTheDocument();
+  });
+
   it("offers no copy of a post, which is published rather than reused", async () => {
     resetFactories();
     renderSection(ToolSettingsAdvancedPage, buildEntity(), Tool.post);

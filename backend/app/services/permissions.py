@@ -45,6 +45,7 @@ from app.db.authorization import standing_arg
 from app.core.messages import (
     CommonMessages,
     ExportMessages,
+    InitiativeMessages,
     SharingMessages,
     ProjectMessages,
 )
@@ -604,9 +605,18 @@ def _refusal(
     """Which refusal a missing ``action`` is. Only names it: the database
     already decided."""
     if action is Action.export:
+        initiative = (
+            None
+            if "initiative" in inspect(row).unloaded
+            else getattr(row, "initiative", None)
+        )
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
+            detail=(
+                InitiativeMessages.CONTENT_KEPT_IN
+                if initiative is not None and initiative.keep_content_in
+                else ExportMessages.EXPORT_OWNER_REQUIRED
+            ),
         )
     if context is not None and context.content_read_only:
         return HTTPException(

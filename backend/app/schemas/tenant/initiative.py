@@ -90,6 +90,8 @@ class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     # Guild admins only — enforced in the endpoint, and only valid alongside a
     # resulting join_policy of 'open'.
     auto_join: Optional[bool] = None
+    # Settable by whoever may already update the initiative.
+    keep_content_in: Optional[bool] = None
 
 
 # Role schemas
@@ -229,6 +231,8 @@ class InitiativeRead(InitiativeBase):
     # RLS — it governs how a membership row comes to exist, nothing more.
     join_policy: InitiativeJoinPolicy = InitiativeJoinPolicy.private
     auto_join: bool = False
+    #: Nothing in it is exported on its own or copied to another initiative.
+    keep_content_in: bool = False
     created_at: datetime
     updated_at: datetime
     can: InitiativeCan = Field(default_factory=InitiativeCan)
@@ -378,6 +382,7 @@ def serialize_initiative(
             initiative, "join_policy", InitiativeJoinPolicy.private.value
         ),
         auto_join=getattr(initiative, "auto_join", False),
+        keep_content_in=initiative.keep_content_in,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         can=initiative_can(initiative),
