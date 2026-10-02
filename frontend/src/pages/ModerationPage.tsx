@@ -326,7 +326,6 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("areas.members")}</CardTitle>
         <CardDescription>{t("members.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -401,7 +400,6 @@ const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId:
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("areas.sharing")}</CardTitle>
         <CardDescription>{t("sharing.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

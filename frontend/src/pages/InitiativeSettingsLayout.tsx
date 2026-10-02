@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import {
+  DetailPageSkeleton,
   FormSkeleton,
   PageHeaderSkeleton,
   SettingsPaneSkeleton,
@@ -84,8 +85,10 @@ export const InitiativeSettingsLayout = () => {
   if (isLoading) {
     return (
       <SkeletonRegion label={t("settings.loadingInitiative")} className="space-y-6">
-        <PageHeaderSkeleton dot tabs={5} />
-        <FormSkeleton />
+        <DetailPageSkeleton actions={0} title={false} description={false}>
+          <PageHeaderSkeleton title={false} tabs={5} />
+          <FormSkeleton />
+        </DetailPageSkeleton>
       </SkeletonRegion>
     );
   }
@@ -142,7 +145,7 @@ export const InitiativeSettingsLayout = () => {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h1 className="font-semibold text-3xl tracking-tight">{t("settings.title")}</h1>
+      <h1 className="sr-only">{t("settings.title")}</h1>
 
       <SettingsTabsNav
         tabs={tabs}

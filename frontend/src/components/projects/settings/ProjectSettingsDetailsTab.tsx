@@ -5,7 +5,7 @@ import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { ProjectDateFields } from "@/components/projects/ProjectDateFields";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -74,7 +74,6 @@ export const ProjectSettingsDetailsTab = ({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings.details.title")}</CardTitle>
           <CardDescription>{t("settings.details.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">

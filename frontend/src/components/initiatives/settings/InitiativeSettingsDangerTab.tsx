@@ -2,7 +2,7 @@ import { Archive, ArchiveRestore, Loader2, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 
 interface InitiativeSettingsDangerTabProps {
   isArchived: boolean;
@@ -30,7 +30,6 @@ export const InitiativeSettingsDangerTab = ({
     <div>
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-destructive">{t("settings.dangerTitle")}</CardTitle>
           <CardDescription>{t("settings.dangerDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

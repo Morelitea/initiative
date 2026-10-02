@@ -6,7 +6,7 @@ import type { AnnouncementOperatorRead } from "@/api/generated/initiativeAPI.sch
 import { AnnouncementEditorDialog } from "@/components/announcements/AnnouncementEditorDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeleteAnnouncement, usePlatformAnnouncements } from "@/hooks/usePlatformAnnouncements";
@@ -67,7 +67,6 @@ export const SettingsPlatformAnnouncementsPage = () => {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle>{t("operator.title")}</CardTitle>
             <CardDescription>{t("operator.subtitle")}</CardDescription>
           </div>
           <Button

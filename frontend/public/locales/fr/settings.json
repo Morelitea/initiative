@@ -251,7 +251,6 @@
     "bundleError": "Impossible d'appliquer le paquet."
   },
   "interface": {
-    "title": "Paramètres d'interface",
     "colorTheme": "Thème de couleur",
     "colorThemeDescription": "Choisissez un thème de couleur pour l'application.",
     "weekStartsOn": "La semaine commence le",
@@ -580,7 +579,6 @@
   "email": {
     "platformOnly": "Seul le propriétaire de la plateforme peut gérer les paramètres e-mail.",
     "title": "E-mail SMTP",
-    "description": "Configurez le serveur SMTP utilisé pour les e-mails transactionnels.",
     "loading": "Chargement des paramètres e-mail…",
     "loadError": "Impossible de charger les paramètres e-mail.",
     "hostLabel": "Hôte",
@@ -758,7 +756,6 @@
     }
   },
   "platformUsers": {
-    "title": "Utilisateurs de la plateforme",
     "loading": "Chargement des utilisateurs…",
     "loadError": "Impossible de charger les utilisateurs.",
     "filterPlaceholder": "Filtrer par identifiant…",
@@ -883,7 +880,6 @@
     "preferWindowHelp": "Le compte conserve tout et disparaît pour les autres. Il est effacé à la fin du délai, sauf si quelqu'un le récupère."
   },
   "accessGrants": {
-    "title": "Demandes d'accès",
     "description": "Demandez et approuvez un accès temporaire à une communauté dont vous n'êtes pas membre.",
     "requestTitle": "Demander l'accès",
     "requestDescription": "Demandez un accès temporaire et limité à une communauté. Les approbateurs l'accordent et il expire automatiquement.",
@@ -1085,7 +1081,6 @@
     }
   },
   "providerPlacement": {
-    "title": "Affectation à la connexion",
     "description": "Affectez les personnes qu'un fournisseur de connexion connecte — selon le groupe ou l'annuaire qu'il indique — à une communauté, et à une initiative de celle-ci si vous en nommez une.",
     "loading": "Chargement des règles d'affectation…",
     "loadError": "Impossible de charger les règles d'affectation. Veuillez réessayer.",
@@ -1621,7 +1616,6 @@
     "allowMemberKeysDescription": "Les membres peuvent ajouter une clé d'API personnelle à cette connexion."
   },
   "memberAI": {
-    "title": "Mon IA",
     "description": "Consultez toutes les connexions d'IA à votre disposition dans vos communautés. Ajoutez votre propre clé d'API là où c'est autorisé et choisissez celle que vous utilisez.",
     "noneAvailable": "Aucune connexion d'IA n'est encore à votre disposition.",
     "sharedKeyGuild": "Utilise une clé partagée définie par l'administration de votre communauté.",
@@ -1888,7 +1882,6 @@
     "valuesHint": "Séparez-en plusieurs par des virgules. La connexion propre d'une communauté remplace ceci entièrement : rien d'ici n'est fusionné avec ce qu'elle dit."
   },
   "platformSecurity": {
-    "title": "Sécurité",
     "description": "Combien de temps quelqu'un peut rester connecté, le captcha demandé aux nouveaux venus, et ce qu'une notification emporte en quittant l'application."
   },
   "notificationDelivery": {

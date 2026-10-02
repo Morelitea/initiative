@@ -113,7 +113,6 @@ export const OperatorDashboardPlacementPage = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{t("providerPlacement.title")}</CardTitle>
           <CardDescription>{t("providerPlacement.description")}</CardDescription>
         </CardHeader>
         <CardContent>

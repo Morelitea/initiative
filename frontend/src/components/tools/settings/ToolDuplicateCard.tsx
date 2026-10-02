@@ -122,7 +122,9 @@ export const ToolDuplicateCard = () => {
             <DialogTitle>
               {t("toolSettings.duplicate.dialogTitle", { name: entity.name })}
             </DialogTitle>
-            <DialogDescription>{t("toolSettings.duplicate.description")}</DialogDescription>
+            <DialogDescription className="sr-only">
+              {t("toolSettings.duplicate.description")}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

@@ -24,7 +24,7 @@ import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkelet
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -442,10 +442,7 @@ export const SettingsPlatformUsersPage = () => {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle>{t("platformUsers.title")}</CardTitle>
-          </div>
+        <CardHeader className="flex flex-row justify-end">
           <Button
             type="button"
             variant="outline"

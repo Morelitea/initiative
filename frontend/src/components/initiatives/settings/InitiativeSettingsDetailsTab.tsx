@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { InitiativeRoleRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolsSection } from "@/components/initiatives/ToolsToggles";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,7 +54,6 @@ export const InitiativeSettingsDetailsTab = ({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{t("settings.detailsTitle")}</CardTitle>
           <CardDescription>{t("settings.detailsDescription")}</CardDescription>
         </CardHeader>
         <CardContent>

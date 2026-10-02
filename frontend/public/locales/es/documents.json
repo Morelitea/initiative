@@ -582,7 +582,6 @@
     "generateButton": "Generar resumen",
     "generateError": "No se pudo generar el resumen. Por favor intenta de nuevo.",
     "generating": "Generando resumen…",
-    "title": "Resumen de IA",
     "copy": "Copiar resumen",
     "regenerate": "Regenerar resumen"
   },

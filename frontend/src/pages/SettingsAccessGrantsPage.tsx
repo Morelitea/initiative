@@ -91,10 +91,7 @@ export const SettingsAccessGrantsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-semibold text-xl tracking-tight">{t("accessGrants.title")}</h2>
-        <p className="text-muted-foreground">{t("accessGrants.description")}</p>
-      </div>
+      <p className="text-muted-foreground">{t("accessGrants.description")}</p>
       {canApprove && <ApprovalQueue />}
       {canBreakGlass && <BreakGlassSection />}
       {canRequest && <RequestSection />}

@@ -7,7 +7,7 @@ import { GuildArtworkPanel } from "@/components/guilds/GuildArtworkPanel";
 import { GuildDiscoveryPanel } from "@/components/guilds/GuildDiscoveryPanel";
 import { GuildNameDisplayPanel } from "@/components/guilds/GuildNameDisplayPanel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,10 +71,7 @@ export const SettingsGuildPage = () => {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle>{t("settings.detailsTitle")}</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form className="space-y-4" onSubmit={handleSave}>
             <div className="space-y-2">
               <Label htmlFor="guild-name">{t("settings.nameLabel")}</Label>

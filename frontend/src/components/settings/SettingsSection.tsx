@@ -11,8 +11,9 @@ import {
 import { cn } from "@/lib/utils";
 
 export interface SettingsSectionProps {
-  /** What this section is for, in the words the reader would use. */
-  title: ReactNode;
+  /** What this section is for, in the words the reader would use. Left out
+   *  when the tab it sits on already says it. */
+  title?: ReactNode;
   /** One line under the title. Say what the controls do, not that they exist. */
   description?: ReactNode;
   /** A control that belongs to the section as a whole — a link, an add button. */
@@ -46,16 +47,27 @@ export const SettingsSection = ({
   className,
   contentClassName,
   children,
-}: SettingsSectionProps) => (
-  <Card className={cn(destructive && "border-destructive/50", className)}>
-    <CardHeader className={cn(action && "flex-row items-start justify-between gap-4 space-y-0")}>
-      <div className="min-w-0 space-y-1.5">
-        <CardTitle className={cn(destructive && "text-destructive")}>{title}</CardTitle>
-        {description ? <CardDescription>{description}</CardDescription> : null}
-      </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </CardHeader>
-    <CardContent className={cn("space-y-4", contentClassName)}>{children}</CardContent>
-    {footer ? <CardFooter className="gap-3 border-t pt-6">{footer}</CardFooter> : null}
-  </Card>
-);
+}: SettingsSectionProps) => {
+  const hasHeader = Boolean(title || description || action);
+  return (
+    <Card className={cn(destructive && "border-destructive/50", className)}>
+      {hasHeader ? (
+        <CardHeader
+          className={cn(action && "flex-row items-start justify-between gap-4 space-y-0")}
+        >
+          <div className="min-w-0 space-y-1.5">
+            {title ? (
+              <CardTitle className={cn(destructive && "text-destructive")}>{title}</CardTitle>
+            ) : null}
+            {description ? <CardDescription>{description}</CardDescription> : null}
+          </div>
+          {action ? <div className="shrink-0">{action}</div> : null}
+        </CardHeader>
+      ) : null}
+      <CardContent className={cn("space-y-4", !hasHeader && "pt-6", contentClassName)}>
+        {children}
+      </CardContent>
+      {footer ? <CardFooter className="gap-3 border-t pt-6">{footer}</CardFooter> : null}
+    </Card>
+  );
+};

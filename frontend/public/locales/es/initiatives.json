@@ -36,7 +36,6 @@
     "resolveError": "No se puede responder a esta solicitud en este momento."
   },
   "manage": {
-    "title": "Iniciativas",
     "description": "Asigna los gestores de proyecto de una iniciativa, archívala para ocultarla de la barra lateral sin eliminarla, concede acceso total a los gestores de proyecto o elimina una iniciativa enviándola a la papelera. Hazte gestor de proyecto para trabajar en una iniciativa desde tu propia barra lateral.",
     "adminRequired": "Debes ser administrador de la comunidad para gestionar iniciativas.",
     "loading": "Cargando iniciativas…",
@@ -115,7 +114,6 @@
     "rolesTab": "Roles",
     "dangerTab": "Zona de peligro",
     "exportTab": "Exportar",
-    "detailsTitle": "Detalles de la iniciativa",
     "detailsDescription": "Renombra, describe o cambia el color de esta iniciativa.",
     "nameLabel": "Nombre",
     "colorLabel": "Color",
@@ -174,7 +172,6 @@
     "manager": "Gerente",
     "fullAccess": "Acceso total",
     "moderatorDescription": "Los moderadores pueden usar todas las herramientas de esta iniciativa y abrir, editar y compartir cualquier elemento, sin importar cómo esté compartido. Los administradores de la comunidad se unen como moderadores.",
-    "dangerTitle": "Zona de peligro",
     "dangerDescription": "Eliminar una iniciativa la envía a la papelera junto con sus proyectos, tareas y documentos. Pueden restaurarse antes de que finalice el período de retención.",
     "archiveInitiative": "Archivar iniciativa",
     "unarchiveInitiative": "Restaurar iniciativa",

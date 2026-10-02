@@ -126,7 +126,6 @@
   "entry": {
     "guildTitle": "Exportar esta comunidad",
     "guildDescription": "Descarga los datos de cada iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
-    "initiativeTitle": "Exportar esta iniciativa",
     "initiativeDescription": "Descarga los datos de esta iniciativa como copia de seguridad importable o como informe a la carta. Se aplican las reglas de acceso: la exportación contiene lo que puedes ver.",
     "open": "Exportar…"
   },

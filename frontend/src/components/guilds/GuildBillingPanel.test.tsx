@@ -127,24 +127,26 @@ describe("GuildBillingPanel", () => {
     expect(
       screen.getByText(/read-only for 30 days so you can export it, then put on hold and deleted/)
     ).toBeInTheDocument();
-    expect(screen.getByText(/Change your plan, payment method or cancel/)).toBeInTheDocument();
+    expect(screen.getByText(/Change your plan or payment method/)).toBeInTheDocument();
   });
 
-  it("counts down a running trial", () => {
+  it("shows when a running trial ends", () => {
     const end = dayFromToday(3);
     state.summary = { ...EMPTY, tier_name: "Gold", trial_ends_on: end };
     renderWithProviders(<GuildBillingPanel />);
     expect(screen.getByText("Gold")).toBeInTheDocument();
-    expect(screen.getByText("Trial · 3 days left")).toBeInTheDocument();
     expect(
       screen.getByText(`Trial ends ${longDate(end)}. Subscribe before then to keep editing.`)
     ).toBeInTheDocument();
   });
 
   it("says so on a trial's last day", () => {
-    state.summary = { ...EMPTY, trial_ends_on: dayFromToday(0) };
+    const end = dayFromToday(0);
+    state.summary = { ...EMPTY, trial_ends_on: end };
     renderWithProviders(<GuildBillingPanel />);
-    expect(screen.getByText("Trial · last day")).toBeInTheDocument();
+    expect(
+      screen.getByText(`Trial ends ${longDate(end)}. Subscribe before then to keep editing.`)
+    ).toBeInTheDocument();
   });
 
   it("shows the renewal date and amount in the currency's own units", () => {
@@ -175,7 +177,6 @@ describe("GuildBillingPanel", () => {
       scheduled_change: { action: "cancel", on: ends },
     };
     renderWithProviders(<GuildBillingPanel />);
-    expect(screen.getByText(`Ends ${longDate(ends)}`)).toBeInTheDocument();
     expect(
       screen.getByText(
         `Your plan ends on ${longDate(ends)}. After that the community is read-only for 30 days, then put on hold.`
@@ -216,7 +217,6 @@ describe("GuildBillingPanel", () => {
     state.summary = { ...EMPTY, tier_name: "Gold", trial_ends_on: trialEnd };
     const { unmount } = renderWithProviders(<GuildBillingPanel />, phone);
     expect(screen.getByText("Gold")).toBeInTheDocument();
-    expect(screen.getByText("Trial · 3 days left")).toBeInTheDocument();
     expect(
       screen.getByText(`Trial ends ${longDate(trialEnd)}. After that the community is read-only.`)
     ).toBeInTheDocument();

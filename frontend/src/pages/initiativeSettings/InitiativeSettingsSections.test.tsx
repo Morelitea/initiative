@@ -254,7 +254,9 @@ describe("initiative settings sections", () => {
 
     renderSection(InitiativeSettingsPropertiesPage, "properties");
 
-    expect(await screen.findByText("Custom properties")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Define reusable metadata for anything in this initiative.")
+    ).toBeInTheDocument();
   });
 
   it("serves the export wizard at /settings/export", async () => {
@@ -270,7 +272,9 @@ describe("initiative settings sections", () => {
 
     renderSection(InitiativeSettingsDangerPage, "danger");
 
-    expect(await screen.findByText("Danger zone")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Deleting an initiative removes all of its projects/)
+    ).toBeInTheDocument();
   });
 
   it.each([

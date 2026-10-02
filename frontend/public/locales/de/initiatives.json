@@ -36,7 +36,6 @@
     "resolveError": "Die Anfrage kann derzeit nicht beantwortet werden."
   },
   "manage": {
-    "title": "Initiativen",
     "description": "Lege die Projektmanager einer Initiative fest, archiviere eine Initiative, um sie ohne Löschen aus der Seitenleiste auszublenden, gewähre Projektmanagern vollen Zugriff oder verschiebe eine Initiative in den Papierkorb. Mache dich selbst zum Projektmanager, um eine Initiative über deine eigene Seitenleiste zu bearbeiten.",
     "adminRequired": "Du musst Community-Administrator sein, um Initiativen zu verwalten.",
     "loading": "Initiativen werden geladen…",
@@ -115,7 +114,6 @@
     "rolesTab": "Rollen",
     "dangerTab": "Gefahrenzone",
     "exportTab": "Export",
-    "detailsTitle": "Initiative-Details",
     "detailsDescription": "Benenne diese Initiative um, beschreibe sie oder ändere ihre Farbe.",
     "nameLabel": "Name",
     "colorLabel": "Farbe",
@@ -174,7 +172,6 @@
     "manager": "Manager",
     "fullAccess": "Vollzugriff",
     "moderatorDescription": "Moderatoren können jedes Tool dieser Initiative nutzen und jedes Element darin öffnen, bearbeiten und teilen, unabhängig davon, wie es freigegeben ist. Community-Administratoren treten als Moderatoren bei.",
-    "dangerTitle": "Gefahrenzone",
     "dangerDescription": "Beim Löschen einer Initiative werden alle ihre Projekte, Aufgaben und Dokumente entfernt.",
     "archiveInitiative": "Initiative archivieren",
     "unarchiveInitiative": "Initiative wiederherstellen",

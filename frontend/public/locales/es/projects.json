@@ -167,7 +167,6 @@
     "you": "Tú"
   },
   "statuses": {
-    "title": "Estados de tarea",
     "description": "Reordena, renombra o cambia la categoría de las columnas de tareas usadas por este proyecto.",
     "noManagePermission": "Solo los administradores de proyecto pueden modificar los estados de tarea. Contacta a un administrador de proyecto si necesitas cambios.",
     "addStatus": "Agregar estado",
@@ -217,7 +216,6 @@
     "breadcrumbSettings": "Configuración",
     "tabTaskStatuses": "Estados de tarea",
     "details": {
-      "title": "Detalles del proyecto",
       "description": "Actualiza el ícono, nombre y descripción que se muestran en el espacio de trabajo.",
       "identityHeading": "Identidad",
       "identityDescription": "Dale al proyecto un nombre y emoji reconocibles.",

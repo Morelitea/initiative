@@ -126,7 +126,6 @@
   "entry": {
     "guildTitle": "Diese Community exportieren",
     "guildDescription": "Lade die Daten jeder Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
-    "initiativeTitle": "Diese Initiative exportieren",
     "initiativeDescription": "Lade die Daten dieser Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
     "open": "Exportieren…"
   },

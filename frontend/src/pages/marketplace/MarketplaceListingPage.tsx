@@ -130,7 +130,7 @@ export function MarketplaceListingPage() {
         <div className="min-w-0 flex-1 space-y-1">
           {listing ? (
             <>
-              <h1 className="font-semibold text-3xl tracking-tight">{listing.name}</h1>
+              <h1 className="sr-only">{listing.name}</h1>
               <ListingProvenance listing={listing} className="text-sm" />
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {listing.latest_version && (

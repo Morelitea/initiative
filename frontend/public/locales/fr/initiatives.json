@@ -36,7 +36,6 @@
     "resolveError": "Impossible de répondre à cette demande pour le moment."
   },
   "manage": {
-    "title": "Initiatives",
     "description": "Désignez les chefs de projet d'une initiative, archivez-la pour la masquer de la barre latérale sans la supprimer, accordez un accès complet aux chefs de projet ou supprimez une initiative en la plaçant dans la corbeille. Désignez-vous comme chef de projet pour travailler dans une initiative depuis votre propre barre latérale.",
     "adminRequired": "Vous devez être administrateur de la communauté pour gérer les initiatives.",
     "loading": "Chargement des initiatives…",
@@ -115,7 +114,6 @@
     "rolesTab": "Rôles",
     "dangerTab": "Zone de danger",
     "exportTab": "Export",
-    "detailsTitle": "Détails de l'initiative",
     "detailsDescription": "Renommer, décrire ou rechoisir la couleur de cette initiative.",
     "nameLabel": "Nom",
     "colorLabel": "Couleur",
@@ -174,7 +172,6 @@
     "manager": "Gestionnaire",
     "fullAccess": "Accès complet",
     "moderatorDescription": "Les modérateurs peuvent utiliser tous les outils de cette initiative et ouvrir, modifier et partager chaque élément, quel que soit son partage. Les administrateurs de la communauté rejoignent en tant que modérateurs.",
-    "dangerTitle": "Zone de danger",
     "dangerDescription": "Supprimer une initiative l'envoie à la corbeille avec ses projets, tâches et documents. Ils peuvent être restaurés avant la fin de la période de rétention.",
     "archiveInitiative": "Archiver l'initiative",
     "unarchiveInitiative": "Restaurer l'initiative",

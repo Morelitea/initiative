@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { ShareControl } from "@/components/access/ShareControl";
 import { useToolSettings } from "@/components/tools/settings/ToolSettingsContext";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { toast } from "@/lib/chesterToast";
 
 export const ToolSettingsAccessPage = () => {
@@ -27,7 +27,6 @@ export const ToolSettingsAccessPage = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("common:toolSettings.tabAccess")}</CardTitle>
         <CardDescription>{t("access:share.settingsDescription")}</CardDescription>
       </CardHeader>
       <CardContent>

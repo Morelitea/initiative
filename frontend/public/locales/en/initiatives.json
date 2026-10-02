@@ -36,7 +36,6 @@
     "resolveError": "Unable to answer this request right now."
   },
   "manage": {
-    "title": "Initiatives",
     "description": "Assign an initiative's project managers, archive one to hide it from the sidebar without deleting it, grant project managers full access, or delete an initiative into the trash. Make yourself a project manager to work in an initiative from your own sidebar.",
     "adminRequired": "You need to be a community admin to manage initiatives.",
     "loading": "Loading initiatives…",
@@ -115,7 +114,6 @@
     "rolesTab": "Roles",
     "dangerTab": "Danger zone",
     "exportTab": "Export",
-    "detailsTitle": "Initiative details",
     "detailsDescription": "Rename, describe, or recolor this initiative.",
     "nameLabel": "Name",
     "colorLabel": "Color",
@@ -174,7 +172,6 @@
     "manager": "Manager",
     "fullAccess": "Full access",
     "moderatorDescription": "Moderators can use every tool in this initiative, and open, edit, and share every item in it however each one is shared. Community admins join as moderators.",
-    "dangerTitle": "Danger zone",
     "dangerDescription": "Deleting an initiative removes all of its projects, tasks, and documents.",
     "archiveInitiative": "Archive initiative",
     "unarchiveInitiative": "Unarchive initiative",

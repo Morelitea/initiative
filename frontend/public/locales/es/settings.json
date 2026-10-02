@@ -251,7 +251,6 @@
     "bundleError": "No se pudo aplicar el paquete."
   },
   "interface": {
-    "title": "Configuración de interfaz",
     "colorTheme": "Tema de color",
     "colorThemeDescription": "Elige un tema de color para la aplicación.",
     "weekStartsOn": "La semana comienza el",
@@ -580,7 +579,6 @@
   "email": {
     "platformOnly": "Solo el propietario de la plataforma puede gestionar la configuración de email.",
     "title": "Email SMTP",
-    "description": "Configura el servidor SMTP usado para emails transaccionales.",
     "loading": "Cargando configuración de email…",
     "loadError": "No se pudo cargar la configuración de email.",
     "hostLabel": "Servidor",
@@ -758,7 +756,6 @@
     }
   },
   "platformUsers": {
-    "title": "Usuarios de la plataforma",
     "loading": "Cargando usuarios…",
     "loadError": "No se pudieron cargar los usuarios.",
     "filterPlaceholder": "Filtrar por identificador…",
@@ -883,7 +880,6 @@
     "preferWindowHelp": "La cuenta conserva todo y desaparece para los demás. Se borra al terminar el plazo, salvo que alguien la recupere."
   },
   "accessGrants": {
-    "title": "Solicitudes de acceso",
     "description": "Solicita y aprueba acceso temporal a una comunidad del que no eres miembro.",
     "requestTitle": "Solicitar acceso",
     "requestDescription": "Pide acceso temporal y limitado a una comunidad. Los aprobadores lo conceden y caduca automáticamente.",
@@ -1085,7 +1081,6 @@
     }
   },
   "providerPlacement": {
-    "title": "Asignación al iniciar sesión",
     "description": "Asigna a las personas que inicia sesión un proveedor —según el grupo o el directorio que indique— a una comunidad, y a una iniciativa de ella si nombras una.",
     "loading": "Cargando reglas de asignación…",
     "loadError": "No se pudieron cargar las reglas de asignación. Inténtalo de nuevo.",
@@ -1621,7 +1616,6 @@
     "allowMemberKeysDescription": "Los miembros pueden añadir una clave de API personal a esta conexión."
   },
   "memberAI": {
-    "title": "Mi IA",
     "description": "Consulta todas las conexiones de IA disponibles para ti en tus comunidades. Añade tu propia clave de API donde esté permitido y elige la que usas.",
     "noneAvailable": "Aún no tienes conexiones de IA disponibles.",
     "sharedKeyGuild": "Usa una clave compartida configurada por los administradores de tu comunidad.",
@@ -1888,7 +1882,6 @@
     "valuesHint": "Separad varios con comas. La conexión propia de una comunidad sustituye esto por completo; nada de aquí se combina con lo que ella diga."
   },
   "platformSecurity": {
-    "title": "Seguridad",
     "description": "Cuánto tiempo puede alguien seguir con la sesión iniciada, el captcha que se pide a quien llega por primera vez y qué lleva una notificación al salir de la aplicación."
   },
   "notificationDelivery": {

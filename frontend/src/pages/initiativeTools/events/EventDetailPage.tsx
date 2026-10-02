@@ -220,7 +220,7 @@ export function EventDetailPage() {
   if (eventQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
-        <DetailPageSkeleton actions={2} />
+        <DetailPageSkeleton actions={2} title={false} />
       </SkeletonRegion>
     );
   }
@@ -315,11 +315,8 @@ export function EventDetailPage() {
         </div>
       </div>
 
-      {/* Event title and description */}
-      <div className="space-y-2">
-        <h1 className="font-semibold text-3xl tracking-tight">{event.title}</h1>
-        {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
-      </div>
+      <h1 className="sr-only">{event.title}</h1>
+      {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
 
       {/* Date, time, and location details */}
       <Card>

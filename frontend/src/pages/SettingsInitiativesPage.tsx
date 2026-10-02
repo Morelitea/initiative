@@ -15,7 +15,7 @@ import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativ
 import { type MemberLike, useSeenMembers } from "@/components/members/MemberSearchSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -393,7 +393,6 @@ export const SettingsInitiativesPage = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{t("manage.title")}</CardTitle>
           <CardDescription>{t("manage.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
