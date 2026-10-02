@@ -207,16 +207,20 @@ async def require_create(
 async def prepare_create(
     session: Any,
     kind: Tool,
-    initiative_id: int,
+    initiative_id: Optional[int],
     user: Optional[User],
     guild_context: ActorContext,
 ) -> Initiative:
     """The initiative a new ``kind`` goes into, once the caller may make one
-    there: it exists (404), its switch for the tool is on
+    there: it is named and exists (404), its switch for the tool is on
     (:func:`require_tool_enabled`) and the caller's role may create the tool
     (:func:`require_create`). Every tool's create and duplicate start here.
     """
-    initiative = await session.get(Initiative, initiative_id)
+    initiative = (
+        await session.get(Initiative, initiative_id)
+        if initiative_id is not None
+        else None
+    )
     if initiative is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

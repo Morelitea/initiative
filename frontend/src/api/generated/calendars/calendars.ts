@@ -29,6 +29,7 @@ import type {
   ListCalendarsApiV1CGuildIdCalendarsGetParams,
   ReadCalendarApiV1CGuildIdCalendarsCalendarIdGetParams,
   ResourceGrantSchema,
+  ToolDuplicateRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -844,6 +845,117 @@ export const useSetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPut = <
 > => {
   return useMutation(
     getSetCalendarGrantsApiV1CGuildIdCalendarsCalendarIdGrantsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Copy it, with everything inside it, into an initiative: its own unless the body names another. Read is enough to copy a template; anything else needs write. The copy is shared as its source is while it stays in the same initiative, and carries the tags its maker may set: an installed app's copy carries them only when it holds the scope to tag.
+ * @summary Duplicate Calendar
+ */
+export const duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost = (
+  guildId: number,
+  calendarId: number,
+  toolDuplicateRequestNull?: BodyType<ToolDuplicateRequest | null> | null,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarRead>(
+    {
+      url: `/api/v1/c/${guildId}/calendars/${calendarId}/duplicate`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: toolDuplicateRequestNull,
+      signal,
+    },
+    options
+  );
+};
+
+export const getDuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationKey = () =>
+  ["duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost"] as const;
+
+export const getDuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost>>,
+    TError,
+    DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost>>,
+  TError,
+  DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey =
+    getDuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost>>,
+    DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, calendarId, data } = props ?? {};
+
+    return duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost(
+      guildId,
+      calendarId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost>>
+  >;
+export type DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationBody =
+  | BodyType<ToolDuplicateRequest | null>
+  | undefined;
+export type DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationVariables = {
+  guildId: number;
+  calendarId: number;
+  data?: BodyType<ToolDuplicateRequest | null>;
+};
+
+/**
+ * @summary Duplicate Calendar
+ */
+export const useDuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost>>,
+      TError,
+      DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePost>>,
+  TError,
+  DuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateCalendarApiV1CGuildIdCalendarsCalendarIdDuplicatePostMutationOptions(options),
     queryClient
   );
 };

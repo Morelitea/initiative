@@ -26,6 +26,7 @@ from app.api import resource_access
 from app.core.messages import DocumentMessages
 from app.core.tools import Tool
 from app.db.guild_standing import ActorContext
+from app.db.session import require_actor_context
 from app.models.platform.user import User
 from app.models.tenant._mixins import (
     ArchiveMixin,
@@ -33,6 +34,8 @@ from app.models.tenant._mixins import (
     ListingProvenanceMixin,
     SoftDeleteMixin,
 )
+from app.models.tenant.calendar import Calendar
+from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
 from app.models.tenant.post import Post
@@ -40,6 +43,7 @@ from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.task import Task
+from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.base import RESERVED_SIGIL_CODE, RESERVED_SIGILS
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import notifications as notifications_service
@@ -48,7 +52,8 @@ from app.services.tenant import documents as documents_service
 from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import project_grants
 from app.services.tenant import properties as properties_service
-from app.services.tenant import relationships
+from app.services.tenant import content_references, relationships
+from app.services.tenant.relationships import Endpoint
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_creation
 from app.services.tenant import task_statuses as task_statuses_service
@@ -116,11 +121,37 @@ def _clone(source: Any, reset: Mapping[str, Any] | None = None, **values: Any) -
     return model(**{**carried, **reset, **values})
 
 
+async def _record_references(session: AsyncSession, rows: Sequence[Any]) -> None:
+    """Record what the copies' own text points at, for a model whose body
+    makes links (``content_references.BODY_COLUMNS``)."""
+    found = next(
+        (
+            (kind, column)
+            for kind, (model, column) in content_references.BODY_COLUMNS.items()
+            if rows and type(rows[0]) is model
+        ),
+        None,
+    )
+    if found is None:
+        return
+    kind, column = found
+    author_id = require_actor_context(session).user_id
+    for row in rows:
+        if getattr(row, column):
+            await content_references.sync_for_entity(
+                session,
+                Endpoint(kind, row.id),
+                body=getattr(row, column),
+                author_id=author_id,
+            )
+
+
 async def _copy_extras(
     session: AsyncSession, pairs: Sequence[tuple[Any, Any]], *, beside: bool
 ) -> None:
-    """The tags and links of rows copied inside a tool, one model at a time,
-    and their property values when the copy stays in its initiative."""
+    """The tags, links and text references of rows copied inside a tool, one
+    model at a time, and their property values when the copy stays in its
+    initiative."""
     if not pairs:
         return
     model = type(pairs[0][0])
@@ -129,6 +160,7 @@ async def _copy_extras(
     if spec is not None:
         await tags_service.copy_entity_tags(session, spec, copies)
         await relationships.copy_links(session, spec.kind, copies)
+    await _record_references(session, [copy for _, copy in pairs])
     if beside and model in properties_service.PROPERTY_LINKS_BY_MODEL:
         await properties_service.copy_values(session, model, copies)
 
@@ -249,6 +281,7 @@ async def duplicate(
     spec = tags_service.TOOL_TAG_LINKS[tool]
     await tags_service.copy_entity_tags(session, spec, {source.id: copy.id})
     await relationships.copy_links(session, spec.kind, {source.id: copy.id})
+    await _record_references(session, [copy])
     # Definitions belong to an initiative, so values only go where they apply.
     if beside and model in properties_service.PROPERTY_LINKS_BY_MODEL:
         await properties_service.copy_values(session, model, {source.id: copy.id})
@@ -389,6 +422,82 @@ async def _post_contents(
     return []
 
 
+async def _calendar_contents(
+    session: AsyncSession, source: Calendar, copy: Calendar, actor: ActorContext
+) -> list[CalendarEvent]:
+    """Its events, each series with the occurrences changed on their own, and
+    their invitees, whose answers start over."""
+    events = (
+        await session.exec(
+            select(CalendarEvent).where(CalendarEvent.calendar_id == source.id)
+        )
+    ).all()
+    beside = _beside(source, copy)
+    pairs = await _copy_children(
+        session,
+        [event for event in events if event.series_id is None],
+        beside=beside,
+        values=lambda _: {"calendar_id": copy.id},
+    )
+    series = {source_event.id: clone.id for source_event, clone in pairs}
+    pairs += await _copy_children(
+        session,
+        [event for event in events if event.series_id in series],
+        beside=beside,
+        values=lambda event: {
+            "calendar_id": copy.id,
+            "series_id": series[event.series_id],
+        },
+    )
+    clones = {source_event.id: clone.id for source_event, clone in pairs}
+    attendees = (
+        await session.exec(
+            select(CalendarEventAttendee).where(
+                CalendarEventAttendee.calendar_event_id.in_(clones)
+            )
+        )
+    ).all()
+    session.add_all(
+        CalendarEventAttendee(
+            calendar_event_id=clones[attendee.calendar_event_id],
+            user_id=attendee.user_id,
+        )
+        for attendee in attendees
+    )
+    return [clone for _, clone in pairs]
+
+
+async def _wiki_contents(
+    session: AsyncSession, source: Wiki, copy: Wiki, actor: ActorContext
+) -> list[WikiPage]:
+    """Its published pages, each under its nearest published ancestor, and the
+    home and template pages pointed at their copies. Drafts stay behind."""
+    pages = (
+        await session.exec(select(WikiPage).where(WikiPage.wiki_id == source.id))
+    ).all()
+    parent_of = {page.id: page.parent_page_id for page in pages}
+    published = [page for page in pages if not page.is_draft]
+    pairs = await _copy_children(
+        session,
+        published,
+        beside=_beside(source, copy),
+        values=lambda _: {"wiki_id": copy.id},
+        reset={"yjs_state": None, "yjs_updated_at": None},
+    )
+    clones = {page.id: clone.id for page, clone in pairs}
+
+    def placed_under(page_id: int | None) -> int | None:
+        while page_id is not None and page_id not in clones:
+            page_id = parent_of.get(page_id)
+        return clones.get(page_id) if page_id is not None else None
+
+    for page, clone in pairs:
+        clone.parent_page_id = placed_under(page.parent_page_id)
+    copy.home_page_id = clones.get(source.home_page_id)
+    copy.template_page_id = clones.get(source.template_page_id)
+    return [clone for _, clone in pairs]
+
+
 TOOL_COPIERS: dict[Tool, ToolCopier] = {
     Tool.project: ToolCopier(
         copies=frozenset({Task}),
@@ -415,6 +524,10 @@ TOOL_COPIERS: dict[Tool, ToolCopier] = {
         copies=frozenset({GalleryImage}), contents=_gallery_contents
     ),
     Tool.dashboard: ToolCopier(),
+    Tool.calendar: ToolCopier(
+        copies=frozenset({CalendarEvent}), contents=_calendar_contents
+    ),
+    Tool.wiki: ToolCopier(copies=frozenset({WikiPage}), contents=_wiki_contents),
     # A copy of a notice is a draft: not published, scheduled or pinned.
     Tool.post: ToolCopier(
         contents=_post_contents,

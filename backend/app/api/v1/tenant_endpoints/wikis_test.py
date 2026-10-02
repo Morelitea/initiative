@@ -1148,3 +1148,49 @@ async def test_an_unshared_wiki_is_invisible_to_a_co_member(
     )
     assert listing.status_code == 200
     assert listing.json()["items"] == []
+
+
+async def test_a_copy_has_its_published_pages_in_their_tree(
+    client: AsyncClient, acting_user, session
+):
+    """Drafts stay behind; a published page under a draft moves up to the
+    draft's own parent, and the home page points at its copy."""
+    from sqlmodel import select
+
+    from app.models.tenant.wiki import Wiki, WikiPage
+    from app.testing import route_session_to_guild
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    home = await create_wiki_page(session, wiki, a.user, title="Home")
+    draft = await create_wiki_page(
+        session, wiki, a.user, title="Draft", parent_page_id=home.id, is_draft=True
+    )
+    await create_wiki_page(session, wiki, a.user, title="Leaf", parent_page_id=draft.id)
+    wiki = await session.get(Wiki, wiki.id)
+    wiki.home_page_id = home.id
+    session.add(wiki)
+    await session.commit()
+
+    response = await client.post(a.g(f"/wikis/{wiki.id}/duplicate"), headers=a.headers)
+
+    assert response.status_code == 201, response.text
+    copy_id = response.json()["id"]
+    await route_session_to_guild(session, a.guild.id)
+    pages = {
+        page.title: page
+        for page in (
+            await session.exec(select(WikiPage).where(WikiPage.wiki_id == copy_id))
+        ).all()
+    }
+    assert set(pages) == {"Home", "Leaf"}
+    assert pages["Leaf"].parent_page_id == pages["Home"].id
+    copied = (
+        await session.exec(
+            select(Wiki)
+            .where(Wiki.id == copy_id)
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+    assert copied.home_page_id == pages["Home"].id
