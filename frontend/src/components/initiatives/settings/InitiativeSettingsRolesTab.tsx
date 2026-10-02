@@ -240,7 +240,7 @@ export const InitiativeSettingsRolesTab = ({
   const translate = t as unknown as (key: never, opts?: Record<string, unknown>) => string;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
         <h3 className="font-semibold text-lg">{t("settings.rolesTitle")}</h3>
         <p className="text-muted-foreground text-sm">{t("settings.rolesDescription")}</p>

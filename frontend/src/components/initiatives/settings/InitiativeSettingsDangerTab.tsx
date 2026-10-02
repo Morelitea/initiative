@@ -30,7 +30,7 @@ export const InitiativeSettingsDangerTab = ({
 
   return (
     <div>
-      <Card className="border-destructive/40">
+      <Card className="border-destructive/50">
         <CardHeader>
           <CardTitle className="text-destructive">{t("settings.dangerTitle")}</CardTitle>
           <CardDescription>{t("settings.dangerDescription")}</CardDescription>

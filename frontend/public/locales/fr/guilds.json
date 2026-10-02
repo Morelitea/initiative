@@ -414,7 +414,7 @@
     "title": "Forfait",
     "unavailable": "Les détails de facturation sont indisponibles pour le moment.",
     "updatePaymentMethod": "Mettre à jour le moyen de paiement",
-    "changeInPortal": "Changez de forfait ou de moyen de paiement, ou résiliez, dans le portail de facturation.",
+    "changeInPortal": "Changez de forfait ou de moyen de paiement dans le portail de facturation.",
     "notInApp": "Les changements de forfait ne sont pas disponibles dans l’application.",
     "cancelAnytime": "Résiliez à tout moment dans le portail de facturation. Votre forfait reste actif jusqu'à la fin de la période déjà payée. Ensuite, votre communauté est en lecture seule pendant 30 jours pour que vous puissiez l’exporter, puis mise en attente et supprimée 30 jours plus tard.",
     "status": {

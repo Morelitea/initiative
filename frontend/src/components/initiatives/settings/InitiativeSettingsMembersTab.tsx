@@ -333,7 +333,7 @@ export const InitiativeSettingsMembersTab = ({
   ]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Requests come before the roster: they are the roster's inbox, and
           answering one is the same act as adding a member by hand. Manager-only,
           matching who may answer them. */}

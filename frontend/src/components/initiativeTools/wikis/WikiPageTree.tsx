@@ -302,7 +302,7 @@ const WikiPageRow = ({
                   <UnreadDot />
                 ) : null}
                 {page.is_draft ? (
-                  <span className="shrink-0 rounded border px-1 text-[10px] text-muted-foreground uppercase">
+                  <span className="shrink-0 rounded border px-1 text-3xs text-muted-foreground uppercase">
                     {t("pages.draft")}
                   </span>
                 ) : null}

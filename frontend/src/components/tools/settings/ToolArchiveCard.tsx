@@ -46,7 +46,7 @@ export const ToolArchiveCard = () => {
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("toolSettings.archive.title")}</CardTitle>
         <CardDescription>

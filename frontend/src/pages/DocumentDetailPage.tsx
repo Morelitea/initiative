@@ -61,10 +61,9 @@ import { useSetToolTags } from "@/hooks/useToolTags";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { getItem, setItem } from "@/lib/storage";
-import { initiativeRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
+import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 import { CollaborationError } from "@/lib/yjs/CollaborationProvider";
@@ -682,7 +681,7 @@ export const DocumentDetailPage = () => {
             onFocus={() => setTitleHasFocus(true)}
             onBlur={() => setTitleHasFocus(false)}
             placeholder={t("detail.titlePlaceholder")}
-            className="min-w-0 font-semibold text-2xl"
+            className="h-auto min-w-0 font-semibold text-3xl tracking-tight md:text-3xl"
             disabled={!canEditDocument}
           />
           {titleIsDirty ? (
@@ -705,15 +704,6 @@ export const DocumentDetailPage = () => {
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-          {document.initiative ? (
-            <Link
-              to={gp(initiativeRoute(document.initiative.id))}
-              className="inline-flex items-center gap-1 rounded-full border px-3 py-1"
-            >
-              <InitiativeColorDot color={document.initiative.color} />
-              {document.initiative.name}
-            </Link>
-          ) : null}
           <span>{t("detail.updated", { date: relativeUpdatedAt })}</span>
           {document.is_template ? <Badge variant="outline">{t("detail.template")}</Badge> : null}
         </div>

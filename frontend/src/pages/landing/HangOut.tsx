@@ -44,7 +44,7 @@ type Initials = keyof typeof AVATAR_COLORS;
 const Avatar = ({ who, className }: { who: Initials; className?: string }) => (
   <span
     className={cn(
-      "inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white",
+      "inline-flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full font-bold text-3xs text-white",
       className
     )}
     style={{ backgroundColor: AVATAR_COLORS[who] }}
@@ -177,7 +177,7 @@ const CommunityDrawing = () => {
           <div className="overflow-hidden rounded-2xl border bg-card">
             <div className="flex gap-3 p-3.5">
               <span className="flex h-14 w-13 shrink-0 flex-col items-center justify-center rounded-xl bg-[#0b1224] text-white leading-none">
-                <small className="font-bold text-[11px] text-amber-400 uppercase">
+                <small className="font-bold text-2xs text-amber-400 uppercase">
                   {t("hangout.event.day")}
                 </small>
                 <b className="text-2xl">{t("hangout.event.date")}</b>
@@ -224,7 +224,7 @@ const CommunityDrawing = () => {
               <b className="block">{t("hangout.rota.title")}</b>
               <small className="text-muted-foreground text-xs">{t("hangout.rota.detail")}</small>
             </div>
-            <span className="ml-auto rounded-full bg-primary px-2 py-0.5 font-bold text-[11px] text-primary-foreground">
+            <span className="ml-auto rounded-full bg-primary px-2 py-0.5 font-bold text-2xs text-primary-foreground">
               {p("luis")}
             </span>
           </div>

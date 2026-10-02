@@ -102,7 +102,7 @@ export const SettingsEmailPage = () => {
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("email.title")}</CardTitle>
         <CardDescription>{t("email.description")}</CardDescription>

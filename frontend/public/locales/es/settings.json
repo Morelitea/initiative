@@ -22,7 +22,6 @@
     "viewOnly": "Estás viendo esta configuración con una concesión de acceso. Para cambiarla hace falta además una concesión de lectura y escritura.",
     "restricted": {
       "read_only": {
-        "label": "Solo lectura",
         "message": "Esta comunidad es de solo lectura. Ponte en contacto con quien gestiona este servidor para restaurar el acceso completo."
       }
     },
@@ -253,7 +252,6 @@
   },
   "interface": {
     "title": "Configuración de interfaz",
-    "description": "Personaliza tus preferencias de interfaz.",
     "colorTheme": "Tema de color",
     "colorThemeDescription": "Elige un tema de color para la aplicación.",
     "weekStartsOn": "La semana comienza el",
@@ -761,7 +759,6 @@
   },
   "platformUsers": {
     "title": "Usuarios de la plataforma",
-    "description": "Administra todos los usuarios en la plataforma.",
     "loading": "Cargando usuarios…",
     "loadError": "No se pudieron cargar los usuarios.",
     "filterPlaceholder": "Filtrar por identificador…",

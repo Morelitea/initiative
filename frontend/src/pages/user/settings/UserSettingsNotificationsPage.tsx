@@ -308,7 +308,7 @@ export const UserSettingsNotificationsPage = ({
         if (rows.length === 0) return null;
         return (
           <div key={section.group}>
-            <p className="pt-4 pb-1 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+            <p className="pt-4 pb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
               {t(`notifications.groups.${section.group}`)}
             </p>
             {rows.map((row) => (

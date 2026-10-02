@@ -21,7 +21,7 @@ export const TaskChecklistProgress = ({ progress, className }: TaskChecklistProg
   return (
     <div className={cn("space-y-1", className)}>
       <Progress value={ratio} className="h-1.5" aria-label={t("checklist.progressLabel")} />
-      <p className="font-medium text-[11px] text-muted-foreground">
+      <p className="font-medium text-2xs text-muted-foreground">
         {t("checklist.progress", {
           completed: progress.completed,
           total: progress.total,

@@ -1,7 +1,6 @@
 {
   "title": "Moderation",
   "subtitle": "What people have reported here, and what was done about it.",
-  "open": "Open",
   "tabs": {
     "open": "Open",
     "settled": "Settled"

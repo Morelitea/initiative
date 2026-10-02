@@ -15,7 +15,7 @@ export const InitiativeSettingsExportTab = ({ initiativeId }: InitiativeSettings
   const [wizardOpen, setWizardOpen] = useState(false);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>{t("entry.initiativeTitle")}</CardTitle>

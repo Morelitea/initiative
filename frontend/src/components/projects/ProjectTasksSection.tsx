@@ -1075,7 +1075,11 @@ export const ProjectTasksSection = ({
       {scopePrompt.dialog}
       <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
         <ToolListToolbar
-          heading={<h2 className="truncate font-semibold text-xl">{t("tasks.projectTasks")}</h2>}
+          heading={
+            <h2 className="truncate font-semibold text-xl tracking-tight">
+              {t("tasks.projectTasks")}
+            </h2>
+          }
           filters={{
             open: filtersOpen,
             onOpenChange: setFiltersOpen,

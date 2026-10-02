@@ -414,7 +414,7 @@
     "title": "Plan",
     "unavailable": "Billing details are unavailable right now.",
     "updatePaymentMethod": "Update payment method",
-    "changeInPortal": "Change your plan, payment method or cancel in the billing portal.",
+    "changeInPortal": "Change your plan or payment method in the billing portal.",
     "notInApp": "Plan changes aren't available in the app.",
     "cancelAnytime": "Cancel anytime in the billing portal. Your plan keeps running until the end of the period you've paid for. After that your community is read-only for 30 days so you can export it, then put on hold and deleted 30 days later.",
     "status": {

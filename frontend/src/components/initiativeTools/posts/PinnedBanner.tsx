@@ -88,7 +88,9 @@ export const PinnedBanner = ({ post, canPin = false, className }: PinnedBannerPr
           </DialogHeader>
 
           <div className="space-y-2">
-            <Label htmlFor="pin-expires">{t("pin.expiresLabel")}</Label>
+            <Label htmlFor="pin-expires" className="sr-only">
+              {t("pin.expiresLabel")}
+            </Label>
             <DateTimePicker
               id="pin-expires"
               includeTime

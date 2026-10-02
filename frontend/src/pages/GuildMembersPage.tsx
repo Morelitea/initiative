@@ -192,9 +192,9 @@ export const GuildMembersPage = () => {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="font-semibold text-2xl">{t("members.title")}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("members.title")}</h1>
         <p className="text-muted-foreground text-sm">{t("memberCount", { count: total })}</p>
       </header>
 

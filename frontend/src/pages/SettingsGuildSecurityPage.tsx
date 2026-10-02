@@ -440,7 +440,7 @@ export const SettingsGuildSecurityPage = () => {
 
           <GuildClaimRulesSection guildId={guildId} />
 
-          <Card className="shadow-sm">
+          <Card>
             <CardHeader>
               <CardTitle>{t("guildAuth.policy.title")}</CardTitle>
               <CardDescription>{t("guildAuth.policy.description")}</CardDescription>
@@ -451,7 +451,7 @@ export const SettingsGuildSecurityPage = () => {
                 onValueChange={(value) => changePolicy(value as "open" | "required")}
                 className="gap-3"
               >
-                <div className="flex items-start gap-3 rounded-md border px-3 py-3">
+                <div className="flex items-start gap-3 rounded-md border px-4 py-3">
                   <RadioGroupItem id="guild-auth-open" value="open" className="mt-1" />
                   <div>
                     <Label htmlFor="guild-auth-open" className="font-medium text-base">
@@ -462,7 +462,7 @@ export const SettingsGuildSecurityPage = () => {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-start gap-3 rounded-md border px-3 py-3">
+                <div className="flex items-start gap-3 rounded-md border px-4 py-3">
                   <RadioGroupItem
                     id="guild-auth-required"
                     value="required"
@@ -579,7 +579,7 @@ export const SettingsGuildSecurityPage = () => {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card>
             <CardHeader>
               <CardTitle>{t("guildAuth.shareUrl.title")}</CardTitle>
               <CardDescription>{t("guildAuth.shareUrl.description")}</CardDescription>
@@ -608,7 +608,7 @@ export const SettingsGuildSecurityPage = () => {
           </h2>
 
           {secondFactorAvailable && (
-            <Card className="shadow-sm">
+            <Card>
               <CardHeader>
                 <CardTitle>{t("guildAuth.secondFactor.title")}</CardTitle>
                 <CardDescription>{t("guildAuth.secondFactor.description")}</CardDescription>
@@ -641,7 +641,7 @@ export const SettingsGuildSecurityPage = () => {
             </Card>
           )}
 
-          <Card className="shadow-sm">
+          <Card>
             <CardHeader>
               <CardTitle>{t("guildAuth.sessionLimit.title")}</CardTitle>
             </CardHeader>
@@ -670,7 +670,7 @@ export const SettingsGuildSecurityPage = () => {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card>
             <CardHeader>
               <CardTitle>{t("guildAuth.apiAccess.title")}</CardTitle>
               <CardDescription>{t("guildAuth.apiAccess.description")}</CardDescription>

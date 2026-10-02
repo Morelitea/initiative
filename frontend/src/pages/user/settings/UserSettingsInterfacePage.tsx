@@ -305,7 +305,7 @@ export const UserSettingsInterfacePage = ({
 
   return (
     <div className="space-y-6">
-      <SettingsSection title={t("interface.title")} description={t("interface.description")}>
+      <SettingsSection title={t("interface.title")}>
         <Preference
           label={t("interface.language")}
           description={t("interface.languageDescription")}

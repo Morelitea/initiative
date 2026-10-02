@@ -154,7 +154,6 @@
     "addPlaceholder": "Add checklist item",
     "itemPlaceholder": "Checklist item",
     "readOnlyPlaceholder": "Read-only",
-    "readOnlyMessage": "You only have read access, so checklist changes are disabled.",
     "aiDialogTitle": "AI-generated checklist",
     "aiDialogDescription": "Select the steps you want to add to this task.",
     "addSelected": "Add Selected ({{count}})",

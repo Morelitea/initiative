@@ -47,7 +47,7 @@ export const SettingsSection = ({
   contentClassName,
   children,
 }: SettingsSectionProps) => (
-  <Card className={cn("shadow-sm", destructive && "border-destructive/50", className)}>
+  <Card className={cn(destructive && "border-destructive/50", className)}>
     <CardHeader className={cn(action && "flex-row items-start justify-between gap-4 space-y-0")}>
       <div className="min-w-0 space-y-1.5">
         <CardTitle className={cn(destructive && "text-destructive")}>{title}</CardTitle>

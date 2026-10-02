@@ -91,7 +91,7 @@ export const JoinPolicySection = ({
       aria-label={t("settings.joinPolicy.title")}
     >
       {SELECTABLE_POLICIES.map((policy) => (
-        <div key={policy} className="flex items-start gap-3 rounded-md border px-3 py-3">
+        <div key={policy} className="flex items-start gap-3 rounded-md border px-4 py-3">
           <RadioGroupItem
             id={radioId(policy)}
             value={policy}

@@ -50,7 +50,9 @@ export const VersionDialog = ({
       <DialogContent className="flex h-[80vh] flex-col gap-0 sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>{t("version.versionInformation")}</DialogTitle>
-          <DialogDescription>{t("version.currentVersionAndChangelog")}</DialogDescription>
+          <DialogDescription className="sr-only">
+            {t("version.currentVersionAndChangelog")}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">

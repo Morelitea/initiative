@@ -137,7 +137,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
   );
 
   const emptyStateCard = (title: string, description: string) => (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>

@@ -306,11 +306,6 @@ export const SettingsInitiativesPage = () => {
               />
             ) : null}
             <span className="font-medium">{initiative.name}</span>
-            {initiative.is_default ? (
-              <Badge variant="secondary" className="text-xs">
-                {t("manage.default")}
-              </Badge>
-            ) : null}
           </div>
         );
       },
@@ -398,7 +393,7 @@ export const SettingsInitiativesPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("manage.title")}</CardTitle>
           <CardDescription>{t("manage.description")}</CardDescription>

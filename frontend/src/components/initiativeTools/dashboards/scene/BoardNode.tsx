@@ -39,7 +39,7 @@ function Column({ column }: { column: Node["columns"][number] }) {
       <header className="flex shrink-0 items-baseline gap-2 px-2 py-1.5">
         <h4 className="min-w-0 flex-1 truncate font-medium text-xs">{column.label}</h4>
         {column.caption && (
-          <span className="shrink-0 text-[11px] text-muted-foreground">{column.caption}</span>
+          <span className="shrink-0 text-2xs text-muted-foreground">{column.caption}</span>
         )}
         <span className="shrink-0 text-muted-foreground text-xs tabular-nums">{count}</span>
       </header>
@@ -79,7 +79,7 @@ function Card({ card }: { card: BoardCard }) {
               <span
                 // biome-ignore lint/suspicious/noArrayIndexKey: chips are plain strings a card may legitimately repeat, so position is their identity
                 key={index}
-                className="max-w-full truncate rounded-sm bg-muted px-1 py-px text-[10px] text-muted-foreground"
+                className="max-w-full truncate rounded-sm bg-muted px-1 py-px text-3xs text-muted-foreground"
               >
                 {chip}
               </span>
@@ -87,7 +87,7 @@ function Card({ card }: { card: BoardCard }) {
           </div>
         )}
         {(card.date !== undefined || card.caption) && (
-          <div className="mt-1 flex items-baseline justify-between gap-2 text-[10px] text-muted-foreground">
+          <div className="mt-1 flex items-baseline justify-between gap-2 text-3xs text-muted-foreground">
             <span className="truncate">
               {card.date === undefined ? "" : formatAxisValue(card.date, "date")}
             </span>

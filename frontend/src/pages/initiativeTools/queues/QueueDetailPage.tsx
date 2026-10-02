@@ -22,7 +22,6 @@ import {
 } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -186,9 +185,6 @@ export function QueueDetailPage() {
         />
 
         <div className="flex items-center gap-2">
-          <Badge variant={queue.is_active ? "default" : "secondary"}>
-            {queue.is_active ? t("active") : t("inactive")}
-          </Badge>
           {canEdit && (
             <Button variant="outline" size="sm" asChild>
               <Link
@@ -211,7 +207,7 @@ export function QueueDetailPage() {
               value={nameValue}
               onChange={(e) => setNameValue(e.target.value)}
               placeholder={t("namePlaceholder")}
-              className="font-semibold text-2xl"
+              className="h-auto font-semibold text-3xl tracking-tight md:text-3xl"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleNameSave();
@@ -222,7 +218,7 @@ export function QueueDetailPage() {
           </div>
         ) : (
           <h1
-            className="font-semibold text-2xl tracking-tight"
+            className="font-semibold text-3xl tracking-tight"
             role={canEdit ? "button" : undefined}
             tabIndex={canEdit ? 0 : undefined}
             onClick={() => {
@@ -259,8 +255,8 @@ export function QueueDetailPage() {
       {/* Items list */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-medium text-lg">
-            {t("items")} ({sortedItems.length})
+          <h2 className="font-semibold text-xl tracking-tight">
+            {sortedItems.length > 0 ? `${t("items")} (${sortedItems.length})` : t("items")}
           </h2>
           <div className="flex items-center gap-2">
             <QueueViewToggle view={view} onChange={setView} />

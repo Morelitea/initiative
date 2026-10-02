@@ -43,7 +43,7 @@ export const ProjectSettingsAdvancedTab = ({
   });
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("settings.templateStatus.title")}</CardTitle>
         <CardDescription>{t("settings.templateStatus.description")}</CardDescription>

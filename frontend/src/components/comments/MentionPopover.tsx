@@ -60,7 +60,7 @@ const memberRow = (member: UserSummary): Row => {
     // apart. Nothing to add when the line above already IS the handle.
     subtitle: handle === label ? null : handle,
     leading: (
-      <Avatar className="h-5 w-5 shrink-0 text-[10px]">
+      <Avatar className="h-5 w-5 shrink-0 text-3xs">
         {src ? <AvatarImage src={src} alt={label} /> : null}
         <AvatarFallback userId={member.id}>{getInitials(label)}</AvatarFallback>
       </Avatar>

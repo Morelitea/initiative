@@ -281,7 +281,7 @@ export function TimelineRail<T extends TimelineStop>({
               {startsGroup && (
                 <span
                   aria-hidden
-                  className="pointer-events-none rounded-full bg-background/80 px-1 text-[0.625rem] text-muted-foreground tabular-nums leading-none backdrop-blur-[2px]"
+                  className="pointer-events-none rounded-full bg-background/80 px-1 text-3xs text-muted-foreground tabular-nums leading-none backdrop-blur-[2px]"
                 >
                   {group}
                 </span>

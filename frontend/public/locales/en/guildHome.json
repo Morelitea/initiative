@@ -81,7 +81,6 @@
   },
   "recentComments": {
     "title": "Recent comments",
-    "description": "The latest comments across the community",
     "noComments": "No comments yet",
     "loadError": "Failed to load recent comments. Please try again later.",
     "unknownAuthor": "Unknown",

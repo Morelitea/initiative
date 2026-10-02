@@ -317,7 +317,7 @@ export function EventDetailPage() {
 
       {/* Event title and description */}
       <div className="space-y-2">
-        <h1 className="font-semibold text-2xl tracking-tight">{event.title}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">{event.title}</h1>
         {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
       </div>
 
@@ -389,12 +389,6 @@ export function EventDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <span className="text-muted-foreground text-sm">{t("rsvp")}:</span>
-              {myRsvpStatus && (
-                <Badge variant={rsvpBadgeVariant(myRsvpStatus)}>
-                  {t(rsvpLabelKey(myRsvpStatus))}
-                </Badge>
-              )}
               <Select
                 value={myRsvpStatus ?? "pending"}
                 onValueChange={(value) => handleAnswer(value as RSVPStatus)}

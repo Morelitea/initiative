@@ -1,7 +1,6 @@
 {
   "title": "Modération",
   "subtitle": "Ce qui a été signalé ici, et ce qui en a été fait.",
-  "open": "Ouvert",
   "tabs": {
     "open": "Ouverts",
     "settled": "Traités"

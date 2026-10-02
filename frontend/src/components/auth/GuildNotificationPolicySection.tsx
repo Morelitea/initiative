@@ -88,7 +88,7 @@ export const GuildNotificationPolicySection = ({ guildId }: { guildId: number })
   ];
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("guildNotifications.title")}</CardTitle>
         <CardDescription>{t("guildNotifications.description")}</CardDescription>

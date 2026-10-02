@@ -398,7 +398,7 @@ export const SidebarUserFooter = ({
                   v{currentVersion}
                 </span>
                 {hasUpdate && (
-                  <Badge variant="default" className="h-4 px-1.5 text-[10px]">
+                  <Badge variant="default" className="h-4 px-1.5 text-3xs">
                     {t("newBadge")}
                   </Badge>
                 )}

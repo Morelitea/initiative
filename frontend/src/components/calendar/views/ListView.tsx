@@ -121,7 +121,7 @@ export function ListView({
               {/* Date column: day + month */}
               <div className="flex w-14 shrink-0 flex-col items-center pt-0.5 leading-tight">
                 <span className="font-bold text-lg">{format(displayDate, "d")}</span>
-                <span className="text-[11px] text-muted-foreground uppercase">
+                <span className="text-2xs text-muted-foreground uppercase">
                   {format(displayDate, "MMM")}
                 </span>
               </div>
@@ -141,7 +141,7 @@ export function ListView({
               {/* Title + description + property chips */}
               <div className="min-w-0 flex-1">
                 {entry.kind && (
-                  <span className="mr-1.5 rounded-sm bg-muted px-1 font-semibold text-[10px] text-muted-foreground uppercase">
+                  <span className="mr-1.5 rounded-sm bg-muted px-1 font-semibold text-3xs text-muted-foreground uppercase">
                     {t(`common:${kindLabelKey(entry.kind)}`)}
                   </span>
                 )}
@@ -176,7 +176,7 @@ export function ListView({
                         return (
                           <Avatar
                             key={att.userId}
-                            className="h-6 w-6 border-2 border-card font-semibold text-[9px] uppercase"
+                            className="h-6 w-6 border-2 border-card font-semibold text-3xs uppercase"
                           >
                             {src ? <AvatarImage src={src} alt={att.name} /> : null}
                             <AvatarFallback userId={att.userId}>
@@ -186,7 +186,7 @@ export function ListView({
                         );
                       })}
                       {entry.attendees.length > 4 && (
-                        <Avatar className="h-6 w-6 border-2 border-card font-semibold text-[9px]">
+                        <Avatar className="h-6 w-6 border-2 border-card font-semibold text-3xs">
                           <AvatarFallback>+{entry.attendees.length - 4}</AvatarFallback>
                         </Avatar>
                       )}

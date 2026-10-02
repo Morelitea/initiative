@@ -61,8 +61,8 @@ export const SettingsGuildPage = () => {
 
   if (!activeGuild) {
     return (
-      <div className="space-y-4">
-        <h2 className="font-semibold text-2xl">{t("settings.title")}</h2>
+      <div className="space-y-6">
+        <h2 className="font-semibold text-xl tracking-tight">{t("settings.title")}</h2>
         <p className="text-muted-foreground text-sm">{t("settings.noActiveGuild")}</p>
       </div>
     );

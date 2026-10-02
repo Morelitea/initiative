@@ -436,7 +436,7 @@ export function GalleryDetailPage() {
         ) : feed.isError ? (
           <p className="text-destructive text-sm">{t("loadError")}</p>
         ) : images.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-16 text-center">
+          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
             <p className="font-medium">
               {activeFilterCount > 0 ? t("filters.noMatchingPictures") : t("noPictures")}
             </p>

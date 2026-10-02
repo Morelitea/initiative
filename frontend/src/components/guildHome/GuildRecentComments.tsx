@@ -19,7 +19,7 @@ import {
 import { CommentContent } from "@/components/comments/CommentContent";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecentComments } from "@/hooks/useComments";
@@ -177,7 +177,6 @@ export const GuildRecentComments = () => {
     <Card>
       <CardHeader>
         <CardTitle>{t("recentComments.title")}</CardTitle>
-        <CardDescription>{t("recentComments.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (

@@ -103,7 +103,7 @@ export const ToolDuplicateCard = () => {
 
   return (
     <>
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("toolSettings.duplicate.title")}</CardTitle>
           <CardDescription>{t("toolSettings.duplicate.description")}</CardDescription>

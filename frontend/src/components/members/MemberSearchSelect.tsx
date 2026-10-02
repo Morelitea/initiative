@@ -94,7 +94,7 @@ const MemberAvatar = ({ user, className }: { user: MemberLike; className?: strin
   const src = getAvatarSrc(user);
   const label = getUserDisplayName(user);
   return (
-    <Avatar className={cn("h-6 w-6 border text-[10px]", className)}>
+    <Avatar className={cn("h-6 w-6 border text-3xs", className)}>
       {src ? <AvatarImage src={src} alt={label} /> : null}
       <AvatarFallback userId={user.id}>{getInitialsForUser(user)}</AvatarFallback>
     </Avatar>
@@ -273,7 +273,7 @@ export const MemberMultiSelect = ({
                         key={id}
                         className="inline-flex max-w-full items-center gap-1 rounded-md bg-secondary py-0.5 pr-1.5 pl-1 font-medium text-secondary-foreground text-xs"
                       >
-                        <MemberAvatar user={user} className="h-4 w-4 text-[8px]" />
+                        <MemberAvatar user={user} className="h-4 w-4 text-3xs" />
                         <span className="truncate">{label}</span>
                         <button
                           type="button"
@@ -459,7 +459,7 @@ export const MemberSelect = ({
             className={cn("w-full justify-between", !selected && "text-muted-foreground")}
           >
             <span className="flex min-w-0 items-center gap-2">
-              {selected ? <MemberAvatar user={selected} className="h-5 w-5 text-[9px]" /> : null}
+              {selected ? <MemberAvatar user={selected} className="h-5 w-5 text-3xs" /> : null}
               <span className="truncate">{triggerLabel}</span>
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />

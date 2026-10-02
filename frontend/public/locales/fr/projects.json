@@ -123,9 +123,6 @@
     "openProjectSettings": "Ouvrir les paramètres du projet"
   },
   "overview": {
-    "archived": "Archivé",
-    "active": "Actif",
-    "template": "Modèle",
     "templateInfo": "Ce projet est un modèle. Utilisez-le pour créer de nouveaux projets depuis l'onglet Modèles.",
     "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches.",
     "scheduleLabel": "Dates du projet",

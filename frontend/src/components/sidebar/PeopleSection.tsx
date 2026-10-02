@@ -51,7 +51,7 @@ const RosterRow = ({ member }: { member: GuildRosterMember }) => {
           <span className="flex min-w-0 items-center gap-1 text-sm">
             <span className="truncate">{getUserDisplayName(member)}</span>
             {isAdminRole(member.guild_role) && (
-              <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
+              <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-3xs">
                 {member.guild_role === GuildRole.superadmin
                   ? t("members.superadmin")
                   : t("members.admin")}
@@ -142,7 +142,7 @@ export const PeopleSection = () => {
         ) : (
           groups.map(({ presence, members }) => (
             <section key={presence} aria-label={t(`profiles:${presenceLabelKey(presence)}`)}>
-              <h3 className="px-2 pb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+              <h3 className="px-2 pb-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
                 {t("peopleGroup", {
                   label: t(`profiles:${presenceLabelKey(presence)}`),
                   count: counts?.[presence] ?? members.length,

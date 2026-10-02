@@ -123,9 +123,6 @@
     "openProjectSettings": "Open project settings"
   },
   "overview": {
-    "archived": "Archived",
-    "active": "Active",
-    "template": "Template",
     "templateInfo": "This project is a template. Use it to create new projects from the Templates tab.",
     "archivedInfo": "This project is archived. Unarchive it from settings to add or update tasks.",
     "scheduleLabel": "Project dates",

@@ -141,7 +141,7 @@ export const SettingsStoragePage = () => {
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("storage.title")}</CardTitle>
         <CardDescription>{t("storage.description")}</CardDescription>

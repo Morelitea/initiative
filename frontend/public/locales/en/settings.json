@@ -22,7 +22,6 @@
     "viewOnly": "You're viewing these settings on an access grant. Changing them takes a read/write grant beside it.",
     "restricted": {
       "read_only": {
-        "label": "Read-only",
         "message": "This community is read-only. Contact whoever runs this server to restore full access."
       }
     },
@@ -253,7 +252,6 @@
   },
   "interface": {
     "title": "Interface settings",
-    "description": "Customize your interface preferences.",
     "colorTheme": "Color theme",
     "colorThemeDescription": "Choose a color theme for the application.",
     "weekStartsOn": "Week starts on",
@@ -761,7 +759,6 @@
   },
   "platformUsers": {
     "title": "Platform users",
-    "description": "Manage all users across the platform.",
     "loading": "Loading users…",
     "loadError": "Unable to load users.",
     "filterPlaceholder": "Filter by handle…",

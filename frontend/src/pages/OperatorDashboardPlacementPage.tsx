@@ -111,7 +111,7 @@ export const OperatorDashboardPlacementPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("providerPlacement.title")}</CardTitle>
           <CardDescription>{t("providerPlacement.description")}</CardDescription>
@@ -207,7 +207,7 @@ const ProviderRulesCard = ({
 }) => {
   const { t } = useTranslation("settings");
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="flex min-w-0 items-start gap-3">
           <ProviderMark icon={provider.icon} className="mt-1" />
@@ -295,7 +295,7 @@ const PlacementRequestsCard = () => {
   if (rows.length === 0) return null;
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("providerPlacement.requests.title")}</CardTitle>
         <CardDescription>{t("providerPlacement.requests.help")}</CardDescription>
@@ -305,7 +305,7 @@ const PlacementRequestsCard = () => {
           {rows.map((row) => (
             <li
               key={row.connection_id}
-              className="flex items-start justify-between gap-3 rounded-md border px-3 py-3"
+              className="flex items-start justify-between gap-3 rounded-md border px-4 py-3"
             >
               <div className="min-w-0 space-y-1">
                 <p className="font-medium text-sm">{row.guild_name}</p>

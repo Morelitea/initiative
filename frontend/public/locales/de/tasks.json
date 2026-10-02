@@ -154,7 +154,6 @@
     "addPlaceholder": "Checklisten-Element hinzufügen",
     "itemPlaceholder": "Checklisten-Element",
     "readOnlyPlaceholder": "Schreibgeschützt",
-    "readOnlyMessage": "Du hast nur Lesezugriff, daher sind Änderungen an der Checkliste deaktiviert.",
     "aiDialogTitle": "KI-generierte Checkliste",
     "aiDialogDescription": "Wähle die Schritte aus, die du dieser Aufgabe hinzufügen möchtest.",
     "addSelected": "Ausgewählte hinzufügen ({{count}})",

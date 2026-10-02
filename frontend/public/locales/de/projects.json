@@ -123,9 +123,6 @@
     "openProjectSettings": "Projekteinstellungen öffnen"
   },
   "overview": {
-    "archived": "Archiviert",
-    "active": "Aktiv",
-    "template": "Vorlage",
     "templateInfo": "Dieses Projekt ist eine Vorlage. Verwende es, um über den Tab „Vorlagen“ neue Projekte zu erstellen.",
     "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren.",
     "scheduleLabel": "Projektzeitraum",

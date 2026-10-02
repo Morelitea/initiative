@@ -60,7 +60,7 @@ export const GuildSettingsLayout = () => {
 
   if (!canViewSettings) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <h1 className="font-semibold text-3xl tracking-tight">{t("guildLayout.title")}</h1>
         <p className="text-muted-foreground text-sm">{t("guildLayout.permissionDenied")}</p>
       </div>
@@ -94,7 +94,6 @@ export const GuildSettingsLayout = () => {
   const statusNotice =
     activeGuild?.status === "read_only"
       ? {
-          label: t("guildLayout.restricted.read_only.label"),
           message: t("guildLayout.restricted.read_only.message"),
         }
       : null;
@@ -104,7 +103,6 @@ export const GuildSettingsLayout = () => {
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-semibold text-3xl tracking-tight">{t("guildLayout.title")}</h1>
-          {statusNotice && <Badge variant="destructive">{statusNotice.label}</Badge>}
         </div>
         {statusNotice && (
           <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>

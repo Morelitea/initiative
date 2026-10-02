@@ -72,7 +72,7 @@ export const ProjectSettingsDetailsTab = ({
 
   return (
     <>
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("settings.details.title")}</CardTitle>
           <CardDescription>{t("settings.details.description")}</CardDescription>

@@ -1,7 +1,6 @@
 {
   "title": "Moderación",
   "subtitle": "Lo que se ha denunciado aquí y qué se hizo al respecto.",
-  "open": "Abierta",
   "tabs": {
     "open": "Abiertas",
     "settled": "Resueltas"

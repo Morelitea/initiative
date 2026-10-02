@@ -92,7 +92,7 @@ export const SettingsAccessGrantsPage = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-semibold text-2xl tracking-tight">{t("accessGrants.title")}</h2>
+        <h2 className="font-semibold text-xl tracking-tight">{t("accessGrants.title")}</h2>
         <p className="text-muted-foreground">{t("accessGrants.description")}</p>
       </div>
       {canApprove && <ApprovalQueue />}
@@ -249,7 +249,7 @@ const BreakGlassSection = () => {
   };
 
   return (
-    <Card className="border-destructive/40 shadow-sm">
+    <Card className="border-destructive/50">
       <CardHeader>
         <CardTitle>{t("accessGrants.breakGlass.title")}</CardTitle>
         <CardDescription>{t("accessGrants.breakGlass.description")}</CardDescription>
@@ -396,7 +396,7 @@ const RequestSection = () => {
   };
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("accessGrants.requestTitle")}</CardTitle>
         <CardDescription>{t("accessGrants.requestDescription")}</CardDescription>
@@ -551,7 +551,7 @@ const ApprovalQueue = () => {
   });
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("accessGrants.queueTitle")}</CardTitle>
         <CardDescription>{t("accessGrants.queueDescription")}</CardDescription>

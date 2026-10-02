@@ -354,9 +354,7 @@ export function CommandCenter() {
               >
                 <Avatar className="size-4">
                   <AvatarImage src={getAvatarSrc(member)} alt="" />
-                  <AvatarFallback className="text-[9px]">
-                    {getInitialsForUser(member)}
-                  </AvatarFallback>
+                  <AvatarFallback className="text-3xs">{getInitialsForUser(member)}</AvatarFallback>
                 </Avatar>
                 <span>{getUserDisplayName(member)}</span>
               </CommandItem>

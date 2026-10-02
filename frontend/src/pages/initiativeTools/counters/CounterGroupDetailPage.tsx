@@ -281,7 +281,7 @@ export function CounterGroupDetailPage() {
       </div>
 
       {counters.length === 0 ? (
-        <div className="rounded-md border border-dashed p-8 text-center">
+        <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="font-medium text-muted-foreground">{t("noCounters")}</p>
           <p className="mt-1 text-muted-foreground text-sm">{t("noCountersDescription")}</p>
           {canWrite && (

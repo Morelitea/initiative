@@ -207,7 +207,7 @@ export const ProviderPlacementRuleDialog = ({
             <p className="text-muted-foreground text-xs">{t("providerPlacement.groupHelp")}</p>
           </div>
 
-          <div className="space-y-3 rounded-md border px-3 py-3">
+          <div className="space-y-3 rounded-md border px-4 py-3">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <Label htmlFor="placement-scoped">{t("providerPlacement.directoryLabel")}</Label>

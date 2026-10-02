@@ -22,7 +22,6 @@
     "viewOnly": "Vous consultez ces paramètres grâce à une autorisation d'accès. Pour les modifier, une autorisation en lecture-écriture est également requise.",
     "restricted": {
       "read_only": {
-        "label": "Lecture seule",
         "message": "Cette communauté est en lecture seule. Contactez la personne qui gère ce serveur pour rétablir l'accès complet."
       }
     },
@@ -253,7 +252,6 @@
   },
   "interface": {
     "title": "Paramètres d'interface",
-    "description": "Personnalisez vos préférences d'interface.",
     "colorTheme": "Thème de couleur",
     "colorThemeDescription": "Choisissez un thème de couleur pour l'application.",
     "weekStartsOn": "La semaine commence le",
@@ -761,7 +759,6 @@
   },
   "platformUsers": {
     "title": "Utilisateurs de la plateforme",
-    "description": "Gérez tous les utilisateurs sur la plateforme.",
     "loading": "Chargement des utilisateurs…",
     "loadError": "Impossible de charger les utilisateurs.",
     "filterPlaceholder": "Filtrer par identifiant…",

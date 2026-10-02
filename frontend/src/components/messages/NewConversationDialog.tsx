@@ -417,7 +417,7 @@ const CommunityRoster = ({
             would otherwise be read out in front of the name it stands for. */}
         <Avatar aria-hidden className="size-4 rounded-md">
           {section.icon_url ? <AvatarImage src={section.icon_url} alt="" /> : null}
-          <AvatarFallback className="rounded-md bg-muted text-[0.55rem] text-muted-foreground">
+          <AvatarFallback className="rounded-md bg-muted text-3xs text-muted-foreground">
             {getInitials(section.guild_name, "G")}
           </AvatarFallback>
         </Avatar>

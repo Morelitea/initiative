@@ -79,7 +79,7 @@ export const ProjectCardLink = ({
         to={gp(toolDetailRoute(Tool.project, project.initiative_id, project.id))}
         className="block"
       >
-        <Card className="overflow-hidden shadow-sm">
+        <Card className="overflow-hidden">
           {initiativeColor ? (
             <div
               className="h-1.5 w-full"
@@ -181,7 +181,7 @@ export const ProjectRowLink = ({
         className="block"
       >
         <Card
-          className={cn("p-4 pr-16 shadow-sm", actions && "pr-24", initiativeColor && "border-l-4")}
+          className={cn("p-4 pr-16", actions && "pr-24", initiativeColor && "border-l-4")}
           style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
         >
           <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>

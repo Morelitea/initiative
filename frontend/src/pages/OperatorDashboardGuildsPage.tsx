@@ -281,7 +281,7 @@ export const OperatorDashboardGuildsPage = () => {
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("guilds.title")}</CardTitle>
         <CardDescription>{t("guilds.description")}</CardDescription>

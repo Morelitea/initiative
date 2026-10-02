@@ -46,7 +46,7 @@ export const UserSettingsLayout = () => {
 
   if (!user) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <p className="text-destructive">{t("layout.loginRequired")}</p>
         <Button asChild variant="link" className="px-0">
           <Link to="/login">{t("layout.goToLogin")}</Link>

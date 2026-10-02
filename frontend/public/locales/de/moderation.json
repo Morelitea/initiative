@@ -1,7 +1,6 @@
 {
   "title": "Moderation",
   "subtitle": "Was hier gemeldet wurde und was damit geschehen ist.",
-  "open": "Offen",
   "tabs": {
     "open": "Offen",
     "settled": "Erledigt"

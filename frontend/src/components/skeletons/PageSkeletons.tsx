@@ -315,7 +315,7 @@ export const FormSkeleton = ({
   );
   if (!card) return <div className={className}>{body}</div>;
   return (
-    <Card className={cn("shadow-sm", className)}>
+    <Card className={className}>
       <CardHeader className="space-y-2">
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-4 w-full max-w-sm" />

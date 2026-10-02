@@ -414,7 +414,7 @@
     "title": "Plan",
     "unavailable": "Los detalles de facturación no están disponibles en este momento.",
     "updatePaymentMethod": "Actualizar método de pago",
-    "changeInPortal": "Cambia tu plan o tu método de pago, o cancela, en el portal de facturación.",
+    "changeInPortal": "Cambia tu plan o tu método de pago en el portal de facturación.",
     "notInApp": "Los cambios de plan no están disponibles en la app.",
     "cancelAnytime": "Cancela cuando quieras en el portal de facturación. Tu plan sigue activo hasta el final del periodo que has pagado. Después, tu comunidad será de solo lectura durante 30 días para que puedas exportarla; luego quedará en pausa y se eliminará 30 días más tarde.",
     "status": {

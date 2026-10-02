@@ -129,7 +129,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   // If user has no access to any features, show a message
   if (availableTabs.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <div className="rounded-lg border p-6">
           <div className="flex flex-wrap items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
@@ -170,7 +170,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-6">
       {/* The header is context, not content. On a phone it stays a title row
           plus the settings gear; the badges, blurb, and counts sit one tap away
           in the disclosure rather than pushing the tool's list off screen.
@@ -180,13 +180,10 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
         <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
           <div className="flex min-w-0 items-center gap-3">
             <InitiativeColorDot color={initiative.color} className="h-4 w-4 shrink-0" />
-            <h1 className="min-w-0 break-words font-semibold text-xl tracking-tight sm:text-3xl">
+            <h1 className="min-w-0 break-words font-semibold text-3xl tracking-tight">
               {initiative.name}
             </h1>
             <div className="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
-              {initiative.is_default ? (
-                <Badge variant="outline">{t("detail.default")}</Badge>
-              ) : null}
               {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
             </div>
           </div>
@@ -221,10 +218,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-3 pt-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {initiative.is_default ? <Badge variant="outline">{t("detail.default")}</Badge> : null}
-            {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
-          </div>
+          {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
           {headerDetails}
         </CollapsibleContent>
       </Collapsible>

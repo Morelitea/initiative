@@ -22,7 +22,6 @@
     "viewOnly": "Du siehst diese Einstellungen über eine Zugriffsfreigabe. Um sie zu ändern, ist zusätzlich eine Lese-/Schreibfreigabe nötig.",
     "restricted": {
       "read_only": {
-        "label": "Schreibgeschützt",
         "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
       }
     },
@@ -253,7 +252,6 @@
   },
   "interface": {
     "title": "Oberflächeneinstellungen",
-    "description": "Passe deine Oberflächeneinstellungen an.",
     "colorTheme": "Farbdesign",
     "colorThemeDescription": "Wähle ein Farbdesign für die Anwendung.",
     "weekStartsOn": "Woche beginnt am",
@@ -761,7 +759,6 @@
   },
   "platformUsers": {
     "title": "Plattformbenutzer",
-    "description": "Verwalte alle Benutzer auf der Plattform.",
     "loading": "Benutzer werden geladen…",
     "loadError": "Benutzer konnten nicht geladen werden.",
     "filterPlaceholder": "Nach Handle filtern…",

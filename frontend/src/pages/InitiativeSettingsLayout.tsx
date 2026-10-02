@@ -92,7 +92,7 @@ export const InitiativeSettingsLayout = () => {
 
   if (!initiative) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Button variant="link" size="sm" asChild className="px-0">
           <Link to={gp("/")}>{t("settings.backToInitiatives")}</Link>
         </Button>
@@ -106,7 +106,7 @@ export const InitiativeSettingsLayout = () => {
 
   if (!canManageMembers && !canDeleteInitiative) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Button variant="link" size="sm" asChild className="px-0">
           <Link to={gp(initiativeRoute(initiative.id))}>{t("settings.backToInitiative")}</Link>
         </Button>

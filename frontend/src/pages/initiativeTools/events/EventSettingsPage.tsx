@@ -281,7 +281,7 @@ export function EventSettingsPage() {
 
   if (!event) {
     return (
-      <div className="p-8 text-center">
+      <div className="py-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
           <Link to={gp(toolListRoute(Tool.calendar, initiativeId))}>{t("backToEvents")}</Link>

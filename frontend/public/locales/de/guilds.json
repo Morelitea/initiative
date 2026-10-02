@@ -414,7 +414,7 @@
     "title": "Tarif",
     "unavailable": "Abrechnungsdetails sind gerade nicht verfügbar.",
     "updatePaymentMethod": "Zahlungsmethode aktualisieren",
-    "changeInPortal": "Tarif oder Zahlungsmethode ändern oder kündigen kannst du im Abrechnungsportal.",
+    "changeInPortal": "Tarif oder Zahlungsmethode kannst du im Abrechnungsportal ändern.",
     "notInApp": "Tarifänderungen sind in der App nicht verfügbar.",
     "cancelAnytime": "Jederzeit im Abrechnungsportal kündbar. Dein Tarif läuft bis zum Ende des bezahlten Zeitraums weiter. Danach ist deine Community 30 Tage lang schreibgeschützt, damit du sie exportieren kannst, wird dann pausiert und 30 Tage später gelöscht.",
     "status": {

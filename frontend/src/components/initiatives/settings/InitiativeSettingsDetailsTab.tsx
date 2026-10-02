@@ -51,7 +51,7 @@ export const InitiativeSettingsDetailsTab = ({
   const { t } = useTranslation(["initiatives", "common"]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>{t("settings.detailsTitle")}</CardTitle>

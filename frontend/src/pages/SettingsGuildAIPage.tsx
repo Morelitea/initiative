@@ -67,7 +67,7 @@ export const SettingsGuildAIPage = () => {
 
   if (mode === "disabled") {
     return (
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("guildAI.title")}</CardTitle>
           <CardDescription>{t("guildAI.disabledDescription")}</CardDescription>
@@ -78,7 +78,7 @@ export const SettingsGuildAIPage = () => {
 
   if (mode === "platform") {
     return (
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("guildAI.title")}</CardTitle>
           <CardDescription>{t("guildAI.managedByPlatform")}</CardDescription>
@@ -88,7 +88,7 @@ export const SettingsGuildAIPage = () => {
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("guildAI.connectionsTitle")}</CardTitle>
         <CardDescription>{t("guildAI.connectionsDescription")}</CardDescription>
