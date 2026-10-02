@@ -1,5 +1,5 @@
 import { useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { recordPageViewApiV1PageViewsPost } from "@/api/generated/health/health";
 import { useAppConfig } from "@/hooks/useAppConfig";
@@ -23,7 +23,8 @@ export const useAnalytics = () => {
   const { config, cookieConsentEnabled } = useAppConfig();
   const { allows } = useConsent();
   const collectorUrl = config?.faro_collector_url ?? null;
-  const countPageViews = config?.count_page_views ?? false;
+  /** Null until the configuration has arrived. */
+  const countPageViews = config ? config.count_page_views : null;
   const allowed = cookieConsentEnabled && allows(ConsentCategory.analytics);
 
   // A new location is a page view even where the template is the same, as
@@ -36,13 +37,21 @@ export const useAnalytics = () => {
     structuralSharing: true,
   });
 
+  // Pages opened before the configuration arrives wait for it, so the first
+  // pages of a visit are counted too.
+  const unsent = useRef<string[]>([]);
+
   useEffect(() => {
-    if (template) recordPageView(template);
+    if (!template) return;
+    recordPageView(template);
+    unsent.current.push(template);
   }, [pathname, template]);
 
   useEffect(() => {
-    if (template && countPageViews) {
-      recordPageViewApiV1PageViewsPost({ route: template }).catch(() => {
+    if (countPageViews === null) return;
+    for (const route of unsent.current.splice(0)) {
+      if (!countPageViews) continue;
+      recordPageViewApiV1PageViewsPost({ route }).catch(() => {
         // A view that was not counted costs nothing; the page carries on.
       });
     }

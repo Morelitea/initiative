@@ -33,7 +33,8 @@ at most once in that window.
 reports is described in :mod:`app.core.metrics`.
 
 ``/page-views`` counts a page the SPA opened, by its route template, for that
-scrape to report. It is rate limited like any other route.
+scrape to report, and counts nothing while no token is set. It is rate
+limited like any other route.
 """
 
 from __future__ import annotations
@@ -271,5 +272,6 @@ class PageView(BaseModel):
 
 @router.post("/page-views", status_code=status.HTTP_204_NO_CONTENT)
 async def record_page_view(view: PageView) -> Response:
-    metrics.record_page_view(view.route)
+    if settings.METRICS_TOKEN is not None:
+        metrics.record_page_view(view.route)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

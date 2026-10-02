@@ -250,7 +250,9 @@ async def test_metrics_counts_accounts_active_in_each_window(
     assert 'initiative_active_users{window="30d"} 2.0' in resp.text
 
 
-async def test_page_views_are_counted_by_route_template(client: AsyncClient):
+async def test_page_views_are_counted_by_route_template(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
     def views(route: str) -> float:
         return (
             REGISTRY.get_sample_value("initiative_page_views_total", {"route": route})
@@ -260,6 +262,12 @@ async def test_page_views_are_counted_by_route_template(client: AsyncClient):
     known = "/c/$guildId/i/$initiativeId/projects/$projectId/"
     before_known, before_other = views(known), views("other")
 
+    monkeypatch.setattr(settings, "METRICS_TOKEN", None)
+    resp = await client.post("/api/v1/page-views", json={"route": known})
+    assert resp.status_code == 204, resp.text
+    assert views(known) == before_known
+
+    monkeypatch.setattr(settings, "METRICS_TOKEN", "s3cret-token")
     for route in (known, "/c/42/projects/913"):
         resp = await client.post("/api/v1/page-views", json={"route": route})
         assert resp.status_code == 204, resp.text

@@ -15,6 +15,7 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as SyncSession
+from sqlalchemy.orm import SessionTransaction
 from sqlalchemy.pool import NullPool
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.requests import HTTPConnection
@@ -404,8 +405,21 @@ def _tool_of_model() -> dict[type, Tool]:
     return {models[tool.plural]: tool for tool in Tool}
 
 
-#: The tools a session's flushes inserted, counted once its transaction commits.
+#: The tools a session's flushes inserted, held by the savepoint (or the
+#: transaction) they were flushed in until the outermost transaction commits.
 _CREATED_TOOLS = "created_tools"
+
+
+def _savepoint_or_transaction(session: SyncSession) -> SessionTransaction | None:
+    return session.get_nested_transaction() or session.get_transaction()
+
+
+def _enclosing(transaction: SessionTransaction) -> SessionTransaction | None:
+    """The savepoint or transaction a savepoint was opened in."""
+    outer = transaction.parent
+    while outer is not None and not (outer.nested or outer.parent is None):
+        outer = outer.parent
+    return outer
 
 
 def _note_created_tools(session: SyncSession, _flush_context: Any) -> None:
@@ -413,16 +427,37 @@ def _note_created_tools(session: SyncSession, _flush_context: Any) -> None:
     tool_of = _tool_of_model()
     created = [tool_of[type(row)] for row in session.new if type(row) in tool_of]
     if created:
-        session.info.setdefault(_CREATED_TOOLS, []).extend(created)
+        held = session.info.setdefault(_CREATED_TOOLS, {})
+        held.setdefault(_savepoint_or_transaction(session), []).extend(created)
 
 
 def _count_created_tools(session: SyncSession) -> None:
-    for tool in session.info.pop(_CREATED_TOOLS, ()):
+    # Fires for a released savepoint as well as for the transaction: a
+    # savepoint passes its tools to the one around it, and only the outermost
+    # commit counts them.
+    held = session.info.get(_CREATED_TOOLS)
+    committed = _savepoint_or_transaction(session)
+    if not held or committed is None:
+        return
+    tools = held.pop(committed, [])
+    if committed.nested:
+        held.setdefault(_enclosing(committed), []).extend(tools)
+        return
+    for tool in tools:
         metrics.tools_created.labels(tool=tool.value).inc()
+    held.clear()
 
 
 def _forget_created_tools(session: SyncSession) -> None:
-    session.info.pop(_CREATED_TOOLS, None)
+    # A savepoint rolling back takes only its own tools with it.
+    held = session.info.get(_CREATED_TOOLS)
+    rolled_back = _savepoint_or_transaction(session)
+    if not held:
+        return
+    if rolled_back is not None and rolled_back.nested:
+        held.pop(rolled_back, None)
+    else:
+        held.clear()
 
 
 event.listen(SyncSession, "after_flush", _note_created_tools, propagate=True)
