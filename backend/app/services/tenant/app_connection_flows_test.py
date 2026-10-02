@@ -11,6 +11,7 @@ and ending a connection ends the grant at the vendor.
 from __future__ import annotations
 
 import asyncio
+import base64
 import time
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
@@ -1064,6 +1065,118 @@ class TestRevocation:
 
         assert response.status_code == 204
         assert len(vendor.revocations) == app_revocation.REVOKE_ATTEMPTS
+
+    @staticmethod
+    def _grant_intent(**overrides) -> app_revocation.RevocationIntent:
+        """A member connection whose grant GitHub ends by its access token."""
+        return app_revocation.RevocationIntent(
+            **{
+                "guild_id": 1,
+                "app_id": 1,
+                "listing_uid": LISTING_UID,
+                "connection_id": "account",
+                "public_id": PUBLIC_ID,
+                "flow": {
+                    **FLOW,
+                    "revoke": "github_grant",
+                    "revoke_url": (
+                        "https://github.test/applications/{vendor.client_id}/grant"
+                    ),
+                },
+                "sealed_tokens": {
+                    "access_token": encrypt_field("gho_stored", SALT_APP_CONFIG),
+                    "refresh_token": encrypt_field("ghr_stored", SALT_APP_CONFIG),
+                },
+                "expires_at": int(time.time()) + 3600,
+                **overrides,
+            }
+        )
+
+    @staticmethod
+    def _deletion(access_token: str) -> tuple:
+        basic = base64.b64encode(b"client-123:client-secret-456").decode()
+        return (
+            "DELETE",
+            "/applications/client-123/grant",
+            f"Basic {basic}",
+            {"access_token": access_token},
+        )
+
+    @pytest.mark.parametrize(
+        ("status", "tries"), [(204, 1), (503, app_revocation.REVOKE_ATTEMPTS)]
+    )
+    async def test_a_github_grant_is_deleted_with_the_client_credentials(
+        self, vendor, registration, status, tries
+    ):
+        vendor.grant_status = status
+
+        await app_revocation._deliver(self._grant_intent())
+
+        assert vendor.grant_deletions == [self._deletion("gho_stored")] * tries
+        assert vendor.refreshes == 0
+
+    async def test_a_lapsed_github_token_is_refreshed_before_the_deletion(
+        self, vendor, registration
+    ):
+        await app_revocation._deliver(
+            self._grant_intent(expires_at=int(time.time()) - 60)
+        )
+
+        assert vendor.refreshes == 1
+        assert vendor.token_requests[-1]["refresh_token"] == "ghr_stored"
+        assert vendor.grant_deletions == [self._deletion("gho_access_1")]
+
+    async def test_a_token_github_no_longer_accepts_is_refreshed_once(
+        self, vendor, registration
+    ):
+        vendor.lapsed_tokens = {"gho_stored"}
+
+        await app_revocation._deliver(self._grant_intent())
+
+        assert vendor.refreshes == 1
+        assert vendor.grant_deletions == [
+            self._deletion("gho_stored"),
+            self._deletion("gho_access_1"),
+        ]
+
+    async def test_a_lapsed_github_token_with_no_refresh_token_is_dropped(
+        self, vendor, registration
+    ):
+        await app_revocation._deliver(
+            self._grant_intent(
+                expires_at=int(time.time()) - 60,
+                sealed_tokens={
+                    "access_token": encrypt_field("gho_stored", SALT_APP_CONFIG)
+                },
+            )
+        )
+
+        assert vendor.refreshes == 0
+        assert vendor.grant_deletions == []
+
+    async def test_a_github_grant_with_no_access_token_sends_nothing(
+        self, vendor, registration
+    ):
+        await app_revocation._deliver(self._grant_intent(sealed_tokens={}))
+
+        assert vendor.grant_deletions == []
+
+    async def test_a_github_grant_with_no_client_secret_sends_nothing(
+        self, session: AsyncSession, vendor
+    ):
+        await create_app_service_registration(
+            session,
+            public_id=PUBLIC_ID,
+            listing_uid=LISTING_UID,
+            base_url="https://app.example.test",
+            vendor_values=sealed_vendor_values(
+                {k: v for k, v in VENDOR_VALUES.items() if k != "client_secret"}
+            ),
+        )
+
+        await app_revocation._deliver(self._grant_intent())
+
+        assert vendor.grant_deletions == []
 
     async def test_revocations_are_sent_together(self, monkeypatch):
         """Each delivery waits for the other, so both finish only when they run

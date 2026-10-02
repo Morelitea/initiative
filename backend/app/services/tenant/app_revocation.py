@@ -8,6 +8,8 @@ it too, the way the connection's manifest says (``flow.revoke``):
 
 * ``rfc7009`` — a revocation request to the vendor's ``revoke_url`` (RFC 7009),
   with the vendor client's credentials;
+* ``github_grant`` — a ``DELETE`` to GitHub's grant address (``revoke_url``),
+  with the vendor client's credentials and the access token;
 * ``hook`` — the app's revoke hook, with the tokens, for a vendor whose
   revocation the app knows how to ask for;
 * absent — the tokens are deleted and nothing is sent.
@@ -92,6 +94,8 @@ class RevocationIntent:
     flow: Optional[dict[str, Any]] = None
     fields: dict[str, Any] = field(default_factory=dict)
     sealed_tokens: dict[str, str] = field(default_factory=dict)
+    #: When the stored access token lapses, from the connection's values.
+    expires_at: Optional[int] = None
 
 
 def _intent_for(
@@ -130,6 +134,12 @@ def _intent_for(
             for key, value in (secrets or {}).items()
             if key in RESERVED_TOKEN_KEYS and isinstance(value, str)
         },
+        expires_at=(
+            expiry
+            if isinstance(expiry := (config or {}).get("expires_at"), int)
+            and not isinstance(expiry, bool)
+            else None
+        ),
     )
 
 
@@ -248,7 +258,7 @@ async def _dispatch_one(intent: RevocationIntent) -> None:
 async def _deliver(intent: RevocationIntent) -> None:
     """End one grant the way its flow says, with three tries."""
     method = (intent.flow or {}).get("revoke")
-    if method not in ("rfc7009", "hook") or not intent.sealed_tokens:
+    if method not in ("rfc7009", "github_grant", "hook") or not intent.sealed_tokens:
         return
     if not intent.public_id:
         logger.info(
@@ -271,6 +281,7 @@ async def _deliver(intent: RevocationIntent) -> None:
             guild_id=intent.guild_id,
             install_id=intent.app_id,
             connection_id=intent.connection_id,
+            expires_at=intent.expires_at,
         )
     except flows.ConnectionFlowError as exc:
         logger.warning(

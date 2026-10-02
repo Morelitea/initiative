@@ -35,6 +35,7 @@ address, as an endpoint call does.
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import time
@@ -180,6 +181,14 @@ class VendorRefusedError(Exception):
 
 class HookError(Exception):
     """The app's hook could not be reached, or answered with something else."""
+
+
+class RevocationAnsweredError(HookError):
+    """The vendor answered a revocation with something other than success."""
+
+    def __init__(self, status: int) -> None:
+        super().__init__(f"revocation answered {status}")
+        self.status = status
 
 
 @dataclass(frozen=True)
@@ -1384,18 +1393,21 @@ def token_response(tokens: TokenSet) -> dict[str, Any]:
 # --- ending a grant ----------------------------------------------------------
 
 
-async def revoke_request(url: str, form: dict[str, str]) -> None:
-    """One revocation request (RFC 7009 §2.1). A 2xx answer is success,
+async def revoke_request(
+    url: str,
+    *,
+    method: str = "POST",
+    headers: Mapping[str, str],
+    content: bytes,
+) -> None:
+    """One request that ends a grant at the vendor. A 2xx answer is success,
     whatever its body."""
     try:
         response = await request_public_target(
-            "POST",
+            method,
             url,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            content=urlencode(form).encode("ascii"),
+            headers={"Accept": "application/json", **headers},
+            content=content,
             timeout=VENDOR_TIMEOUT_SECONDS,
             transport=http_transport,
             max_bytes=VENDOR_MAX_RESPONSE_BYTES,
@@ -1407,7 +1419,12 @@ async def revoke_request(url: str, form: dict[str, str]) -> None:
     ) as exc:
         raise HookError(f"revocation could not be sent: {exc}") from exc
     if not 200 <= response.status_code < 300:
-        raise HookError(f"revocation answered {response.status_code}")
+        raise RevocationAnsweredError(response.status_code)
+
+
+#: What GitHub answers a grant deletion whose access token it no longer
+#: accepts with.
+GITHUB_INVALID_TOKEN_STATUSES: frozenset[int] = frozenset({404, 422})
 
 
 async def revocation_sender(
@@ -1420,10 +1437,14 @@ async def revocation_sender(
     guild_id: int,
     install_id: int,
     connection_id: str,
+    expires_at: Optional[int] = None,
 ) -> Optional[Callable[[], Awaitable[None]]]:
     """The request that ends one grant, ready to send, or ``None`` when there
     is nowhere to send it. Raises :class:`ConnectionFlowError` when the vendor
-    values it needs are missing."""
+    values it needs are missing.
+
+    ``expires_at`` is when the stored access token lapses, for a method that
+    names the grant by a live access token."""
     tokens = {
         key: decrypt_field(value, SALT_APP_CONFIG)
         for key, value in sealed_tokens.items()
@@ -1450,9 +1471,74 @@ async def revocation_sender(
             form["client_secret"] = secret
 
         async def send_revocation() -> None:
-            await revoke_request(url, form)
+            # RFC 7009 §2.1: a form post with the client's credentials.
+            await revoke_request(
+                url,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                content=urlencode(form).encode("ascii"),
+            )
 
         return send_revocation
+
+    if method == "github_grant":
+        if not tokens.get("access_token"):
+            return None
+        access: str = tokens["access_token"]
+        refresh_token: Optional[str] = tokens.get("refresh_token")
+        lapsed = expires_at is not None and expires_at <= int(time.time())
+        if lapsed and not refresh_token:
+            logger.info(
+                "app credential revocation: app %s connection %s holds a lapsed "
+                "access token and no refresh token; dropped",
+                public_id,
+                connection_id,
+            )
+            return None
+        vendor = await load_vendor_values(public_id)
+        url = _render_url(flow.get("revoke_url"), vendor=vendor, fields=fields)
+        client_id, secret = _client(flow, vendor=vendor, fields=fields)
+        if not secret:
+            raise ConnectionFlowError(GuildAppMessages.CONNECTION_VENDOR_NOT_CONFIGURED)
+        # GitHub's "Delete an app authorization": the client's credentials as
+        # HTTP Basic auth, and the grant's access token in a JSON body.
+        basic = base64.b64encode(f"{client_id}:{secret}".encode()).decode("ascii")
+
+        async def renew() -> None:
+            # GitHub names the grant by a live access token. The connection is
+            # going, so the renewed set serves this request and is not kept.
+            # Once only, and kept across tries: a refresh token is spent by
+            # its first use.
+            nonlocal access, refresh_token
+            if refresh_token is None:
+                return
+            renewed = await refresh_tokens(
+                flow, vendor=vendor, fields=fields, refresh_token=refresh_token
+            )
+            access, refresh_token = renewed.access_token, None
+
+        async def delete_grant() -> None:
+            await revoke_request(
+                url,
+                method="DELETE",
+                headers={
+                    "Authorization": f"Basic {basic}",
+                    "Content-Type": "application/json",
+                },
+                content=json.dumps({"access_token": access}).encode(),
+            )
+
+        async def send_grant_deletion() -> None:
+            if lapsed:
+                await renew()
+            try:
+                await delete_grant()
+            except RevocationAnsweredError as exc:
+                if exc.status not in GITHUB_INVALID_TOKEN_STATUSES or not refresh_token:
+                    raise
+                await renew()
+                await delete_grant()
+
+        return send_grant_deletion
 
     if method != "hook":
         return None

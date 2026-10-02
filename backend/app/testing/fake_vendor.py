@@ -58,6 +58,8 @@ class FakeVendor:
     hook_status: int = 200
     #: The status the vendor's revocation endpoint answers with.
     revoke_status: int = 200
+    #: The status GitHub's grant deletion answers with.
+    grant_status: int = 204
     #: What the vendor signs its webhooks with.
     webhook_secret: str = "webhook-secret-789"
 
@@ -65,6 +67,10 @@ class FakeVendor:
     token_requests: list[dict[str, str]] = field(default_factory=list)
     refreshes: int = 0
     revocations: list[dict[str, str]] = field(default_factory=list)
+    #: Access tokens the grant deletion no longer accepts (answered 404).
+    lapsed_tokens: set[str] = field(default_factory=set)
+    #: Each grant deletion: its method, path, Authorization header and body.
+    grant_deletions: list[tuple[str, str, str, Any]] = field(default_factory=list)
     hooks: list[tuple[str, dict[str, Any], str]] = field(default_factory=list)
     exchanges: list[str] = field(default_factory=list)
     _serial: Any = field(default_factory=lambda: itertools.count(1))
@@ -120,6 +126,19 @@ class FakeVendor:
             if path == "/revoke":
                 self.revocations.append(dict(parse_qsl(request.content.decode())))
                 return httpx.Response(self.revoke_status)
+            if path.startswith("/applications/") and path.endswith("/grant"):
+                body = json.loads(request.content or b"null")
+                self.grant_deletions.append(
+                    (
+                        request.method,
+                        path,
+                        request.headers.get("authorization", ""),
+                        body,
+                    )
+                )
+                if (body or {}).get("access_token") in self.lapsed_tokens:
+                    return httpx.Response(404)
+                return httpx.Response(self.grant_status)
             if path.startswith("/app/installations/"):
                 return self._exchange(request)
             return httpx.Response(404)
