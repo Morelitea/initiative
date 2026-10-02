@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,8 @@ interface NativeUpdateRequiredDialogProps {
 }
 
 /**
- * Shown on native when the server's web bundle requires a newer native shell (APK/IPA) than
- * the one installed — an OTA update can't add native code, so the user must update the app
+ * Shown on native when the server's web bundle requires a newer native shell (APK/IPA, or the
+ * desktop app) than the one installed — an OTA update can't add native code, so the user must update the app
  * itself. See {@link useNativeUpdate}.
  */
 export const NativeUpdateRequiredDialog = ({
@@ -35,7 +36,9 @@ export const NativeUpdateRequiredDialog = ({
         <DialogHeader>
           <DialogTitle>{t("version.nativeUpdateRequiredTitle")}</DialogTitle>
           <DialogDescription>
-            {t("version.nativeUpdateRequiredDescription", { version })}
+            {Capacitor.getPlatform() === "electron"
+              ? t("version.nativeUpdateRequiredDescriptionDesktop", { version })
+              : t("version.nativeUpdateRequiredDescription", { version })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
