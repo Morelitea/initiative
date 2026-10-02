@@ -347,13 +347,7 @@ ACCEPTED = [
     pytest.param(
         _manifest(
             features=["endpoints"],
-            endpoints=[
-                {
-                    "id": "app.acme.tracker.s",
-                    "direction": "read",
-                    "invented_by_a_newer_app": 1,
-                }
-            ],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read"}],
             some_future_block={"whatever": True},
         ),
         id="unknown-keys-dropped-not-refused",
@@ -468,6 +462,28 @@ def test_what_the_platform_accepts_satisfies_the_schema(manifest, validator):
 
 
 REFUSED_BY_BOTH = [
+    # An endpoint is closed: a term it does not declare, a retired one
+    # included, is refused rather than dropped.
+    pytest.param(
+        _manifest(
+            features=["endpoints"],
+            endpoints=[{"id": "app.acme.tracker.s", "direction": "read", "retries": 3}],
+        ),
+        id="endpoint-term-the-contract-does-not-name",
+    ),
+    pytest.param(
+        _manifest(
+            features=["endpoints"],
+            endpoints=[
+                {
+                    "id": "app.acme.tracker.s",
+                    "direction": "read",
+                    "visibility": "member",
+                }
+            ],
+        ),
+        id="endpoint-naming-a-retired-audience-term",
+    ),
     pytest.param(
         {"service": {"public_id": "acme.x"}, "features": []}, id="no-app-kind"
     ),
@@ -655,19 +671,6 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
                 ],
             ),
             "a surface naming the audience term an earlier contract used",
-        ),
-        (
-            _manifest(
-                features=["endpoints"],
-                endpoints=[
-                    {
-                        "id": "app.acme.tracker.s",
-                        "direction": "read",
-                        "visibility": "member",
-                    }
-                ],
-            ),
-            "an endpoint naming the audience term an earlier contract used",
         ),
         (
             _manifest(

@@ -3,7 +3,7 @@
   "schema": {
     "$id": "https://initiative.morels.me/schemas/app-manifest-v1.json",
     "title": "Initiative app manifest (the 'definition' body)",
-    "description": "What a service app declares it can do. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, the rules tying a connection's flow and token to its scope and fields, what a webhooks block names, what a vendor setup writes to, and the bounds and unique ids of schedules are enforced by the platform on publish and are not expressible here."
+    "description": "What an app declares it can do. An app is a container, which names its `service` and answers Initiative's calls, or declarative, which names its `hosts` and no service, and whose endpoints, connection checks and webhook events Initiative runs itself from the requests and JSONata expressions written here; one app is never both. This is the 'definition' field of the document served at /.well-known/initiative-app.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, the rules tying a connection's flow and token to its scope and fields, what a webhooks block names, what a vendor setup writes to, whether every expression parses, what a declarative request and its steps name, and the bounds and unique ids of schedules are enforced by the platform on publish and are not expressible here."
   },
   "charsets": {
     "identifier": "-0123456789_abcdefghijklmnopqrstuvwxyz",
@@ -15,7 +15,8 @@
     "fieldPath": "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz",
     "localeTag": "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     "version": "0123456789.-+abcdefghijklmnopqrstuvwxyz",
-    "artwork": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-"
+    "artwork": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-",
+    "queryName": "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz~"
   },
   "enums": {
     "feature": [
@@ -151,6 +152,36 @@
     "listingKind": [
       "app",
       "dashboard"
+    ],
+    "httpMethod": [
+      "DELETE",
+      "GET",
+      "PATCH",
+      "POST",
+      "PUT"
+    ],
+    "pageLimit": [
+      "refuse",
+      "truncate"
+    ],
+    "statusRange": [
+      "2xx",
+      "3xx",
+      "4xx",
+      "5xx"
+    ],
+    "connectionState": [
+      "ok",
+      "removed",
+      "suspended",
+      "unavailable"
+    ],
+    "platformCode": [
+      "invalid",
+      "mapping-failed",
+      "not-authorized",
+      "not-found",
+      "range-too-large"
     ]
   },
   "ladders": {},
@@ -205,7 +236,25 @@
     "schedules": 8,
     "scheduleMinMinutes": 5,
     "scheduleMaxMinutes": 1440,
-    "scheduleEveryLength": 5
+    "scheduleEveryLength": 5,
+    "hosts": 8,
+    "hostLength": 253,
+    "steps": 3,
+    "pages": 10,
+    "perPage": 100,
+    "requestQuery": 24,
+    "requestHeaders": 12,
+    "errorRules": 12,
+    "unavailableCodes": 12,
+    "webhookEvents": 32,
+    "webhookStatuses": 12,
+    "healthStates": 12,
+    "statusCode": 599,
+    "expressionLength": 16384,
+    "graphqlLength": 16384,
+    "expressionTimeMs": 1000,
+    "expressionDepth": 500,
+    "expressionOutputBytes": 1048576
   },
   "defs": {
     "identifier": {
@@ -618,6 +667,9 @@
         },
         "access_hint": {
           "ref": "accessHint"
+        },
+        "health": {
+          "ref": "connectionHealth"
         }
       }
     },
@@ -690,13 +742,20 @@
           "description": "Static connections only. The vendor's install page, for a connection an organization installs: the person installs first, the vendor returns to the setup address with the installation's id, and one authorization trip follows so the app can check who installed it. Requires 'after_connect'. May name a vendor value as '{vendor.<key>}' and one of this connection's own fields as '{<key>}'."
         },
         "after_connect": {
-          "type": "boolean",
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "ref": "afterConnect"
+            }
+          ],
           "default": false,
-          "description": "Call the app's after_connect hook with the fresh access token once the code is exchanged. It returns the connection's managed values and an account label, or refuses."
+          "description": "What runs once the code is exchanged, with the fresh access token, to learn the connection's managed values and an account label, or to refuse it. A container app sets true, and Initiative calls its after_connect hook; a declarative app gives the call and its mapping."
         },
         "revoke": {
           "enum": "revokeMethod",
-          "description": "How a grant is ended at the vendor when the connection ends: 'rfc7009' posts to 'revoke_url' with the client's credentials; 'github_grant' sends DELETE to 'revoke_url' (GitHub's 'Delete an app authorization') with the client's credentials as HTTP Basic auth and the access token in the JSON body as 'access_token'; 'hook' calls the app's revoke hook with the tokens. Absent: the tokens are deleted and nothing is sent."
+          "description": "How a grant is ended at the vendor when the connection ends: 'rfc7009' posts to 'revoke_url' with the client's credentials; 'github_grant' sends DELETE to 'revoke_url' (GitHub's 'Delete an app authorization') with the client's credentials as HTTP Basic auth and the access token in the JSON body as 'access_token'; 'hook' calls the app's revoke hook with the tokens, so a container app's only. Absent: the tokens are deleted and nothing is sent."
         },
         "revoke_url": {
           "type": "string",
@@ -751,7 +810,7 @@
     },
     "webhooks": {
       "type": "object",
-      "description": "The vendor's webhooks, received by Initiative at one address per app on the deployment, '/api/v1/app-hooks/<public_id>'. Initiative checks each delivery's signature, drops one it has already delivered, finds the communities it belongs to by a value in its body, and forwards it to the app's webhook hook once for each.",
+      "description": "The vendor's webhooks, received by Initiative at one address per app on the deployment, '/api/v1/app-hooks/<public_id>'. Initiative checks each delivery's signature, drops one it has already delivered, finds the communities it belongs to by a value in its body, and forwards it to the app's webhook hook once for each. A container app's hook receives each delivery; a declarative app maps it with 'events' and 'status' instead.",
       "required": [
         "verify",
         "dedup",
@@ -771,6 +830,24 @@
         },
         "route": {
           "ref": "webhookRoute"
+        },
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "webhookEvents",
+          "items": {
+            "ref": "webhookEvent"
+          },
+          "description": "Declarative apps: how a delivery becomes one of this app's events. The first row whose 'when' holds emits; a delivery no row matches is dropped."
+        },
+        "status": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "webhookStatuses",
+          "items": {
+            "ref": "webhookStatus"
+          },
+          "description": "Declarative apps: deliveries that say what state a connection is in at the vendor. The first row whose 'when' holds sets it."
         }
       }
     },
@@ -814,9 +891,8 @@
     },
     "webhookRoute": {
       "type": "object",
-      "description": "Which communities a delivery belongs to: a value in its body, matched against one field of a static connection as each community's connect stored it.",
+      "description": "Which communities a delivery belongs to: a value in its body or in one of its headers, matched against one field of a static connection as each community's connect stored it. Exactly one of 'path' and 'header'.",
       "required": [
-        "path",
         "connection",
         "field"
       ],
@@ -828,6 +904,14 @@
           "patternFrom": "fieldPath",
           "patternForm": "plus",
           "description": "Where the value is in the JSON body, as keys joined by '.', such as 'installation.id'."
+        },
+        "header": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "identifierLength",
+          "patternFrom": "headerName",
+          "patternForm": "plus",
+          "description": "The header carrying the value, such as 'X-Shopify-Shop-Domain'."
         },
         "connection": {
           "ref": "identifier",
@@ -951,8 +1035,43 @@
         "identity": {
           "ref": "endpointIdentity",
           "description": "'write' and 'emit': what this touched, or what it is about. Read endpoints have none \u2014 they touched nothing, so there is no echo to suppress."
+        },
+        "unavailable": {
+          "type": "array",
+          "maxItems": "unavailableCodes",
+          "uniqueItems": true,
+          "items": {
+            "ref": "identifier"
+          },
+          "description": "Read and write only. The codes this endpoint may answer 'unavailable' with beyond Initiative's own (invalid, mapping-failed, not-authorized, not-found, range-too-large), so a consumer can put each into words."
+        },
+        "request": {
+          "ref": "vendorRequest",
+          "description": "Declarative apps: the one call that answers this endpoint. Not beside 'steps'."
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "steps",
+          "items": {
+            "ref": "requestStep"
+          },
+          "description": "Declarative apps: up to {steps} calls made in order, each able to read the answers of the ones before it. Not beside 'request'."
+        },
+        "map": {
+          "ref": "expression",
+          "description": "Declarative apps: the endpoint's answer, from 'response' (the last call's answer) and 'steps': an object of its declared returns, or {\"unavailable\": \"<code>\"} naming one of its codes."
+        },
+        "errors": {
+          "type": "array",
+          "maxItems": "errorRules",
+          "items": {
+            "ref": "errorRule"
+          },
+          "description": "Declarative apps: vendor answers this endpoint gives its own meaning, tried on every answer before the defaults. The defaults: 401 and 403 are not-authorized, 404 not-found, 400, 422 and any other 4xx invalid, and 429, 3xx and 5xx transient."
         }
-      }
+      },
+      "additionalProperties": false
     },
     "widget": {
       "type": "object",
@@ -1183,18 +1302,442 @@
         }
       },
       "additionalProperties": false
+    },
+    "expression": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": "expressionLength",
+      "description": "A JSONata expression (https://jsonata.org): standard JSONata, with no functions added. It reads one document. On the way out that holds 'params', the call's parameters as the caller sent them; 'connection', the non-secret fields of the connection the request names; 'now', the time of the call in ISO 8601, which $now() and $millis() also answer; and 'steps', each earlier step's answer by its name. On the way back it also holds 'response', the answer being read: {status, headers, body}, with header names in lowercase. Each evaluation is bounded: at most {expressionTimeMs} milliseconds, {expressionDepth} levels of nesting and an answer of {expressionOutputBytes} bytes as JSON. An expression that fails or passes a bound answers 'unavailable: mapping-failed'."
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": "hostLength",
+      "pattern": "^(\\*\\.)?[a-z0-9-]+(\\.[a-z0-9-]+)+$",
+      "description": "A host a declarative app calls, in lowercase: exact ('api.github.com'), or with one leading '*.' that stands for exactly one label ('*.myshopify.com'). No scheme, port or path: every call is https on port 443, and goes only to a public address."
+    },
+    "headerName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": "identifierLength",
+      "patternFrom": "headerName",
+      "patternForm": "plus"
+    },
+    "queryName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": "identifierLength",
+      "patternFrom": "queryName",
+      "patternForm": "plus"
+    },
+    "vendorAuth": {
+      "type": "object",
+      "description": "How Initiative puts a connection's credential on a declarative app's requests: one header, holding the prefix and the token joined by a space. Absent: 'Authorization: Bearer <token>'.",
+      "properties": {
+        "header": {
+          "ref": "headerName",
+          "default": "Authorization"
+        },
+        "prefix": {
+          "type": "string",
+          "maxLength": "identifierLength",
+          "default": "Bearer",
+          "description": "Written before the token. Empty: the token alone."
+        }
+      },
+      "additionalProperties": false
+    },
+    "vendorRequest": {
+      "type": "object",
+      "description": "One call Initiative makes to the vendor for a declarative app, rendered from expressions. Initiative adds the credential itself, as 'auth' says, and follows no redirect.",
+      "required": [
+        "method",
+        "url"
+      ],
+      "properties": {
+        "method": {
+          "enum": "httpMethod"
+        },
+        "url": {
+          "ref": "expression",
+          "description": "The address, as an expression answering a string: https, on one of the app's hosts. Query parameters may be written into it or given in 'query'."
+        },
+        "query": {
+          "type": "object",
+          "maxProperties": "requestQuery",
+          "propertyNames": {
+            "ref": "queryName"
+          },
+          "additionalProperties": {
+            "ref": "expression"
+          },
+          "description": "Query parameters by name, each an expression. One answering null or nothing is left out, and a list repeats the parameter once per value."
+        },
+        "headers": {
+          "type": "object",
+          "maxProperties": "requestHeaders",
+          "propertyNames": {
+            "ref": "headerName"
+          },
+          "additionalProperties": {
+            "ref": "expression"
+          },
+          "description": "Headers by name, each an expression answering a string; one answering null or nothing is left out. Never the credential's header, which Initiative sets."
+        },
+        "body": {
+          "ref": "expression",
+          "description": "The JSON body, as an expression. Not beside 'graphql'."
+        },
+        "graphql": {
+          "ref": "graphqlRequest"
+        },
+        "connection": {
+          "ref": "identifier",
+          "description": "Which connection's credential the request carries: a static connection's is the community's, an interactive one's the acting member's. Required on an endpoint's requests. Absent on 'after_connect' and 'health', which carry the credential of the connection they belong to."
+        },
+        "paging": {
+          "ref": "paging"
+        }
+      },
+      "additionalProperties": false
+    },
+    "graphqlRequest": {
+      "type": "object",
+      "description": "A GraphQL request, sent by POST as the JSON body {query, variables}.",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "graphqlLength",
+          "description": "The GraphQL document, as text. What varies goes in 'variables'."
+        },
+        "variables": {
+          "ref": "expression",
+          "description": "The variables, as an expression answering an object."
+        }
+      },
+      "additionalProperties": false
+    },
+    "requestStep": {
+      "type": "object",
+      "required": [
+        "name",
+        "request"
+      ],
+      "properties": {
+        "name": {
+          "ref": "identifier",
+          "description": "Unique within the endpoint. Later steps and the map read this step's answer as 'steps.<name>'."
+        },
+        "request": {
+          "ref": "vendorRequest"
+        }
+      },
+      "additionalProperties": false
+    },
+    "paging": {
+      "description": "How a request reads more than one page, one member per method, told apart by 'kind'. Every page is read before the answer is mapped: 'response.body' is then every page's items appended in order, and the status and headers are the last page's. 'max_pages' is how many pages may be read; finding more after that many truncates or refuses, as 'on_limit' says, and a refusal answers 'unavailable: range-too-large'.",
+      "oneOf": [
+        {
+          "ref": "pageNumberPaging"
+        },
+        {
+          "ref": "linkHeaderPaging"
+        },
+        {
+          "ref": "cursorPaging"
+        }
+      ]
+    },
+    "pageNumberPaging": {
+      "type": "object",
+      "description": "Numbered pages from 1, read until one holds fewer than 'per_page' items. Both parameters are added to the request's query.",
+      "required": [
+        "kind",
+        "page_param",
+        "per_page",
+        "max_pages",
+        "on_limit"
+      ],
+      "properties": {
+        "kind": {
+          "const": "page_number"
+        },
+        "page_param": {
+          "ref": "queryName",
+          "description": "The parameter carrying the page number."
+        },
+        "per_page_param": {
+          "ref": "queryName",
+          "description": "The parameter carrying 'per_page'. Absent: the vendor's page size is fixed, and 'per_page' says what it is."
+        },
+        "per_page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": "perPage"
+        },
+        "items": {
+          "ref": "pageItems"
+        },
+        "max_pages": {
+          "ref": "maxPages"
+        },
+        "on_limit": {
+          "enum": "pageLimit"
+        }
+      },
+      "additionalProperties": false
+    },
+    "linkHeaderPaging": {
+      "type": "object",
+      "description": "The address in the Link header's rel=\"next\", followed until there is none. It must be https on one of the app's hosts.",
+      "required": [
+        "kind",
+        "max_pages",
+        "on_limit"
+      ],
+      "properties": {
+        "kind": {
+          "const": "link_header"
+        },
+        "items": {
+          "ref": "pageItems"
+        },
+        "max_pages": {
+          "ref": "maxPages"
+        },
+        "on_limit": {
+          "enum": "pageLimit"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cursorPaging": {
+      "type": "object",
+      "description": "A cursor read from each page and sent with the next, while 'more' holds. Exactly one of 'param' and 'variable' says where it is sent.",
+      "required": [
+        "kind",
+        "next",
+        "more",
+        "max_pages",
+        "on_limit"
+      ],
+      "properties": {
+        "kind": {
+          "const": "cursor"
+        },
+        "next": {
+          "ref": "expression",
+          "description": "The next page's cursor, from this page's 'response'."
+        },
+        "more": {
+          "ref": "expression",
+          "description": "Whether there is a next page, from this page's 'response'."
+        },
+        "param": {
+          "ref": "queryName",
+          "description": "The query parameter the cursor is sent in."
+        },
+        "variable": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": "identifierLength",
+          "pattern": "^[_A-Za-z][_0-9A-Za-z]*$",
+          "description": "The GraphQL variable the cursor is sent in."
+        },
+        "items": {
+          "ref": "pageItems"
+        },
+        "max_pages": {
+          "ref": "maxPages"
+        },
+        "on_limit": {
+          "enum": "pageLimit"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pageItems": {
+      "ref": "expression",
+      "description": "A page's items, from that page's 'response'. Absent: its body."
+    },
+    "maxPages": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": "pages"
+    },
+    "statusMatch": {
+      "description": "An HTTP status: one code, or a range of a hundred ('4xx').",
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": "statusCode"
+        },
+        {
+          "enum": "statusRange"
+        }
+      ]
+    },
+    "errorRule": {
+      "type": "object",
+      "description": "A vendor answer an endpoint gives its own meaning. Rules are tried in order on every answer, a 2xx included, and the first that matches decides.",
+      "required": [
+        "status",
+        "code"
+      ],
+      "properties": {
+        "status": {
+          "ref": "statusMatch"
+        },
+        "when": {
+          "ref": "expression",
+          "description": "Also required to hold, over the answer as 'response'. Absent: the status alone matches."
+        },
+        "code": {
+          "ref": "identifier",
+          "description": "What the call answers: one of the endpoint's 'unavailable' codes, one of Initiative's own (invalid, mapping-failed, not-authorized, not-found, range-too-large), or 'transient' for a passing failure such as a throttle, which is answered as one to retry."
+        }
+      },
+      "additionalProperties": false
+    },
+    "afterConnect": {
+      "type": "object",
+      "description": "A declarative app's after_connect: one request made with the access token just obtained, and the answer mapped to what the hook would answer. 'params' holds the flow's own parameters, such as the installation_id an install page returned.",
+      "required": [
+        "request",
+        "map"
+      ],
+      "properties": {
+        "request": {
+          "ref": "vendorRequest"
+        },
+        "map": {
+          "ref": "expression",
+          "description": "The connection's managed values and its account label: {\"values\": {\u2026}, \"account_label\": \"\u2026\"}."
+        },
+        "refuse_when": {
+          "ref": "expression",
+          "description": "Refuses the connection when it holds. It reads the map's answer as 'result'."
+        },
+        "code": {
+          "ref": "identifier",
+          "description": "What a refusal answers. Given exactly when 'refuse_when' is."
+        }
+      },
+      "additionalProperties": false
+    },
+    "connectionHealth": {
+      "type": "object",
+      "description": "Declarative apps: a request Initiative makes on an interval, with this connection's credential, to learn whether the connection still works. A state other than 'ok' is reported once two answers in a row give it.",
+      "required": [
+        "request",
+        "every",
+        "states"
+      ],
+      "properties": {
+        "request": {
+          "ref": "vendorRequest"
+        },
+        "every": {
+          "type": "string",
+          "maxLength": "scheduleEveryLength",
+          "pattern": "^[0-9]+[mh]$",
+          "description": "How often: a whole number of minutes ('15m') or hours ('6h'), at least {scheduleMinMinutes} minutes and at most {scheduleMaxMinutes} minutes."
+        },
+        "states": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": "healthStates",
+          "items": {
+            "ref": "healthState"
+          },
+          "description": "Tried in order; the first that matches gives the state. An answer none matches is 'ok' when it is 2xx and 'unavailable' otherwise."
+        }
+      },
+      "additionalProperties": false
+    },
+    "healthState": {
+      "type": "object",
+      "description": "The answers one row matches, and the state they mean. A row naming neither 'status' nor 'when' matches any answer.",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "status": {
+          "ref": "statusMatch"
+        },
+        "when": {
+          "ref": "expression",
+          "description": "Also required to hold, over the answer as 'response'."
+        },
+        "state": {
+          "enum": "connectionState"
+        }
+      },
+      "additionalProperties": false
+    },
+    "webhookEvent": {
+      "type": "object",
+      "description": "One way a delivery becomes an event. Its expressions read 'headers' (names in lowercase), 'payload' (the parsed body), 'connection' (the routed connection's non-secret fields) and 'now'.",
+      "required": [
+        "when",
+        "emit",
+        "map"
+      ],
+      "properties": {
+        "when": {
+          "ref": "expression",
+          "description": "Whether this row applies."
+        },
+        "emit": {
+          "ref": "namespacedId",
+          "description": "An emit endpoint this manifest declares."
+        },
+        "map": {
+          "ref": "expression",
+          "description": "The event's payload: an object of that endpoint's declared returns."
+        }
+      },
+      "additionalProperties": false
+    },
+    "webhookStatus": {
+      "type": "object",
+      "description": "A delivery that says what state a connection is in, read as an event's expressions are.",
+      "required": [
+        "when",
+        "connection",
+        "state"
+      ],
+      "properties": {
+        "when": {
+          "ref": "expression",
+          "description": "Whether this row applies."
+        },
+        "connection": {
+          "ref": "identifier",
+          "description": "A connection this app declares."
+        },
+        "state": {
+          "enum": "connectionState",
+          "description": "'ok', 'suspended' or 'removed'."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "manifest": {
     "required": [
       "app_kind",
-      "service",
       "features"
     ],
     "properties": {
       "app_kind": {
         "const": "service",
-        "description": "The only kind that names a container to call."
+        "description": "The kind every app manifest has, container or declarative: a declarative app is one with no 'service' block."
       },
       "service": {
         "type": "object",
@@ -1232,7 +1775,8 @@
             },
             "description": "The scopes this app asks a community to grant: what its installation and member tokens act with. The fixed scopes, and 'apps:<public_id>' for each app this one calls (at most {appScopes} of those). The community grants some or all of them when it installs the app, and a token never carries more than was granted. Writing implies reading. Absent means none."
           }
-        }
+        },
+        "description": "A container app's service, which Initiative calls. Absent for a declarative app, whose public id is its listing's."
       },
       "features": {
         "type": "array",
@@ -1247,6 +1791,20 @@
       "default_name": {
         "type": "string",
         "maxLength": "nameLength"
+      },
+      "hosts": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": "hosts",
+        "uniqueItems": true,
+        "items": {
+          "ref": "host"
+        },
+        "description": "Declarative apps, which must name at least one: every host their requests, paging and links may reach. A container app names none."
+      },
+      "auth": {
+        "ref": "vendorAuth",
+        "description": "Declarative apps only."
       },
       "vendor": {
         "ref": "vendor"

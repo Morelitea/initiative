@@ -17,9 +17,10 @@ So the inventory is checked in both directions:
 * every key a published definition carries is one the contract declares —
   otherwise this build stores a term no author can discover.
 
-The manifest below is deliberately maximal: it exists to populate every field
-once, not to be a realistic app. A field added to the contract and to nothing
-else fails here.
+The manifests below are deliberately maximal: they exist to populate every
+field once, not to be realistic apps. An app is a container or declarative and
+never both, so there are two, and each object is measured across both. A field
+added to the contract and to nothing else fails here.
 """
 
 import pytest
@@ -31,6 +32,8 @@ pytestmark = pytest.mark.always
 
 #: The endpoint a widget binds and a sample is keyed by, written once.
 READ_ENDPOINT = "app.acme.tracker.read"
+#: The declarative app's listing, which names it.
+DECLARATIVE_ID = "acme.issues"
 
 
 def maximal_manifest() -> dict:
@@ -249,21 +252,228 @@ def maximal_manifest() -> dict:
     }
 
 
+def maximal_declarative_manifest() -> dict:
+    """One declarative manifest carrying every declarative term.
+
+    A request sends a body or a GraphQL query, a cursor goes in a parameter or
+    a variable, and a route reads a body path or a header, so those are spread
+    over several requests.
+    """
+    api = '"https://api.tracker.example/issues"'
+    paged = {
+        "kind": "page_number",
+        "page_param": "page",
+        "per_page_param": "per_page",
+        "per_page": 50,
+        "items": "response.body",
+        "max_pages": 5,
+        "on_limit": "truncate",
+    }
+    return {
+        "app_kind": "service",
+        "features": ["endpoints"],
+        "hosts": ["api.tracker.example", "*.tracker.example"],
+        "auth": {"header": "X-Tracker-Token", "prefix": ""},
+        "vendor": {
+            "fields": [
+                {"key": "client_id", "type": "string", "label": {"en": "Client"}},
+                {"key": "secret", "type": "secret", "label": {"en": "Secret"}},
+            ]
+        },
+        "connections": [
+            {
+                "id": "workspace",
+                "scope": "static",
+                "label": {"en": "Workspace"},
+                "fields": [
+                    {
+                        "key": "owner",
+                        "type": "string",
+                        "label": {"en": "Owner"},
+                        "managed": True,
+                    }
+                ],
+                "flow": {
+                    "type": "oauth2",
+                    "authorize_url": "https://tracker.example/authorize",
+                    "token_url": "https://tracker.example/token",
+                    "client_id": "{vendor.client_id}",
+                    "after_connect": {
+                        "request": {
+                            "method": "GET",
+                            "url": '"https://api.tracker.example/user"',
+                            "paging": {
+                                "kind": "link_header",
+                                "items": "response.body",
+                                "max_pages": 3,
+                                "on_limit": "truncate",
+                            },
+                        },
+                        "map": '{"values": {"owner": response.body[0].login}}',
+                        "refuse_when": "$not($exists(result.values.owner))",
+                        "code": "not-installed",
+                    },
+                },
+                "health": {
+                    "request": {
+                        "method": "GET",
+                        "url": '"https://api.tracker.example/" & connection.owner',
+                    },
+                    "every": "15m",
+                    "states": [
+                        {
+                            "status": "4xx",
+                            "when": 'response.body.reason = "gone"',
+                            "state": "removed",
+                        }
+                    ],
+                },
+            }
+        ],
+        "webhooks": {
+            "verify": {
+                "scheme": "hmac_sha256",
+                "header": "X-Signature",
+                "encoding": "hex",
+                "secret": "{vendor.secret}",
+            },
+            "dedup": "X-Delivery",
+            "route": {"header": "X-Owner", "connection": "workspace", "field": "owner"},
+            "events": [
+                {
+                    "when": 'headers."x-event" = "opened"',
+                    "emit": "app.acme.issues.opened",
+                    "map": '{"number": payload.number}',
+                }
+            ],
+            "status": [
+                {
+                    "when": 'headers."x-event" = "suspend"',
+                    "connection": "workspace",
+                    "state": "suspended",
+                }
+            ],
+        },
+        "endpoints": [
+            {
+                "id": "app.acme.issues.list",
+                "direction": "read",
+                "returns": [{"key": "titles", "type": "string", "list": True}],
+                "unavailable": ["archived"],
+                "request": {
+                    "method": "GET",
+                    "url": api,
+                    "query": {"state": '"open"'},
+                    "headers": {"Accept": '"application/json"'},
+                    "connection": "workspace",
+                    "paging": paged,
+                },
+                "map": '{"titles": response.body.title[]}',
+                "errors": [
+                    {"status": 410, "when": "response.status = 410", "code": "archived"}
+                ],
+            },
+            {
+                "id": "app.acme.issues.search",
+                "direction": "read",
+                "returns": [{"key": "ids", "type": "string", "list": True}],
+                "request": {
+                    "method": "POST",
+                    "url": api,
+                    "graphql": {
+                        "query": "query($after: String) { ids(after: $after) }",
+                        "variables": "{}",
+                    },
+                    "connection": "workspace",
+                    "paging": {
+                        "kind": "cursor",
+                        "next": "response.body.cursor",
+                        "more": "response.body.more",
+                        "variable": "after",
+                        "items": "response.body.ids",
+                        "max_pages": 2,
+                        "on_limit": "refuse",
+                    },
+                },
+                "map": '{"ids": response.body[]}',
+            },
+            {
+                "id": "app.acme.issues.label",
+                "direction": "write",
+                "returns": [{"key": "number", "type": "int"}],
+                "identity": {"kind": "issue", "key": ["number"]},
+                "steps": [
+                    {
+                        "name": "current",
+                        "request": {
+                            "method": "GET",
+                            "url": api,
+                            "connection": "workspace",
+                            "paging": {
+                                "kind": "cursor",
+                                "next": "response.body.next",
+                                "more": "$exists(response.body.next)",
+                                "param": "cursor",
+                                "max_pages": 2,
+                                "on_limit": "truncate",
+                            },
+                        },
+                    },
+                    {
+                        "name": "set",
+                        "request": {
+                            "method": "PUT",
+                            "url": api,
+                            "body": '{"labels": steps.current.body.name}',
+                            "connection": "workspace",
+                        },
+                    },
+                ],
+                "map": '{"number": steps.set.body.number}',
+            },
+            {
+                "id": "app.acme.issues.opened",
+                "direction": "emit",
+                "returns": [{"key": "number", "type": "int"}],
+            },
+        ],
+    }
+
+
 @pytest.fixture(scope="module")
 def published() -> dict:
     """The maximal manifest as this build would store it."""
     return normalize_listing_definition("app", maximal_manifest())
 
 
-def _nodes(published: dict) -> list[tuple[str, dict]]:
-    """Each contract object beside the published node that should carry it."""
+@pytest.fixture(scope="module")
+def declarative() -> dict:
+    """The maximal declarative manifest as this build would store it."""
+    return normalize_listing_definition(
+        "app", maximal_declarative_manifest(), public_id=DECLARATIVE_ID
+    )
+
+
+@pytest.fixture(scope="module")
+def nodes(published, declarative) -> list[tuple[str, dict]]:
+    return _nodes(published, declarative)
+
+
+def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
+    """Each contract object beside the published node that should carry it,
+    measured across both manifests where neither alone carries every field."""
     connection, other = published["connections"]
     read, written, _emitted = published["endpoints"]
     widget = published["widgets"][0]
     dashboard = published["dashboards"][0]
+    workspace = declarative["connections"][0]
+    after = workspace["flow"]["after_connect"]
+    listed, searched, labelled, _opened = declarative["endpoints"]
+    current, setting = labelled["steps"]
+    hooks = declarative["webhooks"]
     return [
-        ("manifest", published),
-        ("connection", connection),
+        ("manifest", {**published, **declarative}),
+        ("connection", {**connection, **workspace}),
         ("connectionField", connection["fields"][0]),
         ("connectionFlow", connection["flow"]),
         ("connectionToken", connection["token"]),
@@ -271,15 +481,15 @@ def _nodes(published: dict) -> list[tuple[str, dict]]:
         ("vendorField", published["vendor"]["fields"][0]),
         ("githubAppManifestSetup", published["vendor"]["setup"]),
         ("githubAppManifest", published["vendor"]["setup"]["app"]),
-        ("webhooks", published["webhooks"]),
+        ("webhooks", {**published["webhooks"], **hooks}),
         ("webhookVerify", published["webhooks"]["verify"]),
-        ("webhookRoute", published["webhooks"]["route"]),
+        ("webhookRoute", {**published["webhooks"]["route"], **hooks["route"]}),
         ("schedule", published["schedules"][0]),
         ("accessHint", connection["access_hint"]),
         # A read carries the caller-side fields and a write carries the
         # identity; no single direction carries every field, so the two are
         # measured together.
-        ("endpoint", {**read, **written}),
+        ("endpoint", {**read, **written, **listed, **labelled}),
         ("endpointParam", read["params"][0]),
         ("endpointReturn", read["returns"][0]),
         ("widget", widget),
@@ -290,24 +500,43 @@ def _nodes(published: dict) -> list[tuple[str, dict]]:
         # the two places that use them.
         ("requires", {**read["requires"], **widget["requires"]}),
         ("endpointIdentity", written["identity"]),
+        ("vendorAuth", declarative["auth"]),
+        (
+            "vendorRequest",
+            {**listed["request"], **searched["request"], **setting["request"]},
+        ),
+        ("graphqlRequest", searched["request"]["graphql"]),
+        ("requestStep", current),
+        ("pageNumberPaging", listed["request"]["paging"]),
+        ("linkHeaderPaging", after["request"]["paging"]),
+        (
+            "cursorPaging",
+            {**searched["request"]["paging"], **current["request"]["paging"]},
+        ),
+        ("errorRule", listed["errors"][0]),
+        ("afterConnect", after),
+        ("connectionHealth", workspace["health"]),
+        ("healthState", workspace["health"]["states"][0]),
+        ("webhookEvent", hooks["events"][0]),
+        ("webhookStatus", hooks["status"][0]),
         ("other", other),
     ]
 
 
-def test_every_declared_field_survives_a_publish(published):
+def test_every_declared_field_survives_a_publish(nodes):
     """A field the contract declares that nothing here reads is a restriction an
     author asked for and this build would discard without saying so."""
-    for owner, node in _nodes(published):
+    for owner, node in nodes:
         if owner == "other":
             continue
         missing = [field for field in contract.fields(owner) if field not in node]
         assert not missing, f"{owner} lost {missing}"
 
 
-def test_nothing_is_stored_that_the_contract_does_not_declare(published):
+def test_nothing_is_stored_that_the_contract_does_not_declare(nodes):
     """The other direction: a key this build writes but the contract does not
     name is one no author can discover, and no schema describes."""
-    for owner, node in _nodes(published):
+    for owner, node in nodes:
         if owner in {"requires", "other"}:
             continue
         declared = set(contract.fields(owner))
@@ -326,11 +555,11 @@ def test_every_service_field_survives_a_publish(published):
     ]
 
 
-def test_the_maximal_manifest_really_is_maximal(published):
-    """The two tests above pass trivially if the fixture stopped covering
-    something, so the fixture itself is checked: every object the contract
-    defines with fields is one this manifest reaches."""
-    reached = {owner for owner, _ in _nodes(published)} - {"other"}
+def test_the_maximal_manifests_really_are_maximal(nodes):
+    """The two tests above pass trivially if the fixtures stopped covering
+    something, so the fixtures themselves are checked: every object the
+    contract defines with fields is one these manifests reach."""
+    reached = {owner for owner, _ in nodes} - {"other"}
     with_fields = {name for name in contract.objects() if contract.fields(name)}
     assert with_fields - reached == set()
 
@@ -481,3 +710,99 @@ def test_a_setup_writes_each_answer_once_and_secrets_only_to_a_secret(values):
     body["vendor"]["setup"]["values"] = values
     with pytest.raises(ListingDefinitionError):
         normalize_listing_definition("app", body)
+
+
+# --- container or declarative ----------------------------------------------
+
+
+def _with(build, change):
+    body = build()
+    change(body)
+    return body
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        _with(maximal_manifest, lambda b: b.update(hosts=["api.acme.test"])),
+        _with(
+            maximal_manifest,
+            lambda b: b["endpoints"][0].update(map='{"count": [1]}'),
+        ),
+        _with(
+            maximal_manifest,
+            lambda b: b["connections"][0]["flow"].update(
+                after_connect=maximal_declarative_manifest()["connections"][0]["flow"][
+                    "after_connect"
+                ]
+            ),
+        ),
+        _with(
+            maximal_declarative_manifest,
+            lambda b: b.update(schedules=[{"id": "sync", "every": "15m"}]),
+        ),
+        _with(
+            maximal_declarative_manifest,
+            lambda b: b["connections"][0]["flow"].update(after_connect=True),
+        ),
+        _with(maximal_declarative_manifest, lambda b: b.pop("hosts")),
+        _with(maximal_declarative_manifest, lambda b: b["endpoints"][0].pop("request")),
+        _with(
+            maximal_declarative_manifest,
+            lambda b: b["endpoints"][0].update(map="steps.later.body"),
+        ),
+        _with(
+            maximal_declarative_manifest,
+            lambda b: b["endpoints"][0].update(map='{"titles": ['),
+        ),
+        _with(
+            maximal_declarative_manifest,
+            lambda b: b["endpoints"][0]["request"].update(url='"https://x" &'),
+        ),
+        _with(
+            maximal_declarative_manifest,
+            lambda b: b["endpoints"][0]["request"]["headers"].update(
+                {"x-tracker-token": '"mine"'}
+            ),
+        ),
+        _with(
+            maximal_declarative_manifest, lambda b: b["endpoints"][0].update(retries=3)
+        ),
+    ],
+    ids=[
+        "container-hosts",
+        "container-map",
+        "container-after-connect-request",
+        "declarative-schedules",
+        "declarative-after-connect-hook",
+        "declarative-no-hosts",
+        "declarative-no-request",
+        "declarative-reads-a-later-step",
+        "declarative-map-does-not-parse",
+        "declarative-url-does-not-parse",
+        "declarative-sets-the-credential",
+        "unknown-endpoint-term",
+    ],
+)
+def test_one_app_is_one_kind_and_says_only_what_its_kind_says(body):
+    """An app is a container or declarative, never both, and a declarative
+    app's expressions parse and read only the steps before them. An endpoint
+    is closed: a misspelt term is refused, not dropped."""
+    from app.services.marketplace.manifest_values import ListingDefinitionError
+
+    with pytest.raises(ListingDefinitionError):
+        normalize_listing_definition("app", body, public_id=DECLARATIVE_ID)
+
+
+def test_a_declarative_manifest_is_named_by_its_listing():
+    """Its endpoints are namespaced under the listing's public id, since there
+    is no service block to name it."""
+    from app.services.marketplace.manifest_values import ListingDefinitionError
+
+    with pytest.raises(ListingDefinitionError):
+        normalize_listing_definition("app", maximal_declarative_manifest())
+    with pytest.raises(ListingDefinitionError):
+        normalize_listing_definition(
+            "app", maximal_declarative_manifest(), public_id="acme.other"
+        )
+    assert contract.discarded_terms(maximal_declarative_manifest()) == []
