@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from pydantic import TypeAdapter
 from fastapi.responses import FileResponse, JSONResponse
@@ -229,37 +230,33 @@ async def lifespan(app: FastAPI):
         expressions.shutdown()
 
 
-# Gate the interactive docs + raw OpenAPI schema behind a setting. When
-# disabled, FastAPI serves no /docs and no /openapi.json. Defaults to on for dev
-# ergonomics; recommend ENABLE_API_DOCS=False in production.
-# docs_url is left None even when docs are enabled: the default route would
-# inherit the app-wide CSP and the jsDelivr-hosted Swagger assets get blocked.
-# A custom route below serves the same UI with a docs-scoped CSP instead.
+# docs_url is left None: the default route would inherit the app-wide CSP and
+# the jsDelivr-hosted Swagger assets get blocked. A custom route below serves
+# the same UI with a docs-scoped CSP instead.
 app = FastAPI(
     title=PROJECT_NAME,
     version=__version__,
     lifespan=lifespan,
     docs_url=None,
-    openapi_url=(f"{API_V1_STR}/openapi.json" if settings.ENABLE_API_DOCS else None),
+    openapi_url=f"{API_V1_STR}/openapi.json",
     redoc_url=None,
 )
 
-if settings.ENABLE_API_DOCS:
-    from fastapi.openapi.docs import get_swagger_ui_html
 
-    _DOCS_CSP = settings.docs_content_security_policy
+def _swagger_ui(openapi_url: str, title: str) -> Response:
+    """Swagger UI over ``openapi_url``, with the docs-scoped CSP.
 
-    @app.get(f"{API_V1_STR}/docs", include_in_schema=False)
-    async def swagger_ui_html() -> Response:
-        # get_swagger_ui_html returns the Swagger HTML that loads its JS/CSS from
-        # jsDelivr; attach the docs-scoped CSP so only this response permits them.
-        # The middleware uses setdefault, so this explicit header wins.
-        response = get_swagger_ui_html(
-            openapi_url=f"{API_V1_STR}/openapi.json",
-            title=f"{PROJECT_NAME} - Swagger UI",
-        )
-        response.headers["Content-Security-Policy"] = _DOCS_CSP
-        return response
+    The page loads its JS/CSS from jsDelivr, which only this response permits.
+    The middleware uses setdefault, so this explicit header wins.
+    """
+    response = get_swagger_ui_html(openapi_url=openapi_url, title=title)
+    response.headers["Content-Security-Policy"] = settings.docs_content_security_policy
+    return response
+
+
+@app.get(f"{API_V1_STR}/docs", include_in_schema=False)
+async def swagger_ui_html() -> Response:
+    return _swagger_ui(f"{API_V1_STR}/openapi.json", f"{PROJECT_NAME} - Swagger UI")
 
 
 # Initialize rate limiter (uses shared limiter from app.core.rate_limit)

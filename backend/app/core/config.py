@@ -666,7 +666,7 @@ class Settings(BaseSettings):
 
     @property
     def docs_content_security_policy(self) -> str:
-        """Relaxed CSP for the Swagger ``/docs`` page ONLY (applied per-route).
+        """Relaxed CSP for the Swagger docs pages ONLY (applied per-route).
 
         Swagger UI loads its bundle/stylesheet from jsDelivr and a Cloudflare
         beacon, which the app-wide ``script-src 'self'`` (pentest MED-001)
@@ -678,9 +678,9 @@ class Settings(BaseSettings):
         a hash would break whenever the title/openapi_url change). ``connect-src``
         allows jsDelivr so the bundle's ``.map`` sourcemap fetch doesn't error;
         Try-It-Out still reaches the same-origin API via ``'self'``. This is
-        confined to the dev-only, ``ENABLE_API_DOCS``-gated docs page — the rest
-        of the app keeps ``script-src 'self'``, ``object-src 'none'``, and
-        ``frame-ancestors 'none'``.
+        confined to the docs pages — the rest of the app keeps
+        ``script-src 'self'``, ``object-src 'none'``, and ``frame-ancestors
+        'none'``.
         """
         return _format_csp(
             {
@@ -1055,15 +1055,6 @@ class Settings(BaseSettings):
     # (``memcached://host:11211``) WITHOUT any code change. See the slowapi /
     # limits "storage" docs for the full URI scheme list.
     RATE_LIMIT_STORAGE_URI: str = "memory://"
-
-    # Expose the interactive API docs (Swagger UI at ``{API_V1_STR}/docs``) and
-    # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
-    # local development keeps its self-documenting API and the frontend's Orval
-    # type generation against a running backend keeps working out of the box.
-    # Operators SHOULD set this to ``False`` in production. The committed
-    # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
-    # generation never needs a live ``/openapi.json`` in CI or prod.
-    ENABLE_API_DOCS: bool = True
 
     # How much the application says about itself on stderr: one of the
     # standard Python level names (DEBUG, INFO, WARNING, ERROR, CRITICAL).

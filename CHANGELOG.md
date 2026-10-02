@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No initiative is the default any more.** Communities that were given a "Default Initiative" can now rename it, archive it or delete it like any other. **App and API integrations:** initiatives no longer carry `is_default`.
 - **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
 - **App and API integrations:** galleries, queues, counter groups and wikis no longer report `image_count`, `item_count`, `counter_count` or `page_count`.
+- **The API reference is always served,** at `/api/v1/docs` with its schema at `/api/v1/openapi.json`. `ENABLE_API_DOCS` is gone; a deployment that still sets it starts as before and ignores it.
 
 ### Fixed
 

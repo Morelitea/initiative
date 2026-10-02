@@ -520,15 +520,6 @@ def test_app_url_is_https_ignores_substring_scheme():
     assert _settings(APP_URL="http://https.example.com").app_url_is_https is False
 
 
-def test_enable_api_docs_defaults_true():
-    # Default on for dev ergonomics; operators set it False in production.
-    assert _settings().ENABLE_API_DOCS is True
-
-
-def test_enable_api_docs_can_be_disabled():
-    assert _settings(ENABLE_API_DOCS=False).ENABLE_API_DOCS is False
-
-
 def test_log_level_defaults_to_info():
     assert _settings().LOG_LEVEL == "INFO"
 
