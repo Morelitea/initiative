@@ -39,6 +39,7 @@ Counters take decimals, so a fundraising total in pounds and pence works as well
 
 - **Increment**, **decrement** and **reset** are one tap each.
 - **Reset all** does the whole group at once — the right button between sessions.
+- **Duplicate**, in a counter's menu, makes another one with the same bounds and the same count, at the end of the group. For when the second team turns up.
 - **Focus mode** blows one counter up to fill the screen, which is what you want when it's on a projector or a tablet propped up on the door.
 
 !!! tip "Focus mode is the one to remember"

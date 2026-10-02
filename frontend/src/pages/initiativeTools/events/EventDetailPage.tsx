@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { CalendarDays, MapPin, Repeat, Trash2, Users } from "lucide-react";
+import { CalendarDays, Copy, MapPin, Repeat, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,
+  useDuplicateCalendarEvent,
   useOccurrenceAction,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
@@ -181,6 +182,13 @@ export function EventDetailPage() {
     },
   });
 
+  const duplicateEvent = useDuplicateCalendarEvent({
+    onSuccess: (copy) => {
+      toast.success(t("common:subToolDuplicate.done"));
+      void navigate({ to: gp(eventRoute(initiativeId, copy.calendar_id, copy.id)) });
+    },
+  });
+
   // RSVP
   const updateRSVP = useUpdateEventRSVP(parsedId, {
     onSuccess: () => {
@@ -260,6 +268,19 @@ export function EventDetailPage() {
     if (scope) deleteEvent.mutate({ eventId: parsedId, ...scoped(scope) });
   };
 
+  // Opened at one date of a repeating event: that date alone, or the series.
+  const handleDuplicate = async () => {
+    const scope =
+      event.recurrence && occurrence
+        ? await scopePrompt.ask("duplicate", { scopes: ["this", "all"] })
+        : "all";
+    if (scope)
+      duplicateEvent.mutate({
+        eventId: parsedId,
+        occurrence: scope === "this" ? occurrenceStart : undefined,
+      });
+  };
+
   // An answer is for one event: a series' is for the occurrence shown.
   const handleAnswer = (status: RSVPStatus) =>
     updateRSVP.mutate({
@@ -296,15 +317,28 @@ export function EventDetailPage() {
               </Button>
             )}
             {canWrite && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => void handleDelete()}
-              >
-                <Trash2 className="h-4 w-4" />
-                {t("common:delete")}
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleDuplicate()}
+                  disabled={duplicateEvent.isPending}
+                >
+                  <Copy className="h-4 w-4" />
+                  {duplicateEvent.isPending
+                    ? t("common:subToolDuplicate.duplicating")
+                    : t("common:subToolDuplicate.action")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => void handleDelete()}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t("common:delete")}
+                </Button>
+              </>
             )}
           </div>
         ) : null}

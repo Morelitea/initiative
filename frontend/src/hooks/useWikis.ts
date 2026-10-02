@@ -13,6 +13,7 @@ import {
   addDocumentToWikiApiV1CGuildIdWikisWikiIdDocumentsDocumentIdPut,
   createWikiPageApiV1CGuildIdWikisWikiIdPagesPost,
   deleteWikiPageApiV1CGuildIdWikisWikiIdPagesPageIdDelete,
+  duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost,
   getListWikiPagesApiV1CGuildIdWikisWikiIdPagesGetQueryKey,
   getReadWikiPageApiV1CGuildIdWikiPagesPageIdGetQueryKey,
   getReadWikiPageLinksApiV1CGuildIdWikisWikiIdPagesPageIdLinksGetQueryKey,
@@ -109,6 +110,20 @@ export const useCreateWikiPage = (
       // The tree gains a row and the wiki's page count changes with it.
       invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
       errorKey: "wikis:error",
+    },
+    options
+  );
+
+export const useDuplicateWikiPage = (
+  wikiId: number,
+  options?: MutationOpts<WikiPageRead, number>
+) =>
+  useGuildMutation<WikiPageRead, number>(
+    {
+      mutationFn: (guildId, pageId) =>
+        duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost(guildId, pageId),
+      invalidate: () => invalidate(q.wikiPages(wikiId), q.wiki(wikiId)),
+      errorKey: "common:error",
     },
     options
   );

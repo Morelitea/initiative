@@ -2002,6 +2002,105 @@ export function useReadWikiPageApiV1CGuildIdWikiPagesPageIdGet<
 }
 
 /**
+ * Copy the page, without the pages under it, to the end of where it is
+ * filed, as "<title> (Copy)", with its tags, links and properties.
+ * @summary Duplicate Wiki Page
+ */
+export const duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost = (
+  guildId: number,
+  pageId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<WikiPageRead>(
+    { url: `/api/v1/c/${guildId}/wiki-pages/${pageId}/duplicate`, method: "POST", signal },
+    options
+  );
+};
+
+export const getDuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationKey = () =>
+  ["duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost"] as const;
+
+export const getDuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost>>,
+    TError,
+    DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost>>,
+  TError,
+  DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost>>,
+    DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, pageId } = props ?? {};
+
+    return duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost(
+      guildId,
+      pageId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost>>
+>;
+
+export type DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationVariables = {
+  guildId: number;
+  pageId: number;
+};
+
+/**
+ * @summary Duplicate Wiki Page
+ */
+export const useDuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost>>,
+      TError,
+      DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePost>>,
+  TError,
+  DuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateWikiPageApiV1CGuildIdWikiPagesPageIdDuplicatePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * @summary Set Wiki Grants
  */
 export const setWikiGrantsApiV1CGuildIdWikisWikiIdGrantsPut = (

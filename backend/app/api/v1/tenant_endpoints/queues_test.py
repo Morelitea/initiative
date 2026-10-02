@@ -1059,3 +1059,43 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
     assert len(first["tags"]) == 1
     assert [d["document_id"] for d in first["documents"]] == [document.id]
     assert (second["label"], second["user_id"]) == ("Theirs", None)
+
+
+async def test_a_copied_item_keeps_its_place_and_who_can_read_but_not_its_hold(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    from app.models.tenant.resource_grant import ResourceAccessLevel
+    from app.testing import create_queue_item, create_resource_grant
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    queue = await create_queue(session, a.initiative, a.user)
+    await create_resource_grant(
+        session, queue, level=ResourceAccessLevel.read, user=b.user
+    )
+    goblin, stranger = [
+        await create_queue_item(
+            session, queue, label=label, position=12, user_id=user.id, held_at_round=2
+        )
+        for label, user in (("Goblin", b.user), ("Stranger", outsider.user))
+    ]
+
+    copies = [
+        await client.post(a.g(f"/queue-items/{item.id}/duplicate"), headers=a.headers)
+        for item in (goblin, stranger)
+    ]
+
+    assert [copy.status_code for copy in copies] == [201, 201], copies[0].text
+    assert [
+        (c["label"], c["position"], c["user_id"], c["held_at_round"])
+        for c in (copy.json() for copy in copies)
+    ] == [
+        ("Goblin (Copy)", 12, b.user.id, None),
+        ("Stranger (Copy)", 12, None, None),
+    ]

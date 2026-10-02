@@ -116,7 +116,8 @@
   "scope": {
     "title": {
       "edit": "Cambiar un evento periódico",
-      "delete": "Eliminar un evento periódico"
+      "delete": "Eliminar un evento periódico",
+      "duplicate": "Duplicar un evento periódico"
     },
     "description": "Este evento se repite. ¿A qué eventos se aplica?",
     "this": "Solo este evento",
@@ -124,7 +125,8 @@
     "all": "Todos los eventos de la serie",
     "confirm": {
       "edit": "Guardar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "duplicate": "Duplicar"
     }
   },
   "occurrence": {

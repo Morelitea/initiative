@@ -1459,6 +1459,105 @@ export function useReadCounterApiV1CGuildIdCountersCounterIdGet<
 }
 
 /**
+ * Copy the counter to the end of its group as "<name> (Copy)", with its
+ * count, tags and properties.
+ * @summary Duplicate Counter
+ */
+export const duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost = (
+  guildId: number,
+  counterId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CounterRead>(
+    { url: `/api/v1/c/${guildId}/counters/${counterId}/duplicate`, method: "POST", signal },
+    options
+  );
+};
+
+export const getDuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationKey = () =>
+  ["duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost"] as const;
+
+export const getDuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost>>,
+    TError,
+    DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost>>,
+  TError,
+  DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost>>,
+    DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationVariables
+  > = (props) => {
+    const { guildId, counterId } = props ?? {};
+
+    return duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost(
+      guildId,
+      counterId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost>>
+>;
+
+export type DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationError =
+  ErrorType<HTTPValidationError>;
+export type DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationVariables = {
+  guildId: number;
+  counterId: number;
+};
+
+/**
+ * @summary Duplicate Counter
+ */
+export const useDuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost>>,
+      TError,
+      DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof duplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePost>>,
+  TError,
+  DuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationVariables,
+  TContext
+> => {
+  return useMutation(
+    getDuplicateCounterApiV1CGuildIdCountersCounterIdDuplicatePostMutationOptions(options),
+    queryClient
+  );
+};
+/**
  * Put a counter at a number, held within its bounds.
  * @summary Set Counter Count
  */

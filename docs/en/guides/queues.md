@@ -42,6 +42,8 @@ Each item can carry:
 !!! tip "Hidden items still hold their place"
     Marking somebody hidden takes them off the display without removing them from the order — right for the volunteer who's away this month and back next. Delete them only if they're actually gone.
 
+**Duplicate**, in an item's edit window, adds another just like it at the same place in the order, with "(Copy)" on the end of its name. That is the second goblin sorted.
+
 ## Things people use them for
 
 - **On-call rotas** — who's carrying the phone this week.

@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Check,
+  Copy,
   ExternalLink,
   EyeOff,
   FileStack,
@@ -33,7 +34,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDeleteWikiPage, useUpdateWiki, useUpdateWikiPage } from "@/hooks/useWikis";
+import {
+  useDeleteWikiPage,
+  useDuplicateWikiPage,
+  useUpdateWiki,
+  useUpdateWikiPage,
+} from "@/hooks/useWikis";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { toolDetailRoute, wikiPageRoute } from "@/lib/tools";
@@ -68,6 +74,12 @@ export const WikiPageActions = ({
   const updateWiki = useUpdateWiki(wiki.id);
   const deletePage = useDeleteWikiPage(wiki.id);
   const updatePage = useUpdateWikiPage(wiki.id, page.id);
+  const duplicatePage = useDuplicateWikiPage(wiki.id, {
+    onSuccess: (copy) => {
+      toast.success(t("common:subToolDuplicate.done"));
+      void navigate({ to: gp(wikiPageRoute(initiativeId, wiki.id, copy.id)) });
+    },
+  });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!canWrite) {
@@ -183,6 +195,16 @@ export const WikiPageActions = ({
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                disabled={duplicatePage.isPending}
+                onSelect={() => duplicatePage.mutate(page.id)}
+              >
+                <Copy className="size-4" aria-hidden />
+                {duplicatePage.isPending
+                  ? t("common:subToolDuplicate.duplicating")
+                  : t("common:subToolDuplicate.action")}
+              </DropdownMenuItem>
 
               <DropdownMenuItem
                 className="text-destructive hover:text-destructive"

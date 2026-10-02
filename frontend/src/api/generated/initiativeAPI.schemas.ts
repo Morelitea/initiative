@@ -10974,6 +10974,13 @@ export const DeleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDeleteScope = 
   all: "all",
 } as const;
 
+export type DuplicateCalendarEventApiV1CGuildIdCalendarEventsEventIdDuplicatePostParams = {
+  /**
+   * One date of a repeating event, copied as an event of its own.
+   */
+  occurrence?: string | null;
+};
+
 export type SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutParams = {
   scope?: SetAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPutScope;
   occurrence?: string | null;

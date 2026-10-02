@@ -45,6 +45,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useCounterGroup,
   useDeleteCounter,
+  useDuplicateCounter,
   useResetAllCounters,
   useResetCounter,
   useSetCount,
@@ -57,6 +58,7 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { counterRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
@@ -85,6 +87,9 @@ export function CounterGroupDetailPage() {
   const resetOne = useResetCounter(groupId ?? 0);
   const resetAll = useResetAllCounters(groupId ?? 0);
   const deleteCounter = useDeleteCounter(groupId ?? 0);
+  const duplicateCounter = useDuplicateCounter(groupId ?? 0, {
+    onSuccess: () => toast.success(t("common:subToolDuplicate.done")),
+  });
   const sortCounters = useSortCounters(groupId ?? 0);
   const updateGroup = useUpdateCounterGroup(groupId ?? 0);
 
@@ -328,6 +333,7 @@ export function CounterGroupDetailPage() {
                     resetOne.mutate(counter.id);
                   }}
                   onEdit={() => setEditing(counter)}
+                  onDuplicate={() => duplicateCounter.mutate(counter.id)}
                   onDelete={() => {
                     stepper.cancel(counter.id);
                     setPendingDelete(counter);

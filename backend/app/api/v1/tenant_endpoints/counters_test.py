@@ -908,3 +908,24 @@ async def test_a_deleted_counter_reads_back(client, session, acting_user):
     )
     assert found.status_code == 200, found.text
     assert found.json()["id"] == counter_id
+
+
+async def test_a_copied_counter_keeps_its_count_at_the_end_of_its_group(
+    client: AsyncClient, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    group = await _create_group(client, a)
+    hp = await _add_counter(client, a, group["id"], count="42", position="1")
+    await _add_counter(client, a, group["id"], name="MP", position="5")
+
+    response = await client.post(
+        a.g(f"/counters/{hp['id']}/duplicate"), headers=a.headers
+    )
+
+    assert response.status_code == 201, response.text
+    copy = response.json()
+    assert (copy["name"], Decimal(copy["count"]), Decimal(copy["position"])) == (
+        "HP (Copy)",
+        Decimal(42),
+        Decimal(6),
+    )

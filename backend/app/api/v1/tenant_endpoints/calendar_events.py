@@ -66,7 +66,7 @@ from app.schemas.tenant.ical import (
     ICalParseRequest,
     ICalParseResult,
 )
-from app.api import resource_access
+from app.api import resource_access, tool_copy
 from app.core.tools import Tool
 from app.db.session import require_guild_context
 from app.models.tenant.resource_grant import ResourceGrant
@@ -818,6 +818,46 @@ async def create_calendar_event(
     await properties_service.write_on_create(session, event, event_in.properties)
     await session.commit()
     hydrated = await _refetch_event(session, event.id)
+    return await _serialized_event(
+        session, hydrated, guild_context.user_id, context=guild_context
+    )
+
+
+@router.post(
+    "/{event_id}/duplicate",
+    response_model=CalendarEventRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def duplicate_calendar_event(
+    event_id: int,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: CalendarsWrite,
+    occurrence: Optional[datetime] = Query(
+        default=None,
+        description="One date of a repeating event, copied as an event of its own.",
+    ),
+) -> CalendarEventRead:
+    """Copy the event beside itself as "<title> (Copy)", with its invitees,
+    who are invited to it as to a new event, its tags, links and properties. A
+    repeating event comes with its occurrences changed on their own; one
+    changed occurrence, or the ``occurrence`` named, is copied as an event of
+    its own."""
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, action=Action.contribute
+    )
+    copy = await tool_copy.duplicate_event(session, event, event.calendar, occurrence)
+    invited = (
+        await session.exec(
+            select(CalendarEventAttendee.user_id).where(
+                CalendarEventAttendee.calendar_event_id == copy.id,
+                CalendarEventAttendee.user_id != guild_context.user_id,
+            )
+        )
+    ).all()
+    await _notify_invited(session, copy, list(invited), current_user, guild_context)
+    await session.commit()
+    hydrated = await _refetch_event(session, copy.id)
     return await _serialized_event(
         session, hydrated, guild_context.user_id, context=guild_context
     )
