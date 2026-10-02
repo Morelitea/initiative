@@ -52,7 +52,6 @@
   "INITIATIVE_NOT_FOUND": "Initiative not found",
   "INITIATIVE_MANAGER_REQUIRED": "Initiative manager role required",
   "INITIATIVE_NAME_EXISTS": "Initiative name already exists",
-  "INITIATIVE_CANNOT_DELETE_DEFAULT": "Default initiative cannot be deleted",
   "INITIATIVE_NOT_A_MEMBER": "Not a member of this initiative",
   "INITIATIVE_ROLE_NOT_FOUND": "Initiative role not found",
   "INITIATIVE_ROLE_NAME_EXISTS": "Role name already exists",

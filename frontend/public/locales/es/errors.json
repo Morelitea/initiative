@@ -55,7 +55,6 @@
   "INITIATIVE_NOT_FOUND": "Iniciativa no encontrada",
   "INITIATIVE_MANAGER_REQUIRED": "Se requiere rol de gerente de iniciativa",
   "INITIATIVE_NAME_EXISTS": "El nombre de la iniciativa ya existe",
-  "INITIATIVE_CANNOT_DELETE_DEFAULT": "La iniciativa predeterminada no puede ser eliminada",
   "INITIATIVE_NOT_A_MEMBER": "No eres miembro de esta iniciativa",
   "INITIATIVE_ROLE_NOT_FOUND": "Rol de iniciativa no encontrado",
   "INITIATIVE_ROLE_NAME_EXISTS": "El nombre del rol ya existe",

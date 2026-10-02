@@ -23,8 +23,6 @@ It shows up in the sidebar. Expand it to see its projects and documents.
 !!! info "Your first one"
     A new community arrives empty, and the home page asks you to make the first initiative before anything else. That is deliberate: an initiative is a *name for a body of work*, and only you know what this community's work is called.
 
-    Older communities may still have a **Default Initiative** from before this changed. It behaves like any other, except it can't be deleted.
-
 ## The initiative dashboard
 
 Clicking an initiative's **title** opens its dashboard: how the projects are getting on, what's coming up, what's changed lately.

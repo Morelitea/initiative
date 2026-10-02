@@ -367,8 +367,6 @@ export const SettingsInitiativesPage = () => {
               variant="destructive"
               size="sm"
               onClick={() => setDeleteTarget(initiative)}
-              disabled={initiative.is_default}
-              title={initiative.is_default ? t("manage.deleteDefaultHint") : undefined}
             >
               <Trash2 className="h-4 w-4" />
               {t("manage.delete")}

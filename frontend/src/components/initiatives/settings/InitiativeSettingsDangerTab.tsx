@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface InitiativeSettingsDangerTabProps {
-  isDefault: boolean;
   isArchived: boolean;
   // Archiving (hide from the sidebar) is a guild-admin-only action.
   canArchiveInitiative: boolean;
@@ -17,7 +16,6 @@ interface InitiativeSettingsDangerTabProps {
 }
 
 export const InitiativeSettingsDangerTab = ({
-  isDefault,
   isArchived,
   canArchiveInitiative,
   isArchiving,
@@ -64,7 +62,7 @@ export const InitiativeSettingsDangerTab = ({
               type="button"
               variant="destructive"
               onClick={onDeleteInitiative}
-              disabled={isDefault || isDeleting}
+              disabled={isDeleting}
             >
               {isDeleting ? (
                 <>
@@ -81,9 +79,6 @@ export const InitiativeSettingsDangerTab = ({
           ) : (
             <p className="text-muted-foreground text-sm">{t("settings.contactAdmin")}</p>
           )}
-          {isDefault ? (
-            <p className="text-muted-foreground text-xs">{t("settings.defaultCannotDelete")}</p>
-          ) : null}
         </CardContent>
       </Card>
     </div>

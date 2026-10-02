@@ -57,7 +57,6 @@
   "INITIATIVE_NOT_FOUND": "Initiative nicht gefunden",
   "INITIATIVE_MANAGER_REQUIRED": "Managerrolle der Initiative erforderlich",
   "INITIATIVE_NAME_EXISTS": "Initiativenname existiert bereits",
-  "INITIATIVE_CANNOT_DELETE_DEFAULT": "Die Standardinitiative kann nicht gelöscht werden",
   "INITIATIVE_NOT_A_MEMBER": "Kein Mitglied dieser Initiative",
   "INITIATIVE_ROLE_NOT_FOUND": "Initiativen-Rolle nicht gefunden",
   "INITIATIVE_ROLE_NAME_EXISTS": "Rollenname existiert bereits",

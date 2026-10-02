@@ -62,7 +62,6 @@
     "archive": "Archive",
     "unarchive": "Unarchive",
     "delete": "Delete",
-    "deleteDefaultHint": "The default initiative can’t be deleted.",
     "archivedToast": "Initiative \"{{name}}\" archived.",
     "unarchivedToast": "Initiative \"{{name}}\" restored.",
     "deletedToast": "Initiative \"{{name}}\" moved to trash."
@@ -183,7 +182,6 @@
     "archivedDescription": "This initiative is archived and hidden from the sidebar.",
     "deleteInitiative": "Delete initiative",
     "deletingInitiative": "Deleting...",
-    "defaultCannotDelete": "The default initiative cannot be deleted.",
     "contactAdmin": "Contact a community admin to delete this initiative.",
     "deleted": "Initiative deleted.",
     "deleteError": "Unable to delete initiative right now.",

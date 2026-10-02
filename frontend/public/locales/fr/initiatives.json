@@ -62,7 +62,6 @@
     "archive": "Archiver",
     "unarchive": "Restaurer",
     "delete": "Supprimer",
-    "deleteDefaultHint": "L’initiative par défaut ne peut pas être supprimée.",
     "archivedToast": "Initiative « {{name}} » archivée.",
     "unarchivedToast": "Initiative « {{name}} » restaurée.",
     "deletedToast": "Initiative « {{name}} » déplacée dans la corbeille."
@@ -183,7 +182,6 @@
     "archivedDescription": "Cette initiative est archivée et masquée de la barre latérale.",
     "deleteInitiative": "Supprimer l'initiative",
     "deletingInitiative": "Suppression en cours...",
-    "defaultCannotDelete": "L'initiative par défaut ne peut pas être supprimée.",
     "contactAdmin": "Contactez un administrateur de la communauté pour supprimer cette initiative.",
     "deleted": "Initiative supprimée.",
     "deleteError": "Impossible de supprimer l'initiative pour l'instant.",

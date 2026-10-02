@@ -332,21 +332,20 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
 
 
 @pytest.mark.parametrize(
-    ("verb", "caller", "target", "status_code", "detail"),
+    ("verb", "caller", "status_code", "detail"),
     [
-        ("create", "admin", "own", 201, None),
-        ("create", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("create", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("update", "admin", "own", 200, None),
-        ("update", "manager", "own", 200, None),
-        ("update", "member", "own", 403, InitiativeMessages.MANAGER_REQUIRED),
-        ("archive", "admin", "own", 200, None),
-        ("archive", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("archive", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("delete", "admin", "own", 204, None),
-        ("delete", "manager", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("delete", "member", "own", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("delete", "admin", "default", 400, InitiativeMessages.CANNOT_DELETE_DEFAULT),
+        ("create", "admin", 201, None),
+        ("create", "manager", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("create", "member", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("update", "admin", 200, None),
+        ("update", "manager", 200, None),
+        ("update", "member", 403, InitiativeMessages.MANAGER_REQUIRED),
+        ("archive", "admin", 200, None),
+        ("archive", "manager", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("archive", "member", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("delete", "admin", 204, None),
+        ("delete", "manager", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("delete", "member", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
     ],
 )
 async def test_initiative_crud_answers_each_caller(
@@ -355,7 +354,6 @@ async def test_initiative_crud_answers_each_caller(
     acting_user,
     verb: str,
     caller: str,
-    target: str,
     status_code: int,
     detail: str | None,
 ):
@@ -364,16 +362,10 @@ async def test_initiative_crud_answers_each_caller(
     Putting one in the guild, filing it away, or taking it out of the guild
     altogether is the guild's decision and takes a guild admin; editing what an
     initiative says is its managers' decision. A guild admin reaches every
-    initiative in their guild without holding a membership row in it. The
-    guild's default initiative stays.
+    initiative in their guild without holding a membership row in it.
     """
     owner, initiative = await _initiative_with_owner(session, acting_user)
     actor = await _caller(acting_user, caller, owner, initiative)
-
-    if target == "default":
-        initiative = await create_initiative(
-            session, owner.guild, owner.user, name="House", is_default=True
-        )
 
     if verb == "create":
         response = await client.post(
