@@ -626,21 +626,28 @@ def _app_event(**overrides) -> AppEventOutbox:
     return AppEventOutbox(**defaults)
 
 
-def test_an_app_event_is_one_change_carrying_its_payload():
+@pytest.mark.parametrize(
+    ("subscribed_in", "about", "carried"),
+    [(None, None, None), (11, None, 11), (None, 12, 12), (12, 12, 12)],
+    ids=["community", "narrowed", "its-own-community", "its-own-narrowed"],
+)
+def test_an_app_event_is_one_change_carrying_its_payload(subscribed_in, about, carried):
+    """It carries the initiative it landed in: its own, or the one the
+    subscription is narrowed to."""
     envelope = outbox_poller._envelope(
-        _subscription(event_types=[_GH_EVENT]),
+        _subscription(initiative_id=subscribed_in, event_types=[_GH_EVENT]),
         500,
         [],
         guild_ref=_GUILD_REF,
         actor_ref=None,
         actor_app="tests.gh",
-        app_events=[(_app_event(), "tests.gh")],
+        app_events=[(_app_event(initiative_id=about), "tests.gh")],
     )
     assert envelope["actor_app"] == "tests.gh"
     assert envelope["changes"] == [
         {
             "event_type": _GH_EVENT,
-            "initiative_id": None,
+            "initiative_id": carried,
             "app": "tests.gh",
             "payload": {"number": 12},
         }
