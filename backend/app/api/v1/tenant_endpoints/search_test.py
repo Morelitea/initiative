@@ -85,6 +85,7 @@ async def test_a_person_is_found_where_they_are_mentioned(
     # A name is matched whole: three letters do not name everyone they start.
     assert await found("Coun") == []
     assert await found(ada.user.username) == both
+    assert await found(f"{ada.user.username}#{ada.user.discriminator:04d}") == both
     assert await found("countess budget") == ["budget review"]
     assert await found("budget -countess") == []
 

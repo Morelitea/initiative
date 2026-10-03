@@ -205,14 +205,19 @@ def _people_named(term: str) -> ColumnElement:
     names nobody.
 
     A term names a member when its whole words are words of their name in this
-    community or of their handle, as the term would match those written in
-    text. Whole words, never a prefix: three letters typed would otherwise name
-    everyone whose name starts with them. The members are the routed
-    community's own.
+    community or of their handle as it is shown (``jordan#0042``), as the term
+    would match those written in text. Whole words, never a prefix: three
+    letters typed would otherwise name everyone whose name starts with them.
+    The members are the routed community's own.
     """
     from app.services.platform.users import visible_to_other_people
 
-    names = func.concat_ws(" ", MemberProfile.display_name, MemberProfile.username)
+    handle = func.concat(
+        MemberProfile.username,
+        "#",
+        func.lpad(cast(MemberProfile.discriminator, String), 4, "0"),
+    )
+    names = func.concat_ws(" ", MemberProfile.display_name, handle)
     # A name holding the term holds each of its words, so testing one as a
     # substring first leaves only those few names to parse.
     word = max(_WORD.findall(term), key=len)
