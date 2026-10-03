@@ -41,8 +41,11 @@ RUN --mount=type=secret,id=ota_signing_key \
 # package refresh, which every published build runs again, and was rebuilt
 # (and stored in the build cache again) every time. uv never reaches the image.
 FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS backend-deps
-# uv binary (pinned) for native, lockfile-based dependency installs
-COPY --from=ghcr.io/astral-sh/uv:0.11.21@sha256:ff07b86af50d4d9391d9daf4ff89ce427bc544f9aae87057e69a1cc0aa369946 /uv /uvx /bin/
+# uv (pinned, hash-checked) for native, lockfile-based dependency installs.
+# From PyPI rather than uv's ghcr.io image, which refused pulls under load.
+COPY backend/uv-requirements.txt /tmp/
+RUN pip install --no-cache-dir --disable-pip-version-check --root-user-action=ignore \
+        --only-binary=:all: --require-hashes -r /tmp/uv-requirements.txt
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-system
 WORKDIR /app
 # No app source needed: this is a package=false project. --no-dev keeps
