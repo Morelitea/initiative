@@ -75,6 +75,11 @@ class DocumentCreate(DocumentBase, PropertiesOnCreate):
 class DocumentUpdate(SanitizedBaseModel):
     name: Optional[str] = None
     content: Optional[LexicalState] = None
+    #: The ``content_version`` of the read this ``content`` was made from.
+    #: Given and still current, the write merges in, into a live editing
+    #: session too; given and out of date, it is refused with
+    #: ``*_CONTENT_CHANGED``. Left out, a live session refuses the write.
+    content_version: Optional[str] = None
     featured_image_url: Optional[str] = None
     is_template: Optional[bool] = None
 
@@ -131,6 +136,10 @@ class DocumentListResponse(PageMeta):
 
 class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
+    #: The version of ``content`` this read returns. Send it back with a
+    #: ``PATCH`` of ``content`` so the write merges into the body only if
+    #: nobody has changed it since. ``null`` when the body was left out.
+    content_version: Optional[str] = None
 
 
 class DocumentFileVersionRead(SanitizedBaseModel):

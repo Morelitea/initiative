@@ -7,6 +7,7 @@ is shown it) and the **web** (what a page's body names, and what names it
 back).
 """
 
+from types import SimpleNamespace
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -934,7 +935,10 @@ async def test_a_body_saved_outside_a_live_session_is_refused(
     page = await create_wiki_page(session, wiki, a.user, title="Live")
     url = a.g(f"/wiki-pages/{page.id}")
     monkeypatch.setattr(
-        collaboration_manager, "has_active_collaborators", lambda *_a: True
+        collaboration_manager,
+        "live_room",
+        # A room somebody is in; reads leave a room the browser renders alone.
+        lambda *_a: SimpleNamespace(renders_content=False),
     )
 
     refused = await client.patch(

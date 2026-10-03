@@ -91,7 +91,13 @@ from app.services import audit as audit_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.ai_settings import resolve_ai_settings
 from app.services.tenant import spreadsheet_import
-from app.services.tenant.collaboration import collaboration_manager, written_into
+from app.services.tenant.collaboration import (
+    collaboration_manager,
+    content_version,
+    current_content,
+    versioned,
+    written_into,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -742,11 +748,16 @@ async def read_document(
         access="read",
         hydrated=True,
     )
-    return serialize_document(
+    read = serialize_document(
         document,
         user_id=guild_context.user_id,
         include_content=include_content,
         context=guild_context,
+    )
+    if not include_content:
+        return read
+    return await versioned(
+        read, guild_context.guild_id, SearchEntityType.document.value
     )
 
 
@@ -786,26 +797,54 @@ async def update_document(
         updated = True
 
     content_updated = False
-    # A document with a live collaboration room has that room as the writer of
-    # both its views — it saves ``content`` and ``yjs_state`` from one snapshot,
-    # on an interval and at teardown. Everything else in the patch (the name,
-    # the featured image) is unrelated to that and still applies.
-    if "content" in update_data and collaboration_manager.has_active_collaborators(
-        guild_context.guild_id, SearchEntityType.document.value, document.id
-    ):
-        # An editor inside the session reports its content to the room over its
-        # own socket, which is what ties a rendering to the state it was made
-        # from. A rendering arriving here belongs to a tab outside the session,
-        # whose view of the document the session has moved on from — and a
-        # request carries no connection, so one of an account's tabs cannot be
-        # told from another here. It is refused rather than taken and reported
-        # as saved; reconnecting is what gets that tab's work in, and the
-        # handshake carries it.
+    room = (
+        collaboration_manager.live_room(
+            guild_context.guild_id, SearchEntityType.document.value, document.id
+        )
+        if "content" in update_data
+        else None
+    )
+    version = update_data.get("content_version")
+    if "content" in update_data and version is not None:
+        # The writer says which content it changed. Anything since — an edit in
+        # a live session, another write — would be undone by writing this
+        # whole body over it, so the write is refused and the writer reads
+        # again.
+        await session.refresh(document, ["content"])
+        current = await current_content(
+            guild_context.guild_id,
+            SearchEntityType.document.value,
+            document.id,
+            document.content,
+        )
+        if content_version(current) != version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=DocumentMessages.CONTENT_CHANGED,
+            )
+    if room is not None and (version is None or not room.renders_content):
+        # A live room is the writer of both of the document's views. A body
+        # that names no version may describe one the session has moved on
+        # from, and a body the browser renders is reconciled by its editors,
+        # so either is refused rather than taken and reported as saved.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=DocumentMessages.LIVE_SESSION_OWNS_CONTENT,
         )
-    if "content" in update_data:
+    if room is not None:
+        # The writer read what the session holds now: the change goes into
+        # it, reaches the open editors, and is saved with their edits.
+        try:
+            live_content = documents_service.normalize_document_content(
+                update_data["content"], document_type=document.document_type
+            )
+        except documents_service.DocumentContentError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+            ) from exc
+        await room.write(live_content, user_id=guild_context.user_id)
+        updated = True
+    elif "content" in update_data:
         await session.refresh(document, ["content"])
         previous_content_urls = attachments_service.extract_upload_urls(
             document.content
@@ -821,8 +860,8 @@ async def update_document(
             ) from exc
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
-        # Reaching here means no room is live, so this edit is the newest
-        # thing about the document. A native body's stored Yjs state has it
+        # No room is live, so this edit is the newest thing about the
+        # document. A native body's stored Yjs state has it
         # written in, so the next session opens on it with its history; any
         # other body's state is cleared, and the next session's first editor
         # makes it from this content.
@@ -1000,8 +1039,12 @@ async def read_after_write(
             not_found=Tool.document.not_found_code,
             denied=Tool.document.no_access_code,
         )
-    return serialize_document(
-        document, user_id=guild_context.user_id, context=guild_context
+    return await versioned(
+        serialize_document(
+            document, user_id=guild_context.user_id, context=guild_context
+        ),
+        guild_context.guild_id,
+        SearchEntityType.document.value,
     )
 
 
