@@ -92,6 +92,7 @@
     "title": "Kontakt aufnehmen",
     "description": "Schreib den Betreibern dieses Servers an diese Adresse, und sie melden sich bei dir.",
     "copy": "Adresse kopieren",
+    "copyDraft": "Deinen Text kopieren",
     "write": "E-Mail schreiben"
   }
 }

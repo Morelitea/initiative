@@ -92,6 +92,7 @@
     "title": "Prendre contact",
     "description": "Écrivez aux personnes qui gèrent ce serveur à cette adresse, et elles vous répondront.",
     "copy": "Copier l'adresse",
+    "copyDraft": "Copier ce que vous avez écrit",
     "write": "Écrire un e-mail"
   }
 }

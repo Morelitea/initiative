@@ -366,6 +366,8 @@ async def _open_platform_case(
         IntakeStream.moderation,
         title=f"Reported {target.value} {target_id} ({reason.value})",
         body="\n\n".join(parts) or None,
+        # A second report of an open case brings somebody's own words.
+        detail="\n\n".join(parts) or None,
         refs=CaseRefs(
             # The subject is who or what was reported — never the reporter.
             subject_user=target_id if target in _ACCOUNT_TARGETS else None,

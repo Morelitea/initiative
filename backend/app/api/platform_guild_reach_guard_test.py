@@ -150,10 +150,6 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/intake.py", "open_case"): (
         "intake: opens a case in the operations community on the deployment's behalf"
     ),
-    (f"{_SERVICES}/intake.py", "open_cases_filed_by"): (
-        "intake: counts a filer's open cases in the operations community, to hold "
-        "them to the stream's cap"
-    ),
     (f"{_SERVICES}/intake_setup.py", "bind"): (
         "intake setup: the platform owner's Intake page (config.manage)"
     ),

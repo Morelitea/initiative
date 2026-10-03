@@ -32,6 +32,7 @@ from app.schemas.platform.ticket import (
     TicketCreate,
 )
 from app.services.platform import tickets as tickets_service
+from app.services.platform.intake import CaseCapReached
 from app.services.tenant import moderation as moderation_service
 from app.services.tenant import support as support_service
 
@@ -86,11 +87,6 @@ async def file_ticket(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=TicketMessages.FILING_TOO_FAST,
         ) from exc
-    except tickets_service.TooManyOpen as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=TicketMessages.TOO_MANY_OPEN,
-        ) from exc
 
     if isinstance(payload, SupportTicketCreate):
         return await _ask_for_help(current_user, payload)
@@ -111,6 +107,11 @@ async def _ask_for_help(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=SupportMessages.NOT_AVAILABLE,
+        ) from exc
+    except CaseCapReached as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=TicketMessages.TOO_MANY_OPEN,
         ) from exc
     except support_service.NowhereToSend as exc:
         raise HTTPException(

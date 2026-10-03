@@ -120,10 +120,7 @@ describe("FileTicketDialog", () => {
       }
     });
 
-    it("offers the deployment's address when nothing could receive the report", async () => {
-      contacts.moderation = "trust@example.org";
-      report();
-
+    const nothingReceivedIt = () =>
       act(() => {
         fileOptions.current?.onError?.(
           new AxiosError("unavailable", "ERR_BAD_RESPONSE", undefined, undefined, {
@@ -131,6 +128,42 @@ describe("FileTicketDialog", () => {
           } as AxiosResponse)
         );
       });
+
+    it("offers the deployment's address, with what was written, when nothing could receive the report", async () => {
+      contacts.moderation = "trust@example.org";
+      report();
+      const user = userEvent.setup();
+      await user.type(screen.getByLabelText("Anything else?"), "It names my street.");
+      await chooseReason(user, "Harassment");
+
+      nothingReceivedIt();
+
+      expect(await screen.findByText("trust@example.org")).toBeInTheDocument();
+      const write = screen.getByRole("link", { name: "Write an email" });
+      const href = write.getAttribute("href") ?? "";
+      expect(href.startsWith("mailto:trust@example.org?")).toBe(true);
+      const sent = new URLSearchParams(href.split("?")[1]);
+      expect(sent.get("subject")).toBe("Report this: Harassment");
+      expect(sent.get("body")).toContain("It names my street.");
+      expect(sent.get("body")).toContain("comment 42");
+      expect(screen.getByRole("button", { name: "Copy what you wrote" })).toBeInTheDocument();
+    });
+
+    it("turns into the address when it arrives after the refusal", async () => {
+      const view = report();
+
+      nothingReceivedIt();
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+      contacts.moderation = "trust@example.org";
+      view.rerender(
+        <FileTicketDialog
+          open
+          onOpenChange={() => {}}
+          ticket={{ stream: "moderation", targetType: "comment", targetId: 42 }}
+          guildId={3}
+        />
+      );
 
       expect(await screen.findByText("trust@example.org")).toBeInTheDocument();
     });

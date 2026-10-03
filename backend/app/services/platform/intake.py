@@ -36,7 +36,13 @@ from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.intake import CaseField, CASE_FIELD_TYPES, IntakeStream, STREAM_FIELDS
+from app.core.intake import (
+    CASE_FIELD_TYPES,
+    STREAM_FIELDS,
+    CaseField,
+    IntakeStream,
+    meta,
+)
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
@@ -189,31 +195,32 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
         return project is not None and project[0] is None and project[1] is None
 
 
-async def open_cases_filed_by(user_id: int, stream: IntakeStream) -> int:
+class CaseCapReached(Exception):
+    """The filer already has as many of the stream's cases open as it allows."""
+
+
+async def _open_cases_filed_by(
+    session: AsyncSession, *, user_id: int, stream: IntakeStream
+) -> int:
     """How many of ``stream``'s cases ``user_id`` filed that are still open.
 
-    Read in the operations guild, where the cases are, on a system session of
-    its own like every other read the writer makes there. A case is open while
-    its task is out of the trash and short of a ``done`` status — the same
-    test a repeat uses to find the case it joins.
+    On the writer's own routed session, under the filer's lock, so the count
+    and the case it admits are one decision. A case is open while its task is
+    out of the trash and short of a ``done`` status — the same test a repeat
+    uses to find the case it joins.
     """
-    guild_id = await _configured_operations_guild_id()
-    if guild_id is None:
-        return 0
-    async with cohorts.system_session(guild_id) as session:
-        await set_rls_context(session, SystemGuild(guild_id))
-        count = (
-            await session.exec(
-                select(func.count())
-                .select_from(IntakeCase)
-                .join(Task, Task.id == IntakeCase.task_id)
-                .join(TaskStatus, TaskStatus.id == Task.task_status_id)
-                .where(IntakeCase.filer_user_id == user_id)
-                .where(IntakeCase.stream == stream.value)
-                .where(Task.deleted_at.is_(None))
-                .where(TaskStatus.category != TaskStatusCategory.done)
-            )
-        ).one()
+    count = (
+        await session.exec(
+            select(func.count())
+            .select_from(IntakeCase)
+            .join(Task, Task.id == IntakeCase.task_id)
+            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+            .where(IntakeCase.filer_user_id == user_id)
+            .where(IntakeCase.stream == stream.value)
+            .where(Task.deleted_at.is_(None))
+            .where(TaskStatus.category != TaskStatusCategory.done)
+        )
+    ).one()
     return int(count)
 
 
@@ -376,6 +383,7 @@ async def open_case(
     window: timedelta = DEFAULT_RECURRENCE_WINDOW,
     now: Optional[datetime] = None,
     filer: Optional[CaseFiler] = None,
+    detail: Optional[str] = None,
 ) -> Optional[CaseOutcome]:
     """File ``stream``'s work as a task in the project bound to it.
 
@@ -387,7 +395,14 @@ async def open_case(
 
     ``filer`` names the person filing, when a person is. A new case records
     them and opens with their words, said to them; a repeat that lands in a
-    case already open says what was new on the case instead.
+    case already open says what was new on the case instead. The stream's cap
+    on one filer's open cases is checked under a lock on that filer, in the
+    transaction that opens the case, and ``CaseCapReached`` is raised past it.
+
+    ``detail`` is what this occurrence brings beyond the description — a new
+    reporter's words. A repeat notes it every time; a repeat bringing nothing
+    is noted once per window. An automatic case passes none, so its unchanged
+    description is never taken for news.
     """
     moment = now or datetime.now(timezone.utc)
     if dedupe_key is not None and len(dedupe_key) > DEDUPE_KEY_LENGTH:
@@ -450,18 +465,34 @@ async def open_case(
                 # What a repeat brings with it is noted every time — it is
                 # somebody's words, not one more of the same event — and a
                 # repeat bringing nothing is noted once per window.
-                detail = filer.words if filer is not None else body
-                if detail or window_passed:
+                news = filer.words if filer is not None else detail
+                if news or window_passed:
                     await case_activity.post(
                         session,
                         task_id=existing.task_id,
                         kind=case_activity.ActivityKind.repeat,
                         text=case_activity.repeat_text(
-                            occurrences=existing.occurrences, detail=detail
+                            occurrences=existing.occurrences, detail=news
                         ),
                     )
                 await session.commit()
                 return CaseOutcome(task_id=existing.task_id, opened=False)
+
+        cap = meta(stream).max_open_per_filer
+        if filer is not None and cap is not None:
+            # Held for the rest of the transaction, so two filings at once
+            # queue here and the second counts the first's case.
+            await _hold_key(
+                session,
+                guild_id=guild_id,
+                stream=stream,
+                dedupe_key=f"filer:{filer.user_id}",
+            )
+            held = await _open_cases_filed_by(
+                session, user_id=filer.user_id, stream=stream
+            )
+            if held >= cap:
+                raise CaseCapReached
 
         task = await task_creation_service.create_task_row(
             session,

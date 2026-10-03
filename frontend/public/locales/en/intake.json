@@ -92,6 +92,7 @@
     "title": "Get in touch",
     "description": "Write to the people who run this server at this address, and they'll get back to you.",
     "copy": "Copy address",
+    "copyDraft": "Copy what you wrote",
     "write": "Write an email"
   }
 }

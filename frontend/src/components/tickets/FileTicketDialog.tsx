@@ -96,9 +96,11 @@ export const FileTicketDialog = ({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [reason, setReason] = useState<ReportReason | "">("");
-  // Set when the people who run the deployment had nowhere to receive this:
-  // the dialog then offers their address instead of a refusal.
-  const [nowhere, setNowhere] = useState(false);
+  // Set, to what the server said, when the people who run the deployment had
+  // nowhere to receive this. Kept apart from their address, which may still
+  // be on its way: the dialog turns into the address whenever it arrives, and
+  // says why it could not send only where there is no address at all.
+  const [nowhere, setNowhere] = useState<string | null>(null);
   const availability = useTicketAvailability(guildId, { enabled: open });
   const contact = availability.data?.[ticket.stream].contact ?? null;
 
@@ -113,16 +115,35 @@ export const FileTicketDialog = ({
       setReason("");
     },
     onError: (err) => {
-      if (getHttpStatus(err) === 503 && contact) {
-        setNowhere(true);
+      const message = getErrorMessage(
+        err,
+        isReport ? "moderation:report.error" : "intake:help.error"
+      );
+      if (getHttpStatus(err) === 503) {
+        setNowhere(message);
         return;
       }
-      toast.error(getErrorMessage(err, isReport ? "moderation:report.error" : "intake:help.error"));
+      toast.error(message);
     },
   });
 
   if (nowhere && contact) {
-    return <ContactDialog open={open} onOpenChange={onOpenChange} contact={contact} />;
+    // What they wrote goes with them, so falling back to email does not mean
+    // writing it again.
+    const draft =
+      ticket.stream === "moderation"
+        ? {
+            subject: reason
+              ? `${t("moderation:report.title")}: ${t(`moderation:reasons.${reason}`)}`
+              : t("moderation:report.title"),
+            body: [body.trim(), `${ticket.targetType} ${ticket.targetId}`]
+              .filter(Boolean)
+              .join("\n\n"),
+          }
+        : { subject: subject.trim(), body: body.trim() };
+    return (
+      <ContactDialog open={open} onOpenChange={onOpenChange} contact={contact} draft={draft} />
+    );
   }
 
   const payload = (): TicketCreate | null => {
@@ -217,6 +238,12 @@ export const FileTicketDialog = ({
               </a>
             </p>
           </div>
+        )}
+
+        {nowhere && !availability.isPending && (
+          <p className="text-destructive text-sm" role="alert">
+            {nowhere}
+          </p>
         )}
 
         <DialogFooter>

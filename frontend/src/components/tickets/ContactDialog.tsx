@@ -26,10 +26,24 @@ export interface ContactDialogProps {
   onOpenChange: (open: boolean) => void;
   /** The address to write to. */
   contact: string;
+  /** What the reader already wrote, where a filing could not be received: it
+   *  goes into the email, and can be copied, so nothing is written twice. */
+  draft?: { subject: string; body: string };
 }
 
-export const ContactDialog = ({ open, onOpenChange, contact }: ContactDialogProps) => {
+/** A `mailto:` for the address, carrying the draft where there is one. */
+const mailtoFor = (contact: string, draft?: { subject: string; body: string }): string => {
+  const params = new URLSearchParams();
+  if (draft?.subject) params.set("subject", draft.subject);
+  if (draft?.body) params.set("body", draft.body);
+  // URLSearchParams writes spaces as "+", which mail clients show literally.
+  const query = params.toString().replace(/\+/g, "%20");
+  return `mailto:${contact}${query ? `?${query}` : ""}`;
+};
+
+export const ContactDialog = ({ open, onOpenChange, contact, draft }: ContactDialogProps) => {
   const { t } = useTranslation(["intake", "common"]);
+  const written = draft ? [draft.subject, draft.body].filter(Boolean).join("\n\n") : "";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -38,10 +52,16 @@ export const ContactDialog = ({ open, onOpenChange, contact }: ContactDialogProp
           <DialogDescription>{t("contact.description")}</DialogDescription>
         </DialogHeader>
         <p className="break-all font-medium text-sm">{contact}</p>
+        {written && (
+          <p className="whitespace-pre-wrap rounded-md border p-3 text-muted-foreground text-sm">
+            {written}
+          </p>
+        )}
         <DialogFooter>
+          {written && <CopyButton value={written} label={t("contact.copyDraft")} />}
           <CopyButton value={contact} label={t("contact.copy")} />
           <Button asChild>
-            <a href={`mailto:${contact}`}>
+            <a href={mailtoFor(contact, draft)}>
               <Mail className="h-4 w-4" aria-hidden="true" />
               {t("contact.write")}
             </a>

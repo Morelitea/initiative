@@ -92,6 +92,7 @@
     "title": "Ponte en contacto",
     "description": "Escribe a quienes gestionan este servidor a esta dirección y te responderán.",
     "copy": "Copiar dirección",
+    "copyDraft": "Copiar lo que escribiste",
     "write": "Escribir un correo"
   }
 }

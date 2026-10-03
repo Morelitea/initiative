@@ -65,10 +65,6 @@ class FilingTooFast(Exception):
     """This account has filed into the stream as often as its pace allows."""
 
 
-class TooManyOpen(Exception):
-    """This account already has as many of the stream's cases open as it may."""
-
-
 async def _contacts(session: AsyncSession) -> dict[IntakeStream, Optional[str]]:
     """Every stream's contact address, from one read of the settings row.
 
@@ -122,17 +118,15 @@ async def availability(
 
 
 async def hold_pace(user: User, stream: IntakeStream) -> None:
-    """Refuse a filing past the stream's pace or its open-case cap.
+    """Refuse a filing past the stream's pace.
 
-    The pace is counted per account, under the stream's declared rate; the cap
-    is read from the cases themselves, so closing one makes room at once.
+    Counted per account, under the stream's declared rate. The stream's cap on
+    open cases is the writer's to hold, in the transaction that opens the case
+    (``intake.CaseCapReached``).
     """
-    declared = meta(stream)
     if not await take_allowance(
-        parse(declared.filing_rate), _PACE_NAMESPACE, f"{stream.value}:user:{user.id}"
+        parse(meta(stream).filing_rate),
+        _PACE_NAMESPACE,
+        f"{stream.value}:user:{user.id}",
     ):
         raise FilingTooFast
-    if declared.max_open_per_filer is not None:
-        held = await intake_service.open_cases_filed_by(user.id, stream)
-        if held >= declared.max_open_per_filer:
-            raise TooManyOpen
