@@ -94,7 +94,6 @@ from app.services.tenant import spreadsheet_import
 from app.services.tenant.collaboration import (
     collaboration_manager,
     content_version,
-    current_content,
     versioned,
     written_into,
 )
@@ -805,23 +804,6 @@ async def update_document(
         else None
     )
     version = update_data.get("content_version")
-    if "content" in update_data and version is not None:
-        # The writer says which content it changed. Anything since — an edit in
-        # a live session, another write — would be undone by writing this
-        # whole body over it, so the write is refused and the writer reads
-        # again.
-        await session.refresh(document, ["content"])
-        current = await current_content(
-            guild_context.guild_id,
-            SearchEntityType.document.value,
-            document.id,
-            document.content,
-        )
-        if content_version(current) != version:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=DocumentMessages.CONTENT_CHANGED,
-            )
     if room is not None and (version is None or not room.renders_content):
         # A live room is the writer of both of the document's views. A body
         # that names no version may describe one the session has moved on
@@ -842,10 +824,24 @@ async def update_document(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
             ) from exc
-        await room.write(live_content, user_id=guild_context.user_id)
+        if not await room.write(live_content, version, user_id=guild_context.user_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=DocumentMessages.CONTENT_CHANGED,
+            )
         updated = True
     elif "content" in update_data:
-        await session.refresh(document, ["content"])
+        # Locked until this write commits, so a write naming the same version
+        # reads this one's content.
+        await session.refresh(document, ["content"], with_for_update=True)
+        if version is not None and content_version(document.content) != version:
+            # The writer says which content it changed. Anything since would
+            # be undone by writing this whole body over it, so the write is
+            # refused and the writer reads again.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=DocumentMessages.CONTENT_CHANGED,
+            )
         previous_content_urls = attachments_service.extract_upload_urls(
             document.content
         )

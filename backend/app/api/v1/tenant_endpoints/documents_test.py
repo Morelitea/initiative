@@ -543,10 +543,20 @@ async def test_a_versioned_write_goes_into_a_live_session(
                 "content_version": read["content_version"],
             },
         )
+        stale = await client.patch(
+            url,
+            headers=owner.headers,
+            json={
+                "content": _saying("from a second writer"),
+                "content_version": read["content_version"],
+            },
+        )
 
         assert unversioned.status_code == 409
         assert unversioned.json()["detail"] == "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
         assert versioned.status_code == 200, versioned.text
+        assert stale.status_code == 409
+        assert stale.json()["detail"] == "DOCUMENT_CONTENT_CHANGED"
         assert await _words(room.get_state()) == "from the API"
     finally:
         room.release()

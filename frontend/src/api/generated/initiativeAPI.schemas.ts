@@ -9532,7 +9532,6 @@ export interface WikiPageCreate {
   parent_page_id?: number | null;
   is_draft?: boolean;
   content?: WikiPageCreateContent;
-  content_version?: string | null;
   tag_ids?: number[] | null;
 }
 
@@ -9659,6 +9658,7 @@ export interface WikiPageUpdate {
   title?: string | null;
   is_draft?: boolean | null;
   content?: WikiPageUpdateContent;
+  content_version?: string | null;
   tag_ids?: number[] | null;
 }
 

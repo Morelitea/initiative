@@ -977,6 +977,37 @@ async def test_a_body_saved_with_no_session_clears_the_stored_yjs_state(
     assert page.yjs_state is None
 
 
+async def test_a_page_write_naming_a_version_since_changed_is_refused(
+    client: AsyncClient, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _wikis_enabled(session, a.initiative)
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, title="Versioned")
+    url = a.g(f"/wiki-pages/{page.id}")
+    version = (await client.get(url, headers=a.headers)).json()["content_version"]
+
+    def saying(words: str) -> dict:
+        text = {"type": "text", "text": words, "version": 1}
+        paragraph = {"type": "paragraph", "version": 1, "children": [text]}
+        return {"root": {"type": "root", "version": 1, "children": [paragraph]}}
+
+    taken = await client.patch(
+        url,
+        headers=a.headers,
+        json={"content": saying("second"), "content_version": version},
+    )
+    stale = await client.patch(
+        url,
+        headers=a.headers,
+        json={"content": saying("third"), "content_version": version},
+    )
+
+    assert taken.status_code == 200, taken.text
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "WIKI_CONTENT_CHANGED"
+
+
 # ---------------------------------------------------------------------------
 # The home page
 # ---------------------------------------------------------------------------

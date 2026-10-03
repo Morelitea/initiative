@@ -61,7 +61,6 @@ from app.services.tenant import attachments as attachments_service
 from app.services.tenant.collaboration import (
     collaboration_manager,
     content_version,
-    current_content,
     versioned,
     written_into,
 )
@@ -566,21 +565,6 @@ async def update_wiki_page(
         else None
     )
     version = data.get("content_version")
-    # A page is written over whole, so a write naming the content it changed
-    # is refused once that content has moved on: writing it would undo
-    # whatever moved it.
-    if content_updated and version is not None:
-        current = await current_content(
-            guild_context.guild_id,
-            SearchEntityType.wiki_page.value,
-            page.id,
-            page.content,
-        )
-        if content_version(current) != version:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=WikiMessages.CONTENT_CHANGED,
-            )
     # A page with a live collaboration room has that room as the writer of its
     # content. A body naming no version may describe a page the session has
     # moved on from, so it is refused rather than saved over. A patch with no
@@ -590,6 +574,18 @@ async def update_wiki_page(
             status_code=status.HTTP_409_CONFLICT,
             detail=WikiMessages.LIVE_SESSION_OWNS_CONTENT,
         )
+    if room is None and content_updated:
+        # Locked until this write commits, so a write naming the same version
+        # reads this one's content.
+        await session.refresh(page, ["content"], with_for_update=True)
+        # A page is written over whole, so a write naming the content it
+        # changed is refused once that content has moved on: writing it would
+        # undo whatever moved it.
+        if version is not None and content_version(page.content) != version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=WikiMessages.CONTENT_CHANGED,
+            )
 
     if "is_draft" in data and data["is_draft"] is not None:
         page.is_draft = data["is_draft"]
@@ -603,7 +599,11 @@ async def update_wiki_page(
     if room is not None:
         # The writer read what the session holds now: the change goes into
         # it, reaches the open editors, and is saved with their edits.
-        await room.write(data["content"], user_id=current_user.id)
+        if not await room.write(data["content"], version, user_id=current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=WikiMessages.CONTENT_CHANGED,
+            )
         content_updated = False
     elif content_updated:
         page.content = data["content"]

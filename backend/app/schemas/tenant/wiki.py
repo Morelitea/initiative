@@ -110,11 +110,6 @@ class WikiPageCreate(PropertiesOnCreate):
     #: safe half of the answer, and publishing is a decision.
     is_draft: bool = True
     content: Optional[LexicalState] = None
-    #: The ``content_version`` of the read this ``content`` was made from.
-    #: Given and still current, the write merges in, into a live editing
-    #: session too; given and out of date, it is refused with
-    #: ``*_CONTENT_CHANGED``. Left out, a live session refuses the write.
-    content_version: Optional[str] = None
     tag_ids: Optional[List[int]] = None
 
 
@@ -128,6 +123,11 @@ class WikiPageUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     is_draft: Optional[bool] = None
     content: Optional[LexicalState] = None
+    #: The ``content_version`` of the read this ``content`` was made from.
+    #: Given and still current, the write merges in, into a live editing
+    #: session too; given and out of date, it is refused with
+    #: ``*_CONTENT_CHANGED``. Left out, a live session refuses the write.
+    content_version: Optional[str] = None
     tag_ids: Optional[List[int]] = None
 
 
