@@ -4,6 +4,7 @@ import { type ComponentType, type CSSProperties, Suspense, useMemo } from "react
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { InitiativeMembersPeek } from "@/components/initiatives/InitiativeMembersPeek";
 import { Markdown } from "@/components/Markdown";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
@@ -150,13 +151,6 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     </SkeletonRegion>
   );
 
-  // One quiet line of facts: the reader's role here, then how many are in it.
-  // Said as words in a row rather than a pill and a separate count strip, and
-  // with nothing standing in for a description nobody wrote.
-  const facts = [roleBadgeLabel, t("detail.member", { count: memberCount })].filter(
-    (fact): fact is string => Boolean(fact)
-  );
-
   // Description + facts, rendered inline on wide screens and inside the
   // mobile disclosure — one definition, so the two can't drift.
   const headerDetails = (
@@ -164,13 +158,17 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
       {initiative.description ? (
         <Markdown content={initiative.description} className="text-muted-foreground" />
       ) : null}
-      <p className="text-muted-foreground text-sm">
-        {facts.map((fact, index) => (
-          <span key={fact}>
-            {index > 0 ? <span aria-hidden> · </span> : null}
-            {fact}
-          </span>
-        ))}
+      {/* One quiet line: the reader's role here, then who else is. Words in a
+          row rather than a pill and a count strip, and nothing standing in
+          for a description nobody wrote. */}
+      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground text-sm">
+        {roleBadgeLabel ? (
+          <>
+            <span>{roleBadgeLabel}</span>
+            <span aria-hidden>·</span>
+          </>
+        ) : null}
+        <InitiativeMembersPeek initiativeId={initiative.id} memberCount={memberCount} />
       </p>
     </>
   );

@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -171,6 +171,29 @@ export const useInitiativeRoster = (
     // Keep the page on screen while the next one (or the next search) loads.
     placeholderData: keepPreviousData,
     ...rest,
+  });
+};
+
+/**
+ * An initiative's roster grown a page at a time, for a list somebody scrolls
+ * and searches. Nothing is read until `enabled`, so a roster of thousands
+ * costs nothing until it is opened, and then only the pages scrolled to.
+ */
+export const useInitiativeRosterPages = (
+  initiativeId: number,
+  search: string,
+  enabled: boolean
+) => {
+  const communityId = useActiveCommunityId();
+  const params = { search: search.trim() || undefined, page_size: 50 };
+  return useInfiniteQuery({
+    queryKey: [...getGetInitiativeMembersQueryKey(communityId, initiativeId, params), "pages"],
+    queryFn: ({ pageParam }) =>
+      getInitiativeMembers(communityId, initiativeId, { ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.has_next ? last.page + 1 : undefined),
+    enabled,
+    placeholderData: keepPreviousData,
   });
 };
 
