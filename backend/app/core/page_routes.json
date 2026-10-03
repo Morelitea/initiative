@@ -1,5 +1,6 @@
 [
   "/",
+  "/account/not-me",
   "/announcements",
   "/apps/connected",
   "/c/$guildId",
