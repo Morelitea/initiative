@@ -59,6 +59,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      packages: read  # the uv image on ghcr.io
     # Holds OTA_SIGNING_KEY, the key the app's updates are signed with.
     environment: ${{ inputs.signing-environment }}
     steps:
@@ -92,6 +93,14 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        # The Dockerfile copies uv from ghcr.io, which rate-limits anonymous pulls.
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (labels) for Docker
         id: meta
