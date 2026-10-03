@@ -53,7 +53,7 @@ export function CommunitiesPage() {
 
   const directory = useCommunityGuilds(
     {
-      q: search.trim() || undefined,
+      search: search.trim() || undefined,
       category: categories.length ? categories : undefined,
     },
     { enabled: communityDirectoryEnabled }

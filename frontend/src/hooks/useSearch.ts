@@ -38,7 +38,7 @@ export const useGuildSearch = (
 };
 
 /** What a caller narrows a lookup to, beyond the words themselves. */
-export type SuggestFilters = Omit<SuggestCommunityParams, "q">;
+export type SuggestFilters = Omit<SuggestCommunityParams, "search">;
 
 /**
  * Every field a lookup narrows by, named once.
@@ -100,7 +100,7 @@ export const useGuildSearchSuggest = (
 ) => {
   const guildId = useActiveGuildId();
   const { filters, queryOptions } = splitFilters<SearchSuggestion[]>(options);
-  const params: SuggestCommunityParams = { q: query, ...filters };
+  const params: SuggestCommunityParams = { search: query, ...filters };
   return useQuery<SearchSuggestion[]>({
     queryKey: getSuggestCommunityQueryKey(guildId, params),
     queryFn: () => suggestCommunity(guildId, params),

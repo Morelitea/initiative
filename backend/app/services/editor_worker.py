@@ -6,11 +6,18 @@ script> <heap bytes>``: the server build of the editor
 build:editor-server``), run in an embedded V8 held to that much heap. This
 imports the standard library and ``mini-racer`` and nothing of Initiative.
 
-A request is ``{"op": "bootstrap", "content": <editor JSON or null>, "client":
-<Yjs client id>}``, answered ``{"state": <base64>}``, or ``{"op": "render",
-"state": <base64>}``, answered ``{"content": <editor JSON>}``. A request the
-editor refuses is answered ``{"error"}``; one that runs out of heap also
-carries ``"replace": true``, and the worker exits.
+A request is one of:
+
+- ``{"op": "bootstrap", "content": <editor JSON or null>, "client": <Yjs
+  client id>}``, answered ``{"state": <base64>}``;
+- ``{"op": "render", "state": <base64>}``, answered ``{"content": <editor
+  JSON>}``;
+- ``{"op": "apply", "state": <base64>, "content": <editor JSON>, "client":
+  <Yjs client id>}``, answered ``{"update": <base64>}``, the update that makes
+  the state read as the content.
+
+A request the editor refuses is answered ``{"error"}``; one that runs out of
+heap also carries ``"replace": true``, and the worker exits.
 """
 
 from __future__ import annotations
@@ -34,6 +41,14 @@ def answer(engine: MiniRacer, request: dict[str, Any]) -> dict[str, Any]:
                 request["client"],
             )
             return {"state": base64.b64encode(bytes.fromhex(state)).decode("ascii")}
+        if request["op"] == "apply":
+            update = engine.call(
+                "serverEditor.apply",
+                base64.b64decode(request["state"]).hex(),
+                json.dumps(request["content"]),
+                request["client"],
+            )
+            return {"update": base64.b64encode(bytes.fromhex(update)).decode("ascii")}
         if request["op"] == "render":
             state = base64.b64decode(request["state"]).hex()
             return {"content": json.loads(engine.call("serverEditor.render", state))}

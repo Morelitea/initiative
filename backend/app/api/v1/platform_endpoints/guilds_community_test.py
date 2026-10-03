@@ -212,7 +212,7 @@ async def test_directory_flags_guilds_the_caller_is_already_in(
             id="two shelves, reaching a guild on either",
         ),
         pytest.param(
-            "?q=dice",
+            "?search=dice",
             200,
             ["Dice Goblins", "Painted Minis"],
             id="a word, matched in a name and in a description",
@@ -287,7 +287,7 @@ async def test_directory_searches_every_guild_not_only_a_loaded_page(
     await _a_listed_guild(session, name="Dice Goblins")
 
     response = await client.get(
-        "/api/v1/communities/directory?q=goblins&page_size=1",
+        "/api/v1/communities/directory?search=goblins&page_size=1",
         headers=browser.headers,
     )
 

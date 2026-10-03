@@ -9883,7 +9883,7 @@ export type ExportPlatformUsersCsvParams = {
 };
 
 export type ListDirectoryCommunitiesParams = {
-  q?: string | null;
+  search?: string | null;
   category?: CommunityCategory[];
   /**
    * @minimum 1
@@ -10029,7 +10029,7 @@ export type ListAppInstallationsParams = {
 
 export type ListPlacementCommunitiesParams = {
   provider_id: number;
-  q?: string | null;
+  search?: string | null;
 };
 
 export type ListNotificationsParams = {
@@ -11028,7 +11028,7 @@ export type ListCalendarEntriesParams = {
 
 export type ListMarketplaceListingsParams = {
   kind?: ListingKind | null;
-  q?: string | null;
+  search?: string | null;
   /**
    * @minimum 1
    */
@@ -11080,7 +11080,7 @@ export type SearchCommunityParams = {
    * What to search for.
    * @maxLength 1000
    */
-  q: string;
+  search: string;
   /**
    * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */
@@ -11136,7 +11136,7 @@ export type SuggestCommunityParams = {
    * What to jump to.
    * @maxLength 200
    */
-  q: string;
+  search: string;
   /**
    * Restrict to these entity types. Omit for the default scope (calendar, calendar_event, counter, counter_group, dashboard, document, gallery, gallery_image, post, project, queue, queue_item, tag, task, wiki, wiki_page); naming a type reaches it explicitly.
    */

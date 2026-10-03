@@ -344,6 +344,28 @@ async def _bootstrapped(
         return state
 
 
+async def written_into(state: Optional[bytes], content: dict) -> Optional[bytes]:
+    """An editor body's stored Yjs state with ``content`` written into it.
+
+    The server's editor rewrites only what changed, so the state keeps the
+    history its editors made and a session reopening it starts from this
+    content. A body with no state keeps none: the room makes it when it opens.
+    Content the editor refuses leaves no state either, and the room makes one
+    from the content in the same way.
+    """
+    if state is None:
+        return None
+    try:
+        update = await editor_engine.apply(state, content)
+    except editor_engine.EditorError:
+        logger.exception("The editor could not write content into a stored state")
+        return None
+    doc = Doc()
+    doc.apply_update(state)
+    doc.apply_update(update)
+    return bytes(doc.get_update())
+
+
 # A room is identified by (guild_id, resource_type, resource_id). The guild_id
 # is part of the key because bodies live in per-guild schemas (`guild_<id>.…`,
 # `id SERIAL`): ids are per-schema sequences, so id 5 names a different row in
