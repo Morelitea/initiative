@@ -11,7 +11,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.testing.schema_harness import route_session_to_guild
 from app.models.platform.guild import CommunityRole
+from app.models.platform.user import UserRole
 from app.testing.factories import (
+    create_access_grant,
     create_guild,
     create_guild_membership,
     create_initiative,
@@ -197,6 +199,27 @@ async def test_a_key_minted_before_access_is_revoked_stops_reaching_the_guild(
     assert (
         await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     ).status_code == 200
+
+
+async def test_a_grant_is_never_reached_with_a_key(
+    client: AsyncClient, session: AsyncSession
+):
+    """Whatever the community's options: a grantee reaches it signed in, and
+    not with a personal API key."""
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session, auth_options=[])
+    await create_access_grant(
+        session, user=support, guild=guild, access_level="read_write"
+    )
+    headers = get_auth_headers(support)
+    key_headers = await _key_headers(client, headers)
+    path = f"/api/v1/c/{guild.id}/initiatives/"
+
+    assert (await client.get(path, headers=headers)).status_code == 200
+
+    refused = await client.get(path, headers=key_headers)
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"
 
 
 async def test_an_unpinned_key_does_not_reach_a_guild_that_declines_the_member(

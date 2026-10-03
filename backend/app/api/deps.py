@@ -606,8 +606,8 @@ async def _enforce_guild_api_access(
     """A member whose API access the community turned off does not reach it
     with a personal API key.
 
-    Runs beside the sign-in gate. A grantee holds no membership row, so there
-    is no setting to read, and their keys reach it as a member's do by default.
+    Runs beside the sign-in gate, for members. A grantee is never reached with
+    a personal API key at all; the grant branch refuses one before this.
 
     Covers every path that resolves its guild through
     :func:`_load_guild_context`: REST, uploads and document downloads, the
@@ -748,6 +748,10 @@ async def _load_guild_context(
         settings_grant = grants.get(AccessGrantPurpose.settings)
         if grant is None and settings_grant is None:
             raise GuildAccessError()
+        # A grant is reached by the person in a session of their own, never
+        # with a personal API key, whatever the community's options.
+        if auth_context.api_key_credential():
+            raise GuildAccessError(detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED)
         is_read_write = (
             grant is not None and grant.access_level == AccessLevel.read_write.value
         )
