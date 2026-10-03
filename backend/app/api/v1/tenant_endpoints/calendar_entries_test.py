@@ -386,8 +386,8 @@ async def test_me_entries_aggregate_across_guilds(
     body = response.json()
     # IDs are per-guild-schema sequences, so a row is only unique as
     # (guild_id, id) once merged across guilds.
-    event_keys = {(e["guild_id"], e["id"]) for e in body["events"]}
-    task_keys = {(t["guild_id"], t["id"]) for t in body["tasks"]}
+    event_keys = {(e["community_id"], e["id"]) for e in body["events"]}
+    task_keys = {(t["community_id"], t["id"]) for t in body["tasks"]}
     assert {(g1.id, event1.id), (g2.id, event2.id)} <= event_keys
     assert {(g1.id, task1.id), (g2.id, task2.id)} <= task_keys
 
@@ -398,12 +398,12 @@ async def test_me_entries_aggregate_across_guilds(
         params={
             "start_after": WINDOW_START,
             "start_before": WINDOW_END,
-            "guild_ids": [g1.id],
+            "community_ids": [g1.id],
         },
     )
     assert narrowed.status_code == 200, narrowed.text
     nbody = narrowed.json()
-    narrowed_event_keys = {(e["guild_id"], e["id"]) for e in nbody["events"]}
+    narrowed_event_keys = {(e["community_id"], e["id"]) for e in nbody["events"]}
     assert (g1.id, event1.id) in narrowed_event_keys
     assert (g2.id, event2.id) not in narrowed_event_keys
 

@@ -320,7 +320,7 @@ async def notify_pending_updates(
                 guild_id,
                 NotificationType.app_update_pending,
                 {
-                    "guild_id": guild_id,
+                    "community_id": guild_id,
                     "app_id": one.app_id,
                     "app_name": one.app_name,
                     "version": one.version,

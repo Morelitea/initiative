@@ -26,17 +26,17 @@ from app.services.ai_settings import (
 def test_allow_private_only_for_platform_ollama():
     assert _allow_private_for(AIProvider.ollama, "platform") is True
     # Every other combination is public-only.
-    assert _allow_private_for(AIProvider.ollama, "guild") is False
+    assert _allow_private_for(AIProvider.ollama, "community") is False
     assert _allow_private_for(AIProvider.custom, "platform") is False
     assert _allow_private_for(AIProvider.openai, "platform") is False
-    assert _allow_private_for(AIProvider.custom, "guild") is False
+    assert _allow_private_for(AIProvider.custom, "community") is False
 
 
 async def test_guild_ollama_private_base_url_rejected():
     """A guild admin can never persist a private/internal target."""
     with pytest.raises(HTTPException) as exc:
         await _validate_connection_base_url(
-            AIProvider.ollama, "http://169.254.169.254", "guild"
+            AIProvider.ollama, "http://169.254.169.254", "community"
         )
     assert exc.value.status_code == 400
     assert exc.value.detail == AIMessages.INVALID_BASE_URL
@@ -103,7 +103,7 @@ def _openai_compatible_catalog(count: int) -> list[dict[str, str]]:
 
 def _custom_conn(model: str) -> ai_settings._ConnRow:
     return ai_settings._ConnRow(
-        scope="guild",
+        scope="community",
         id=1,
         label="OpenRouter",
         provider=AIProvider.custom.value,

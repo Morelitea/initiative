@@ -324,7 +324,7 @@ def _outcome(job: ImportJob, guild_id: int) -> JobOutcome:
         if job.status == ImportJobStatus.done
         else NotificationType.import_failed,
         {
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "import_job_id": job.id,
             "source": job.source,
         },

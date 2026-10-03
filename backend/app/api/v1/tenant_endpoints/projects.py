@@ -479,7 +479,7 @@ def _build_project_payload(
         summary = ProjectTaskSummary()
     return payload.model_copy(
         update={
-            "guild_id": context.guild_id,
+            "community_id": context.guild_id,
             "sort_order": sort_order,
             "is_favorited": project_id in favorite_ids,
             "last_viewed_at": view_map.get(project_id),

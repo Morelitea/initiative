@@ -150,7 +150,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     mode = await client.put(
         "/api/v1/settings/ai/platform/mode",
         headers=get_auth_headers(owner),
-        json={"mode": "guild"},
+        json={"mode": "community"},
     )
     assert mode.status_code == 200, mode.text
 
@@ -167,7 +167,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
         f"/api/v1/c/{guild.id}/settings/ai/me/key",
         headers=member_headers,
         json={
-            "scope": "guild",
+            "scope": "community",
             "connection_id": connection_id,
             "api_key": "sk-member",
         },
@@ -177,7 +177,7 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
         f"/api/v1/c/{guild.id}/settings/ai/me/pref",
         headers=member_headers,
         json={
-            "scope": "guild",
+            "scope": "community",
             "connection_id": connection_id,
             "enabled": True,
         },

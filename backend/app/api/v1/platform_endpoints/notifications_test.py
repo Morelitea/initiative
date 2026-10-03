@@ -55,7 +55,14 @@ async def test_list_notifications(client: AsyncClient, session: AsyncSession):
 
 #: A place naming nothing at any level.
 _NOWHERE = dict.fromkeys(
-    ("guild_id", "initiative_id", "tool", "resource_id", "subject_type", "subject_id")
+    (
+        "community_id",
+        "initiative_id",
+        "tool",
+        "resource_id",
+        "subject_type",
+        "subject_id",
+    )
 )
 
 
@@ -82,7 +89,7 @@ async def test_unread_places_carries_the_whole_tree(
         user_id=user.id,
         notification_type=NotificationType.comment_on_task,
         data={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "initiative_id": 9,
             "entity_type": "project",
             "resource_id": 4,
@@ -97,7 +104,7 @@ async def test_unread_places_carries_the_whole_tree(
     )
     assert response.json()["places"] == [
         {
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "initiative_id": 9,
             "tool": "project",
             "resource_id": 4,
@@ -195,7 +202,7 @@ async def test_read_all_can_clear_one_community(
             session,
             user_id=user.id,
             notification_type=NotificationType.comment_on_task,
-            data={"guild_id": guild.id},
+            data={"community_id": guild.id},
         )
     await session.commit()
     headers = get_auth_headers(user)
@@ -209,7 +216,7 @@ async def test_read_all_can_clear_one_community(
     places = (await client.get("/api/v1/notifications/unread", headers=headers)).json()[
         "places"
     ]
-    assert places == [{**_NOWHERE, "guild_id": kept.id}]
+    assert places == [{**_NOWHERE, "community_id": kept.id}]
 
 
 async def test_the_bell_can_be_switched_off_for_a_category(
@@ -291,7 +298,7 @@ async def test_the_desktop_alert_is_the_line_unless_its_community_redacts(
         session,
         user_id=user.id,
         notification_type=NotificationType.mention,
-        data={"guild_id": guild.id, "context": "Q3 budget"},
+        data={"community_id": guild.id, "context": "Q3 budget"},
     )
     await session.commit()
     assert line is not None
@@ -327,7 +334,7 @@ async def test_the_bell_reads_the_title_back_from_the_community(
         notification_type=NotificationType.task_assignment,
         data={
             "task_id": task.id,
-            "guild_id": actor.guild.id,
+            "community_id": actor.guild.id,
             "initiative_id": actor.initiative.id,
         },
     )
@@ -368,7 +375,7 @@ async def test_the_bell_reads_the_title_back_from_the_community(
             data={
                 "entity_type": kind,
                 "entity_id": entity.id,
-                "guild_id": actor.guild.id,
+                "community_id": actor.guild.id,
             },
         )
     await session.commit()

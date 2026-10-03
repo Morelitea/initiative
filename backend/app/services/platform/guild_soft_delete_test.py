@@ -782,7 +782,7 @@ async def test_the_hold_is_told_in_each_seats_language(
         await session.exec(
             select(Notification).where(
                 Notification.user_id == seat_id,
-                Notification.type == NotificationType.guild_on_hold,
+                Notification.type == NotificationType.community_on_hold,
             )
         )
     ).all()

@@ -35,7 +35,7 @@ export const SettingsGuildAIPage = () => {
   // The member view is the readable-by-anyone source of the global AI mode.
   const modeQuery = useMemberAI(guildId, { enabled: holdsTheSeat });
   const mode = modeQuery.data?.mode;
-  const canManageConnections = mode === "guild";
+  const canManageConnections = mode === "community";
 
   const connectionsQuery = useGuildConnections({
     enabled: Boolean(holdsTheSeat) && canManageConnections,
@@ -95,11 +95,11 @@ export const SettingsGuildAIPage = () => {
       </CardHeader>
       <CardContent>
         <AIConnectionManager
-          scope="guild"
+          scope="community"
           connections={connectionsQuery.data ?? []}
           isLoading={connectionsQuery.isLoading}
           isError={connectionsQuery.isError}
-          providers={getProvidersForScope("guild")}
+          providers={getProvidersForScope("community")}
           mutations={mutations}
         />
       </CardContent>

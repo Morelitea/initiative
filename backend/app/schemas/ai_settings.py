@@ -23,20 +23,20 @@ class AIProvider(str, Enum):
 
 class AIConfigMode(str, Enum):
     """Who owns AI config, app-wide. ``platform`` = the operator's connections
-    apply to every guild; ``guild`` = each guild admin configures its own;
+    apply to every guild; ``community`` = each community admin configures its own;
     ``disabled`` = AI off."""
 
     disabled = "disabled"
     platform = "platform"
-    guild = "guild"
+    community = "community"
 
 
 class ConnectionScope(str, Enum):
     """Which table a connection lives in — ``platform`` = the shared
-    ``platform_ai_connections`` row, ``guild`` = a ``guild_ai_connections`` row."""
+    ``platform_ai_connections`` row, ``community`` = a ``guild_ai_connections`` row."""
 
     platform = "platform"
-    guild = "guild"
+    community = "community"
 
 
 # --- Connections (owner-controlled destination) ------------------------------
@@ -172,7 +172,7 @@ class ResolvedAISettings(SanitizedBaseModel):
     allow_private: bool = False
     scope: Optional[ConnectionScope] = None
     connection_id: Optional[int] = None
-    source: str = "disabled"  # "platform" | "guild" | "disabled"
+    source: str = "disabled"  # "platform" | "community" | "disabled"
 
 
 class ResolvedAISettingsResponse(SanitizedBaseModel):

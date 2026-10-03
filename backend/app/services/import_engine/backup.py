@@ -255,7 +255,7 @@ def plan_backup(
         for person in manifest.people
     ]
     return BackupImportPlan(
-        source_guild_name=manifest.guild.name,
+        source_community_name=manifest.guild.name,
         app_version=manifest.app_version,
         exported_at=manifest.exported_at.isoformat(),
         schema_version=manifest.schema_version,

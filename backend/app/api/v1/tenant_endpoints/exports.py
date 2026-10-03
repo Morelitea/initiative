@@ -292,7 +292,7 @@ async def _guild_export_available_at(session) -> Optional[datetime]:
         await session.exec(
             select(ExportJob.created_at)
             .where(
-                ExportJob.source == "guild",
+                ExportJob.source == "community",
                 ExportJob.status.in_(
                     (
                         ExportJobStatus.queued,
@@ -463,7 +463,7 @@ async def export_community(
         session,
         current_user,
         guild_context,
-        source="guild",
+        source="community",
         format="zip",
         params={
             "mode": mode,
@@ -511,7 +511,7 @@ async def read_community_export_status(
     latest = (
         await session.exec(
             select(ExportJob)
-            .where(ExportJob.source == "guild")
+            .where(ExportJob.source == "community")
             .order_by(ExportJob.created_at.desc())
             .limit(1)
         )
@@ -624,7 +624,7 @@ async def download_export_artifact(
         raise HTTPException(
             status_code=status.HTTP_410_GONE, detail=ExportMessages.EXPORT_EXPIRED
         )
-    if job.source == "guild":
+    if job.source == "community":
         require_seat(guild_context, detail=ExportMessages.EXPORT_SUPERADMIN_REQUIRED)
     await _require_reach(session, current_user, job.initiative_ids)
     # An initiative's export is served, as it is taken, to those who manage it.

@@ -270,10 +270,10 @@ async def test_list_my_tasks_due_date_filter_across_guilds(
 async def test_list_my_tasks_guild_ids_filter(
     client: AsyncClient, session: AsyncSession
 ):
-    """GET /me/tasks with the guild_ids filter restricts to the named guilds.
+    """GET /me/tasks with the community_ids filter restricts to the named guilds.
 
     Regression: the frontend previously sent ``field: "guild_id"`` (singular)
-    but the endpoint extracts ``guild_ids`` (plural, mirroring initiative_ids);
+    but the endpoint extracts ``community_ids`` (plural, mirroring initiative_ids);
     the singular silently no-op'd and tasks from every guild leaked in.
     """
     user = await create_user(session, email="user@example.com")
@@ -293,7 +293,7 @@ async def test_list_my_tasks_guild_ids_filter(
 
     def keyed(resp):
         # Task ids are per-guild (per-schema); key by (guild_id, id).
-        return {(t["guild_id"], t["id"]) for t in resp.json()["items"]}
+        return {(t["community_id"], t["id"]) for t in resp.json()["items"]}
 
     # No filter: assigned tasks from BOTH guilds are aggregated.
     response = await client.get("/api/v1/me/tasks", headers=headers)
@@ -303,7 +303,9 @@ async def test_list_my_tasks_guild_ids_filter(
     assert (guild2.id, task2.id) in found
 
     # Filtered to guild1: only guild1's task.
-    conditions = json.dumps([{"field": "guild_ids", "op": "in_", "value": [guild1.id]}])
+    conditions = json.dumps(
+        [{"field": "community_ids", "op": "in_", "value": [guild1.id]}]
+    )
     response = await client.get(
         f"/api/v1/me/tasks?conditions={conditions}", headers=headers
     )
@@ -438,7 +440,7 @@ async def test_list_my_tasks_paged_page_interleaves_guilds(
     row = second["items"][0]
     assert row["project_id"] == project2.id
     assert row["task_status"]["id"] is not None
-    assert row["guild_name"] == "Guild 2"
+    assert row["community_name"] == "Guild 2"
 
 
 async def test_list_my_tasks_page_from_one_guild_only(
@@ -489,7 +491,7 @@ async def test_list_my_tasks_page_from_one_guild_only(
     assert response.status_code == 200, response.text
     data = response.json()
     assert [t["title"] for t in data["items"]] == ["g1 soon", "g1 next"]
-    assert {t["guild_name"] for t in data["items"]} == {"Guild 1"}
+    assert {t["community_name"] for t in data["items"]} == {"Guild 1"}
     assert data["total_count"] == 4
     assert data["has_next"] is True
 
@@ -706,7 +708,7 @@ async def test_list_my_tasks_property_filter_spans_guilds(
 
     assert response.status_code == 200, response.text
     # Key by (guild_id, id): ids collide across schemas.
-    found = {(t["guild_id"], t["id"]) for t in response.json()["items"]}
+    found = {(t["community_id"], t["id"]) for t in response.json()["items"]}
     assert (guild1.id, g1_empty.id) in found
     assert (guild2.id, g2_empty.id) in found
     assert (guild1.id, g1_has.id) not in found

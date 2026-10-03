@@ -363,7 +363,7 @@ async def notify(
             # Nobody to tell, so nothing to look up about what it would say.
             return
     guild_id = routed_guild_id(session)
-    payload: dict[str, Any] = {**(data or {}), "guild_id": guild_id}
+    payload: dict[str, Any] = {**(data or {}), "community_id": guild_id}
     allowed: frozenset[int] = frozenset()
     if about is not None:
         subject = (
@@ -405,9 +405,9 @@ async def notify(
         **{
             name: str(value)
             for name, value in payload.items()
-            if name.endswith("_id") and name != "guild_id" and value is not None
+            if name.endswith("_id") and name != "community_id" and value is not None
         },
-        "guild_id": str(guild_id),
+        "community_id": str(guild_id),
         "target_path": payload["target_path"],
     }
     # A channel the deployment or the community has switched off is not worded
@@ -857,7 +857,7 @@ async def notify_assigned(
         "task_id": task.id,
         "project_id": task.project_id,
         "assigned_by_name": actor_name(assigned_by),
-        "guild_id": guild_id,
+        "community_id": guild_id,
         **_place_of(subject),
         "target_path": subject.target_path,
         "smart_link": smart_link,
@@ -980,11 +980,11 @@ def _assignment_push(user: User, assignments: list[dict]) -> push_notifications.
         "count": str(len(assignments)),
         "target_path": MY_TASKS_TARGET_PATH,
     }
-    if len(assignments) == 1 and first.get("guild_id") is not None:
+    if len(assignments) == 1 and first.get("community_id") is not None:
         data["target_path"] = _task_target_path(
             first.get("task_id"), first.get("project_id")
         )
-        data["guild_id"] = str(first["guild_id"])
+        data["community_id"] = str(first["community_id"])
     return push_notifications.Push(
         cast(int, user.id), NotificationType.task_assignment, title, body, data
     )
@@ -1101,11 +1101,11 @@ async def _digest_batch(
     each channel.
     """
     policies = await notification_policy.for_send_many(
-        session, {item.get("guild_id") for item in batch}
+        session, {item.get("community_id") for item in batch}
     )
 
     def prepared(item: dict, channel: str) -> dict | None:
-        policy = policies[item.get("guild_id")]
+        policy = policies[item.get("community_id")]
         if not getattr(policy, channel):
             return None
         return {**item, "redacted": True} if policy.redact else item
@@ -1299,7 +1299,7 @@ def _assignment_row(item, guild_id: int) -> dict:
         # ``link`` per row.
         "task_id": item.task_id,
         "project_id": item.project_id,
-        "guild_id": guild_id,
+        "community_id": guild_id,
     }
 
 
@@ -1412,7 +1412,7 @@ def _reaction_line(
     return {
         "target_type": target_type,
         "target_id": target_id,
-        "guild_id": guild_id,
+        "community_id": guild_id,
         **{key: place.get(key) for key in _REACTION_PLACE},
         "emoji": latest.get("emoji"),
         "reactor_name": latest.get("reactor_name"),
@@ -1567,7 +1567,7 @@ async def _roll_up_reaction(
         user_id=recipient.id,
         notification_type=NotificationType.comment_reaction,
         match={
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "target_type": data["target_type"],
             "target_id": data["target_id"],
         },
@@ -1642,7 +1642,7 @@ async def _take_back_reaction(
         user_id=recipient.id,
         notification_type=NotificationType.comment_reaction,
         match={
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "target_type": target_type,
             "target_id": target_id,
         },
@@ -1726,9 +1726,9 @@ def _reaction_push(user: User, reactions: list[dict]) -> push_notifications.Push
         "count": str(len(reactions)),
         "target_path": MY_TASKS_TARGET_PATH,
     }
-    if len(reactions) == 1 and first.get("guild_id") is not None:
+    if len(reactions) == 1 and first.get("community_id") is not None:
         data["target_path"] = first["target_path"]
-        data["guild_id"] = str(first["guild_id"])
+        data["community_id"] = str(first["community_id"])
     return push_notifications.Push(
         cast(int, user.id), NotificationType.comment_reaction, title, body, data
     )
@@ -1741,7 +1741,7 @@ def _reaction_row(item, guild_id: int) -> dict:
         "context_title": item.context_title,
         "target_path": item.target_path,
         "link": _build_smart_link(target_path=item.target_path, guild_id=guild_id),
-        "guild_id": guild_id,
+        "community_id": guild_id,
     }
 
 
@@ -1888,7 +1888,7 @@ async def _overdue_tasks_for_user(
                 if task.due_date
                 else "N/A",
                 "link": _build_smart_link(target_path=target_path, guild_id=guild_id),
-                "guild_id": guild_id,
+                "community_id": guild_id,
             }
         )
     return tasks

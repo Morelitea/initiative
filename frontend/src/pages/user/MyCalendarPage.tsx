@@ -156,7 +156,7 @@ export const MyCalendarPage = () => {
       conditions.push({ field: "priority", op: "in_", value: priorityFilters });
     }
     if (guildFilters.length > 0) {
-      conditions.push({ field: "guild_ids", op: "in_", value: guildFilters });
+      conditions.push({ field: "community_ids", op: "in_", value: guildFilters });
     }
     return conditions;
   }, [statusFilters, priorityFilters, guildFilters]);

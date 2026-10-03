@@ -6,7 +6,7 @@
  */
 /**
  * Who owns AI config, app-wide. ``platform`` = the operator's connections
- * apply to every guild; ``guild`` = each guild admin configures its own;
+ * apply to every guild; ``community`` = each community admin configures its own;
  * ``disabled`` = AI off.
  */
 export type AIConfigMode = (typeof AIConfigMode)[keyof typeof AIConfigMode];
@@ -14,7 +14,7 @@ export type AIConfigMode = (typeof AIConfigMode)[keyof typeof AIConfigMode];
 export const AIConfigMode = {
   disabled: "disabled",
   platform: "platform",
-  guild: "guild",
+  community: "community",
 } as const;
 
 export type AIProvider = (typeof AIProvider)[keyof typeof AIProvider];
@@ -39,13 +39,13 @@ export interface AIConnectionCreate {
 
 /**
  * Which table a connection lives in — ``platform`` = the shared
- * ``platform_ai_connections`` row, ``guild`` = a ``guild_ai_connections`` row.
+ * ``platform_ai_connections`` row, ``community`` = a ``guild_ai_connections`` row.
  */
 export type ConnectionScope = (typeof ConnectionScope)[keyof typeof ConnectionScope];
 
 export const ConnectionScope = {
   platform: "platform",
-  guild: "guild",
+  community: "community",
 } as const;
 
 /**
@@ -6227,10 +6227,10 @@ export const NotificationType = {
   username_changed: "username_changed",
   account_suspended: "account_suspended",
   account_unsuspended: "account_unsuspended",
-  guild_on_hold: "guild_on_hold",
-  guild_trial_ending: "guild_trial_ending",
-  guild_trial_ended: "guild_trial_ended",
-  guild_welcome: "guild_welcome",
+  community_on_hold: "community_on_hold",
+  community_trial_ending: "community_trial_ending",
+  community_trial_ended: "community_trial_ended",
+  community_welcome: "community_welcome",
   connection_requested: "connection_requested",
   connection_accepted: "connection_accepted",
   message_request_received: "message_request_received",

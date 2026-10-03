@@ -69,7 +69,7 @@ def serialize_export_job(job: ExportJob, *, guild_id: int) -> ExportJobRead:
     fields = {
         name: getattr(job, name)
         for name in ExportJobRead.model_fields
-        if name != "guild_id"
+        if name != "community_id"
     }
     if artifact_expired(job):
         fields["status"] = ExportJobStatus.expired

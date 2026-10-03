@@ -92,8 +92,8 @@ async def _told(session: AsyncSession, user_id: int) -> list[Notification]:
                     Notification.user_id == user_id,
                     Notification.type.in_(  # type: ignore[union-attr]
                         [
-                            NotificationType.guild_trial_ending,
-                            NotificationType.guild_trial_ended,
+                            NotificationType.community_trial_ending,
+                            NotificationType.community_trial_ended,
                         ]
                     ),
                 )
@@ -117,11 +117,11 @@ async def test_the_owner_billing_names_is_told(
     assert response.status_code == 200, response.text
     assert response.json() == {"delivered": True}
     (line,) = await _told(session, owner_id)
-    assert line.type == NotificationType.guild_trial_ending
+    assert line.type == NotificationType.community_trial_ending
     assert line.data == {
         "community": "Acme",
         "trial_ends_on": "2026-10-08",
-        "guild_id": guild_id,
+        "community_id": guild_id,
         "target_path": "/settings/usage",
     }
     assert await _told(session, other_seat_id) == []

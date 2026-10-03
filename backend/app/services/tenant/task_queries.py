@@ -424,8 +424,8 @@ def _task_to_list_read(
         update={
             "description_excerpt": _description_excerpt(description_head),
             "has_description": has_description,
-            "guild_id": guild_id,
-            "guild_name": guild_name,
+            "community_id": guild_id,
+            "community_name": guild_name,
             "project_name": project.name if project else None,
             "initiative_id": initiative.id if initiative else None,
             "initiative_name": initiative.name if initiative else None,
@@ -949,7 +949,7 @@ async def parse_task_list_query(
                 property_ids_needed.append(int(cond.value.get("property_id")))
             except (TypeError, ValueError):
                 continue
-    guild_ids = extract_condition_value(user_conditions, "guild_ids")
+    guild_ids = extract_condition_value(user_conditions, "community_ids")
     if across_guilds_for is not None:
         property_definitions = await _load_property_definitions_across_guilds(
             session, across_guilds_for, property_ids_needed, guild_ids

@@ -439,7 +439,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
 
   const plan = stagedJob?.plan as
     | {
-        source_guild_name?: string;
+        source_community_name?: string;
         app_version?: string;
         exported_at?: string;
         initiatives?: Array<{

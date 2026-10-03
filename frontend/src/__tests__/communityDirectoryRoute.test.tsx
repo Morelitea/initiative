@@ -71,7 +71,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   appConfig.directory = true;
   directory.mockReturnValue({
-    data: { pages: [{ items: [community], total: 1 }] },
+    data: { pages: [{ items: [community], total_count: 1 }] },
     isLoading: false,
     isError: false,
     hasNextPage: false,

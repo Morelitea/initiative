@@ -270,7 +270,7 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
         await session.exec(
             select(Notification).where(
                 Notification.user_id == seat_id,
-                Notification.type == NotificationType.guild_on_hold,
+                Notification.type == NotificationType.community_on_hold,
             )
         )
     ).all()

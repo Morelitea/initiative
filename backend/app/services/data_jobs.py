@@ -284,7 +284,9 @@ async def notify(session: AsyncSession, outcomes: list[JobOutcome]) -> None:
     await notice_outbox.enqueue(
         session,
         [
-            notice_outbox.row(user_id, data.get("guild_id"), notification_type, data)
+            notice_outbox.row(
+                user_id, data.get("community_id"), notification_type, data
+            )
             for user_id, notification_type, data in outcomes
         ],
     )

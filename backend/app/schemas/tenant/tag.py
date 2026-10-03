@@ -88,7 +88,9 @@ def serialize_tag(tag, *, guild_id: int) -> TagRead:
     own, so the guild is handed in by whoever routed the session.
     """
     fields = {
-        name: getattr(tag, name) for name in TagRead.model_fields if name != "guild_id"
+        name: getattr(tag, name)
+        for name in TagRead.model_fields
+        if name != "community_id"
     }
     return TagRead(community_id=guild_id, **fields)
 

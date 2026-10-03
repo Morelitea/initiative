@@ -562,7 +562,7 @@ async def test_worker_renders_job_and_download_succeeds(
     export_notes = [n for n in rows if n.type == NotificationType.export_ready]
     assert len(export_notes) == 1
     assert export_notes[0].data["export_job_id"] == job_id
-    assert export_notes[0].data["guild_id"] == a.guild.id
+    assert export_notes[0].data["community_id"] == a.guild.id
 
 
 # ---------------------------------------------------------------------------
@@ -3650,14 +3650,14 @@ async def test_estimate_reports_the_download_bound_and_whether_delivery_exists(
         guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
-    resp = await _export(client, a, "estimate", scope="guild")
+    resp = await _export(client, a, "estimate", scope="community")
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["max_download_bytes"] == settings.EXPORT_MAX_DOWNLOAD_BYTES
     assert body["delivery_available"] is False
 
     monkeypatch.setattr(settings, "EXPORT_DESTINATION_DIR", str(tmp_path))
-    again = await _export(client, a, "estimate", scope="guild")
+    again = await _export(client, a, "estimate", scope="community")
     assert again.json()["delivery_available"] is True
 
 

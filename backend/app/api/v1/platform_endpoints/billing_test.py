@@ -1159,7 +1159,7 @@ async def _hold_notices(session: AsyncSession, user_id: int) -> int:
     rows = await session.exec(
         select(Notification).where(
             Notification.user_id == user_id,
-            Notification.type == NotificationType.guild_on_hold,
+            Notification.type == NotificationType.community_on_hold,
         )
     )
     return len(rows.all())

@@ -195,7 +195,7 @@ export const useCreateGuildConnection = (
     ...rest,
     mutationFn: (data: AIConnectionCreate) => createCommunityConnection(guildId, data),
     onSuccess: (...args) => {
-      void invalidateConnectionSurfaces("guild");
+      void invalidateConnectionSurfaces("community");
       onSuccess?.(...args);
     },
   });
@@ -211,7 +211,7 @@ export const useUpdateGuildConnection = (
     mutationFn: ({ connectionId, data }: { connectionId: number; data: AIConnectionUpdate }) =>
       updateCommunityConnection(guildId, connectionId, data),
     onSuccess: (...args) => {
-      void invalidateConnectionSurfaces("guild");
+      void invalidateConnectionSurfaces("community");
       onSuccess?.(...args);
     },
   });
@@ -224,7 +224,7 @@ export const useDeleteGuildConnection = (options?: MutationOpts<void, number>) =
     ...rest,
     mutationFn: (connectionId: number) => deleteCommunityConnection(guildId, connectionId),
     onSuccess: (...args) => {
-      void invalidateConnectionSurfaces("guild");
+      void invalidateConnectionSurfaces("community");
       onSuccess?.(...args);
     },
   });

@@ -377,7 +377,7 @@ async def test_the_summary_counts_what_happened_and_goes_once(
             session,
             user_id=user.id,
             notification_type=MENTION,
-            data={"guild_id": guild.id},
+            data={"community_id": guild.id},
         )
         assert notification is not None
         notification.created_at = _at(23, day=8)
@@ -404,7 +404,10 @@ async def test_the_desktop_hears_the_summary_with_mobile_off(
         session, user, {**NIGHT, "categories": {"mentions": {"push": False}}}
     )
     notification = await user_notifications.create_notification(
-        session, user_id=user.id, notification_type=MENTION, data={"guild_id": guild.id}
+        session,
+        user_id=user.id,
+        notification_type=MENTION,
+        data={"community_id": guild.id},
     )
     assert notification is not None
     notification.created_at = _at(23, day=8)
@@ -428,7 +431,10 @@ async def test_a_community_with_push_off_is_left_out_of_the_summary(
     session.add(guild)
     await set_notification_prefs(session, user, dict(NIGHT))
     notification = await user_notifications.create_notification(
-        session, user_id=user.id, notification_type=MENTION, data={"guild_id": guild.id}
+        session,
+        user_id=user.id,
+        notification_type=MENTION,
+        data={"community_id": guild.id},
     )
     assert notification is not None
     notification.created_at = _at(23, day=8)
@@ -464,7 +470,7 @@ async def test_a_lifted_pause_is_cleared_from_the_document(session: AsyncSession
         session,
         user_id=user.id,
         notification_type=MENTION,
-        data={"guild_id": guild.id},
+        data={"community_id": guild.id},
     )
     assert notification is not None
     notification.created_at = _at(12, day=8)

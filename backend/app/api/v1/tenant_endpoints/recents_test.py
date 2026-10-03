@@ -84,7 +84,7 @@ async def test_recents_are_cross_guild_names_only(
     r = await client.get(RECENTS, headers=a.headers)
     assert r.status_code == 200
     items = r.json()
-    assert [(i["entity_type"], i["entity_id"], i["guild_id"]) for i in items] == [
+    assert [(i["entity_type"], i["entity_id"], i["community_id"]) for i in items] == [
         ("project", project_a.id, a.guild.id)
     ]
     assert items[0]["name"] == "A's project"
