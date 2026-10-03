@@ -96,18 +96,6 @@ export const DocumentDetailPage = () => {
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const isAutosaveRef = useRef(false);
-  // The same, for handlers that run outside a render (the room's handover as
-  // the page leaves).
-  const editedRef = useRef(edited);
-  const collaboratingRef = useRef(false);
-  const parsedIdRef = useRef(parsedId);
-  parsedIdRef.current = parsedId;
-  // What this tab last rendered, for the room to save as the page leaves —
-  // with the socket, or with the edits handed over when it is gone.
-  const finalCollabContent = useCallback(() => {
-    const stored = editedRef.current;
-    return stored?.documentId === parsedIdRef.current ? stored.content : undefined;
-  }, []);
 
   // Network status for offline detection
   const { isOnline } = useNetworkStatus();
@@ -118,8 +106,6 @@ export const DocumentDetailPage = () => {
   // Whether this document's room is in play: a body that joins none has no
   // work in a Yjs doc to hand over, and no connection to show.
   const joinsRoom = collaborationEnabled && (!bodyKind || bodyKind.roomSyncMs !== undefined);
-  // A body the server renders gets no rendering from this tab.
-  const sendsRendering = !bodyKind?.rendersOnServer;
 
   // Collaboration hook - only enable when we have a valid document ID and a
   // body that joins a room. The WebSocket opens lazily when something calls
@@ -131,7 +117,6 @@ export const DocumentDetailPage = () => {
   // Lexical stuck on "Syncing document…".
   const collaboration = useCollaboration({
     socketPath: Number.isFinite(parsedId) ? `documents/${parsedId}/collaborate` : null,
-    finalContent: sendsRendering ? finalCollabContent : undefined,
     enabled: joinsRoom && Number.isFinite(parsedId),
     onError: (error) => {
       toast.error(t("detail.collaborationFailed"), {
@@ -183,7 +168,6 @@ export const DocumentDetailPage = () => {
   const seededDocumentRef = useRef<number | null>(null);
 
   useEffect(() => {
-    editedRef.current = null;
     seededDocumentRef.current = null;
   }, [parsedId]);
 
@@ -294,33 +278,10 @@ export const DocumentDetailPage = () => {
   // older edit than the one on screen.
   const handleBodyChange = useCallback(
     (content: unknown) => {
-      const next = { documentId: parsedId, content };
-      editedRef.current = next;
-      setEdited(next);
+      setEdited({ documentId: parsedId, content });
     },
     [parsedId]
   );
-
-  useEffect(() => {
-    const resumed = collaboration.isCollaborating && !collaboratingRef.current;
-    collaboratingRef.current = collaboration.isCollaborating;
-    // The handshake brings this tab's Yjs work back into the room, but the
-    // content column moves only when an editor reports a rendering — and after
-    // an outage there may be nothing further to type. Report one on arrival.
-    if (resumed && canEditDocument && sendsRendering) {
-      const stored = editedRef.current;
-      if (stored && stored.documentId === parsedId) {
-        collaboration.sendContent(stored.content);
-      }
-    }
-  }, [
-    collaboration.isCollaborating,
-    collaboration.sendContent,
-    collaboration,
-    canEditDocument,
-    parsedId,
-    sendsRendering,
-  ]);
 
   // Autosave with debounce
   useEffect(() => {
@@ -343,16 +304,11 @@ export const DocumentDetailPage = () => {
     if (!savesName && !bodyIsDirty) {
       return;
     }
-    // When collaborating, sync content periodically to keep the content
-    // column updated for non-collab readers, at the body's own pace.
+    // When collaborating, the room is the writer of this document's content
+    // column: it renders the content from its Yjs state, and saves the two
+    // together. The PATCH carries the rest, at the body's own pace.
     if (collaboration.isCollaborating) {
       const timer = setTimeout(() => {
-        // The room is the writer of this document's content column while it
-        // is live: it saves the JSON and the Yjs state from one snapshot, so
-        // the two always describe the same moment. It renders a native body
-        // itself; for the others every tab reports to it, and it reconciles
-        // them.
-        if (sendsRendering) collaboration.sendContent(contentForSave);
         isAutosaveRef.current = true;
         saveDocument.mutate({
           ...(savesName ? { name: title?.trim() } : null),
@@ -382,11 +338,9 @@ export const DocumentDetailPage = () => {
     contentForSave,
     featuredImageUrl,
     collaboration.isCollaborating,
-    collaboration.sendContent,
     isOnline,
     bodyKind,
     titleHasFocus,
-    sendsRendering,
   ]);
 
   // When connectivity returns after being offline, flush any pending dirty
@@ -535,7 +489,6 @@ export const DocumentDetailPage = () => {
         ...overrides,
       };
       if (collaboration.isCollaborating) {
-        if (sendsRendering) collaboration.sendContent(contentForSave);
         saveDocument.mutate(payload);
         return;
       }
@@ -548,8 +501,6 @@ export const DocumentDetailPage = () => {
       featuredImageUrl,
       contentForSave,
       collaboration.isCollaborating,
-      collaboration.sendContent,
-      sendsRendering,
     ]
   );
 

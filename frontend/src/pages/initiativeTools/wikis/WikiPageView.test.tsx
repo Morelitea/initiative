@@ -23,7 +23,6 @@ vi.mock("@/hooks/useCollaboration", () => ({
     connect: vi.fn(),
     resume: vi.fn(),
     disconnect: vi.fn(),
-    sendContent: vi.fn(),
   }),
 }));
 

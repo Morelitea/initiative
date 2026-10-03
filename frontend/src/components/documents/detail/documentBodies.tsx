@@ -83,18 +83,11 @@ export interface DocumentBody {
   /** Edited on this page, so the frame carries the save bar. */
   editable?: boolean;
   /**
-   * Joins the document's live room, sending it this tab's rendering this
-   * often so the content column stays current for readers outside it. Prose
-   * waits longer — people type many characters a second — while a drawing
-   * action or a cell edit fits in the window, and a longer one would only
-   * leave the column stale.
+   * Joins the document's live room, which renders the content column from its
+   * Yjs state. This paces the rest of a save while it is live: the name and
+   * the featured image.
    */
   roomSyncMs?: number;
-  /**
-   * The room renders the content column itself, from its Yjs state: this tab
-   * sends no rendering, and the timer above only paces the rest of a save.
-   */
-  rendersOnServer?: boolean;
   /** Prose: headings to navigate and an AI summary. */
   prose?: boolean;
 }
@@ -352,7 +345,6 @@ export const DOCUMENT_BODIES: Record<DocumentType, DocumentBody> = {
     framed: true,
     editable: true,
     roomSyncMs: 10_000,
-    rendersOnServer: true,
     prose: true,
   },
   whiteboard: {

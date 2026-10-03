@@ -79,6 +79,7 @@ from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
+from app.services.tenant import body_states
 from app.services.tenant import documents as documents_service
 from app.services.tenant import ownership as ownership_service
 from app.services.tenant import properties as properties_service
@@ -857,14 +858,13 @@ async def update_document(
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
         # No room is live, so this edit is the newest thing about the
-        # document. A native body's stored Yjs state has it
-        # written in, so the next session opens on it with its history; any
-        # other body's state is cleared, and the next session's first editor
-        # makes it from this content.
-        if document.document_type == DocumentType.native:
+        # document. Its stored Yjs state has it written in, so the next
+        # session opens on it with its history.
+        body = body_states.for_kind(document.document_type)
+        if body is not None:
             await session.refresh(document, ["yjs_state"])
             document.yjs_state = await written_into(
-                document.yjs_state, document.content
+                body, document.yjs_state, document.content
             )
         else:
             document.yjs_state = None

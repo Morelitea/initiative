@@ -58,6 +58,7 @@ from app.schemas.tenant.wiki import (
 )
 from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import body_states
 from app.services.tenant.collaboration import (
     collaboration_manager,
     content_version,
@@ -610,7 +611,9 @@ async def update_wiki_page(
         # No room is live, so this edit is the newest thing about the page:
         # its stored Yjs state has it written in, and the next session opens
         # on it.
-        page.yjs_state = await written_into(page.yjs_state, page.content)
+        page.yjs_state = await written_into(
+            body_states.LEXICAL, page.yjs_state, page.content
+        )
 
     session.add(page)
     await session.flush()
