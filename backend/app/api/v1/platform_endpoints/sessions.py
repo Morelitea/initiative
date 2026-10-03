@@ -29,6 +29,7 @@ from app.schemas.platform.auth import SignedInSessionInfo
 from app.services import audit as audit_service
 from app.services.auth import sessions as session_service
 from app.services.content_sockets import sockets as content_sockets
+from app.services.platform import dm_transport
 
 router = APIRouter()
 
@@ -44,29 +45,54 @@ async def list_my_sessions(
     current_user: AccountHolder,
     _first_party: FirstPartyOnly,
 ) -> list[SignedInSessionInfo]:
-    """Every browser session this account can still use, newest activity first.
+    """Every session this account can still use, newest activity first, each
+    beside the message device that collects under it, then the message devices
+    no live session names.
 
     Each row is one sign-in rather than one renewal — the service walks each
     live session back to the sign-in it descends from, so a browser left open
-    for a month says so.
+    for a month says so. A key store names the live row its sign-in has
+    reached, which is the one listed here.
     """
     current = current_session_row(request)
     rows = await session_service.list_live_for_user(
         system_session, user_id=current_user.id
     )
+    devices = await dm_transport.devices_of(system_session, current_user.id)
+    by_session = {d.session_id: d.id for d in devices if d.session_id is not None}
+    live = {row.id for row in rows}
     return [
-        SignedInSessionInfo(
-            id=row.id,
-            # A native sign-in is handed a name; a browser is not, so its name
-            # is read from what it said about itself.
-            label=row.device_name or describe(row.user_agent),
-            kind=kind_of(row.user_agent),
-            ip=row.ip,
-            started_at=row.started_at,
-            last_used_at=row.last_used_at,
-            is_current=current is not None and row.id == current,
-        )
-        for row in rows
+        *(
+            SignedInSessionInfo(
+                id=row.id,
+                message_device_id=by_session.get(row.id),
+                device=row.device,
+                # A device signs in with a name; a browser does not, so its
+                # name is read from what it said about itself.
+                label=row.device_name or describe(row.user_agent),
+                kind=kind_of(row.user_agent),
+                ip=row.ip,
+                started_at=row.started_at,
+                last_used_at=row.last_used_at,
+                is_current=current is not None and row.id == current,
+            )
+            for row in rows
+        ),
+        *(
+            SignedInSessionInfo(
+                id=None,
+                message_device_id=d.id,
+                device=False,
+                label=describe(d.label),
+                kind=kind_of(d.label),
+                ip=None,
+                started_at=d.created_at,
+                last_used_at=d.last_seen_at,
+                is_current=False,
+            )
+            for d in devices
+            if d.session_id not in live
+        ),
     ]
 
 
@@ -77,9 +103,13 @@ async def revoke_my_session(
     _first_party: FirstPartyOnly,
     session_id: uuid.UUID,
 ) -> None:
-    """End one of the account's sessions.
+    """End one of the account's sessions, and withdraw the message device that
+    collects under it.
 
     The whole rotation chain, so the session cannot renew its way out of it.
+    Nothing more is encrypted to the device: a phone somebody cuts off from
+    here is one they no longer trust, and a browser's keys go with its
+    session.
     A session belonging to somebody else answers the same as one that does not
     exist, because the id is the only thing the caller supplied and it should
     not learn which of the two it got wrong.
@@ -90,7 +120,12 @@ async def revoke_my_session(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthMessages.SESSION_NOT_FOUND,
         )
-    await session_service.revoke_chain(system_session, session_id=session_id)
+    # By what the revocation ended as well as the id asked for: a renewal since
+    # the list was read moved the key store to the chain's live row.
+    ended = await session_service.revoke_chain(system_session, session_id=session_id)
+    await dm_transport.withdraw_signed_in(
+        system_session, user_id=current_user.id, session_ids=ended | {session_id}
+    )
     await audit_service.record(
         system_session,
         event_type=AuditEventType.AUTH_SESSION_REVOKED,
@@ -114,14 +149,21 @@ async def revoke_my_other_sessions(
 ) -> None:
     """End every session the account holds except the one asking.
 
-    ``auth_sessions`` is the system engine's, so the revocation and the record
-    commit together.
+    The browsers' message devices go with them; a phone or desktop app keeps
+    its keys and picks up where it left off at its next sign-in, as after any
+    lapse. Both tables are the system engine's, so the revocation, the
+    withdrawal and the record commit together.
     """
     current = current_session_row(request)
-    await session_service.revoke_all_for_user(
+    ended = await session_service.revoke_all_for_user(
         system_session,
         user_id=current_user.id,
         except_session_id=str(current) if current is not None else None,
+    )
+    await dm_transport.withdraw_signed_in(
+        system_session,
+        user_id=current_user.id,
+        session_ids={session_id for session_id, device in ended.items() if not device},
     )
     await audit_service.record(
         system_session,

@@ -6,6 +6,7 @@ import {
   revokeMyOtherSessionsApiV1AuthSessionsRevokeOthersPost,
   revokeMySessionApiV1AuthSessionsSessionIdDelete,
 } from "@/api/generated/auth/auth";
+import { removeDeviceApiV1MeDmDevicesDeviceIdDelete } from "@/api/generated/direct-messages/direct-messages";
 import type {
   ApiKeyCreateResponse,
   ApiKeyListResponse,
@@ -72,10 +73,14 @@ export const useDeleteApiKey = (options?: MutationOpts<void, number>) =>
     options
   );
 
-export const useRevokeSession = (options?: MutationOpts<void, string>) =>
-  useApiMutation<void, string>(
+/** End one row of the list: its sign-in, or a message device with none. */
+export const useEndSignedIn = (options?: MutationOpts<void, SignedInSessionInfo>) =>
+  useApiMutation<void, SignedInSessionInfo>(
     {
-      mutationFn: (sessionId) => revokeMySessionApiV1AuthSessionsSessionIdDelete(sessionId),
+      mutationFn: (row) =>
+        row.id
+          ? revokeMySessionApiV1AuthSessionsSessionIdDelete(row.id)
+          : removeDeviceApiV1MeDmDevicesDeviceIdDelete(row.message_device_id as string),
       invalidate: () => queryClient.invalidateQueries({ queryKey: SESSIONS_QUERY_KEY }),
     },
     options
