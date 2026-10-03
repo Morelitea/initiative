@@ -64,9 +64,9 @@ Get it from the **Download** page on your community's Initiative, which picks th
 
 The first launch asks which Initiative it's talking to, like the phone. It keeps itself current the same way too.
 
-Once in a while a release changes the app itself, and then it says so. On Windows and Linux it can fetch and install the new app for you: choose **Update now**, and leave **Always update automatically** ticked if you'd rather not be asked again. After that it downloads the next one on its own and only asks you to restart. Change your mind under **Settings › Interface**. A Mac gets a **Download** button instead, until the app is signed for macOS.
+Once in a while a release changes the app itself, and then it says so. On Windows and Linux it can fetch and install the new app for you: choose **Update now**, and leave **Always update automatically** ticked if you'd rather not be asked again. After that it downloads the next one on its own and only asks you to restart. Change your mind under **Settings › Preferences**. A Mac gets a **Download** button instead, until the app is signed for macOS.
 
-Close the window on Windows or Linux and Initiative carries on in the tray, so notifications keep reaching you; **Quit** is on the tray icon. A Mac keeps it in the dock, as Macs do. The app's icon carries your unread count. **Settings › Interface** has the switches for staying in the tray and for opening when the computer starts.
+Close the window on Windows or Linux and Initiative carries on in the tray, so notifications keep reaching you; **Quit** is on the tray icon. A Mac keeps it in the dock, as Macs do. The app's icon carries your unread count. **Settings › Preferences** has the switches for staying in the tray and for opening when the computer starts.
 
 ## On iPhone
 

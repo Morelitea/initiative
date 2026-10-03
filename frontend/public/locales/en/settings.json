@@ -4,13 +4,11 @@
     "tabs": {
       "profile": "Profile",
       "account": "Account",
-      "interface": "Interface",
+      "interface": "Preferences",
       "notifications": "Notifications",
       "ai": "AI",
-      "import": "Import",
       "security": "Security",
       "trash": "Trash",
-      "danger": "Danger Zone",
       "privacy": "Privacy"
     },
     "loginRequired": "You need to be logged in to manage your profile.",
@@ -46,11 +44,9 @@
   },
   "profile": {
     "currentPasswordLabel": "Current password",
-    "currentPasswordPlaceholder": "Enter your current password",
     "currentPasswordRequired": "Enter your current password to set a new one.",
     "newPasswordLabel": "New password",
     "confirmPasswordLabel": "Confirm password",
-    "passwordPlaceholder": "••••••••",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Upload",
     "avatarUrlTab": "URL",
@@ -59,8 +55,6 @@
     "passwordsMismatch": "Passwords do not match",
     "saveChanges": "Save changes",
     "saving": "Saving…",
-    "reset": "Reset",
-    "updateSuccess": "Profile updated",
     "updateError": "Unable to update profile",
     "avatarUploadHelp": "Any image. It is cropped square and resized for you.",
     "avatar": {
@@ -119,7 +113,6 @@
     "keyNamePlaceholder": "e.g. reporting-script",
     "expirationLabel": "Expiration (optional)",
     "neverExpires": "Never expires",
-    "expirationHelp": "Leave blank for a key that never expires.",
     "readOnlyLabel": "Read-only",
     "readOnlyHelp": "The key can read data but never create, change, or delete anything. Recommended for automation and integrations.",
     "guildLabel": "Community access",
@@ -130,25 +123,14 @@
     "nameRequired": "Name is required",
     "createSuccess": "API key created",
     "createError": "Unable to create API key",
-    "existingTitle": "Existing keys",
-    "existingDescription": "Only the last few characters are shown. Rotate keys regularly.",
     "loadingKeys": "Loading API keys…",
     "keysError": "Unable to load API keys.",
     "noKeys": "No API keys yet.",
-    "columnName": "Name",
-    "columnPrefix": "Prefix",
-    "columnStatus": "Status",
-    "columnScope": "Scope",
-    "columnLastUsed": "Last used",
-    "columnExpires": "Expires",
-    "columnActions": "Actions",
-    "statusActive": "Active",
     "statusExpired": "Expired",
     "statusDisabled": "Disabled",
     "scopeReadOnly": "Read-only",
     "scopeGuild": "Community: {{guild}}",
     "scopeFull": "Full access",
-    "never": "Never",
     "deleteButton": "Delete",
     "deleting": "Removing…",
     "deleteSuccess": "API key deleted",
@@ -175,7 +157,16 @@
     "signOutOthersDialogDescription_one": "This ends {{count}} other session. You'll stay signed in here.",
     "signOutOthersDialogDescription_other": "This ends all {{count}} other sessions. You'll stay signed in here.",
     "signOutOthersConfirm": "Sign out everywhere else",
-    "signedOutOthers": "Signed out everywhere else"
+    "signedOutOthers": "Signed out everywhere else",
+    "apiKeysTitle": "API keys",
+    "apiKeysDescription": "For scripts and integrations. A key's secret is shown once, when you create it.",
+    "newKeyButton": "New API key",
+    "keyCreated": "Created {{date}}",
+    "keyLastUsed": "Last used {{date}}",
+    "keyNeverUsed": "Never used",
+    "keyExpires": "Expires {{date}}",
+    "deleteDialogTitle": "Delete this API key?",
+    "deleteDialogDescription": "Anything that uses {{name}} stops working straight away."
   },
   "ai": {
     "loading": "Loading AI settings…",
@@ -273,7 +264,6 @@
     "languageDescription": "Choose your preferred language for the interface.",
     "updateSuccess": "Interface preferences updated",
     "updateError": "Unable to update interface preferences",
-    "themePreview": "Theme preview",
     "themeDescriptions": {
       "kobold": "The classic Initiative theme with deep indigo tones.",
       "displacer": "Catppuccin-inspired soothing pastel theme (Latte/Macchiato).",
@@ -283,8 +273,6 @@
       "orc": "Earthy green theme with vivid orc-skin green accents. ORC ORC ORC!",
       "aboleth": "Monokai-inspired dark lair with vivid bioluminescent accent colors."
     },
-    "lightMode": "Light",
-    "darkMode": "Dark",
     "taskCompletionVisualFeedback": {
       "label": "Task completion feedback",
       "description": "A bit of fun when you finish a task you were assigned to.",
@@ -310,37 +298,37 @@
     },
     "keepScreenAwake": {
       "label": "Keep screen awake",
-      "description": "Prevent this device's screen from dimming or locking while the app is open. This setting is saved on this device only.",
+      "description": "Prevent this device's screen from dimming or locking while the app is open.",
       "unsupported": "Your browser does not support keeping the screen awake."
     },
     "desktopKeepRunning": {
       "label": "Keep running when the window closes",
-      "description": "Stay in the tray so notifications still arrive. Quit from the tray icon. Saved on this computer only."
+      "description": "Stay in the tray so notifications still arrive. Quit from the tray icon."
     },
     "desktopOpenAtLogin": {
       "label": "Open when the computer starts",
-      "description": "Start Initiative when you sign in to this computer. Saved on this computer only."
+      "description": "Start Initiative when you sign in to this computer."
     },
     "desktopAutoUpdate": {
       "label": "Update the app automatically",
-      "description": "When your server needs a newer desktop app, download it and install it on restart. Saved on this computer only."
+      "description": "When your server needs a newer desktop app, download it and install it on restart."
     },
     "completionTitle": "When you finish a task",
-    "completionDescription": "What the app does the moment a task is checked off. Try each one before you keep it."
+    "completionDescription": "What the app does the moment a task is checked off. Try each one before you keep it.",
+    "appearanceTitle": "Appearance",
+    "regionTitle": "Language and time",
+    "deviceTitle": "This device",
+    "deviceDescription": "Saved on this device only, not to your account."
   },
   "notifications": {
     "title": "Notification settings",
-    "pushNotifications": "Push Notifications",
-    "pushDescription": "Receive real-time alerts on your device",
+    "pushNotifications": "Push notifications",
+    "pushDescription": "Get alerts on this device as they happen.",
     "pushEnabled": "Enabled",
     "pushBlocked": "Blocked",
     "pushNotEnabled": "Not enabled",
-    "enablePush": "Enable Push Notifications",
-    "pushBlockedTitle": "Push notifications are blocked",
+    "enablePush": "Turn on",
     "pushBlockedDescription": "To enable push notifications, open your device settings, find this app, and enable notifications.",
-    "timezone": "Timezone",
-    "timezonePlaceholder": "Select timezone",
-    "timezoneEmpty": "No timezone found.",
     "toggleError": "Unable to update notification settings",
     "categoryHeader": "Category",
     "categories": {
@@ -454,7 +442,9 @@
         "note": "Password resets and sign-in emails still arrive. Those aren't notifications."
       },
       "saved": "Saved",
-      "saveError": "Unable to update when you hear about things"
+      "saveError": "Unable to update when you hear about things",
+      "zone": "Times are in {{timezone}}.",
+      "changeZone": "Change time zone"
     },
     "weekdays": {
       "1": "Monday",
@@ -464,20 +454,22 @@
       "5": "Friday",
       "6": "Saturday",
       "7": "Sunday"
-    }
+    },
+    "quietTitle": "Do not disturb"
   },
   "dangerZone": {
-    "serverConnection": "Server Connection",
+    "serverConnection": "Server connection",
     "connectedTo": "Currently connected to {{hostname}}.",
     "disconnectDescription": "Log out and disconnect from this server. You can connect to a different server afterward.",
     "disconnectButton": "Disconnect",
-    "deactivateTitle": "Deactivate Account",
+    "deactivateTitle": "Deactivate account",
     "deactivateDescription": "Temporarily disable your account. Your name, email, and content remain intact, but you'll be removed from every community you're a member of — rejoining requires a fresh invite. Whoever runs this server can reactivate your account later.",
-    "permanentDeleteTitle": "Delete Account",
+    "permanentDeleteTitle": "Delete account",
     "permanentDeleteDescriptionText": "Your account disappears for everyone else straight away. Nothing is erased for a while yet — sign back in before then and the deletion is called off, with your communities and your work exactly as you left them. After that, projects are transferred to other people, and comments and documents stay but show \"[Deleted User]\".",
     "cannotBeUndone": "Signing in is what stops it.",
-    "deactivateButton": "Deactivate Account",
-    "deleteButton": "Delete Account"
+    "deactivateButton": "Deactivate account",
+    "deleteButton": "Delete account",
+    "title": "Close your account"
   },
   "deleteAccount": {
     "title": "Delete Account",
@@ -1725,8 +1717,6 @@
     }
   },
   "account": {
-    "identityTitle": "How you sign in",
-    "identityDescription": "Your handle and the clock you are on.",
     "passwordTitle": "Password",
     "passwordDescription": "Change it here. You will stay signed in on this device.",
     "passwordsOffDescription": "Password sign-in is turned off on this server, so there is no password to set or change here.",
@@ -1738,7 +1728,9 @@
     "removePasswordBody": "Your passkey signs you in from now on, and you will be signed out everywhere else. If your passkey is ever lost, a recovery code is what sets a new password. If you hold fewer than three codes, you'll be shown a fresh set — save them.",
     "removePasswordCodes": "Save these somewhere safe. If your passkey is ever lost, a recovery code is what sets a new password. Each code works once, and you won't be shown these again. Any codes you held before have stopped working.",
     "passwordRemoved": "Your password has been removed.",
-    "removePasswordError": "Could not remove your password."
+    "removePasswordError": "Could not remove your password.",
+    "passwordSaved": "Password saved",
+    "changePassword": "Change password"
   },
   "privacy": {
     "dm": {
@@ -1758,7 +1750,6 @@
       "platformDisabled": "This deployment does not offer direct messages, so there is nothing here to set. If it is switched back on, the policy and lists you had before come back with it."
     },
     "receipts": {
-      "title": "Read receipts",
       "label": "Tell people when their messages reach you",
       "help": "They see when a message arrived on one of your devices and when you read it. Switch this off and they see neither — the same as somebody who has not opened the app. You still see theirs."
     },

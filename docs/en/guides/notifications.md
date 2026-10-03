@@ -146,7 +146,7 @@ A digest that would have landed in the middle of a booked pause waits for the en
 !!! tip "Set your timezone. Genuinely."
     Digests, quiet hours, due dates and repeating-task maths all run on your timezone. Initiative guesses it from your browser at sign-up and is usually right.
 
-    But if your daily email is arriving at 4am, you have not been cursed and nothing is broken. Check **User settings → Interface**.
+    But if your daily email is arriving at 4am, you have not been cursed and nothing is broken. Check **User settings → Preferences**.
 
 ## Quiet hours
 
@@ -157,7 +157,7 @@ Set a window — 22:00 to 07:00, say — and email, mobile and the desktop hold 
 ## Turning on mobile push
 
 1. Install the mobile app and sign in.
-2. In **User settings → Notifications**, choose **Enable push notifications**.
+2. In **User settings → Notifications**, choose **Turn on** beside **Push notifications**.
 3. Say yes when your phone asks.
 
 If push shows as **Blocked**, that's your phone rather than us. Open your device settings, find Initiative, and let it talk to you. We can ask; your phone decides.

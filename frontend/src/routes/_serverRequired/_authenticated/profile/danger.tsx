@@ -1,24 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { useAuth } from "@/hooks/useAuth";
-
-const UserSettingsDangerZonePage = lazy(() =>
-  import("@/pages/user/settings/UserSettingsDangerZonePage").then((m) => ({
-    default: m.UserSettingsDangerZonePage,
-  }))
-);
-
+// Deactivating and deleting the account live at the bottom of Account now.
 export const Route = createFileRoute("/_serverRequired/_authenticated/profile/danger")({
-  component: DangerZonePage,
+  beforeLoad: () => {
+    throw redirect({ to: "/profile/account", replace: true });
+  },
 });
-
-function DangerZonePage() {
-  const { user, logout } = useAuth();
-  if (!user) return null;
-  return (
-    <Suspense fallback={null}>
-      <UserSettingsDangerZonePage user={user} logout={logout} />
-    </Suspense>
-  );
-}

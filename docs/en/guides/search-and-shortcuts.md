@@ -55,7 +55,7 @@ Mentioning something with `#`, linking documents with `[[`, attaching a document
 
 Projects, tasks and documents stack up as **tabs** along the top, like browser tabs. Click to go back to one; close it when you're done.
 
-You can cap how many it keeps (1 to 100) in **User settings → Interface**, if you'd like that limit enforced rather than merely intended.
+You can cap how many it keeps (1 to 100) in **User settings → Preferences**, if you'd like that limit enforced rather than merely intended.
 
 ## Keystrokes worth knowing
 
