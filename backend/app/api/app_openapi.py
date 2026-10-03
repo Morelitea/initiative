@@ -11,8 +11,8 @@ document (:func:`build_app_openapi`) is cut from it:
   what an install receives in its place;
 - every field that mentions people (``x-mentions``) says how it names them,
   and that a stored file it shows comes without its path;
-- a field holding a stored file's path (``x-upload``) is left out, as an
-  install's response leaves it out;
+- every field holding a file's path (``x-upload``) says that a stored file
+  comes as an empty string;
 - paths start after ``/api/v1/c/{guild_id}``, served from ``/api/v1/c/0``: an
   install's community comes from its token;
 - each operation is named after its route;
@@ -54,6 +54,12 @@ _MENTIONS = {
         "link's `url` are empty."
     ),
 }
+
+#: What a field holding a file's path (``x-upload``) says about it.
+_UPLOAD = (
+    "A stored file comes as an empty string, without its path. A URL from "
+    "elsewhere comes as it is."
+)
 
 
 def _scoped_operations(
@@ -118,7 +124,8 @@ def _as_app_people(node: Any, people: set[str]) -> Any:
 
 def _as_references(node: Any) -> Any:
     """``node`` copied, with each identity field a string and each field that
-    mentions people described: what an install sends and receives."""
+    mentions people or holds a file's path described: what an install sends
+    and receives."""
     if isinstance(node, dict):
         identity = node.get("x-identity")
         if identity is not None:
@@ -128,25 +135,12 @@ def _as_references(node: Any) -> Any:
         mentions = node.get("x-mentions")
         if mentions is not None:
             copied.setdefault("description", _MENTIONS[mentions])
+        if node.get("x-upload"):
+            copied.setdefault("description", _UPLOAD)
         return copied
     if isinstance(node, list):
         return [_as_references(item) for item in node]
     return node
-
-
-def _without_upload_paths(schema: dict[str, Any]) -> dict[str, Any]:
-    """``schema`` without the fields that hold a stored file's path."""
-    properties = schema.get("properties", {})
-    withheld = {name for name, field in properties.items() if field.get("x-upload")}
-    if not withheld:
-        return schema
-    kept = {**schema}
-    kept["properties"] = {
-        name: field for name, field in properties.items() if name not in withheld
-    }
-    if "required" in schema:
-        kept["required"] = [name for name in schema["required"] if name not in withheld]
-    return kept
 
 
 def build_app_openapi(
@@ -193,7 +187,7 @@ def build_app_openapi(
     while pending:
         name = pending.pop()
         if name not in reached:
-            reached[name] = _without_upload_paths(_as_app_people(schemas[name], people))
+            reached[name] = _as_app_people(schemas[name], people)
             pending.extend(_schema_refs(reached[name]))
 
     info = openapi_schema["info"]
