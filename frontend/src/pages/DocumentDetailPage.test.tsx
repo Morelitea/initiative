@@ -134,7 +134,7 @@ describe("renaming a document", () => {
     expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
   });
 
-  it("keeps the room's content sync running while the name field is held", async () => {
+  it("keeps the room's save running while the name field is held", async () => {
     collaborating.value = true;
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -147,9 +147,10 @@ describe("renaming a document", () => {
 
     await vi.advanceTimersByTimeAsync(11_000);
 
-    await waitFor(() => expect(sendContent).toHaveBeenCalled());
-    expect(patches).toHaveLength(1);
+    await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).not.toHaveProperty("name");
+    // A native body is rendered by the room itself.
+    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("does not PATCH on a loop while collaborating with nothing edited", async () => {
@@ -166,7 +167,7 @@ describe("renaming a document", () => {
 
   it("saves a rename with the Save button while collaborating", async () => {
     // The room owns the body while it is live and refuses one sent by PATCH,
-    // so the Save button hands the body to the room and sends only the name.
+    // so the Save button sends only the name; the room renders the body.
     collaborating.value = true;
     const user = userEvent.setup();
     renderDoc();
@@ -180,7 +181,7 @@ describe("renaming a document", () => {
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toMatchObject({ name: "Renamed" });
     expect(patches[0]).not.toHaveProperty("content");
-    expect(sendContent).toHaveBeenCalledWith(editedBody);
+    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("saves a rename with Ctrl+S while collaborating", async () => {
@@ -197,7 +198,7 @@ describe("renaming a document", () => {
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toMatchObject({ name: "Renamed" });
     expect(patches[0]).not.toHaveProperty("content");
-    expect(sendContent).toHaveBeenCalledWith(editedBody);
+    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("saves a rename with Ctrl+S when not collaborating", async () => {

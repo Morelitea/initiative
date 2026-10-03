@@ -78,12 +78,6 @@ export const WikiPageView = () => {
   // about a body on a pause and, in a live room, writes it on a sweep of its
   // own — both of which finish long after the eye does.
   const latestBody = useRef<{ pageId: number; state: SerializedEditorState } | null>(null);
-  // What this tab last rendered, for the room to save as the page leaves.
-  const finalContent = useCallback(() => {
-    const latest = latestBody.current;
-    return latest && latest.pageId === pageId ? latest.state : undefined;
-  }, [pageId]);
-
   // Live co-editing, over the same room documents use — a page is just
   // another body the server keeps a Yjs document for.
   const collaboration = useCollaboration({
@@ -91,7 +85,6 @@ export const WikiPageView = () => {
     // Only while somebody is writing. A wiki is read far more than it is
     // written, so a reader opens no room and costs the server nothing.
     enabled: validIds && editWanted,
-    finalContent,
     onError: (error) => {
       toast.error(t("error"), { description: error.message });
     },
@@ -208,12 +201,11 @@ export const WikiPageView = () => {
     setWrittenBody(null);
   }, [pageId]);
 
-  // While a room is live it owns the page's content column — it writes the
-  // JSON and the Yjs state from one snapshot, so the two always describe the
-  // same moment. This tab reports its rendering to the room and stops writing
-  // over REST; with no room, this is the only writer.
+  // While a room is live it owns the page's content column — it renders the
+  // JSON from its Yjs state and writes both together, so the two always
+  // describe the same moment. This tab stops writing over REST; with no
+  // room, this is the only writer.
   const isCollaborating = collaboration.isCollaborating;
-  const sendContent = collaboration.sendContent;
   useEffect(() => {
     if (bodyRevision === 0 || pendingBody.current === null) return;
     const timer = setTimeout(() => {
@@ -222,15 +214,11 @@ export const WikiPageView = () => {
       pendingBody.current = null;
       // Words left over from the page before are not this page's words, and
       // the page they were written into has been rebuilt behind us.
-      if (body.pageId !== pageId) return;
-      if (isCollaborating) {
-        sendContent(body.state);
-        return;
-      }
+      if (body.pageId !== pageId || isCollaborating) return;
       savePage({ content: body.state as unknown as Record<string, unknown> });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [bodyRevision, pageId, savePage, isCollaborating, sendContent]);
+  }, [bodyRevision, pageId, savePage, isCollaborating]);
 
   // A page nobody has typed in yet is stored as `{}` — the column's default —
   // and a root with no children is the same thing said differently. Lexical
@@ -266,12 +254,9 @@ export const WikiPageView = () => {
     const unsent = pendingBody.current;
     if (!unsent || unsent.pageId !== pageId) return;
     pendingBody.current = null;
-    if (isCollaborating) {
-      sendContent(unsent.state);
-      return;
-    }
+    if (isCollaborating) return;
     savePage({ content: unsent.state as unknown as Record<string, unknown> });
-  }, [isEditing, validIds, pageId, isCollaborating, sendContent, savePage]);
+  }, [isEditing, validIds, pageId, isCollaborating, savePage]);
 
   // What the editor is handed, and a token that changes with it.
   //

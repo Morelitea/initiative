@@ -21,6 +21,11 @@ persistence sweep all read it rather than each knowing about documents:
     Checks and cleans a content frame before the room holds it. A document's
     shape depends on its type; a page is always prose, so it only has to be an
     object.
+``editor_body``
+    Whether a row's body is the document editor's, as a SQL expression. The
+    server makes such a body's Yjs state and renders its content itself
+    (:mod:`app.services.editor_engine`); any other body is made and rendered
+    by the browser editing it.
 ``load``
     Fetches the body row and the row whose grants govern it, with everything
     the DAC engine reads eager-loaded. Returns ``None`` when either is missing
@@ -33,6 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Optional
 
+from sqlalchemy import true
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
@@ -63,6 +69,7 @@ class CollaborativeResource:
     content_column: str
     load: Callable[..., Awaitable[Optional[Collaborating]]]
     normalize: Callable[[Any, Any], dict]
+    editor_body: Callable[[], Any]
 
     @property
     def resource_type(self) -> str:
@@ -158,7 +165,7 @@ def _register(resource: CollaborativeResource) -> CollaborativeResource:
 
 
 def _document_resource() -> CollaborativeResource:
-    from app.models.tenant.document import Document
+    from app.models.tenant.document import Document, DocumentType
 
     return CollaborativeResource(
         entity_type=SearchEntityType.document,
@@ -167,6 +174,7 @@ def _document_resource() -> CollaborativeResource:
         content_column="content",
         load=_load_document,
         normalize=_normalize_document,
+        editor_body=lambda: Document.document_type == DocumentType.native,
     )
 
 
@@ -180,6 +188,7 @@ def _wiki_page_resource() -> CollaborativeResource:
         content_column="content",
         load=_load_wiki_page,
         normalize=_normalize_wiki_page,
+        editor_body=true,
     )
 
 

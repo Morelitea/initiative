@@ -90,6 +90,11 @@ export interface DocumentBody {
    * leave the column stale.
    */
   roomSyncMs?: number;
+  /**
+   * The room renders the content column itself, from its Yjs state: this tab
+   * sends no rendering, and the timer above only paces the rest of a save.
+   */
+  rendersOnServer?: boolean;
   /** Prose: headings to navigate and an AI summary. */
   prose?: boolean;
 }
@@ -347,6 +352,7 @@ export const DOCUMENT_BODIES: Record<DocumentType, DocumentBody> = {
     framed: true,
     editable: true,
     roomSyncMs: 10_000,
+    rendersOnServer: true,
     prose: true,
   },
   whiteboard: {
