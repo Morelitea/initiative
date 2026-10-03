@@ -18,7 +18,8 @@ from sqlmodel import select
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.task import Task
-from app.testing import route_session_to_guild
+from app.services.tenant.mention_parser import nameless_state
+from app.testing import MENTIONING_YJS_STATE, route_session_to_guild
 from app.testing.factories import (
     checklist_items,
     create_comment,
@@ -48,10 +49,10 @@ def _revision() -> ModuleType:
 
 
 async def test_a_mention_written_before_keeps_no_name(session):
-    """In text and in an editor state, archived and trashed rows included. A
-    mention with no account keeps its name; a document that mentions somebody
-    starts collaboration again from its content, and the search index is left
-    to be rebuilt."""
+    """In markdown and in an editor state, archived and trashed rows included,
+    and in a collaboration state as an edit on top of it. A mention with no
+    account keeps its name, text typed in an editor is left as it was, and the
+    search index is left to be rebuilt."""
     author = await create_user(session)
     guild = await create_guild(session, creator=author)
     initiative = await create_initiative(session, guild, author)
@@ -72,10 +73,11 @@ async def test_a_mention_written_before_keeps_no_name(session):
         initiative,
         author,
         content=lexical_body("Hi ", mentioning=author.id, name="Ada"),
-        yjs_state=b"stale",
+        yjs_state=MENTIONING_YJS_STATE,
     )
+    typed = lexical_body(f"Hi @[Ada]({author.id})")
     plain = await create_document(
-        session, initiative, author, content=lexical_body("Hi Bo"), yjs_state=b"kept"
+        session, initiative, author, content=typed, yjs_state=b"kept"
     )
     schema = f"guild_{guild.id}"
     await session.exec(
@@ -117,10 +119,11 @@ async def test_a_mention_written_before_keeps_no_name(session):
             )
         ).all()
     }
-    assert documents == {
-        mentioning.id: (lexical_body("Hi ", mentioning=author.id), None),
-        plain.id: (lexical_body("Hi Bo"), b"kept"),
-    }
+    content, state = documents[mentioning.id]
+    assert content == lexical_body("Hi ", mentioning=author.id)
+    assert state != MENTIONING_YJS_STATE and b"Ada" not in state
+    assert nameless_state(state) is None
+    assert documents[plain.id] == (typed, b"kept")
     marker = await session.scalar(
         text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
         params={"t": f'"{schema}".search_entries'},

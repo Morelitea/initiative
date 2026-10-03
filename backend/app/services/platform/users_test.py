@@ -747,21 +747,25 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     assert refreshed.status == UserStatus.anonymized
 
 
-async def test_soft_delete_restarts_collaboration_that_mentions_them(
+async def test_soft_delete_takes_their_name_out_of_collaboration(
     session: AsyncSession, role_session
 ):
     """Anonymizing a user leaves content as it is, since a mention holds no
-    name, and restarts the collaboration of every document and wiki page that
-    mentions them, archived ones included: an editor from before names were
-    left out can have written one into its state. Digest rows lose the
-    assigner's name snapshot (issue #794)."""
+    name, and takes the names out of the collaboration state of every document
+    and wiki page that mentions them, archived ones included: an editor from
+    before names were left out can have written one into it. Digest rows lose
+    the assigner's name snapshot (issue #794)."""
     from sqlalchemy import text
 
     from app.db.session import set_rls_context
     from app.models.tenant.document import Document
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
     from app.models.tenant.wiki import WikiPage
-    from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
+    from app.services.tenant.mention_parser import (
+        ANONYMIZED_MENTION_NAME,
+        nameless_state,
+    )
+    from app.testing import MENTIONING_YJS_STATE
     from app.testing.factories import (
         create_document,
         create_initiative,
@@ -785,14 +789,14 @@ async def test_soft_delete_restarts_collaboration_that_mentions_them(
     task = await create_task(session, project)
     mentioning = lexical_body("Thanks ", mentioning=victim.id)
     document = await create_document(
-        session, initiative, author, content=mentioning, yjs_state=b"stale-state"
+        session, initiative, author, content=mentioning, yjs_state=MENTIONING_YJS_STATE
     )
     archived = await create_document(
         session,
         initiative,
         author,
         content=mentioning,
-        yjs_state=b"stale-state",
+        yjs_state=MENTIONING_YJS_STATE,
         archived_at=datetime.now(timezone.utc),
     )
     elsewhere = await create_document(
@@ -808,7 +812,7 @@ async def test_soft_delete_restarts_collaboration_that_mentions_them(
         await create_wiki(session, initiative, author),
         author,
         content=mentioning,
-        yjs_state=b"stale-state",
+        yjs_state=MENTIONING_YJS_STATE,
     )
     session.add(
         TaskAssignmentDigestItem(
@@ -851,7 +855,7 @@ async def test_soft_delete_restarts_collaboration_that_mentions_them(
             )
         ).all()
     )
-    assert states == {document.id: None, archived.id: None, elsewhere.id: b"kept-state"}
+    assert states.pop(elsewhere.id) == b"kept-state"
     refreshed_page = (
         await session.exec(
             select(WikiPage)
@@ -859,8 +863,9 @@ async def test_soft_delete_restarts_collaboration_that_mentions_them(
             .options(undefer(WikiPage.content), undefer(WikiPage.yjs_state))
         )
     ).one()
-    assert refreshed_page.yjs_state is None
     assert refreshed_page.content == mentioning
+    for state in (*states.values(), refreshed_page.yjs_state):
+        assert state != MENTIONING_YJS_STATE and nameless_state(state) is None
 
     digest_name = (
         await session.exec(

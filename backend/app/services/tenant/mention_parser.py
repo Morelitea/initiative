@@ -11,13 +11,15 @@ Lexical ``mention`` node carrying ``mentionUserId``, with ``mentionName`` and
 ``text`` empty.
 
 Content therefore holds no name for ``anonymize_user_mentions`` to take out;
-it clears what a collaboration state may still hold.
+it takes out what a collaboration state may still hold.
 """
 
-from typing import Set
+from typing import Optional, Set
 
-from sqlalchemy import Text, cast
-from sqlmodel import update
+from pycrdt import Doc, Text, XmlElement, XmlText
+from pycrdt._base import base_types
+from sqlalchemy import Text as SqlText, cast
+from sqlmodel import select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.identity_boundary import STORED_MENTION
@@ -53,15 +55,50 @@ def extract_mentioned_task_ids(content: str) -> Set[int]:
     }
 
 
+def nameless_state(state: bytes) -> Optional[bytes]:
+    """A collaboration state with no mention of somebody by id holding a name,
+    or ``None`` where none held one.
+
+    The editor's binding keeps a document under the root ``root``: an element
+    as an ``XmlText`` embedded in its parent, and a decorator, a mention among
+    them, as an ``XmlElement`` whose attributes are its properties, the name in
+    ``__mention`` and the id in ``__mentionUserId``. The name is cleared as an
+    edit on top of the state, so nothing else written into it changes.
+    """
+    doc = Doc()
+    doc.apply_update(state)
+    changed = False
+
+    def walk(text: Text) -> None:
+        nonlocal changed
+        for value, _ in text.diff():
+            # An embedded type comes back unwrapped; pycrdt keeps the wrappers
+            # by the type it returns.
+            kind = base_types.get(type(value))
+            node = kind(_doc=doc, _integrated=value) if kind else None
+            if isinstance(node, XmlText):
+                walk(node)
+            elif (
+                isinstance(node, XmlElement)
+                and node.attributes.get("__type") == "mention"
+                and node.attributes.get("__mentionUserId") is not None
+                and node.attributes.get("__mention")
+            ):
+                node.attributes["__mention"] = ""
+                changed = True
+
+    walk(doc.get("root", type=Text))
+    return bytes(doc.get_update()) if changed else None
+
+
 async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> None:
     """Take ``user_id``'s name out of the CURRENTLY ROUTED guild schema.
 
     Content holds none to take out: a mention is stored by id alone. A
     collaboration state can, as an editor from before names were left out
-    writes one into it, and it takes precedence over the content on load. So
-    every document or wiki page that mentions the user starts collaboration
-    again from its content. Pending task-assignment digest rows lose the
-    ``assigned_by_name`` snapshot too.
+    writes one into it, so every document or wiki page that mentions the user
+    has its state's mentions made nameless (:func:`nameless_state`). Pending
+    task-assignment digest rows lose the ``assigned_by_name`` snapshot too.
 
     Caller owns routing (guild-admin context), flushing order, and the commit —
     everything here rides the caller's transaction. Soft-deleted and archived
@@ -86,17 +123,27 @@ async def anonymize_user_mentions(session: AsyncSession, *, user_id: int) -> Non
         resource = resource_for(kind)
         model = resource.model
         state = getattr(model, YJS_STATE_COLUMN)
-        restarted = await session.exec(
-            update(model)
+        held = await session.exec(
+            select(model.id, state)
             .where(
                 state.is_not(None),
-                cast(getattr(model, resource.content_column), Text).op("~")(mentioned),
+                cast(getattr(model, resource.content_column), SqlText).op("~")(
+                    mentioned
+                ),
             )
-            .values({YJS_STATE_COLUMN: None})
-            .returning(model.id)
-            .execution_options(include_deleted=True, synchronize_session=False)
+            .execution_options(include_deleted=True, include_archived=True)
         )
-        rooms.extend((kind, row_id) for row_id in restarted.scalars().all())
+        for row_id, current in held.all():
+            nameless = nameless_state(current)
+            if nameless is None:
+                continue
+            await session.exec(
+                update(model)
+                .where(model.id == row_id)
+                .values({YJS_STATE_COLUMN: nameless})
+                .execution_options(synchronize_session=False)
+            )
+            rooms.append((kind, row_id))
 
     # Digest rows snapshot the assigner's name for the email body.
     await session.exec(
