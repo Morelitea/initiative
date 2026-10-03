@@ -2190,6 +2190,21 @@ export interface CollaborationHandover {
 }
 
 /**
+ * Who a comment is said to.
+ *
+ * Every comment is said to the people who can read its thread. A comment on
+ * an operations case can also be said to the person who filed the case, who
+ * is not one of them: that is the conversation with them, and it is the only
+ * part of the case they are ever shown.
+ */
+export type CommentAudience = (typeof CommentAudience)[keyof typeof CommentAudience];
+
+export const CommentAudience = {
+  members: "members",
+  filer: "filer",
+} as const;
+
+/**
  * How a profile is dressed: a banner, a frame, trophies under it.
  *
  * Every value is an **id naming a catalog entry**, never an image. The client
@@ -2327,6 +2342,8 @@ export interface CommentRead {
   project_id: number | null;
   reactions: ReactionGroup[];
   can_remove: boolean;
+  audience: CommentAudience;
+  system_kind: string | null;
 }
 
 /**
@@ -6090,6 +6107,18 @@ export interface ModerationReportList {
 }
 
 /**
+ * Reporting something. The same shape from every surface.
+ */
+export interface ModerationTicketCreate {
+  target_type: string;
+  target_id: number;
+  reason: ReportReason;
+  detail?: string | null;
+  guild_id?: number | null;
+  stream: "moderation";
+}
+
+/**
  * One connection available to the member in one guild — a flat row for the
  * cross-guild personal "My AI" view (``GET /me/ai``). Every connection the
  * member can use is listed, including shared-key ones they can't attach to
@@ -8134,6 +8163,14 @@ export interface RelationshipRead {
 }
 
 /**
+ * Settling a report. Every outcome closes it.
+ */
+export interface ReportSettle {
+  outcome: ReportOutcome;
+  note?: string | null;
+}
+
+/**
  * Who handles a report.
  */
 export type ReportVenue = (typeof ReportVenue)[keyof typeof ReportVenue];
@@ -8142,36 +8179,6 @@ export const ReportVenue = {
   platform: "platform",
   initiative: "initiative",
 } as const;
-
-/**
- * What the reporter is told: that we have it, and nothing else.
- *
- * Not who will see it, not whether one already existed, and never an outcome
- * — a report is not a conversation with the person who sent it.
- */
-export interface ReportAccepted {
-  accepted?: boolean;
-  venue: ReportVenue;
-}
-
-/**
- * What a person sends. The same shape from every surface.
- */
-export interface ReportCreate {
-  target_type: string;
-  target_id: number;
-  reason: ReportReason;
-  detail?: string | null;
-  guild_id?: number | null;
-}
-
-/**
- * Settling a report. Every outcome closes it.
- */
-export interface ReportSettle {
-  outcome: ReportOutcome;
-  note?: string | null;
-}
 
 /**
  * Resolved settings for the frontend — never exposes the API key.
@@ -8535,6 +8542,25 @@ export interface StorageTestResponse {
 }
 
 /**
+ * What a filing surface offers for a stream.
+ */
+export type TicketMode = (typeof TicketMode)[keyof typeof TicketMode];
+
+export const TicketMode = {
+  form: "form",
+  email: "email",
+  none: "none",
+} as const;
+
+/**
+ * What one stream offers the reader, from where they are.
+ */
+export interface StreamAvailabilityRead {
+  mode: TicketMode;
+  contact: string | null;
+}
+
+/**
  * The item its reader just opened.
  */
 export interface SubjectReadRequest {
@@ -8553,31 +8579,11 @@ export interface SubjectReadResponse {
 }
 
 /**
- * Whether the help form should be offered in this community.
- *
- * One boolean rather than its two halves: the reader is choosing between a
- * form and the FAQ, and which of the two reasons applies is the operator's
- * business, not theirs.
+ * Asking for help, from inside a community.
  */
-export interface SupportAvailability {
-  available?: boolean;
-}
-
-/**
- * What they are told back: that it arrived.
- *
- * Not where it landed or who will read it — the project a deployment routes
- * support into is its own arrangement, and naming it here would make it the
- * asker's business.
- */
-export interface SupportRequestAccepted {
-  accepted?: boolean;
-}
-
-/**
- * What somebody asking for help sends.
- */
-export interface SupportRequestCreate {
+export interface SupportTicketCreate {
+  stream: "support";
+  guild_id: number;
   /**
    * @minLength 1
    * @maxLength 200
@@ -8853,6 +8859,28 @@ export interface TaskUpdate {
   tag_ids?: number[] | null;
   checklist?: ChecklistItemInput[] | null;
   scope?: TaskUpdateScope;
+}
+
+/**
+ * What the filer is told: that it arrived.
+ *
+ * Not who will read it, and for a report not whether one already existed —
+ * a report is not a conversation with the person who sent it, so ``venue``
+ * is all it says, and only for a report.
+ */
+export interface TicketAccepted {
+  accepted: boolean;
+  venue: ReportVenue | null;
+}
+
+/**
+ * What every stream offers the reader. One entry per stream.
+ */
+export interface TicketAvailability {
+  security: StreamAvailabilityRead;
+  moderation: StreamAvailabilityRead;
+  support: StreamAvailabilityRead;
+  feedback: StreamAvailabilityRead;
 }
 
 /**
@@ -11245,6 +11273,13 @@ export type ListMyTasksApiV1MeTasksGetParams = {
   page_size?: number;
   sorting?: SortField[];
   tz?: string | null;
+};
+
+export type ReadTicketAvailabilityApiV1MeTicketsAvailabilityGetParams = {
+  /**
+   * The community the reader is standing in.
+   */
+  guild_id?: number | null;
 };
 
 export type GetMyToolCountsApiV1MeToolsCountsGetParams = {

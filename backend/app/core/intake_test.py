@@ -97,3 +97,14 @@ def test_every_intake_error_code_is_localized():
         catalogue = json.loads((locales / locale / "errors.json").read_text())
         missing = sorted(codes - set(catalogue))
         assert not missing, f"{locale}/errors.json is missing {missing}"
+
+
+@pytest.mark.parametrize("stream", list(IntakeStream))
+def test_every_stream_states_a_pace_the_limiter_reads(stream: IntakeStream):
+    """A filing rate the limiter cannot parse would surface as an error on the
+    first filing rather than here."""
+    from limits import parse
+
+    declared = meta(stream)
+    assert parse(declared.filing_rate).amount > 0
+    assert declared.max_open_per_filer is None or declared.max_open_per_filer > 0

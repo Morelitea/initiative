@@ -509,7 +509,8 @@ export const useUpdateGuildStorage = (
             typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch
           >[1]
         ),
-      invalidate: () => invalidate(q.platformGuilds()),
+      // The help-request switch decides what "Ask for help" offers.
+      invalidate: () => invalidate(q.platformGuilds(), q.ticketAvailability()),
     },
     options
   );

@@ -85,6 +85,7 @@
   "createExternally": "Se crea en {{name}}",
   "operatorDashboard": "Panel de operador",
   "pastAnnouncements": "Anuncios anteriores",
+  "documentation": "Documentación",
   "requestsWaiting_one": "{{count}} pendiente",
   "requestsWaiting_other": "{{count}} pendientes",
   "posts": "Publicaciones",

@@ -596,6 +596,13 @@ class SupportMessages:
     NOWHERE_TO_SEND = "SUPPORT_NOWHERE_TO_SEND"
 
 
+class TicketMessages:
+    """Filing a ticket, whatever kind."""
+
+    FILING_TOO_FAST = "TICKET_FILING_TOO_FAST"
+    TOO_MANY_OPEN = "TICKET_TOO_MANY_OPEN"
+
+
 class IntakeMessages:
     """Binding a stream of operations work to a project."""
 

@@ -14,6 +14,7 @@ import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { docsUrl } from "@/lib/links";
 
 import { SidebarUserFooter } from "./SidebarUserFooter";
 
@@ -48,6 +49,13 @@ const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
 };
 
 describe("SidebarUserFooter", () => {
+  it("always links to the documentation", async () => {
+    renderFooter();
+    const docs = await screen.findByRole("link", { name: "Documentation" });
+    expect(docs).toHaveAttribute("href", docsUrl());
+    expect(docs).toHaveAttribute("target", "_blank");
+  });
+
   it("puts the status under the name, in the same row", async () => {
     renderFooter({ custom_status: { emoji: "🌱", text: "Planting things" } });
 

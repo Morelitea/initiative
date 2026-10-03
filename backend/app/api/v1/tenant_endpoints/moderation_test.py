@@ -35,7 +35,12 @@ from app.db.request_context import SystemGuild, Unattributed
 
 
 async def _report(client: AsyncClient, actor, **body) -> Response:
-    return await client.post("/api/v1/me/reports", json=body, headers=actor.headers)
+    """File a report the way every surface does: as a moderation ticket."""
+    return await client.post(
+        "/api/v1/me/tickets",
+        json={"stream": "moderation", **body},
+        headers=actor.headers,
+    )
 
 
 def _reports_url(scene: dict) -> str:
@@ -302,8 +307,9 @@ async def test_a_second_reporter_joins_the_open_report(client, session, scene):
 
     for headers in (scene["member"].headers, get_auth_headers(another)):
         response = await client.post(
-            "/api/v1/me/reports",
+            "/api/v1/me/tickets",
             json={
+                "stream": "moderation",
                 "target_type": "comment",
                 "target_id": scene["comment"].id,
                 "reason": "spam",
@@ -339,8 +345,9 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
     await set_rls_context(session, Unattributed())
 
     response = await client.post(
-        "/api/v1/me/reports",
+        "/api/v1/me/tickets",
         json={
+            "stream": "moderation",
             "target_type": "comment",
             "target_id": scene["comment"].id,
             "reason": "spam",

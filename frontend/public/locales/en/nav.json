@@ -85,6 +85,7 @@
   },
   "operatorDashboard": "Operator Dashboard",
   "pastAnnouncements": "Past announcements",
+  "documentation": "Documentation",
   "requestsWaiting_one": "{{count}} waiting",
   "requestsWaiting_other": "{{count}} waiting",
   "posts": "Posts",

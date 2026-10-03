@@ -1,38 +1,33 @@
-"""A community's moderation surface, and the one place a report is sent.
+"""A community's moderation surface.
 
-Two audiences, one router:
+**Whoever already sees everything in an initiative** reads and settles that
+initiative's reports. Not a role name — the standing is
+``override_share_restrictions`` ("Full access"), which is what the RLS policy on
+these tables keys on too, so the endpoint and the database agree without the
+endpoint re-deciding.
 
-- **anybody signed in** files a report (``POST /me/reports``). The same call
-  from every surface; where it goes is decided server-side.
-- **whoever already sees everything in an initiative** reads and settles that
-  initiative's reports. Not a role name — the standing is
-  ``override_share_restrictions`` ("Full access"), which is what the RLS policy
-  on these tables keys on too, so the endpoint and the database agree without
-  the endpoint re-deciding.
+Reports are filed as tickets (``POST /me/tickets``, see
+``app.api.v1.platform_endpoints.tickets``), the one way any kind of ticket is
+filed; where a report goes is decided server-side.
 """
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import (
     RLSSessionDep,
-    UserSessionDep,
     get_current_active_user,
     GuildContextDep,
 )
 from app.core.messages import ModerationMessages
-from app.core.rate_limit import get_user_or_ip_key, limiter
-from app.core.moderation import parse_target
 from app.models.platform.user import User
 from app.schemas.tenant.moderation import (
     InitiativeSharingRead,
     ModerationReportList,
     ModerationReportRead,
-    ReportAccepted,
-    ReportCreate,
     ReportSettle,
     ReportTargetLink,
     SharedResourceRead,
@@ -41,7 +36,6 @@ from app.services.tenant import moderation as moderation_service
 from app.services.tenant import sharing_overview
 
 router = APIRouter()
-me_router = APIRouter()
 
 
 def _read(
@@ -78,47 +72,6 @@ def _read(
             else None
         ),
     )
-
-
-@me_router.post(
-    "/reports", response_model=ReportAccepted, status_code=status.HTTP_202_ACCEPTED
-)
-# Each report is something a moderator reads.
-@limiter.limit("30/hour", key_func=get_user_or_ip_key)
-async def file_report(
-    request: Request,
-    payload: ReportCreate,
-    session: UserSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> ReportAccepted:
-    """Report something. One endpoint, whatever was reported and from where.
-
-    The reply says only that we have it. Whether a report already existed for
-    the same thing, who will read it, and what is decided are all none of the
-    reporter's business — and saying any of it would leak the moderator's hand.
-
-    The session starts platform-scoped and is routed into the named community
-    by the ordinary entry point, so the target is looked up as the reporter and
-    a thing they cannot see is a thing they cannot report.
-    """
-    try:
-        target = parse_target(payload.target_type)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=ModerationMessages.UNKNOWN_TARGET_TYPE,
-        ) from None
-
-    filed = await moderation_service.file_report(
-        session,
-        reporter=current_user,
-        target=target,
-        target_id=payload.target_id,
-        reason=payload.reason,
-        detail=payload.detail,
-        guild_id=payload.guild_id,
-    )
-    return ReportAccepted(accepted=True, venue=filed.venue)
 
 
 @router.get("/initiatives/{initiative_id}/reports", response_model=ModerationReportList)

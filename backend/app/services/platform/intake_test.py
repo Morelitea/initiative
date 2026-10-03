@@ -10,13 +10,15 @@ from sqlmodel import select
 from app.core.intake import CaseField, IntakeStream
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.tenant.comment import Comment, CommentAudience
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
 from app.models.tenant.property import PropertyDefinition
+from app.services.platform import case_activity
 from app.services.platform import intake as intake_service
-from app.services.platform.intake import CaseRefs
+from app.services.platform.intake import CaseFiler, CaseRefs
 from app.testing import (
     create_guild,
     create_initiative,
@@ -239,6 +241,109 @@ async def test_a_crossing_past_the_window_moves_the_mark(session, bound):
     ).one()
     assert case.last_seen_at == later
     assert case.noted_at == later
+
+
+async def _notes_on(session, guild_id: int, task_id: int) -> list[Comment]:
+    """What the platform has written on a case, oldest first."""
+    await set_rls_context(session, SystemGuild(guild_id))
+    return list(
+        (
+            await session.exec(
+                select(Comment)
+                .where(Comment.task_id == task_id)
+                .where(Comment.system_kind.is_not(None))
+                .order_by(Comment.id)
+            )
+        ).all()
+    )
+
+
+async def test_a_repeat_says_what_it_brought_on_the_case(session, bound):
+    """A second report of the same thing carries somebody's words, so they
+    reach the case every time — not only a counter moving underneath it."""
+    start = datetime.now(timezone.utc)
+    first = await intake_service.open_case(
+        IntakeStream.support,
+        title="Reported comment 7",
+        body="It names my street.",
+        dedupe_key="report:1:comment:7",
+        now=start,
+    )
+    assert first is not None
+    await intake_service.open_case(
+        IntakeStream.support,
+        title="Reported comment 7",
+        body="And my workplace.",
+        detail="And my workplace.",
+        dedupe_key="report:1:comment:7",
+        now=start + timedelta(minutes=1),
+    )
+
+    (note,) = await _notes_on(session, bound["guild"].id, first.task_id)
+    assert "And my workplace." in note.content
+    assert "2 times" in note.content
+    assert note.created_by is None
+    assert note.system_kind == case_activity.ActivityKind.repeat.value
+    assert note.audience == CommentAudience.members
+
+
+async def test_a_repeat_with_nothing_new_is_noted_once_per_window(session, bound):
+    """A sustained run is a trail of recurrences, not a comment per event."""
+    start = datetime.now(timezone.utc)
+    first = await intake_service.open_case(
+        IntakeStream.support,
+        title="Refused sign-ins",
+        body="The same explanation every time.",
+        dedupe_key="refused:9",
+        now=start,
+    )
+    assert first is not None
+    for minutes in (1, 2, 130):
+        # An automatic source sends its unchanged description again, which is
+        # not news.
+        await intake_service.open_case(
+            IntakeStream.support,
+            title="Refused sign-ins",
+            body="The same explanation every time.",
+            dedupe_key="refused:9",
+            now=start + timedelta(minutes=minutes),
+        )
+
+    notes = await _notes_on(session, bound["guild"].id, first.task_id)
+    assert [note.content for note in notes] == ["Seen again (4 times in all)."]
+
+
+async def test_two_filings_at_once_cannot_pass_the_cap_together(
+    session, bound, monkeypatch
+):
+    """The cap is counted and the case opened under one lock on the filer, so
+    two filings racing for the last place open one case between them."""
+    import asyncio
+    from dataclasses import replace
+
+    from app.core import intake
+
+    monkeypatch.setitem(
+        intake.STREAMS,
+        IntakeStream.support,
+        replace(intake.STREAMS[IntakeStream.support], max_open_per_filer=1),
+    )
+
+    async def file() -> object:
+        try:
+            return await intake_service.open_case(
+                IntakeStream.support,
+                title="Help",
+                filer=CaseFiler(user_id=bound["user"].id, subject="Help", words="Now."),
+            )
+        except intake_service.CaseCapReached as exc:
+            return exc
+
+    outcomes = await asyncio.gather(file(), file())
+
+    assert sum(isinstance(o, intake_service.CaseCapReached) for o in outcomes) == 1
+    await set_rls_context(session, SystemGuild(bound["guild"].id))
+    assert len((await session.exec(select(IntakeCase))).all()) == 1
 
 
 async def test_an_unkeyed_case_still_gets_a_row(session, bound):
