@@ -39,13 +39,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useCommunities } from "@/hooks/useCommunities";
+import { useCommunityAuthSettings } from "@/hooks/useCommunityAuthPolicy";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import {
   useExportCommunityUsersCsv,
+  useSetMemberApiAccess,
   useUpdateCommunityMembership,
   useUsers,
 } from "@/hooks/useUsers";
@@ -104,6 +107,15 @@ export const SettingsUsersPage = () => {
   const roleOptions = activeCommunity?.can.seat ? SEAT_ROLE_OPTIONS : COMMUNITY_ROLE_OPTIONS;
 
   const activeCommunityId = activeCommunity?.id ?? null;
+
+  // Whose personal API keys reach the community is the seat's to say, and only
+  // while the operator has granted the community ``restrictions``: without it
+  // every member's keys reach it, so there is nothing to set.
+  const isSeat = Boolean(activeCommunity?.can.seat);
+  const authSettings = useCommunityAuthSettings(activeCommunityId ?? 0, {
+    enabled: isSeat && activeCommunityId != null,
+  }).data;
+  const showsApiAccess = isSeat && (authSettings?.auth_options ?? []).includes("restrictions");
 
   // Seat cap, admin-only on the payload and null when uncapped. A full community
   // mints no invite (the server refuses), so the form says so up front instead
@@ -176,6 +188,13 @@ export const SettingsUsersPage = () => {
     onError: (error: unknown) => {
       const message = getErrorMessage(error, "communities:users.failedToUpdateRole");
       toast.error(message);
+    },
+  });
+
+  const setMemberApiAccess = useSetMemberApiAccess({
+    onSuccess: () => toast.success(t("users.apiAccessSaved")),
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error, "communities:users.apiAccessError"));
     },
   });
 
@@ -304,6 +323,33 @@ export const SettingsUsersPage = () => {
         );
       },
     },
+    ...(showsApiAccess
+      ? [
+          {
+            accessorKey: "api_keys_allowed",
+            header: t("users.apiAccessColumn"),
+            cell: ({ row }) => {
+              const communityMember = row.original;
+              return (
+                <Switch
+                  checked={communityMember.api_keys_allowed ?? true}
+                  aria-label={t("users.apiAccessLabel", {
+                    name: getUserDisplayName(communityMember),
+                  })}
+                  disabled={setMemberApiAccess.isPending}
+                  onCheckedChange={(allowed) =>
+                    setMemberApiAccess.mutate({
+                      communityId: activeCommunityId!,
+                      userId: communityMember.id,
+                      allowed,
+                    })
+                  }
+                />
+              );
+            },
+          } satisfies AppColumnDef<UserCommunityMember>,
+        ]
+      : []),
     {
       accessorKey: "oidc_managed",
       header: t("users.sourceColumn"),
@@ -529,6 +575,12 @@ export const SettingsUsersPage = () => {
                   <dd>{t(`users.communityRoleHelp.${roleOption}` as never)}</dd>
                 </div>
               ))}
+              {showsApiAccess ? (
+                <div className="flex gap-1.5">
+                  <dt className="font-medium text-foreground">{t("users.apiAccessColumn")}</dt>
+                  <dd>{t("users.apiAccessHelp")}</dd>
+                </div>
+              ) : null}
             </dl>
           </div>
           <Button

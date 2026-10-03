@@ -32,7 +32,6 @@ let settings: CommunityAuthSettingsRead | undefined;
 const baseSettings = (): CommunityAuthSettingsRead => ({
   auth_options: ["restrictions", "providers"],
   auth_policy: openPolicy,
-  allow_api_keys: true,
   enforce_compliance_session: false,
   require_second_factor: false,
   allow_push_notifications: true,
@@ -202,14 +201,6 @@ describe("SettingsCommunitySecurityPage", () => {
       expect(found.every((index) => index >= 0)).toBe(true);
       expect(found).toEqual([...found].sort((a, b) => a - b));
     });
-
-    it("puts session length before API access", () => {
-      render();
-
-      const [length, api] = positions("Session length", "API access");
-      expect(length).toBeGreaterThanOrEqual(0);
-      expect(api).toBeGreaterThan(length);
-    });
   });
 
   describe("a community that has connected nothing", () => {
@@ -321,12 +312,11 @@ describe("SettingsCommunitySecurityPage", () => {
 
     it("gives a superadmin settings grantee the current controls", () => {
       grantSettingsLevel = "superadmin";
-      stored({ allow_api_keys: false, enforce_compliance_session: true });
+      stored({ enforce_compliance_session: true });
 
       render();
 
       expect(requirementRadio()).toBeInTheDocument();
-      expect(screen.getByLabelText(/allow personal api keys/i)).not.toBeChecked();
       expect(screen.getByLabelText(/sign in again every twelve hours/i)).toBeChecked();
     });
 
@@ -477,7 +467,6 @@ describe("SettingsCommunitySecurityPage", () => {
   });
 
   describe("what each grant brings with it", () => {
-    const API_KEYS = { label: /allow personal api keys/i };
     const SESSION = { label: /sign in again every twelve hours/i };
     const REQUIREMENT = { label: /require single sign-on/i };
     const SIGN_IN_LINK = { text: /member sign-in link/i };
@@ -491,13 +480,13 @@ describe("SettingsCommunitySecurityPage", () => {
 
     // Each grant is one half of the page, and neither brings the other with it.
     it.each<[string, CommunityAuthOption[], Probe[], Probe[]]>([
-      ["neither, so nothing at all", [], [], [API_KEYS, SESSION, REQUIREMENT, SIGN_IN_LINK]],
-      ["only the terms half", ["restrictions"], [API_KEYS, SESSION], [WHO_GETS_IN, REQUIREMENT]],
+      ["neither, so nothing at all", [], [], [SESSION, REQUIREMENT, SIGN_IN_LINK]],
+      ["only the terms half", ["restrictions"], [SESSION], [WHO_GETS_IN, REQUIREMENT]],
       [
         "only the sign-in half",
         ["providers"],
         [REQUIREMENT, SIGN_IN_LINK],
-        [ON_WHAT_TERMS, API_KEYS],
+        [ON_WHAT_TERMS, SESSION],
       ],
     ])("shows %s where that is what the operator granted", (_label, granted, shown, hidden) => {
       stored({ auth_options: granted });
@@ -509,17 +498,9 @@ describe("SettingsCommunitySecurityPage", () => {
     });
   });
 
-  // Both switches are the seat's, and both save the moment they are flipped —
-  // there is no button to press after.
+  // The switch is the seat's, and saves the moment it is flipped — there is
+  // no button to press after.
   describe.each([
-    {
-      what: "declining personal API keys",
-      control: () => screen.queryByLabelText(/allow personal api keys/i),
-      startsOn: true,
-      store: (value: boolean) => stored({ allow_api_keys: value }),
-      sends: { allow_api_keys: false },
-      explains: /no key can be created for this community/i,
-    },
     {
       what: "how often members sign in again",
       control: () => screen.queryByLabelText(/sign in again every twelve hours/i),

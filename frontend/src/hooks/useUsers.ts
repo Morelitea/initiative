@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  setMemberApiAccess,
   setMemberDisplayName,
   setOwnDisplayName,
   updateCommunityMembership,
@@ -371,6 +372,19 @@ export const useUpdateCommunityMembership = (
         updateCommunityMembership(data.communityId, data.userId, {
           role: data.role,
         } as Parameters<typeof updateCommunityMembership>[2]),
+      invalidate: () => invalidate(q.communityMembers()),
+    },
+    options
+  );
+
+type SetMemberApiAccessVars = { communityId: number; userId: number; allowed: boolean };
+
+/** Whether one member's personal API keys reach a community. The seat's. */
+export const useSetMemberApiAccess = (options?: MutationOpts<void, SetMemberApiAccessVars>) =>
+  useApiMutation<void, SetMemberApiAccessVars>(
+    {
+      mutationFn: ({ communityId, userId, allowed }) =>
+        setMemberApiAccess(communityId, userId, { api_keys_allowed: allowed }),
       invalidate: () => invalidate(q.communityMembers()),
     },
     options

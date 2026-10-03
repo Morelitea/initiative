@@ -1379,15 +1379,6 @@
       "requirePasskeyHelp": "Members must have signed in with a passkey, or presented one, in this session. They can add one without signing out.",
       "factorRequiredByPlatform": "Your server already asks everybody here for a second factor, so there's nothing to add."
     },
-    "apiAccess": {
-      "title": "API access",
-      "description": "Whether a personal API key may be used against this community.",
-      "allowLabel": "Allow personal API keys",
-      "allowHelp": "Members can create a key and use it here — for scripts, integrations and MCP clients.",
-      "blockedHelp": "No key can be created for this community, and a key already made no longer reaches it. Members keep their keys for other communities.",
-      "saved": "API access saved",
-      "error": "Could not save API access"
-    },
     "sessionLimit": {
       "title": "Session length",
       "allowLabel": "Sign in again every twelve hours",

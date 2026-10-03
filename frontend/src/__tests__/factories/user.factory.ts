@@ -187,6 +187,7 @@ export function buildUserCommunityMember(
     avatar_url: null,
     community_role: communityRole,
     oidc_managed: false,
+    api_keys_allowed: null,
     status: "active",
     created_at: "2026-01-15T00:00:00.000Z",
     initiative_roles: [],

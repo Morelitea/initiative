@@ -209,7 +209,12 @@
     "exportError": "Benutzer konnten nicht exportiert werden.",
     "removeFromCommunity": "Aus der Community entfernen",
     "failedToUpdateRole": "Rolle konnte nicht aktualisiert werden",
-    "handleColumn": "Handle"
+    "handleColumn": "Handle",
+    "apiAccessColumn": "API-Zugriff",
+    "apiAccessLabel": "Persönliche API-Schlüssel für {{name}}",
+    "apiAccessHelp": "Ob die persönlichen API-Schlüssel dieser Person diese Community erreichen. Ausschalten stoppt bereits erstellte Schlüssel ebenso wie neue.",
+    "apiAccessSaved": "API-Zugriff gespeichert",
+    "apiAccessError": "API-Zugriff konnte nicht gespeichert werden"
   },
   "notMember": {
     "title": "Community nicht verfügbar",

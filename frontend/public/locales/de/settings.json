@@ -1379,15 +1379,6 @@
       "requirePasskeyHelp": "Mitglieder müssen sich in dieser Sitzung mit einem Passkey angemeldet oder einen vorgelegt haben. Sie können ihn ohne Abmelden nachreichen.",
       "factorRequiredByPlatform": "Dein Server verlangt bereits von allen einen zweiten Faktor — hier gibt es nichts hinzuzufügen."
     },
-    "apiAccess": {
-      "title": "API-Zugriff",
-      "description": "Ob ein persönlicher API-Schlüssel für diese Community verwendet werden darf.",
-      "allowLabel": "Persönliche API-Schlüssel erlauben",
-      "allowHelp": "Mitglieder können einen Schlüssel erstellen und ihn hier verwenden — für Skripte, Integrationen und MCP-Clients.",
-      "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
-      "saved": "API-Zugriff gespeichert",
-      "error": "API-Zugriff konnte nicht gespeichert werden"
-    },
     "sessionLimit": {
       "title": "Sitzungsdauer",
       "allowLabel": "Alle zwölf Stunden neu anmelden",

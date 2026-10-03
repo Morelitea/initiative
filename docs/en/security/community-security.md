@@ -61,7 +61,9 @@ You have to satisfy a requirement yourself before you can set it; the page names
 
 [Personal API keys](../account/api-keys-and-integrations.md) are how members reach Initiative from scripts, integrations and MCP clients. Your community decides whether they work **here**.
 
-Turn it off and no key reaches this community, including keys that already exist. Those keys carry on working for that person's other communities — the decision is about your space, not somebody's account. Nothing is revoked, so turning it back on restores them.
+Every member's keys work here by default. To stop one person's, use the **API access** switch beside them in **Community settings → Users**. Only a superadmin sees that column, and only while the server grants this community the security standard.
+
+Turn it off and none of that person's keys reach this community, including keys that already exist. Those keys carry on working for their other communities — the decision is about your space, not somebody's account. Nothing is revoked, so turning it back on restores them.
 
 ### Session length
 
@@ -95,7 +97,7 @@ Nothing here destroys anything on the way out.
 |---|---|
 | **Disconnect a provider** | Its button comes off your sign-in page and nobody new arrives through it. Nobody is signed out, no account changes, no membership is removed. If a requirement rests on it, you are asked to lift that first. |
 | **Lift a requirement** | Members simply stop being asked. |
-| **Allow API keys again** | The keys that already existed reach you again, with nobody minting replacements. |
+| **Turn somebody's API access back on** | The keys they already had reach you again, with nobody minting replacements. |
 | **Stop asking for twelve-hour sessions** | People stop being timed out for idleness the next time the app renews their session, and return to the ordinary length at their next sign-in. A session already held to twelve hours keeps that limit until it ends. |
 | **Allow mobile notifications again** | Phones receive this community's notifications again, from the next one sent. |
 | **Stop hiding notification details** | The next notification to leave names what it is about. Ones already sent are not revisited. |
@@ -112,7 +114,7 @@ If whoever runs your server withdraws one of the two switches, that half of the 
 
     **Notification delivery** is three booleans on the community, each read alongside the platform's own where a notification is sent rather than at the moment either is saved, so tightening the server's answer covers every community at once and no community row is rewritten. Redaction is applied to the message as it is built for the channel it leaves on; the stored notification the bell reads is unaffected. A community switching mobile notifications off stops its own sends — the device registrations themselves belong to the account, not to any one community, so they stay.
 
-    **API access** and **session length** are flags on the community itself rather than on the policy row, which is why they outlive a requirement being lifted. A key is judged when it is used, not when it is created. The session standard is twelve hours, `min()`-ed with the server's own limit; sessions come under it at their next sign-in, in a browser and in the apps alike. The idle standard is fifteen minutes, carried by the session's own two clocks rather than checked per request: the refresh row expires that far out and each renewal reads the window again and re-stamps it from the person's last input, which the client reports as `idle_seconds`, and the access token is minted no longer-lived than the row it names. So an idle session lapses on its own, and the control costs one sign-in rather than a database read on every call.
+    **API access** is a flag on each membership, read by the community-context gate on every request made with a personal key, so a key is judged when it is used, not when it is created. **Session length** is a flag on the community itself rather than on the policy row, which is why it outlives a requirement being lifted. The session standard is twelve hours, `min()`-ed with the server's own limit; sessions come under it at their next sign-in, in a browser and in the apps alike. The idle standard is fifteen minutes, carried by the session's own two clocks rather than checked per request: the refresh row expires that far out and each renewal reads the window again and re-stamps it from the person's last input, which the client reports as `idle_seconds`, and the access token is minted no longer-lived than the row it names. So an idle session lapses on its own, and the control costs one sign-in rather than a database read on every call.
 
 ## Related
 

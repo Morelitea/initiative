@@ -1379,15 +1379,6 @@
       "requirePasskeyHelp": "Les membres doivent s'être connectés avec une clé d'accès, ou en avoir présenté une, dans cette session. Ils peuvent l'ajouter sans se déconnecter.",
       "factorRequiredByPlatform": "Votre serveur demande déjà un second facteur à tout le monde : il n'y a rien à ajouter ici."
     },
-    "apiAccess": {
-      "title": "Accès par API",
-      "description": "Si une clé d'API personnelle peut être utilisée sur cette communauté.",
-      "allowLabel": "Autoriser les clés d'API personnelles",
-      "allowHelp": "Les membres peuvent créer une clé et l'utiliser ici — pour des scripts, des intégrations et des clients MCP.",
-      "blockedHelp": "Aucune clé ne peut être créée pour cette communauté, et une clé déjà créée ne l'atteint plus. Les membres conservent leurs clés pour les autres communautés.",
-      "saved": "Accès par API enregistré",
-      "error": "Impossible d'enregistrer l'accès par API"
-    },
     "sessionLimit": {
       "title": "Durée de session",
       "allowLabel": "Se reconnecter toutes les douze heures",

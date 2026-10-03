@@ -11,11 +11,19 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildCommunity } from "@/__tests__/factories";
+import { buildCommunity, buildUserCommunityMember } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CommunityAuthOption,
+  CommunityRead,
+  UserCommunityMember,
+} from "@/api/generated/initiativeAPI.schemas";
 
-const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
+const state = vi.hoisted(() => ({
+  billing: null as { url: string } | null,
+  members: [] as UserCommunityMember[],
+  authOptions: [] as CommunityAuthOption[],
+}));
 vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
 
 const mintHandoff = vi.hoisted(() => vi.fn());
@@ -27,17 +35,30 @@ vi.mock("@/api/generated/communities/communities", () => ({
   createCommunityBillingHandoff: mintHandoff,
 }));
 
+const setApiAccess = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/useUsers", () => ({
   USER_ID_LOOKUP_MAX: 100,
   useUsers: () => ({
-    data: { items: [], total_count: 0, page: 1, page_size: 20, has_next: false, has_prev: false },
+    data: {
+      items: state.members,
+      total_count: state.members.length,
+      page: 1,
+      page_size: 20,
+      has_next: false,
+      has_prev: false,
+    },
     isLoading: false,
     isError: false,
   }),
+  useSetMemberApiAccess: () => ({ mutate: setApiAccess, isPending: false }),
   useUserSearch: () => ({ data: undefined, isFetching: false }),
   useUpdateCommunityMembership: () => ({ mutate: vi.fn() }),
   useSetMemberDisplayName: () => ({ mutate: vi.fn(), isPending: false }),
   useExportCommunityUsersCsv: () => ({ mutate: vi.fn() }),
+}));
+
+vi.mock("@/hooks/useCommunityAuthPolicy", () => ({
+  useCommunityAuthSettings: () => ({ data: { auth_options: state.authOptions } }),
 }));
 
 vi.mock("@/components/communities/UnownedContentCard", () => ({ UnownedContentCard: () => null }));
@@ -146,5 +167,46 @@ describe("SettingsUsersPage invites", () => {
     expect(await screen.findByText("Admin")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Generate invite" })).not.toBeInTheDocument();
     expect(listInvites).not.toHaveBeenCalled();
+  });
+});
+
+describe("SettingsUsersPage API access", () => {
+  const apiSwitch = () => screen.queryByRole("switch", { name: /personal api keys for/i });
+
+  beforeEach(() => {
+    state.billing = null;
+    state.members = [buildUserCommunityMember({ api_keys_allowed: true })];
+    state.authOptions = ["restrictions"];
+    setApiAccess.mockReset();
+  });
+
+  it("lets the seat turn one member's API access off", async () => {
+    const community = setup({});
+    const member = state.members[0];
+
+    // The invites load and redraw the page; click the switch that stays.
+    await screen.findByRole("button", { name: "Generate invite" });
+    await userEvent.click(screen.getByRole("switch", { name: /personal api keys for/i }));
+
+    expect(setApiAccess).toHaveBeenCalledWith({
+      communityId: community.id,
+      userId: member.id,
+      allowed: false,
+    });
+  });
+
+  it("is the seat's, not an ordinary admin's", async () => {
+    setup({ role: "admin" });
+
+    await screen.findByText("Admin");
+    expect(apiSwitch()).not.toBeInTheDocument();
+  });
+
+  it("is not offered while the community does not hold restrictions", async () => {
+    state.authOptions = ["providers"];
+    setup({});
+
+    await screen.findByText("Superadmin");
+    expect(apiSwitch()).not.toBeInTheDocument();
   });
 });
