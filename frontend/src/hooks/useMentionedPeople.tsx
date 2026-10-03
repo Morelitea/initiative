@@ -23,10 +23,7 @@ import {
 } from "react";
 
 import type { UserSummary } from "@/api/generated/initiativeAPI.schemas";
-import {
-  getSearchUsersApiV1CGuildIdUsersSearchGetQueryKey,
-  searchUsersApiV1CGuildIdUsersSearchGet,
-} from "@/api/generated/users/users";
+import { getSearchUsersQueryKey, searchUsers } from "@/api/generated/users/users";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { USER_ID_LOOKUP_MAX } from "@/hooks/useUsers";
 import { collectCommentReferences } from "@/lib/commentReferences";
@@ -108,11 +105,11 @@ export function MentionedPeopleScope({
   const query = useQuery({
     // Under the member search's own address, so whatever refreshes the members
     // refreshes the names they are mentioned by.
-    queryKey: [...getSearchUsersApiV1CGuildIdUsersSearchGetQueryKey(guildId), { mentioned: asked }],
+    queryKey: [...getSearchUsersQueryKey(guildId), { mentioned: asked }],
     queryFn: async ({ signal }) => {
       const answers = await Promise.all(
         lookups.map(({ guildId: community, userIds }) =>
-          searchUsersApiV1CGuildIdUsersSearchGet(
+          searchUsers(
             community,
             { user_id: userIds, page_size: USER_ID_LOOKUP_MAX },
             undefined,
