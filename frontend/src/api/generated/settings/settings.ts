@@ -24,6 +24,8 @@ import type {
   BillingPortalHandoffResponse,
   CaptchaSettingsResponse,
   CaptchaSettingsUpdate,
+  CommunityNarrowingAgreement,
+  CommunityNarrowingPending,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
   CreatePlatformGuildBillingServiceHandoffApiV1SettingsCommunitiesGuildIdBillingServiceHandoffPostParams,
@@ -32,8 +34,6 @@ import type {
   EmailTestRequest,
   EmailTestResponse,
   FCMConfigResponse,
-  GuildNarrowingAgreement,
-  GuildNarrowingPending,
   HTTPValidationError,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
@@ -43,10 +43,10 @@ import type {
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformAuthSettingsUpdate,
-  PlatformGuildRestore,
-  PlatformGuildStorageListResponse,
-  PlatformGuildStorageRead,
-  PlatformGuildStorageUpdate,
+  PlatformCommunityRestore,
+  PlatformCommunityStorageListResponse,
+  PlatformCommunityStorageRead,
+  PlatformCommunityStorageUpdate,
   PushSettingsResponse,
   PushSettingsUpdate,
   SecondFactorAnswer,
@@ -2673,7 +2673,7 @@ export const listPlatformGuildStorageApiV1SettingsCommunitiesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<PlatformGuildStorageListResponse>(
+  return apiMutator<PlatformCommunityStorageListResponse>(
     { url: `/api/v1/settings/communities`, method: "GET", params, signal },
     options
   );
@@ -2847,16 +2847,16 @@ export function useListPlatformGuildStorageApiV1SettingsCommunitiesGet<
  */
 export const updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch = (
   guildId: number,
-  platformGuildStorageUpdate: BodyType<PlatformGuildStorageUpdate>,
+  platformCommunityStorageUpdate: BodyType<PlatformCommunityStorageUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<PlatformGuildStorageRead>(
+  return apiMutator<PlatformCommunityStorageRead>(
     {
       url: `/api/v1/settings/communities/${guildId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: platformGuildStorageUpdate,
+      data: platformCommunityStorageUpdate,
       signal,
     },
     options
@@ -2912,12 +2912,12 @@ export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutati
     Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch>>
   >;
 export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationBody =
-  BodyType<PlatformGuildStorageUpdate>;
+  BodyType<PlatformCommunityStorageUpdate>;
 export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 export type UpdatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatchMutationVariables = {
   guildId: number;
-  data: BodyType<PlatformGuildStorageUpdate>;
+  data: BodyType<PlatformCommunityStorageUpdate>;
 };
 
 /**
@@ -2964,7 +2964,7 @@ export const readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildNarrowingPending[]>(
+  return apiMutator<CommunityNarrowingPending[]>(
     { url: `/api/v1/settings/communities/${guildId}/narrowings`, method: "GET", signal },
     options
   );
@@ -3156,16 +3156,16 @@ export function useReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsG
 export const agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut = (
   guildId: number,
   connectionId: number,
-  guildNarrowingAgreement: BodyType<GuildNarrowingAgreement>,
+  communityNarrowingAgreement: BodyType<CommunityNarrowingAgreement>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildNarrowingPending>(
+  return apiMutator<CommunityNarrowingPending>(
     {
       url: `/api/v1/settings/communities/${guildId}/narrowings/${connectionId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: guildNarrowingAgreement,
+      data: communityNarrowingAgreement,
       signal,
     },
     options
@@ -3232,11 +3232,11 @@ export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnecti
     >
   >;
 export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationBody =
-  BodyType<GuildNarrowingAgreement>;
+  BodyType<CommunityNarrowingAgreement>;
 export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationError =
   ErrorType<HTTPValidationError>;
 export type AgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPutMutationVariables =
-  { guildId: number; connectionId: number; data: BodyType<GuildNarrowingAgreement> };
+  { guildId: number; connectionId: number; data: BodyType<CommunityNarrowingAgreement> };
 
 /**
  * @summary Agree Guild Narrowing
@@ -3296,16 +3296,16 @@ export const useAgreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConn
  */
 export const restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost = (
   guildId: number,
-  platformGuildRestore: BodyType<PlatformGuildRestore>,
+  platformCommunityRestore: BodyType<PlatformCommunityRestore>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<PlatformGuildStorageRead>(
+  return apiMutator<PlatformCommunityStorageRead>(
     {
       url: `/api/v1/settings/communities/${guildId}/restore`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: platformGuildRestore,
+      data: platformCommunityRestore,
       signal,
     },
     options
@@ -3361,12 +3361,12 @@ export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutati
     Awaited<ReturnType<typeof restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost>>
   >;
 export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationBody =
-  BodyType<PlatformGuildRestore>;
+  BodyType<PlatformCommunityRestore>;
 export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationError =
   ErrorType<HTTPValidationError>;
 export type RestorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePostMutationVariables = {
   guildId: number;
-  data: BodyType<PlatformGuildRestore>;
+  data: BodyType<PlatformCommunityRestore>;
 };
 
 /**

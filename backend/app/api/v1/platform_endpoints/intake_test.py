@@ -25,7 +25,7 @@ from app.testing import (
     get_auth_headers,
     route_session_to_guild,
 )
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.db.request_context import SystemGuild, Unattributed
 
 
@@ -216,7 +216,7 @@ async def test_a_guild_member_outside_the_initiative_cannot_read_a_case(
         await session.exec(select(Guild).where(Guild.id == owner["guild_id"]))
     ).one()
     await create_guild_membership(
-        session, user=outsider, guild=guild, role=GuildRole.member
+        session, user=outsider, guild=guild, role=CommunityRole.member
     )
 
     outcome = await intake_service.open_case(

@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.login_methods import SecondFactorRequirement
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user_totp import UserTotp
@@ -54,7 +54,7 @@ async def _member_of_a_guild(session: AsyncSession, **overrides):
     user = await create_user(session, **overrides)
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     return user, guild
 

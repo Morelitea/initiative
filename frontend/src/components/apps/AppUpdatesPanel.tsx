@@ -26,7 +26,10 @@ import { isAxiosError } from "axios";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAppDetail, GuildAppUpgradeAsks } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CommunityAppDetail,
+  CommunityAppUpgradeAsks,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useDeclineAppUpgrade, useUpgradeApp } from "@/hooks/useGuildAppDetail";
@@ -36,7 +39,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { localized } from "@/lib/widgets/widgetMeta";
 
-export function AppUpdatesPanel({ app }: { app: GuildAppDetail }) {
+export function AppUpdatesPanel({ app }: { app: CommunityAppDetail }) {
   const { t } = useTranslation(["apps", "common"]);
   const update = useUpdateGuildApp(app.id);
   const upgrade = useUpgradeApp(app.id);
@@ -106,7 +109,7 @@ function PendingUpdate({
   appNames,
 }: {
   appId: number;
-  asks: GuildAppUpgradeAsks;
+  asks: CommunityAppUpgradeAsks;
   appNames?: AppNames;
 }) {
   const { t, i18n } = useTranslation(["apps", "common", "nav"]);

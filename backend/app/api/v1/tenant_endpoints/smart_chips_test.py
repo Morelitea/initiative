@@ -14,7 +14,7 @@ from decimal import Decimal
 import pytest
 
 from app.core.smart_chips import SMART_CHIP_KINDS, SmartChipKind, kind_value
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from sqlmodel import select
 
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
@@ -74,7 +74,7 @@ async def _chips(client, actor: Actor, *refs: str) -> dict[str, dict]:
 async def test_a_task_chip_shows_the_column_it_sits_in(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(
         session,
         a.project,
@@ -92,7 +92,7 @@ async def test_moving_the_card_moves_the_chip(
 ) -> None:
     """The document is not edited and the chip still changes — which is the
     whole point of a chip over a mention."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
     ref = f"task:{task.id}:status"
     before = (await _chips(client, a, ref))[ref]
@@ -110,7 +110,7 @@ async def test_a_status_sends_its_own_colour(
 ) -> None:
     """A project picks its own colours, so the chip wears them rather than a
     tone this end invented."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Waiting")
     status = await _status_of(session, task)
     status.color = "#FF00AA"
@@ -124,7 +124,7 @@ async def test_a_status_sends_its_own_colour(
 async def test_a_date_is_late_only_while_the_work_is_not_done(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     yesterday = datetime.now(timezone.utc) - timedelta(days=1)
     task = await create_task(session, a.project, title="Overdue", due_date=yesterday)
 
@@ -141,7 +141,7 @@ async def test_the_date_itself_comes_back_for_the_reader_to_format(
     client, session, acting_user: ActingUser
 ) -> None:
     """A date belongs in the reader's locale, which only their browser knows."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     due = datetime.now(timezone.utc) + timedelta(days=3)
     task = await create_task(session, a.project, title="Soon", due_date=due)
 
@@ -152,7 +152,7 @@ async def test_the_date_itself_comes_back_for_the_reader_to_format(
 async def test_an_unassigned_task_says_so_rather_than_going_missing(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Nobody's")
 
     body = await _chips(client, a, f"task:{task.id}:assignee")
@@ -162,7 +162,7 @@ async def test_an_unassigned_task_says_so_rather_than_going_missing(
 async def test_several_holders_are_named_by_the_first_and_counted(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     second = await create_user(session)
     task = await create_task(
         session, a.project, title="Shared", assignees=[a.user, second]
@@ -175,7 +175,7 @@ async def test_several_holders_are_named_by_the_first_and_counted(
 async def test_a_priority_carries_its_own_urgency(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(
         session, a.project, title="Now", priority=TaskPriority.urgent
     )
@@ -187,7 +187,7 @@ async def test_a_priority_carries_its_own_urgency(
 async def test_a_checkbox_reads_whether_the_task_is_finished(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Take attendance")
 
     open_state = (await _chips(client, a, f"task:{task.id}:checklist"))[
@@ -209,9 +209,9 @@ async def test_a_checkbox_is_offered_only_to_whoever_may_tick_it(
 ) -> None:
     """Read access shows the box; only write access lets it be ticked. Every
     other chip is a reading, so none of them claims to be writable."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -231,7 +231,7 @@ async def test_an_embed_shows_the_name_and_the_description(
 ) -> None:
     """A kind without a description column embeds as its name alone, and
     something that is not there is absent, as it is for a chip."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(
         session, a.project, title="Roll call", description="Bring the **sheet**."
     )
@@ -285,7 +285,7 @@ async def test_an_embedded_text_document_shows_its_body(
 ) -> None:
     """Prose embeds as what it says; a document that is not prose, one with
     nothing written in it, and a kind with no body at all embed as a name."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     written = await create_document(
         session, a.initiative, a.user, name="Lore", content=_prose("Here be dragons.")
     )
@@ -321,7 +321,7 @@ async def test_an_embedded_wiki_page_shows_its_body_but_not_a_draft(
 ) -> None:
     """A draft is hidden from a reader everywhere else, so an embed of one is
     absent to them rather than a window onto it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     initiative = a.initiative
     assert initiative is not None
     initiative.wikis_enabled = True
@@ -340,7 +340,7 @@ async def test_an_embedded_wiki_page_shows_its_body_but_not_a_draft(
         is_draft=True,
     )
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -357,7 +357,7 @@ async def test_an_embedded_wiki_page_shows_its_body_but_not_a_draft(
 async def test_a_counter_reads_its_number_and_its_ceiling(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
     counter.count = Decimal("7")
@@ -375,7 +375,7 @@ async def test_a_counter_reads_its_number_and_its_ceiling(
 async def test_a_project_reads_how_much_of_its_work_is_done(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, status_category=TaskStatusCategory.done)
     await create_task(session, a.project, status_category=TaskStatusCategory.todo)
     await create_task(session, a.project, status_category=TaskStatusCategory.todo)
@@ -389,7 +389,7 @@ async def test_a_project_reads_how_much_of_its_work_is_done(
 async def test_a_project_with_all_its_work_done_reads_as_arrived(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, status_category=TaskStatusCategory.done)
     await create_task(session, a.project, status_category=TaskStatusCategory.done)
 
@@ -403,7 +403,7 @@ async def test_a_project_with_no_work_in_it_does_not_read_as_finished(
     client, session, acting_user: ActingUser
 ) -> None:
     """0 / 0 is not an achievement."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
 
     body = await _chips(client, a, f"project:{a.project.id}:progress")
     state = body[f"project:{a.project.id}:progress"]
@@ -414,7 +414,7 @@ async def test_a_project_with_no_work_in_it_does_not_read_as_finished(
 async def test_a_counter_at_its_ceiling_reads_as_arrived(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
     counter.count = Decimal("10")
@@ -429,7 +429,7 @@ async def test_a_counter_at_its_ceiling_reads_as_arrived(
 async def test_an_event_dims_once_it_has_happened(
     client, session, acting_user: ActingUser
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     calendar = await create_calendar(session, a.initiative, a.user)
     past = await create_calendar_event(
         session,
@@ -481,7 +481,7 @@ async def test_a_page_of_chips_is_read_together(
     client, session, acting_user: ActingUser
 ) -> None:
     """Two aspects of one task, and a second thing entirely, in one request."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
@@ -501,7 +501,7 @@ async def test_a_reference_naming_nothing_is_simply_absent(
 ) -> None:
     """A build that stopped offering a chip leaves references behind in
     documents; they read as nothing rather than as an error."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
 
     body = await _chips(
@@ -522,11 +522,11 @@ async def test_a_chip_reads_nothing_the_caller_could_not_open(
     """The reference is in a document, which anyone in the initiative may read.
     What it points at is gated separately, and this is that gate."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     task = await create_task(session, owner.project, title="Private work")
 
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     body = await _chips(client, outsider, f"task:{task.id}:status")
     assert body == {}
 
@@ -554,9 +554,9 @@ async def test_a_chip_stops_at_the_sharing_gate_not_just_the_initiative(
     A chip is live state, so it answers under every gate the thing itself
     answers under — the same reading the search index takes.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -599,9 +599,9 @@ async def test_no_task_chip_answers_without_the_project(
 ) -> None:
     """Walked per aspect: the gate is applied once for the thing, so adding a
     fifth fact about a task cannot open a hole."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -622,14 +622,14 @@ async def test_a_chip_follows_the_thing_own_sharing_either_way(
     create endpoints both default to Viewer for the initiative; the factories
     are not trying to mirror them.)
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
     calendar = await create_calendar(session, a.initiative, a.user)
     event = await create_calendar_event(session, calendar, a.user)
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -653,7 +653,7 @@ async def test_the_ceiling_is_refused_rather_than_quietly_trimmed(
     like a page whose remaining things had all been deleted, which is a worse
     answer than none: the client batches to this number instead.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
 
     at_the_line = [f"task:{task.id}:status"] * 1 + [
@@ -677,7 +677,7 @@ async def test_a_chip_names_what_its_reading_is_about(
     """A chip answers with the thing's current name beside the fact, so showing
     a fact costs one reference rather than two — and the name is as live as the
     reading is."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Old name")
     ref = f"task:{task.id}:status"
 
@@ -698,7 +698,7 @@ async def test_a_reference_reads_the_current_name(
 ) -> None:
     """The point of the whole thing: rename it, and what points at it says the
     new name without being touched."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Old name")
     ref = f"task:{task.id}"
 
@@ -716,7 +716,7 @@ async def test_every_kind_answers_with_whatever_it_calls_its_name(
 ) -> None:
     """A queue item has a label, a task a title, a project a name. The column is
     derived from the search registry, so none of them is written down twice."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="A task")
     queue = await create_queue(session, a.initiative, a.user)
     item = await create_queue_item(session, queue, label="An item")
@@ -739,9 +739,9 @@ async def test_a_title_stops_at_the_same_gate_a_chip_does(
     client, session, acting_user: ActingUser
 ) -> None:
     """A name is content. Reading one is gated exactly as reading a status is."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -756,7 +756,7 @@ async def test_a_comment_is_not_something_you_point_at(
 ) -> None:
     """Comments are indexed but not referenceable — the thing a remark is on is
     what a reader wants, and a comment has no name to render."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="Ship it")
     comment = await create_comment(session, a.user, task=task)
 

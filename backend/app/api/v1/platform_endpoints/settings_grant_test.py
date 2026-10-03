@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
@@ -142,10 +142,10 @@ async def test_settings_grantee_deletion_purges_every_members_reference(
     support = await create_user(session, role=UserRole.support)
     guild = await create_guild(session, creator=owner)
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.superadmin
+        session, user=owner, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     mode = await client.put(
         "/api/v1/settings/ai/platform/mode",

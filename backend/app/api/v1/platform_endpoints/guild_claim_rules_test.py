@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.testing import guild_of
 from app.core.messages import AuthProviderMessages, SettingsMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.factories import (
     create_auth_provider,
     create_guild,
@@ -28,7 +28,7 @@ async def _seat(session: AsyncSession, *, auth_options: list[str] | None = None)
     kwargs = {} if auth_options is None else {"auth_options": auth_options}
     guild = await create_guild(session, creator=admin, **kwargs)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     return admin, guild
 
@@ -266,7 +266,7 @@ async def test_an_ordinary_admin_reads_but_does_not_write(
     provider = await _connected(session, guild)
     ordinary = await create_user(session)
     await create_guild_membership(
-        session, user=ordinary, guild=guild, role=GuildRole.admin
+        session, user=ordinary, guild=guild, role=CommunityRole.admin
     )
     headers = get_auth_headers(ordinary)
 
@@ -283,7 +283,7 @@ async def test_a_member_sees_none_of_it(client: AsyncClient, session: AsyncSessi
     admin, guild = await _seat(session)
     member = await create_user(session)
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     listed = await client.get(_base(guild.id), headers=get_auth_headers(member))
     assert listed.status_code == 403, listed.text

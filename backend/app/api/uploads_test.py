@@ -411,7 +411,7 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
     from datetime import datetime, timedelta, timezone
 
     from app.models.platform.access_grant import AccessGrant
-    from app.models.platform.guild import GuildStatus
+    from app.models.platform.guild import CommunityStatus
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -426,7 +426,7 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
         initiative_id=initiative.id,
         claimed_at=datetime.now(timezone.utc),
     )
-    guild.status = GuildStatus.suspended.value
+    guild.status = CommunityStatus.suspended.value
     await session.commit()
 
     resp = await client.get(

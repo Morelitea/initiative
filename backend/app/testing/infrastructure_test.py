@@ -72,10 +72,10 @@ async def test_authenticated_request(client: AsyncClient, session: AsyncSession)
 async def test_acting_user_builds_guild_workspace(client: AsyncClient, acting_user):
     """The Actor seam provisions a guild + initiative + project and mints
     headers that work through the real-role request path."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.platform.user import UserRole
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     # Guild-path actors default to the LOWEST platform tier: guild access
     # must never depend on platform privileges.
     assert a.user.role == UserRole.member
@@ -87,7 +87,7 @@ async def test_acting_user_builds_guild_workspace(client: AsyncClient, acting_us
 
     # A second actor joining the same guild/initiative at member level.
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",

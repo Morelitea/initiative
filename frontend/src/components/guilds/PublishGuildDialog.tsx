@@ -15,7 +15,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityCategory } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -49,12 +49,12 @@ export const PublishGuildDialog = ({
 }: {
   open: boolean;
   saving: boolean;
-  initialCategories: GuildCategory[];
+  initialCategories: CommunityCategory[];
   onCancel: () => void;
-  onConfirm: (categories: GuildCategory[]) => void | Promise<void>;
+  onConfirm: (categories: CommunityCategory[]) => void | Promise<void>;
 }) => {
   const { t } = useTranslation(["guilds", "common"]);
-  const [categories, setCategories] = useState<GuildCategory[]>(initialCategories);
+  const [categories, setCategories] = useState<CommunityCategory[]>(initialCategories);
   const [certified, setCertified] = useState(false);
 
   // Every opening starts from the guild's current shelves and an un-ticked
@@ -66,7 +66,7 @@ export const PublishGuildDialog = ({
     }
   }, [open, initialCategories]);
 
-  const toggleCategory = (category: GuildCategory) => {
+  const toggleCategory = (category: CommunityCategory) => {
     setCategories((current) =>
       current.includes(category)
         ? current.filter((value) => value !== category)

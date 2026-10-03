@@ -58,7 +58,7 @@ from app.db.request_context import (
 )
 from app.db.schema_provisioning import guild_schema_name
 from app.db.session import routed_context, set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.main import app
@@ -107,7 +107,7 @@ async def _world(session, acting_user, role_session) -> World:
     )
     guild, owner = installed.guild, installed.seat.user
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=guild,
         initiative=installed.placed,
         initiative_role="member",
@@ -329,7 +329,7 @@ _READ = re.compile(r"current_setting\('(app\.[a-z0-9_]+)'")
 async def test_the_catalog_reads_only_declared_variables(session, acting_user):
     """Every policy, view and function, in ``public``, the template and a
     provisioned community, reads only the variables the registry declares."""
-    guild = (await acting_user(guild_role=GuildRole.member)).guild
+    guild = (await acting_user(guild_role=CommunityRole.member)).guild
     schemas = ["public", "guild_template", guild_schema_name(guild.id)]
     sources = (
         await session.exec(
@@ -379,7 +379,7 @@ async def test_every_socket_admits_through_the_seam(
     acting_user: Callable[..., Awaitable[Actor]],
     socket_client: TestClient,
 ) -> None:
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     guild, initiative, owner = admin.guild, admin.initiative, admin.user
     visitor = await create_user(session, role=UserRole.support)
     await create_access_grant(

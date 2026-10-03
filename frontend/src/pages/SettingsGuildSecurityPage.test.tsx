@@ -7,18 +7,18 @@ import { buildGuild, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { AUTH_FACTOR_REQUIRED_EVENT, type FactorChallengeDetail } from "@/api/client";
 import type {
-  GuildAuthOption,
-  GuildAuthPolicyRead,
-  GuildAuthSettingsRead,
-  GuildRole,
+  CommunityAuthOption,
+  CommunityAuthPolicyRead,
+  CommunityAuthSettingsRead,
+  CommunityRole,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { GuildEntry } from "@/hooks/useGuilds";
 
 // What the server says about this community and this member. Flipped per test.
-let guildRole: GuildRole = "superadmin";
+let guildRole: CommunityRole = "superadmin";
 let grantSettingsLevel: "admin" | "superadmin" | null = null;
 let guildId = 4;
-const openPolicy: GuildAuthPolicyRead = {
+const openPolicy: CommunityAuthPolicyRead = {
   policy: "open",
   provider_id: null,
   provider_slug: null,
@@ -28,8 +28,8 @@ const openPolicy: GuildAuthPolicyRead = {
 };
 /** Every control on the page, and the deployment's answers beside them.
  *  Undefined while it is still loading. */
-let settings: GuildAuthSettingsRead | undefined;
-const baseSettings = (): GuildAuthSettingsRead => ({
+let settings: CommunityAuthSettingsRead | undefined;
+const baseSettings = (): CommunityAuthSettingsRead => ({
   auth_options: ["restrictions", "providers"],
   auth_policy: openPolicy,
   allow_api_keys: true,
@@ -43,7 +43,7 @@ const baseSettings = (): GuildAuthSettingsRead => ({
   redacted_by_platform: false,
 });
 /** Change what the server says, for a case that varies it. */
-const stored = (patch: Partial<GuildAuthSettingsRead>) => {
+const stored = (patch: Partial<CommunityAuthSettingsRead>) => {
   settings = { ...(settings ?? baseSettings()), ...patch };
 };
 const connection = (id: number, providerId: number, slug: string, name: string) => ({
@@ -146,7 +146,7 @@ const mounted = () => {
 };
 
 /** A rule already saved on the community, with only what a case varies named. */
-const savedPolicy = (overrides: Partial<GuildAuthPolicyRead>) => {
+const savedPolicy = (overrides: Partial<CommunityAuthPolicyRead>) => {
   stored({ auth_policy: { ...openPolicy, policy: "required", ...overrides } });
 };
 
@@ -305,7 +305,7 @@ describe("SettingsGuildSecurityPage", () => {
   });
 
   describe("who may reach it", () => {
-    it.each<GuildRole>(["admin", "member"])("shows %s nothing at all", (role) => {
+    it.each<CommunityRole>(["admin", "member"])("shows %s nothing at all", (role) => {
       // The whole page is the seat's, so there is nothing here to render
       // read-only. The tab is hidden the same way; this is the direct-URL half.
       guildRole = role;
@@ -490,7 +490,7 @@ describe("SettingsGuildSecurityPage", () => {
     type Probe = Parameters<typeof find>[0];
 
     // Each grant is one half of the page, and neither brings the other with it.
-    it.each<[string, GuildAuthOption[], Probe[], Probe[]]>([
+    it.each<[string, CommunityAuthOption[], Probe[], Probe[]]>([
       ["neither, so nothing at all", [], [], [API_KEYS, SESSION, REQUIREMENT, SIGN_IN_LINK]],
       ["only the terms half", ["restrictions"], [API_KEYS, SESSION], [WHO_GETS_IN, REQUIREMENT]],
       [

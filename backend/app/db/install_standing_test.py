@@ -29,7 +29,7 @@ from app.db.session import (
     StaleAuthorizationContext,
     install_context,
 )
-from app.models.platform.guild import GuildRole, GuildStatus
+from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.initiative import Initiative
@@ -85,7 +85,7 @@ async def _install(
     """An install placed in ``placed`` (of initiatives A and B), granted
     ``granted`` by the community's seat, with a live registration and a pinned
     manifest requesting ``requested``."""
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     second = await create_initiative(session, seat.guild, seat.user, name="B")
     definition = {
         **_APP_DEFINITION,
@@ -303,7 +303,9 @@ async def _set_registration(session, column: str, value) -> None:
     await session.commit()
 
 
-async def _set_guild_status(session, install: _Install, status: GuildStatus) -> None:
+async def _set_guild_status(
+    session, install: _Install, status: CommunityStatus
+) -> None:
     await session.exec(
         text("UPDATE public.guilds SET status = :s WHERE id = :id").bindparams(
             s=status.value, id=install.guild.id
@@ -349,9 +351,9 @@ async def test_an_install_that_may_not_act_is_refused(
     elif reason == "another_client":
         client = "tests.someone-else"
     elif reason == "guild_suspended":
-        await _set_guild_status(session, install, GuildStatus.suspended)
+        await _set_guild_status(session, install, CommunityStatus.suspended)
     elif reason == "guild_on_hold":
-        await _set_guild_status(session, install, GuildStatus.on_hold)
+        await _set_guild_status(session, install, CommunityStatus.on_hold)
 
     s = await role_session("app_user")
     with pytest.raises(InstallAccessError):
@@ -381,7 +383,7 @@ async def test_a_read_only_community_writes_nothing(session, acting_user, role_s
     install = await _install(
         session, acting_user, role_session, granted=["documents:write"]
     )
-    await _set_guild_status(session, install, GuildStatus.read_only)
+    await _set_guild_status(session, install, CommunityStatus.read_only)
     s, context = await _route(role_session, install, ["documents:write"])
     assert context.live and context.content_hold
     assert set(context.install_read) == {"documents"}

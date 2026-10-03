@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 
 const state = vi.hoisted(() => ({ billing: null as { url: string } | null }));
 vi.mock("@/hooks/useAppConfig", () => ({ useAppConfig: () => ({ billing: state.billing }) }));
@@ -44,8 +44,8 @@ vi.mock("@/components/guilds/UnownedContentCard", () => ({ UnownedContentCard: (
 
 import { SettingsUsersPage } from "./SettingsUsersPage";
 
-const setup = (overrides: Partial<GuildRead>) => {
-  const guild = buildGuild({ role: "superadmin", name: "Alpha", ...overrides }) as GuildRead;
+const setup = (overrides: Partial<CommunityRead>) => {
+  const guild = buildGuild({ role: "superadmin", name: "Alpha", ...overrides }) as CommunityRead;
   renderPage(() => <SettingsUsersPage />, {
     guilds: { guilds: [guild], activeGuildId: guild.id, activeGuild: guild },
   });
@@ -132,7 +132,7 @@ describe("SettingsUsersPage roles", () => {
 
 describe("SettingsUsersPage invites", () => {
   it("leaves invites out for a rung that reads the roster", async () => {
-    const guild = buildGuild({ role: "admin" }) as GuildRead;
+    const guild = buildGuild({ role: "admin" }) as CommunityRead;
     setup({ role: "admin", can: { ...guild.can, configure: false } });
 
     expect(await screen.findByText("Admin")).toBeInTheDocument();

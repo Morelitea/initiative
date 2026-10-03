@@ -12,9 +12,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
 import {
+  type CommunityAppConsentRead,
   ConsentAccess,
   ConsentStatus,
-  type GuildAppConsentRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -34,7 +34,7 @@ vi.mock("@/hooks/useInitiatives", async (importOriginal) => ({
   useInitiatives: () => ({ data: [{ id: 9, name: "Launch" }] }),
 }));
 
-const consent = (overrides: Partial<GuildAppConsentRead> = {}): GuildAppConsentRead => ({
+const consent = (overrides: Partial<CommunityAppConsentRead> = {}): CommunityAppConsentRead => ({
   id: 41,
   purpose: "node-1",
   label: "Comment on the linked issue",
@@ -48,7 +48,7 @@ const consent = (overrides: Partial<GuildAppConsentRead> = {}): GuildAppConsentR
   ...overrides,
 });
 
-const render = (consents: GuildAppConsentRead[]) =>
+const render = (consents: CommunityAppConsentRead[]) =>
   renderPage(() => (
     <TooltipProvider>
       <AppConsentRequests appId={3} appName="Auto" consents={consents} />

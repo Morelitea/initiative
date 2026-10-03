@@ -13,18 +13,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildMarketplaceListingDetail } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type {
-  GuildAppInstall,
+  CommunityAppInstall,
   MarketplaceListingDetail,
 } from "@/api/generated/initiativeAPI.schemas";
 
 import { InstallAppDialog } from "./InstallAppDialog";
 
-const sent: GuildAppInstall[] = [];
+const sent: CommunityAppInstall[] = [];
 
 vi.mock("@/hooks/useGuildApps", () => ({
   useInstallGuildApp: () => ({
     isPending: false,
-    mutate: (body: GuildAppInstall) => sent.push(body),
+    mutate: (body: CommunityAppInstall) => sent.push(body),
   }),
 }));
 

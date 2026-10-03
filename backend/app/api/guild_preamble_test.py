@@ -25,7 +25,7 @@ from sqlalchemy import event, text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import establish_guild_access
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 
 
 @contextmanager
@@ -49,7 +49,7 @@ async def test_member_preamble_round_trips(session, role_session, acting_user):
     same statement), the gate's one read, the routing's context, and the
     statement that resolves the "Full access" set into its own GUC. Four, and
     a handler's first query is the fifth."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     s = await role_session("app_user")
     # Establish the connection first so the pool's own setup isn't counted.
@@ -88,16 +88,16 @@ async def test_full_access_initiative_reaches_the_guc(
     """The fused statement is still the same answer: a member on a role that
     overrides sharing has that initiative in the GUC the policies read, and an
     ordinary member has an empty one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     full = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="moderator",
         email="full@example.com",
     )
     plain = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",

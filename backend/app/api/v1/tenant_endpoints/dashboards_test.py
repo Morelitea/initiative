@@ -9,7 +9,7 @@ accepts anything that would let a definition write.
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_dashboard, strip_non_owner_grants
 
 
@@ -44,7 +44,7 @@ async def _dashboards_enabled(session: AsyncSession, initiative) -> None:
 async def test_create_dashboard(client: AsyncClient, acting_user, session):
     """Creating a dashboard stores a normalized definition and seeds the
     creator's owner grant plus the default all-members read grant."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
 
     response = await client.post(
@@ -73,7 +73,7 @@ async def test_create_rejects_unknown_widget_type(
     client: AsyncClient, acting_user, session
 ):
     """A definition naming a widget we don't render is refused, not stored."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
 
     response = await client.post(
@@ -103,7 +103,7 @@ async def test_create_rejects_unknown_widget_type(
 async def test_create_requires_feature_enabled(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     # The factory switches every tool on, so a test about one being OFF
     # turns it off.
     a.initiative.dashboards_enabled = False
@@ -121,7 +121,7 @@ async def test_create_requires_feature_enabled(
 
 
 async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user, name="Ops")
 
@@ -139,7 +139,7 @@ async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session
 async def test_update_definition_revalidates(client: AsyncClient, acting_user, session):
     """Re-authoring the canvas is the one write a dashboard has, and it goes
     through the same validator as create."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
 
@@ -192,7 +192,7 @@ async def test_config_for_removed_widget_is_dropped(
     client: AsyncClient, acting_user, session
 ):
     """Config can't outlive the widget it configures."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
 
@@ -223,7 +223,7 @@ async def test_config_for_removed_widget_is_dropped(
 
 
 async def test_delete_dashboard(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
 
@@ -244,10 +244,10 @@ async def test_delete_dashboard(client: AsyncClient, acting_user, session):
 async def test_member_without_create_permission_is_refused(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -267,13 +267,13 @@ async def test_unshared_dashboard_is_invisible_to_other_members(
 ):
     """DAC is the final gate: a co-member who holds no grant can neither list
     nor read it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
     await strip_non_owner_grants(session, dashboard, a.user.id)
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -289,12 +289,12 @@ async def test_unshared_dashboard_is_invisible_to_other_members(
 
 async def test_read_grant_cannot_write(client: AsyncClient, acting_user, session):
     """A viewer may look at the canvas but not re-author it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
 
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -317,11 +317,11 @@ async def test_non_member_of_initiative_cannot_see_dashboard(
 ):
     """Initiative isolation is the hard boundary — a guild member outside the
     initiative gets nothing, even with a guild role."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     dashboard = await create_dashboard(session, a.initiative, a.user)
 
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     response = await client.get(b.g(f"/dashboards/{dashboard.id}"), headers=b.headers)
     assert response.status_code in (403, 404)
@@ -339,7 +339,7 @@ async def test_widget_catalog_projects_the_registry(
 ) -> None:
     from app.services.tenant.dashboard_definition import WIDGET_PRESETS, WIDGET_SPECS
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.get(a.g("/dashboards/widget-catalog"), headers=a.headers)
     assert response.status_code == 200
     body = response.json()
@@ -377,7 +377,7 @@ async def test_widget_catalog_presets_resolve_to_primitives(
 ) -> None:
     """A preset that named a primitive we don't ship would put an unrenderable
     entry in the palette."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.get(a.g("/dashboards/widget-catalog"), headers=a.headers)
     body = response.json()
 
@@ -393,7 +393,7 @@ async def test_widget_catalog_requires_guild_membership(
     the same 403 every other dashboard route gives."""
     from app.testing import create_guild
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     other = await create_guild(session)
     response = await client.get(
         f"/api/v1/c/{other.id}/dashboards/widget-catalog", headers=a.headers
@@ -406,7 +406,7 @@ async def test_widget_catalog_path_is_not_read_as_an_id(
 ) -> None:
     """The literal route has to win over /{dashboard_id}, which would otherwise
     swallow it and 422 on the int parse."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.get(a.g("/dashboards/widget-catalog"), headers=a.headers)
     assert response.status_code == 200
     assert "widgets" in response.json()
@@ -419,7 +419,7 @@ async def test_dashboard_counts_by_initiative(
     dashboards-enabled initiatives only."""
     from app.testing import create_initiative
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _dashboards_enabled(session, a.initiative)
     disabled_initiative = await create_initiative(
         session, a.guild, a.user, dashboards_enabled=False

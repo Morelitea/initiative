@@ -38,7 +38,7 @@ from app.services.auth.assurance import (
 )
 from app.core.login_methods import SecondFactorRequirement
 from app.models.platform.app_setting import AppSetting
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.services.platform import auth_posture
 from app.services.platform import guild_entitlements
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
@@ -95,8 +95,8 @@ from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
     Guild,
     GuildMembership,
-    GuildRole,
-    GuildStatus,
+    CommunityRole,
+    CommunityStatus,
 )
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.models.platform.user import (
@@ -486,8 +486,12 @@ async def _enforce_guild_auth_policy(
     restricts, factors_apply = (
         await session.exec(
             select(
-                guild_entitlements.holds_option(guild_id, GuildAuthOption.restrictions),
-                guild_entitlements.holds_option(guild_id, GuildAuthOption.providers),
+                guild_entitlements.holds_option(
+                    guild_id, CommunityAuthOption.restrictions
+                ),
+                guild_entitlements.holds_option(
+                    guild_id, CommunityAuthOption.providers
+                ),
             )
         )
     ).one()
@@ -562,7 +566,9 @@ async def refuses_api_keys(session: AsyncSession, guild: Guild) -> bool:
     return bool(
         await session.scalar(
             select(
-                guild_entitlements.holds_option(guild.id, GuildAuthOption.restrictions)
+                guild_entitlements.holds_option(
+                    guild.id, CommunityAuthOption.restrictions
+                )
             )
         )
     )
@@ -778,8 +784,8 @@ async def _load_guild_context(
     # asks for that and no other.
     held_for_payment = (
         for_payment
-        and guild.status == GuildStatus.on_hold.value
-        and membership.role == GuildRole.superadmin
+        and guild.status == CommunityStatus.on_hold.value
+        and membership.role == CommunityRole.superadmin
     )
     if guild.status not in LIVE_STATUS_VALUES and not held_for_payment:
         raise GuildAccessError()
@@ -815,7 +821,7 @@ async def _load_guild_context(
         membership=membership,
         guild_role=membership.role.value,
         content_read_only=(
-            not for_settings and guild.status == GuildStatus.read_only.value
+            not for_settings and guild.status == CommunityStatus.read_only.value
         ),
     )
 
@@ -907,7 +913,7 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
 
 
 def holds_guild_role(
-    context: GuildContext, *roles: GuildRole, settings: bool = False
+    context: GuildContext, *roles: CommunityRole, settings: bool = False
 ) -> bool:
     """Whether this request reaches any of ``roles``, by the standing.
 
@@ -933,19 +939,19 @@ def require_seat(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
 
-def _rung_refusal(roles: tuple[GuildRole, ...]) -> str:
+def _rung_refusal(roles: tuple[CommunityRole, ...]) -> str:
     """The code a guard answers with, from the rung it names: a guard for
     the seat says so, one for an administrator says so, and one naming
     anything else says a permission is missing."""
-    if roles == (GuildRole.superadmin,):
+    if roles == (CommunityRole.superadmin,):
         return GuildMessages.GUILD_SUPERADMIN_REQUIRED
-    if roles == (GuildRole.admin,):
+    if roles == (CommunityRole.admin,):
         return GuildMessages.GUILD_ADMIN_REQUIRED
     return GuildMessages.GUILD_PERMISSION_REQUIRED
 
 
 def require_guild_roles(
-    *roles: GuildRole, settings: bool = False, write: bool = False
+    *roles: CommunityRole, settings: bool = False, write: bool = False
 ) -> Callable:
     """Guard an endpoint on the caller's rung in the guild named by the path.
 
@@ -973,7 +979,7 @@ def require_guild_roles(
 
 
 GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin))
+    GuildContext, Depends(require_guild_roles(CommunityRole.admin))
 ]
 
 
@@ -1815,15 +1821,15 @@ SettingsContextDep = Annotated[GuildContext, Depends(get_guild_settings_context)
 # that changes something — asking a grantee for the read_write grant beside
 # the rung.
 SettingsAdminContextDep = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin, settings=True))
+    GuildContext, Depends(require_guild_roles(CommunityRole.admin, settings=True))
 ]
 SettingsAdminWriteContextDep = Annotated[
     GuildContext,
-    Depends(require_guild_roles(GuildRole.admin, settings=True, write=True)),
+    Depends(require_guild_roles(CommunityRole.admin, settings=True, write=True)),
 ]
 SettingsSeatWriteContextDep = Annotated[
     GuildContext,
-    Depends(require_guild_roles(GuildRole.superadmin, settings=True, write=True)),
+    Depends(require_guild_roles(CommunityRole.superadmin, settings=True, write=True)),
 ]
 SettingsRLSSessionDep = Annotated[AsyncSession, Depends(get_guild_settings_session)]
 SettingsWriteSessionDep = Annotated[

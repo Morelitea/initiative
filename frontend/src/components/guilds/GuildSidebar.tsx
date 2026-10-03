@@ -24,7 +24,7 @@ import type { CSSProperties, FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { Galaxy } from "@/components/icons/Galaxy";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -266,7 +266,7 @@ export const GuildAvatar = ({
   closed = false,
 }: {
   name: string;
-  /** ``GuildRead.icon_url`` — a path this server serves, not the bytes. */
+  /** ``CommunityRead.icon_url`` — a path this server serves, not the bytes. */
   icon?: string | null;
   active: boolean;
   size?: "sm" | "md";
@@ -317,7 +317,7 @@ const SortableGuildButton = ({
   reorderMode,
   onStartReorder,
 }: {
-  guild: GuildRead;
+  guild: CommunityRead;
   isActive: boolean;
   isHomeMode: boolean;
   onSelect: (guildId: number) => void;

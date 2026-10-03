@@ -45,7 +45,7 @@ from app.core.config import settings
 from app.core.encryption import SALT_APP_CONFIG, encrypt_field
 from app.core.messages import AppDataMessages, GuildAppMessages
 from app.models.platform.app_service_registration import AppServiceRegistration
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
 from app.services.marketplace.app_refs import ensure_app_guild_ref
 from app.services.marketplace import app_data as app_data_service
@@ -336,7 +336,7 @@ async def _workspace(
 ):
     """A guild admin with a dashboards-enabled initiative, an installed app, a
     live registration, and a dashboard binding the given sources."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.dashboards_enabled = True
     session.add(a.initiative)
     await session.commit()
@@ -404,7 +404,7 @@ class TestGates:
         initiative they are not in, so RLS hides the row and the read is a 404
         before the app is ever contacted."""
         a, app, dashboard = await _workspace(session, acting_user)
-        outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
             _url(outsider, app, ORDERS_SUMMARY, dashboard), headers=outsider.headers
@@ -457,7 +457,7 @@ class TestAdminOnly:
         supplied."""
         a, app, dashboard = await _workspace(session, acting_user, source)
         member = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -530,7 +530,7 @@ class TestKillSwitches:
     async def test_an_unregistered_app_is_named_rather_than_guessed_at(
         self, client, acting_user, session, upstream
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         a.initiative.dashboards_enabled = True
         session.add(a.initiative)
         await session.commit()
@@ -701,7 +701,7 @@ class TestConnections:
         definition = _definition()
         definition["endpoints"][0]["requires"] = {"all_of": ["admin"]}
 
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         a.initiative.dashboards_enabled = True
         session.add(a.initiative)
         await session.commit()
@@ -732,7 +732,7 @@ class TestCache:
         keeps a single-replica community container comfortable."""
         a, app, dashboard = await _workspace(session, acting_user)
         member = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -777,7 +777,7 @@ class TestCache:
         """
         a, app, dashboard = await _workspace(session, acting_user, MY_PRS)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -1103,7 +1103,7 @@ class TestParamOptions:
         tile. A member asking for the values of a parameter sourced from an
         admin-only read gets the same answer as one whose app is down."""
         a, app, _ = await _workspace(session, acting_user)
-        member = await acting_user(guild=a.guild, guild_role=GuildRole.member)
+        member = await acting_user(guild=a.guild, guild_role=CommunityRole.member)
 
         response = await client.get(
             _options_url(member, app, ORDERS_SUMMARY, "tier"), headers=member.headers
@@ -1118,7 +1118,7 @@ class TestParamOptions:
         """Refused before the parameter is looked for: the form belongs to an
         endpoint this caller may not read."""
         a, app, _ = await _workspace(session, acting_user)
-        member = await acting_user(guild=a.guild, guild_role=GuildRole.member)
+        member = await acting_user(guild=a.guild, guild_role=CommunityRole.member)
 
         response = await client.get(
             _options_url(member, app, REVENUE, "anything"), headers=member.headers
@@ -1441,7 +1441,7 @@ class TestDeclarative:
     async def _workspace(self, session, acting_user, monkeypatch):
         vendor = FakeVendor()
         vendor.install(monkeypatch)
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         a.initiative.dashboards_enabled = True
         session.add(a.initiative)
         await session.commit()

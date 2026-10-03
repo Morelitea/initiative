@@ -13,7 +13,7 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createGuildInviteApiV1CommunitiesGuildIdInvitesPost } from "@/api/generated/communities/communities";
-import type { GuildInviteRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityInviteRead, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import {
   ContextMenu,
@@ -32,7 +32,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { LeaveGuildDialog } from "./LeaveGuildDialog";
 
 interface GuildContextMenuProps {
-  guild: GuildRead;
+  guild: CommunityRead;
   children: ReactNode;
   /**
    * When provided, the menu offers a "Reorder guilds" action. Touch devices
@@ -71,7 +71,7 @@ export const GuildContextMenu = ({ guild, children, onReorder }: GuildContextMen
       const data = (await createGuildInviteApiV1CommunitiesGuildIdInvitesPost(
         guild.id,
         {}
-      )) as unknown as GuildInviteRead;
+      )) as unknown as CommunityInviteRead;
       const inviteLink = `${window.location.origin}/invite/${data.code}`;
       await navigator.clipboard.writeText(inviteLink);
       toast.success(t("inviteLinkCopied"));

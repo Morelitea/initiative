@@ -28,7 +28,7 @@ import type {
   IntakeContactUpdate,
   IntakeOptionsRead,
   IntakeSettingsRead,
-  OperationsGuildUpdate,
+  OperationsCommunityUpdate,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -356,7 +356,7 @@ export function useReadIntakeOptionsApiV1SettingsIntakeOptionsGet<
  * @summary Update Operations Guild
  */
 export const updateOperationsGuildApiV1SettingsIntakeCommunityPut = (
-  operationsGuildUpdate: BodyType<OperationsGuildUpdate>,
+  operationsCommunityUpdate: BodyType<OperationsCommunityUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -365,7 +365,7 @@ export const updateOperationsGuildApiV1SettingsIntakeCommunityPut = (
       url: `/api/v1/settings/intake/community`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: operationsGuildUpdate,
+      data: operationsCommunityUpdate,
       signal,
     },
     options
@@ -415,11 +415,11 @@ export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationResult =
   Awaited<ReturnType<typeof updateOperationsGuildApiV1SettingsIntakeCommunityPut>>
 >;
 export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationBody =
-  BodyType<OperationsGuildUpdate>;
+  BodyType<OperationsCommunityUpdate>;
 export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationError =
   ErrorType<HTTPValidationError>;
 export type UpdateOperationsGuildApiV1SettingsIntakeCommunityPutMutationVariables = {
-  data: BodyType<OperationsGuildUpdate>;
+  data: BodyType<OperationsCommunityUpdate>;
 };
 
 /**

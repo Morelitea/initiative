@@ -26,7 +26,7 @@ from app.core.identity_boundary import BoundaryPhase
 from app.core.app_scopes import ALL_SCOPES
 from app.core.messages import AppMessages
 from app.main import app
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.app_placement import AppPlacement
 from app.models.tenant.comment import Comment
@@ -461,7 +461,7 @@ async def test_switching_off_takes_effect_on_the_next_request(
     else:
         guild = await session.get(Guild, installed.guild.id)
         assert guild is not None
-        guild.status = GuildStatus.suspended
+        guild.status = CommunityStatus.suspended
         session.add(guild)
     await session.commit()
 
@@ -572,7 +572,7 @@ async def test_member_search_names_members_by_reference_and_carries_no_address(
     installed = await install_app(
         session, acting_user, role_session, granted=["members:read"]
     )
-    elsewhere = await acting_user(guild_role=GuildRole.member)
+    elsewhere = await acting_user(guild_role=CommunityRole.member)
     headers = install_headers(installed, ["members:read"])
 
     response = await client.get(
@@ -613,12 +613,12 @@ async def test_member_search_narrows_to_an_initiative_the_install_is_placed_in(
         session, acting_user, role_session, granted=["members:read"]
     )
     inside = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",
     )
-    outside = await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+    outside = await acting_user(guild_role=CommunityRole.member, guild=installed.guild)
     headers = install_headers(installed, ["members:read"])
     url = guild_url(installed.guild.id, "/users/search")
 
@@ -714,7 +714,7 @@ async def test_an_uploaded_picture_reaches_an_app_by_reference_under_members_rea
     reads = ["projects:read", "members:read"]
     installed = await install_app(session, acting_user, role_session, granted=reads)
     seat = installed.seat
-    elsewhere = await acting_user(guild_role=GuildRole.member)
+    elsewhere = await acting_user(guild_role=CommunityRole.member)
     picture = png(64, 64)
     for person in (seat.user, elsewhere.user):
         await user_avatars.store_avatar(
@@ -779,7 +779,7 @@ async def test_a_write_naming_three_people_costs_the_same_two(
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     for _ in range(3):
         await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=installed.guild,
             initiative=installed.placed,
             initiative_role="member",
@@ -899,7 +899,7 @@ async def test_a_response_mentioning_three_people_costs_one_statement_cold(
     scopes = ["projects:read", "comments:read"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     people = [
-        await acting_user(guild_role=GuildRole.member, guild=installed.guild)
+        await acting_user(guild_role=CommunityRole.member, guild=installed.guild)
         for _ in range(3)
     ]
     project = await _open_project(session, installed, installed.placed, "Open A")
@@ -932,7 +932,7 @@ async def test_a_mention_it_writes_is_stored_by_row_id_under_the_member_s_name(
     scopes = ["comments:write", "documents:write", "members:read"]
     installed = await install_app(session, acting_user, role_session, granted=scopes)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=installed.guild,
         initiative=installed.placed,
         initiative_role="member",

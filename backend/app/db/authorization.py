@@ -57,7 +57,7 @@ from app.models.platform.access_grant import (
     AccessGrantStatus,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
 from app.models.tenant.resource_grant import (
@@ -1229,7 +1229,7 @@ AS $function$
         FROM public.guild_memberships m
         WHERE m.guild_id = p_guild_id
           AND m.user_id = p_user_id
-          AND m.role = '{GuildRole.superadmin.value}'
+          AND m.role = '{CommunityRole.superadmin.value}'
     )
     -- A live superadmin settings grant satisfies the same predicate.
     OR EXISTS (

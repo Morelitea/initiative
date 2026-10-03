@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,7 +48,7 @@ export const RetentionSettingCard = () => {
         retention_days: neverPurge ? null : retentionDays,
       } as Parameters<
         typeof updateGuildApiV1CommunitiesGuildIdPatch
-      >[1]) as unknown as Promise<GuildRead>);
+      >[1]) as unknown as Promise<CommunityRead>);
       updateGuildInState(result);
       setMessage(t("settings.retentionUpdatedSuccessfully"));
     } catch (err) {

@@ -36,7 +36,7 @@ from app.testing import (
 from app.core.search import SearchEntityType
 from app.services.tenant.collaboration import collaboration_manager
 from app.services.tenant.collaborative_resources import resource_for
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.services import permissions as permissions_service
 from app.testing import route_as
@@ -82,9 +82,9 @@ async def test_collaboration_guild_admin_gets_full_access(
     guild-admin bypass. The collaboration paths resolve access straight through
     the shared DAC engine (``permissions.allows``), which reads the
     active guild-role context that ``establish_guild_access`` records."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     # admin is deliberately NOT a member of this initiative and holds no grant.
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
     doc = await create_document(session, owner.initiative, owner.user)
     # The socket resolves a body through the resource registry, so the test
     # asks the same way the endpoint does: on the request login, routed
@@ -104,7 +104,7 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
 ) -> None:
     """The edits land in the Yjs state and the rendering in the content
     column, together."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
 
     response = await client.post(
@@ -131,7 +131,7 @@ async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
 ) -> None:
     """The room holds edits the tab never saw: its edits merge in, but its
     rendering describes an older document, so the column keeps what it had."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     elsewhere = _typed("from a peer. ")
     doc = await create_document(
         session,
@@ -163,7 +163,7 @@ async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
 async def test_a_wiki_page_takes_a_handover_too(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     owner.initiative.wikis_enabled = True
     session.add(owner.initiative)
     await session.commit()
@@ -184,7 +184,7 @@ async def test_a_wiki_page_takes_a_handover_too(
 async def test_an_unreadable_update_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
 
     response = await client.post(
@@ -205,7 +205,7 @@ async def test_a_refused_handover_leaves_the_next_one_the_saved_document(
 ) -> None:
     """A handover that is refused loads the room and takes nothing; the next one
     still merges into what the row holds, not into a room left behind."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(
         session,
         owner.initiative,
@@ -248,7 +248,7 @@ async def test_a_token_in_the_query_is_refused(
 ) -> None:
     """The handover is a write: a ``?token=`` authenticates none, the
     uploads-scoped one included."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     token, _ = create_upload_token(user_id=owner.user.id)
 
@@ -266,7 +266,7 @@ async def test_a_handover_answers_a_community_that_asks_for_a_passkey(
     """What the session proved about the person reaches the guild gate here as
     it does on a page: the session opened with a passkey writes, the one
     opened with a password is refused."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     session.add(
         GuildAuthPolicy(
@@ -297,7 +297,7 @@ async def test_a_handover_answers_a_community_that_asks_for_a_passkey(
 async def test_a_non_member_is_refused(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     outsider = await create_user(session)
     response = await client.post(
@@ -334,7 +334,7 @@ async def test_a_break_glass_grantee_can_hand_over(
 ) -> None:
     """A platform operator who is not a member but holds a live ``read_write``
     break-glass grant edits existing content for the grant's window."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     grantee = await create_user(session, role=UserRole.operator)
     await _approved_grant(
@@ -354,7 +354,7 @@ async def test_a_read_grant_cannot_hand_over(
 ) -> None:
     """A read grant reaches the guild but not the write level the handover
     needs."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     grantee = await create_user(session)
     await _approved_grant(
@@ -375,7 +375,7 @@ async def test_the_roster_names_a_collaborator_as_their_community_does(
 ) -> None:
     """Who is editing reads the same as everywhere else in the community: the
     name set there, the handle where there is none."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(session, owner.initiative, owner.user)
     path = _document_url(owner.guild.id, doc.id)
 

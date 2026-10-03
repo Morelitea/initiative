@@ -23,7 +23,7 @@ from app.api.resource_access import SUB_TOOLS, governing_tool, parent_column
 from app.api.tool_copy import TOOL_COPIERS
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter
@@ -71,7 +71,7 @@ async def test_the_owner_deletes_it_and_the_room_is_told(
 ):
     from app.services.content_sockets import sockets
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     signalled: list[tuple] = []
     monkeypatch.setattr(sockets, "signal", lambda *args: signalled.append(args))
@@ -92,10 +92,10 @@ async def test_the_owner_deletes_it_and_the_room_is_told(
 async def test_writing_to_it_is_not_enough_to_delete_it(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -119,10 +119,10 @@ async def test_writing_to_it_is_not_enough_to_delete_it(
 async def test_a_copy_keeps_its_sharing_beside_and_its_tags_anywhere(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool, name="Plan")
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -174,11 +174,11 @@ async def test_a_copy_keeps_its_sharing_beside_and_its_tags_anywhere(
 async def test_copying_takes_write_or_a_template_and_the_right_to_create(
     client: AsyncClient, session: AsyncSession, acting_user, tool: Tool
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     entity = await _entity(session, a, tool)
     reader, writer = [
         await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -252,7 +252,7 @@ async def test_a_row_inside_a_tool_is_copied_beside_itself_by_its_writers(
     segment, make = entry
     column = SUB_TOOLS[model].name
     length = model.__table__.c[column].type.length
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     tool = await _entity(session, a, governing_tool(model.__tablename__))
     # As long as the column takes, so the copy's name has to be shortened.
     name = "Plan" + "n" * 251
@@ -262,7 +262,7 @@ async def test_a_row_inside_a_tool_is_copied_beside_itself_by_its_writers(
     if tagged:
         await assign_tag(session, row, await create_tag(session, a.guild), commit=True)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",

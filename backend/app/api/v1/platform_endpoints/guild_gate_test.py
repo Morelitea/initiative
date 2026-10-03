@@ -16,7 +16,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.v1.platform_endpoints.auth_test import _wire_fake_idp
 from app.models.platform.auth_session import AuthSession
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.testing.factories import (
     guild_administration,
@@ -254,7 +254,7 @@ async def _member_of_a_narrowed_community(session: AsyncSession):
     member = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     provider = await create_auth_provider(session, slug="corp")
     await create_federated_identity(session, user=member, provider=provider)
@@ -352,7 +352,7 @@ async def test_any_of_ours_is_answered_by_the_connections(
     member = await create_user(session)
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
     ours = await create_auth_provider(session, slug="corp")
     await create_guild_provider_connection(session, guild=guild, provider=ours)

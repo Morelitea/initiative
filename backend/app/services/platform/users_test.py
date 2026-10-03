@@ -16,7 +16,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.auth import addresses
 from app.models.platform.user import User, UserStatus
 from app.services.platform import users as user_service
@@ -33,11 +33,11 @@ async def test_the_sole_seat_is_reported(session: AsyncSession):
     seat = await create_user(session)
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     # Somebody to strand: a community of one is the exception, tested below.
     await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
+        session, user=await create_user(session), guild=guild, role=CommunityRole.member
     )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == [guild.name]
@@ -50,7 +50,7 @@ async def test_another_seat_holder_clears_it(session: AsyncSession):
     guild = await create_guild(session, creator=first)
     for user in (first, second):
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.superadmin
+            session, user=user, guild=guild, role=CommunityRole.superadmin
         )
 
     assert await user_service.is_last_guild_superadmin(session, first.id) == []
@@ -63,10 +63,10 @@ async def test_an_ordinary_admin_is_not_a_seat(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
 
     assert await user_service.is_last_guild_superadmin(session, admin.id) == []
@@ -77,16 +77,16 @@ async def test_seats_are_reported_per_community(session: AsyncSession):
     seat = await create_user(session)
     alone = await create_guild(session, name="Alone", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=alone, role=GuildRole.superadmin
+        session, user=seat, guild=alone, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=await create_user(session), guild=alone, role=GuildRole.member
+        session, user=await create_user(session), guild=alone, role=CommunityRole.member
     )
     other = await create_user(session, email="other@example.com")
     shared = await create_guild(session, name="Shared", creator=other)
     for user in (seat, other):
         await create_guild_membership(
-            session, user=user, guild=shared, role=GuildRole.superadmin
+            session, user=user, guild=shared, role=CommunityRole.superadmin
         )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == ["Alone"]
@@ -100,10 +100,10 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     guild = await create_guild(session, creator=admin)
 
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
 
     # Check deletion eligibility
@@ -121,10 +121,10 @@ async def test_check_deletion_eligibility_blocked_on_the_seat(session: AsyncSess
     seat = await create_user(session)
     guild = await create_guild(session, name="My Guild", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
+        session, user=await create_user(session), guild=guild, role=CommunityRole.member
     )
 
     can_delete, blockers = await user_service.check_deletion_eligibility(
@@ -144,10 +144,10 @@ async def test_an_ordinary_admin_is_not_blocked_from_deleting(session: AsyncSess
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, name="My Guild", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
 
     can_delete, blockers = await user_service.check_deletion_eligibility(
@@ -167,10 +167,10 @@ async def test_removing_the_only_seat_is_refused_where_the_rows_go(
     seat = await create_user(session)
     guild = await create_guild(session, name="Stranded", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=await create_user(session), guild=guild, role=GuildRole.member
+        session, user=await create_user(session), guild=guild, role=CommunityRole.member
     )
 
     with pytest.raises(user_service.SeatWouldBeEmptied) as refusal:
@@ -188,7 +188,7 @@ async def test_the_only_member_of_a_community_may_go(session: AsyncSession):
     alone = await create_user(session)
     guild = await create_guild(session, name="Just Me", creator=alone)
     await create_guild_membership(
-        session, user=alone, guild=guild, role=GuildRole.superadmin
+        session, user=alone, guild=guild, role=CommunityRole.superadmin
     )
 
     assert await user_service.is_last_guild_superadmin(session, alone.id) == []
@@ -206,10 +206,10 @@ async def test_one_other_member_brings_the_block_back(session: AsyncSession):
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session, name="Not Just Me", creator=seat)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
 
     assert await user_service.is_last_guild_superadmin(session, seat.id) == [
@@ -226,7 +226,7 @@ async def test_a_second_seat_lets_the_account_go(session: AsyncSession):
     guild = await create_guild(session, creator=leaving)
     for user in (leaving, staying):
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.superadmin
+            session, user=user, guild=guild, role=CommunityRole.superadmin
         )
 
     leaving_id = leaving.id
@@ -247,10 +247,10 @@ async def test_deactivate_user(session: AsyncSession, monkeypatch):
     guild = await create_guild(session, creator=admin)
 
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
 
     original_token_version = user.token_version
@@ -303,10 +303,10 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession, role_sessi
     guild = await create_guild(session, creator=admin)
 
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
 
     # Seed auth artifacts that should be revoked.
@@ -449,7 +449,7 @@ async def test_soft_delete_user_scrubs_addressed_invites(
     admin = await create_user(session, email="inviteadmin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=victim, guild=guild, role=GuildRole.member
+        session, user=victim, guild=guild, role=CommunityRole.member
     )
 
     # Active invite addressed to the victim — the recoverable PII trace.
@@ -532,7 +532,7 @@ async def test_hard_delete_user_scrubs_addressed_invites(
     admin = await create_user(session, email="hardadmin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=victim, guild=guild, role=GuildRole.member
+        session, user=victim, guild=guild, role=CommunityRole.member
     )
 
     invite = await guild_service.create_guild_invite(

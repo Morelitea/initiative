@@ -14,7 +14,7 @@ from httpx import AsyncClient
 
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.tenant import tags as tags_service
 from app.testing import TOOL_FACTORIES, create_initiative, create_tag
 
@@ -25,7 +25,7 @@ async def _one_of_each(session, acting_user, tool: Tool):
     """An initiative holding one row in each of the tool's views, the live
     one tagged, beside a second live row with no tag. A tool with templates
     also has an archived template, which belongs to the archive."""
-    actor = await acting_user(guild_role=GuildRole.admin)
+    actor = await acting_user(guild_role=CommunityRole.admin)
     home = await create_initiative(
         session, actor.guild, actor.user, **{t.view_permission: True for t in Tool}
     )
@@ -162,7 +162,7 @@ async def test_the_sidebar_counts_each_tools_live_view(
 async def test_a_view_the_tool_does_not_have_is_refused(
     client: AsyncClient, acting_user
 ):
-    actor = await acting_user(guild_role=GuildRole.admin)
+    actor = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.get(
         actor.g("/tools/queue/counts"),

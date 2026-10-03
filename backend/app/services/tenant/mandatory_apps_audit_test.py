@@ -13,7 +13,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.tenant.mandatory_apps import backfill_mandatory_apps
 from app.testing import (
     create_app_service_registration,
@@ -94,7 +94,7 @@ async def test_the_boot_sweep_records_an_install_nobody_made(
     guild = await create_guild(session, creator=creator, name="Existing guild")
     guild_id = guild.id
     await create_guild_membership(
-        session, user=creator, guild=guild, role=GuildRole.admin
+        session, user=creator, guild=guild, role=CommunityRole.admin
     )
     capfd.readouterr()
 

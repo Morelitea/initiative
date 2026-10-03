@@ -26,20 +26,20 @@ import type {
   AppPlacementRead,
   AppPlacementUpdate,
   AppWidgetCatalogResponse,
-  GuildAppConfigUpdate,
-  GuildAppConnectStart,
-  GuildAppConsentAnswer,
-  GuildAppConsentRead,
-  GuildAppDecline,
-  GuildAppDetail,
-  GuildAppHandoff,
-  GuildAppInstall,
-  GuildAppListResponse,
-  GuildAppMembersResponse,
-  GuildAppRead,
-  GuildAppScopesUpdate,
-  GuildAppUpdate,
-  GuildAppUpgrade,
+  CommunityAppConfigUpdate,
+  CommunityAppConnectStart,
+  CommunityAppConsentAnswer,
+  CommunityAppConsentRead,
+  CommunityAppDecline,
+  CommunityAppDetail,
+  CommunityAppHandoff,
+  CommunityAppInstall,
+  CommunityAppListResponse,
+  CommunityAppMembersResponse,
+  CommunityAppRead,
+  CommunityAppScopesUpdate,
+  CommunityAppUpdate,
+  CommunityAppUpgrade,
   HTTPValidationError,
   ListGuildAppMembersApiV1CGuildIdAppsAppIdMembersGetParams,
   ReadAppDataApiV1CGuildIdAppsAppIdEndpointsEndpointIdGetParams,
@@ -755,7 +755,7 @@ export const listGuildAppsApiV1CGuildIdAppsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppListResponse>(
+  return apiMutator<CommunityAppListResponse>(
     { url: `/api/v1/c/${guildId}/apps/`, method: "GET", signal },
     options
   );
@@ -904,16 +904,16 @@ export function useListGuildAppsApiV1CGuildIdAppsGet<
  */
 export const installGuildAppApiV1CGuildIdAppsPost = (
   guildId: number,
-  guildAppInstall: BodyType<GuildAppInstall>,
+  communityAppInstall: BodyType<CommunityAppInstall>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppRead>(
+  return apiMutator<CommunityAppRead>(
     {
       url: `/api/v1/c/${guildId}/apps/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildAppInstall,
+      data: communityAppInstall,
       signal,
     },
     options
@@ -962,11 +962,11 @@ export const getInstallGuildAppApiV1CGuildIdAppsPostMutationOptions = <
 export type InstallGuildAppApiV1CGuildIdAppsPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof installGuildAppApiV1CGuildIdAppsPost>>
 >;
-export type InstallGuildAppApiV1CGuildIdAppsPostMutationBody = BodyType<GuildAppInstall>;
+export type InstallGuildAppApiV1CGuildIdAppsPostMutationBody = BodyType<CommunityAppInstall>;
 export type InstallGuildAppApiV1CGuildIdAppsPostMutationError = ErrorType<HTTPValidationError>;
 export type InstallGuildAppApiV1CGuildIdAppsPostMutationVariables = {
   guildId: number;
-  data: BodyType<GuildAppInstall>;
+  data: BodyType<CommunityAppInstall>;
 };
 
 /**
@@ -1009,7 +1009,7 @@ export const getGuildAppApiV1CGuildIdAppsAppIdGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppDetail>(
+  return apiMutator<CommunityAppDetail>(
     { url: `/api/v1/c/${guildId}/apps/${appId}`, method: "GET", signal },
     options
   );
@@ -1187,16 +1187,16 @@ export function useGetGuildAppApiV1CGuildIdAppsAppIdGet<
 export const updateGuildAppApiV1CGuildIdAppsAppIdPatch = (
   guildId: number,
   appId: number,
-  guildAppUpdate: BodyType<GuildAppUpdate>,
+  communityAppUpdate: BodyType<CommunityAppUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppRead>(
+  return apiMutator<CommunityAppRead>(
     {
       url: `/api/v1/c/${guildId}/apps/${appId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: guildAppUpdate,
+      data: communityAppUpdate,
       signal,
     },
     options
@@ -1245,12 +1245,12 @@ export const getUpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationOptions = <
 export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateGuildAppApiV1CGuildIdAppsAppIdPatch>>
 >;
-export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationBody = BodyType<GuildAppUpdate>;
+export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationBody = BodyType<CommunityAppUpdate>;
 export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationError = ErrorType<HTTPValidationError>;
 export type UpdateGuildAppApiV1CGuildIdAppsAppIdPatchMutationVariables = {
   guildId: number;
   appId: number;
-  data: BodyType<GuildAppUpdate>;
+  data: BodyType<CommunityAppUpdate>;
 };
 
 /**
@@ -1403,16 +1403,16 @@ export const useUninstallGuildAppApiV1CGuildIdAppsAppIdDelete = <
 export const upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = (
   guildId: number,
   appId: number,
-  guildAppUpgradeNull?: BodyType<GuildAppUpgrade | null> | null,
+  communityAppUpgradeNull?: BodyType<CommunityAppUpgrade | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppDetail>(
+  return apiMutator<CommunityAppDetail>(
     {
       url: `/api/v1/c/${guildId}/apps/${appId}/upgrade`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildAppUpgradeNull,
+      data: communityAppUpgradeNull,
       signal,
     },
     options
@@ -1462,14 +1462,14 @@ export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationResult = Non
   Awaited<ReturnType<typeof upgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost>>
 >;
 export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationBody =
-  | BodyType<GuildAppUpgrade | null>
+  | BodyType<CommunityAppUpgrade | null>
   | undefined;
 export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationError =
   ErrorType<HTTPValidationError>;
 export type UpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePostMutationVariables = {
   guildId: number;
   appId: number;
-  data?: BodyType<GuildAppUpgrade | null>;
+  data?: BodyType<CommunityAppUpgrade | null>;
 };
 
 /**
@@ -1511,16 +1511,16 @@ export const useUpgradeGuildAppApiV1CGuildIdAppsAppIdUpgradePost = <
 export const declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost = (
   guildId: number,
   appId: number,
-  guildAppDecline: BodyType<GuildAppDecline>,
+  communityAppDecline: BodyType<CommunityAppDecline>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppDetail>(
+  return apiMutator<CommunityAppDetail>(
     {
       url: `/api/v1/c/${guildId}/apps/${appId}/upgrade/decline`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildAppDecline,
+      data: communityAppDecline,
       signal,
     },
     options
@@ -1577,13 +1577,13 @@ export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutati
     Awaited<ReturnType<typeof declineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost>>
   >;
 export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationBody =
-  BodyType<GuildAppDecline>;
+  BodyType<CommunityAppDecline>;
 export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationError =
   ErrorType<HTTPValidationError>;
 export type DeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePostMutationVariables = {
   guildId: number;
   appId: number;
-  data: BodyType<GuildAppDecline>;
+  data: BodyType<CommunityAppDecline>;
 };
 
 /**
@@ -1630,16 +1630,16 @@ export const useDeclineGuildAppUpgradeApiV1CGuildIdAppsAppIdUpgradeDeclinePost =
 export const updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut = (
   guildId: number,
   appId: number,
-  guildAppConfigUpdate: BodyType<GuildAppConfigUpdate>,
+  communityAppConfigUpdate: BodyType<CommunityAppConfigUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppDetail>(
+  return apiMutator<CommunityAppDetail>(
     {
       url: `/api/v1/c/${guildId}/apps/${appId}/config`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: guildAppConfigUpdate,
+      data: communityAppConfigUpdate,
       signal,
     },
     options
@@ -1694,13 +1694,13 @@ export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationResult = 
   Awaited<ReturnType<typeof updateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPut>>
 >;
 export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationBody =
-  BodyType<GuildAppConfigUpdate>;
+  BodyType<CommunityAppConfigUpdate>;
 export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationError =
   ErrorType<HTTPValidationError>;
 export type UpdateGuildAppConfigApiV1CGuildIdAppsAppIdConfigPutMutationVariables = {
   guildId: number;
   appId: number;
-  data: BodyType<GuildAppConfigUpdate>;
+  data: BodyType<CommunityAppConfigUpdate>;
 };
 
 /**
@@ -1862,16 +1862,16 @@ export const usePutGuildAppPlacementApiV1CGuildIdAppsAppIdPlacementsInitiativeId
 export const putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut = (
   guildId: number,
   appId: number,
-  guildAppScopesUpdate: BodyType<GuildAppScopesUpdate>,
+  communityAppScopesUpdate: BodyType<CommunityAppScopesUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppRead>(
+  return apiMutator<CommunityAppRead>(
     {
       url: `/api/v1/c/${guildId}/apps/${appId}/scopes`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: guildAppScopesUpdate,
+      data: communityAppScopesUpdate,
       signal,
     },
     options
@@ -1921,13 +1921,13 @@ export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationResult = Non
   Awaited<ReturnType<typeof putGuildAppScopesApiV1CGuildIdAppsAppIdScopesPut>>
 >;
 export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationBody =
-  BodyType<GuildAppScopesUpdate>;
+  BodyType<CommunityAppScopesUpdate>;
 export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationError =
   ErrorType<HTTPValidationError>;
 export type PutGuildAppScopesApiV1CGuildIdAppsAppIdScopesPutMutationVariables = {
   guildId: number;
   appId: number;
-  data: BodyType<GuildAppScopesUpdate>;
+  data: BodyType<CommunityAppScopesUpdate>;
 };
 
 /**
@@ -1977,7 +1977,7 @@ export const createGuildAppHandoffApiV1CGuildIdAppsAppIdHandoffSurfaceIdPost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppHandoff>(
+  return apiMutator<CommunityAppHandoff>(
     { url: `/api/v1/c/${guildId}/apps/${appId}/handoff/${surfaceId}`, method: "POST", signal },
     options
   );
@@ -2094,7 +2094,7 @@ export const connectGuildAppApiV1CGuildIdAppsAppIdConnectionsConnectionIdConnect
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppConnectStart>(
+  return apiMutator<CommunityAppConnectStart>(
     {
       url: `/api/v1/c/${guildId}/apps/${appId}/connections/${connectionId}/connect`,
       method: "POST",
@@ -2330,16 +2330,16 @@ export const grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut = (
   guildId: number,
   appId: number,
   consentId: number,
-  guildAppConsentAnswer: BodyType<GuildAppConsentAnswer>,
+  communityAppConsentAnswer: BodyType<CommunityAppConsentAnswer>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppConsentRead>(
+  return apiMutator<CommunityAppConsentRead>(
     {
       url: `/api/v1/c/${guildId}/apps/${appId}/consents/${consentId}`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: guildAppConsentAnswer,
+      data: communityAppConsentAnswer,
       signal,
     },
     options
@@ -2395,14 +2395,14 @@ export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationResu
   Awaited<ReturnType<typeof grantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPut>>
 >;
 export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationBody =
-  BodyType<GuildAppConsentAnswer>;
+  BodyType<CommunityAppConsentAnswer>;
 export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationError =
   ErrorType<HTTPValidationError>;
 export type GrantMyConsentApiV1CGuildIdAppsAppIdConsentsConsentIdPutMutationVariables = {
   guildId: number;
   appId: number;
   consentId: number;
-  data: BodyType<GuildAppConsentAnswer>;
+  data: BodyType<CommunityAppConsentAnswer>;
 };
 
 /**
@@ -2552,7 +2552,7 @@ export const listGuildAppMembersApiV1CGuildIdAppsAppIdMembersGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAppMembersResponse>(
+  return apiMutator<CommunityAppMembersResponse>(
     { url: `/api/v1/c/${guildId}/apps/${appId}/members`, method: "GET", params, signal },
     options
   );
@@ -3485,7 +3485,7 @@ export const createInitiativeAppHandoffApiV1CGuildIdInitiativesInitiativeIdAppsA
     options?: SecondParameter<typeof apiMutator>,
     signal?: AbortSignal
   ) => {
-    return apiMutator<GuildAppHandoff>(
+    return apiMutator<CommunityAppHandoff>(
       {
         url: `/api/v1/c/${guildId}/initiatives/${initiativeId}/apps/${appId}/handoff/${surfaceId}`,
         method: "POST",

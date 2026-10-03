@@ -29,7 +29,7 @@ from app.db.search_index import (
 )
 from app.db.session import set_rls_context
 from app.db.tenancy import INITIATIVE_SCOPED_TABLES
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.search_entry import SearchEntry
 from app.testing import (
     create_comment,
@@ -127,7 +127,7 @@ async def test_a_comment_on_a_task_is_shared_as_its_project(session, acting_user
     """A comment hangs off exactly one parent, and is reached by whoever can
     reach that parent. A task is shared as part of its project, so that is the
     gate a comment on one carries."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="vendor renewal")
     comment = await create_comment(
         session, a.user, task=task, content="the renewal terms changed in March"
@@ -145,7 +145,7 @@ async def test_a_comment_on_a_task_is_shared_as_its_project(session, acting_user
 
 
 async def test_a_comment_on_a_document_is_shared_as_that_document(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     document = await create_document(session, a.initiative, a.user)
     comment = await create_comment(
         session, a.user, document=document, content="second draft reads better"
@@ -162,7 +162,7 @@ async def test_moving_a_task_moves_the_comments_on_it(session, acting_user):
     move. The comment row does not change when it does, so nothing would
     rewrite its entry — leaving searchable text answering to the project it
     used to be under."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     elsewhere = await create_project(session, a.initiative, a.user, name="Elsewhere")
     task = await create_task(session, a.project)
     comment = await create_comment(session, a.user, task=task, content="ordered timber")
@@ -178,7 +178,7 @@ async def test_moving_a_task_moves_the_comments_on_it(session, acting_user):
 
 async def test_a_long_comment_is_shown_by_its_opening(session, acting_user):
     """Storing the whole of one would put an essay where a name goes."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     comment = await create_comment(session, a.user, task=task, content="x" * 500)
 
@@ -188,7 +188,7 @@ async def test_a_long_comment_is_shown_by_its_opening(session, acting_user):
 
 
 async def test_creating_a_task_is_indexed(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="vendor renewal terms")
 
     rows = await _entries(session, a.guild.id, "task", task.id)
@@ -202,7 +202,7 @@ async def test_creating_a_task_is_indexed(session, acting_user):
 
 
 async def test_the_entry_is_full_text_searchable(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="quarterly vendor renewal")
 
     await set_rls_context(session, SystemGuild(a.guild.id))
@@ -216,7 +216,7 @@ async def test_the_entry_is_full_text_searchable(session, acting_user):
 
 
 async def test_renaming_reindexes_in_place(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="before")
 
     task.title = "after"
@@ -229,7 +229,7 @@ async def test_renaming_reindexes_in_place(session, acting_user):
 
 async def test_soft_delete_removes_it_from_the_index(session, acting_user):
     """Trash is browsed through the trash surface, not found by searching."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project, title="gone")
     assert await _entries(session, a.guild.id, "task", task.id)
 
@@ -243,7 +243,7 @@ async def test_soft_delete_removes_it_from_the_index(session, acting_user):
 
 
 async def test_a_guild_level_tag_is_indexed_without_an_initiative(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     tag = await create_tag(session, a.guild, name="urgent")
 
     rows = await _entries(session, a.guild.id, "tag", tag.id)
@@ -256,7 +256,7 @@ async def test_a_guild_level_tag_is_indexed_without_an_initiative(session, actin
 async def test_long_text_is_chunked(session, acting_user):
     """Chunking is a length rule: the cap cannot be reached because a row's
     text is bounded by construction."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     body = " ".join(f"word{n}" for n in range(6000))
     project = await create_project(
         session, a.initiative, a.user, name="big", description=body
@@ -271,7 +271,7 @@ async def test_long_text_is_chunked(session, acting_user):
 
 
 async def test_short_text_is_exactly_one_chunk(session, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(
         session, a.initiative, a.user, name="small", description="one line"
     )
@@ -288,10 +288,10 @@ async def test_a_guild_member_outside_the_initiative_sees_nothing(
     A guild member who is not in the initiative gets no rows — the same answer
     the content tables give, from the same ``initiative_access`` call.
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     # Both actors up front: reading routes the session into a guild role, which
     # the factories cannot run under.
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     task = await create_task(session, a.project, title="quarterly vendor renewal")
 
     assert await _entries(session, a.guild.id, "task", task.id)
@@ -314,8 +314,8 @@ async def test_a_guild_level_tag_is_visible_to_any_member(
 ):
     """The NULL-initiative leg: guild vocabulary every member already sees in
     every picker is not hidden from them in search."""
-    a = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     tag = await create_tag(session, a.guild, name="urgent")
 
     reader = await reading_as(member.user.id, a.guild.id)
@@ -360,7 +360,7 @@ def test_each_source_gates_on_a_column_that_points_at_its_tool():
 async def test_moving_a_task_regates_it(session, acting_user):
     """The sharing identity is stored, so a row changing parents has to be
     rewritten or it would keep answering to the old one."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     other = await create_project(session, a.initiative, a.user, name="elsewhere")
     assert other.id is not None
     task = await create_task(session, a.project, title="moving")

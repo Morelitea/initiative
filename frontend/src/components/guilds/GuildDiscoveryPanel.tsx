@@ -27,7 +27,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { updateGuildApiV1CommunitiesGuildIdPatch } from "@/api/generated/communities/communities";
-import type { GuildCategory, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityCategory, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -67,7 +67,7 @@ export const GuildDiscoveryPanel = () => {
   // told who to ask rather than offered a control they cannot satisfy.
   const seatLimited = activeGuild.max_users != null && activeGuild.max_users < MIN_COMMUNITY_SEATS;
 
-  const save = async (updates: Partial<GuildRead>) => {
+  const save = async (updates: Partial<CommunityRead>) => {
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -75,7 +75,7 @@ export const GuildDiscoveryPanel = () => {
       const result = (await updateGuildApiV1CommunitiesGuildIdPatch(
         activeGuild.id,
         updates as Parameters<typeof updateGuildApiV1CommunitiesGuildIdPatch>[1]
-      )) as unknown as GuildRead;
+      )) as unknown as CommunityRead;
       updateGuildInState(result);
       await refreshGuilds();
       setMessage(t("guilds:settings.updatedSuccessfully"));
@@ -100,7 +100,7 @@ export const GuildDiscoveryPanel = () => {
     void save({ is_community: false });
   };
 
-  const toggleCategory = (category: GuildCategory) => {
+  const toggleCategory = (category: CommunityCategory) => {
     const next = activeGuild.categories.includes(category)
       ? activeGuild.categories.filter((value) => value !== category)
       : [...activeGuild.categories, category];

@@ -20,20 +20,20 @@ import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildAppRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppRead } from "@/api/generated/initiativeAPI.schemas";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AppsSection } from "./AppsSection";
 
-let apps: Partial<GuildAppRead>[] = [];
+let apps: Partial<CommunityAppRead>[] = [];
 
 vi.mock("@/hooks/useGuildApps", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildApps")>()),
   useGuildApps: () => ({ data: { items: apps }, isLoading: false }),
 }));
 
-const app = (overrides: Partial<GuildAppRead> = {}) =>
+const app = (overrides: Partial<CommunityAppRead> = {}) =>
   ({
     id: 1,
     name: "Community calendar",
@@ -41,7 +41,7 @@ const app = (overrides: Partial<GuildAppRead> = {}) =>
     enabled: true,
     artifacts: [{ type: "calendar", id: 12 }],
     ...overrides,
-  }) as GuildAppRead;
+  }) as CommunityAppRead;
 
 // The section is built from sidebar primitives, so it needs the providers it
 // would have in the real shell.

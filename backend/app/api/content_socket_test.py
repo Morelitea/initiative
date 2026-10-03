@@ -18,7 +18,7 @@ from app.api import content_socket
 from app.api.content_socket import MSG_AUTH, read_auth_frame, serve_tool_stream
 from app.core.security import SESSION_COOKIE_NAME
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.content_sockets import resource_room, sockets
 from app.testing import create_queue, get_auth_token
 from app.testing.sockets import settle
@@ -153,7 +153,7 @@ async def _watch(guild_id: int, queue_id: int, token: str) -> InboundWebSocket:
 async def test_a_reader_of_the_queue_is_seated_and_told_of_changes(
     session: AsyncSession, acting_user
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
 
     websocket = await _watch(a.guild.id, queue.id, get_auth_token(a.user))
@@ -170,7 +170,7 @@ async def test_a_reader_of_the_queue_is_seated_and_told_of_changes(
 
 async def test_a_revoked_sign_in_is_refused(session: AsyncSession, acting_user) -> None:
     """A sign-in ended by bumping ``token_version`` opens no socket."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
     token = get_auth_token(a.user)
     a.user.token_version += 1
@@ -186,7 +186,7 @@ async def test_a_revoked_sign_in_is_refused(session: AsyncSession, acting_user) 
 async def test_a_queue_whose_tool_is_switched_off_is_not_streamed(
     session: AsyncSession, acting_user
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
     a.initiative.queues_enabled = False
     session.add(a.initiative)
@@ -201,10 +201,10 @@ async def test_a_queue_whose_tool_is_switched_off_is_not_streamed(
 async def test_a_member_the_queue_is_not_shared_with_is_refused(
     session: AsyncSession, acting_user
 ) -> None:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     queue = await create_queue(session, owner.initiative, owner.user)
     outsider = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",

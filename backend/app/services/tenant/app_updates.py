@@ -44,7 +44,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.notification import NotificationType
 from app.models.tenant.guild_app import GuildApp
 from app.services.marketplace import app_installs, registration_lookup
@@ -308,7 +308,7 @@ async def notify_pending_updates(
         await session.exec(
             select(GuildMembership.user_id).where(
                 GuildMembership.guild_id == guild_id,
-                GuildMembership.role == GuildRole.superadmin,
+                GuildMembership.role == CommunityRole.superadmin,
             )
         )
     ).all()

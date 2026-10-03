@@ -15,9 +15,9 @@
 import { useTranslation } from "react-i18next";
 
 import {
+  type CommunityAppConsentRead,
   ConsentAccess,
   ConsentStatus,
-  type GuildAppConsentRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 export interface AppConsentRequestsProps {
   appId: number;
   appName: string;
-  consents: GuildAppConsentRead[];
+  consents: CommunityAppConsentRead[];
 }
 
 export function AppConsentRequests({ appId, appName, consents }: AppConsentRequestsProps) {
@@ -42,7 +42,7 @@ export function AppConsentRequests({ appId, appName, consents }: AppConsentReque
   const initiativeName = (id: number) =>
     initiatives.data?.find((initiative) => initiative.id === id)?.name ?? null;
 
-  const allow = async (consent: GuildAppConsentRead, access: ConsentAccess) => {
+  const allow = async (consent: CommunityAppConsentRead, access: ConsentAccess) => {
     try {
       await grant.mutateAsync({ consentId: consent.id, access });
       toast.success(t("apps:consent.allowed", { name: appName }));
@@ -51,7 +51,7 @@ export function AppConsentRequests({ appId, appName, consents }: AppConsentReque
     }
   };
 
-  const end = async (consent: GuildAppConsentRead) => {
+  const end = async (consent: CommunityAppConsentRead) => {
     const declining = consent.status === ConsentStatus.pending;
     try {
       await revoke.mutateAsync(consent.id);
@@ -138,7 +138,7 @@ export function AppConsentRequests({ appId, appName, consents }: AppConsentReque
   );
 }
 
-function statusKey(consent: GuildAppConsentRead) {
+function statusKey(consent: CommunityAppConsentRead) {
   switch (consent.status) {
     case ConsentStatus.granted:
       return consent.granted_access === ConsentAccess.read_write

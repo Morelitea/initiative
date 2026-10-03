@@ -35,7 +35,7 @@ from app.core.tools import TRASH_TARGETS, plural_of
 from app.db.query import build_paginated_response
 from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
 from app.models.tenant.comment import Comment
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.trash import (
@@ -207,7 +207,7 @@ async def trash_page(
 async def list_guild_trash(
     session: RLSSessionDep,
     guild_context: Annotated[
-        GuildContext, Depends(require_guild_roles(GuildRole.admin))
+        GuildContext, Depends(require_guild_roles(CommunityRole.admin))
     ],
     page: TrashPage = 1,
     page_size: TrashPageSize = 50,

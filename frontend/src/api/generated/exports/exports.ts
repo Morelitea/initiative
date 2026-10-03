@@ -19,6 +19,7 @@ import type {
 
 import type {
   BackupEstimate,
+  CommunityExportStatus,
   EstimateAggregateExportApiV1CGuildIdExportsEstimateGetParams,
   ExportEventsApiV1CGuildIdExportsEventsGetParams,
   ExportGuildApiV1CGuildIdExportsCommunityGetParams,
@@ -26,7 +27,6 @@ import type {
   ExportJobRead,
   ExportTasksApiV1CGuildIdExportsTasksGetParams,
   ExportToolApiV1CGuildIdExportsToolGetParams,
-  GuildExportStatus,
   HTTPValidationError,
   Tool,
 } from "../initiativeAPI.schemas";
@@ -949,7 +949,7 @@ export const readGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildExportStatus>(
+  return apiMutator<CommunityExportStatus>(
     { url: `/api/v1/c/${guildId}/exports/community/status`, method: "GET", signal },
     options
   );

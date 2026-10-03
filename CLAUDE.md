@@ -501,7 +501,7 @@ They are **schema-per-guild native**: tenant models (initiatives, projects, task
 Available factories:
 - `create_user(session, **overrides)` — creates a `User` with unique email, hashed password, and default notification preferences
 - `create_guild(session, creator=None, **overrides)` — creates a `Guild` and provisions its `guild_<id>` schema + roles; auto-creates a creator user if not provided
-- `create_guild_membership(session, user=None, guild=None, role=GuildRole.member)` — links a user to a guild
+- `create_guild_membership(session, user=None, guild=None, role=CommunityRole.member)` — links a user to a guild
 - `create_initiative(session, guild, creator, **overrides)` — creates an `Initiative` with built-in roles and adds the creator as project manager
 - `create_initiative_member(session, initiative, user, role_name="member")` — adds a user to an initiative with proper role lookup
 - `create_project(session, initiative, owner, **overrides)` — creates a `Project` with owner grant
@@ -520,16 +520,16 @@ Auth helpers:
 **The role seam — `acting_user`** (fixture in `conftest.py`, backed by `app.testing.Actor`/`make_actor`): every endpoint test states its actor's platform and guild roles through this one seam and gets an `Actor` dataclass back. With the real-role `client` fixture the request then executes as the real `app_user` → `platform_<tier>`/`guild_<id>` roles — RLS enforced, like production.
 
 ```python
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 
 async def test_something(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     # a.user / a.headers / a.guild / a.membership / a.initiative / a.project
     response = await client.get(a.g("/initiatives/"), headers=a.headers)
     assert response.status_code == 200
 
     # Second actor joining the same workspace at lower privilege:
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild,
                           initiative=a.initiative, initiative_role="member")
 ```
 

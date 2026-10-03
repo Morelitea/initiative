@@ -118,7 +118,7 @@ async def test_register_with_a_community_makes_it(
 ):
     """A registration that names a community makes it, with the new account as
     its superadmin; one that also carries an invite is refused."""
-    from app.models.platform.guild import Guild, GuildMembership, GuildRole
+    from app.models.platform.guild import Guild, GuildMembership, CommunityRole
 
     await create_user(session)
     community = {"name": "Book Club", "description": "Monthly reads"}
@@ -152,7 +152,7 @@ async def test_register_with_a_community_makes_it(
         )
     ).all()
     assert [(g.name, g.description, role) for g, role in held] == [
-        ("Book Club", "Monthly reads", GuildRole.superadmin)
+        ("Book Club", "Monthly reads", CommunityRole.superadmin)
     ]
 
 

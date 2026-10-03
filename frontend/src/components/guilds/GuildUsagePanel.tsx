@@ -17,7 +17,7 @@ const ratioPct = (used: number, max: number | null): number | null =>
  * On the seat's Usage tab, the first in community settings, on every install:
  * self-hosted, the caps are the operator's; hosted, they come with the plan,
  * which `GuildBillingPanel` shows below it. The numbers are the administration
- * half of `GuildRead`, which the API sends to admins alone — as does the
+ * half of `CommunityRead`, which the API sends to admins alone — as does the
  * storage-usage endpoint below. */
 export const GuildUsagePanel = () => {
   const { t } = useTranslation(["guilds", "common"]);

@@ -30,7 +30,7 @@ import { KeyRound, Loader2, Plug, ShieldCheck, TriangleAlert } from "lucide-reac
 import { Fragment, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAppConnectionRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppConnectionRead } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,7 +66,7 @@ type AppConfigValue = string | number | boolean | null;
 
 export interface AppConnectionsPanelProps {
   appId: number;
-  connections: GuildAppConnectionRead[];
+  connections: CommunityAppConnectionRead[];
   /** Holds the seat, which sets the guild-wide connections. */
   canManage: boolean;
 }
@@ -103,7 +103,7 @@ function ConnectionShell({
   scopeLabel,
   children,
 }: {
-  connection: GuildAppConnectionRead;
+  connection: CommunityAppConnectionRead;
   icon: React.ReactNode;
   scopeLabel: string;
   children: React.ReactNode;
@@ -149,7 +149,7 @@ function GuildConnection({
   canManage,
 }: {
   appId: number;
-  connection: GuildAppConnectionRead;
+  connection: CommunityAppConnectionRead;
   canManage: boolean;
 }) {
   const { t, i18n } = useTranslation(["apps", "common"]);
@@ -299,7 +299,7 @@ function ConnectionFieldInput({
   onChange,
 }: {
   field: AppConnectionField;
-  connection: GuildAppConnectionRead;
+  connection: CommunityAppConnectionRead;
   value: AppConfigValue;
   onChange: (value: AppConfigValue) => void;
 }) {
@@ -386,7 +386,7 @@ function PersonalConnection({
   connection,
 }: {
   appId: number;
-  connection: GuildAppConnectionRead;
+  connection: CommunityAppConnectionRead;
 }) {
   const { t } = useTranslation(["apps", "common"]);
   const connect = useConnectApp(appId);

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.auth import session_lifetime, sessions as session_service
 from app.services.platform import app_settings as app_settings_service
 from app.testing import (
@@ -67,7 +67,7 @@ async def test_a_community_holds_its_members_to_the_standard(session):
     user = await create_user(session, email="sl-guild@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     await _hold_to_the_standard(session, guild)
     await _set_platform_hours(session, 720)
@@ -93,7 +93,7 @@ async def test_somebody_in_two_such_communities_has_one_answer(session):
     for name in ("a", "b"):
         guild = await create_guild(session, name=f"sl-two-{name}")
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.member
+            session, user=user, guild=guild, role=CommunityRole.member
         )
         await _hold_to_the_standard(session, guild)
 
@@ -107,7 +107,7 @@ async def test_a_communitys_standard_only_ever_tightens(session):
     user = await create_user(session, email="sl-tighten@example.com")
     guild = await create_guild(session, name="sl-tighten-g")
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     await _hold_to_the_standard(session, guild)
     await _set_platform_hours(session, 4)
@@ -178,7 +178,7 @@ async def test_a_community_holds_its_members_to_an_idle_window(session):
     user = await create_user(session, email="sl-idle@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     await _hold_to_the_standard(session, guild)
 
@@ -205,7 +205,7 @@ async def test_renewing_keeps_the_narrow_idle_window(session):
     user = await create_user(session, email="sl-idle-renew@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     await _hold_to_the_standard(session, guild)
     first = await session_service.create_session(
@@ -233,7 +233,7 @@ async def test_the_idle_window_never_outlasts_the_chain(session):
     user = await create_user(session, email="sl-idle-chain@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
+        session, user=user, guild=guild, role=CommunityRole.member
     )
     await _hold_to_the_standard(session, guild)
     await _set_platform_hours(session, 1)
@@ -300,7 +300,7 @@ async def test_the_stricter_idle_window_wins(session):
 
     lenient = await create_user(session, email="sl-idle-lenient@example.com")
     await create_guild_membership(
-        session, user=lenient, guild=guild, role=GuildRole.member
+        session, user=lenient, guild=guild, role=CommunityRole.member
     )
     # Deployment is looser than the standard, so the standard binds.
     row.session_idle_minutes = 60
@@ -316,7 +316,7 @@ async def test_the_stricter_idle_window_wins(session):
     # Deployment is stricter than the standard, so the deployment binds.
     strict = await create_user(session, email="sl-idle-strict@example.com")
     await create_guild_membership(
-        session, user=strict, guild=guild, role=GuildRole.member
+        session, user=strict, guild=guild, role=CommunityRole.member
     )
     row.session_idle_minutes = 5
     session.add(row)

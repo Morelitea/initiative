@@ -24,24 +24,24 @@ import type {
   BillingPortalHandoffResponse,
   BodySetGuildBannerApiV1CommunitiesGuildIdBannerPut,
   BodySetGuildIconApiV1CommunitiesGuildIdIconPut,
-  CommunityGuildPage,
-  GuildAuthSettingsRead,
-  GuildAuthSettingsUpdate,
-  GuildBillingSummaryRead,
-  GuildCreate,
-  GuildDeletionRequest,
-  GuildEntitlementsRead,
-  GuildInviteAcceptRequest,
-  GuildInviteCreate,
-  GuildInviteRead,
-  GuildInviteStatus,
-  GuildMembershipUpdate,
-  GuildOrderUpdate,
-  GuildPaymentIssueRead,
-  GuildRead,
-  GuildUpdate,
+  CommunityAuthSettingsRead,
+  CommunityAuthSettingsUpdate,
+  CommunityBillingSummaryRead,
+  CommunityCreate,
+  CommunityDeletionRequest,
+  CommunityEntitlementsRead,
+  CommunityInviteAcceptRequest,
+  CommunityInviteCreate,
+  CommunityInviteRead,
+  CommunityInviteStatus,
+  CommunityMembershipUpdate,
+  CommunityOrderUpdate,
+  CommunityPaymentIssueRead,
+  CommunityRead,
+  CommunityUpdate,
+  DirectoryCommunityPage,
   HTTPValidationError,
-  LeaveGuildEligibilityResponse,
+  LeaveCommunityEligibilityResponse,
   ListCommunityGuildsApiV1CommunitiesDirectoryGetParams,
   MemberDisplayNameUpdate,
 } from "../initiativeAPI.schemas";
@@ -73,7 +73,10 @@ export const listGuildsApiV1CommunitiesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead[]>({ url: `/api/v1/communities/`, method: "GET", signal }, options);
+  return apiMutator<CommunityRead[]>(
+    { url: `/api/v1/communities/`, method: "GET", signal },
+    options
+  );
 };
 
 export const getListGuildsApiV1CommunitiesGetQueryKey = () => {
@@ -196,16 +199,16 @@ export function useListGuildsApiV1CommunitiesGet<
  * @summary Create Guild
  */
 export const createGuildApiV1CommunitiesPost = (
-  guildCreate: BodyType<GuildCreate>,
+  communityCreate: BodyType<CommunityCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     {
       url: `/api/v1/communities/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildCreate,
+      data: communityCreate,
       signal,
     },
     options
@@ -254,9 +257,9 @@ export const getCreateGuildApiV1CommunitiesPostMutationOptions = <
 export type CreateGuildApiV1CommunitiesPostMutationResult = NonNullable<
   Awaited<ReturnType<typeof createGuildApiV1CommunitiesPost>>
 >;
-export type CreateGuildApiV1CommunitiesPostMutationBody = BodyType<GuildCreate>;
+export type CreateGuildApiV1CommunitiesPostMutationBody = BodyType<CommunityCreate>;
 export type CreateGuildApiV1CommunitiesPostMutationError = ErrorType<HTTPValidationError>;
-export type CreateGuildApiV1CommunitiesPostMutationVariables = { data: BodyType<GuildCreate> };
+export type CreateGuildApiV1CommunitiesPostMutationVariables = { data: BodyType<CommunityCreate> };
 
 /**
  * @summary Create Guild
@@ -287,7 +290,7 @@ export const useCreateGuildApiV1CommunitiesPost = <
  * @summary Reorder Guilds
  */
 export const reorderGuildsApiV1CommunitiesOrderPut = (
-  guildOrderUpdate: BodyType<GuildOrderUpdate>,
+  communityOrderUpdate: BodyType<CommunityOrderUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -296,7 +299,7 @@ export const reorderGuildsApiV1CommunitiesOrderPut = (
       url: `/api/v1/communities/order`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: guildOrderUpdate,
+      data: communityOrderUpdate,
       signal,
     },
     options
@@ -345,10 +348,10 @@ export const getReorderGuildsApiV1CommunitiesOrderPutMutationOptions = <
 export type ReorderGuildsApiV1CommunitiesOrderPutMutationResult = NonNullable<
   Awaited<ReturnType<typeof reorderGuildsApiV1CommunitiesOrderPut>>
 >;
-export type ReorderGuildsApiV1CommunitiesOrderPutMutationBody = BodyType<GuildOrderUpdate>;
+export type ReorderGuildsApiV1CommunitiesOrderPutMutationBody = BodyType<CommunityOrderUpdate>;
 export type ReorderGuildsApiV1CommunitiesOrderPutMutationError = ErrorType<HTTPValidationError>;
 export type ReorderGuildsApiV1CommunitiesOrderPutMutationVariables = {
-  data: BodyType<GuildOrderUpdate>;
+  data: BodyType<CommunityOrderUpdate>;
 };
 
 /**
@@ -384,7 +387,7 @@ export const useReorderGuildsApiV1CommunitiesOrderPut = <
  * read them under, and the RLS policy that scopes ``guilds`` to the caller's
  * own memberships would return an empty directory. What that engine may see
  * is not what this returns — the filters live in the service (listed AND
- * active, always), and :class:`CommunityGuildRead` carries only what a guild
+ * active, always), and :class:`DirectoryCommunityRead` carries only what a guild
  * published by opting in: no lifecycle status, no administration, no roster,
  * and nothing at all from inside the guild's own schema. How many people have
  * it open is a count of live connections, named to nobody.
@@ -399,7 +402,7 @@ export const listCommunityGuildsApiV1CommunitiesDirectoryGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<CommunityGuildPage>(
+  return apiMutator<DirectoryCommunityPage>(
     { url: `/api/v1/communities/directory`, method: "GET", params, signal },
     options
   );
@@ -564,7 +567,7 @@ export const joinCommunityGuildApiV1CommunitiesDirectoryGuildIdJoinPost = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     { url: `/api/v1/communities/directory/${guildId}/join`, method: "POST", signal },
     options
   );
@@ -655,7 +658,7 @@ export const getInviteStatusApiV1CommunitiesInviteCodeGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildInviteStatus>(
+  return apiMutator<CommunityInviteStatus>(
     { url: `/api/v1/communities/invite/${code}`, method: "GET", signal },
     options
   );
@@ -812,7 +815,7 @@ export const listGuildInvitesApiV1CommunitiesGuildIdInvitesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildInviteRead[]>(
+  return apiMutator<CommunityInviteRead[]>(
     { url: `/api/v1/communities/${guildId}/invites`, method: "GET", signal },
     options
   );
@@ -971,16 +974,16 @@ export function useListGuildInvitesApiV1CommunitiesGuildIdInvitesGet<
  */
 export const createGuildInviteApiV1CommunitiesGuildIdInvitesPost = (
   guildId: number,
-  guildInviteCreate: BodyType<GuildInviteCreate>,
+  communityInviteCreate: BodyType<CommunityInviteCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildInviteRead>(
+  return apiMutator<CommunityInviteRead>(
     {
       url: `/api/v1/communities/${guildId}/invites`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildInviteCreate,
+      data: communityInviteCreate,
       signal,
     },
     options
@@ -1030,12 +1033,12 @@ export type CreateGuildInviteApiV1CommunitiesGuildIdInvitesPostMutationResult = 
   Awaited<ReturnType<typeof createGuildInviteApiV1CommunitiesGuildIdInvitesPost>>
 >;
 export type CreateGuildInviteApiV1CommunitiesGuildIdInvitesPostMutationBody =
-  BodyType<GuildInviteCreate>;
+  BodyType<CommunityInviteCreate>;
 export type CreateGuildInviteApiV1CommunitiesGuildIdInvitesPostMutationError =
   ErrorType<HTTPValidationError>;
 export type CreateGuildInviteApiV1CommunitiesGuildIdInvitesPostMutationVariables = {
   guildId: number;
-  data: BodyType<GuildInviteCreate>;
+  data: BodyType<CommunityInviteCreate>;
 };
 
 /**
@@ -1081,7 +1084,7 @@ export const readGuildApiV1CommunitiesGuildIdGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     { url: `/api/v1/communities/${guildId}`, method: "GET", signal },
     options
   );
@@ -1235,16 +1238,16 @@ export function useReadGuildApiV1CommunitiesGuildIdGet<
  */
 export const updateGuildApiV1CommunitiesGuildIdPatch = (
   guildId: number,
-  guildUpdate: BodyType<GuildUpdate>,
+  communityUpdate: BodyType<CommunityUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     {
       url: `/api/v1/communities/${guildId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: guildUpdate,
+      data: communityUpdate,
       signal,
     },
     options
@@ -1293,11 +1296,11 @@ export const getUpdateGuildApiV1CommunitiesGuildIdPatchMutationOptions = <
 export type UpdateGuildApiV1CommunitiesGuildIdPatchMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateGuildApiV1CommunitiesGuildIdPatch>>
 >;
-export type UpdateGuildApiV1CommunitiesGuildIdPatchMutationBody = BodyType<GuildUpdate>;
+export type UpdateGuildApiV1CommunitiesGuildIdPatchMutationBody = BodyType<CommunityUpdate>;
 export type UpdateGuildApiV1CommunitiesGuildIdPatchMutationError = ErrorType<HTTPValidationError>;
 export type UpdateGuildApiV1CommunitiesGuildIdPatchMutationVariables = {
   guildId: number;
-  data: BodyType<GuildUpdate>;
+  data: BodyType<CommunityUpdate>;
 };
 
 /**
@@ -1333,7 +1336,7 @@ export const useUpdateGuildApiV1CommunitiesGuildIdPatch = <
  */
 export const deleteGuildApiV1CommunitiesGuildIdDelete = (
   guildId: number,
-  guildDeletionRequest: BodyType<GuildDeletionRequest>,
+  communityDeletionRequest: BodyType<CommunityDeletionRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1342,7 +1345,7 @@ export const deleteGuildApiV1CommunitiesGuildIdDelete = (
       url: `/api/v1/communities/${guildId}`,
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      data: guildDeletionRequest,
+      data: communityDeletionRequest,
       signal,
     },
     options
@@ -1391,11 +1394,12 @@ export const getDeleteGuildApiV1CommunitiesGuildIdDeleteMutationOptions = <
 export type DeleteGuildApiV1CommunitiesGuildIdDeleteMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteGuildApiV1CommunitiesGuildIdDelete>>
 >;
-export type DeleteGuildApiV1CommunitiesGuildIdDeleteMutationBody = BodyType<GuildDeletionRequest>;
+export type DeleteGuildApiV1CommunitiesGuildIdDeleteMutationBody =
+  BodyType<CommunityDeletionRequest>;
 export type DeleteGuildApiV1CommunitiesGuildIdDeleteMutationError = ErrorType<HTTPValidationError>;
 export type DeleteGuildApiV1CommunitiesGuildIdDeleteMutationVariables = {
   guildId: number;
-  data: BodyType<GuildDeletionRequest>;
+  data: BodyType<CommunityDeletionRequest>;
 };
 
 /**
@@ -1441,7 +1445,7 @@ export const readGuildEntitlementsApiV1CommunitiesGuildIdEntitlementsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildEntitlementsRead>(
+  return apiMutator<CommunityEntitlementsRead>(
     { url: `/api/v1/communities/${guildId}/entitlements`, method: "GET", signal },
     options
   );
@@ -1611,7 +1615,7 @@ export const setGuildIconApiV1CommunitiesGuildIdIconPut = (
   const formData = new FormData();
   formData.append(`icon`, bodySetGuildIconApiV1CommunitiesGuildIdIconPut.icon);
 
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     {
       url: `/api/v1/communities/${guildId}/icon`,
       method: "PUT",
@@ -1711,7 +1715,7 @@ export const clearGuildIconApiV1CommunitiesGuildIdIconDelete = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     { url: `/api/v1/communities/${guildId}/icon`, method: "DELETE", signal },
     options
   );
@@ -1810,7 +1814,7 @@ export const setGuildBannerApiV1CommunitiesGuildIdBannerPut = (
   formData.append(`full`, bodySetGuildBannerApiV1CommunitiesGuildIdBannerPut.full);
   formData.append(`card`, bodySetGuildBannerApiV1CommunitiesGuildIdBannerPut.card);
 
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     {
       url: `/api/v1/communities/${guildId}/banner`,
       method: "PUT",
@@ -1910,7 +1914,7 @@ export const clearGuildBannerApiV1CommunitiesGuildIdBannerDelete = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     { url: `/api/v1/communities/${guildId}/banner`, method: "DELETE", signal },
     options
   );
@@ -2106,7 +2110,7 @@ export const readGuildPaymentIssueApiV1CommunitiesGuildIdBillingPaymentIssueGet 
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildPaymentIssueRead>(
+  return apiMutator<CommunityPaymentIssueRead>(
     { url: `/api/v1/communities/${guildId}/billing/payment-issue`, method: "GET", signal },
     options
   );
@@ -2311,7 +2315,7 @@ export const readGuildBillingSummaryApiV1CommunitiesGuildIdBillingSummaryGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildBillingSummaryRead>(
+  return apiMutator<CommunityBillingSummaryRead>(
     { url: `/api/v1/communities/${guildId}/billing/summary`, method: "GET", signal },
     options
   );
@@ -2501,7 +2505,7 @@ export const getGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAuthSettingsRead>(
+  return apiMutator<CommunityAuthSettingsRead>(
     { url: `/api/v1/communities/${guildId}/auth-settings`, method: "GET", signal },
     options
   );
@@ -2683,16 +2687,16 @@ export function useGetGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsGet<
  */
 export const updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch = (
   guildId: number,
-  guildAuthSettingsUpdate: BodyType<GuildAuthSettingsUpdate>,
+  communityAuthSettingsUpdate: BodyType<CommunityAuthSettingsUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildAuthSettingsRead>(
+  return apiMutator<CommunityAuthSettingsRead>(
     {
       url: `/api/v1/communities/${guildId}/auth-settings`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: guildAuthSettingsUpdate,
+      data: communityAuthSettingsUpdate,
       signal,
     },
     options
@@ -2748,12 +2752,12 @@ export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutat
     Awaited<ReturnType<typeof updateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatch>>
   >;
 export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationBody =
-  BodyType<GuildAuthSettingsUpdate>;
+  BodyType<CommunityAuthSettingsUpdate>;
 export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationError =
   ErrorType<HTTPValidationError>;
 export type UpdateGuildAuthSettingsApiV1CommunitiesGuildIdAuthSettingsPatchMutationVariables = {
   guildId: number;
-  data: BodyType<GuildAuthSettingsUpdate>;
+  data: BodyType<CommunityAuthSettingsUpdate>;
 };
 
 /**
@@ -2888,16 +2892,16 @@ export const useDeleteGuildInviteApiV1CommunitiesGuildIdInvitesInviteIdDelete = 
  * @summary Accept Invite
  */
 export const acceptInviteApiV1CommunitiesInviteAcceptPost = (
-  guildInviteAcceptRequest: BodyType<GuildInviteAcceptRequest>,
+  communityInviteAcceptRequest: BodyType<CommunityInviteAcceptRequest>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildRead>(
+  return apiMutator<CommunityRead>(
     {
       url: `/api/v1/communities/invite/accept`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildInviteAcceptRequest,
+      data: communityInviteAcceptRequest,
       signal,
     },
     options
@@ -2947,11 +2951,11 @@ export type AcceptInviteApiV1CommunitiesInviteAcceptPostMutationResult = NonNull
   Awaited<ReturnType<typeof acceptInviteApiV1CommunitiesInviteAcceptPost>>
 >;
 export type AcceptInviteApiV1CommunitiesInviteAcceptPostMutationBody =
-  BodyType<GuildInviteAcceptRequest>;
+  BodyType<CommunityInviteAcceptRequest>;
 export type AcceptInviteApiV1CommunitiesInviteAcceptPostMutationError =
   ErrorType<HTTPValidationError>;
 export type AcceptInviteApiV1CommunitiesInviteAcceptPostMutationVariables = {
-  data: BodyType<GuildInviteAcceptRequest>;
+  data: BodyType<CommunityInviteAcceptRequest>;
 };
 
 /**
@@ -2993,7 +2997,7 @@ export const useAcceptInviteApiV1CommunitiesInviteAcceptPost = <
 export const updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch = (
   guildId: number,
   userId: number,
-  guildMembershipUpdate: BodyType<GuildMembershipUpdate>,
+  communityMembershipUpdate: BodyType<CommunityMembershipUpdate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -3002,7 +3006,7 @@ export const updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch = (
       url: `/api/v1/communities/${guildId}/members/${userId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      data: guildMembershipUpdate,
+      data: communityMembershipUpdate,
       signal,
     },
     options
@@ -3059,13 +3063,13 @@ export type UpdateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatchMutati
     Awaited<ReturnType<typeof updateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatch>>
   >;
 export type UpdateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatchMutationBody =
-  BodyType<GuildMembershipUpdate>;
+  BodyType<CommunityMembershipUpdate>;
 export type UpdateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 export type UpdateGuildMembershipApiV1CommunitiesGuildIdMembersUserIdPatchMutationVariables = {
   guildId: number;
   userId: number;
-  data: BodyType<GuildMembershipUpdate>;
+  data: BodyType<CommunityMembershipUpdate>;
 };
 
 /**
@@ -3342,7 +3346,7 @@ export const checkLeaveEligibilityApiV1CommunitiesGuildIdLeaveEligibilityGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<LeaveGuildEligibilityResponse>(
+  return apiMutator<LeaveCommunityEligibilityResponse>(
     { url: `/api/v1/communities/${guildId}/leave/eligibility`, method: "GET", signal },
     options
   );

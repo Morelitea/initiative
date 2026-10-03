@@ -13,7 +13,7 @@ from sqlalchemy import update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.testing import guild_of
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import Task, TaskAssignee, TaskPriority
 from app.testing.factories import (
     create_guild,
@@ -73,7 +73,9 @@ async def _assign(session, task, user_id):
 async def _setup_guild_with_project(session, user, *, guild_name="Test Guild"):
     """Create a guild, membership, initiative, and project for the user."""
     guild = await create_guild(session, creator=user, name=guild_name)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user, name="Initiative")
     project = await create_project(session, initiative, user, name="Project")
     return guild, initiative, project
@@ -152,10 +154,10 @@ async def test_admin_sees_assigned_task_in_non_member_initiative(
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session, creator=admin, name="Guild")
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+        session, user=member, guild=guild, role=CommunityRole.member
     )
 
     # Initiative + project owned by the member; the admin is NOT a member of it.
@@ -725,7 +727,9 @@ async def test_my_tasks_accepts_nested_or_conditions(
     from app.models.tenant.task import TaskStatusCategory
     from app.testing.factories import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     now = datetime.now(timezone.utc)
 
     due_soon = await create_task(
@@ -823,7 +827,9 @@ async def test_my_tasks_exposes_completed_at(
     from app.models.tenant.task import TaskStatusCategory
     from app.testing.factories import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task(
         session,
         a.project,

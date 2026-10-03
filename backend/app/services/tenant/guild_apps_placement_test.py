@@ -13,7 +13,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.app_placement import AppPlacement
 from app.services.export.guild_sections import SectionContext, _build_apps
 from app.services.tenant.guild_apps import (
@@ -203,8 +203,8 @@ class TestFollowingNewInitiatives:
     ):
         """Created by a guild admin who is not the seat: the row arrives from
         the trigger, under the request's own role."""
-        seat = await acting_user(guild_role=GuildRole.superadmin)
-        admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
         app = await create_guild_app(
             session,
             seat.guild,

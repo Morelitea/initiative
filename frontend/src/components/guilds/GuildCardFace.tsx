@@ -12,7 +12,7 @@ import { Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { renderableBanner } from "@/lib/banner";
@@ -28,7 +28,7 @@ export const GuildCardFace = ({
   children,
 }: {
   guild: Pick<
-    GuildRead,
+    CommunityRead,
     "name" | "description" | "categories" | "member_count" | "online_count" | "banner"
   >;
   avatar: ReactNode;

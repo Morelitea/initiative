@@ -1166,17 +1166,17 @@ async def _hold_notices(session: AsyncSession, user_id: int) -> int:
 
 
 async def test_a_hold_tells_the_seat_once(client: AsyncClient, session: AsyncSession):
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing import create_guild_membership, create_user
 
     guild = await create_guild(session)
     seat = await create_user(session)
     admin = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+        session, user=admin, guild=guild, role=CommunityRole.admin
     )
     guild_id, seat_id, admin_id = guild.id, seat.id, admin.id
 

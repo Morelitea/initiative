@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildCategory } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityCategory } from "@/api/generated/initiativeAPI.schemas";
 import { ContinueButton, SkipButton } from "@/components/start/stepParts";
 import { Button } from "@/components/ui/button";
 import { GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
@@ -18,14 +18,14 @@ export const InterestStep = ({
   onSkip,
   disabled,
 }: {
-  value: GuildCategory[];
-  onChange: (categories: GuildCategory[]) => void;
+  value: CommunityCategory[];
+  onChange: (categories: CommunityCategory[]) => void;
   onContinue: () => void;
   onSkip: () => void;
   disabled?: boolean;
 }) => {
   const { t } = useTranslation(["guilds", "common"]);
-  const toggle = (category: GuildCategory) =>
+  const toggle = (category: CommunityCategory) =>
     onChange(
       value.includes(category)
         ? value.filter((picked) => picked !== category)

@@ -21,13 +21,13 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  CommunityClaimRuleCreate,
+  CommunityClaimRuleRead,
+  CommunityClaimRulesResponse,
+  CommunityProviderConnectionCreate,
+  CommunityProviderConnectionRead,
+  CommunityProviderConnectionUpdate,
   ConnectableProviderRead,
-  GuildClaimRuleCreate,
-  GuildClaimRuleRead,
-  GuildClaimRulesResponse,
-  GuildProviderConnectionCreate,
-  GuildProviderConnectionRead,
-  GuildProviderConnectionUpdate,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -59,7 +59,7 @@ export const listGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnectionsG
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildProviderConnectionRead[]>(
+  return apiMutator<CommunityProviderConnectionRead[]>(
     { url: `/api/v1/communities/${guildId}/auth/connections`, method: "GET", signal },
     options
   );
@@ -262,16 +262,16 @@ export function useListGuildProviderConnectionsApiV1CommunitiesGuildIdAuthConnec
  */
 export const createGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsPost = (
   guildId: number,
-  guildProviderConnectionCreate: BodyType<GuildProviderConnectionCreate>,
+  communityProviderConnectionCreate: BodyType<CommunityProviderConnectionCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildProviderConnectionRead>(
+  return apiMutator<CommunityProviderConnectionRead>(
     {
       url: `/api/v1/communities/${guildId}/auth/connections`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildProviderConnectionCreate,
+      data: communityProviderConnectionCreate,
       signal,
     },
     options
@@ -333,11 +333,11 @@ export type CreateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsP
     >
   >;
 export type CreateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsPostMutationBody =
-  BodyType<GuildProviderConnectionCreate>;
+  BodyType<CommunityProviderConnectionCreate>;
 export type CreateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsPostMutationError =
   ErrorType<HTTPValidationError>;
 export type CreateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsPostMutationVariables =
-  { guildId: number; data: BodyType<GuildProviderConnectionCreate> };
+  { guildId: number; data: BodyType<CommunityProviderConnectionCreate> };
 
 /**
  * @summary Create Guild Provider Connection
@@ -613,16 +613,16 @@ export const updateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnections
   (
     guildId: number,
     connectionId: number,
-    guildProviderConnectionUpdate: BodyType<GuildProviderConnectionUpdate>,
+    communityProviderConnectionUpdate: BodyType<CommunityProviderConnectionUpdate>,
     options?: SecondParameter<typeof apiMutator>,
     signal?: AbortSignal
   ) => {
-    return apiMutator<GuildProviderConnectionRead>(
+    return apiMutator<CommunityProviderConnectionRead>(
       {
         url: `/api/v1/communities/${guildId}/auth/connections/${connectionId}`,
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        data: guildProviderConnectionUpdate,
+        data: communityProviderConnectionUpdate,
         signal,
       },
       options
@@ -696,11 +696,11 @@ export type UpdateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsC
     >
   >;
 export type UpdateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdPatchMutationBody =
-  BodyType<GuildProviderConnectionUpdate>;
+  BodyType<CommunityProviderConnectionUpdate>;
 export type UpdateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 export type UpdateGuildProviderConnectionApiV1CommunitiesGuildIdAuthConnectionsConnectionIdPatchMutationVariables =
-  { guildId: number; connectionId: number; data: BodyType<GuildProviderConnectionUpdate> };
+  { guildId: number; connectionId: number; data: BodyType<CommunityProviderConnectionUpdate> };
 
 /**
  * @summary Update Guild Provider Connection
@@ -879,7 +879,7 @@ export const listGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildClaimRulesResponse>(
+  return apiMutator<CommunityClaimRulesResponse>(
     { url: `/api/v1/communities/${guildId}/auth/rules`, method: "GET", signal },
     options
   );
@@ -1044,16 +1044,16 @@ export function useListGuildClaimRulesApiV1CommunitiesGuildIdAuthRulesGet<
  */
 export const createGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPost = (
   guildId: number,
-  guildClaimRuleCreate: BodyType<GuildClaimRuleCreate>,
+  communityClaimRuleCreate: BodyType<CommunityClaimRuleCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<GuildClaimRuleRead>(
+  return apiMutator<CommunityClaimRuleRead>(
     {
       url: `/api/v1/communities/${guildId}/auth/rules`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: guildClaimRuleCreate,
+      data: communityClaimRuleCreate,
       signal,
     },
     options
@@ -1103,12 +1103,12 @@ export type CreateGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPostMutationResu
   Awaited<ReturnType<typeof createGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPost>>
 >;
 export type CreateGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPostMutationBody =
-  BodyType<GuildClaimRuleCreate>;
+  BodyType<CommunityClaimRuleCreate>;
 export type CreateGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPostMutationError =
   ErrorType<HTTPValidationError>;
 export type CreateGuildClaimRuleApiV1CommunitiesGuildIdAuthRulesPostMutationVariables = {
   guildId: number;
-  data: BodyType<GuildClaimRuleCreate>;
+  data: BodyType<CommunityClaimRuleCreate>;
 };
 
 /**

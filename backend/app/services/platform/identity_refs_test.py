@@ -411,7 +411,7 @@ class TestTheSweep:
     async def test_it_takes_what_names_nobody_and_keeps_what_can_come_back(
         self, session
     ):
-        from app.models.platform.guild import GuildStatus
+        from app.models.platform.guild import CommunityStatus
         from app.models.platform.user import UserStatus
         from sqlmodel import select
 
@@ -424,7 +424,7 @@ class TestTheSweep:
         erased = await create_user(session, status=UserStatus.anonymized)
         live_guild = await create_guild(session, creator=active)
         retained_guild = await create_guild(session, creator=active)
-        retained_guild.status = GuildStatus.deleted.value
+        retained_guild.status = CommunityStatus.deleted.value
         session.add(retained_guild)
         await session.commit()
         gone_id = retained_guild.id + 1000

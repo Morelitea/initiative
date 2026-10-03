@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.request_context import SystemGuild
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.counter import COUNTER_LIMIT
 from app.testing import (
     Actor,
@@ -81,7 +81,7 @@ async def _add_counter(
 
 
 async def test_create_counter_group(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.post(
         a.g("/counter-groups/"),
@@ -101,9 +101,9 @@ async def test_create_counter_group(client: AsyncClient, acting_user):
 
 
 async def test_create_counter_group_non_pm_forbidden(client: AsyncClient, acting_user):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -120,7 +120,7 @@ async def test_create_counter_group_non_pm_forbidden(client: AsyncClient, acting
 async def test_feature_disabled_blocks_creation(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.counter_groups_enabled = False
     await session.commit()
 
@@ -134,7 +134,7 @@ async def test_feature_disabled_blocks_creation(
 
 
 async def test_list_counter_groups(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _create_group(client, a, name="Group A")
     await _create_group(client, a, name="Group B")
 
@@ -151,7 +151,7 @@ async def test_list_counter_groups(client: AsyncClient, acting_user):
 
 
 async def test_add_counter_clamps_initial_and_count(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
 
     counter = await _add_counter(
@@ -168,7 +168,7 @@ async def test_add_counter_clamps_initial_and_count(client: AsyncClient, acting_
 
 
 async def test_progress_bar_requires_bounds(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
 
     response = await client.post(
@@ -200,7 +200,7 @@ async def test_a_step_lands_on_the_bound_rather_than_past_it(
     client: AsyncClient, acting_user, direction: str, start: str, landed: str
 ):
     """A step wider than the room left stops at the bound it is heading for."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(
         client,
@@ -224,7 +224,7 @@ async def test_a_step_lands_on_the_bound_rather_than_past_it(
 async def test_a_step_moves_by_the_counter_s_step_or_the_amount_given(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(
         session, group, count=Decimal("10"), step=Decimal("2"), max=Decimal("100")
@@ -259,7 +259,7 @@ async def test_a_step_moves_by_the_counter_s_step_or_the_amount_given(
 async def test_a_step_moves_by_more_than_nothing(
     client: AsyncClient, session: AsyncSession, acting_user, amount: str
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
 
@@ -274,7 +274,7 @@ async def test_a_step_moves_by_more_than_nothing(
 async def test_an_open_counter_stops_at_the_largest_number_it_can_store(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group, count=COUNTER_LIMIT - 1)
 
@@ -290,7 +290,7 @@ async def test_an_open_counter_stops_at_the_largest_number_it_can_store(
 async def test_a_deleted_counter_does_not_step(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(
         session, group, deleted_at=datetime.now(timezone.utc)
@@ -308,9 +308,9 @@ async def test_a_deleted_counter_does_not_step(
 async def test_a_reader_cannot_step_a_counter(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -333,7 +333,7 @@ async def test_two_steps_that_overlap_both_count(
     """Staged rather than raced, so it is deterministic: one connection holds
     the counter at 0 while a second step lands and commits. A step computed
     from that copy would write 1 back; one computed by the database makes 2."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
 
@@ -354,7 +354,7 @@ async def test_two_steps_that_overlap_both_count(
 
 
 async def test_set_count_clamps(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(client, a, group["id"], min_value="0", max_value="100")
 
@@ -368,7 +368,7 @@ async def test_set_count_clamps(client: AsyncClient, acting_user):
 
 
 async def test_reset_returns_to_initial(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(
         client,
@@ -396,7 +396,7 @@ async def test_reset_returns_to_initial(client: AsyncClient, acting_user):
 
 
 async def test_reset_all_counters(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     c1 = await _add_counter(
         client,
@@ -445,7 +445,7 @@ async def test_reset_all_counters(client: AsyncClient, acting_user):
 
 
 async def test_update_min_max_reclamps_count(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(
         client, a, group["id"], count="100", min_value="0", max_value="100"
@@ -464,7 +464,7 @@ async def test_update_null_non_nullable_fields_is_refused(
     client: AsyncClient, acting_user
 ):
     """A required field is omitted to keep it, never nulled."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(client, a, group["id"])
 
@@ -479,7 +479,7 @@ async def test_update_null_non_nullable_fields_is_refused(
 
 async def test_update_step_zero_rejected(client: AsyncClient, acting_user):
     """A provided step of 0 is a clean 422, not a 500."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(client, a, group["id"])
 
@@ -493,7 +493,7 @@ async def test_update_step_zero_rejected(client: AsyncClient, acting_user):
 
 async def test_decimal_serialization_no_exponent(client: AsyncClient, acting_user):
     """Numeric(20, 10) zeros must not round-trip as ``0E-10``."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(
         client,
@@ -520,7 +520,7 @@ async def test_delete_counter_soft_deletes_to_trash(
     from app.db.soft_delete_filter import select_including_deleted
     from app.models.tenant.counter import Counter
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(client, a, group["id"], name="HP")
 
@@ -551,7 +551,7 @@ async def test_deleted_counter_group_hidden_from_list_and_read(
 ):
     """Soft-deleted groups must not appear in list/read or accept counter
     adds. The session-level soft-delete filter is what enforces this."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     keep = await _create_group(client, a, name="Keep")
     trashed = await _create_group(client, a, name="Trash me")
 
@@ -610,7 +610,7 @@ async def test_delete_counter_group_soft_deletes_and_cascades(
     from app.db.soft_delete_filter import select_including_deleted
     from app.models.tenant.counter import Counter, CounterGroup
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     counter = await _add_counter(client, a, group["id"], name="HP")
 
@@ -653,7 +653,7 @@ async def test_delete_counter_group_soft_deletes_and_cascades(
 
 
 async def test_fractional_position_sort(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group_resp = await _create_group(client, a)
     group_id = group_resp["id"]
 
@@ -690,7 +690,7 @@ def _ordered_names(group: dict) -> list[str]:
 
 
 async def test_sort_counters(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     gid = group["id"]
 
@@ -726,9 +726,9 @@ async def test_sort_counters(client: AsyncClient, acting_user):
 
 
 async def test_sort_counters_read_only_forbidden(client: AsyncClient, acting_user):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -760,7 +760,7 @@ async def test_sort_counters_read_only_forbidden(client: AsyncClient, acting_use
 
 
 async def test_duplicate_counter_group(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     source = await _create_group(client, a, name="Original")
     sid = source["id"]
     await _add_counter(
@@ -815,9 +815,9 @@ async def test_counter_group_counts_by_initiative(
 ):
     """Grouped counts mirror the list: DAC-visible groups in counters-enabled
     initiatives only, with no entry for unjoined initiatives."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -856,10 +856,10 @@ async def test_counter_group_counts_by_initiative(
 async def test_a_counter_resolves_by_its_own_id(client, session, acting_user):
     """An envelope names ``(counters, id)`` and no parent, so the id has to be
     the whole address."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing import create_counter, create_counter_group
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
     await session.commit()
@@ -875,10 +875,10 @@ async def test_a_deleted_counter_reads_back(client, session, acting_user):
     deleted check used to refuse this even when the request asked for it."""
     from datetime import datetime, timezone
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing import create_counter, create_counter_group
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group)
     counter_id = counter.id
@@ -901,7 +901,7 @@ async def test_a_deleted_counter_reads_back(client, session, acting_user):
 async def test_a_copied_counter_keeps_its_count_at_the_end_of_its_group(
     client: AsyncClient, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     group = await _create_group(client, a)
     hp = await _add_counter(client, a, group["id"], count="42", position="1")
     await _add_counter(client, a, group["id"], name="MP", position="5")

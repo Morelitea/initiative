@@ -16,7 +16,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GuildAppDetail } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -32,7 +32,7 @@ import {
 import { toast } from "@/lib/chesterToast";
 
 export interface AppScopesPanelProps {
-  app: GuildAppDetail;
+  app: CommunityAppDetail;
 }
 
 type Access = ScopeAccess;

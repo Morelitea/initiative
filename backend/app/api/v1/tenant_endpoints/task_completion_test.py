@@ -12,7 +12,7 @@ The rule itself is unit-tested in
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.project import Project
 from app.models.tenant.task import TaskStatus, TaskStatusCategory
 from app.services.tenant import task_statuses as task_statuses_service
@@ -66,7 +66,9 @@ async def _set_status(
 async def test_task_created_in_done_status_is_complete(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
 
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
@@ -77,7 +79,9 @@ async def test_task_created_in_done_status_is_complete(
 async def test_task_created_in_open_status_is_incomplete(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
 
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.todo].id)
@@ -91,7 +95,9 @@ async def test_task_created_in_open_status_is_incomplete(
 async def test_moving_into_done_stamps_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.todo].id)
     assert task["completed_at"] is None
@@ -107,7 +113,9 @@ async def test_moving_out_of_done_clears_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Reopening a task un-completes it — the timestamp must not linger."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
     assert task["completed_at"] is not None
@@ -122,7 +130,9 @@ async def test_moving_out_of_done_clears_completed_at(
 async def test_moving_between_done_statuses_keeps_the_original_time(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     second_done = await client.post(
         a.g(f"/projects/{a.project.id}/task-statuses/"),
@@ -143,7 +153,9 @@ async def test_kanban_drag_into_done_stamps_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The reorder endpoint carries a status per item — the drag-to-Done path."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.todo].id)
 
@@ -169,7 +181,9 @@ async def test_kanban_drag_into_done_stamps_completed_at(
 async def test_kanban_drag_out_of_done_clears_completed_at(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
 
@@ -199,7 +213,9 @@ async def test_recategorising_a_column_out_of_done_clears_its_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Flipping a Done column to another category reopens everything in it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     # A second done status, so the project still has one after the flip.
     keeper = await client.post(
@@ -226,7 +242,9 @@ async def test_recategorising_a_column_out_of_done_clears_its_tasks(
 async def test_recategorising_a_column_into_done_stamps_its_tasks(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     todo_status = statuses[TaskStatusCategory.todo]
     task = await _create_task(client, a, status_id=todo_status.id)
@@ -246,7 +264,9 @@ async def test_recategorising_a_column_leaves_other_columns_alone(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The realignment is scoped to the edited status, not the whole project."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     done_status = statuses[TaskStatusCategory.done]
     shipped = await client.post(
@@ -282,7 +302,9 @@ async def test_moving_a_done_task_to_another_project_clears_completed_at(
 ):
     """A move lands the task in the target project's default status, which is
     an open one — so the task is no longer complete."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
     assert task["completed_at"] is not None
@@ -305,7 +327,9 @@ async def test_duplicating_a_done_task_produces_a_complete_copy(
 ):
     """The copy keeps the source's status, so it must keep a timestamp too —
     otherwise it would be a done task that was never completed."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     statuses = await _statuses(session, a.project)
     task = await _create_task(client, a, status_id=statuses[TaskStatusCategory.done].id)
 

@@ -16,7 +16,7 @@ from typing import Any, Awaitable, Callable, Optional, Sequence, TypeVar
 from sqlalchemy import or_
 from sqlmodel import select
 
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.services.platform import guild_entitlements
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -84,7 +84,7 @@ async def member_guild_ids(
             or_(
                 Guild.allow_api_keys.is_(True),
                 ~guild_entitlements.holds_option(
-                    Guild.id, GuildAuthOption.restrictions
+                    Guild.id, CommunityAuthOption.restrictions
                 ),
             )
         )

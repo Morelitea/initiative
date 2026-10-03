@@ -49,7 +49,7 @@ from app.core.login_methods import (
     SecondFactorRequirement,
     methods_from_values,
 )
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.core.messages import AuthMessages, GuildMessages, SettingsMessages
 from app.core.security import AUTH_POLICY_UNMET_HEADER
 from app.models.platform.app_setting import AppSetting
@@ -418,7 +418,7 @@ class Rule:
     key: str
     area: str
     loose: Any = None
-    entitlement: GuildAuthOption | None = None
+    entitlement: CommunityAuthOption | None = None
     follow_up: FollowUp | None = None
 
     async def read(self, ctx: RuleContext) -> Any:
@@ -783,7 +783,7 @@ class _CommunityFactor(Rule):
             raise self_unsatisfied(LoginMethod.totp.value)
 
 
-_RESTRICTIONS = GuildAuthOption.restrictions
+_RESTRICTIONS = CommunityAuthOption.restrictions
 
 #: The deployment's rules, by the field that names each.
 PLATFORM_RULES: dict[str, Rule] = {
@@ -809,7 +809,7 @@ COMMUNITY_RULES: dict[str, Rule] = {
     rule.key: rule
     for rule in (
         _SignInRequirement(
-            "auth_policy", area="auth_policy", entitlement=GuildAuthOption.providers
+            "auth_policy", area="auth_policy", entitlement=CommunityAuthOption.providers
         ),
         _CommunityFactor(
             "require_second_factor",

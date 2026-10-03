@@ -132,10 +132,10 @@ async def test_every_subscription_in_a_guild_is_drained(
     """Each pass expunges the identity map, so the roster is held as ids and
     each subscription is re-loaded. Held as instances, the second and later ones
     are detached and every one after the first fails."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
 
     for index in range(3):
@@ -190,11 +190,11 @@ async def test_ledger_delivers_each_transaction_once(
 ):
     """A drain marks each pending transaction delivered, and a second pass over
     the same log sends nothing further."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
     await create_task(session, a.project)
@@ -239,11 +239,11 @@ async def test_a_refused_batch_is_retried_not_lost(
 ):
     """A refusal leaves the transaction pending, so it comes back once its
     backoff expires rather than being skipped."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
 
@@ -295,11 +295,11 @@ async def test_repeated_refusals_escalate_the_backoff(
     """
     from sqlalchemy import text as sa_text
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
     await create_task(session, a.project)
 
@@ -362,11 +362,11 @@ async def test_an_exhausted_batch_is_dead_lettered_and_unblocks_the_backlog(
     """
     from sqlalchemy import text as sa_text
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id = a.guild.id, a.user.id
 
     # The batch that will be refused until it gives up.

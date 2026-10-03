@@ -1236,9 +1236,9 @@ async def acting_user(session):
 
         a = await acting_user()                                  # platform owner
         a = await acting_user("support")                         # tier ceilings
-        a = await acting_user(guild_role=GuildRole.admin,
+        a = await acting_user(guild_role=CommunityRole.admin,
                               initiative=True, project=True)     # workspace
-        b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+        b = await acting_user(guild_role=CommunityRole.member, guild=a.guild,
                               initiative=a.initiative, initiative_role="member")
         await client.get(a.g("/projects/"), headers=a.headers)
 

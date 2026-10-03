@@ -23,8 +23,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  CommunityProviderConnectionRead,
   ConnectableProviderRead,
-  GuildProviderConnectionRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ProviderMark } from "@/components/auth/ProviderMark";
 import { Badge } from "@/components/ui/badge";
@@ -113,7 +113,7 @@ export const ConnectSignInWizard = ({
   const [insist, setInsist] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const connections: GuildProviderConnectionRead[] = connectionsQuery.data ?? [];
+  const connections: CommunityProviderConnectionRead[] = connectionsQuery.data ?? [];
   // A provider the community merely inherits stays choosable: connecting to it
   // is how the deployment's arrangement is taken over. Only what the community
   // said itself leaves the grid.

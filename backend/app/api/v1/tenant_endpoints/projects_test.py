@@ -17,7 +17,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.initiative import InitiativeRoleModel
@@ -44,7 +44,7 @@ async def test_list_projects_as_admin_shows_all(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that guild admin can see all projects."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_project(session, admin.initiative, admin.user, name="Test Project")
     await create_project(session, admin.initiative, admin.user, name="Project 2")
 
@@ -65,9 +65,9 @@ async def test_list_projects_member_sees_initiative_projects(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that initiative members see projects in their initiative."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -96,21 +96,21 @@ async def test_people_search_names_who_can_open_the_project(
     # ``{adjective}-{noun}`` — one of whose nouns is ``quill``, which the term
     # this test filters on is a fragment of.
     admin = await acting_user(
-        guild_role=GuildRole.admin, initiative=True, username="sparrow"
+        guild_role=CommunityRole.admin, initiative=True, username="sparrow"
     )
     project = await create_project(
         session, admin.initiative, admin.user, name="Assignable Project"
     )
 
     writer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
         username="quill",
     )
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -118,7 +118,7 @@ async def test_people_search_names_who_can_open_the_project(
     )
     # A member of the initiative with no grant at all.
     none = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -198,9 +198,9 @@ async def test_people_search_needs_the_caller_to_open_it_too(
 ):
     """A guild member with no access to the project (not in its initiative)
     cannot read its assignable roster."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(session, admin.initiative, admin.user)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     response = await client.get(
         outsider.g("/users/search"),
@@ -214,7 +214,7 @@ async def test_people_search_needs_the_caller_to_open_it_too(
 async def test_list_projects_shows_archived_only_when_asked(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(
         session, admin.initiative, admin.user, archived_at=datetime.now(timezone.utc)
     )
@@ -238,7 +238,7 @@ async def test_list_projects_filters_by_initiative(
     Every tool page is addressed inside its initiative now, so the list it
     renders must come back already narrowed rather than filtered client-side.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     other_initiative = await create_initiative(session, admin.guild, admin.user)
     mine = await create_project(session, admin.initiative, admin.user, name="Mine")
     theirs = await create_project(session, other_initiative, admin.user, name="Theirs")
@@ -262,7 +262,7 @@ async def test_list_projects_without_initiative_spans_them_all(
 ):
     """Omitting the filter keeps the cross-initiative behaviour the guild home
     and the sidebar's project tree depend on."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     other_initiative = await create_initiative(session, admin.guild, admin.user)
     mine = await create_project(session, admin.initiative, admin.user, name="Mine")
     theirs = await create_project(session, other_initiative, admin.user, name="Theirs")
@@ -283,7 +283,7 @@ async def test_list_projects_search_filters_by_name(
     this said until the index took over: a partial word finds it, and a word
     from the description would too.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     alpha = await create_project(session, admin.initiative, admin.user, name="Alpha")
     await create_project(session, admin.initiative, admin.user, name="Beta")
 
@@ -307,7 +307,7 @@ async def test_list_projects_search_with_no_searchable_term_matches_nothing(
     matched literally as a substring; it now matches nothing — which reads
     better than the unfiltered list, where the filter looks ignored.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_project(session, admin.initiative, admin.user, name="50% done")
     await create_project(session, admin.initiative, admin.user, name="Beta")
 
@@ -327,7 +327,7 @@ async def test_list_projects_paginates_in_sql(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """total_count reflects the full matching set even when a page truncates it."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     for i in range(3):
         await create_project(session, admin.initiative, admin.user, name=f"P{i}")
 
@@ -356,7 +356,7 @@ async def test_list_projects_slim_projection(
 ):
     """slim=true keeps id/name/initiative/can but drops the
     heavy relationships (documents, grants, nested initiative)."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(
         session, admin.initiative, admin.user, name="Slim One"
     )
@@ -381,9 +381,9 @@ async def test_list_projects_slim_permission_for_member(
 ):
     """Slim projection computes ``can`` from DAC grants, not just
     the guild-admin shortcut; the writable list keeps what ``can.edit`` says."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -414,7 +414,7 @@ async def test_list_projects_slim_permission_for_member(
 
 async def test_create_project(client: AsyncClient, acting_user):
     """Test creating a new project."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     payload = {
         "name": "New Project",
@@ -439,7 +439,7 @@ async def test_create_refuses_when_projects_are_switched_off(
     """Projects are a tool like any other now: an initiative that has turned
     them off refuses to hold one, and says so rather than letting RLS drop the
     row and answering as though it were never asked."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.projects_enabled = False
     session.add(a.initiative)
     await session.commit()
@@ -461,7 +461,7 @@ async def test_a_guild_admin_does_not_list_projects_of_a_switched_off_initiative
     can still reach the rows. A list is not where that exemption should surface:
     otherwise the two readers with the most authority are the only ones shown
     content that the detail route then refuses them."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     listed = await client.get(a.g("/projects/"), headers=a.headers)
     assert listed.status_code == 200
     assert [p["id"] for p in listed.json()["items"]] == [a.project.id]
@@ -477,7 +477,7 @@ async def test_a_guild_admin_does_not_list_projects_of_a_switched_off_initiative
 
 async def test_create_project_with_dates(client: AsyncClient, acting_user):
     """Start/end dates round-trip through create, the detail read, and the list."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     payload = {
         "name": "Scheduled Project",
@@ -506,7 +506,7 @@ async def test_create_project_without_dates_leaves_them_unset(
     client: AsyncClient, acting_user
 ):
     """Both dates are optional — omitting them is not an error."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.post(
         admin.g("/projects/"),
@@ -543,7 +543,7 @@ async def test_create_from_template_shifts_task_dates(
     A task due three weeks after the template's start lands three weeks after
     the new start, keeping its time of day.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     template = await create_project(
         session,
         admin.initiative,
@@ -634,7 +634,7 @@ async def test_create_from_template_copies_task_relations(
     in another initiative leaves behind a link to something that stays in the
     template's, as the relationships surface would refuse to make it.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     template, first, second = await _template_with_dependency(session, admin)
     elsewhere = await create_project(
         session, admin.initiative, admin.user, name="Elsewhere"
@@ -686,7 +686,7 @@ async def test_duplicate_project_copies_task_relations(
     a symmetric relation to something outside the project is kept as-is; each
     task's tags land on its own copy, and so does the project's attached
     document. A live project's checklists start over."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     source, first, second = await _template_with_dependency(session, admin)
     source.is_template = False
     session.add(source)
@@ -752,7 +752,7 @@ async def test_create_from_undated_template_anchors_on_earliest_task(
 ):
     """A template without its own dates anchors on its earliest task date, so
     the first scheduled task lands on the new start and spacing is kept."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     template = await create_project(
         session, admin.initiative, admin.user, name="Undated Template", is_template=True
     )
@@ -795,7 +795,7 @@ async def test_create_from_template_end_date_only_anchors_on_end(
 ):
     """With only an end date given, tasks shift so the template's end maps to
     the new end (a task due a week before the end stays a week before it)."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     template = await create_project(
         session,
         admin.initiative,
@@ -834,7 +834,7 @@ async def test_create_from_template_without_dates_copies_task_dates_verbatim(
 ):
     """No start or end on the new project means no re-anchoring — task dates
     (including start dates) come across unchanged."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     template = await create_project(
         session,
         admin.initiative,
@@ -876,7 +876,7 @@ async def test_update_project_sets_and_clears_dates(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A patch can set either date on its own and clear it again with null."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project = await create_project(session, owner.initiative, owner.user)
 
     set_end_only = await client.patch(
@@ -910,7 +910,7 @@ async def test_update_project_sets_and_clears_dates(
 
 async def test_create_project_as_member(client: AsyncClient, acting_user):
     """Test that initiative members can create projects."""
-    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     payload = {
         "name": "Member Project",
@@ -930,8 +930,8 @@ async def test_create_project_not_in_initiative_forbidden(
     client: AsyncClient, acting_user
 ):
     """Test that users not in initiative cannot create projects."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     payload = {
         "name": "Forbidden Project",
@@ -949,7 +949,7 @@ async def test_get_project_by_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test getting a project by ID."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(session, admin.initiative, admin.user)
 
     response = await client.get(
@@ -966,7 +966,7 @@ async def test_get_project_includes_task_statuses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The detail read carries the project's task statuses, ordered by position."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(session, admin.initiative, admin.user)
     done = await create_task_status(
         session, project, name="Done", category=TaskStatusCategory.done, position=1
@@ -994,7 +994,7 @@ async def test_list_projects_omits_task_statuses(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The list projection stays lean — statuses are a detail-read enrichment."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(session, admin.initiative, admin.user)
     await create_task_status(
         session, project, name="Done", category=TaskStatusCategory.done
@@ -1009,7 +1009,7 @@ async def test_list_projects_omits_task_statuses(
 
 async def test_get_project_not_found(client: AsyncClient, acting_user):
     """Test getting non-existent project."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.get(admin.g("/projects/99999"), headers=admin.headers)
 
@@ -1020,7 +1020,7 @@ async def test_update_project_as_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that project owner can update project."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project = await create_project(session, owner.initiative, owner.user)
 
     payload = {"name": "Updated Name", "description": "Updated description"}
@@ -1048,9 +1048,9 @@ async def test_update_project_as_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that guild admin can update any project."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     owner = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -1072,8 +1072,8 @@ async def test_update_project_without_permission_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that users without permission cannot update project."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     project = await create_project(session, owner.initiative, owner.user)
 
     payload = {"name": "Hacked Name"}
@@ -1091,7 +1091,7 @@ async def test_delete_project_as_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that project owner can delete project."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project = await create_project(session, owner.initiative, owner.user)
 
     response = await client.delete(
@@ -1105,9 +1105,9 @@ async def test_delete_project_as_admin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that guild admin can delete any project."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     owner = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -1125,8 +1125,8 @@ async def test_delete_project_without_permission_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that users without permission cannot delete project."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     project = await create_project(session, owner.initiative, owner.user)
 
     response = await client.delete(
@@ -1141,7 +1141,7 @@ async def test_delete_project_without_permission_forbidden(
 async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    user = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project = await create_project(session, user.initiative, user.user)
     url = user.g(f"/projects/{project.id}/favorite")
 
@@ -1182,7 +1182,7 @@ async def test_reordering_puts_the_named_projects_first_and_keeps_the_rest(
 ):
     """The ids asked for lead, in that order, and the rest follow in the order
     they held; the answer is the list as it now stands."""
-    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    user = await acting_user(guild_role=CommunityRole.member, initiative=True)
     first, second, third = [
         await create_project(session, user.initiative, user.user, name=name)
         for name in ("First", "Second", "Third")
@@ -1227,9 +1227,9 @@ async def test_a_grant_change_unassigns_only_who_can_no_longer_open_it(
     """Nobody stays assigned to a project they can no longer open, and the
     cleanup reads effective access: a lower level, or access through another
     grant, keeps the assignment."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -1264,14 +1264,14 @@ async def test_project_guild_isolation(
     """Test that projects are isolated by guild."""
     # Same user is a guild admin in two separate guilds/initiatives.
     a1 = await acting_user(
-        guild_role=GuildRole.admin, initiative=True, email="user@example.com"
+        guild_role=CommunityRole.admin, initiative=True, email="user@example.com"
     )
     user = a1.user
     initiative1 = a1.initiative
 
     guild2 = await create_guild(session, name="Guild 2")
     await create_guild_membership(
-        session, user=user, guild=guild2, role=GuildRole.admin
+        session, user=user, guild=guild2, role=CommunityRole.admin
     )
     initiative2 = await create_initiative(session, guild2, user)
 
@@ -1308,15 +1308,15 @@ async def test_create_project_takes_its_sharing_from_grants(
     """The creator owns what they make: ``owner_id`` is not a field, and an
     owner-level grant is not taken. Named people and the initiative's own roles
     are shared with; a role from another initiative is dropped."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
     )
     other = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -1364,7 +1364,7 @@ async def test_create_project_defaults_to_all_members_viewer(
     client: AsyncClient, acting_user
 ):
     """Omitting `grants` defaults to Viewer for all initiative members (+ owner)."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     payload = {
         "name": "Project Default Share",
@@ -1395,9 +1395,9 @@ async def test_resaving_the_all_members_grant_does_not_collide_with_itself(
     collides with the old one under ``resource_grants_unique_grantee``. One
     save hits both ways a sharing panel reaches it: dropping a person beside
     the all-members grant, and changing that grant's level."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -1428,9 +1428,9 @@ async def test_project_shows_all_members_document_to_member(
     is visible to a plain member on the project view. Regression: the linked-doc
     filter used to ignore all-members grants, so such docs vanished for anyone
     without a personal/role grant."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -1459,9 +1459,9 @@ async def test_project_counts_by_initiative(
 ):
     """Grouped counts mirror the default list: visible, non-archived,
     non-template projects only, with no entry for unjoined initiatives."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -1511,7 +1511,9 @@ async def test_project_counts_by_initiative(
 async def test_project_owner_sets_the_default_view(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     response = await client.patch(
         a.g(f"/projects/{a.project.id}"),
@@ -1527,9 +1529,9 @@ async def test_guild_admin_sets_the_default_view(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
 
     response = await client.patch(
         admin.g(f"/projects/{owner.project.id}"),
@@ -1546,10 +1548,10 @@ async def test_plain_write_edits_but_cannot_set_the_default_view(
 ):
     """The escalation is per-field: renaming a project is still plain write."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     editor = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -1574,7 +1576,9 @@ async def test_plain_write_edits_but_cannot_set_the_default_view(
 async def test_default_view_rejects_an_unknown_mode(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     response = await client.patch(
         a.g(f"/projects/{a.project.id}"),
@@ -1591,7 +1595,7 @@ async def test_default_view_rejects_an_unknown_mode(
 async def test_new_project_is_seeded_with_default_presets(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     created = await client.post(
         a.g("/projects/"),
@@ -1618,7 +1622,9 @@ async def test_duplicating_a_project_clones_its_presets(
 ):
     from app.services.tenant import filter_presets as filter_presets_service
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     source_status = await create_task_status(session, project=a.project, name="Review")
     seeded = await filter_presets_service.ensure_default_presets(session, a.project.id)
     mine = next(p for p in seeded if p.slug == "mine")

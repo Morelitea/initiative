@@ -15,7 +15,7 @@ from app.models.platform.access_grant import (
     AccessLevel,
     SettingsLevel,
 )
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import CommunityStatus
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -143,7 +143,7 @@ class AccessGrantRead(SanitizedBaseModel):
     # The grant's guild lifecycle status, so an operator holding the grant sees
     # a suspended / read-only guild they're acting in (surfaced in the access
     # banner). Operators get this context — unlike a plain guild member.
-    guild_status: Optional[GuildStatus] = None
+    guild_status: Optional[CommunityStatus] = None
     #: Masked, as ``user_email`` is.
     approved_by_email: Optional[str] = None
 

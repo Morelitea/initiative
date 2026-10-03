@@ -8,7 +8,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.orm import undefer
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.import_engine import worker as import_worker
@@ -67,7 +67,9 @@ async def test_envelope_import_roundtrips_queue(client, acting_user, session):
     from app.models.tenant.queue import Queue, QueueItem
     from app.models.tenant.resource_grant import ResourceGrant
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     queue = await create_queue(session, a.initiative, a.user, name="Turn Order")
     from app.models.tenant.queue import QueueItem as QI
 
@@ -113,7 +115,9 @@ async def test_envelope_import_roundtrips_counter_group(client, acting_user, ses
 
     from app.models.tenant.counter import Counter, CounterGroup
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     group = await create_counter_group(session, a.initiative, a.user, name="Party Gold")
     from app.models.tenant.counter import Counter as C
     from decimal import Decimal
@@ -162,7 +166,9 @@ async def test_envelope_import_roundtrips_document_types(client, acting_user, se
 
     from app.models.tenant.document import Document, DocumentType
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     target = await _second_initiative(session, a)
 
     native = await create_document(
@@ -221,7 +227,9 @@ async def test_envelope_import_roundtrips_calendar(client, acting_user, session)
     from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
     from app.testing.factories import create_calendar
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     a.initiative.calendars_enabled = True
     session.add(a.initiative)
     await session.commit()
@@ -357,7 +365,7 @@ async def test_a_tools_properties_survive_export_and_import(
     from app.testing.factories import create_property_definition, create_property_value
 
     monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _all_tools_enabled(session, a.initiative)
     target = await _second_initiative(session, a)
     await _all_tools_enabled(session, target)
@@ -441,7 +449,7 @@ async def test_a_renamed_property_is_one_definition_for_every_row(
         create_queue_item,
     )
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _all_tools_enabled(session, a.initiative)
     target = await _second_initiative(session, a)
     await _all_tools_enabled(session, target)
@@ -493,7 +501,9 @@ async def test_envelope_import_project_replaces_legacy_route(
     from app.models.tenant.project import Project
     from app.models.tenant.task import Task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task(session, a.project, title="Fell the tower")
 
     envelope = await _export_json(
@@ -524,7 +534,9 @@ async def test_envelope_import_project_replaces_legacy_route(
 async def test_envelope_import_authorization_gates(client, acting_user, session):
     """Unknown type 400; bad version 400; tool switch off 400; a member
     without the create permission 403; an unreachable initiative 404."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     doc_envelope = {
         "type": "initiative-document",
         "schema_version": 1,
@@ -562,7 +574,7 @@ async def test_envelope_import_authorization_gates(client, acting_user, session)
 
     # A plain member-role actor lacks create_documents (defaults False).
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -574,7 +586,7 @@ async def test_envelope_import_authorization_gates(client, acting_user, session)
     # A guild member outside the initiative: the structural initiative row is
     # guild-visible (only content is initiative-hidden), so this is a clean
     # permission refusal, not a 404.
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     hidden = await _import_envelope(client, outsider, doc_envelope, a.initiative.id)
     assert hidden.status_code == 403
 
@@ -591,7 +603,9 @@ async def test_large_envelope_becomes_job_and_worker_applies_it(
     from app.models.tenant.queue import Queue
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = {
         "type": "initiative-queue",
         "schema_version": 1,
@@ -652,7 +666,9 @@ async def test_worker_fails_closed_on_revoked_permission(
     from app.models.tenant.queue import Queue
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = {
         "type": "initiative-queue",
         "schema_version": 1,
@@ -691,7 +707,9 @@ async def test_stale_running_import_fails_closed_not_reapplied(
     from datetime import datetime, timedelta, timezone
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
     job = await create_import_job(
         session,
@@ -715,7 +733,9 @@ async def test_stale_running_import_fails_closed_not_reapplied(
 async def test_import_job_cap_and_cancel(client, acting_user, session, monkeypatch):
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     monkeypatch.setattr(import_limits, "IMPORT_MAX_ACTIVE_JOBS_PER_USER", 1)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = {
         "type": "initiative-queue",
         "schema_version": 1,
@@ -748,7 +768,9 @@ async def test_import_jobs_are_own_row_isolated(
     """Another member sees neither the job nor its row (RLS, 404); a guild
     admin sees it via the admin leg."""
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = {
         "type": "initiative-queue",
         "schema_version": 1,
@@ -758,8 +780,8 @@ async def test_import_jobs_are_own_row_isolated(
     resp = await _import_envelope(client, a, envelope, a.initiative.id)
     job_id = resp.json()["id"]
 
-    other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    other = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
     denied = await client.get(a.g(f"/imports/jobs/{job_id}"), headers=other.headers)
     assert denied.status_code == 404
@@ -776,7 +798,9 @@ async def test_envelope_byte_bound_enforced_before_body_is_read(
     (length-less) stream is cut off as soon as it exceeds the limit — the
     server never buffers more than the cap."""
     monkeypatch.setattr(import_limits, "IMPORT_MAX_ENVELOPE_BYTES", 1024)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     big_body = json.dumps(
         {
@@ -973,7 +997,7 @@ async def test_backup_import_end_to_end_with_assets(
     from app.testing.factories import create_upload
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     payload = b"%PDF-restored-handout"
     # The blob and its uploads row already exist in this guild (the re-import
@@ -1076,10 +1100,10 @@ async def test_backup_belongs_to_the_seat(client, acting_user, session):
     """Restoring a community's backup sits with the seat that exports one —
     an ordinary admin is refused, as a member is."""
     seat = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=seat.guild)
-    member = await acting_user(guild_role=GuildRole.member, guild=seat.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
     zip_bytes = _make_backup_zip(_minimal_manifest())
     for caller in (admin, member):
         denied = await _upload_backup(client, caller, zip_bytes)
@@ -1091,7 +1115,7 @@ async def test_backup_rejects_invalid_and_bomb_zips(
     client, acting_user, session, monkeypatch
 ):
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     garbage = await _upload_backup(client, a, b"not a zip at all")
@@ -1134,7 +1158,7 @@ async def test_backup_rejects_asset_key_with_path_components(
     from app.testing.factories import create_upload
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     original = b"%PDF-original"
     get_guild_storage(a.guild.id).write(
@@ -1235,7 +1259,7 @@ async def test_backup_confirm_include_map_skips_tools(
     client, acting_user, session, monkeypatch, role_session
 ):
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     entry, envelope = _queue_entry()
     zip_bytes = _make_backup_zip(
@@ -1264,7 +1288,7 @@ async def test_backup_corrupt_entry_fails_alone(
     """One corrupt member fails its entry; the rest of the backup restores
     and the job completes with a per-entry report."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     good_entry, good_envelope = _queue_entry()
     bad_entry = dict(good_entry)
@@ -1301,7 +1325,7 @@ async def test_backup_seat_vacated_before_apply_fails_closed(
     client, acting_user, session, monkeypatch, role_session
 ):
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     entry, envelope = _queue_entry()
     zip_bytes = _make_backup_zip(
@@ -1315,7 +1339,7 @@ async def test_backup_seat_vacated_before_apply_fails_closed(
     )
     assert confirmed.status_code == 200, confirmed.text
 
-    a.membership.role = GuildRole.member
+    a.membership.role = CommunityRole.member
     session.add(a.membership)
     await session.commit()
 
@@ -1333,7 +1357,7 @@ async def test_backup_quota_exceeded_fails_job(
     from app.models.platform.guild import Guild
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
     await guild_administration(session, guild, max_storage_bytes=1)
@@ -1369,7 +1393,7 @@ async def test_backup_staged_expiry_and_cancel(
     from datetime import datetime, timedelta, timezone
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     zip_bytes = _make_backup_zip(_minimal_manifest())
 
@@ -1429,7 +1453,7 @@ async def test_backup_restores_fresh_assets_into_storage(
     from app.models.tenant.upload import Upload
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     payload = b"%PDF-brand-new-blob"
     file_entry = _file_entry("from-elsewhere.pdf", title="Foreign Handout")
@@ -1484,7 +1508,7 @@ async def test_backup_quota_uses_zip_sizes_not_manifest_claims(
     from app.models.platform.guild import Guild
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     guild = (await session.exec(select(Guild).where(Guild.id == a.guild.id))).one()
     await guild_administration(session, guild, max_storage_bytes=10_000)
@@ -1531,7 +1555,7 @@ async def test_backup_asset_restore_guards_actual_bytes_not_declarations(
     from app.services.import_engine.contract import ImportEngineError
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await route_session_to_guild(session, a.guild.id)
 
     class LyingArchive:
@@ -1589,7 +1613,7 @@ async def test_backup_assets_are_stored_as_what_their_bytes_are(
     from app.testing import route_session_to_guild
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     pdf = b"%PDF-1.4 handout"
     program = b"MZ\x90\x00" + b"\x00" * 60
@@ -1666,7 +1690,7 @@ async def test_backup_entry_past_the_json_cap_fails_alone(
     fails its own entry; the rest of the backup restores."""
     monkeypatch.setattr(import_limits, "IMPORT_MAX_ENVELOPE_BYTES", 4096)
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     good_entry, good_envelope = _queue_entry()
     big_entry = {
@@ -1712,7 +1736,7 @@ async def test_backup_upload_past_the_cap_is_refused_by_the_handler(
     refused with the same answer the transport gives, and nothing is staged."""
     monkeypatch.setattr(import_limits, "IMPORT_MAX_BACKUP_UPLOAD_BYTES", 64)
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     resp = await _upload_backup(client, a, _make_backup_zip(_minimal_manifest()))
     assert resp.status_code == 413
@@ -1747,7 +1771,7 @@ async def test_importing_a_post_over_the_body_limit_is_refused(
     from app.schemas.tenant.post import MAX_POST_TEXT_CHARS
     from app.testing import lexical_body
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.posts_enabled = True
     session.add(a.initiative)
     await session.commit()
@@ -1769,7 +1793,7 @@ async def test_importing_a_structurally_oversized_body_is_refused(
     write refuses that, so an import has to as well."""
     from app.schemas.tenant.post import MAX_POST_BODY_BYTES
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.posts_enabled = True
     session.add(a.initiative)
     await session.commit()
@@ -1791,7 +1815,7 @@ async def test_importing_a_long_headline_trims_rather_than_fails(
 ):
     """A headline is display text. The column holds 255, and failing a whole
     restore over a long title helps nobody — so it is trimmed and said."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     a.initiative.posts_enabled = True
     session.add(a.initiative)
     await session.commit()
@@ -1836,7 +1860,9 @@ async def test_project_envelope_carries_comments_dates_and_links(
     from app.services.tenant.relationships import Endpoint
     from app.testing.factories import create_comment
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     written_at = datetime(2024, 3, 4, 9, 30, tzinfo=timezone.utc)
     blocker = await create_task(
         session, a.project, title="Pour the footings", created_at=written_at
@@ -1905,7 +1931,9 @@ async def test_project_envelope_carries_comments_dates_and_links(
 async def test_envelope_link_out_of_the_file_is_counted(client, acting_user, session):
     """A link whose far end is not in this envelope is ordinary — a number in
     the report, not a refusal."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = {
         "type": "initiative-project",
         "schema_version": 1,
@@ -1967,7 +1995,7 @@ async def test_backup_attach_to_files_a_document_in_its_wiki(
     from app.testing.factories import create_upload
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     payload = b"%PDF-field-notes"
     get_guild_storage(a.guild.id).write(
@@ -2075,7 +2103,7 @@ async def test_backup_applies_into_an_existing_initiative(
     from app.models.tenant.queue import Queue
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     target = await _second_initiative(session, a)
     before = len((await session.exec(select(Initiative.id))).all())
@@ -2116,7 +2144,7 @@ async def test_backup_into_an_unreachable_initiative_fails_the_job(
     """An initiative the importer cannot reach is indistinguishable from one
     that is not there, and neither is a place to write to."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     entry, envelope = _queue_entry()
@@ -2159,7 +2187,7 @@ async def test_a_stale_fetch_is_re_claimed_not_failed(
 
     from sqlmodel import select
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     long_ago = datetime.now(timezone.utc) - timedelta(hours=3)
     job = await create_import_job(
         session,
@@ -2250,7 +2278,9 @@ async def test_an_unmatched_author_keeps_their_name_and_no_account(
 
     from app.models.tenant.comment import Comment
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
 
     resp = await _import_envelope(client, a, envelope, a.initiative.id)
@@ -2287,8 +2317,10 @@ async def test_mentions_link_to_whoever_the_people_step_names(
     from app.models.tenant.comment import Comment
     from app.models.tenant.task import Task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     envelope = _project_envelope_with_comment("Robin", "Robin")
     task = envelope["tasks"][0]
     task["description"] = "Ask @Alice Chen first"
@@ -2347,7 +2379,9 @@ async def test_an_envelope_quoting_a_stranger_asks_before_it_applies(
 
     from app.models.tenant.project import Project
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
 
     resp = await _import_envelope(client, a, envelope, a.initiative.id)
@@ -2380,7 +2414,9 @@ async def test_an_envelope_naming_strangers_only_as_assignees_still_asks(
 
     from app.models.tenant.project import Project
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
     envelope["tasks"][0]["comments"] = []
     envelope["tasks"][0]["assignee_handles"] = ["Jordan", "Mel"]
@@ -2415,7 +2451,9 @@ async def test_the_people_step_decides_who_an_imported_task_is_assigned_to(
 
     from app.models.tenant.task import Task, TaskAssignee
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
     envelope["tasks"][0]["comments"] = []
     envelope["tasks"][0]["assignee_handles"] = ["Jordan"]
@@ -2458,7 +2496,9 @@ async def test_two_properties_never_share_one_definition(client, acting_user, se
     from app.models.tenant.task import Task
     from app.testing import create_property_definition
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     high = [{"value": "high", "label": "High"}]
     await create_property_definition(
         session, a.initiative, name="Priority", type=PropertyType.number
@@ -2508,7 +2548,9 @@ async def test_a_user_property_is_placed_by_the_people_step(
     from app.models.tenant.property import PropertyValue
     from app.models.tenant.task import Task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
     envelope["tasks"][0]["comments"] = []
     envelope["property_definitions"] = [
@@ -2557,7 +2599,9 @@ async def test_a_document_naming_somebody_in_a_property_asks_first(
 ):
     """Documents used to be an envelope that names nobody. A user-type
     property on one names somebody, so it stops to ask."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     envelope = {
         "type": "initiative-document",
         "schema_version": 1,
@@ -2595,9 +2639,11 @@ async def test_an_envelope_whose_people_all_match_is_not_a_second_step(
     decide, so the file imports on one click, as it always did."""
     from app.core.user_display import handle_of
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -2613,8 +2659,10 @@ async def test_only_the_creator_answers_an_envelopes_people_step(
 ):
     """A guild admin can SEE somebody else's staged job — RLS says so. Saying
     who its people are on their behalf is a different thing."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
     resp = await _import_envelope(
         client,
@@ -2694,14 +2742,16 @@ async def test_an_import_brings_in_the_people_it_names(
 
     from app.models.tenant.initiative import InitiativeMember
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     inside = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
-    outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outside = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     await _import_with_assignees(
         client,
@@ -2730,21 +2780,21 @@ async def test_an_import_by_a_member_brings_in_nobody(
     """Who is in an initiative is its managers' to decide. A member's import
     shares the project with the people it names who are in the initiative
     already, and reports the rest rather than adding them."""
-    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    manager = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await grant_role_permission(session, manager.initiative, "create_projects")
     a = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=manager.guild,
         initiative=manager.initiative,
         initiative_role="member",
     )
     inside = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
-    outside = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outside = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     result = await _import_with_assignees(
         client,
@@ -2769,9 +2819,11 @@ async def test_an_exact_handle_match_makes_the_comment_theirs(
     from app.core.user_display import handle_of
     from app.models.tenant.comment import Comment
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -2799,7 +2851,7 @@ async def test_the_plan_lists_the_people_and_suggests_the_exact_matches(
     from app.core.user_display import handle_of
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     entry, envelope = _queue_entry()
     manifest = _minimal_manifest(entries=[entry])
@@ -2833,9 +2885,9 @@ async def test_the_confirmed_mapping_decides_who_a_comment_belongs_to(
     from app.models.tenant.comment import Comment
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
     entry = {
@@ -2941,10 +2993,10 @@ async def test_a_restored_mention_links_to_whoever_its_handle_is_here(
     )
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
-    c = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    c = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     await _all_tools_enabled(session, a.initiative)
     handle = handle_of(b.user)
     said = _editor_state(
@@ -3041,7 +3093,9 @@ async def test_a_documents_own_export_names_its_mentions_by_handle(
     from app.core.user_display import handle_of
     from app.models.tenant.document import Document
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     target = await _second_initiative(session, a)
     said = _editor_state(_mention_node("Me", a.user.id))
     source = await create_document(
@@ -3080,7 +3134,9 @@ async def test_a_mention_nobody_places_is_restored_as_a_name(
 
     from app.models.tenant.document import Document
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     target = await _second_initiative(session, a, documents_enabled=True)
     envelope = {
         "type": "initiative-document",
@@ -3325,7 +3381,7 @@ async def test_a_restored_reference_points_at_the_restored_copy(
     from app.services.tenant.relationships import Endpoint
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     scene = await _referencing_initiative(session, a)
     outside = scene["outside"]
@@ -3402,7 +3458,7 @@ async def test_a_reference_restored_elsewhere_to_something_left_behind_is_its_ti
     id names something else or nothing — so it is its title again. What the
     backup did carry still resolves."""
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     await _referencing_initiative(session, a)
 
@@ -3446,7 +3502,9 @@ async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
     from app.testing.factories import create_gallery, create_gallery_image
 
     monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _all_tools_enabled(session, a.initiative)
     gallery = await create_gallery(session, a.initiative, a.user, name="Barovia maps")
     picture = await create_gallery_image(session, gallery, a.user, title="Village")
@@ -3459,7 +3517,7 @@ async def test_a_gallery_zip_imports_with_its_pictures_into_another_community(
     )
     assert exported.status_code == 200, exported.text
 
-    b = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await _all_tools_enabled(session, b.initiative)
     assert get_guild_storage(b.guild.id).exists(key) is False
     resp = await _import_archive(
@@ -3493,7 +3551,9 @@ async def test_a_wiki_zip_imports_back_from_the_wiki_page(client, acting_user, s
     from app.models.tenant.wiki import Wiki, WikiPage
     from app.testing.factories import create_wiki, create_wiki_page
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _all_tools_enabled(session, a.initiative)
     target = await _second_initiative(session, a, wikis_enabled=True)
     wiki = await create_wiki(session, a.initiative, a.user, name="Handbook")
@@ -3538,7 +3598,9 @@ async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
     from app.services.tenant.wikis import document_parent, linked_documents
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     wiki = await _wiki_with_filed_documents(session, a, acting_user)
     exported = await client.get(
         a.g("/exports/wiki"),
@@ -3547,7 +3609,7 @@ async def test_a_wiki_zip_brings_its_filed_documents_back_where_they_were(
     )
     assert exported.status_code == 200, exported.text
 
-    b = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await _all_tools_enabled(session, b.initiative)
     resp = await _import_archive(
         client, b, exported.content, b.initiative.id, "initiative-wiki"
@@ -3591,7 +3653,9 @@ async def test_a_gallery_zip_leaves_out_what_is_not_a_picture(
     picture a gallery can show is not stored, and the import says so."""
     from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _all_tools_enabled(session, a.initiative)
     envelope = {
         "type": "initiative-gallery",
@@ -3619,7 +3683,9 @@ async def test_a_zip_is_refused_from_the_wrong_tool_or_without_an_export(
 ):
     from app.api.v1.tenant_endpoints.exports_test import _all_tools_enabled
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _all_tools_enabled(session, a.initiative)
 
     def zipped(**members: str) -> bytes:
@@ -3653,7 +3719,9 @@ async def test_a_lone_envelope_resolves_what_it_carries(client, acting_user, ses
     from app.models.tenant.project import Project
     from app.models.tenant.task import Task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     target = await _second_initiative(session, a)
     spec = await create_document(session, a.initiative, a.user, name="Spec")
     fix = await create_task(session, a.project, title="Fix the bug")
@@ -3702,9 +3770,9 @@ async def test_a_mapping_naming_a_non_member_is_dropped(
 
     from app.models.tenant.comment import Comment
 
-    outsider = await acting_user(guild_role=GuildRole.member)
+    outsider = await acting_user(guild_role=CommunityRole.member)
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
 
     envelope = _project_envelope_with_comment("stranger#4321", "Alice Chen")
@@ -3746,7 +3814,7 @@ async def test_a_mapping_naming_a_non_member_is_dropped(
 
 async def test_confirm_refuses_a_malformed_people_map(client, acting_user, session):
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     entry, envelope = _queue_entry()
     zip_bytes = _make_backup_zip(
@@ -3798,7 +3866,7 @@ async def test_backup_restores_property_definitions_in_full(
     from app.testing import route_session_to_guild
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     entry, payload = _structural_entry(
         "initiative-properties",
@@ -3851,9 +3919,9 @@ async def test_backup_restores_roles_and_places_members(
     from app.testing import route_session_to_guild
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
-    other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    other = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     handle = handle_of(other.user)
 
     entry, payload = _structural_entry(
@@ -3922,7 +3990,7 @@ async def test_backup_structure_never_overwrites_what_is_already_there(
     from app.testing import route_session_to_guild
 
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     entry, payload = _structural_entry(
         "initiative-structure",
@@ -4015,7 +4083,9 @@ async def test_connect_proves_the_token_and_says_what_is_there(
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(atlassian_service, "request_public_target", _atlassian_site())
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     resp = await _connect(client, a)
     assert resp.status_code == 201, resp.text
@@ -4047,7 +4117,9 @@ async def test_a_rejected_token_is_an_error_not_a_connection(
         "request_public_target",
         _atlassian_site(jira_status=401),
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     resp = await _connect(client, a)
     assert resp.status_code == 400
@@ -4065,7 +4137,9 @@ async def test_connect_refuses_an_address_it_would_have_to_downgrade_for(
         raise AssertionError("no request should be made for a refused address")
 
     monkeypatch.setattr(atlassian_service, "request_public_target", never_called)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     resp = await _connect(client, a, site_url="http://acme.atlassian.net")
     assert resp.status_code == 400
@@ -4192,7 +4266,9 @@ async def test_a_jira_import_fetches_then_waits_for_review_then_applies(
         ]
     )
     monkeypatch.setattr(atlassian_service, "request_public_target", site)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     resp = await _start_jira(client, a, initiative_id=a.initiative.id)
     assert resp.status_code == 202, resp.text
@@ -4289,7 +4365,9 @@ async def test_a_jira_import_brings_its_links_across(
         "request_public_target",
         _jira_site(issues=[blocker, blocked, step]),
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
 
     await _run_import_worker(monkeypatch, role_session)
@@ -4349,7 +4427,9 @@ async def test_a_jira_import_brings_its_fields_as_properties(
     monkeypatch.setattr(
         atlassian_service, "request_public_target", _jira_site(issues=[issue])
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
 
     await _run_import_worker(monkeypatch, role_session)
@@ -4452,7 +4532,9 @@ async def test_a_jira_sprint_becomes_an_event_its_tasks_are_related_to(
             boards={3: "Door team"},
         ),
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     setattr(a.initiative, Tool.calendar.view_permission, True)
     session.add(a.initiative)
     await session.commit()
@@ -4529,7 +4611,9 @@ async def test_sprints_are_left_behind_and_said_so_when_calendars_are_off(
             boards={3: "Door team"},
         ),
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     setattr(a.initiative, Tool.calendar.view_permission, False)
     session.add(a.initiative)
     await session.commit()
@@ -4602,7 +4686,9 @@ async def test_a_jira_import_brings_its_comments_to_whoever_wrote_them(
     monkeypatch.setattr(
         atlassian_service, "request_public_target", _jira_site(issues=[issue])
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
 
     await _run_import_worker(monkeypatch, role_session)
@@ -4679,7 +4765,9 @@ async def test_a_jira_import_brings_its_images_as_uploads(
         "request_public_target",
         _jira_site(issues=[issue], files={"10": png, "11": pdf}),
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
 
     await _run_import_worker(monkeypatch, role_session)
@@ -4750,7 +4838,9 @@ async def test_a_jira_file_stays_behind_when_the_initiative_has_no_documents(
         "request_public_target",
         _jira_site(issues=[issue], files={"10": png, "11": b"%PDF-spec"}),
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     a.initiative.documents_enabled = False
     session.add(a.initiative)
     await session.commit()
@@ -4787,7 +4877,9 @@ async def test_a_property_unticked_on_the_review_is_not_created(
     monkeypatch.setattr(
         atlassian_service, "request_public_target", _jira_site(issues=[issue])
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
     await _run_import_worker(monkeypatch, role_session)
 
@@ -4842,7 +4934,9 @@ async def test_a_property_unticked_on_the_review_is_not_created(
 async def test_confirm_refuses_a_malformed_list_of_unticked_properties(
     client, acting_user, session, bad
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job = await create_import_job(
         session,
         a.guild,
@@ -4871,7 +4965,9 @@ async def test_starting_a_jira_import_refuses_what_it_can_up_front(
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(atlassian_service, "request_public_target", _jira_site())
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     nothing = await _start_jira(client, a, initiative_id=a.initiative.id, keys=())
     assert nothing.status_code == 400
@@ -4914,7 +5010,9 @@ async def test_a_site_that_refuses_every_project_fails_the_job_and_drops_the_tok
     monkeypatch.setattr(
         atlassian_service, "request_public_target", _jira_site(locked=("ACME",))
     )
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job_id = (await _start_jira(client, a, initiative_id=a.initiative.id)).json()["id"]
 
     await _run_import_worker(monkeypatch, role_session)
@@ -4961,7 +5059,9 @@ async def test_cancelling_a_fetch_stops_it_at_the_next_project(
 
     site = _jira_site(issues=[_jira_issue("ACME-1", "One")], on_request=cancel_mid_read)
     monkeypatch.setattr(atlassian_service, "request_public_target", site)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     job_id = (
         await _start_jira(
             client,
@@ -5003,7 +5103,9 @@ async def _preview_foreign(client, actor, source, content):
 
 
 async def test_preview_says_what_a_todoist_export_holds(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     resp = await _preview_foreign(client, a, "todoist", TODOIST_CSV)
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -5015,7 +5117,9 @@ async def test_preview_says_what_a_todoist_export_holds(client, acting_user):
 
 
 async def test_preview_of_an_unknown_product_is_refused(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     resp = await _preview_foreign(client, a, "trello", "anything")
     assert resp.status_code == 400
     assert resp.json()["detail"] == "IMPORT_UNKNOWN_SOURCE"
@@ -5024,7 +5128,9 @@ async def test_preview_of_an_unknown_product_is_refused(client, acting_user):
 async def test_preview_of_a_file_that_is_not_that_export_is_refused(
     client, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     resp = await _preview_foreign(client, a, "vikunja", "this is not json }{{{")
     assert resp.status_code == 400
     assert resp.json()["detail"] == "IMPORT_FILE_UNREADABLE"
@@ -5039,7 +5145,9 @@ async def test_a_todoist_export_becomes_a_project(client, acting_user, session):
     from app.models.tenant.project import Project
     from app.models.tenant.task import Task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     resp = await client.post(
         a.g("/imports/foreign/todoist"),
         headers=a.headers,
@@ -5088,7 +5196,9 @@ async def test_a_real_sized_export_arrives_whole(
     # Applied in the request, so what landed can be read straight back.
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 10_000)
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     resp = await client.post(
         a.g("/imports/foreign/todoist"),
         headers=a.headers,
@@ -5120,10 +5230,12 @@ async def test_importing_from_a_product_needs_the_create_permission(
 ):
     """Nothing about arriving from another product widens who may create a
     project here — it is the same gate the envelope route applies."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     other = await _second_initiative(session, a)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=other,
         initiative_role="member",
@@ -5144,7 +5256,9 @@ async def test_importing_from_a_product_needs_the_create_permission(
 async def test_importing_into_an_initiative_you_cannot_reach_is_a_404(
     client, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     resp = await client.post(
         a.g("/imports/foreign/todoist"),
         headers=a.headers,
@@ -5265,8 +5379,8 @@ async def test_a_confluence_space_becomes_a_wiki_with_its_tree_and_its_people(
     from app.models.tenant.wiki import Wiki, WikiPage
     from app.services.import_engine import atlassian as atlassian_service
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     site = _confluence_site(
         pages=[
             _confluence_page(1, "Home", "<p>Welcome</p>"),
@@ -5396,7 +5510,7 @@ async def test_a_confluence_pages_attachments_arrive_as_uploads_and_documents(
     png, pdf = _PNG, _PDF
     site = _attachment_site()
     monkeypatch.setattr(atlassian_service, "request_public_target", site)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
         "id"
@@ -5470,7 +5584,7 @@ async def test_an_initiative_without_documents_takes_only_the_pictures(
     from app.services.import_engine import atlassian as atlassian_service
 
     monkeypatch.setattr(atlassian_service, "request_public_target", _attachment_site())
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     a.initiative.documents_enabled = False
     session.add(a.initiative)
     await session.commit()
@@ -5541,8 +5655,8 @@ async def test_a_confluence_pages_comments_arrive_on_its_wiki_page(
         },
     )
     monkeypatch.setattr(atlassian_service, "request_public_target", site)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     job_id = (await _start_confluence(client, a, initiative_id=a.initiative.id)).json()[
         "id"
@@ -5610,8 +5724,8 @@ async def test_a_confluence_html_export_becomes_a_wiki(
     from app.services.import_engine.confluence_export_test import export_bytes
     from app.services.tenant.wikis import document_parent
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     resp = await _upload_export(
         client, a, export_bytes(), initiative_id=a.initiative.id
@@ -5660,7 +5774,7 @@ async def test_a_confluence_html_export_becomes_a_wiki(
 
 
 async def test_an_upload_that_is_not_an_export_is_refused_up_front(client, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     not_zip = await _upload_export(
         client, a, b"not a zip", initiative_id=a.initiative.id
     )
@@ -5680,7 +5794,7 @@ async def test_an_upload_that_is_not_an_export_is_refused_up_front(client, actin
 async def test_starting_a_confluence_import_refuses_what_it_can_up_front(
     client, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     nothing = await _start_confluence(client, a, initiative_id=a.initiative.id, keys=())
     assert nothing.status_code == 400
     assert nothing.json()["detail"] == "IMPORT_SOURCE_NOTHING_SELECTED"
@@ -5708,7 +5822,9 @@ async def test_a_confluence_page_points_its_jira_issues_at_the_tasks_they_became
         create_task,
     )
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     key_property = await create_property_definition(
         session, a.initiative, name="Jira key"
     )
@@ -5858,7 +5974,9 @@ async def test_one_atlassian_import_joins_its_issues_and_pages_both_ways(
         return await site(method, url, headers=headers, json=json, timeout=timeout)
 
     monkeypatch.setattr(atlassian_service, "request_public_target", both)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     resp = await client.post(
         a.g("/imports/atlassian/import"),
@@ -5935,7 +6053,7 @@ async def test_an_apply_touches_its_row_as_it_goes(
 
     monkeypatch.setattr(import_worker, "throttled", counting)
     a = await acting_user(
-        guild_role=GuildRole.superadmin, initiative=True, project=True
+        guild_role=CommunityRole.superadmin, initiative=True, project=True
     )
     entry, envelope = _queue_entry()
     zip_bytes = _make_backup_zip(
@@ -5990,8 +6108,12 @@ async def test_two_communities_import_side_by_side(
     import asyncio
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    b = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    b = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     first, second = await _queued(client, a), await _queued(client, b)
     await _user_sessions(monkeypatch, role_session, 2)
 
@@ -6009,7 +6131,9 @@ async def test_a_community_runs_one_import_at_a_time(
     import asyncio
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     first, second = await _queued(client, a), await _queued(client, a)
     await _user_sessions(monkeypatch, role_session, 2)
 
@@ -6031,8 +6155,12 @@ async def test_a_process_starts_no_more_than_its_slots(
 
     monkeypatch.setattr(import_limits, "IMPORT_INLINE_MAX_ROWS", 0)
     monkeypatch.setattr(import_limits, "IMPORT_APPLY_SLOTS", 1)
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
-    b = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    b = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _queued(client, a)
     await _queued(client, b)
     await _user_sessions(monkeypatch, role_session, 2)
@@ -6052,7 +6180,9 @@ async def test_the_sweep_leaves_a_job_this_process_is_running(
     import asyncio
     from datetime import datetime, timedelta, timezone
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     stale_time = datetime.now(timezone.utc) - timedelta(minutes=30)
     job = await create_import_job(
         session,

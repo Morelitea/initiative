@@ -6,7 +6,7 @@ import pytest
 from httpx import AsyncClient
 
 from app.services.tenant.attachments import detect_document_image_type
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 
 #: A real 1x1 PNG — the header reader walks IHDR, so a stub signature is not
 #: enough to be identified as one.
@@ -21,7 +21,7 @@ TINY_PNG = (
 
 async def test_upload_image_too_large(client: AsyncClient, acting_user):
     """Uploading an image larger than MAX_IMAGE_BYTES returns 413."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     oversized = b"\x89PNG\r\n\x1a\n" + b"X" * (11 * 1024 * 1024)
     response = await client.post(
@@ -36,7 +36,7 @@ async def test_upload_image_too_large(client: AsyncClient, acting_user):
 
 async def test_upload_image_within_limit(client: AsyncClient, acting_user):
     """A valid PNG under the size limit is accepted."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.post(
         a.g("/attachments/"),
@@ -51,7 +51,7 @@ async def test_upload_image_within_limit(client: AsyncClient, acting_user):
 async def test_upload_names_the_file_after_its_bytes(client: AsyncClient, acting_user):
     """The stored name and type come from the bytes, not from what the client
     called the file — so the name a serve request reads back describes it."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
 
     response = await client.post(
@@ -68,7 +68,7 @@ async def test_upload_names_the_file_after_its_bytes(client: AsyncClient, acting
 
 async def test_upload_ignores_a_declared_svg_type(client: AsyncClient, acting_user):
     """A raster is identified as one however it is labelled."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.post(
         a.g("/attachments/"),
@@ -97,7 +97,7 @@ async def test_upload_accepts_an_svg_behind_a_prolog(
 ):
     """Real SVGs open with a byte-order mark, a declaration, a comment or a
     doctype before the root element; all four are still SVGs."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     svg = prolog + b'<svg xmlns="http://www.w3.org/2000/svg"></svg>'
 
     response = await client.post(
@@ -113,7 +113,7 @@ async def test_upload_accepts_an_svg_behind_a_prolog(
 async def test_upload_refuses_bytes_that_are_no_image(client: AsyncClient, acting_user):
     """Nothing the detector recognizes means nothing is stored, whatever the
     client called it."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.post(
         a.g("/attachments/"),
@@ -213,7 +213,7 @@ async def _set_description(client: AsyncClient, a, task_id: int, text: str) -> N
 async def test_a_pasted_picture_is_named_as_pasted(client: AsyncClient, acting_user):
     from app.services.tenant.attachments import PASTED_IMAGE_PREFIX
 
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
 
     url = await _paste(client, a)
 
@@ -225,7 +225,9 @@ async def test_taking_a_picture_out_of_a_description_deletes_it(
 ):
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     await session.commit()
     url = await _paste(client, a)
@@ -245,9 +247,11 @@ async def test_a_picture_another_task_still_shows_stays(
     it counts wherever it is — in an initiative the editor is not in too."""
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     other = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=True, project=True
+        guild_role=CommunityRole.member, guild=a.guild, initiative=True, project=True
     )
     url = await _paste(client, a)
     task = await create_task(session, a.project, description=f"![shot]({url})")
@@ -266,7 +270,9 @@ async def test_a_picture_that_is_not_a_description_s_is_never_deleted(
     a description leaves the document's picture alone."""
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     response = await client.post(
         a.g("/attachments/"),
         headers=a.headers,
@@ -288,7 +294,7 @@ async def test_purging_a_task_deletes_its_pictures(
     from app.testing import create_task
     from app.testing.schema_harness import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     url = await _paste(client, a)
     task = await create_task(session, a.project, description=f"![shot]({url})")
     await session.commit()
@@ -327,8 +333,8 @@ async def test_a_picture_taken_out_of_a_document_goes_when_nothing_shows_it(
     from app.models.tenant.upload import Upload
     from app.testing import create_document
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    b = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    b = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     url = await _paste(client, a)
     elsewhere = await _paste(client, b)
     first = await create_document(session, a.initiative, a.user, content=_lexical(url))
@@ -378,7 +384,7 @@ async def _discard(client: AsyncClient, a, url: str) -> None:
 async def test_a_picture_left_unsaved_is_discarded(
     client: AsyncClient, session, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     url = await _paste(client, a)
 
     await _discard(client, a, url)
@@ -393,7 +399,9 @@ async def test_a_saved_picture_is_not_discarded(
     stay."""
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     url = await _paste(client, a)
     await create_task(session, a.project, description=f"![shot]({url})")
     await session.commit()
@@ -406,8 +414,8 @@ async def test_a_saved_picture_is_not_discarded(
 async def test_nobody_discards_somebody_else_s_picture(
     client: AsyncClient, session, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.member)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     url = await _paste(client, a)
 
     await _discard(client, b, url)
@@ -418,7 +426,7 @@ async def test_nobody_discards_somebody_else_s_picture(
 async def test_only_a_pasted_picture_can_be_discarded(
     client: AsyncClient, session, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     response = await client.post(
         a.g("/attachments/"),
         headers=a.headers,
@@ -448,7 +456,9 @@ async def test_the_sweep_takes_pictures_nobody_saved_once_their_grace_is_over(
     from app.testing import create_task
     from app.testing.schema_harness import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     unsaved = await _paste(client, a)
     saved = await _paste(client, a)
     task = await create_task(session, a.project, description=f"![shot]({saved})")
@@ -496,7 +506,9 @@ async def test_the_sweep_copies_a_picture_two_initiatives_show(
     from app.testing import create_initiative, create_project, create_task
     from app.testing.schema_harness import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     elsewhere = await create_initiative(session, a.guild, a.user)
     other = await create_project(session, elsewhere, a.user)
     url = await _paste(client, a)
@@ -543,7 +555,9 @@ async def test_taking_a_picture_out_of_a_comment_deletes_it(
 ):
     from app.testing import create_comment, create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     url = await _paste(client, a)
     comment = await create_comment(
@@ -563,7 +577,9 @@ async def test_a_picture_a_comment_shows_outlives_the_description(
     either one showing it keeps it."""
     from app.testing import create_comment, create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     url = await _paste(client, a)
     task = await create_task(session, a.project, description=f"![shot]({url})")
     await create_comment(session, a.user, task=task, content=f"again ![shot]({url})")
@@ -581,7 +597,7 @@ async def test_purging_a_task_takes_its_comments_pictures_too(
     from app.testing import create_comment, create_task
     from app.testing.schema_harness import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     url = await _paste(client, a)
     task = await create_task(session, a.project)
     await create_comment(session, a.user, task=task, content=f"![shot]({url})")
@@ -620,14 +636,16 @@ async def test_a_saved_picture_reaches_its_initiative_and_nobody_else(
     the task's initiative reads it and the rest of the guild does not."""
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     peer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     url = await _paste(client, a)
     task = await create_task(session, a.project)
     await session.commit()
@@ -646,7 +664,9 @@ async def test_one_picture_in_a_document_and_a_task_stays_one_file(
 ):
     from app.testing import create_document, create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     url = await _paste(client, a)
     task = await create_task(session, a.project)
     document = await create_document(session, a.initiative, a.user)
@@ -672,11 +692,13 @@ async def test_a_picture_pasted_from_another_initiative_is_copied(
     one, which its members read, and leaves the original where it was."""
     from app.testing import create_initiative, create_project, create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     elsewhere = await create_initiative(session, a.guild, a.user)
     project = await create_project(session, elsewhere, a.user)
     there = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=elsewhere,
         initiative_role="member",
@@ -707,9 +729,11 @@ async def test_a_picture_the_saver_cannot_read_is_left_as_written(
 ):
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     c = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=True, project=True
+        guild_role=CommunityRole.member, guild=a.guild, initiative=True, project=True
     )
     url = await _paste(client, a)
     mine = await create_task(session, a.project)
@@ -835,9 +859,11 @@ async def test_a_task_moved_to_another_initiative_takes_copies_of_its_pictures(
     from app.testing import create_comment, create_initiative, create_project
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     stay = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -845,7 +871,7 @@ async def test_a_task_moved_to_another_initiative_takes_copies_of_its_pictures(
     elsewhere = await create_initiative(session, a.guild, a.user)
     destination = await create_project(session, elsewhere, a.user)
     there = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=elsewhere,
         initiative_role="member",
@@ -883,8 +909,8 @@ async def test_the_quota_counts_files_the_uploader_cannot_read(
     from app.models.platform.guild_administration import GuildAdministration
     from app.testing import create_upload
 
-    a = await acting_user(guild_role=GuildRole.member)
-    other = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.member)
+    other = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     await create_upload(session, a.guild, other.user, size_bytes=1000)
     administration = (
         await session.exec(

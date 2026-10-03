@@ -7,7 +7,7 @@ from sqlalchemy import delete as sa_delete
 
 from app.core.messages import CommentMessages
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
     create_comment,
@@ -58,7 +58,7 @@ class TestToolComments:
 
     @pytest.mark.parametrize("tool", list(Tool))
     async def test_creator_posts_and_lists(self, client, session, acting_user, tool):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
 
         created = await client.post(
@@ -82,10 +82,10 @@ class TestToolComments:
     async def test_member_without_grant_is_denied(
         self, client, session, acting_user, tool
     ):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -110,10 +110,10 @@ class TestToolComments:
     ):
         # The rule tasks and documents have always had: any grant level on the
         # parent (read included) lets a member read AND post to its thread.
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -138,9 +138,9 @@ class TestToolComments:
     async def test_guild_admin_reaches_every_thread(
         self, client, session, acting_user, tool
     ):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
-        admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+        admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
         listed = await client.get(
             a.g("/comments/"), headers=admin.headers, params={_param(tool): entity.id}
@@ -156,9 +156,9 @@ class TestToolComments:
 
     @pytest.mark.parametrize("tool", list(Tool))
     async def test_a_non_member_finds_nothing(self, client, session, acting_user, tool):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
-        outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         listed = await client.get(
             a.g("/comments/"),
@@ -171,7 +171,7 @@ class TestToolComments:
     async def test_a_disabled_tool_takes_no_comments(
         self, client, session, acting_user, tool
     ):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
         setattr(a.initiative, tool.view_permission, False)
         session.add(a.initiative)
@@ -183,7 +183,7 @@ class TestToolComments:
         assert listed.status_code == 403
 
     async def test_a_reply_must_share_the_parent(self, client, session, acting_user):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         queue = await _tool_entity(session, Tool.queue, a.initiative, a.user)
         other = await _tool_entity(session, Tool.queue, a.initiative, a.user)
 
@@ -218,7 +218,7 @@ class TestToolComments:
         assert reply.status_code == 201
 
     async def test_exactly_one_target(self, client, session, acting_user):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         project = await _tool_entity(session, Tool.project, a.initiative, a.user)
         queue = await _tool_entity(session, Tool.queue, a.initiative, a.user)
 
@@ -238,7 +238,7 @@ class TestToolComments:
         self, client, session, acting_user
     ):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
 
@@ -254,7 +254,7 @@ class TestToolComments:
 
     async def test_recent_carries_tool_comments(self, client, session, acting_user):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         queue = await _tool_entity(session, Tool.queue, a.initiative, a.user)
         task = await create_task(session, a.project)
@@ -289,10 +289,10 @@ async def test_a_trashed_resource_reads_back_for_its_deleted_event(
     """
     from datetime import datetime, timezone
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     task = await create_task(session, a.project)
     task_id = task.id
 
@@ -317,9 +317,9 @@ async def test_guild_calendar_comments_reach_every_member(client, session, actin
     whole guild, so any member can join its thread — same rule, wider room."""
     from app.testing import create_guild_calendar
 
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     calendar = await create_guild_calendar(session, admin.guild, admin.user)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     posted = await client.post(
         admin.g("/comments/"),
@@ -341,7 +341,9 @@ async def test_a_thread_pages_by_conversation(client, session, acting_user):
     """A page is ``limit`` conversations, newest first, each carrying every
     reply under it however late or deep; the cursor walks the rest with
     nothing skipped or repeated."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     start = datetime(2026, 1, 1, tzinfo=timezone.utc)
     roots = [
@@ -390,7 +392,7 @@ async def test_a_thread_pages_by_conversation(client, session, acting_user):
 async def test_recent_drops_comments_of_a_disabled_tool(client, session, acting_user):
     """Switching a tool off takes its threads out of the recent feed, exactly
     as it takes the threads themselves away."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     queue = await _tool_entity(session, Tool.queue, a.initiative, a.user)
 
     posted = await client.post(
@@ -428,7 +430,7 @@ class TestToolCommentSwitch:
     async def test_switch_hides_the_thread_and_comes_back(
         self, client, session, acting_user, tool
     ):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
 
         posted = await client.post(
@@ -492,7 +494,7 @@ class TestToolCommentSwitch:
     ):
         """A wiki's conversation happens on its pages: two pages of one wiki
         hold two threads, and neither is the wiki's own."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         wiki = await _tool_entity(session, Tool.wiki, a.initiative, a.user)
         rota = await create_wiki_page(session, wiki, a.user, title="Rota")
         rules = await create_wiki_page(session, wiki, a.user, title="Rules")
@@ -531,7 +533,7 @@ class TestToolCommentSwitch:
     async def test_a_wiki_switch_governs_its_pages(self, client, session, acting_user):
         """Unlike a task, a page has no switch of its own — the wiki is where
         that choice is made, so it reaches the pages."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         wiki = await _tool_entity(session, Tool.wiki, a.initiative, a.user)
         page = await create_wiki_page(session, wiki, a.user)
 
@@ -570,11 +572,11 @@ class TestToolCommentSwitch:
     ):
         """The page is not shared separately: reaching its thread is reaching
         the wiki."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         wiki = await _tool_entity(session, Tool.wiki, a.initiative, a.user)
         page = await create_wiki_page(session, wiki, a.user)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -607,7 +609,7 @@ class TestToolCommentSwitch:
     ):
         """Tasks are their own flow: a project with comments off still has task
         threads."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         project = await _tool_entity(session, Tool.project, a.initiative, a.user)
         task = await create_task(session, project)
 
@@ -638,10 +640,10 @@ class TestToolCommentSwitch:
     async def test_read_access_cannot_flip_the_switch(
         self, client, session, acting_user, tool
     ):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -666,7 +668,7 @@ class TestEditingAComment:
     async def test_author_edits_and_gets_the_whole_comment_back(
         self, client, session, acting_user, tool
     ):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         entity = await _tool_entity(session, tool, a.initiative, a.user)
 
         posted = await client.post(
@@ -697,7 +699,7 @@ class TestEditingAComment:
         assert [c["content"] for c in listed.json()["comments"]] == ["After"]
 
     async def test_an_edit_keeps_the_reactions(self, client, session, acting_user):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         project = await _tool_entity(session, Tool.project, a.initiative, a.user)
         task = await create_task(session, project)
 
@@ -729,10 +731,10 @@ class TestEditingAComment:
         assert [(g["emoji"], g["count"]) for g in body["reactions"]] == [("🎉", 1)]
 
     async def test_only_the_author_may_edit(self, client, session, acting_user):
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         project = await _tool_entity(session, Tool.project, a.initiative, a.user)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -769,11 +771,11 @@ class TestRemovingAComment:
     @pytest.fixture
     async def thread(self, session, acting_user):
         owner = await acting_user(
-            guild_role=GuildRole.admin, initiative=True, project=True
+            guild_role=CommunityRole.admin, initiative=True, project=True
         )
         joined = {
             name: await acting_user(
-                guild_role=GuildRole.member,
+                guild_role=CommunityRole.member,
                 guild=owner.guild,
                 initiative=owner.initiative,
                 initiative_role=role,

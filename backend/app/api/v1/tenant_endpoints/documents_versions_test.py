@@ -14,7 +14,7 @@ from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.upload import Upload
 from app.testing import create_resource_grant
@@ -56,7 +56,7 @@ async def test_upload_and_duplicate_each_start_at_version_one(
 ) -> None:
     """Uploading a file document seeds version 1, and a duplicate of it is a
     file document of its own: a copy of the file, at its own version 1."""
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     duplicate = await client.post(
@@ -142,9 +142,9 @@ async def test_upload_version_creates_v2_and_mirrors_document(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A write user uploads v2; document mirror + Upload row + version row update."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     writer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -191,9 +191,9 @@ async def test_upload_version_read_user_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A read-only user cannot upload a new version."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -214,7 +214,7 @@ async def test_upload_version_type_mismatch_rejected(
     client: AsyncClient, acting_user
 ) -> None:
     """A new version must match the original file type."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     resp = await client.post(
@@ -230,7 +230,7 @@ async def test_upload_version_non_file_document_rejected(
     client: AsyncClient, acting_user
 ) -> None:
     """Native documents don't support versions."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     create = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
@@ -259,7 +259,7 @@ async def test_upload_version_unsupported_file_rejected(
     client: AsyncClient, acting_user
 ) -> None:
     """An unsupported/invalid file is rejected with a coded error."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     resp = await client.post(
@@ -281,9 +281,9 @@ async def test_list_versions_read_user_allowed_and_ordered(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Read users can list versions; newest first with is_current on the highest."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -313,7 +313,7 @@ async def test_download_specific_version_returns_its_bytes(
     client: AsyncClient, acting_user
 ) -> None:
     """Downloading an old version returns that version's bytes, not the current one."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     await client.post(
@@ -347,7 +347,7 @@ async def test_download_version_unknown_returns_404(
     client: AsyncClient, acting_user
 ) -> None:
     """A version id that doesn't belong to the document 404s."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     resp = await client.get(
@@ -362,7 +362,7 @@ async def test_download_version_cross_guild_forbidden(
     client: AsyncClient, acting_user
 ) -> None:
     """A user from another guild cannot download a version."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     versions = (
         await client.get(
@@ -384,7 +384,7 @@ async def test_delete_non_current_version_owner(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Owner deletes an old version; current stays, blob + Upload row removed."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
@@ -439,7 +439,7 @@ async def test_delete_current_version_promotes_previous(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """Deleting the current version rolls the document back to the prior version."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     v2_resp = await client.post(
         owner.g(f"/documents/{doc['id']}/versions"),
@@ -470,7 +470,7 @@ async def test_delete_current_version_promotes_previous(
 
 async def test_delete_last_version_blocked(client: AsyncClient, acting_user) -> None:
     """The only remaining version can't be deleted."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
     versions = (
         await client.get(
@@ -492,9 +492,9 @@ async def test_delete_version_non_owner_forbidden(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A write (non-owner) user cannot delete versions."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     writer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -531,7 +531,7 @@ async def test_upload_version_allowed_when_stored_content_type_is_null(
     mismatch the uploaded MIME type and permanently reject new versions
     with ``VERSION_TYPE_MISMATCH``.
     """
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     # Simulate a legacy / backfilled row where the content type was never recorded.
@@ -553,7 +553,7 @@ async def test_delete_version_non_file_document_rejected(
     client: AsyncClient, acting_user
 ) -> None:
     """Delete is rejected on non-file documents with the same code as upload/list."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     create = await client.post(
         owner.g("/documents/"),
         headers=owner.headers,
@@ -591,7 +591,7 @@ async def test_upload_document_file_over_limit_rejected(
     cap = 1024
     monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
 
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     oversized = b"%PDF-1.4 " + b"A" * (cap + 1)
     resp = await client.post(
@@ -622,7 +622,7 @@ async def test_upload_document_file_just_under_limit_succeeds(
     cap = 4096
     monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
 
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     under = _TINY_PDF + b" " + b"B" * (cap - len(_TINY_PDF) - 1)
     assert len(under) == cap
@@ -644,7 +644,7 @@ async def test_upload_document_version_over_limit_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /documents/{id}/versions rejects a body over the cap with 413."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     # Seed v1 while the cap is still large so the document exists.
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
@@ -678,7 +678,7 @@ async def test_upload_document_version_just_under_limit_succeeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /documents/{id}/versions accepts a body at/under the cap."""
-    owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     doc = await _upload_initial_file_doc(client, owner, initiative=owner.initiative)
 
     cap = 4096
@@ -734,9 +734,9 @@ async def test_upload_document_file_as_any_author(
     which is how the order went unnoticed. A picture is its own featured image.
     """
     if uploader_role == "guild_admin":
-        uploader = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        uploader = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     else:
-        uploader = await acting_user(guild_role=GuildRole.member, initiative=True)
+        uploader = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     resp = await client.post(
         uploader.g("/documents/upload"),

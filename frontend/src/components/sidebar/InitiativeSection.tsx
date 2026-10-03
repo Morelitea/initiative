@@ -4,7 +4,7 @@ import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  GuildAppRead,
+  CommunityAppRead,
   InitiativeRead,
   ProjectRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -47,7 +47,7 @@ export interface InitiativeSectionProps {
   counts: Record<Tool, number>;
   /** The guild's installed apps. Those declaring a surface for this reader
    *  inside an initiative get a row here, drawn from the same one install. */
-  apps: GuildAppRead[];
+  apps: CommunityAppRead[];
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
@@ -79,7 +79,7 @@ export const InitiativeSection = memo(
     // server computed it for them.
     const appRows = apps
       .map((app) => ({ app, path: initiativeAppPath(app, initiative.id) }))
-      .filter((row): row is { app: GuildAppRead; path: string } => row.path !== null);
+      .filter((row): row is { app: CommunityAppRead; path: string } => row.path !== null);
 
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {

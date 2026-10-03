@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import OperatorMessages
 from app.models.platform.app_setting import DEFAULT_ACCOUNT_RETENTION_DAYS
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.models.platform.user import (
     ABSENT_STATUSES,
     SIGN_IN_STATUSES,
@@ -107,7 +107,7 @@ async def test_a_deleted_account_is_gone_from_the_roster(
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.superadmin
+        session, user=admin, guild=guild, role=CommunityRole.superadmin
     )
     leaver = await create_user(session)
     await create_guild_membership(session, user=leaver, guild=guild)
@@ -140,10 +140,10 @@ async def test_a_deleted_account_is_not_a_seat(
     second = await create_user(session)
     guild = await create_guild(session, creator=first)
     await create_guild_membership(
-        session, user=first, guild=guild, role=GuildRole.superadmin
+        session, user=first, guild=guild, role=CommunityRole.superadmin
     )
     await create_guild_membership(
-        session, user=second, guild=guild, role=GuildRole.superadmin
+        session, user=second, guild=guild, role=CommunityRole.superadmin
     )
 
     await _delete_own_account(client, first)

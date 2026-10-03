@@ -11,7 +11,7 @@ from sqlalchemy import delete as sa_delete
 
 from app.core.messages import ReactionMessages
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
@@ -65,7 +65,7 @@ async def _comment_on_task(client, actor, task_id: int, content: str = "Hello") 
 class TestReactionToggle:
     async def test_put_adds_then_takes_back(self, client, session, acting_user):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -99,10 +99,10 @@ class TestReactionToggle:
 
     async def test_counts_aggregate_across_people(self, client, session, acting_user):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -134,7 +134,7 @@ class TestReactionToggle:
 
     async def test_groups_hold_first_reacted_order(self, client, session, acting_user):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -151,7 +151,7 @@ class TestReactionToggle:
         self, client, session, acting_user
     ):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -175,7 +175,7 @@ class TestReactionToggle:
         """The edit reply is what the client writes back into its cache, so a
         comment that comes back without its reactions blanks the chips."""
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -199,7 +199,7 @@ class TestReactionToggle:
         """The guild's activity feed is where reactions are most legible — a
         comment that drew six of them should not read like a quiet one."""
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -226,7 +226,7 @@ class TestReactionToggle:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -271,7 +271,7 @@ class TestReactionToggle:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -311,7 +311,7 @@ class TestReactionToggle:
 
     async def test_rejects_text_in_the_emoji_field(self, client, session, acting_user):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -325,7 +325,7 @@ class TestReactionToggle:
 
     async def test_caps_one_person_per_target(self, client, session, acting_user):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -357,7 +357,7 @@ class TestReactionToggle:
         assert statuses[MAX_REACTIONS_PER_USER] == 400
 
     async def test_suggested_set_is_served(self, client, acting_user):
-        a = await acting_user(guild_role=GuildRole.member)
+        a = await acting_user(guild_role=CommunityRole.member)
         resp = await client.get(a.g("/reactions/suggested"), headers=a.headers)
         assert resp.status_code == 200
         assert resp.json() == list(SUGGESTED_EMOJI)
@@ -371,11 +371,11 @@ class TestReactionAccess:
         the thread itself: seeing the reactions and adding one are the same
         decision the comment box already answers."""
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         await _strip_grants(session, Tool.project, a.project)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -410,11 +410,11 @@ class TestReactionAccess:
 
     async def test_unshared_member_reaches_nothing(self, client, session, acting_user):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         await _strip_grants(session, Tool.project, a.project)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -433,13 +433,13 @@ class TestReactionAccess:
         self, client, session, acting_user
     ):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
         # Same guild, different initiative: RLS hides the comment entirely.
         b = await acting_user(
-            guild_role=GuildRole.member, guild=a.guild, initiative=True
+            guild_role=CommunityRole.member, guild=a.guild, initiative=True
         )
 
         refused = await client.put(
@@ -454,11 +454,11 @@ class TestReactionAccess:
         self, client, session, acting_user
     ):
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
-        b = await acting_user(guild_role=GuildRole.member)
+        b = await acting_user(guild_role=CommunityRole.member)
 
         # Addressed at the outsider's OWN guild: the id belongs to another
         # schema entirely, so there is nothing there to react to.
@@ -473,7 +473,7 @@ class TestReactionAccess:
         self, client, session, acting_user
     ):
         """A project with comments off has no thread — reactions on it go too."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         project = await create_project(session, a.initiative, a.user)
         created = await client.post(
             a.g("/comments/"),
@@ -499,7 +499,7 @@ class TestReactionAccess:
         self, client, session, acting_user
     ):
         """The post's own switch, the counterpart to a thread's."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         await _posts_enabled(session, a.initiative)
         post = await create_post(session, a.initiative, a.user)
 
@@ -531,7 +531,7 @@ class TestReactionAccess:
     ):
         """Turning it off keeps the rows and stops serving them, the way a
         thread turned off keeps its comments."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         await _posts_enabled(session, a.initiative)
         post = await create_post(session, a.initiative, a.user)
         await client.put(
@@ -561,12 +561,12 @@ class TestReactionAccess:
 
     async def test_a_reader_cannot_flip_the_switch(self, client, session, acting_user):
         """Turning reactions off is editing the notice, which reacting is not."""
-        a = await acting_user(guild_role=GuildRole.member, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.member, initiative=True)
         await _posts_enabled(session, a.initiative)
         post = await create_post(session, a.initiative, a.user)
         await _strip_grants(session, Tool.post, post)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -592,10 +592,10 @@ class TestReactionNotifications:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -643,7 +643,7 @@ class TestReactionNotifications:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         task = await create_task(session, a.project)
         comment_id = await _comment_on_task(client, a, task.id)
@@ -672,16 +672,16 @@ class TestReactionNotifications:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
         )
         c = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -736,10 +736,10 @@ class TestReactionNotifications:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -784,10 +784,10 @@ class TestReactionNotifications:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -860,10 +860,10 @@ class TestReactionNotifications:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -916,10 +916,10 @@ class TestReactionNotifications:
         from sqlmodel import select
 
         a = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -960,7 +960,7 @@ class TestReactionLifecycle:
         from app.models.tenant.recent_view import RecentView
         from sqlmodel import select
 
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _posts_enabled(session, a.initiative)
         post = await create_post(session, a.initiative, a.user)
         comment = await create_comment(session, a.user, post=post)

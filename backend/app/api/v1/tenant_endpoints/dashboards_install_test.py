@@ -20,7 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.messages import MarketplaceMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import create_marketplace_listing, marketplace_uid
 from app.testing import route_as
 
@@ -71,7 +71,7 @@ class TestInstall:
     async def test_installing_pins_the_listing_and_its_version(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
         response = await client.post(
@@ -97,7 +97,7 @@ class TestInstall:
         """Naming a listing and *also* sending a definition installs the
         listing's. Provenance records what the server resolved, not what the
         request contained."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
         response = await client.post(
@@ -117,7 +117,7 @@ class TestInstall:
     async def test_an_unknown_listing_is_a_404(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
         response = await client.post(
@@ -138,7 +138,7 @@ class TestInstall:
         await create_marketplace_listing(
             session, uid=WITHDRAWN_UID, public_id="tests.gone2", available=False
         )
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
         response = await client.post(
@@ -162,7 +162,7 @@ class TestInstall:
             public_id="tests.toonew2",
             min_app_version="999.0.0",
         )
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
         response = await client.post(
@@ -187,10 +187,10 @@ class TestInstall:
     ):
         """Installing is subject to the tool's own create gate, like any other
         way of adding a dashboard."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -210,7 +210,7 @@ class TestInstall:
     async def test_installing_counts_once_and_records_no_guild(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
         for name in ("First", "Second"):
@@ -248,7 +248,7 @@ class TestUpgrade:
     async def test_a_new_version_is_not_pushed(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         installed = await self._install(client, a)
 
@@ -271,7 +271,7 @@ class TestUpgrade:
     async def test_upgrading_re_pins_this_instance_only(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         first = await self._install(client, a)
         second = await self._install(client, a)
@@ -299,7 +299,7 @@ class TestUpgrade:
     async def test_upgrading_needs_write_access_on_that_dashboard(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         installed = await self._install(client, a)
         await create_marketplace_listing(
@@ -311,7 +311,7 @@ class TestUpgrade:
         )
 
         b = await acting_user(
-            guild_role=GuildRole.member,
+            guild_role=CommunityRole.member,
             guild=a.guild,
             initiative=a.initiative,
             initiative_role="member",
@@ -325,7 +325,7 @@ class TestUpgrade:
     async def test_upgrading_an_authored_dashboard_is_refused(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         created = await client.post(
             a.g("/dashboards/"),
@@ -347,7 +347,7 @@ class TestUpgrade:
     async def test_upgrading_when_already_current_is_refused(
         self, client: AsyncClient, acting_user, session, listing
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         installed = await self._install(client, a)
 
@@ -362,7 +362,7 @@ class TestUpgrade:
     ):
         """An upgrade re-runs the same normalization an edit does, so instance
         config can never outlive the widget it configured."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         installed = await self._install(client, a)
 
@@ -405,7 +405,7 @@ class TestInstalledListings:
         """The dashboard list is paginated; this answer is not. A browse surface
         deriving 'already installed' from a page would mark some installs and
         miss others."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         for name in ("One", "Two", "Three"):
             response = await client.post(
@@ -428,7 +428,7 @@ class TestInstalledListings:
     async def test_a_dashboard_authored_here_is_not_counted(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         await client.post(
             a.g("/dashboards/"),
@@ -447,7 +447,7 @@ class TestInstalledListings:
     async def test_the_literal_path_is_not_read_as_a_dashboard_id(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
         response = await client.get(
             a.g("/dashboards/installed-listings"), headers=a.headers
@@ -466,7 +466,7 @@ class TestCatalogIsolation:
         Exercised through the real login role rather than the superuser-backed
         `session` fixture, which would not show the difference.
         """
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _enable(session, a.initiative)
 
         routed = await role_session("app_user")

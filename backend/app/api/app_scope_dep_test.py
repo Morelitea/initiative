@@ -32,7 +32,7 @@ from app.core.identity_boundary import boundary_scope
 from app.core.messages import AppMessages, AuthMessages
 from app.db.guild_standing import GuildContext, InstallContext
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.document import Document
 from app.testing import create_document
 from app.testing.app_clients import CLIENT, install_app, share_with_members
@@ -218,7 +218,7 @@ async def test_a_token_that_is_not_a_live_install_is_unauthorized(
 
 
 async def test_a_person_passes_through_unchanged(client, session, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await create_document(session, a.initiative, a.user, name="Mine")
 
     response = await client.get(_url(a.guild.id), headers=a.headers)

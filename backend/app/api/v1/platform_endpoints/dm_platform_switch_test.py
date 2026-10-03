@@ -16,7 +16,7 @@ from app.models.platform.contact_grant import (
     ContactGrantState,
     canonical_pair,
 )
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.testing import create_guild_membership, create_user, get_auth_headers
@@ -145,7 +145,7 @@ DM_ROUTES = [
 async def test_every_dm_route_refuses_while_messaging_is_off(
     client, session, acting_user, method: str, path: str, body
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     await _set_switch(session, enabled=False)
 
     response = await client.request(method, path, json=body, headers=a.headers)
@@ -158,7 +158,7 @@ async def test_every_dm_route_refuses_while_messaging_is_off(
 async def test_every_dm_route_answers_again_once_it_is_back_on(
     client, session, acting_user, method: str, path: str, body
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     await _set_switch(session, enabled=False)
     await _set_switch(session, enabled=True)
 
@@ -175,8 +175,8 @@ async def test_an_accepted_channel_survives_the_switch(
     A channel two people agreed on is still there when messaging comes back, so
     switching twice does not quietly make everybody ask each other again.
     """
-    a = await acting_user(guild_role=GuildRole.member)
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.member)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     low, high = canonical_pair(a.user.id, b.user.id)
     session.add(
         ContactGrant(
@@ -205,7 +205,7 @@ async def test_contacts_list_nobody_while_messaging_is_off(
 ) -> None:
     """A contact is somebody you could reach out to, and there is nothing to
     reach them with."""
-    a = await acting_user(guild_role=GuildRole.member)
+    a = await acting_user(guild_role=CommunityRole.member)
     b = await create_user(session)
     await create_guild_membership(session, user=b, guild=a.guild)
     await _reachable_from_their_communities(session, a.user.id, b.id)

@@ -7,7 +7,7 @@
  * on the banner beside it.
  */
 
-import type { GuildBannerRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityBannerRead } from "@/api/generated/initiativeAPI.schemas";
 import { readableTextColor } from "@/lib/contrastColor";
 import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
 
@@ -18,7 +18,9 @@ import { resolveHeaderlessApiUrl } from "@/lib/uploadUrl";
  * artwork. An empty fill is such a header's: it paints nothing rather than
  * guessing at a colour.
  */
-export const renderableBanner = (banner?: Partial<GuildBannerRead> | null): GuildBannerRead => ({
+export const renderableBanner = (
+  banner?: Partial<CommunityBannerRead> | null
+): CommunityBannerRead => ({
   image_url: banner?.image_url ? resolveHeaderlessApiUrl(banner.image_url) : null,
   color: banner?.color ?? "",
   text_color: banner?.text_color ?? readableTextColor(banner?.color ?? ""),

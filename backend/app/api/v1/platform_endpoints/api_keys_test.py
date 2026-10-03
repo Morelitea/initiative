@@ -16,7 +16,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.api_key import UserApiKey
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -357,10 +357,10 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
     guild_a = await create_guild(session, creator=user)
     guild_b = await create_guild(session, creator=user)
     await create_guild_membership(
-        session, user=user, guild=guild_a, role=GuildRole.member
+        session, user=user, guild=guild_a, role=CommunityRole.member
     )
     await create_guild_membership(
-        session, user=user, guild=guild_b, role=GuildRole.member
+        session, user=user, guild=guild_b, role=CommunityRole.member
     )
     headers = get_auth_headers(user)
 

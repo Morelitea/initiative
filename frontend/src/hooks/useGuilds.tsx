@@ -15,7 +15,7 @@ import {
 import { apiClient } from "@/api/client";
 import type {
   AccessGrantRead,
-  GuildRead,
+  CommunityRead,
   NewCommunity,
 } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
@@ -45,7 +45,7 @@ import {
  * synthesized from `/access-grants/` and flagged with `accessType: "grant"`
  * so the UI can mark them temporary and enforce read-only.
  */
-export type GuildEntry = GuildRead & {
+export type GuildEntry = CommunityRead & {
   accessType?: "member" | "grant";
   grantExpiresAt?: string | null;
   /** The content rung of the grant this guild is reached by. A settings grant
@@ -72,8 +72,8 @@ interface GuildContextValue {
   refreshGuilds: () => Promise<GuildEntry[]>;
   switchGuild: (guildId: number) => Promise<void>;
   syncGuildFromUrl: (guildId: number) => Promise<void>;
-  createGuild: (input: NewCommunity) => Promise<GuildRead>;
-  updateGuildInState: (guild: GuildRead) => void;
+  createGuild: (input: NewCommunity) => Promise<CommunityRead>;
+  updateGuildInState: (guild: CommunityRead) => void;
   reorderGuilds: (guildIds: number[]) => void;
   canCreateGuilds: boolean;
 }
@@ -174,7 +174,7 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Gu
 const withSettingsEntry = async (entry: GuildEntry): Promise<GuildEntry> => {
   if (!entry.grantSettingsLevel) return entry;
   try {
-    const response = await apiClient.get<GuildRead>(`/communities/${entry.id}`);
+    const response = await apiClient.get<CommunityRead>(`/communities/${entry.id}`);
     return {
       ...response.data,
       position: entry.position,
@@ -231,9 +231,9 @@ const fetchGuildList = async (
 ): Promise<GuildList> => {
   const superseded = () => new Error("The guild list was read for an account no longer here");
 
-  let communities: GuildRead[];
+  let communities: CommunityRead[];
   try {
-    communities = (await apiClient.get<GuildRead[]>("/communities/")).data;
+    communities = (await apiClient.get<CommunityRead[]>("/communities/")).data;
   } catch (err) {
     if (currentUserId.current !== forUser) throw superseded();
     // Nothing answered: fall back to the communities this device last saw, so
@@ -594,7 +594,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Community name is required.");
       }
 
-      const response = await apiClient.post<GuildRead>("/communities/", {
+      const response = await apiClient.post<CommunityRead>("/communities/", {
         name: trimmedName,
         description: description?.trim() || undefined,
         plan: plan ?? undefined,
@@ -608,7 +608,7 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const updateGuildInState = useCallback(
-    (guild: GuildRead) => {
+    (guild: CommunityRead) => {
       editGuilds((prev) => {
         let replaced = false;
         const next = prev.map((existing) => {

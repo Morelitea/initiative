@@ -5,7 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 from app.db import cohorts
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import CommunityStatus
 from app.services.guild_sweeps import Scope, Visit, each_guild
 from app.testing.factories import create_guild
 
@@ -17,14 +17,14 @@ async def test_each_scope_is_visited_on_its_communitys_cohort(session: AsyncSess
     ids = {
         status: (await create_guild(session, status=status.value)).id
         for status in (
-            GuildStatus.active,
-            GuildStatus.read_only,
-            GuildStatus.suspended,
-            GuildStatus.deleted,
+            CommunityStatus.active,
+            CommunityStatus.read_only,
+            CommunityStatus.suspended,
+            CommunityStatus.deleted,
         )
     }
     # A row whose schema was never made is left out of every scope.
-    await create_guild(session, commit=False, status=GuildStatus.deleted.value)
+    await create_guild(session, commit=False, status=CommunityStatus.deleted.value)
     await session.commit()
     assert {cohorts.cohort_of(guild_id) for guild_id in ids.values()} == {0, 1}
     seen: set[tuple[Scope, int]] = set()
@@ -39,9 +39,9 @@ async def test_each_scope_is_visited_on_its_communitys_cohort(session: AsyncSess
     await each_guild([recorder(scope) for scope in Scope], name="test")
 
     assert seen == {
-        (Scope.ACTIVE, ids[GuildStatus.active]),
-        (Scope.LIVE, ids[GuildStatus.active]),
-        (Scope.LIVE, ids[GuildStatus.read_only]),
+        (Scope.ACTIVE, ids[CommunityStatus.active]),
+        (Scope.LIVE, ids[CommunityStatus.active]),
+        (Scope.LIVE, ids[CommunityStatus.read_only]),
         *((Scope.PROVISIONED, guild_id) for guild_id in ids.values()),
     }
 

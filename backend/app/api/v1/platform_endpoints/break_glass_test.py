@@ -27,7 +27,7 @@ from app.services.auth import totp as totp_service
 
 from app.core import auth_context
 from app.core.login_methods import SecondFactorRequirement
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.models.platform.user import UserRole
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import app_settings as app_settings_service
@@ -117,7 +117,9 @@ async def test_admin_reaches_guild_only_after_clicking_through(
     the same request answers 403 before clicking through and 200 after, scoped
     to that one community."""
     a, guild = await outsider()
-    host = await acting_user(guild_role=GuildRole.admin, guild=guild, initiative=True)
+    host = await acting_user(
+        guild_role=CommunityRole.admin, guild=guild, initiative=True
+    )
 
     before = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
     assert before.status_code == 403
@@ -143,7 +145,7 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
     """
     a, guild = await outsider()
     host = await acting_user(
-        guild_role=GuildRole.admin, guild=guild, initiative=True, project=True
+        guild_role=CommunityRole.admin, guild=guild, initiative=True, project=True
     )
     target = await acting_user()
 
@@ -184,7 +186,7 @@ async def test_break_glass_already_member_rejected(
     rejected as redundant."""
     a, guild = await outsider()
     await create_guild_membership(
-        session, user=a.user, guild=guild, role=GuildRole.member
+        session, user=a.user, guild=guild, role=CommunityRole.member
     )
 
     resp = await _break_glass(client, a, guild, reason="already in")

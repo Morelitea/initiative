@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next";
 
 import { useBootstrapStatusApiV1AuthBootstrapGet } from "@/api/generated/auth/auth";
 import { getInviteStatusApiV1CommunitiesInviteCodeGet } from "@/api/generated/communities/communities";
-import type { GuildInviteStatus, GuildRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityInviteStatus, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
 import { EmailOtpCard } from "@/components/auth/EmailOtpCard";
 import { SignInFrame } from "@/components/auth/SignInFrame";
 import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
@@ -235,7 +235,7 @@ const StartSteps = ({
   // -- invite --------------------------------------------------------------
   const [invite, setInvite] = useState<{
     code: string;
-    status: GuildInviteStatus | null;
+    status: CommunityInviteStatus | null;
     error: string | null;
     checking: boolean;
   }>({ code: "", status: null, error: null, checking: false });
@@ -297,7 +297,7 @@ const StartSteps = ({
   };
 
   /** Signed in: the last question answered, so make what it asked for. */
-  const madeGuild = useRef<GuildRead | null>(null);
+  const madeGuild = useRef<CommunityRead | null>(null);
   const finishSignedIn = async () => {
     if (answers.path === "join") {
       if (asksAge) await age.confirm();

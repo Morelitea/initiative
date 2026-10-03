@@ -22,7 +22,7 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.testing.schema_harness import route_session_to_guild
 
@@ -67,7 +67,7 @@ async def test_delivery_outlives_the_account_that_registered_it(
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id, user_id, project = a.guild.id, a.user.id, a.project
     await _subscribe(session, guild_id=guild_id, user_id=user_id, initiative_id=None)
 
@@ -90,7 +90,7 @@ async def test_erasure_leaves_the_subscription_alone(
     """And the row is untouched — no account's lifecycle reaches it."""
     from app.services.platform import users as user_service
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     guild_id, user_id = a.guild.id, a.user.id
     await _subscribe(session, guild_id=guild_id, user_id=user_id, initiative_id=None)
 
@@ -113,7 +113,7 @@ async def test_an_initiative_subscription_hears_only_that_initiative(
     from app.testing import create_task
     from app.testing.factories import create_initiative, create_project
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id = a.guild.id
     other = await create_initiative(session, a.guild, a.user)
     other_project = await create_project(session, other, a.user)
@@ -147,7 +147,7 @@ async def test_a_community_subscription_hears_every_initiative(
     from app.testing import create_task
     from app.testing.factories import create_initiative, create_project
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     guild_id = a.guild.id
     other = await create_initiative(session, a.guild, a.user)
     other_project = await create_project(session, other, a.user)

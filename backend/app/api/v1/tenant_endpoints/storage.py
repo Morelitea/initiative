@@ -23,18 +23,18 @@ from app.services.tenant.attachments import get_guild_storage_usage
 router = APIRouter()
 
 
-class GuildStorageUsageRead(SanitizedBaseModel):
+class CommunityStorageUsageRead(SanitizedBaseModel):
     guild_id: int
     usage_bytes: int
 
 
-@router.get("/usage", response_model=GuildStorageUsageRead)
+@router.get("/usage", response_model=CommunityStorageUsageRead)
 async def read_storage_usage(
     guild_context: SettingsAdminContextDep,
-) -> GuildStorageUsageRead:
+) -> CommunityStorageUsageRead:
     # Summed on the guild-wide session of its own; the settings rung is only
     # the question of who may read the total.
     usage_bytes = await get_guild_storage_usage(guild_context.guild_id)
-    return GuildStorageUsageRead(
+    return CommunityStorageUsageRead(
         guild_id=guild_context.guild_id, usage_bytes=usage_bytes
     )

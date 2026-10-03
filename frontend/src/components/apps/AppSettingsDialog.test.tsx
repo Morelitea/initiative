@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildGuild } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { GuildAppDetail } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityAppDetail } from "@/api/generated/initiativeAPI.schemas";
 
 import { AppSettingsDialog } from "./AppSettingsDialog";
 
@@ -33,7 +33,7 @@ const detail = {
       blocked: false,
     },
   ],
-} as unknown as GuildAppDetail;
+} as unknown as CommunityAppDetail;
 
 vi.mock("@/hooks/useGuildAppDetail", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useGuildAppDetail")>()),

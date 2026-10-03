@@ -6,7 +6,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
@@ -54,7 +54,7 @@ async def _calendars_enabled(session: AsyncSession, initiative) -> None:
 async def test_create_calendar(client: AsyncClient, acting_user, session):
     """A PM creates a calendar: creator owner grant + the default
     all-initiative-members read grant."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)
 
     response = await client.post(
@@ -88,7 +88,7 @@ async def test_create_calendar_requires_feature_enabled(
 ):
     """calendars_enabled is the initiative's tool gate — off means 403 even
     for a guild admin."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     # The factory switches every tool on, so a test about one being OFF
     # turns it off.
     a.initiative.calendars_enabled = False
@@ -109,10 +109,10 @@ async def test_create_calendar_non_pm_forbidden(
     client: AsyncClient, acting_user, session
 ):
     """A plain member lacks create_calendars — the role permission gate."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, admin.initiative)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -128,7 +128,7 @@ async def test_create_calendar_non_pm_forbidden(
 
 
 async def test_get_calendar(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Mine")
 
@@ -145,15 +145,15 @@ async def test_list_calendars_dac_filtered(client: AsyncClient, acting_user, ses
     answers what has been shared with the reader, a guild admin included.
     Naming the initiative is what asks about their standing in it, and that
     still answers with all of its calendars."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _calendars_enabled(session, a.initiative)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
     shared = await create_calendar(session, a.initiative, a.user, name="Shared")
     secret = await create_calendar(session, a.initiative, a.user, name="Secret")
     await strip_non_owner_grants(session, secret, a.user.id)
@@ -181,10 +181,10 @@ async def test_calendar_404_outside_initiative(
 ):
     """The hard isolation boundary: a guild member NOT in the initiative gets
     404 (RLS hides the row), not 403."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _calendars_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Cleared")
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     response = await client.get(
         outsider.g(f"/calendars/{calendar.id}"), headers=outsider.headers
@@ -197,10 +197,10 @@ async def test_update_calendar_requires_write(
     client: AsyncClient, acting_user, session
 ):
     """Rename needs write: the default all-members read grant is not enough."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _calendars_enabled(session, a.initiative)
     reader = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -229,10 +229,10 @@ async def test_delete_calendar_owner_only_and_cascades(
 ):
     """Delete is owner (or guild admin); the soft delete cascades to the
     calendar's events."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _calendars_enabled(session, a.initiative)
     writer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -276,10 +276,10 @@ async def test_delete_calendar_owner_only_and_cascades(
 async def test_guild_admin_can_delete_any_calendar(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await _calendars_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user, name="Anyone's")
-    admin = await acting_user(guild_role=GuildRole.admin, guild=a.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
 
     response = await client.delete(
         admin.g(f"/calendars/{calendar.id}"), headers=admin.headers
@@ -294,7 +294,7 @@ async def test_calendar_counts_by_initiative(
     """Grouped counts mirror the list: DAC-visible calendars in calendars-enabled
     initiatives, and never a guild calendar — the sidebar rows the counts sit on
     are initiative rows, and a guild calendar belongs to none of them."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, admin.initiative)
     disabled_initiative = await create_initiative(
         session, admin.guild, admin.user, calendars_enabled=False
@@ -322,9 +322,9 @@ async def test_a_guild_calendar_is_the_admin_s_and_the_install_owns_it(
     """No initiative means no initiative gate: a guild calendar is the guild
     admin's to make. The calendar app's install owns it, which is what makes it
     one of the app's artifacts and what uninstalling trashes."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     app = await _install_calendar_app(session, admin.guild, admin.user)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     refused = await client.post(
         member.g("/calendars/"), headers=member.headers, json={"name": "Holidays"}
@@ -367,10 +367,10 @@ async def test_a_write_grant_writes_a_guild_calendar_s_events(
 ):
     """The admin decides who writes what a guild calendar holds. Changing the
     calendar itself — renaming it, archiving it — stays the admin's."""
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     app = await _install_calendar_app(session, admin.guild, admin.user)
     calendar = await create_guild_calendar(session, admin.guild, admin.user, app=app)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     await create_resource_grant(
         session, calendar, level=ResourceAccessLevel.write, user=member.user
     )
@@ -407,7 +407,7 @@ async def test_a_guild_calendar_needs_the_app(
 ):
     """Without the app there is no entry that reaches a guild calendar, so one
     is refused rather than created where nothing links to it."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.post(
         a.g("/calendars/"), headers=a.headers, json={"name": "Holidays"}
@@ -421,7 +421,7 @@ async def test_guild_scope_lists_only_the_guild_s_own(
 ):
     """``scope=guild`` is the calendar app's own list: guild calendars, and no
     initiative's."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)
     await create_calendar(session, a.initiative, a.user, name="Team")
     guild_calendar = await create_guild_calendar(
@@ -448,8 +448,8 @@ async def test_a_guild_calendar_is_hidden_when_it_is_not_shared(
     say about a row belonging to no initiative. Sharing is the whole of the
     answer here.
     """
-    a = await acting_user(guild_role=GuildRole.member)
-    owner = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    a = await acting_user(guild_role=CommunityRole.member)
+    owner = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     calendar = await create_guild_calendar(
         session, a.guild, owner.user, name="Mine", shared_with_everyone=False
     )
@@ -475,7 +475,7 @@ async def test_a_copy_has_its_series_its_changed_occurrences_and_invitees(
     from app.models.tenant.calendar_event import CalendarEventAttendee, RSVPStatus
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)
     calendar = await create_calendar(session, a.initiative, a.user)
     weekly = await create_calendar_event(
@@ -541,9 +541,9 @@ async def test_a_copy_elsewhere_lets_go_of_invitees_who_cannot_read_it(
     from app.models.tenant.calendar_event import CalendarEventAttendee
     from app.testing import route_session_to_guild
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     b = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+        guild_role=CommunityRole.member, guild=a.guild, initiative=a.initiative
     )
     await _calendars_enabled(session, a.initiative)
     elsewhere = await create_initiative(
@@ -578,7 +578,7 @@ async def test_a_copy_elsewhere_lets_go_of_invitees_who_cannot_read_it(
 async def test_a_copy_of_the_communitys_calendar_names_its_initiative(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _calendars_enabled(session, a.initiative)
     calendar = await create_guild_calendar(session, a.guild, a.user)
     path = a.g(f"/calendars/{calendar.id}/duplicate")

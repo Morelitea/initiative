@@ -66,7 +66,7 @@ from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
     Guild,
     GuildMembership,
-    GuildRole,
+    CommunityRole,
 )
 from app.models.platform.guild_image import GuildImageVariant
 from app.core.intake import IntakeStream
@@ -75,9 +75,9 @@ from app.models.tenant.initiative import InitiativeMember
 from app.services.platform import intake as intake_service
 from app.models.platform.user_cookie_consent import UserCookieConsent
 from app.schemas.platform.guild import (
-    CommunityGuildRead,
-    GuildBannerRead,
-    GuildCategory,
+    DirectoryCommunityRead,
+    CommunityBannerRead,
+    CommunityCategory,
 )
 from app.schemas.platform.user import (
     AccountTimeOutRead,
@@ -93,10 +93,10 @@ from app.schemas.platform.user import (
     OwnedDecorationsResponse,
     ProfileDecorations,
     UsernameClaim,
-    GuildRosterMember,
-    GuildRosterResponse,
-    UserGuildMember,
-    UserGuildMemberListResponse,
+    CommunityRosterMember,
+    CommunityRosterResponse,
+    UserCommunityMember,
+    UserCommunityMemberListResponse,
     UserProfile,
     UserRead,
     UserSelfUpdate,
@@ -277,7 +277,7 @@ async def get_user_stats(
     return stats
 
 
-@guild_router.get("/", response_model=UserGuildMemberListResponse)
+@guild_router.get("/", response_model=UserCommunityMemberListResponse)
 async def list_users(
     session: SettingsRLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
@@ -292,7 +292,7 @@ async def list_users(
     ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-) -> UserGuildMemberListResponse:
+) -> UserCommunityMemberListResponse:
     """The community's roster, a page at a time.
 
     On the configuration session rather than the content one: who is in a
@@ -337,13 +337,13 @@ async def list_users(
     # SSO placed somebody, not which provider did.
     items = []
     for user, guild_role, oidc_provider_id, display_name in rows:
-        member = UserGuildMember.model_validate(user)
+        member = UserCommunityMember.model_validate(user)
         member.guild_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
         member.display_name = display_name
         member.initiative_roles = getattr(user, "initiative_roles", [])
         items.append(member)
-    return UserGuildMemberListResponse(
+    return UserCommunityMemberListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size)
     )
 
@@ -403,7 +403,7 @@ async def _search_members_for_app(
     )
 
 
-def _membership_standing(role: GuildRole | None) -> dict[str, object]:
+def _membership_standing(role: CommunityRole | None) -> dict[str, object]:
     """The membership field a picker row carries: the rung, which is both what
     a row shows and what a surface asks the ladder about."""
     return {"guild_role": role.value if role is not None else None}
@@ -459,7 +459,7 @@ async def search_users(
     ``GuildContextDep``, membership re-validated per request): the params
     are additive filters on an already-RLS-gated query, so they only ever
     narrow the row set. Returns :class:`UserSummary` (no email, roles, or
-    ``initiative_roles`` enrichment) instead of the heavy ``UserGuildMember``.
+    ``initiative_roles`` enrichment) instead of the heavy ``UserCommunityMember``.
 
     Pass ``user_id`` one or more times to resolve a known selection (a picker
     rehydrating stored ids into names/avatars) rather than searching.
@@ -571,13 +571,13 @@ ROSTER_PRESENCE_ORDER = (
 )
 
 
-@guild_router.get("/roster", response_model=GuildRosterResponse)
+@guild_router.get("/roster", response_model=CommunityRosterResponse)
 async def list_roster(
     session: RLSSessionDep,
     guild_context: GuildContextDep,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-) -> GuildRosterResponse:
+) -> CommunityRosterResponse:
     """The people in this community, as the sidebar lists them.
 
     Grouped by presence (online, idle, busy, then everyone else) and
@@ -645,7 +645,7 @@ async def list_roster(
     ).all()
 
     items = [
-        GuildRosterMember.model_validate(user).model_copy(
+        CommunityRosterMember.model_validate(user).model_copy(
             update={
                 **_membership_standing(role),
                 "presence": shown.get(user.id, Presence.offline),
@@ -653,7 +653,7 @@ async def list_roster(
         )
         for user, role in rows
     ]
-    return GuildRosterResponse(
+    return CommunityRosterResponse(
         **build_paginated_response(
             items,
             sum(presence_counts.values()),
@@ -855,12 +855,12 @@ async def read_user_profile(
     )
 
 
-@router.get("/{handle}/communities", response_model=List[CommunityGuildRead])
+@router.get("/{handle}/communities", response_model=List[DirectoryCommunityRead])
 async def read_user_communities(
     handle: str,
     system_session: SystemSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> List[CommunityGuildRead]:
+) -> List[DirectoryCommunityRead]:
     """The listed communities one person belongs to.
 
     A separate read from the profile on purpose: the profile is the public
@@ -922,16 +922,16 @@ async def read_user_communities(
         GuildImageVariant.card,
     )
     return [
-        CommunityGuildRead(
+        DirectoryCommunityRead(
             id=guild.id,
             name=guild.name,
             description=guild.description,
             icon_url=images.get(guild.id, {}).get(GuildImageVariant.icon),
-            banner=GuildBannerRead(
+            banner=CommunityBannerRead(
                 image_url=images.get(guild.id, {}).get(GuildImageVariant.card),
                 **guild.banner,
             ),
-            categories=[GuildCategory(value) for value in guild.categories],
+            categories=[CommunityCategory(value) for value in guild.categories],
             member_count=members.get(guild.id, 0),
             online_count=online.get(guild.id, 0),
             already_member=guild.id in mine,
@@ -1932,8 +1932,8 @@ async def delete_user(
     # Removing the seat-holder ends the seat exactly as demoting them does, so
     # it answers to the same authority: only the seat passes the seat on.
     if (
-        membership.role == GuildRole.superadmin
-        and guild_context.role != GuildRole.superadmin
+        membership.role == CommunityRole.superadmin
+        and guild_context.role != CommunityRole.superadmin
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

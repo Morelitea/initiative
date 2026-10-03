@@ -24,7 +24,7 @@ from app.models.platform.user import (
 )
 from app.models.platform.user_notification_prefs import UserNotificationPrefs
 from app.models.platform.user_profile_view import MemberProfile
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
@@ -85,7 +85,7 @@ async def _hold_seats_or_refuse(session: AsyncSession, user_id: int) -> None:
             await session.exec(
                 select(GuildMembership.guild_id).where(
                     GuildMembership.user_id == user_id,
-                    GuildMembership.role == GuildRole.superadmin,
+                    GuildMembership.role == CommunityRole.superadmin,
                 )
             )
         ).all()
