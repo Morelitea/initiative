@@ -53,7 +53,7 @@ async def community_by_default(session: AsyncSession):
 def _section(payload: dict, guild_id: int) -> dict:
     """The section for one guild, or fail the test saying it is missing."""
     for section in payload["sections"]:
-        if section["guild_id"] == guild_id:
+        if section["community_id"] == guild_id:
             return section
     raise AssertionError(
         f"no section for guild {guild_id}; got "
@@ -113,7 +113,7 @@ async def test_sections_follow_rail_order(
 
     response = await client.get(SECTIONS, headers=a.headers)
     assert response.status_code == 200
-    assert [s["guild_id"] for s in response.json()["sections"]] == [
+    assert [s["community_id"] for s in response.json()["sections"]] == [
         second.id,
         third.id,
         first.id,
@@ -137,7 +137,7 @@ async def test_only_a_community_the_caller_shares_gets_a_section(
     await _join(session, theirs)
 
     response = await client.get(SECTIONS, headers=a.headers)
-    ids = [s["guild_id"] for s in response.json()["sections"]]
+    ids = [s["community_id"] for s in response.json()["sections"]]
     assert ids == [shared.id]
     assert alone.id not in ids
     assert theirs.id not in ids
@@ -196,8 +196,10 @@ async def test_guild_ids_narrows_to_one_section(
     for guild in (first, second):
         await _join(session, guild)
 
-    response = await client.get(f"{SECTIONS}?guild_ids={second.id}", headers=a.headers)
-    assert [s["guild_id"] for s in response.json()["sections"]] == [second.id]
+    response = await client.get(
+        f"{SECTIONS}?community_ids={second.id}", headers=a.headers
+    )
+    assert [s["community_id"] for s in response.json()["sections"]] == [second.id]
 
 
 # --- how a person is drawn ---------------------------------------------------
@@ -248,7 +250,7 @@ async def test_each_guild_names_someone_by_what_they_set_there(
     assert _section(payload, unnamed.id)["items"][0]["display_name"] is None
 
     searched = await client.get(f"{SECTIONS}?search=Lovelace", headers=a.headers)
-    assert [s["guild_id"] for s in searched.json()["sections"]] == [named.id]
+    assert [s["community_id"] for s in searched.json()["sections"]] == [named.id]
 
 
 # --- the shared-guild chip --------------------------------------------------
@@ -277,8 +279,8 @@ async def test_shared_guilds_named_on_every_appearance(
         assert [item["id"] for item in section["items"]] == [other.id]
         # Every appearance names the full set, in rail order; the chip is what
         # drops the section's own guild.
-        assert section["items"][0]["shared_guild_ids"] == expected
-        assert elsewhere.id not in section["items"][0]["shared_guild_ids"]
+        assert section["items"][0]["shared_community_ids"] == expected
+        assert elsewhere.id not in section["items"][0]["shared_community_ids"]
 
 
 async def test_shared_guilds_stable_across_pages(
@@ -305,14 +307,14 @@ async def test_shared_guilds_stable_across_pages(
 
     page_one = await client.get(f"{SECTIONS}?page=1&page_size=2", headers=a.headers)
     small_section = _section(page_one.json(), small.id)
-    assert small_section["items"][0]["shared_guild_ids"] == expected
+    assert small_section["items"][0]["shared_community_ids"] == expected
     # ...and ``other`` is not even on the big guild's first page.
     assert other.id not in [i["id"] for i in _section(page_one.json(), big.id)["items"]]
 
     page_three = await client.get(f"{SECTIONS}?page=3&page_size=2", headers=a.headers)
     big_section = _section(page_three.json(), big.id)
     assert [i["id"] for i in big_section["items"]] == [other.id]
-    assert big_section["items"][0]["shared_guild_ids"] == expected
+    assert big_section["items"][0]["shared_community_ids"] == expected
 
 
 # --- search -----------------------------------------------------------------
@@ -351,7 +353,7 @@ async def test_search_hides_sections_with_no_match(
     await _join(session, miss, username="somebody")
 
     response = await client.get(f"{SECTIONS}?search=findme", headers=a.headers)
-    assert [s["guild_id"] for s in response.json()["sections"]] == [hit.id]
+    assert [s["community_id"] for s in response.json()["sections"]] == [hit.id]
 
 
 # --- favorites --------------------------------------------------------------
