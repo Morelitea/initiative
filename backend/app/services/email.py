@@ -322,6 +322,11 @@ def _frontend_url(path: str) -> str:
     return f"{base}{path}"
 
 
+def account_change_link(token: str) -> str:
+    """The page a "This wasn't me" button in an account letter opens."""
+    return _frontend_url(f"/account/not-me?token={token}")
+
+
 async def send_verification_email(
     session: AsyncSession, user: User, token: str
 ) -> None:
@@ -561,11 +566,23 @@ async def deliver(
     html_body: str,
     text_body: str,
     every_address: bool = False,
+    recipient: str | None = None,
 ) -> None:
     """Put a composed message on the wire, to the address this account
-    nominated — or, for a letter about the account itself, to every address it
-    has proved. The one exit from the outbox."""
+    nominated — or to the one ``recipient`` a letter names, or, for a letter
+    about the account itself written before letters named one, to every
+    address it has proved. The one exit from the outbox."""
     settings_obj = await app_settings_service.get_app_settings(session)
+    if recipient is not None:
+        await send_email(
+            session,
+            recipients=[recipient],
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            settings_obj=settings_obj,
+        )
+        return
     if every_address:
         await send_email(
             session,
@@ -1051,15 +1068,22 @@ def community_billing_link(guild_id: int, page: Literal["upgrade", "manage"]) ->
 
 
 async def _queue_account_notice(
-    user: User, *, section: str, key: str, **values: str
+    user: User,
+    *,
+    section: str,
+    key: str,
+    answerable: bool = True,
+    also_to: Sequence[str] = (),
+    **values: str,
 ) -> None:
     """Queue one letter about a way into the account changing.
 
     Account mail: it goes out at once, on its own, to every address its holder
     has proved, whatever their notification settings — a change nobody made is
-    still seen by somebody who no longer reads one of them. ``section`` holds
-    the greeting and the "if this wasn't you" line every letter of its kind
-    shares; ``key`` holds what this one says.
+    still seen by somebody who no longer reads one of them — and to
+    ``also_to`` beside them. ``section`` holds the greeting and the "if this
+    wasn't you" line every letter of its kind shares; ``key`` holds what this
+    one says. An ``answerable`` letter carries a "This wasn't me" link.
 
     Called once the change is committed, and never allowed to fail it: the
     change was made whether or not the letter can go.
@@ -1068,7 +1092,9 @@ async def _queue_account_notice(
 
     pieces = _account_notice_pieces(user, section=section, key=key, **values)
     try:
-        await email_outbox.enqueue_account_letter(user, pieces)
+        await email_outbox.enqueue_account_letter(
+            user, pieces, notice=key if answerable else None, also_to=also_to
+        )
     except Exception:  # pragma: no cover - the letter is best effort
         logger.exception("could not queue %s for account %s", key, user.id)
 
@@ -1130,32 +1156,16 @@ async def announce_address_removed(
 ) -> None:
     """Tell the account a proved address was removed, and tell that address.
 
-    The queued letter goes to the addresses the account still holds, so the
-    one removed is written to here.
+    The account's own addresses no longer include it, so it is named as a
+    recipient of its own.
     """
     await _queue_account_notice(
-        user, section="address", key="address.removed", address=address
+        user,
+        section="address",
+        key="address.removed",
+        also_to=[address],
+        address=address,
     )
-    pieces = _account_notice_pieces(
-        user, section="address", key="address.removed", address=address
-    )
-    try:
-        settings_obj, accent = await _email_context(session)
-        html_body, text_body = render_single(
-            pieces, user=user, accent=accent, locale=_user_locale(user)
-        )
-        await send_email(
-            session,
-            recipients=[address],
-            subject=pieces.subject,
-            html_body=html_body,
-            text_body=text_body,
-            settings_obj=settings_obj,
-        )
-    except EmailNotConfiguredError:
-        logger.info("no mail configured; removed address not written to")
-    except Exception:  # pragma: no cover - the letter is best effort
-        logger.exception("could not write to a removed address (user %s)", user.id)
 
 
 async def announce_sign_in_locked(
@@ -1168,6 +1178,7 @@ async def announce_sign_in_locked(
             user,
             section="signInLocked",
             key="signInLocked.locked",
+            answerable=False,
             minutes=str(minutes),
         )
     else:
@@ -1175,6 +1186,7 @@ async def announce_sign_in_locked(
             user,
             section="signInLocked",
             key="signInLocked.lockedHours",
+            answerable=False,
             count=str(minutes // 60),
         )
 

@@ -493,20 +493,17 @@ async def test_proving_an_address_somebody_just_proved_is_refused(
 
 
 def _record_letters(monkeypatch) -> tuple[list[str], list[list[str]]]:
-    """The subjects queued to the account, and the recipients of every letter
-    sent straight away."""
+    """The subjects queued to the account, and the addresses each named
+    beside the account's own."""
     queued: list[str] = []
-    sent: list[list[str]] = []
+    also: list[list[str]] = []
 
-    async def queue(user, pieces) -> None:
+    async def queue(user, pieces, *, notice=None, also_to=()) -> None:
         queued.append(pieces.subject)
-
-    async def send(session, *, recipients, **kwargs) -> None:
-        sent.append(list(recipients))
+        also.append(list(also_to))
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", queue)
-    monkeypatch.setattr(email_service, "send_email", send)
-    return queued, sent
+    return queued, also
 
 
 def _subject(change: str) -> str:
@@ -565,7 +562,7 @@ async def test_proving_an_added_address_tells_the_account(
         tokens.append(token)
 
     monkeypatch.setattr(email_service, "send_address_verification_email", capture)
-    queued, _sent = _record_letters(monkeypatch)
+    queued, _also = _record_letters(monkeypatch)
 
     added = await client.post(
         "/api/v1/me/emails",
@@ -598,7 +595,7 @@ async def test_moving_the_primary_tells_the_account(
     )
     await session.commit()
     spare_id = spare.id
-    queued, _sent = _record_letters(monkeypatch)
+    queued, _also = _record_letters(monkeypatch)
 
     for _ in range(2):
         moved = await client.put(
@@ -613,8 +610,8 @@ async def test_moving_the_primary_tells_the_account(
 async def test_a_removed_address_is_told_as_well_as_the_account(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """The queued letter reaches only the addresses still held, so the one
-    removed is written to directly. An address nobody proved hears nothing."""
+    """The account no longer holds the removed address, so the letter names it
+    as a recipient of its own. An address nobody proved hears nothing."""
     user = await create_user(session, email="stays@example.com")
     proved = addresses.record_address(
         session,
@@ -635,7 +632,7 @@ async def test_a_removed_address_is_told_as_well_as_the_account(
     await session.commit()
     proved_id, unproved_id = proved.id, unproved.id
     await _enable_smtp(session)
-    queued, sent = _record_letters(monkeypatch)
+    queued, also = _record_letters(monkeypatch)
 
     for address_id in (unproved_id, proved_id):
         gone = await client.post(
@@ -646,4 +643,4 @@ async def test_a_removed_address_is_told_as_well_as_the_account(
         assert gone.status_code == 204, gone.text
 
     assert queued == [_subject("removed")]
-    assert sent == [["proved-goes@example.com"]]
+    assert also == [["proved-goes@example.com"]]

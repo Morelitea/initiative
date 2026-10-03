@@ -262,6 +262,22 @@ export interface AccessGrantListResponse {
   items: AccessGrantRead[];
 }
 
+/**
+ * What a "This wasn't me" link answers: the account notice it came in,
+ * such as ``address.removed``.
+ */
+export interface AccountChangeRead {
+  notice: string;
+}
+
+/**
+ * The token from the "This wasn't me" link in an account letter.
+ */
+export interface AccountChangeToken {
+  /** @minLength 10 */
+  token: string;
+}
+
 export type AccountDeletionRequestAction =
   (typeof AccountDeletionRequestAction)[keyof typeof AccountDeletionRequestAction];
 

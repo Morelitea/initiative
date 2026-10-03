@@ -36,12 +36,16 @@ from app.core.notification_categories import (
     NotificationCategory,
     sample_type,
 )
+from app.core.email_i18n import email_t
+from app.core.encryption import SALT_EMAIL, decrypt_field, encrypt_field, hash_email
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
 from app.models.platform.user_notification_prefs import EmailCadence
+from app.models.platform.user_token import UserTokenPurpose
 from app.services import email as email_service
-from app.services.platform import notification_policy, notification_prefs
+from app.services.auth import addresses
+from app.services.platform import notification_policy, notification_prefs, user_tokens
 from app.db.request_context import Unattributed
 
 logger = logging.getLogger(__name__)
@@ -66,6 +70,10 @@ RETENTION = timedelta(days=7)
 #: Recipients handled per pass. Not a cap on anybody's mail — only on how many
 #: people one pass serves before the next one starts.
 BATCH_RECIPIENTS = 50
+
+#: How long the "This wasn't me" link in an account letter stays good: long
+#: enough to be read after a weekend away.
+ANSWER_LINK_MINUTES = 7 * 24 * 60
 
 
 async def enqueue(
@@ -148,13 +156,22 @@ def redacted(
     )
 
 
-async def enqueue_account_letter(user: User, pieces: email_service.EmailPieces) -> None:
+async def enqueue_account_letter(
+    user: User,
+    pieces: email_service.EmailPieces,
+    *,
+    notice: str | None = None,
+    also_to: Sequence[str] = (),
+) -> None:
     """Write down a letter about the account's own security.
 
-    Due at once and marked ``security``: the worker sends it on its own, to
-    every address the account has proved, and nothing in the account's
-    notification settings holds or drops it. Written on a system session of its
-    own, because it is raised once the change it reports has been committed.
+    Due at once and marked ``security``: the worker sends it on its own, and
+    nothing in the account's notification settings holds or drops it. One row
+    per address, so each copy retries on its own: every address the account
+    has proved, and ``also_to`` beside them for an address it no longer holds.
+    ``notice`` names the account notice the letter is, and the worker gives
+    each copy a link that answers it. Written on a system session of its own,
+    because it is raised once the change it reports has been committed.
     """
     from app.db.session import SystemSessionLocal
 
@@ -162,18 +179,32 @@ async def enqueue_account_letter(user: User, pieces: email_service.EmailPieces) 
     async with SystemSessionLocal() as session:
         if not await email_service.email_configured(session):
             return
+        recipients = list(
+            dict.fromkeys(
+                [*await addresses.proven_addresses(session, user_id=user.id), *also_to]
+            )
+        )
+        if not recipients:
+            return
         await session.exec(
             insert(EmailOutboxItem)
             .values(
-                user_id=user.id,
-                category=NotificationCategory.account.value,
-                security=True,
-                locale=getattr(user, "locale", None) or "en",
-                subject=pieces.subject,
-                headline=pieces.headline,
-                body=pieces.body,
-                created_at=now,
-                deliver_after=now,
+                [
+                    {
+                        "user_id": user.id,
+                        "category": NotificationCategory.account.value,
+                        "security": True,
+                        "recipient_encrypted": encrypt_field(address, SALT_EMAIL),
+                        "change": {"notice": notice} if notice else None,
+                        "locale": getattr(user, "locale", None) or "en",
+                        "subject": pieces.subject,
+                        "headline": pieces.headline,
+                        "body": pieces.body,
+                        "created_at": now,
+                        "deliver_after": now,
+                    }
+                    for address in recipients
+                ]
             )
             .inline()
         )
@@ -283,7 +314,8 @@ async def _claim(
             "  AND deliver_after <= :now "
             "  AND (claimed_at IS NULL OR claimed_at < :stale) "
             "RETURNING id, notification_id, category, guild_id, locale, subject, "
-            "          headline, body, link, link_label, security, created_at"
+            "          headline, body, link, link_label, security, "
+            "          recipient_encrypted, change, created_at"
         ).bindparams(
             now=now,
             uid=user_id,
@@ -304,6 +336,8 @@ async def _claim(
             link=row.link,
             link_label=row.link_label,
             security=row.security,
+            recipient_encrypted=row.recipient_encrypted,
+            change=row.change,
             created_at=row.created_at,
         )
         for row in result.all()
@@ -410,19 +444,29 @@ async def _send_one(
     for batch in [[letter] for letter in letters] + ([rows] if rows else []):
         ids = [row.id for row in batch]
         try:
+            recipient = None
             if len(batch) == 1:
                 row = batch[0]
+                row_locale = row.locale or locale
+                link, link_label = row.link, row.link_label
+                if row.recipient_encrypted is not None:
+                    recipient = decrypt_field(row.recipient_encrypted, SALT_EMAIL)
+                    if row.change is not None:
+                        link = await _answer_link(
+                            session, user=user, change=row.change, recipient=recipient
+                        )
+                        link_label = email_t("accountNotice.notMe", locale=row_locale)
                 html_body, text_body = email_service.render_single(
                     email_service.EmailPieces(
                         subject=row.subject,
                         headline=row.headline,
                         body=row.body,
-                        link=row.link,
-                        link_label=row.link_label,
+                        link=link,
+                        link_label=link_label,
                     ),
                     user=user,
                     accent=accent,
-                    locale=row.locale or locale,
+                    locale=row_locale,
                 )
                 subject = row.subject
             else:
@@ -449,6 +493,7 @@ async def _send_one(
                 html_body=html_body,
                 text_body=text_body,
                 every_address=batch[0].security,
+                recipient=recipient,
             )
         except email_service.EmailNotConfiguredError:
             # Mail was configured when these were written and is not now.
@@ -462,6 +507,25 @@ async def _send_one(
             continue
         await _settle(session, ids, now=now)
         logger.info("email-outbox: sent %d item(s) to user %s", len(ids), user.id)
+
+
+async def _answer_link(
+    session: AsyncSession, *, user: User, change: dict[str, Any], recipient: str
+) -> str:
+    """The "This wasn't me" link for one copy of an account letter.
+
+    Its own token, minted as the copy is sent so no raw token is ever stored,
+    and committed first so the link never names one that was not kept. It
+    records the address it went to.
+    """
+    token = await user_tokens.create_token(
+        session,
+        user_id=user.id,
+        purpose=UserTokenPurpose.account_change,
+        expires_minutes=ANSWER_LINK_MINUTES,
+        change={**change, "recipient": hash_email(addresses.normalize(recipient))},
+    )
+    return email_service.account_change_link(token)
 
 
 def _still_wanted(prefs: Mapping[str, Any], row: EmailOutboxItem) -> bool:

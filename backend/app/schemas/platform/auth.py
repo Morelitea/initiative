@@ -46,6 +46,19 @@ class VerificationConfirmRequest(SanitizedBaseModel):
     token: str = Field(min_length=10)
 
 
+class AccountChangeToken(SanitizedBaseModel):
+    """The token from the "This wasn't me" link in an account letter."""
+
+    token: str = Field(min_length=10)
+
+
+class AccountChangeRead(SanitizedBaseModel):
+    """What a "This wasn't me" link answers: the account notice it came in,
+    such as ``address.removed``."""
+
+    notice: str
+
+
 class PasswordResetRequest(SanitizedBaseModel):
     email: EmailStr
 

@@ -2176,7 +2176,7 @@ async def test_a_provider_proving_an_added_address_tells_the_account(
 
     told: list[str] = []
 
-    async def _capture(user_, pieces):
+    async def _capture(user_, pieces, **_):
         told.append(pieces.subject)
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
@@ -2201,7 +2201,7 @@ async def test_a_provider_adding_an_address_tells_the_account(
     _wire_fake_idp(monkeypatch, idp)
     told: list[str] = []
 
-    async def _capture(user_, pieces):
+    async def _capture(user_, pieces, **_):
         told.append(pieces.subject)
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
@@ -2554,7 +2554,7 @@ async def test_password_reset_tells_the_account(
 
     told: list[int] = []
 
-    async def _capture(user_, pieces):
+    async def _capture(user_, pieces, **_):
         told.append(user_.id)
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)

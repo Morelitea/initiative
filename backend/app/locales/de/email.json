@@ -299,6 +299,9 @@
       "body": "<strong>{{address}}</strong> wurde aus deinem Konto entfernt und kann nicht mehr zur Anmeldung verwendet werden."
     }
   },
+  "accountNotice": {
+    "notMe": "Das war ich nicht"
+  },
   "digest": {
     "hourly": {
       "title": "Die letzte Stunde auf Initiative",

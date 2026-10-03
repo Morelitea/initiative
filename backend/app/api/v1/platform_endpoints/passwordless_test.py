@@ -375,7 +375,7 @@ async def test_the_letter_says_the_password_is_gone(
 ):
     sent: list[int] = []
 
-    async def record(user, pieces) -> None:
+    async def record(user, pieces, **_) -> None:
         sent.append(user.id)
 
     monkeypatch.setattr(email_outbox, "enqueue_account_letter", record)
