@@ -28,6 +28,7 @@ const DEVICE_ID = "device-id";
 const SESSION_PREFIX = "session:";
 const READ_PREFIX = "last-read:";
 const DEVICE_OWNER = "device-owner";
+const DEVICE_SERVER = "device-server";
 
 /** Where a wipe of this store is announced to every other realm. */
 const DROPPED = "initiative-dm-dropped";
@@ -36,32 +37,53 @@ let connection: Promise<IDBDatabase> | null = null;
 
 /** Settled once the store holds nothing of an account but the one signed in. */
 let ownerSettled: Promise<void> = Promise.resolve();
-let settledFor: number | null = null;
+let settledFor: string | null = null;
 
 /**
- * The account signed in here, which is the only one this store may serve.
+ * The account signed in here, on this server, which is the only one this store
+ * may serve. An account id names somebody only on its own server.
  *
  * A device keeps its store when its session lapses, so the next account to sign
- * in may not be the one that wrote it. Another account's store is wiped before
- * anything reads or writes it: every call through `open` waits for this.
+ * in may not be the one that wrote it. Anybody else's store is wiped before
+ * anything reads or writes it: every call through `open` waits for this. A
+ * store from before the server was recorded takes the first one it is served on.
  */
-export function serveAccount(userId: number): void {
-  if (settledFor === userId) return;
-  settledFor = userId;
+export function serveAccount(server: string, userId: number): void {
+  const account = `${server}\n${userId}`;
+  if (settledFor === account) return;
+  settledFor = account;
   ownerSettled = (async () => {
     const db = await connect();
-    const owner = await new Promise<number | undefined>((resolve, reject) => {
-      const request = db.transaction(STORE, "readonly").objectStore(STORE).get(DEVICE_OWNER);
-      request.onsuccess = () => resolve(request.result as number | undefined);
+    const [owner, ownerServer] = await Promise.all([
+      get<number>(db, DEVICE_OWNER),
+      get<string>(db, DEVICE_SERVER),
+    ]);
+    const someoneElse =
+      (owner !== undefined && owner !== userId) ||
+      (ownerServer !== undefined && ownerServer !== server);
+    if (someoneElse) await clear(db);
+    await new Promise<void>((resolve, reject) => {
+      const request = db
+        .transaction(STORE, "readwrite")
+        .objectStore(STORE)
+        .put(server, DEVICE_SERVER);
+      request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-    if (owner !== undefined && owner !== userId) await clear(db);
   })().catch((error: unknown) => {
     // Asked again at the next sign-in; until then nothing reads the store.
     settledFor = null;
     throw error;
   });
   ownerSettled.catch(() => undefined);
+}
+
+function get<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
+    request.onsuccess = () => resolve(request.result as T | undefined);
+    request.onerror = () => reject(request.error);
+  });
 }
 
 /** The database, once it is known to hold only the signed-in account's store. */
@@ -108,12 +130,7 @@ function connect(): Promise<IDBDatabase> {
 }
 
 async function read<T>(key: string): Promise<T | undefined> {
-  const db = await open();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
-    request.onsuccess = () => resolve(request.result as T | undefined);
-    request.onerror = () => reject(request.error);
-  });
+  return get<T>(await open(), key);
 }
 
 async function write(key: string, value: unknown): Promise<void> {

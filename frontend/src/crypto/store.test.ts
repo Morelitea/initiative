@@ -311,16 +311,25 @@ describe("the account", () => {
 
   it("serves the account that wrote it and is wiped for any other", async () => {
     // A device keeps its store through a lapse, so whoever signs in next may be
-    // somebody else, and nothing of the first account may reach them.
-    await deviceOwner.set(1);
-    await messageLog.append("conv", { id: "a", body: "kept", at: "", mine: true });
+    // somebody else: another account, or the same id on another server.
+    const keep = async () => {
+      await deviceOwner.set(1);
+      await messageLog.append("conv", { id: "a", body: "kept", at: "", mine: true });
+    };
+    const held = async () => (await messageLog.get("conv")).map((entry) => entry.body);
 
-    serveAccount(1);
-    expect((await messageLog.get("conv")).map((entry) => entry.body)).toEqual(["kept"]);
+    await keep();
+    serveAccount("https://one.example", 1);
+    expect(await held()).toEqual(["kept"]);
 
-    serveAccount(2);
-    expect(await messageLog.get("conv")).toEqual([]);
+    serveAccount("https://one.example", 2);
+    expect(await held()).toEqual([]);
     expect(await deviceOwner.get()).toBeUndefined();
+
+    await keep();
+    serveAccount("https://one.example", 1);
+    serveAccount("https://two.example", 1);
+    expect(await held()).toEqual([]);
   });
 });
 

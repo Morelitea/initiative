@@ -45,7 +45,7 @@ const forgetMessages = vi.fn();
 const serveAccount = vi.fn();
 vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: () => forgetMessages(),
-  serveAccount: (userId: number) => serveAccount(userId),
+  serveAccount: (server: string, userId: number) => serveAccount(server, userId),
 }));
 
 const platform = vi.hoisted(() => ({ native: false }));
@@ -285,7 +285,7 @@ describe("useAuth identity ordering", () => {
     renderAuth();
     await waitFor(() => expect(auth.user?.username).toBe("At boot"));
     // The message store is settled on whoever is signed in before it is read.
-    expect(serveAccount).toHaveBeenCalledWith(atBoot.id);
+    expect(serveAccount).toHaveBeenCalledWith("default", atBoot.id);
 
     get.mockResolvedValueOnce({ data: buildUser({ username: "Fresh" }) });
     await act(async () => {

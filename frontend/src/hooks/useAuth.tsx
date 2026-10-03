@@ -229,7 +229,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserState(nextUser);
       setHasActiveSession(nextUser !== null);
       rememberIdentity(nextUser);
-      if (nextUser) serveAccount(nextUser.id);
+      if (nextUser) serveAccount(currentServerKey(), nextUser.id);
       // The first screen's list query waits on the saved filters and sort, so
       // ask for them from here rather than from the screen: knowing who is
       // signed in is the only prerequisite, and this is where that happens.
@@ -254,7 +254,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       rememberIdentity(nextUser);
       // Signing in lands here. Before anything reads this device's messages, a
       // store another account left behind is wiped.
-      serveAccount(nextUser.id);
+      serveAccount(currentServerKey(), nextUser.id);
       // The view-preference map is still fresh from any earlier call, so a
       // re-read costs nothing.
       prefetchViewPreferences();
