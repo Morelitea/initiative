@@ -27,6 +27,7 @@ from app.core.app_access_token import seal_install_token
 from app.core.config import settings
 from app.core.rate_limit import (
     _default_limits,
+    build_limiter,
     get_inet_client_ip,
     get_real_client_ip,
     get_user_or_ip_key,
@@ -61,11 +62,7 @@ class TestDefaultLimitsBuilder:
     def test_empty_default_builds_a_usable_limiter(self, monkeypatch):
         """A limiter built from an empty default must construct without error."""
         monkeypatch.setattr(settings, "RATE_LIMIT_DEFAULT", "")
-        built = Limiter(
-            key_func=get_real_client_ip,
-            default_limits=_default_limits(),
-            storage_uri=settings.RATE_LIMIT_STORAGE_URI,
-        )
+        built = build_limiter(settings.RATE_LIMIT_STORAGE_URI)
         assert built._default_limits == []
 
 
@@ -154,8 +151,8 @@ class TestDefaultLimitThrottlesUndecoratedRoute:
     tests' requests. Enabled here on purpose; the suite-wide limiter stays off.
     """
 
-    def _build_app(self, default: str) -> FastAPI:
-        burst_limiter = Limiter(
+    def _build_app(self, default: str, burst_limiter: Limiter | None = None) -> FastAPI:
+        burst_limiter = burst_limiter or Limiter(
             key_func=lambda request: "fixed-test-key",
             default_limits=[default] if default else [],
             storage_uri="memory://",
@@ -179,6 +176,20 @@ class TestDefaultLimitThrottlesUndecoratedRoute:
         # First 3 within the window succeed, the rest are throttled.
         assert statuses[:3] == [200, 200, 200]
         assert 429 in statuses[3:]
+
+    # slowapi announces the fallback with the deprecated ``Logger.warn``.
+    @pytest.mark.filterwarnings(
+        "ignore:The 'warn' method is deprecated:DeprecationWarning"
+    )
+    async def test_unreachable_storage_still_throttles(self, monkeypatch):
+        """With the shared storage down, the limits are counted in memory
+        rather than every request failing."""
+        monkeypatch.setattr(settings, "RATE_LIMIT_DEFAULT", "3/minute")
+        burst_app = self._build_app("", build_limiter("redis://127.0.0.1:1/0"))
+        transport = ASGITransport(app=burst_app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            statuses = [(await c.get("/undecorated")).status_code for _ in range(5)]
+        assert statuses == [200, 200, 200, 429, 429]
 
     async def test_empty_default_does_not_throttle(self):
         """With RATE_LIMIT_DEFAULT unset, undecorated routes are unthrottled."""

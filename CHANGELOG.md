@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`RATE_LIMIT_STORAGE_URI` takes a `redis://` URL.** The image was missing the client it needs, so a server set that way would not start. While the storage can't be reached, each process keeps counting in its own memory instead of failing requests.
 - **A document filed in a wiki shows its own links** in the connections panel, not those of a wiki page that happened to share its number.
 - **A new queue item or event attaches only what you could attach to it afterwards:** documents and tasks in its own initiative that aren't archived. **App and API integrations:** creating one with anything else answers `RELATIONSHIP_CROSS_INITIATIVE`, `RELATIONSHIP_ENDPOINT_ARCHIVED` or `RELATIONSHIP_ENDPOINT_NOT_FOUND`, as `/relationships` does, and `CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS` is gone.
 - **Repeating events keep their dates within the calendar.** A repeat's end, skipped and extra dates fall between 2 January of the year 1 and 30 December 9999, and calendars that already hold one outside that show as usual. A date range holding more repeating occurrences than can be shown at once now says so and asks for a shorter range. **App and API integrations:** a repeat is at most 4000 characters however it arrives, imports included, and calendar reads answer `CALENDAR_WINDOW_TOO_FULL` (422) when the range expands to more than 20,000 occurrences of repeating events, or of repeating tasks.
