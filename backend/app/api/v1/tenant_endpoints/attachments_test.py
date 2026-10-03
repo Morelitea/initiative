@@ -813,7 +813,10 @@ async def test_an_app_copies_only_a_picture_it_reads_through_content(
     """An install placed in two initiatives copies a picture into the second
     only when content it may read shows it: a document does here, and a task,
     under a scope it was not granted, does not."""
+    from sqlmodel import select
+
     from app.models.tenant.app_placement import AppPlacement
+    from app.models.tenant.document import Document
     from app.testing import (
         create_document,
         create_project,
@@ -857,7 +860,16 @@ async def test_an_app_copies_only_a_picture_it_reads_through_content(
     )
 
     assert response.status_code == 201, response.text
-    shown = [c["src"] for c in response.json()["content"]["root"]["children"]]
+    # An install reads no stored file's path back, so the saved body is read
+    # where it is kept.
+    saved_body = (
+        await session.exec(
+            select(Document.content)
+            .where(Document.id == response.json()["id"])
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+    shown = [c["src"] for c in saved_body["root"]["children"]]
     assert shown[0] == in_task
     assert shown[1] != in_document
 
