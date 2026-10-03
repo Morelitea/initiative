@@ -105,12 +105,12 @@ async def test_an_install_subscribes_to_what_its_scopes_read(
 
     assert response.status_code == 201, response.text
     body = response.json()
-    assert isinstance(body["guild_ref"], str)
+    assert isinstance(body["community_ref"], str)
     assert body["created_by_ref"] is None
     assert body["hmac_secret"]
     assert_names_nobody(response.text, [installed.seat.user.id, installed.guild.id])
     # The same name every other response to this install gives its community.
-    assert body["guild_ref"] == await app_refs.ensure_app_guild_ref(
+    assert body["community_ref"] == await app_refs.ensure_app_guild_ref(
         guild_id=installed.guild.id, app_install_id=installed.app.id
     )
 

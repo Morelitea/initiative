@@ -335,7 +335,7 @@ async def test_an_initiative_it_is_not_placed_in_is_refused(
 # Standings: asked for by level, never carried by default
 # ---------------------------------------------------------------------------
 
-_STANDINGS = ["initiatives:moderate", "guild:admin"]
+_STANDINGS = ["initiatives:moderate", "community:admin"]
 
 
 async def test_a_granted_standing_is_not_on_a_token_that_did_not_ask(
@@ -384,15 +384,15 @@ async def test_a_guild_admin_level_carries_its_scope(
         client,
         installation=await _installation(installed),
         scope="documents:read",
-        level="guild_admin",
+        level="community_admin",
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["scope"] == "documents:read guild:admin"
+    assert response.json()["scope"] == "documents:read community:admin"
 
 
 @pytest.mark.parametrize(
-    ("level", "narrowed"), [("moderator", True), ("guild_admin", False)]
+    ("level", "narrowed"), [("moderator", True), ("community_admin", False)]
 )
 async def test_a_level_the_community_did_not_grant_is_refused(
     client: AsyncClient,
@@ -437,7 +437,7 @@ async def test_a_level_the_ceiling_does_not_allow_is_refused(
     registration_lookup.invalidate_registrations()
 
     response = await _ask(
-        client, installation=await _installation(installed), level="guild_admin"
+        client, installation=await _installation(installed), level="community_admin"
     )
 
     assert response.status_code == 400
@@ -472,13 +472,13 @@ async def test_a_guild_admin_level_may_be_narrowed(
         client,
         installation=await _installation(installed),
         resource=f"urn:initiative:initiative:{installed.placed.id}",
-        level="guild_admin",
+        level="community_admin",
     )
 
     assert response.status_code == 200, response.text
     token = unseal_access_token(response.json()["access_token"])
     assert isinstance(token, InstallAccessToken)
-    assert token.scopes == frozenset({"documents:read", "guild:admin"})
+    assert token.scopes == frozenset({"documents:read", "community:admin"})
     assert token.initiative_id == installed.placed.id
 
 
@@ -520,7 +520,7 @@ async def test_an_app_token_takes_no_level(
 ):
     await install_app(session, acting_user, role_session, granted=_STANDINGS)
 
-    response = await _ask(client, level="guild_admin")
+    response = await _ask(client, level="community_admin")
 
     assert response.status_code == 400
     assert _error(response) == "invalid_request"

@@ -1,7 +1,7 @@
 """An installed app's calls about its own installation.
 
 Every route here takes an **installation token** and reaches the install the
-token names — no ``guild_ref`` in the path, and no scope, because these are
+token names — no ``community_ref`` in the path, and no scope, because these are
 the install's own configuration rather than community content. A token
 narrowed to one initiative reaches them too. A member token acts for somebody
 and is refused.

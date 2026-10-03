@@ -204,7 +204,7 @@ def maximal_manifest() -> dict:
                 "identity": {"kind": "issue", "key": ["number"]},
             },
         ],
-        "guild_summary": READ_ENDPOINT,
+        "community_summary": READ_ENDPOINT,
         "widgets": [
             {
                 "id": "tile",
@@ -222,7 +222,7 @@ def maximal_manifest() -> dict:
                 "id": "panel",
                 "path": "/panel",
                 "name": {"en": "Panel"},
-                "scopes": ["guild", "initiative"],
+                "scopes": ["community", "initiative"],
                 "admin_only": True,
                 "capabilities": ["camera"],
                 "requires": {"all_of": ["other"]},

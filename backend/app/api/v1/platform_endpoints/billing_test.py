@@ -141,7 +141,7 @@ async def _post(client: AsyncClient, endpoint: str, payload: dict, **overrides):
 async def _tier_payload(guild_id: int, **fields) -> dict:
     """A write the way billing sends one: the guild named by its reference."""
     return {
-        "guild_ref": await billing_guild_ref(guild_id),
+        "community_ref": await billing_guild_ref(guild_id),
         "event_id": fields.pop("event_id", f"evt-{secrets.token_hex(6)}"),
         "source": fields.pop("source", "paddle_webhook"),
         **fields,
@@ -832,7 +832,7 @@ async def test_a_reference_this_deployment_never_minted_is_404(
         client,
         "community-tier",
         {
-            "guild_ref": "gbil_notoneweminted",
+            "community_ref": "gbil_notoneweminted",
             "event_id": "evt-unknown-ref",
             "source": "paddle_webhook",
         },
@@ -869,7 +869,7 @@ async def test_a_reference_minted_for_something_else_is_404(
         client,
         "community-tier",
         {
-            "guild_ref": user_ref,
+            "community_ref": user_ref,
             "event_id": "evt-wrong-entity",
             "source": "paddle_webhook",
         },
@@ -882,7 +882,7 @@ async def test_malformed_payload_rejected_after_verification(
     client: AsyncClient, session: AsyncSession
 ):
     path = "/api/v1/billing/community-tier"
-    body = b'{"guild_ref": 17}'
+    body = b'{"community_ref": 17}'
     headers = _signed_headers(path, body)
     response = await client.post(path, content=body, headers=headers)
     assert response.status_code == 422
@@ -898,11 +898,17 @@ async def test_a_read_burns_its_jti(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
     token = _mint_token(jti="billing-read-replay")
     first = await _post(
-        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+        client,
+        "usage",
+        {"community_ref": await billing_guild_ref(guild.id)},
+        token=token,
     )
     assert first.status_code == 200
     second = await _post(
-        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+        client,
+        "usage",
+        {"community_ref": await billing_guild_ref(guild.id)},
+        token=token,
     )
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
@@ -917,11 +923,11 @@ async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession
     await create_upload(session, guild, uploader, size_bytes=234)
 
     response = await _post(
-        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}
+        client, "usage", {"community_ref": await billing_guild_ref(guild.id)}
     )
     assert response.status_code == 200, response.text
     assert response.json() == {
-        "guild_ref": await billing_guild_ref(guild.id),
+        "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 1234,
     }
 
@@ -929,18 +935,18 @@ async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession
 async def test_usage_zero_for_empty_guild(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
     response = await _post(
-        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}
+        client, "usage", {"community_ref": await billing_guild_ref(guild.id)}
     )
     assert response.status_code == 200, response.text
     assert response.json() == {
-        "guild_ref": await billing_guild_ref(guild.id),
+        "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 0,
     }
 
 
 async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSession):
     response = await _post(
-        client, "usage", {"guild_ref": await billing_guild_ref(999_999_999)}
+        client, "usage", {"community_ref": await billing_guild_ref(999_999_999)}
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "BILLING_COMMUNITY_NOT_FOUND"
@@ -950,11 +956,17 @@ async def test_usage_burns_jti(client: AsyncClient, session: AsyncSession):
     guild = await create_guild(session)
     token = _mint_token(jti="billing-usage-replay")
     first = await _post(
-        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+        client,
+        "usage",
+        {"community_ref": await billing_guild_ref(guild.id)},
+        token=token,
     )
     assert first.status_code == 200
     second = await _post(
-        client, "usage", {"guild_ref": await billing_guild_ref(guild.id)}, token=token
+        client,
+        "usage",
+        {"community_ref": await billing_guild_ref(guild.id)},
+        token=token,
     )
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
@@ -1033,17 +1045,17 @@ async def test_billing_reads_a_guilds_name(client: AsyncClient, session: AsyncSe
     guild = await create_guild(session, name="The Tuesday Club")
     ref = await billing_guild_ref(guild.id)
 
-    response = await _post(client, "community-name", {"guild_ref": ref})
+    response = await _post(client, "community-name", {"community_ref": ref})
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_ref": ref, "name": "The Tuesday Club"}
+    assert response.json() == {"community_ref": ref, "name": "The Tuesday Club"}
 
 
 async def test_the_name_read_burns_its_jti(client: AsyncClient, session: AsyncSession):
     """One-shot like every other verb here — a captured envelope is spent."""
     guild = await create_guild(session, name="Once Only")
     ref = await billing_guild_ref(guild.id)
-    body = json.dumps({"guild_ref": ref}).encode()
+    body = json.dumps({"community_ref": ref}).encode()
     headers = _signed_headers("/api/v1/billing/community-name", body)
 
     first = await client.post(
@@ -1062,7 +1074,7 @@ async def test_a_reference_naming_no_guild_has_no_name(client: AsyncClient):
     """404 with the jti unredeemed, so the call stays retryable — the same
     shape the other reads give a guild that is not there."""
     response = await _post(
-        client, "community-name", {"guild_ref": "gbil_notoneweminted"}
+        client, "community-name", {"community_ref": "gbil_notoneweminted"}
     )
 
     assert response.status_code == 404
@@ -1078,10 +1090,10 @@ async def test_billing_reads_that_a_guild_was_deleted(
     guild = await create_guild(session, status="deleted")
     ref = await billing_guild_ref(guild.id)
 
-    response = await _post(client, "community-status", {"guild_ref": ref})
+    response = await _post(client, "community-status", {"community_ref": ref})
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"guild_ref": ref, "status": "deleted"}
+    assert response.json() == {"community_ref": ref, "status": "deleted"}
 
 
 async def test_a_status_write_cannot_bring_a_deleted_guild_back(

@@ -606,7 +606,7 @@ class TestContextToken:
             algorithms=["RS256"],
         )
         # Named the way this install knows the guild, and by nothing else.
-        assert claims["guild_ref"] == await ensure_app_guild_ref(
+        assert claims["community_ref"] == await ensure_app_guild_ref(
             guild_id=a.guild.id, app_install_id=app.id
         )
         assert "guild_id" not in claims

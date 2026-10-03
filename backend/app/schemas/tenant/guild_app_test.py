@@ -163,7 +163,7 @@ def test_surface_access_is_computed_for_the_viewer():
     definition = {
         **DEFINITION,
         "embeds": [
-            {"id": "board", "path": "/b", "scopes": ["guild", "initiative"]},
+            {"id": "board", "path": "/b", "scopes": ["community", "initiative"]},
             {
                 "id": "settings",
                 "path": "/s",

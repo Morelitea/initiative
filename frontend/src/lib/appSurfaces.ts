@@ -22,7 +22,7 @@ import { initiativeRoute } from "@/lib/tools";
 export interface AppEmbed {
   id: string;
   path: string;
-  /** Where it renders. Absent means guild-wide, the only placement there was. */
+  /** Where it renders. Absent means community-wide, the only placement there was. */
   scopes?: string[];
   /** Opened by the community's admins alone, whatever a placement allows. */
   admin_only?: boolean;
@@ -44,7 +44,7 @@ export const embedAllow = (embed: Pick<AppEmbed, "capabilities"> | null | undefi
   (embed?.capabilities ?? []).join("; ");
 
 /** The places a surface can be reached from. */
-export type SurfaceScope = "guild" | "initiative";
+export type SurfaceScope = "community" | "initiative";
 
 /** Where the viewer may open one surface, as the server computed it. */
 export interface SurfaceAccess {
@@ -88,8 +88,8 @@ export const declaredEmbeds = (
     const candidate = embed as AppEmbed;
     if (typeof candidate.id !== "string" || typeof candidate.path !== "string") return false;
     // Definitions pinned before surfaces could say where they belong carry no
-    // scopes at all, and every one of them is guild-wide.
-    const scopes = Array.isArray(candidate.scopes) ? candidate.scopes : ["guild"];
+    // scopes at all, and every one of them is community-wide.
+    const scopes = Array.isArray(candidate.scopes) ? candidate.scopes : ["community"];
     return scopes.includes(scope);
   });
 };
@@ -106,7 +106,7 @@ export const appEmbeds = (
   app: Pick<AppSurfaceSource, "definition" | "surface_access"> | null | undefined,
   initiativeId?: number
 ): AppEmbed[] => {
-  const scope: SurfaceScope = initiativeId === undefined ? "guild" : "initiative";
+  const scope: SurfaceScope = initiativeId === undefined ? "community" : "initiative";
   const access = new Map((app?.surface_access ?? []).map((one) => [one.surface_id, one]));
   return declaredEmbeds(app?.definition, scope).filter((embed) => {
     const answer = access.get(embed.id);

@@ -139,7 +139,7 @@ describe("InstallAppDialog", () => {
   });
 
   it("leaves acting as a moderator or an admin for the seat to tick", async () => {
-    const standings = ["initiatives:moderate", "guild:admin"];
+    const standings = ["initiatives:moderate", "community:admin"];
     open({
       requested_scopes: ["projects:read", ...standings],
       grantable_scopes: ["projects:read", ...standings],

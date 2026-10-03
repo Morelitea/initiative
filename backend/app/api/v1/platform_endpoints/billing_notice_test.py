@@ -71,7 +71,7 @@ async def _community(session: AsyncSession):
 
 async def _notice(guild_id: int, **fields) -> dict:
     return {
-        "guild_ref": await billing_guild_ref(guild_id),
+        "community_ref": await billing_guild_ref(guild_id),
         "event_id": fields.pop("event_id", f"evt-{secrets.token_hex(6)}"),
         "source": fields.pop("source", "trial_expiry"),
         "kind": fields.pop("kind", "trial_ending"),
@@ -368,7 +368,7 @@ async def test_an_unknown_community_is_404_and_consumes_nothing(
     client: AsyncClient, session: AsyncSession, letters
 ):
     payload = {
-        "guild_ref": "gbil_nobody",
+        "community_ref": "gbil_nobody",
         "event_id": "evt-unknown",
         "source": "trial_expiry",
         "kind": "trial_ending",

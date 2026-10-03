@@ -85,7 +85,7 @@ def test_the_published_schema_is_a_marked_integer(mode):
     plain = _Plain.model_json_schema(mode=mode)
     properties = ours["properties"]
     for schema, identity in (
-        (properties["guild_id"], "guild"),
+        (properties["guild_id"], "community"),
         (properties["owner"], "person"),
         (properties["helpers"]["items"], "person"),
         (properties["reviewer"]["anyOf"][0], "person"),

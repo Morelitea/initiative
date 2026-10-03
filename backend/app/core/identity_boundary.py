@@ -268,7 +268,7 @@ def _serializer(entity: IdentityEntity):
 #: person sends and receives, marked with what it names so the app API's
 #: document (``app.api.app_openapi``) can publish it as an install's reference.
 _PERSON_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "person"})
-_GUILD_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "guild"})
+_GUILD_SCHEMA = WithJsonSchema({"type": "integer", "x-identity": "community"})
 
 #: A person's id in a request or response schema. ``int`` for a person; the
 #: install's reference for an installed app.

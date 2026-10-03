@@ -25,9 +25,9 @@ claim set.
 The claims an app receives:
 
 * ``sub`` — the member, by the reference this install knows them by;
-* ``guild_ref`` — the community, by the reference this install knows it by;
+* ``community_ref`` — the community, by the reference this install knows it by;
 * ``app_install_id`` and ``surface_id`` — which install and which surface;
-* ``guild_admin`` — ``true`` when the viewer administers the community, read
+* ``community_admin`` — ``true`` when the viewer administers the community, read
   from the same standing that decided whether they may open the surface. An
   app uses it to shape its own screens, such as showing community-level
   settings; it is not a grant, and every call the app makes to Initiative is
@@ -36,7 +36,7 @@ The claims an app receives:
   initiative;
 * ``initiative_moderator`` — present with ``initiative_id``: ``true`` when the
   viewer's role there manages it with "Full access", as a moderator's does. An
-  app uses it the way it uses ``guild_admin``, such as to let only a
+  app uses it the way it uses ``community_admin``, such as to let only a
   moderator set something up that acts with a moderator's standing;
 * ``jti``, ``iat``, ``exp``, ``iss`` and ``aud`` — the envelope.
 
@@ -121,7 +121,7 @@ def embed_by_id(
     never the caller's. A surface that never asked to render there is not a
     surface of that route, so it is simply not found. Definitions pinned before
     a surface could say where it belongs carry no ``scopes``, and every one of
-    those is guild-wide.
+    those is community-wide.
     """
     for embed in declared_surfaces(definition):
         if embed.get("id") != surface_id:
@@ -183,7 +183,7 @@ async def mint_embed_handoff(
             status_code=status.HTTP_409_CONFLICT, detail=GuildAppMessages.DISABLED
         )
 
-    scope = "guild" if initiative_id is None else "initiative"
+    scope = "community" if initiative_id is None else "initiative"
     # Two ways there is no surface here: the app never declared one for this
     # scope, or the guild placed its initiative surfaces somewhere else. Same
     # answer, because from this route both mean the same thing.
@@ -253,12 +253,12 @@ async def mint_embed_handoff(
         "exp": now + APP_EMBED_HANDOFF_LIFETIME,
         # The guild by reference, for the same reason as the member above: an
         # index names a row to us, not an entity to somebody else.
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
         "app_install_id": app.id,
         "surface_id": surface_id,
         # The viewer's community role, from the standing the access decision
         # above was measured on, so an app need not ask for it separately.
-        "guild_admin": bool(context.is_admin),
+        "community_admin": bool(context.is_admin),
     }
     # Absent guild-wide rather than null, so "which initiative is this?" has one
     # answer instead of two shapes that both mean none.

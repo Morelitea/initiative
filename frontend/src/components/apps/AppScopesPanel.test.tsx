@@ -65,7 +65,7 @@ describe("AppScopesPanel", () => {
   });
 
   it("says acting as a moderator or an admin plainly, on rows of their own", async () => {
-    const standings = ["initiatives:moderate", "guild:admin"];
+    const standings = ["initiatives:moderate", "community:admin"];
     renderPage(() => (
       <AppScopesPanel
         app={app({

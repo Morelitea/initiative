@@ -266,7 +266,7 @@ class TestExport:
 class TestSurfaceAccess:
     """The one decision behind opening a surface, without a database."""
 
-    EMBED = {"id": "e", "path": "/e", "scopes": ["guild", "initiative"]}
+    EMBED = {"id": "e", "path": "/e", "scopes": ["community", "initiative"]}
     ADMIN_ONLY = {**EMBED, "admin_only": True}
 
     @staticmethod

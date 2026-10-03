@@ -467,11 +467,11 @@ async def test_a_subscription_names_the_guild_by_reference(client, acting_user):
 
     body = response.json()
     assert response.status_code == 201, response.text
-    assert body["guild_ref"].startswith("gweb_")
+    assert body["community_ref"].startswith("gweb_")
     assert body["created_by_ref"].startswith("uweb_")
     assert "guild_id" not in body
     assert "created_by" not in body
-    assert str(a.guild.id) != body["guild_ref"]
+    assert str(a.guild.id) != body["community_ref"]
 
 
 async def test_two_subscriptions_hold_unrelated_names_for_one_guild(
@@ -494,16 +494,17 @@ async def test_two_subscriptions_hold_unrelated_names_for_one_guild(
             headers=a.headers,
         )
 
-    assert first.json()["guild_ref"] != second.json()["guild_ref"]
+    assert first.json()["community_ref"] != second.json()["community_ref"]
     assert first.json()["created_by_ref"] != second.json()["created_by_ref"]
 
     listing = await client.get(_url(a.guild.id), headers=a.headers)
     listed = {
-        row["id"]: (row["guild_ref"], row["created_by_ref"]) for row in listing.json()
+        row["id"]: (row["community_ref"], row["created_by_ref"])
+        for row in listing.json()
     }
     for created in (first.json(), second.json()):
         assert listed[created["id"]] == (
-            created["guild_ref"],
+            created["community_ref"],
             created["created_by_ref"],
         )
 
@@ -532,5 +533,5 @@ async def test_the_name_a_subscription_is_given_is_the_one_it_keeps(
     listing = await client.get(_url(a.guild.id), headers=a.headers)
     (listed,) = [row for row in listing.json() if row["id"] == created["id"]]
 
-    assert listed["guild_ref"] == created["guild_ref"]
-    assert patched.json()["guild_ref"] == created["guild_ref"]
+    assert listed["community_ref"] == created["community_ref"]
+    assert patched.json()["community_ref"] == created["community_ref"]

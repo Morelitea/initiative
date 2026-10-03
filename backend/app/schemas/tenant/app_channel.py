@@ -63,7 +63,7 @@ class AppInstallConfigRead(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_ref: str
+    community_ref: str
     install_id: int
     listing_uid: str
     listing_version: str
@@ -131,7 +131,7 @@ class AppStatusReport(SanitizedBaseModel):
 class AppStatusRead(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_ref: str
+    community_ref: str
     install_id: int
     config_state: str
     config_state_detail: Optional[str] = None

@@ -20,11 +20,11 @@ export const appScopeTarget = (scope: string): string | null =>
 
 /**
  * The scopes that name a standing rather than a resource: acting as a
- * moderator in an initiative, or as a guild admin. Never ticked for the seat.
+ * moderator in an initiative, or as a community admin. Never ticked for the seat.
  */
 export const STANDING_SCOPES: ReadonlySet<string> = new Set([
   "initiatives:moderate",
-  "guild:admin",
+  "community:admin",
 ]);
 
 /** Public id → the name that app goes by, as the server read it. */
