@@ -94,7 +94,7 @@ describe("TagBrowser", () => {
           id: Number(params.tagId),
           name: patchBody.name,
           color: patchBody.color,
-          guild_id: 1,
+          community_id: 1,
           created_at: "2026-01-15T00:00:00.000Z",
           updated_at: "2026-01-15T00:00:00.000Z",
         });

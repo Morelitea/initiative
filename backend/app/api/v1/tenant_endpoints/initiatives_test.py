@@ -241,14 +241,14 @@ async def test_guild_scope_lists_the_whole_guild_for_admins_only(
     caller_role: CommunityRole,
     status_code: int,
 ):
-    """``scope=guild`` is the guild-settings management listing: every
+    """``scope=community`` is the guild-settings management listing: every
     initiative in the guild, including the ones the caller never joined."""
     owner = await acting_user(guild_role=CommunityRole.admin)
     await create_initiative(session, owner.guild, owner.user, name="Theirs")
     caller = await acting_user(guild_role=caller_role, guild=owner.guild)
 
     response = await client.get(
-        caller.g("/initiatives/?scope=guild"), headers=caller.headers
+        caller.g("/initiatives/?scope=community"), headers=caller.headers
     )
 
     assert response.status_code == status_code, response.text
@@ -536,7 +536,7 @@ async def test_archiving_an_initiative_round_trips_and_keeps_it_listed(
     assert archive.json()["archived_at"] is not None
 
     listing = await client.get(
-        admin.g("/initiatives/?scope=guild"), headers=admin.headers
+        admin.g("/initiatives/?scope=community"), headers=admin.headers
     )
     assert listing.status_code == 200
     archived = next(i for i in listing.json() if i["id"] == initiative.id)
@@ -1115,7 +1115,7 @@ async def test_directory_lists_only_joinable_initiatives(
 
     A guild admin's front page reads the same way — their authority over the
     guild is unchanged, the directory just stops standing in for it, and
-    ``scope=guild`` is where the whole guild is.
+    ``scope=community`` is where the whole guild is.
 
     RLS *would* permit listing a private initiative to any guild member (the
     `initiatives` table is structural), so this exclusion is an app-layer

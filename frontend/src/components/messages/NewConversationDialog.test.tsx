@@ -60,14 +60,14 @@ const person = (id: number, username: string): ContactRead => ({
   avatar_url: null,
   status: "active",
   profile_decorations: { banner: null, frame: null, frame_tint: [], trophies: [], grad_year: null },
-  guild_role: null,
+  community_role: null,
   presence: "offline",
-  shared_guild_ids: [7],
+  shared_community_ids: [7],
 });
 
 const section = (items: ContactRead[]) => ({
-  guild_id: 7,
-  guild_name: "Beyonders",
+  community_id: 7,
+  community_name: "Beyonders",
   icon_url: null,
   total_count: items.length,
   items,

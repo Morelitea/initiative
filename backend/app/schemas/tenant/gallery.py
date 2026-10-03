@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.core.identity_boundary import UPLOAD_PATH, GuildId, PersonId
 from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
@@ -116,7 +116,9 @@ class GalleryImageRead(SanitizedBaseModel):
 
     id: int
     gallery_id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     #: What somebody called it, if they did. Surfaces fall back to
     #: ``original_filename``, which is at least what the uploader called it.
     title: Optional[str] = None
@@ -187,7 +189,7 @@ def serialize_gallery_image(
     return GalleryImageRead(
         id=image.id,
         gallery_id=image.gallery_id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         title=image.title,
         caption=image.caption,
         file_url=image.file_url,

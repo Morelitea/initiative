@@ -242,15 +242,15 @@ async def request_grants(
     approver once after the complete request is established.
     """
     await _lock_user_guild_grants(
-        session, user_id=requester.id, guild_id=payload.guild_id
+        session, user_id=requester.id, guild_id=payload.community_id
     )
-    guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
+    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
         raise AccessGrantError("GUILD_NOT_FOUND")
 
     # Members don't need a grant — they already have standing access.
     membership = await guilds_service.get_membership(
-        session, guild_id=payload.guild_id, user_id=requester.id
+        session, guild_id=payload.community_id, user_id=requester.id
     )
     if membership is not None:
         raise AccessGrantError("ALREADY_MEMBER")
@@ -262,7 +262,7 @@ async def request_grants(
         existing = await session.exec(
             select(AccessGrant).where(
                 AccessGrant.user_id == requester.id,
-                AccessGrant.guild_id == payload.guild_id,
+                AccessGrant.guild_id == payload.community_id,
                 AccessGrant.purpose == purpose,
                 AccessGrant.status.in_(
                     [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
@@ -279,7 +279,7 @@ async def request_grants(
     for purpose, level in asks:
         grant = AccessGrant(
             user_id=requester.id,
-            guild_id=payload.guild_id,
+            guild_id=payload.community_id,
             access_level=level,
             purpose=purpose,
             status=AccessGrantStatus.pending.value,
@@ -387,13 +387,13 @@ async def break_glass(
     already confer.
 
     """
-    guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
+    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
         raise AccessGrantError("GUILD_NOT_FOUND")
 
     # A member already has standing access — nothing to break glass for.
     membership = await guilds_service.get_membership(
-        session, guild_id=payload.guild_id, user_id=actor.id
+        session, guild_id=payload.community_id, user_id=actor.id
     )
     if membership is not None and not allow_member:
         raise AccessGrantError("ALREADY_MEMBER")
@@ -404,14 +404,16 @@ async def break_glass(
     # makes a second concurrent request wait, then see the first's grant and hit
     # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
     # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
-    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
+    await _lock_user_guild_grants(
+        session, user_id=actor.id, guild_id=payload.community_id
+    )
 
     # Don't stack grants: a still-live grant already confers the access, and a
     # pending request would conflict. Re-trigger only after the current one ends.
     existing = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == actor.id,
-            AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.guild_id == payload.community_id,
             AccessGrant.purpose == purpose.value,
             AccessGrant.status.in_(
                 [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
@@ -428,7 +430,7 @@ async def break_glass(
     duration = _break_glass_duration(payload.requested_duration_minutes, actor.role)
     grant = AccessGrant(
         user_id=actor.id,
-        guild_id=payload.guild_id,
+        guild_id=payload.community_id,
         access_level=level,
         purpose=purpose.value,
         # Created AND approved in one step — self-approved, so there's no wait.
@@ -466,11 +468,13 @@ async def reconcile_break_glass_pair(
     payload: BreakGlassCreate,
 ) -> list[AccessGrant]:
     """Close open grants replaced by the fixed break-glass pair."""
-    await _lock_user_guild_grants(session, user_id=actor.id, guild_id=payload.guild_id)
+    await _lock_user_guild_grants(
+        session, user_id=actor.id, guild_id=payload.community_id
+    )
     result = await session.exec(
         select(AccessGrant).where(
             AccessGrant.user_id == actor.id,
-            AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.guild_id == payload.community_id,
             AccessGrant.purpose.in_(
                 [AccessGrantPurpose.content.value, AccessGrantPurpose.settings.value]
             ),

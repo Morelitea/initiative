@@ -508,7 +508,7 @@ function AggregateExportWizard({
   const estimateQuery = useEstimateAggregateExport(
     guildId,
     {
-      scope: scope.kind,
+      scope: scope.kind === "guild" ? "community" : scope.kind,
       initiative_id: scope.kind === "initiative" ? scope.initiativeId : null,
       include_uploads: includeUploads,
       ...(estimateFilters ? { filters: estimateFilters } : {}),

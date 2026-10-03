@@ -8,7 +8,7 @@ every other caller of that shape is untouched.
 
 from typing import List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 from app.models.platform.user import Presence
@@ -36,7 +36,10 @@ class ContactRead(UserSummary):
     #: sections come in. Never names a guild the reader is not in — it is built
     #: from their own guild list. The section a row sits in is included; the
     #: chip drops it, because a row's own guild is not "also in".
-    shared_guild_ids: List[int] = Field(default_factory=list)
+    shared_community_ids: List[int] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("shared_community_ids", "shared_guild_ids"),
+    )
 
 
 class ContactCommunitySection(SanitizedBaseModel):
@@ -44,8 +47,10 @@ class ContactCommunitySection(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
-    guild_name: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
     icon_url: Optional[str] = None
     #: Everyone in the guild the reader may be shown, not just this page.
     total_count: int

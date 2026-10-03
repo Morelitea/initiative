@@ -71,18 +71,18 @@ export const DirectMessagePolicyField = ({
           </div>
           <ul className="space-y-2">
             {communities.map((community) => (
-              <li key={community.guild_id} className="flex items-center justify-between gap-4">
+              <li key={community.community_id} className="flex items-center justify-between gap-4">
                 <Label
-                  htmlFor={`dm-community-${community.guild_id}`}
+                  htmlFor={`dm-community-${community.community_id}`}
                   className="font-normal text-sm"
                 >
                   {community.name}
                 </Label>
                 <Switch
-                  id={`dm-community-${community.guild_id}`}
+                  id={`dm-community-${community.community_id}`}
                   checked={community.enabled}
                   disabled={disabled}
-                  onCheckedChange={(next) => onCommunityChange(community.guild_id, next)}
+                  onCheckedChange={(next) => onCommunityChange(community.community_id, next)}
                 />
               </li>
             ))}

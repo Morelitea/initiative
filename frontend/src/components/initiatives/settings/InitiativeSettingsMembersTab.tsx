@@ -147,7 +147,7 @@ export const InitiativeSettingsMembersTab = ({
     () =>
       new Set(
         [...knownMembers.values()]
-          .filter((member) => isAdminRole(member.guild_role))
+          .filter((member) => isAdminRole(member.community_role))
           .map((member) => member.id)
       ),
     [knownMembers]
@@ -157,7 +157,7 @@ export const InitiativeSettingsMembersTab = ({
       roles?.find((role) => role.name === "moderator") ?? roles?.find((role) => role.is_manager),
     [roles]
   );
-  const addingAdmin = isAdminRole(pickedUser?.guild_role);
+  const addingAdmin = isAdminRole(pickedUser?.community_role);
   const effectiveRoleId = addingAdmin && adminRole ? String(adminRole.id) : selectedRoleId;
 
   const addMember = useAddInitiativeMember({

@@ -16,10 +16,10 @@ const groupByGuild = (rows: MyAIConnectionRow[]): GuildGroup[] => {
   const groups: GuildGroup[] = [];
   const byId = new Map<number, GuildGroup>();
   for (const row of rows) {
-    let group = byId.get(row.guild_id);
+    let group = byId.get(row.community_id);
     if (!group) {
-      group = { guildId: row.guild_id, guildName: row.guild_name, connections: [] };
-      byId.set(row.guild_id, group);
+      group = { guildId: row.community_id, guildName: row.community_name, connections: [] };
+      byId.set(row.community_id, group);
       groups.push(group);
     }
     group.connections.push(row);

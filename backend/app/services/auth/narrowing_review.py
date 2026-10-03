@@ -24,8 +24,8 @@ def _pending(
 ) -> CommunityNarrowingPending:
     return CommunityNarrowingPending(
         connection_id=connection.id,
-        guild_id=connection.guild_id,
-        guild_name=guild.name,
+        community_id=connection.guild_id,
+        community_name=guild.name,
         provider_display_name=provider.display_name,
         claim=connection.claim or "",
         claim_values=list(connection.claim_values or ()),

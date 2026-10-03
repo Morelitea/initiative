@@ -328,7 +328,7 @@ async def reorder_communities(
     await guilds_service.reorder_memberships(
         session,
         user_id=current_user.id,
-        ordered_guild_ids=payload.guild_ids,
+        ordered_guild_ids=payload.community_ids,
     )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -481,8 +481,8 @@ async def get_invite_status(
     )
     return CommunityInviteStatus(
         code=code,
-        guild_id=guild.id if guild else None,
-        guild_name=guild.name if guild else None,
+        community_id=guild.id if guild else None,
+        community_name=guild.name if guild else None,
         is_valid=is_valid,
         reason=reason,
         expires_at=invite.expires_at if invite else None,
@@ -815,7 +815,7 @@ async def read_community_entitlements(
     """
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     return CommunityEntitlementsRead(
-        guild_id=guild_id,
+        community_id=guild_id,
         banner_image_enabled=(
             administration.banner_image_enabled if administration else True
         ),

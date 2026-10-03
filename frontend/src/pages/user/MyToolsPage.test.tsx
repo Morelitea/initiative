@@ -84,7 +84,7 @@ describe("MyToolsPage", () => {
   it("offers a tab only for the tools the reader has something of", async () => {
     stubMyTools({
       counts: { project: 3, queue: 1 },
-      projects: [buildProject({ name: "Apollo", guild_id: HOME.id })],
+      projects: [buildProject({ name: "Apollo", community_id: HOME.id })],
     });
 
     render();
@@ -109,7 +109,7 @@ describe("MyToolsPage", () => {
   it("addresses each row in its own community", async () => {
     stubMyTools({
       counts: { document: 2 },
-      documents: [buildDocumentSummary({ id: 5, name: "Campaign notes", guild_id: AWAY.id })],
+      documents: [buildDocumentSummary({ id: 5, name: "Campaign notes", community_id: AWAY.id })],
     });
 
     render({ tool: "documents" }, [HOME, AWAY]);
@@ -145,8 +145,8 @@ describe("MyToolsPage", () => {
     stubMyTools({ counts: { project: 1 } });
     server.use(
       http.get("/api/v1/me/projects", ({ request }) => {
-        lastGuildIds = new URL(request.url).searchParams.getAll("guild_ids");
-        return page([buildProject({ name: "Apollo", guild_id: AWAY.id })]);
+        lastGuildIds = new URL(request.url).searchParams.getAll("community_ids");
+        return page([buildProject({ name: "Apollo", community_id: AWAY.id })]);
       })
     );
 
@@ -159,13 +159,13 @@ describe("MyToolsPage", () => {
   it("names each row's initiative, wherever it lives", async () => {
     stubMyTools({
       counts: { project: 1 },
-      projects: [buildProject({ name: "Apollo", guild_id: AWAY.id, initiative_id: 9 })],
+      projects: [buildProject({ name: "Apollo", community_id: AWAY.id, initiative_id: 9 })],
     });
     server.use(
       guildHttp.get("/initiatives/", ({ params }) =>
         HttpResponse.json(
           Number(params.guildId) === AWAY.id
-            ? [buildInitiative({ id: 9, name: "Mists", guild_id: AWAY.id })]
+            ? [buildInitiative({ id: 9, name: "Mists", community_id: AWAY.id })]
             : []
         )
       )

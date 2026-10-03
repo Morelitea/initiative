@@ -55,7 +55,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * List calendars visible to the current user (guild admins see all).
  *
- * ``scope=guild`` narrows to the guild's own calendars — the ones the calendar
+ * ``scope=community`` narrows to the guild's own calendars — the ones the calendar
  * app holds, belonging to no initiative. That is the opposite of the
  * unfiltered list, which is everything in scope, so it is asked for by name
  * rather than inferred from an absent ``initiative_id``.

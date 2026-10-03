@@ -640,7 +640,7 @@ class TestTimeOut:
         me = (await client.get("/api/v1/me", headers=headers)).json()
         assert me["status"] == "suspended"
         assert me["capabilities"] == []
-        assert me["can_create_guilds"] is False
+        assert me["can_create_communities"] is False
 
         response = await client.get("/api/v1/operator/users", headers=headers)
         assert response.status_code == 403

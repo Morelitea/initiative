@@ -18,7 +18,7 @@ export function buildNotification(overrides: Partial<NotificationRead> = {}): No
     data: {},
     created_at: "2026-01-15T00:00:00.000Z",
     read_at: null,
-    guild_id: null,
+    community_id: null,
     initiative_id: null,
     tool: null,
     ...overrides,
@@ -30,7 +30,7 @@ export function buildNotificationPlace(
   overrides: Partial<NotificationPlace> = {}
 ): NotificationPlace {
   return {
-    guild_id: 1,
+    community_id: 1,
     initiative_id: null,
     tool: null,
     resource_id: null,

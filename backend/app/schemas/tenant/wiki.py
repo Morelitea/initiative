@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
@@ -188,7 +188,9 @@ class WikiPageSummary(SanitizedBaseModel):
 
     id: int
     wiki_id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     #: Which of the two things this row is. A document keeps its own id, so a
     #: client keys rows on the pair rather than on the number alone.
     kind: WikiPageKind = WikiPageKind.page
@@ -277,7 +279,7 @@ def serialize_document_as_page(
     return WikiPageSummary(
         id=document.id,
         wiki_id=wiki_id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         kind=WikiPageKind.document,
         parent_page_id=parent_page_id,
         position=position,

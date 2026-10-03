@@ -3,7 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, List, Mapping, Optional, Sequence, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field, PrivateAttr, field_serializer, model_validator
+from pydantic import (
+    AliasChoices,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_serializer,
+    model_validator,
+)
 
 from app.core import recurrence
 from app.core.identity_boundary import GuildId, PersonId, names_withheld
@@ -187,7 +194,9 @@ class CalendarEventSummary(CalendarEventBase):
     # filter/group by initiative without another fetch. NULL when the parent is
     # a guild-level calendar.
     initiative_id: Optional[int] = None
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     created_by: PersonId | None = None
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)

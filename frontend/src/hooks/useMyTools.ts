@@ -31,7 +31,7 @@ export type MyToolListParams = ToolMyListParams;
 
 /** How much of each tool reaches the reader — which tabs the page draws. */
 export const useMyToolCounts = (
-  params?: { guild_ids?: number[]; created_by_me?: boolean },
+  params?: { community_ids?: number[]; created_by_me?: boolean },
   options?: QueryOpts<MyToolCountsResponse>
 ) =>
   useQuery<MyToolCountsResponse>({
@@ -66,7 +66,7 @@ export function useMyToolRows(tool: Tool, page: number, pageSize: number, view: 
   const params: MyToolListParams = {
     page,
     page_size: pageSize,
-    ...(view.guildIds && view.guildIds.length > 0 ? { guild_ids: view.guildIds } : {}),
+    ...(view.guildIds && view.guildIds.length > 0 ? { community_ids: view.guildIds } : {}),
     ...(view.search ? { search: view.search } : {}),
     ...(view.createdByMe ? { created_by_me: true } : {}),
     ...(view.sortBy ? { sort_by: view.sortBy, sort_dir: view.sortDir ?? "asc" } : {}),

@@ -73,7 +73,7 @@ async def test_switching_a_community_off_and_on(client, session, acting_user):
 
     off = await client.patch(
         "/api/v1/me/dm-settings",
-        json={"communities": [{"guild_id": guild.id, "enabled": False}]},
+        json={"communities": [{"community_id": guild.id, "enabled": False}]},
         headers=a.headers,
     )
     assert off.status_code == 200, off.text
@@ -81,7 +81,7 @@ async def test_switching_a_community_off_and_on(client, session, acting_user):
 
     on = await client.patch(
         "/api/v1/me/dm-settings",
-        json={"communities": [{"guild_id": guild.id, "enabled": True}]},
+        json={"communities": [{"community_id": guild.id, "enabled": True}]},
         headers=a.headers,
     )
     assert on.json()["communities"][0]["enabled"] is True
@@ -95,7 +95,7 @@ async def test_a_community_you_are_not_in_is_refused(client, session, acting_use
 
     response = await client.patch(
         "/api/v1/me/dm-settings",
-        json={"communities": [{"guild_id": elsewhere.id, "enabled": False}]},
+        json={"communities": [{"community_id": elsewhere.id, "enabled": False}]},
         headers=a.headers,
     )
     assert response.status_code == 422

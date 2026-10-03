@@ -393,7 +393,7 @@ describe("FocusSummary", () => {
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([
-        buildTask({ id: 42, guild_id: 1, title: "Pinned far-future task" }),
+        buildTask({ id: 42, community_id: 1, title: "Pinned far-future task" }),
       ]),
     });
 
@@ -408,8 +408,8 @@ describe("FocusSummary", () => {
     mockMyTasks({
       rules: buildTaskListResponse([]),
       pins: buildTaskListResponse([
-        buildTask({ id: 7, guild_id: 1, title: "Someone else's task 7" }),
-        buildTask({ id: 7, guild_id: 2, title: "The pinned task 7" }),
+        buildTask({ id: 7, community_id: 1, title: "Someone else's task 7" }),
+        buildTask({ id: 7, community_id: 2, title: "The pinned task 7" }),
       ]),
     });
 
@@ -485,7 +485,7 @@ describe("FocusSummary", () => {
       pins: buildTaskListResponse([
         buildTask({
           id: 55,
-          guild_id: 1,
+          community_id: 1,
           title,
           completed_at: finishedAt.toISOString(),
           task_status: DONE,

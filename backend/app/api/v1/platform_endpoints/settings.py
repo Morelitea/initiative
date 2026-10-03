@@ -195,7 +195,9 @@ async def _platform_auth_payload(session) -> PlatformAuthSettingsResponse:
             )
             for method in LoginMethod
         ],
-        guilds_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(session),
+        communities_requiring_sign_in=await auth_posture.guilds_requiring_sign_in(
+            session
+        ),
         factor_methods_permitted=bool(permitted.intersection(FACTOR_METHODS)),
         session_max_hours=row.session_max_hours,
         session_idle_minutes=row.session_idle_minutes,
@@ -1239,7 +1241,7 @@ async def create_platform_community_billing_service_handoff(
                 # A visit to the portal, and nothing in the guild.
                 level=AccessLevel.read.value,
                 payload=BreakGlassCreate(
-                    guild_id=guild_id,
+                    community_id=guild_id,
                     reason=BILLING_PORTAL_GRANT_REASON,
                 ),
                 # Belonging to the guild says nothing about billing authority,

@@ -68,7 +68,7 @@ async def _break_glass(
     """Click through, with ``reason`` and any credential the caller supplies."""
     return await client.post(
         BREAK_GLASS,
-        json={"guild_id": guild.id, "reason": "prod incident #42", **body},
+        json={"community_id": guild.id, "reason": "prod incident #42", **body},
         headers=actor.headers,
     )
 
@@ -238,7 +238,7 @@ async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
         "/api/v1/access-grants/",
         headers=a.headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": "read",
             "reason": "ordinary content work",
         },

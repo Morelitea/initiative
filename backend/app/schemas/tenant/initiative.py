@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field, create_model
+from pydantic import AliasChoices, ConfigDict, Field, create_model
 
 from app.core.identity_boundary import GuildId
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
@@ -45,12 +45,12 @@ class InitiativeListScope(str, Enum):
     ``member`` — the caller's own workspace: the initiatives they hold a
     membership in. This is what the sidebar and every initiative picker show.
 
-    ``guild`` — every initiative in the guild, for the guild-settings
+    ``community`` — every initiative in the community, for the guild-settings
     management table. Guild admins only.
     """
 
     member = "member"
-    guild = "guild"
+    community = "community"
 
 
 # Derived bases: one `{tool.plural}_enabled` master-switch field per Tool. A new
@@ -237,7 +237,9 @@ class InitiativeRead(InitiativeBase):
     #: The community this initiative was read in. Set by
     #: :func:`serialize_initiative`; a payload pydantic builds while validating
     #: another carries none until that serializer replaces it.
-    guild_id: Optional[GuildId] = None
+    community_id: Optional[GuildId] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
     # Hidden from the main sidebar once set (see Initiative.archived_at).
     archived_at: Optional[datetime] = None
     # How guild members may join (see InitiativeJoinPolicy). Never consulted by
@@ -386,7 +388,7 @@ def serialize_initiative(
     row undefers them."""
     return InitiativeRead(
         id=initiative.id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         name=initiative.name,
         description=initiative.description,
         color=initiative.color,

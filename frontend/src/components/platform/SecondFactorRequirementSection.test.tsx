@@ -42,7 +42,7 @@ const base: PlatformAuthSettingsResponse = {
     { method: "password", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
     { method: "totp", enabled: true, primary: false, answers_factor: true, would_strand: 0 },
   ],
-  guilds_requiring_sign_in: 0,
+  communities_requiring_sign_in: 0,
   session_max_hours: null,
   session_idle_minutes: null,
   second_factor_requirement: "nobody",

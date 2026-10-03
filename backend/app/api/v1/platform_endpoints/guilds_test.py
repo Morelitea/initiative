@@ -698,7 +698,7 @@ async def test_reorder_guilds(
 
     wanted = [guild3.id, a.guild.id, guild2.id]
     response = await client.put(
-        "/api/v1/communities/order", headers=a.headers, json={"guild_ids": wanted}
+        "/api/v1/communities/order", headers=a.headers, json={"community_ids": wanted}
     )
 
     assert response.status_code == 204

@@ -8,7 +8,7 @@ is then one entry in ``app.core.notification_categories`` and four locale files.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator, model_validator
 
 from app.core.notification_categories import (
     CategoryGroup,
@@ -90,7 +90,9 @@ class NotificationCategoryRead(SanitizedBaseModel):
     #: me" community level keeps, and what the inbox's Mentions filter shows.
     personal: bool
     #: Whether a community level or per-community override can reach it.
-    guild_scoped: bool
+    community_scoped: bool = Field(
+        validation_alias=AliasChoices("community_scoped", "guild_scoped")
+    )
     #: Channels the account may switch off. A channel absent from this renders
     #: as on and disabled.
     mutable_channels: list[Channel]
@@ -100,8 +102,10 @@ class NotificationCategoryRead(SanitizedBaseModel):
 class CommunityNotificationSettings(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
-    guild_name: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
     level: NotificationLevel = NotificationLevel.everything
     #: Per-category overrides for this community only. Sparse.
     categories: dict[str, dict[str, bool]] = Field(default_factory=dict)
@@ -122,20 +126,22 @@ class NotificationPreferencesRead(SanitizedBaseModel):
     pause: Optional[PauseRead] = None
     #: Whether to hold off while the account is plainly already looking.
     respect_presence: bool = True
-    guilds: list[CommunityNotificationSettings] = Field(default_factory=list)
+    communities: list[CommunityNotificationSettings] = Field(
+        default_factory=list, validation_alias=AliasChoices("communities", "guilds")
+    )
 
 
 class NotificationChannelSet(SanitizedBaseModel):
     """One switch being moved. ``guild_id`` scopes it to one community."""
 
-    guild_id: Optional[int] = None
+    community_id: Optional[int] = None
     category: NotificationCategory
     channel: Channel
     enabled: bool
 
 
 class NotificationLevelSet(SanitizedBaseModel):
-    guild_id: int
+    community_id: int
     level: NotificationLevel
 
 

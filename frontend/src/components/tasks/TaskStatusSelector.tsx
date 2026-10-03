@@ -48,7 +48,7 @@ export const TaskStatusSelector = ({
   const handleOpenChange = useCallback(
     async (open: boolean) => {
       if (open) {
-        const guildId = task.guild_id ?? activeGuildId ?? null;
+        const guildId = task.community_id ?? activeGuildId ?? null;
         const fetchedStatuses = await fetchProjectStatuses(task.project_id, guildId);
         setStatuses(fetchedStatuses);
       }

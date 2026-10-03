@@ -80,7 +80,7 @@ async def test_a_key_bound_to_one_community_records_which(
     minted = await client.post(
         "/api/v1/me/api-keys",
         headers=get_auth_headers(user),
-        json={"name": "ci", "guild_id": guild_id, "read_only": True},
+        json={"name": "ci", "community_id": guild_id, "read_only": True},
     )
     assert minted.status_code == 201, minted.text
     key_id = minted.json()["api_key"]["id"]

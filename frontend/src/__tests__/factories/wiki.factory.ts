@@ -21,7 +21,7 @@ export function buildWiki(overrides: Partial<WikiRead> = {}): WikiRead {
     name: `Wiki ${counter}`,
     description: null,
     initiative_id: 1,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
@@ -49,7 +49,7 @@ export function buildWikiPage(overrides: Partial<WikiPageRead> = {}): WikiPageRe
   return {
     id: counter,
     wiki_id: 1,
-    guild_id: 1,
+    community_id: 1,
     kind: WikiPageKind.page,
     parent_page_id: null,
     position: counter * 10,

@@ -66,7 +66,7 @@ export const PlatformAuthSection = () => {
   });
   if (query.isLoading || !query.data) return null;
 
-  const { methods, guilds_requiring_sign_in } = query.data;
+  const { methods, communities_requiring_sign_in: guilds_requiring_sign_in } = query.data;
 
   const enabled = methods.filter((m) => m.enabled).map((m) => m.method);
   const busy = updateMethods.isPending;

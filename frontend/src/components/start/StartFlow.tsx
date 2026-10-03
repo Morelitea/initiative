@@ -352,7 +352,7 @@ const StartSteps = ({
         return;
       }
       if (final.path === "invite") {
-        const guildId = invite.status?.guild_id;
+        const guildId = invite.status?.community_id;
         await leave(() =>
           guildId
             ? navigate({ to: "/c/$guildId", params: { guildId: String(guildId) } })
@@ -488,8 +488,8 @@ const StartSteps = ({
   const inviteLine = invite.checking
     ? t("register.checkingInvite")
     : invite.status?.is_valid
-      ? invite.status.guild_name
-        ? t("register.joiningGuild", { guildName: invite.status.guild_name })
+      ? invite.status.community_name
+        ? t("register.joiningGuild", { guildName: invite.status.community_name })
         : t("register.joiningGuildDefault")
       : null;
 

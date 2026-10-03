@@ -102,7 +102,7 @@ describe("ConnectSignInWizard", () => {
     expect(createRule).toHaveBeenCalledWith({
       provider_id: 11,
       claim_value: "eng-platform",
-      guild_role: "member",
+      community_role: "member",
     });
     expect(updatePolicy).toHaveBeenCalledWith({
       auth_policy: { policy: "required", provider_id: 11, require_methods: [] },

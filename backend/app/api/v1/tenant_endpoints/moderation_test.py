@@ -315,7 +315,7 @@ async def test_a_second_reporter_joins_the_open_report(client, session, scene):
                 "target_type": "comment",
                 "target_id": scene["comment"].id,
                 "reason": "spam",
-                "guild_id": scene["guild"].id,
+                "community_id": scene["guild"].id,
             },
             headers=headers,
         )
@@ -353,7 +353,7 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
             "target_type": "comment",
             "target_id": scene["comment"].id,
             "reason": "spam",
-            "guild_id": scene["guild"].id,
+            "community_id": scene["guild"].id,
         },
         headers=get_auth_headers(outsider),
     )

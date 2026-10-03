@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import ConfigDict
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
@@ -40,7 +40,7 @@ class RecentItemRead(SanitizedBaseModel):
 
     entity_type: RecentEntityType
     entity_id: int
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     # The initiative the entity lives in, which its URL addresses. NULL for a
     # guild-level entity — only calendars have any — which keeps a guild route.
     initiative_id: Optional[int] = None

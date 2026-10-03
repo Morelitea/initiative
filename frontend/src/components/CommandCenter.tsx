@@ -211,7 +211,7 @@ export function CommandCenter() {
       (browseTasksQuery.data?.items ?? []).map((task) => ({
         id: task.id,
         title: task.title,
-        guildId: task.guild_id ?? activeGuildId,
+        guildId: task.community_id ?? activeGuildId,
       })),
     [browseTasksQuery.data, activeGuildId]
   );
@@ -433,8 +433,8 @@ export function CommandCenter() {
           <CommandGroup heading={t("groups.suggested")}>
             {recentItems.slice(0, 5).map((item) => (
               <CommandItem
-                key={`suggested-${item.guild_id}-${item.entity_type}-${item.entity_id}`}
-                value={`suggested-${item.guild_id}-${item.entity_type}-${item.entity_id}-${item.name}`}
+                key={`suggested-${item.community_id}-${item.entity_type}-${item.entity_id}`}
+                value={`suggested-${item.community_id}-${item.entity_type}-${item.entity_id}-${item.name}`}
                 keywords={[item.name]}
                 onSelect={() => handleSelect(recentRoute(item))}
               >

@@ -24,7 +24,7 @@ class ReportCreate(SanitizedBaseModel):
     detail: Optional[str] = PydanticField(default=None, max_length=4000)
     #: Which community the reporter was standing in, when they were in one.
     #: Validated as theirs before it is used, and it decides no venue.
-    guild_id: Optional[int] = None
+    community_id: Optional[int] = None
 
 
 class ReportTargetLink(SanitizedBaseModel):

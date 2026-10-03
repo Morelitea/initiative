@@ -44,7 +44,7 @@ async def list_calendar_entries(
     guild_context: GuildContextDep,
     window: calendar_events_api.CalendarWindowDep,
     initiative_id: Optional[int] = Query(default=None),
-    scope: Optional[Literal["guild"]] = Query(default=None),
+    scope: Optional[Literal["community"]] = Query(default=None),
     calendar_ids: Optional[List[int]] = Query(default=None),
     property_filters: Optional[str] = Query(default=None),
     conditions: Optional[str] = Query(
@@ -65,7 +65,7 @@ async def list_calendar_entries(
     leg to named calendars — a surface showing a single calendar asks for
     exactly it rather than everything and filtering client-side.
 
-    ``scope=guild`` is the same question asked by kind rather than by name: every
+    ``scope=community`` is the same question asked by kind rather than by name: every
     guild calendar, however many there are. The calendar app shows all of them
     at once, and a list of ids it had to assemble first would be a page of them.
     """
@@ -76,7 +76,7 @@ async def list_calendar_entries(
             current_user,
             guild_context,
             initiative_id=initiative_id,
-            guild_scope=scope == "guild",
+            guild_scope=scope == "community",
             calendar_ids=calendar_ids,
             start_after=window.start_after,
             start_before=window.start_before,
@@ -124,7 +124,7 @@ async def list_my_calendar_entries(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     window: calendar_events_api.CalendarWindowDep,
-    guild_ids: Optional[List[int]] = Query(default=None),
+    guild_ids: Optional[List[int]] = Query(default=None, alias="community_ids"),
     conditions: Optional[str] = Query(
         default=None,
         description="Task filter conditions (same JSON shape as GET /me/tasks).",

@@ -87,7 +87,7 @@ export const GuildInvitePage = () => {
 
   const inviteValid = Boolean(status?.is_valid);
   const inviteTitle = inviteValid
-    ? t("invite.title", { guildName: status?.guild_name ?? "this guild" })
+    ? t("invite.title", { guildName: status?.community_name ?? "this guild" })
     : t("invite.titleDefault");
 
   return (
@@ -117,7 +117,7 @@ export const GuildInvitePage = () => {
                 </p>
                 <p>
                   <span className="font-medium">{t("invite.guildLabel")}</span>{" "}
-                  {status?.guild_name ?? t("invite.unknown")}
+                  {status?.community_name ?? t("invite.unknown")}
                 </p>
                 {status?.expires_at ? (
                   <p>

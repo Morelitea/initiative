@@ -153,7 +153,7 @@ describe("SettingsAccessGrantsPage", () => {
 
     expect(createRequest).toHaveBeenCalledTimes(1);
     expect(createRequest.mock.calls[0][0]).toMatchObject({
-      guild_id: 7,
+      community_id: 7,
       access_level: "read",
       requested_duration_minutes: 240,
     });

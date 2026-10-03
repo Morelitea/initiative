@@ -5,7 +5,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Annotated, Any, List, Literal, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 
 from app.core.identity_boundary import GuildId
 from app.core.messages import CounterMessages
@@ -136,7 +136,9 @@ class CounterRead(SanitizedBaseModel):
 
     id: int
     counter_group_id: int
-    guild_id: GuildId
+    community_id: GuildId = Field(
+        validation_alias=AliasChoices("community_id", "guild_id")
+    )
     name: str
     color: Optional[str] = None
     count: str
@@ -224,7 +226,7 @@ def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRe
     return CounterRead(
         id=counter.id,
         counter_group_id=counter.counter_group_id,
-        guild_id=context.guild_id,
+        community_id=context.guild_id,
         name=counter.name,
         color=counter.color,
         count=_format_decimal(counter.count),

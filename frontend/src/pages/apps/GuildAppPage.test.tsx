@@ -28,9 +28,9 @@ vi.mock("@/api/generated/apps/apps", () => ({
 
 /** Where the server says this reader may open each surface. */
 const ADMIN_ACCESS = [
-  { surface_id: "one", openable_guild_wide: true, openable_initiatives: [] },
-  { surface_id: "two", openable_guild_wide: true, openable_initiatives: [] },
-  { surface_id: "inside", openable_guild_wide: false, openable_initiatives: [4] },
+  { surface_id: "one", openable_community_wide: true, openable_initiatives: [] },
+  { surface_id: "two", openable_community_wide: true, openable_initiatives: [] },
+  { surface_id: "inside", openable_community_wide: false, openable_initiatives: [4] },
 ];
 
 let surfaceAccess = ADMIN_ACCESS;

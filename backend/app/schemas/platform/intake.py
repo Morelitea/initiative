@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pydantic import EmailStr, Field
+from pydantic import AliasChoices, EmailStr, Field
 
 from app.core.intake import IntakeStream
 from app.schemas.base import SanitizedBaseModel
@@ -34,8 +34,16 @@ class IntakeBindingRead(SanitizedBaseModel):
 class IntakeSettingsRead(SanitizedBaseModel):
     """The pointer, every stream whether bound or not, and who to contact."""
 
-    operations_guild_id: Optional[int] = None
-    operations_guild_name: Optional[str] = None
+    operations_community_id: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("operations_community_id", "operations_guild_id"),
+    )
+    operations_community_name: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "operations_community_name", "operations_guild_name"
+        ),
+    )
     bindings: List[IntakeBindingRead]
     #: The deployment's catch-all contact address.
     general_contact_email: Optional[str] = None
@@ -53,7 +61,7 @@ class IntakeContactUpdate(SanitizedBaseModel):
 class OperationsCommunityUpdate(SanitizedBaseModel):
     """Point this deployment's operations work at a guild, or at nothing."""
 
-    guild_id: Optional[int] = None
+    community_id: Optional[int] = None
 
 
 class IntakeBindingUpsert(SanitizedBaseModel):

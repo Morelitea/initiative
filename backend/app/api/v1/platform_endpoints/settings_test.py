@@ -960,14 +960,14 @@ async def test_billing_grant_does_not_block_a_content_break_glass(
     billing = await service.break_glass(
         session,
         actor=owner.user,
-        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
+        payload=BreakGlassCreate(community_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
         level=AccessLevel.read.value,
     )
     content = await service.break_glass(
         session,
         actor=owner.user,
-        payload=BreakGlassCreate(guild_id=guild.id, reason="incident"),
+        payload=BreakGlassCreate(community_id=guild.id, reason="incident"),
         level=AccessLevel.read_write.value,
     )
     assert billing.purpose == "billing"
@@ -1002,7 +1002,7 @@ async def test_billing_grant_does_not_block_a_content_request(
     await service.break_glass(
         session,
         actor=support.user,
-        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
+        payload=BreakGlassCreate(community_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
         level=AccessLevel.read.value,
     )
@@ -1013,7 +1013,7 @@ async def test_billing_grant_does_not_block_a_content_request(
             asks=[("content", AccessLevel.read.value)],
             requester=support.user,
             payload=AccessGrantCreate(
-                guild_id=guild.id,
+                community_id=guild.id,
                 reason="investigating a ticket",
                 access_level=AccessLevel.read,
             ),

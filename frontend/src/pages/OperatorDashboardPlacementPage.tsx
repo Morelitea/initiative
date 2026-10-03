@@ -178,7 +178,7 @@ export const OperatorDashboardPlacementPage = () => {
         onOpenChange={(open) => !open && setRemoving(null)}
         title={t("providerPlacement.removeTitle")}
         description={t("providerPlacement.removeDescription", {
-          community: removing?.guild_name ?? "",
+          community: removing?.community_name ?? "",
         })}
         confirmLabel={t("providerPlacement.remove")}
         cancelLabel={t("authProviders.cancel")}
@@ -241,14 +241,14 @@ const ProviderRulesCard = ({
                   <p className="text-muted-foreground text-sm">
                     {rule.initiative_name
                       ? t("providerPlacement.landsInInitiative", {
-                          community: rule.guild_name,
-                          role: placementRoleLabel(rule.guild_role, t),
+                          community: rule.community_name,
+                          role: placementRoleLabel(rule.community_role, t),
                           initiative: rule.initiative_name,
                           initiativeRole: rule.initiative_role_name ?? "",
                         })
                       : t("providerPlacement.landsInCommunity", {
-                          community: rule.guild_name,
-                          role: placementRoleLabel(rule.guild_role, t),
+                          community: rule.community_name,
+                          role: placementRoleLabel(rule.community_role, t),
                         })}
                   </p>
                 </div>
@@ -307,7 +307,7 @@ const PlacementRequestsCard = () => {
               className="flex items-start justify-between gap-3 rounded-md border px-4 py-3"
             >
               <div className="min-w-0 space-y-1">
-                <p className="font-medium text-sm">{row.guild_name}</p>
+                <p className="font-medium text-sm">{row.community_name}</p>
                 <p className="text-sm">
                   {t("guilds.sheet.narrowings.claims", {
                     provider: row.provider_display_name,
@@ -326,11 +326,11 @@ const PlacementRequestsCard = () => {
                 disabled={agree.isPending}
                 onClick={() =>
                   agree.mutate(
-                    { guildId: row.guild_id, connectionId: row.connection_id },
+                    { guildId: row.community_id, connectionId: row.connection_id },
                     {
                       onSuccess: () =>
                         toast.success(
-                          t("providerPlacement.requests.agreed", { community: row.guild_name })
+                          t("providerPlacement.requests.agreed", { community: row.community_name })
                         ),
                       onError: (err: unknown) =>
                         toast.error(getErrorMessage(err, "settings:guilds.sheet.narrowings.error")),

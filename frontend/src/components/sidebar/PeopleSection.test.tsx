@@ -20,7 +20,7 @@ import { PeopleSection } from "./PeopleSection";
 const mocks = vi.hoisted(() => ({
   roster: vi.fn(),
   dmPolicy: "community" as string,
-  communities: [] as { guild_id: number; enabled: boolean }[],
+  communities: [] as { community_id: number; enabled: boolean }[],
 }));
 
 vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 7 }));
@@ -44,7 +44,7 @@ const member = (overrides: Partial<CommunityRosterMember>): CommunityRosterMembe
   display_name: null,
   avatar_url: null,
   status: "active",
-  guild_role: "member",
+  community_role: "member",
   profile_decorations: null,
   presence: "offline",
   custom_status: { emoji: null, text: null },
@@ -95,7 +95,7 @@ describe("PeopleSection", () => {
           id: 2,
           username: "bram",
           presence: "busy",
-          guild_role: "admin",
+          community_role: "admin",
           custom_status: { emoji: "🎧", text: "Heads down" },
         }),
         member({ id: 3, username: "cleo" }),
@@ -135,8 +135,8 @@ describe("PeopleSection", () => {
 
   it("tells a reader who switched this community off why they are not listed", async () => {
     mocks.communities = [
-      { guild_id: 7, enabled: false },
-      { guild_id: 8, enabled: true },
+      { community_id: 7, enabled: false },
+      { community_id: 8, enabled: true },
     ];
     page([], { online: 0, idle: 0, busy: 0, offline: 0 });
 
@@ -146,7 +146,7 @@ describe("PeopleSection", () => {
   });
 
   it("does not tell a reader this community can message", async () => {
-    mocks.communities = [{ guild_id: 8, enabled: false }];
+    mocks.communities = [{ community_id: 8, enabled: false }];
     page([], { online: 0, idle: 0, busy: 0, offline: 0 });
 
     render();

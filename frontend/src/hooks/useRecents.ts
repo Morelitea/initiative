@@ -51,7 +51,7 @@ export const useRecordRecentView = (entityType: RecentEntityType, guildId: numbe
       const held = client.getQueryData<RecentItemRead[]>(key);
       const opened = held?.find(
         (item) =>
-          item.guild_id === guildId &&
+          item.community_id === guildId &&
           item.entity_type === written.entity_type &&
           item.entity_id === written.entity_id
       );

@@ -42,7 +42,7 @@ describe("useRecordRecentView", () => {
         })
       )
     );
-    const { result } = renderHook(() => useRecordRecentView("project", reopened.guild_id), {
+    const { result } = renderHook(() => useRecordRecentView("project", reopened.community_id), {
       wrapper,
     });
 

@@ -3,7 +3,7 @@ from string import ascii_letters, digits
 from typing import Final, List, Literal, Optional
 from uuid import uuid4
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.schemas.base import (
@@ -247,8 +247,12 @@ class TaskListRead(TaskBase):
     #: edges whose far end has not finished. Only kinds with a reading of
     #: "finished" count — see :mod:`app.db.blocking`.
     blocked_by_open_count: int = 0
-    guild_id: Optional[GuildId] = None
-    guild_name: Optional[str] = None
+    community_id: Optional[GuildId] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
+    community_name: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_name", "guild_name")
+    )
     project_name: Optional[str] = None
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None

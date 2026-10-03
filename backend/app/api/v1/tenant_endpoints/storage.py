@@ -15,6 +15,7 @@ tab. Not disclosed to regular members, like ``status``.
 from __future__ import annotations
 
 from fastapi import APIRouter
+from pydantic import AliasChoices, Field
 
 from app.api.deps import SettingsAdminContextDep
 from app.schemas.base import SanitizedBaseModel
@@ -24,7 +25,7 @@ router = APIRouter()
 
 
 class CommunityStorageUsageRead(SanitizedBaseModel):
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     usage_bytes: int
 
 
@@ -36,5 +37,5 @@ async def read_storage_usage(
     # the question of who may read the total.
     usage_bytes = await get_guild_storage_usage(guild_context.guild_id)
     return CommunityStorageUsageRead(
-        guild_id=guild_context.guild_id, usage_bytes=usage_bytes
+        community_id=guild_context.guild_id, usage_bytes=usage_bytes
     )

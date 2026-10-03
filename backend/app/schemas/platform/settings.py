@@ -1,7 +1,7 @@
 import json
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.config import CaptchaProvider, StorageBackendKind
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
@@ -233,8 +233,10 @@ class CommunityNarrowingPending(SanitizedBaseModel):
     """One community's claim, waiting to be answered."""
 
     connection_id: int
-    guild_id: int
-    guild_name: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
     provider_display_name: str
     claim: str
     claim_values: List[str]
@@ -308,7 +310,9 @@ class CommunityClaimRuleRead(SanitizedBaseModel):
     provider_display_name: str
     provider_icon: Optional[str] = None
     claim_value: str
-    guild_role: str
+    community_role: str = Field(
+        validation_alias=AliasChoices("community_role", "guild_role")
+    )
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
     initiative_role_id: Optional[int] = None
@@ -324,7 +328,7 @@ class CommunityClaimRuleCreate(SanitizedBaseModel):
 
     provider_id: int
     claim_value: str = Field(max_length=500)
-    guild_role: str = "member"
+    community_role: str = "member"
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
 
@@ -367,9 +371,13 @@ class ProviderPlacementRuleRead(SanitizedBaseModel):
     #: the rule is about. Both or neither.
     scope_claim: Optional[str] = None
     scope_value: Optional[str] = None
-    guild_id: int
-    guild_name: str
-    guild_role: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
+    community_role: str = Field(
+        validation_alias=AliasChoices("community_role", "guild_role")
+    )
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
     initiative_role_id: Optional[int] = None
@@ -389,8 +397,8 @@ class ProviderPlacementRuleCreate(SanitizedBaseModel):
     claim_value: Optional[str] = Field(default=None, max_length=500)
     scope_claim: Optional[str] = Field(default=None, max_length=64)
     scope_value: Optional[str] = Field(default=None, max_length=256)
-    guild_id: int
-    guild_role: str = "member"
+    community_id: int
+    community_role: str = "member"
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
 
@@ -402,7 +410,7 @@ class ProviderPlacementRuleUpdate(SanitizedBaseModel):
     claim_value: Optional[str] = Field(default=None, max_length=500)
     scope_claim: Optional[str] = Field(default=None, max_length=64)
     scope_value: Optional[str] = Field(default=None, max_length=256)
-    guild_role: Optional[str] = None
+    community_role: Optional[str] = None
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
 
@@ -533,7 +541,11 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Guilds that require a sign-in through a provider of their own.
     #: Withdrawing single sign-on is refused while any exist; lifting the
     #: requirement releases it.
-    guilds_requiring_sign_in: int
+    communities_requiring_sign_in: int = Field(
+        validation_alias=AliasChoices(
+            "communities_requiring_sign_in", "guilds_requiring_sign_in"
+        )
+    )
     #: Whether anything this deployment permits could answer a second-factor
     #: requirement — the authenticator app or a passkey, either will do. False
     #: means the requirement below cannot be raised, and the server refuses it
