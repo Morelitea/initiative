@@ -28,6 +28,8 @@ export const WikiPageConnections = ({
     entity={entity}
     initiativeId={initiativeId}
     canEdit={false}
+    // A wiki reads its links as a list, the way a wiki always has.
+    defaultLayout="rows"
     collapseKey={`${entity.type}:${entity.id}:relationsCollapsed`}
     className={className}
   />
