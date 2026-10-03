@@ -10,7 +10,7 @@ Tasks have dates too, and they turn up on your [personal calendar](your-space.md
 
 ## Creating an event
 
-From an initiative's **Calendar**, pick a slot or choose **New event**. You can set:
+On an initiative's **Calendar**, click a slot and **Create Event** opens. On a phone, the **+** at the bottom of the screen opens it too. You can set:
 
 | | |
 |---|---|
@@ -68,17 +68,21 @@ Yours doesn't affect anybody else's — so the person who needs an hour's warnin
 
 Reminders run on **your timezone**, which Initiative guesses from your browser when you sign up and usually gets right.
 
-If your reminders are arriving at genuinely baffling hours, this is the thing to check: **User settings → Preferences**.
+If your reminders are arriving at genuinely baffling hours, this is the thing to check: **My Settings → Preferences**.
 
 ## Views, importing and exporting
 
 See your events by **day, week, month, year, or as a list**.
 
+The page's title picks which calendars to show. It reads **All calendars**, a count, or the one calendar's name, so you can tell at a glance when something's switched off. That choice is yours alone — hiding the five-a-side fixtures does not hide them from the people actually playing five-a-side.
+
+Dated tasks from the initiative's projects show up too. **Project tasks**, under **Filters**, turns them off, and the same panel narrows them by status and priority.
+
 Events **import and export as standard `.ics` files**, which every other calendar app on earth speaks.
 
 | To export | Where | Who |
 |---|---|---|
-| The events you can see | **Export** on the calendars page: every date of the calendars on screen, in one file | Anyone who can see them |
+| The events you can see | **Export · iCalendar (.ics)** in the page's **More actions** menu, beside **Import .ics**: every date of the calendars on screen, in one file | Anyone who can see them |
 | A whole calendar | That calendar's **Settings → Advanced**, which also offers a file Initiative can import back | Whoever could also delete it |
 
 So you can pull a whole season's fixtures in at once, or push the rehearsal schedule straight into everyone's phone calendar — including the members who will never, under any circumstances, open Initiative.
@@ -99,11 +103,9 @@ Some things belong to everybody rather than to one effort: bank holidays, the mo
 
 Those go in the **Community calendar** app, which a community admin adds from the [marketplace](apps-and-marketplace.md). It shows up in the sidebar's Apps section and opens on every calendar the community shares, overlaid in one view.
 
-It arrives with one calendar, and **any member can add more** with **New Calendar** — one for holidays, one for socials, one per person if you like. Whoever creates a calendar owns it and sets its sharing, which starts at *everyone in the community can read it*. So making your own is a way to post a schedule that everybody follows and nobody can accidentally edit.
+It arrives with one calendar, and community calendars belong to the admins: only an admin sees **New Calendar** there. One for holidays, one for socials, one per team, as many as the community needs. A new one starts readable by *everyone in the community*, and members add events to the calendars shared with them. So a community calendar is a way to post a schedule that everybody follows and nobody can accidentally edit.
 
-The **Calendars** dropdown hides the ones you don't care about. That's yours alone — hiding the five-a-side fixtures does not hide them from the people actually playing five-a-side.
-
-It shows a count of how many you've switched off, so you don't spend a fortnight wondering where everything went.
+Pick which ones you see from the title, the same as anywhere else.
 
 Community calendars hold the community's own events and nothing else — no tasks, no project work. Removing the app sends all of its calendars to the trash together, where they can be recovered.
 

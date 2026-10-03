@@ -20,11 +20,11 @@ Arrow keys move through results. ++enter++ jumps. For more than a quick jump, hi
 
 Everything in the community you're in:
 
-- **Tools** — projects, queues, counter groups, calendars, dashboards, posts.
-- **What's inside them** — tasks, queue items, counters, calendar events.
+- **Tools** — projects, queues, counter groups, calendars, dashboards, posts, galleries, wikis.
+- **What's inside them** — tasks, queue items, counters, calendar events, pictures, wiki pages.
 - **Documents, and their actual contents.** Not just titles: the words inside a text document, the text on a whiteboard, the cells and sheet names in a spreadsheet.
 - **Comments** on any of the above.
-- **Tags** and **people**.
+- **Tags** and **people**. Search for somebody's display name or handle and you also find what mentions them — type it in whole words.
 
 It only ever returns things you already have access to. Search will never quietly reveal that something exists by refusing to show it to you.
 
@@ -55,7 +55,7 @@ Mentioning something with `#`, linking documents with `[[`, attaching a document
 
 Projects, tasks and documents stack up as **tabs** along the top, like browser tabs. Click to go back to one; close it when you're done.
 
-You can cap how many it keeps (1 to 100) in **User settings → Preferences**, if you'd like that limit enforced rather than merely intended.
+You can cap how many it keeps (1 to 100) in **My Settings → Preferences**, if you'd like that limit enforced rather than merely intended.
 
 ## Keystrokes worth knowing
 

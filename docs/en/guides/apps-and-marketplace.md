@@ -18,7 +18,7 @@ There are two, and the difference is who gets what you take.
 |---|---|---|
 | What's on it | Dashboards and apps | Decoration packs |
 | Who it's for | Everyone in that community | You, in every community you're in |
-| Where to open it | **Browse the marketplace** on your dashboards list, or the **Apps** section of the sidebar | **Browse the marketplace** on **User settings → Profile** |
+| Where to open it | **Browse the marketplace** in your dashboards list's **More actions** menu (beside the create button, while the list is empty), or at the foot of the **Apps** section of the sidebar | **Browse the marketplace** on **My Settings → Profile** |
 
 ![Browsing the marketplace](../images/marketplace/browse.png)
 
@@ -58,7 +58,7 @@ An **app** adds something to the community as a whole rather than one effort: a 
 
 The Apps shelf lists the apps your server actually runs. Some need a program running alongside Initiative, and one your server hasn't set up, or has switched off, isn't offered here. Expected something and can't find it? Whoever runs your server is who to ask. On the hosted service they're already running — see [Self-host or let us host it](../self-host-or-hosted.md#apps-that-need-something-running-behind-them).
 
-Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Apps**.
+Installed apps appear in the **Apps** section at the top of the sidebar, above your initiatives, and are managed under **Community settings → Integrations**.
 
 ### What you're agreeing to
 
@@ -112,7 +112,7 @@ Each connection shows which service it uses and what it's allowed to do there, s
 
 ### Turning an app off, and removing it
 
-- **Turn off** hides it from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay listed in **Community settings → Apps**.
+- **Turn off** hides it from everyone while keeping its setup. Turn it back on and it picks up where it left off. Disabled apps stay listed in **Community settings → Integrations**.
 - **Remove** takes it out entirely:
     - Anything it set up when it was added moves to the **Trash**, restorable during the retention window.
     - Anything it owned stays where it is, with no owner. An admin picks it up with **Claim unowned content** in **Settings → Users**.
@@ -138,11 +138,11 @@ The banners move, too: a playhead lights the notes it passes, a curtain runs in 
 
 What you take here is yours, not your community's. Download a pack in one community and you're wearing it in all of them, because your profile belongs to you.
 
-1. Open **Browse the marketplace** on **User settings → Profile**.
+1. Open **Browse the marketplace** on **My Settings → Profile**.
 2. Open a pack to see everything in it, and the profile it would make — banner running, frame around your own picture, trophies underneath.
 3. **Get this pack**, and its pieces land in your collection.
 
-Downloading a pack puts nothing on you. It just hands you the pieces — you choose what to actually wear back on **User settings → Profile**, mixing pieces from different packs however you like. Nobody is going to stop you. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
+Downloading a pack puts nothing on you. It just hands you the pieces — you choose what to actually wear back on **My Settings → Profile**, mixing pieces from different packs however you like. Nobody is going to stop you. See [Profile & preferences](../account/profile-and-preferences.md#decorations).
 
 Giving one back is the same click in reverse — open the pack's card and remove it. Its pieces leave your collection, and anything from it you were wearing comes off with them.
 

@@ -26,7 +26,7 @@ On a touchscreen, a **three-finger tap** opens search.
 
 ## In a list of cards
 
-Projects, documents, queues, counter groups and dashboards are listed as cards, and you can select several to act on them together.
+Every tool's list — projects, documents and the rest — shows as **Grid**, **List** or **Tags**, from its **View** menu. Choose **Select items** to pick several and act on them together.
 
 | Action | How |
 |---|---|

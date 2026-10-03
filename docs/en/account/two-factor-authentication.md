@@ -14,8 +14,8 @@ An authenticator app. Google Authenticator, Microsoft Authenticator, Authy, 1Pas
 
 ## Turning it on
 
-1. **User settings → Security → Two-factor authentication → Set up**.
-2. Confirm your password.
+1. **My Settings → Security → Two-factor authentication → Set up**.
+2. Confirm your password. No password on your account, or none on your server? Then it asks you to prove it's you with a fresh sign-in.
 3. Scan the square with your authenticator app. Can't scan — desktop app, cracked camera, phone at the bottom of a bag? There's a key underneath the code you can type in instead.
 4. Type the six digits your app is now showing.
 
@@ -57,7 +57,7 @@ A passkey counts too, so if you've already got one of those you're done.
 
 ## Turning it off
 
-**User settings → Security → Turn off**. You'll need your password and one more code — either from your app or a recovery code.
+**My Settings → Security → Turn off**. You'll need your password (or a fresh sign-in, if you have none) and one more code — either from your app or a recovery code.
 
 If your server asks everybody for a second factor, turning yours off means being asked for one again on your very next click. Which is either a useful thing to know or a slightly annoying way to find out.
 

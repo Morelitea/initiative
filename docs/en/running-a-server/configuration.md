@@ -150,6 +150,19 @@ Several copies of Initiative can serve one address. Here's what they share and w
 
 People editing a document through the same copy see each other's typing as it happens. Through different copies, each one's changes reach the others within about half a minute, when their copy saves, and nobody's edits are lost: every save merges with what the other copies saved.
 
+Each server process runs the document editor in a helper process of its own. It starts the first time somebody there opens a document to edit, uses about 90 MB while it runs, and stops after five idle minutes. A server where nobody edits a document never starts it. Budget for it per process when you size the container.
+
+## Rate limits
+
+Every limit counts against the **signed-in account**, not the network it's on, so an office full of people behind one address doesn't share an allowance or lock each other out. A request with no account behind it yet counts against the network address it came from.
+
+A few count per **email address** typed in, whoever's typing it: sign-in codes and password-reset emails together come to five every fifteen minutes for one address, and so do wrong passwords. Loading the app's own pages and scripts counts against nothing.
+
+| Variable | What it does | Default |
+|---|---|---|
+| `RATE_LIMIT_DEFAULT` | The limit for everything that doesn't set its own. Empty turns this default off; the limits individual routes set stay. | `100/minute` |
+| `RATE_LIMIT_STORAGE_URI` | Where counts are kept. `memory://` counts in each process. A `redis://` (or `rediss://`, `redis+sentinel://`, `redis+cluster://`) URL gives every process one shared count. If it can't be reached, each process counts in its own memory until it answers again. | `memory://` |
+
 ## Keeping bots out (captcha)
 
 To keep automated sign-ups out of open registration, ask for a captcha. It's set in **Settings → Platform → Security**, under **Captcha**, and applies to signing up and to asking for an emailed sign-in code.

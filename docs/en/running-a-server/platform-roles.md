@@ -19,7 +19,7 @@ Five rungs, each adding to the one below:
 |---|---|
 | **Member** | Standard access to their own communities. No server-wide privileges. This is everyone by default. |
 | **Support** | Read-only visibility of the platform's users, can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
-| **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate) and content moderation. |
+| **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate, revoke an account's API keys) and content moderation. |
 | **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, writes [announcements](announcements.md), and writes [sign-in placement rules](single-sign-on.md#rules-on-a-provider). |
 | **Owner** | Full control, **including server-wide configuration** (single sign-on, email, branding, AI). The only role that can change configuration. |
 
@@ -37,26 +37,31 @@ The **first person to register** on a new server becomes the **owner**. The owne
 
 ## Managing platform users
 
-**Operator dashboard → Users** lists every account on the server. A row names somebody by their handle and their address, which is all an account has to go by.
+**Operator dashboard → Users** lists every account on the server by **User ID**, **Handle** and **Status**. The handle is all you need to go on, and IDs count up as accounts are made, so sorting by ID sorts by when somebody joined.
+
+![Operator dashboard › Users](../images/running-a-server/operator-users.png)
 
 **Manage** opens everything you can change about one account:
 
 - **Username** — the handle they're addressed by. The four digits after it stay as they are.
 - **Profile picture** — take one down. Putting one up stays theirs.
+- **API keys** — **Revoke** switches off every key the account holds, at once. The keys stay on the owner's list marked disabled, and they can make new ones.
 - **Suspend** — puts the account in time out. They can sign in, and what they get is one screen: that they're suspended, the reason you gave, and [who to contact](#who-to-contact). Their communities, their own settings and every power their platform role carries stay out of reach until you lift it. Nothing is deleted; lifting it hands everything back exactly as it was.
 - **Platform role** — move them up or down the ladder. You can't grant a rung above your own.
 
-Each of those asks for its own capability, so a moderator opening the same panel sees the first three and not the fourth.
+Each of those asks for its own capability, so a moderator opening the same panel sees everything but the platform role.
 
-The row's actions menu keeps the one-off jobs:
+The row's actions menu keeps the one-off jobs. It offers nothing but **Export** on an account above your own role.
 
-- **Reset a user's password** (sends them a reset email).
+- **Reset password** sends them a reset email.
+- **Resend verification email**, shown on an account whose address isn't confirmed yet.
 - **Reactivate** a deactivated account.
-- **Export** the user list as CSV.
-- **Let someone answer the age question again**, where they answered as under age. Nearly always a mistyped year. It clears the answer and nothing else — they answer again from scratch, and no birthday is recorded either way. See [Asking members their age](configuration.md#asking-members-their-age).
+- **Restore account**, shown on a deleted account that hasn't been erased yet. It comes back exactly as it was — the same as if they'd signed in themselves during the window. See [How long deleted things are kept](configuration.md#how-long-deleted-things-are-kept).
+- **Export** one account as CSV. **Export all as CSV**, above the list, takes the lot.
+- **Reset age question** lets somebody answer the age question again, where they answered as under age. Nearly always a mistyped year. It clears the answer and nothing else — they answer again from scratch, and no birthday is recorded either way. See [Asking members their age](configuration.md#asking-members-their-age).
 - **Turn password sign-in back on**, shown on an account marked **Password sign-in off**. Five wrong passwords or codes in fifteen minutes switch it off for fifteen minutes; a second time that day, an hour; after that, four hours each time. It comes back on by itself, or as soon as they reset their password from the emailed link, so this is for when they can't wait. Their passkeys work throughout, and so does anywhere they're already signed in. Moderator and above.
 - **Clear two-factor authentication**, shown on an account with an authenticator app set up, while signing in with a password or an emailed code is turned on — those are the only sign-ins that ask for its code. For when their phone is gone and so are the recovery codes. It takes the authenticator off, signs them out everywhere and emails them; they sign in the way they usually do and set it up again. Moderator and above.
-- **Delete a user**, choosing how thorough it is:
+- **Delete user**, choosing how thorough it is:
     - **Deactivate** — can't sign in; data preserved; reversible.
     - **Anonymize** — personal details removed; their content remains as "Deleted user"; not reversible.
     - **Hard delete** — everything removed, including authored content; not reversible.
@@ -102,7 +107,9 @@ Operators and owners can write **announcements** — notices shown in a dialog t
 
 ## What you decide per community
 
-**Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
+**Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch on or off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
+
+**Help requests** is one of those features, and it starts off. Switched on, the community's members get a form behind **Ask for help**, and what they send lands in your support project (see [Where operations work lands](#where-operations-work-lands)) — so it can only be switched on once that project is set up. Off, the button gives them the support address from [Who to contact](#who-to-contact), or isn't shown at all if there isn't one.
 
 ### A community's status
 
@@ -141,6 +148,7 @@ Whenever Initiative tells somebody to get in touch, it names an address. You pic
 | Their account's time-out screen | Moderation |
 | A suspended community | Moderation |
 | A community on hold | Support |
+| **Ask for help**, in a community that doesn't take help requests | Support |
 
 Leave a kind blank and it uses the general address. It never borrows another kind's, so a moderation question doesn't turn up in the support inbox wondering why it's there. With neither set, the notice says to contact whoever runs this server, which is true but not very helpful to somebody who doesn't know who that is.
 

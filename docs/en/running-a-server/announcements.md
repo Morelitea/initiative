@@ -26,11 +26,7 @@ Open **Operator dashboard → Announcements** and choose **New announcement**. Y
 
 An announcement is a **title** plus one or more **sections**. Each section has an optional heading, a body in Markdown, and optionally a picture with alt text. Add sections in the order you want them read; the arrows move one up or down.
 
-!!! screenshot "The announcement editor"
-    **Show:** the editor with a title filled in, two sections, and the preview panel beside it.
-
-    Save as `en/images/running-a-server/announcement-editor.png`, then replace this box with:
-    `![The announcement editor](../images/running-a-server/announcement-editor.png)`
+![The announcement editor](../images/running-a-server/announcement-editor.png)
 
 ### Turning it into a wizard
 

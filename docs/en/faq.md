@@ -47,11 +47,13 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "I don't see 'Join a community'"
     The directory is a server-wide feature that starts switched **off**, so plenty of servers don't have one. Everything there is invite-only.
 
+??? question "My invite link doesn't work"
     Links can expire, run out of uses, or be switched off by an admin. None of this is a judgement on you as a person. Ask for a fresh one — it takes them about four seconds.
 
 ??? question "I don't see a 'Create community' button"
     Some servers turn community creation off on purpose so people join through invites instead. Ask a community admin to invite you, or whoever runs the server to make one for you.
 
+??? question "The email never arrived"
     Give it a few minutes, then check spam. It is almost always spam.
 
     If it still hasn't turned up, the server may not have email configured at all — ask whoever runs it. Reset links also go stale, so if yours has been sitting there since Tuesday, request another. See [Signing in](getting-started/signing-in.md).
@@ -126,17 +128,18 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Yes, as many as you like. See [Projects & tasks](guides/projects-and-tasks.md).
 
 ??? question "I moved a task to another project and its status changed"
-    Expected. Projects can each have their own statuses, so a moved task restarts at **Backlog**. Set the new one and carry on.
+    Expected. Projects can each have their own statuses, so a moved task lands on the new project's default status. Set the one you want and carry on.
 
 ??? question "How do I clear out finished tasks without deleting them?"
     **Archive** them. There's a one-click "Archive done tasks", and you can filter archived tasks back into view whenever you want. Nothing is lost.
 
+??? question "I deleted something by accident"
     It's fine. It's in the **Trash** — Community settings for shared things, your own Trash for your own items — and it sits there for a good while before going anywhere permanent.
 
     Go and get it back, and then go and have a cup of tea. See [Trash and retention](guides/communities.md#trash-and-retention).
 
 ??? question "An import didn't match people to their accounts"
-    Exports and imports identify people by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't. A file exported before that was true names people by email and won't match. Export it again. See [Exporting a project](guides/projects-and-tasks.md#exporting-a-project).
+    Exports and imports identify people by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't. A file that names people by email address won't match anyone, so export it from Initiative again. See [Exporting a project](guides/projects-and-tasks.md#exporting-a-project).
 
 ## Your account
 
@@ -144,15 +147,16 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Not on your own — your handle is how people find and mention you, so changing it is a job for whoever runs the server. What you *can* change any time is your **display name**, one per community — see [Your name in a community](guides/communities.md#your-name-in-a-community).
 
 ??? question "Why does my name show in one community and not another?"
-    A display name belongs to the community you set it in. Every other community shows your handle until you set one there too, from its **Members** page.
+    A display name belongs to the community you set it in. Every other community shows your handle until you set one there too, with **Set your display name** at the top of its **Members** page.
 
-    Your **timezone** is wrong. It's almost always the timezone. Fix it in **User settings → Preferences** and everything snaps back into place.
+??? question "Due dates and reminders are a few hours off"
+    Your **timezone** is wrong. It's almost always the timezone. Fix it in **My Settings → Preferences** and everything snaps back into place.
 
 ??? question "I'm getting too many (or too few) emails"
-    Tune them category by category in **User settings → Notifications** — each has its own email and mobile switch, and there's no minimum. The in-app bell keeps working regardless. See [Notifications](guides/notifications.md).
+    Tune them category by category in **My Settings → Notifications** — each has its own **Bell**, **Email**, **Mobile** and **Desktop** switch, and there's no minimum. **Do not disturb**, further down, has **Quiet hours** and **Pause notifications**. See [Notifications](guides/notifications.md).
 
 ??? question "How do I leave a group?"
-    On the community rail, open the community's menu and choose **Leave community**. If you're the last admin, you'll be made to promote somebody else first — you can't simply slip out and leave nobody holding it.
+    On the community rail, open the community's menu and choose **Leave community**. Members and admins leave freely. If you're the community's only **superadmin**, you'll be made to hand the seat to somebody else first — you can't simply slip out and leave nobody holding the keys.
 
 ??? question "My account says it's suspended"
     You can sign in, and you get one screen: that you're suspended, the reason the moderator gave if they gave one, and who to contact. Nothing else opens while it lasts — not your communities, not your own settings.
@@ -194,11 +198,16 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Why don't my messages show up on my new phone?"
     Because there's no copy on the server for it to catch up from — that's what end-to-end encryption costs. Each device keeps its own history from the moment it joined a conversation, and signing out takes that device's copy with it. See [Your messages live on your devices](guides/messages.md#your-messages-live-on-your-devices).
 
+??? question "Somebody posted something that shouldn't be there"
+    Use **Report** on it. It's on comments, notices, pictures, profiles and directory listings, and it goes to the right people by itself: anything a community holds reaches that community's moderators, and anything about an account reaches whoever runs the server.
+
+    Private messages are never moderated, so they carry no Report. To stop hearing from somebody there, ignore them under **My Settings → Privacy → Ignored accounts**.
+
 ??? question "Where is my data stored?"
     If you host Initiative yourself: wherever your server runs, and that's your call. If we host it: where our service runs. Either way it stays yours. See [Data & compliance](security/data-and-compliance.md).
 
 ??? question "Can I get my data out?"
-    Yes. Projects export to a portable file, spreadsheets to CSV or Excel, calendars to `.ics`. See [Getting your data out](security/data-and-compliance.md#getting-your-data-out).
+    Yes. Every tool you own exports from its **Settings → Advanced**: projects to a portable file, spreadsheets to CSV or Excel, calendars to `.ics`, and so on. See [Getting your data out](security/data-and-compliance.md#getting-your-data-out).
 
 ## If you run the server
 
@@ -212,6 +221,8 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Yes — Initiative speaks OIDC, including mapping your provider's groups to communities and roles. See [Single sign-on](running-a-server/single-sign-on.md).
 
 ## Still stuck?
+
+Look at the bottom of the sidebar. The question mark opens these pages, and where there's somebody to ask — a community that takes help requests, or a server with an address to write to — the lifebuoy beside it is **Ask for help**.
 
 If it looks like the software rather than your account, see [Reporting a problem](security/reporting-a-problem.md).
 

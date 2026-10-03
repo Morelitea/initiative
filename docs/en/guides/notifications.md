@@ -38,9 +38,17 @@ Notifications arrive **as they happen** — a mention lands the moment it's writ
 !!! note "Click one and it stays put"
     It dims instead of vanishing, so the list doesn't reshuffle itself while you're still reading. It clears out when you close the bell.
 
-## Choosing what you hear about
+## Turning on mobile push
 
-**User settings → Notifications** gives you a grid: one row per category, with a **Bell**, **Email**, **Mobile** and **Desktop** switch each. **Mobile** appears once your server sends to phones.
+1. Install the mobile app and sign in.
+2. In **My Settings → Notifications**, choose **Turn on** beside **Push notifications**.
+3. Say yes when your phone asks.
+
+If push shows as **Blocked**, that's your phone rather than us. Open your device settings, find Initiative, and let it talk to you. We can ask; your phone decides.
+
+## What you hear about
+
+**My Settings → Notifications** gives you a grid: one row per category, with a **Bell**, **Email**, **Mobile** and **Desktop** switch each. **Mobile** appears once your server sends to phones.
 
 | Category | You hear about it when… |
 |---|---|
@@ -66,25 +74,9 @@ Everything here is about something you can open. A comment on a project that isn
 
 ![Notification settings](../images/notifications/settings.png)
 
-## Per community
+## When you hear about it
 
-Every community you're in gets one dial.
-
-| Setting | What reaches you |
-|---|---|
-| **Everything** | Whatever your categories allow. The default. |
-| **Only what names me** | Mentions, replies, tasks assigned to you, event invitations, anything waiting on your decision, and your own exports. Nothing ambient. |
-| **Nothing** | Nothing. |
-
-**Nothing** is the real one, not a quieter one. That community will not reach you, and somebody typing your name there is not an exception — a mute you have to keep checking isn't a mute.
-
-Three things ignore the dial, because they were never a community's to silence: **direct messages**, **connections**, and **your account**.
-
-Most people set the dial and never open the grid again. If you do want one community to differ category by category, it's in there.
-
-## When it reaches you
-
-Everything above is *whether*. This is *when*, and it's one setting: **User settings → Notifications → When you hear about it**.
+Everything above is *whether*. This is *when*, and it's one setting: **Email arrives**, under **When you hear about it**.
 
 | Email arrives | What lands in your inbox |
 |---|---|
@@ -106,33 +98,10 @@ Acme
     Dana invited you to Sprint review (Tue 10:00)
 ```
 
-Two things soften the edges of that, both on by default and both switchable:
+Two things soften the edges of that:
 
-- **Things addressed to you skip the queue.** A mention, a reply, a task landing on you, an invitation, a direct message — those go out straight away whatever you've chosen. The ambient stuff waits.
+- **Things addressed to you skip the queue.** A mention, a reply, a task landing on you, an invitation, a direct message — those go out straight away whatever you've chosen. The ambient stuff waits. Turn off **Send things addressed to me right away** if you'd rather they waited too.
 - **Anything you've already read is dropped.** If you saw it in the bell before the email went, it doesn't go. The digest is what's still waiting, not a recap of your afternoon.
-
-## While you're using Initiative
-
-If you're sat here with Initiative open, the bell has already told you. So it doesn't also tap you on the shoulder: **mobile stays quiet, and email waits about ten minutes** to see whether you read it yourself. If you did, it never sends. If you wandered off, it does.
-
-"Here" means *at the keyboard* — clicking, typing, scrolling. A tab left open on a second monitor since Tuesday doesn't count, and neither does a phone in a pocket.
-
-Switch it off in the same place if you'd rather always be told.
-
-The desktop app goes by its own window instead: it speaks up whenever that window isn't the one in front, so the next thing reaches you the moment you've gone to answer an email.
-
-## Pausing
-
-Going away? **Pause notifications** stands email, mobile and the desktop down for the days you pick. Pick an end day and it starts now; pick a start day too and you can book the fortnight in Portugal before you leave, rather than remembering to do it at the airport. Both days are included.
-
-While it's on, nothing reaches you — not a mention, not a direct message, not somebody typing your name in capitals. That's the point. A pause you have to keep checking isn't one.
-
-The bell keeps collecting the whole time. When the pause ends you get **one email** with everything that happened, grouped the same way a digest is, minus anything you've since read. Mobile and the desktop get a count.
-
-A digest that would have landed in the middle of a booked pause waits for the end of it too, so the days you marked off stay marked off.
-
-!!! note "Password resets still arrive"
-    Pausing covers notifications. It doesn't cover the email that turns up because you just clicked "forgot password" — that isn't a notification, it's an answer.
 
 ## Other timings worth knowing
 
@@ -146,21 +115,54 @@ A digest that would have landed in the middle of a booked pause waits for the en
 !!! tip "Set your timezone. Genuinely."
     Digests, quiet hours, due dates and repeating-task maths all run on your timezone. Initiative guesses it from your browser at sign-up and is usually right.
 
-    But if your daily email is arriving at 4am, you have not been cursed and nothing is broken. Check **User settings → Preferences**.
+    But if your daily email is arriving at 4am, you have not been cursed and nothing is broken. Check **My Settings → Preferences**.
 
-## Quiet hours
+## Do not disturb
 
-A pause is for a fortnight in Portugal. **Quiet hours** are for every night.
+Three ways to be left alone, all under **Do not disturb**: one for while you're here, one for every night, and one for the fortnight in Portugal.
 
-Set a window — 22:00 to 07:00, say — and email, mobile and the desktop hold off inside it. The bell keeps collecting quietly; it was never going to wake you. When the window ends, everything held arrives as one message, the same digest shape as above. If nothing happened, nothing arrives.
+### Don't interrupt me while I'm using Initiative
 
-## Turning on mobile push
+If you're sat here with Initiative open, the bell has already told you. So it doesn't also tap you on the shoulder: **mobile stays quiet, and email waits about ten minutes** to see whether you read it yourself. If you did, it never sends. If you wandered off, it does.
 
-1. Install the mobile app and sign in.
-2. In **User settings → Notifications**, choose **Turn on** beside **Push notifications**.
-3. Say yes when your phone asks.
+"Here" means *at the keyboard* — clicking, typing, scrolling. A tab left open on a second monitor since Tuesday doesn't count, and neither does a phone in a pocket.
 
-If push shows as **Blocked**, that's your phone rather than us. Open your device settings, find Initiative, and let it talk to you. We can ask; your phone decides.
+Switch it off if you'd rather always be told.
+
+The desktop app goes by its own window instead: it speaks up whenever that window isn't the one in front, so the next thing reaches you the moment you've gone to answer an email.
+
+### Quiet hours
+
+**Quiet hours** are for every night. Set a window — 22:00 to 07:00, say — and email, mobile and the desktop hold off inside it. The bell keeps collecting quietly; it was never going to wake you. When the window ends, everything held arrives as one message, the same digest shape as above. If nothing happened, nothing arrives.
+
+### Pause notifications
+
+Going away? **Pause notifications** stands email, mobile and the desktop down for the days you pick. Pick an end day and it starts now; pick a start day too and you can book the fortnight in Portugal before you leave, rather than remembering to do it at the airport. Both days are included.
+
+While it's on, nothing reaches you — not a mention, not a direct message, not somebody typing your name in capitals. That's the point. A pause you have to keep checking isn't one.
+
+The bell keeps collecting the whole time. When the pause ends you get **one email** with everything that happened, grouped the same way a digest is, minus anything you've since read. Mobile and the desktop get a count.
+
+A digest that would have landed in the middle of a booked pause waits for the end of it too, so the days you marked off stay marked off.
+
+!!! note "Password resets arrive regardless"
+    Pausing covers notifications. It doesn't cover the email that turns up because you just clicked "forgot password" — that isn't a notification, it's an answer.
+
+## Per community
+
+Every community you're in gets one dial.
+
+| Setting | What reaches you |
+|---|---|
+| **Everything** | Whatever your categories allow. The default. |
+| **Only what names me** | Mentions, replies, tasks assigned to you, event invitations, anything waiting on your decision, and your own exports. Nothing ambient. |
+| **Nothing** | Nothing. |
+
+**Nothing** is the real one, not a quieter one. That community will not reach you, and somebody typing your name there is not an exception — a mute you have to keep checking isn't a mute.
+
+Three things ignore the dial, because they were never a community's to silence: **direct messages**, **connections**, and **your account**.
+
+Most people set the dial and never open the grid again. If you do want one community to differ category by category, it's in there.
 
 ## What your server and community decide
 

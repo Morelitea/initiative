@@ -8,9 +8,9 @@ A passkey is a sign-in with nothing to type. Your phone, your laptop or your pas
 
 ## Adding one
 
-1. **User settings → Security → Passkeys → Add a passkey**.
+1. **My Settings → Security → Passkeys → Add a passkey**.
 2. Give it a name you'll recognise in a list — *Laptop*, *Phone*, *The blue key on the lanyard*.
-3. Confirm your password.
+3. Confirm your password. No password on your account, or none on your server? Then it asks you to prove it's you with a fresh sign-in.
 4. Your browser takes over from here: it asks where to keep the key and how you'd like to prove it's you. Say yes to whatever you normally unlock with.
 
 That's it. It's in the list, with the date you added it.
@@ -25,13 +25,13 @@ On the phone app, the button opens your browser for a moment, because that's whe
 
 ## When a device goes
 
-Remove its passkey: **User settings → Security → Passkeys**, the bin next to the name, and your password to confirm. Sign in with your password or another passkey first if you need to. Nothing on the lost device can add one back.
+Remove its passkey: **My Settings → Security → Passkeys**, the bin next to the name, and your password (or a fresh sign-in) to confirm. Sign in with your password or another passkey first if you need to. Nothing on the lost device can add one back.
 
 Not sure which one was the lost phone? The list says when each was last used. The one that stopped is the one that went.
 
 ## Going without a password
 
-Once a passkey is in the list, the password is optional. **User settings → Account → Password → Remove password** — from a browser, not the phone app — takes it away for good: from then on the passkey is how you get in, every other device is signed out, and you're shown ten **recovery codes**, once, unless you already hold a full set. If you were down to your last couple, a fresh ten replaces them, and the old ones stop working.
+Once a passkey is in the list, the password is optional. **My Settings → Account → Password → Remove password** — from a browser, not the phone app — takes it away for good: from then on the passkey is how you get in, every other device is signed out, and you're shown ten **recovery codes**, once, unless you already hold a full set. If you were down to your last couple, a fresh ten replaces them, and the old ones stop working.
 
 Keep those somewhere that isn't the device with the passkey on it. They're the way back if the passkey is ever gone: on the sign-in screen, **Forgot password? → Use a recovery code**, and you set a new password with one. Then you're an account with a password again, free to add a fresh passkey and take the password away once more.
 

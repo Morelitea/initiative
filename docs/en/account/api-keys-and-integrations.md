@@ -13,7 +13,7 @@ But if you want to connect Initiative to a script, another tool, or an AI assist
 
 ## Creating one
 
-1. **User settings → Security**, and choose **New API key** under **API keys**.
+1. **My Settings → Security**, and choose **New API key** under **API keys**. The rest happens in a dialog.
 2. Give it a clear **name** — `weekly-report-script`, so future-you remembers what it's for.
 3. Choose its limits (below).
 4. Generate it, and **copy it right now** — it's shown exactly once. Lost it already? No drama at all: delete it and make another.
@@ -34,7 +34,9 @@ A read-only key pinned to a single community is the safest default going: it can
 
 ## Managing keys
 
-**API keys** lists each key's name, a short prefix (never the whole key), its scope, when it was last used, and when it expires. **Delete** revokes one as soon as you confirm. Resetting your password revokes all of them at once, which is the fast way to shut everything down.
+**API keys** lists each key's name, a short prefix (never the whole key), its scope, when it was last used, and when it expires. **Delete** asks first, then revokes it. Resetting your password revokes all of them at once, which is the fast way to shut everything down.
+
+A key marked **Disabled** has been switched off for you: a moderator revoked it, or you pressed [This wasn't me](profile-and-preferences.md#this-wasnt-me) in one of your account emails. It stays on your list so you can see what happened. It won't come back on, so make a new one.
 
 ## Connecting an AI assistant (MCP)
 
