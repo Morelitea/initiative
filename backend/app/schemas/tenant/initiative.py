@@ -19,7 +19,8 @@ from app.models.tenant.initiative import (
     JoinRequestStatus,
     PermissionKey,
 )
-from app.schemas.platform.user import UserPublic, UserSummary
+from app.models.platform.user import Presence
+from app.schemas.platform.user import UserSummary
 from app.schemas.query import PageMeta
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -189,7 +190,8 @@ class InitiativeMemberRead(SanitizedBaseModel):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    user: UserPublic
+    #: With what they have put around their picture, which a roster draws.
+    user: UserSummary
     role_id: Optional[int] = None
     role_name: Optional[str] = None
     role_display_name: Optional[str] = None
@@ -201,6 +203,8 @@ class InitiativeMemberRead(SanitizedBaseModel):
     override_share_restrictions: bool = False
     joined_at: datetime
     oidc_managed: bool = False
+    #: How they appear right now, public as it is on their profile.
+    presence: Presence = Presence.offline
 
 
 class InitiativeMemberListResponse(PageMeta):
@@ -410,12 +414,15 @@ def serialize_initiative(
     )
 
 
-def serialize_initiative_member(membership: "InitiativeMember") -> InitiativeMemberRead:
-    """One roster row: the member, and the role they hold. Reads
-    ``membership.user`` and ``membership.role_ref``, so the loader brings both."""
+def serialize_initiative_member(
+    membership: "InitiativeMember", presence: Presence = Presence.offline
+) -> InitiativeMemberRead:
+    """One roster row: the member, the role they hold and how they appear.
+    Reads ``membership.user`` and ``membership.role_ref``, so the loader brings
+    both."""
     role = membership.role_ref
     return InitiativeMemberRead(
-        user=UserPublic.model_validate(membership.user),
+        user=UserSummary.model_validate(membership.user),
         role_id=membership.role_id,
         role_name=role.name if role else None,
         role_display_name=role.display_name if role else None,
@@ -425,4 +432,5 @@ def serialize_initiative_member(membership: "InitiativeMember") -> InitiativeMem
         ),
         joined_at=membership.joined_at,
         oidc_managed=membership.oidc_provider_id is not None,
+        presence=presence,
     )

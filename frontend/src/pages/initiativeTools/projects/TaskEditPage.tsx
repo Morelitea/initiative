@@ -837,9 +837,6 @@ export const TaskEditPage = () => {
               target={{ type: SearchEntityType.task, id: parsedTaskId }}
               canEdit={!isReadOnly}
               entityTitle={task.title}
-              /* Rows by default: this sits in half a row beside the form, and a
-                 dependency is read as a line rather than looked at as a tile. */
-              defaultLayout="rows"
             />
           ) : null}
         </div>

@@ -129,7 +129,7 @@ export const ToolPageHeader = ({
           }
           className={cn(
             "[--chest-gutter-right:var(--inset-r)] [--chest-gutter:var(--inset-l)]",
-            "md:pr-(--inset-r) md:pb-6 md:pl-(--inset-l)",
+            "md:pr-(--inset-r) md:pl-(--inset-l)",
             "md:[--chest-gutter-right:0.75rem] md:[--chest-gutter:0.75rem]"
           )}
         >

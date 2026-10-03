@@ -6,6 +6,7 @@
 .ear-l { transform-origin: 122px 90px; }
 .ear-r { transform-origin: 178px 84px; }
 .shut, .alt { opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
 .fig { animation: hop 0.6s ease-in-out infinite; }
 .ear-l, .ear-r { animation: flick 0.3s ease-in-out infinite; }
 .ear-l { animation-direction: reverse; }
@@ -15,7 +16,7 @@
 .sparkle:nth-of-type(2) { animation-delay: -0.19999999999999998s; }
 .sparkle:nth-of-type(3) { animation-delay: -0.39999999999999997s; }
 @keyframes sparkle { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+}
 </style>
 <defs>
 <filter id="halo" filterUnits="userSpaceOnUse" x="-20" y="-30" width="350" height="350">

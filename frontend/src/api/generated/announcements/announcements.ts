@@ -34,6 +34,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -725,9 +726,7 @@ export const uploadAnnouncementImage = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadAnnouncementImage.file);
-
+  const formData = toFormData(bodyUploadAnnouncementImage);
   return apiMutator<AnnouncementImageRead>(
     {
       url: `/api/v1/announcements/operator/images`,

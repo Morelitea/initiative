@@ -26,7 +26,7 @@ describe("ToolRelationsPanel", () => {
       { initialRoute: "/c/1" }
     );
 
-    expect(await screen.findByRole("heading", { name: "Attached & linked" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Connections" })).toBeInTheDocument();
   });
 
   it("names itself after the CHILD when the links are the child's", async () => {

@@ -273,8 +273,7 @@ export const CounterFormDialog = ({
               target={{ type: SearchEntityType.counter, id: counter.id }}
               canEdit
               entityTitle={counter.name}
-              defaultLayout="rows"
-              className="space-y-3 border-t pt-4"
+              className="border-t pt-4"
             />
           )}
         </div>

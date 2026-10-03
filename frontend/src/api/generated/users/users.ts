@@ -39,6 +39,7 @@ import type {
   ExportUsersCsvParams,
   GetUserStatsParams,
   HTTPValidationError,
+  HeldChangeOutcome,
   HeldChangeRead,
   ListRosterParams,
   ListUsersParams,
@@ -63,6 +64,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -3054,7 +3056,7 @@ export const removeMyAddress = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<HeldChangeRead | void>(
+  return apiMutator<HeldChangeOutcome>(
     {
       url: `/api/v1/me/emails/${addressId}/remove`,
       method: "POST",
@@ -3741,9 +3743,7 @@ export const uploadMyAvatar = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadMyAvatar.file);
-
+  const formData = toFormData(bodyUploadMyAvatar);
   return apiMutator<UserRead>(
     {
       url: `/api/v1/me/avatar`,

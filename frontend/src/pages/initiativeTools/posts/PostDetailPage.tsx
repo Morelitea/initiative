@@ -411,7 +411,6 @@ export function PostDetailPage() {
                 entity={post}
                 canEdit={canEdit}
                 entityTitle={post.name}
-                defaultLayout="rows"
               />
             </div>
           </div>

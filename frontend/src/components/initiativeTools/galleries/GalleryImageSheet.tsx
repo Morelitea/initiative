@@ -309,8 +309,6 @@ export const GalleryImageSheet = ({
             target={{ type: SearchEntityType.gallery_image, id: image.id }}
             canEdit={canEdit}
             entityTitle={image.title ?? undefined}
-            defaultLayout="rows"
-            className="space-y-3"
           />
 
           {/* The history. */}

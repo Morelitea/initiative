@@ -4,7 +4,7 @@ export const Route = createFileRoute(
   "/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/projects/$projectId/settings/task-statuses"
 )({
   component: lazyRouteComponent(() =>
-    import("@/pages/projectSettings/ProjectSettingsTaskStatusesPage").then((m) => ({
+    import("@/pages/initiativeTools/projects/ProjectSettingsTaskStatusesPage").then((m) => ({
       default: m.ProjectSettingsTaskStatusesPage,
     }))
   ),

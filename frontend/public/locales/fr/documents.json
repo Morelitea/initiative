@@ -140,13 +140,6 @@
     "openPanel": "Ouvrir le panneau",
     "togglePanel": "Basculer le panneau latéral",
     "titlePlaceholder": "Titre du document",
-    "metadataTitle": "Métadonnées",
-    "expandMetadata": "Expand metadata",
-    "collapseMetadata": "Collapse metadata",
-    "featuredImage": "Image à la une",
-    "uploadImage": "Télécharger une image à la une",
-    "uploading": "Téléchargement en cours…",
-    "removeImage": "Supprimer l'image",
     "pdfError": "Échec du chargement du PDF. Essayez de télécharger le fichier à la place.",
     "imageFileRequired": "Veuillez sélectionner un fichier image.",
     "imageUploaded": "Image téléchargée.",
@@ -174,6 +167,15 @@
     "commentsLoadError": "Impossible de charger les commentaires pour l'instant.",
     "projectFallback": "Projet #{{id}}",
     "updatedLabel": "Mis à jour"
+  },
+  "featuredImage": {
+    "label": "Image à la une",
+    "upload": "Téléverser une image",
+    "replace": "Remplacer",
+    "remove": "Retirer",
+    "uploading": "Téléversement en cours…",
+    "makeFeatured": "Utiliser comme image à la une",
+    "isFeatured": "Image à la une"
   },
   "editor": {
     "align": "Aligner",
@@ -321,7 +323,6 @@
     "loading": "Chargement des documents…",
     "loadError": "Impossible de charger les documents pour l'instant.",
     "noMatchingTags": "Aucun document ne correspond aux étiquettes sélectionnées.",
-    "browseByTag": "Parcourir par étiquette",
     "noDocumentsTitle": "Aucun document pour l'instant",
     "noDocumentsDescription": "Créez votre premier document d'initiative pour partager des briefs, des décisions ou des guides.",
     "noTemplatesTitle": "Aucun modèle pour l'instant",

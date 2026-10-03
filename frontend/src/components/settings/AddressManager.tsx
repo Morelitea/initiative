@@ -88,7 +88,7 @@ export const AddressManager = () => {
   const removeAddress = useRemoveAddress({
     onSuccess: (result) => {
       closeChange();
-      if (isHeld(result)) announceHeld(result);
+      if (result.held) announceHeld(result.held);
       else toast.success(t("settings:addresses.removed"));
     },
     onError: (error) => refuse(error, "settings:addresses.removeFailed"),

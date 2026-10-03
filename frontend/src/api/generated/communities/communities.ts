@@ -48,6 +48,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -1401,9 +1402,7 @@ export const setCommunityIcon = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`icon`, bodySetCommunityIcon.icon);
-
+  const formData = toFormData(bodySetCommunityIcon);
   return apiMutator<CommunityRead>(
     {
       url: `/api/v1/communities/${communityId}/icon`,
@@ -1582,10 +1581,7 @@ export const setCommunityBanner = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`full`, bodySetCommunityBanner.full);
-  formData.append(`card`, bodySetCommunityBanner.card);
-
+  const formData = toFormData(bodySetCommunityBanner);
   return apiMutator<CommunityRead>(
     {
       url: `/api/v1/communities/${communityId}/banner`,

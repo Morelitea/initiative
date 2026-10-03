@@ -20,6 +20,7 @@ const panel = (projects: ReturnType<typeof buildProject>[]) => {
   return renderPage(() => (
     <ProjectListPanel
       params={{ initiative_id: 1 }}
+      status="active"
       loadingLabel="Loading"
       errorLabel="Error"
       noMatchesLabel="No matches"

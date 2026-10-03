@@ -7,7 +7,7 @@ export const Route = createFileRoute(
   "/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/wikis/$wikiId/settings/reading"
 )({
   component: lazyRouteComponent(() =>
-    import("@/pages/wikiSettings/WikiReadingSettingsPage").then((m) => ({
+    import("@/pages/initiativeTools/wikis/WikiReadingSettingsPage").then((m) => ({
       default: m.WikiReadingSettingsPage,
     }))
   ),

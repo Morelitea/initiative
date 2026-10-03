@@ -69,11 +69,16 @@ export function useToolCountsByInitiative(options?: UseToolCountsOptions): ToolC
 /** One tool's page: how many rows sit in each view, and the tag tree beside
  *  the view named by `params.view`. The previous answer stays on screen while
  *  the next view's arrives, so the badges do not blank out. */
-export const useToolCounts = (tool: Tool, params: GetToolCountsParams) => {
+export const useToolCounts = (
+  tool: Tool,
+  params: GetToolCountsParams,
+  options?: { enabled?: boolean }
+) => {
   const communityId = useActiveCommunityId();
   return useQuery<ToolCountsResponse>({
     queryKey: getGetToolCountsQueryKey(communityId, tool, params),
     queryFn: () => getToolCounts(communityId, tool, params),
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 };

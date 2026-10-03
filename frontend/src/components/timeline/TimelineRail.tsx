@@ -114,7 +114,7 @@ export function TimelineRail<T extends TimelineStop>({
   className,
 }: TimelineRailProps<T>) {
   const { t } = useTranslation("common");
-  const railRef = useRef<HTMLDivElement | null>(null);
+  const railRef = useRef<HTMLElement | null>(null);
   // The stop under the finger mid-drag, and where on the rail the finger is.
   // Separate from `activePeriod`, which is where the feed actually is: during a
   // drag the bubble runs ahead of it.
@@ -197,7 +197,7 @@ export function TimelineRail<T extends TimelineStop>({
   if (stops.length === 0) return null;
 
   return (
-    <div
+    <nav
       ref={railRef}
       data-state={state}
       // `touch-action: none` so a drag down the rail scrubs it rather than
@@ -342,6 +342,6 @@ export function TimelineRail<T extends TimelineStop>({
           {formatLabel(dragging.stop)}
         </span>
       )}
-    </div>
+    </nav>
   );
 }

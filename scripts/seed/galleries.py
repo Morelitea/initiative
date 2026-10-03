@@ -9,7 +9,7 @@ dropped in.
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlmodel import select
 
@@ -331,9 +331,15 @@ GALLERIES: dict[str, list[dict]] = {
 
 
 def _store(
-    c: Community, data: bytes, extension: str, content_type: str, by: int
+    c: Community,
+    gallery: Gallery,
+    data: bytes,
+    extension: str,
+    content_type: str,
+    by: int,
 ) -> str:
-    """Write one file to the guild's storage, with its ``uploads`` row."""
+    """Write one file to the guild's storage, with its ``uploads`` row claimed
+    by the gallery's initiative, as saving it into the gallery would."""
     filename = f"{uuid.uuid4().hex}{extension}"
     get_guild_storage(c.guild.id).write(filename, data, content_type=content_type)
     c.session.add(
@@ -342,6 +348,8 @@ def _store(
             created_by=by,
             size_bytes=len(data),
             content_type=content_type,
+            initiative_id=gallery.initiative_id,
+            claimed_at=datetime.now(timezone.utc),
         )
     )
     return f"/uploads/{c.guild.id}/{filename}"
@@ -389,11 +397,12 @@ async def _picture(c: Community, gallery: Gallery, im: dict) -> GalleryImage:
             tuple(max(0, v - 25 * shade) for v in top),
             tuple(max(0, v - 25 * shade) for v in bottom),
         )
-        file_url = _store(c, png, ".png", "image/png", uploader)
+        file_url = _store(c, gallery, png, ".png", "image/png", uploader)
         thumbnail = galleries_service.render_thumbnail(png)
         thumbnail_url = (
             _store(
                 c,
+                gallery,
                 thumbnail.data,
                 thumbnail.extension,
                 thumbnail.content_type,

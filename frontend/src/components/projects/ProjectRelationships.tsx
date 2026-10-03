@@ -7,7 +7,7 @@ import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialo
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { Button } from "@/components/ui/button";
 
-type ProjectDocumentsSectionProps = {
+type ProjectRelationshipsProps = {
   projectId: number;
   projectName: string;
   initiativeId: number;
@@ -29,13 +29,13 @@ type ProjectDocumentsSectionProps = {
  * nothing under it is not drawn, so the other kinds of link appear only once
  * somebody makes one.
  */
-export const ProjectDocumentsSection = ({
+export const ProjectRelationships = ({
   projectId,
   projectName,
   initiativeId,
   canCreate,
   canAttach,
-}: ProjectDocumentsSectionProps) => {
+}: ProjectRelationshipsProps) => {
   const { t } = useTranslation("projects");
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -46,10 +46,6 @@ export const ProjectDocumentsSection = ({
         entity={{ id: projectId, initiative_id: initiativeId }}
         canEdit={canAttach}
         entityTitle={projectName}
-        /* The shelf this section has always been. A project's attachments are
-           browsed along rather than read down, and a carousel says "there is
-           more this way" where a grid just runs out. */
-        defaultLayout="carousel"
         headerActions={
           canCreate ? (
             <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>

@@ -223,6 +223,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             // one: remounting drops any in-flight bulk selection with it.
             key={status}
             params={projectsParams}
+            status={status}
             loadingLabel={statusCopy.loading}
             errorLabel={statusCopy.error}
             noMatchesLabel={t("noMatchingProjects")}
@@ -234,12 +235,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             renderItemActions={renderItemActions}
             toolbarActions={
               canCreateProjects && lockedInitiativeId ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9"
-                  onClick={() => setIsComposerOpen(true)}
-                >
+                <Button size="sm" className="h-9" onClick={() => setIsComposerOpen(true)}>
                   <Plus className="h-4 w-4" />
                   {t("addProject")}
                 </Button>

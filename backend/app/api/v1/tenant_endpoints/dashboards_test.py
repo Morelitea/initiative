@@ -130,6 +130,14 @@ async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session
     assert [d["name"] for d in listing.json()["items"]] == ["Ops"]
     # The list omits the canvas body — only the detail read carries it.
     assert "definition" not in listing.json()["items"][0]
+    assert listing.json()["items"][0]["preview"] is None
+
+    # Asked for previews, the list carries each canvas for its card.
+    previewed = await client.get(
+        a.g("/dashboards/"), headers=a.headers, params={"include_preview": True}
+    )
+    preview = previewed.json()["items"][0]["preview"]
+    assert preview["definition"]["widgets"][0]["type"] == "stat"
 
     detail = await client.get(a.g(f"/dashboards/{dashboard.id}"), headers=a.headers)
     assert detail.status_code == 200

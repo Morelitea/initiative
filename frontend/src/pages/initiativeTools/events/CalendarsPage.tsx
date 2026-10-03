@@ -1,6 +1,6 @@
 import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Plus, Upload } from "lucide-react";
+import { FileDown, Loader2, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +20,7 @@ import {
   buildTaskCalendarEntries,
   buildTaskOccurrenceEntries,
   CALENDAR_VIEW_MODE_KEY,
+  CALENDAR_VIEW_OPTIONS,
   type CalendarEntry,
   type CalendarEntryReschedule,
   CalendarView,
@@ -31,7 +32,6 @@ import {
 } from "@/components/calendar";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { useToolImportAction } from "@/components/imports/ToolImportAction";
 import {
   CalendarPicker,
@@ -77,6 +77,7 @@ import { useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useCalendar, useCalendarsList } from "@/hooks/useCalendars";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
+import { useExportJob } from "@/hooks/useExportJob";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
@@ -94,7 +95,6 @@ import { eventRoute, taskRoute, toolSettingsRoute, toolViewParams } from "@/lib/
 
 const STORAGE_KEY = "initiative-calendars-prefs";
 const VISIBILITY_KEY = "initiative-calendar-visibility";
-const ICS_FORMATS: ExportFormatOption[] = [{ format: "ics", labelKey: "export.formatIcs" }];
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 
@@ -156,7 +156,7 @@ export const CalendarsView = ({
   soloCalendar,
   communityScope = false,
 }: CalendarsViewProps) => {
-  const { t } = useTranslation(["calendars", "tasks", "common", "access"]);
+  const { t } = useTranslation(["calendars", "tasks", "common", "access", "exports"]);
   const router = useRouter();
   const { user } = useAuth();
   const gp = useCommunityPath();
@@ -358,6 +358,7 @@ export const CalendarsView = ({
   // grid: the date range when one is set, and every date when not. Hidden
   // calendars are left out by their saved ids, so one past the loaded page of
   // calendars stays out too.
+  const eventsExport = useExportJob({ resumePending: true });
   const exportParams = useMemo((): ExportEventsParams | null => {
     if (keepsContentIn) {
       return null;
@@ -684,17 +685,16 @@ export const CalendarsView = ({
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
         }
-        trailing={
-          exportParams ? (
-            <ExportButton
-              endpoint="/exports/events"
-              params={exportParams}
-              formats={ICS_FORMATS}
-              filenameStem="events"
-              resumePending
-            />
-          ) : null
-        }
+        view={{
+          value: viewMode,
+          onChange: setViewMode,
+          options: CALENDAR_VIEW_OPTIONS.map(({ mode, icon, labelKey }) => ({
+            value: mode,
+            label: t(`common:${labelKey}`),
+            icon,
+          })),
+          label: t("common:calendar.viewMode"),
+        }}
         actions={
           communityScope && canCreateCalendars ? (
             <Button size="sm" className="h-9" onClick={() => setCreateCalendarOpen(true)}>
@@ -705,6 +705,28 @@ export const CalendarsView = ({
         }
         menuItems={
           <>
+            {/* One format, so one entry: the job reports itself in a toast. */}
+            {exportParams ? (
+              <DropdownMenuItem
+                disabled={eventsExport.busy}
+                onSelect={() =>
+                  void eventsExport.start({
+                    endpoint: "/exports/events",
+                    params: { ...exportParams, format: "ics" },
+                    fallbackFilename: "events.ics",
+                  })
+                }
+              >
+                {eventsExport.busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                {eventsExport.busy
+                  ? t("exports:export.preparing")
+                  : `${t("exports:export.button")} · ${t("exports:export.formatIcs")}`}
+              </DropdownMenuItem>
+            ) : null}
             {canCreateEvents ? (
               <DropdownMenuItem onSelect={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4" />
@@ -858,6 +880,8 @@ export const CalendarsView = ({
           entries={calendarEntries}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          // Offered in the toolbar, where other tools keep their views.
+          hideViewSwitch
           focusDate={focusDate}
           onFocusDateChange={setFocusDate}
           onEntryClick={handleEntryClick}

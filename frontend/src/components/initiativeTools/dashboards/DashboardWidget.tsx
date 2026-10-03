@@ -21,6 +21,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { appWidgetSample, appWidgetSource } from "@/api/appData";
+import type { DashboardWidgetData } from "@/api/generated/initiativeAPI.schemas";
 import { WidgetProvenance } from "@/components/initiativeTools/dashboards/WidgetProvenance";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import { useWidgetData, type WidgetBinding } from "@/hooks/useWidgetData";
 import { useWidgetMeta } from "@/hooks/useWidgetMeta";
 import { cn } from "@/lib/utils";
 import { type DefinitionWidget, isAppWidgetType, unboundSlots } from "@/lib/widgets/definition";
+import { emptyDataFor, normalizeQueryRows } from "@/lib/widgets/normalize";
 import { SAMPLE_NOW, sampleFor } from "@/lib/widgets/sampleData";
 import { canDraw, resolveMapping } from "@/lib/widgets/shape";
 import { shapeFor } from "@/lib/widgets/shapes";
@@ -56,6 +58,10 @@ export interface DashboardWidgetProps {
    *  isn't installed shows what it *looks like*, never anyone's data, so it
    *  renders the same for every viewer. */
   sampleData?: boolean;
+  /** This widget's answer, read with a list's page for its card preview, or
+   *  null where the page brought none. A query widget in a preview draws its
+   *  answer or nothing — never sample rows that could pass for real ones. */
+  answer?: DashboardWidgetData | null;
   onConfigure?: (widgetId: string) => void;
   onRemove?: (widgetId: string) => void;
 }
@@ -67,6 +73,7 @@ export function DashboardWidget({
   dashboardId,
   canEdit,
   sampleData,
+  answer,
   onConfigure,
   onRemove,
 }: DashboardWidgetProps) {
@@ -107,11 +114,18 @@ export function DashboardWidget({
   const [view, setView] = useState<"scene" | "table">("scene");
 
   const appSample = appWidgetSample(appCatalogQuery.data, widget.type, binding.endpoint_id);
-  const data = sampleData
-    ? isAppWidget
-      ? { source: "app" as const, ...appSample }
-      : sampleFor(widget.type)
-    : live.data;
+  const answered = answer?.result
+    ? normalizeQueryRows(answer.result.columns, answer.result.rows)
+    : undefined;
+  const data = answered
+    ? { source: "rows" as const, ...answered }
+    : answer !== undefined && binding.source === "query"
+      ? emptyDataFor("query")
+      : sampleData
+        ? isAppWidget
+          ? { source: "app" as const, ...appSample }
+          : sampleFor(widget.type)
+        : live.data;
   // Which columns fill this widget's slots. Resolved here rather than in the
   // sandbox: it needs the widget's declared shape and the author's overrides,
   // and neither is the widget's to read.

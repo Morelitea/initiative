@@ -18,7 +18,7 @@ scope a policy to.
 import json
 import logging
 import uuid
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 from urllib.parse import urlencode
 
 import webauthn
@@ -35,7 +35,11 @@ from app.api.deps import (
     CurrentUser,
 )
 from app.api.v1.platform_endpoints.change_assessment import is_risky
-from app.api.v1.platform_endpoints.held_changes import HELD, hold_change
+from app.api.v1.platform_endpoints.held_changes import (
+    HELD_OUTCOME,
+    held_response,
+    hold_change,
+)
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
     require_password_or_recent_proof,
@@ -72,6 +76,7 @@ from app.schemas.platform.passkey import (
     PasskeyStepUpFinish,
 )
 from app.schemas.platform.token import Token
+from app.schemas.platform.user import HeldChangeOutcome
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import account_changes, addresses, held_changes
@@ -367,9 +372,8 @@ async def rename_passkey(
 
 @router.post(
     "/passkeys/{passkey_id}/remove",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_model=None,
-    responses=HELD,
+    response_model=HeldChangeOutcome,
+    responses=HELD_OUTCOME,
 )
 @limiter.limit("10/15minutes")
 async def remove_passkey(
@@ -379,7 +383,7 @@ async def remove_passkey(
     system_session: SystemSessionDep,
     payload: PasskeyRemove,
     _first_party: str = FirstPartyOnly,
-) -> Optional[JSONResponse]:
+) -> HeldChangeOutcome | JSONResponse:
     """Forget the credential. The password is asked for again, as it is for a
     password change, because a way in is being taken away. The account's last
     passkey, removed from somewhere the account does not yet know, waits two
@@ -411,13 +415,14 @@ async def remove_passkey(
         == 1
         and await is_risky(request, system_session, current_user)
     ):
-        return await hold_change(
+        held = await hold_change(
             request,
             system_session,
             current_user,
             kind=HeldChangeKind.last_passkey,
             passkey_id=passkey_id,
         )
+        return held_response(HeldChangeOutcome(held=held))
     # Sessions are left alone: the person is where they are and has just
     # proved it.
     if not await held_changes.remove_passkey(
@@ -427,7 +432,7 @@ async def remove_passkey(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthMessages.PASSKEY_NOT_FOUND,
         )
-    return None
+    return HeldChangeOutcome()
 
 
 @router.post(

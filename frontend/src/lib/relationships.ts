@@ -15,6 +15,7 @@
  */
 
 import {
+  ArrowUpRight,
   Ban,
   Blocks,
   type LucideIcon,
@@ -47,6 +48,7 @@ export type RelationGroupKey =
   | "partOf"
   | "parts"
   | "referencedBy"
+  | "references"
   | "tagged";
 
 export interface RelationGroup {
@@ -118,6 +120,14 @@ export const RELATION_GROUPS: Record<RelationGroupKey, RelationGroup> = {
     assertable: false,
     icon: Quote,
   },
+  /** What this thing mentions: the other side of `referencedBy`. */
+  references: {
+    key: "references",
+    relationshipType: RelationshipType.references,
+    direction: "outbound",
+    assertable: false,
+    icon: ArrowUpRight,
+  },
   /**
    * Labels. Deliberately absent from {@link RELATION_GROUP_ORDER}, so no list
    * of links grows a Tags heading — a thing's tags are shown and picked where
@@ -135,9 +145,9 @@ export const RELATION_GROUPS: Record<RelationGroupKey, RelationGroup> = {
 
 /**
  * The order groups are shown in: what this thing holds, then what stands in its
- * way, then how it sits in a larger whole, then what merely mentions it. Read
- * top to bottom that is decreasing urgency, which is the order somebody opening
- * a task wants them.
+ * way, then how it sits in a larger whole, then what it mentions and what
+ * mentions it. Read top to bottom that is decreasing urgency, which is the
+ * order somebody opening a task wants them.
  */
 export const RELATION_GROUP_ORDER: RelationGroupKey[] = [
   "attached",
@@ -146,6 +156,7 @@ export const RELATION_GROUP_ORDER: RelationGroupKey[] = [
   "partOf",
   "parts",
   "related",
+  "references",
   "referencedBy",
 ];
 

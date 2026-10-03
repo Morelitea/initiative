@@ -37,6 +37,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -167,16 +168,7 @@ export const importEnvelopeArchive = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyImportEnvelopeArchive.file);
-  formData.append(`initiative_id`, bodyImportEnvelopeArchive.initiative_id.toString());
-  if (
-    bodyImportEnvelopeArchive.envelope_type !== undefined &&
-    bodyImportEnvelopeArchive.envelope_type !== null
-  ) {
-    formData.append(`envelope_type`, bodyImportEnvelopeArchive.envelope_type);
-  }
-
+  const formData = toFormData(bodyImportEnvelopeArchive);
   return apiMutator<unknown>(
     {
       url: `/api/v1/c/${communityId}/imports/envelope/archive`,
@@ -699,16 +691,7 @@ export const startConfluenceExportImport = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyStartConfluenceExportImport.file);
-  formData.append(`initiative_id`, bodyStartConfluenceExportImport.initiative_id.toString());
-  if (bodyStartConfluenceExportImport.include_attachments !== undefined) {
-    formData.append(
-      `include_attachments`,
-      bodyStartConfluenceExportImport.include_attachments.toString()
-    );
-  }
-
+  const formData = toFormData(bodyStartConfluenceExportImport);
   return apiMutator<ImportJobRead>(
     {
       url: `/api/v1/c/${communityId}/imports/atlassian/export`,
@@ -1148,9 +1131,7 @@ export const uploadBackup = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadBackup.file);
-
+  const formData = toFormData(bodyUploadBackup);
   return apiMutator<ImportJobRead>(
     {
       url: `/api/v1/c/${communityId}/imports/backup`,

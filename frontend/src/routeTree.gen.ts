@@ -607,11 +607,14 @@ const ServerRequiredAuthenticatedCCommunityIdSettingsInitiativesRoute =
     getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdSettingsRoute,
   } as any)
 const ServerRequiredAuthenticatedCCommunityIdSettingsIntegrationsRoute =
-  ServerRequiredAuthenticatedCCommunityIdSettingsIntegrationsRouteImport.update({
-    id: '/integrations',
-    path: '/integrations',
-    getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdSettingsRoute,
-  } as any)
+  ServerRequiredAuthenticatedCCommunityIdSettingsIntegrationsRouteImport.update(
+    {
+      id: '/integrations',
+      path: '/integrations',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCCommunityIdSettingsRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCCommunityIdSettingsSecurityRoute =
   ServerRequiredAuthenticatedCCommunityIdSettingsSecurityRouteImport.update({
     id: '/security',
@@ -668,20 +671,27 @@ const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdIndexRoute =
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
+    getParentRoute: () =>
+      ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
   } as any)
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdModerationRoute =
-  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdModerationRouteImport.update({
-    id: '/moderation',
-    path: '/moderation',
-    getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
-  } as any)
+  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdModerationRouteImport.update(
+    {
+      id: '/moderation',
+      path: '/moderation',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRoute =
-  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
-  } as any)
+  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRouteImport.update(
+    {
+      id: '/settings',
+      path: '/settings',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRoute =
   ServerRequiredAuthenticatedSettingsPlatformIntegrationsVendorSetupRegistrationIdRouteImport.update(
     {
@@ -718,11 +728,14 @@ const ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdSettingsAdvanced
     } as any,
   )
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdAppsAppIdRoute =
-  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdAppsAppIdRouteImport.update({
-    id: '/apps/$appId',
-    path: '/apps/$appId',
-    getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
-  } as any)
+  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdAppsAppIdRouteImport.update(
+    {
+      id: '/apps/$appId',
+      path: '/apps/$appId',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCalendarsIndexRoute =
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCalendarsIndexRouteImport.update(
     {
@@ -778,11 +791,14 @@ const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdGalleriesIndexRoute =
     } as any,
   )
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdPostsIndexRoute =
-  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdPostsIndexRouteImport.update({
-    id: '/posts/',
-    path: '/posts/',
-    getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
-  } as any)
+  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdPostsIndexRouteImport.update(
+    {
+      id: '/posts/',
+      path: '/posts/',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdProjectsIndexRoute =
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdProjectsIndexRouteImport.update(
     {
@@ -856,11 +872,14 @@ const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute =
     } as any,
   )
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdWikisIndexRoute =
-  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdWikisIndexRouteImport.update({
-    id: '/wikis/',
-    path: '/wikis/',
-    getParentRoute: () => ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
-  } as any)
+  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdWikisIndexRouteImport.update(
+    {
+      id: '/wikis/',
+      path: '/wikis/',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCCommunityIdIInitiativeIdRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdEventsEventIdIndexRoute =
   ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdEventsEventIdIndexRouteImport.update(
     {

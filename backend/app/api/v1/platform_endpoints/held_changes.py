@@ -2,7 +2,8 @@
 
 A risky request to make an address primary, remove an address, turn
 two-factor authentication off or remove the last passkey answers ``202`` with
-the change it holds (:func:`hold_change`) rather than making it. Every route
+the change it holds (:func:`hold_change`, :func:`held_response`) rather than
+making it. Every route
 runs on the system engine, beside the rows a held change acts on.
 """
 
@@ -20,16 +21,33 @@ from app.core.rate_limit import limiter
 from app.models.platform.account_change_hold import AccountChangeHold, HeldChangeKind
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.user import User
-from app.schemas.platform.user import HeldChangeRead
+from app.schemas.platform.user import HeldChangeOutcome, HeldChangeRead
 from app.services.auth import held_changes
 from app.services.auth.assurance import carries_passkey
 
 me_router = APIRouter()
 
-#: What a route that can hold its change answers when it does.
+#: What a route that answers with the changed row says when it holds the
+#: change instead.
 HELD: dict[int | str, dict[str, Any]] = {
     202: {"model": HeldChangeRead, "description": "The change waits until applies_at."}
 }
+
+#: What a route with no row to answer with says when it holds the change: the
+#: same body as when it makes it, so a client reads one shape.
+HELD_OUTCOME: dict[int | str, dict[str, Any]] = {
+    202: {
+        "model": HeldChangeOutcome,
+        "description": "The change waits until held.applies_at.",
+    }
+}
+
+
+def held_response(body: HeldChangeRead | HeldChangeOutcome) -> JSONResponse:
+    """``202`` with what was held."""
+    return JSONResponse(
+        status_code=status.HTTP_202_ACCEPTED, content=body.model_dump(mode="json")
+    )
 
 
 async def _read(
@@ -53,9 +71,9 @@ async def hold_change(
     kind: HeldChangeKind,
     address_id: int | None = None,
     passkey_id: uuid.UUID | None = None,
-) -> JSONResponse:
+) -> HeldChangeRead:
     """Hold the change this request asks for, with what it has staged, and
-    answer ``202`` with it; ``409`` while another change waits."""
+    say what is waiting; ``409`` while another change waits."""
     session_id = current_session_row(request)
     try:
         hold = await held_changes.hold(
@@ -78,10 +96,7 @@ async def hold_change(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthMessages.ACCOUNT_CHANGE_PENDING,
         ) from exc
-    read = await _read(system_session, hold)
-    return JSONResponse(
-        status_code=status.HTTP_202_ACCEPTED, content=read.model_dump(mode="json")
-    )
+    return await _read(system_session, hold)
 
 
 def _not_found() -> HTTPException:

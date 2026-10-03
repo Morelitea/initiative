@@ -280,7 +280,7 @@ async def test_the_last_proven_address_is_not_removed(
         json=CONFIRM,
         headers=await signed_in_headers(session, user, amr=PASSKEY),
     )
-    assert gone.status_code == 204, gone.text
+    assert gone.status_code == 200, gone.text
 
     # And now the spare is the only proven one, so it stays.
     refused = await client.post(
@@ -683,7 +683,7 @@ async def test_a_removed_address_is_told_as_well_as_the_account(
             json=CONFIRM,
             headers=await signed_in_headers(session, user, amr=PASSKEY),
         )
-        assert gone.status_code == 204, gone.text
+        assert gone.status_code == 200, gone.text
 
     assert queued == [_subject("removed")]
     assert undone == ["removed"]

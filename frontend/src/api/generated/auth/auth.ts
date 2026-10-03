@@ -33,7 +33,7 @@ import type {
   EmailOtpVerify,
   FinishPasskeySignUpParams,
   HTTPValidationError,
-  HeldChangeRead,
+  HeldChangeOutcome,
   LoginProvidersResponse,
   NativeSignInRedeem,
   PasskeyAuthenticationOptions,
@@ -2444,7 +2444,7 @@ export const disableSecondFactor = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<HeldChangeRead | void>(
+  return apiMutator<HeldChangeOutcome>(
     {
       url: `/api/v1/auth/totp/disable`,
       method: "POST",
@@ -3112,7 +3112,7 @@ export const removePasskey = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<HeldChangeRead | void>(
+  return apiMutator<HeldChangeOutcome>(
     {
       url: `/api/v1/auth/passkeys/${passkeyId}/remove`,
       method: "POST",

@@ -45,6 +45,8 @@ export const Route = createFileRoute(
     ]).catch(() => {});
   },
   component: lazyRouteComponent(() =>
-    import("@/pages/TaskEditPage").then((m) => ({ default: m.TaskEditPage }))
+    import("@/pages/initiativeTools/projects/TaskEditPage").then((m) => ({
+      default: m.TaskEditPage,
+    }))
   ),
 });

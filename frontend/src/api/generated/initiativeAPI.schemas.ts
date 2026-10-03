@@ -3634,7 +3634,18 @@ export interface CounterGroupCreate {
 }
 
 /**
- * A counter group in a list: the group alone, without its counters.
+ * One counter as a list's card draws it: its name, colour and count.
+ */
+export interface CounterPreview {
+  id: number;
+  name: string;
+  color: string | null;
+  count: string;
+}
+
+/**
+ * A counter group in a list: the group alone, without its counters —
+ * unless the list was asked for previews, when its first few come along.
  */
 export interface CounterGroupSummary {
   archived_at: string | null;
@@ -3655,6 +3666,7 @@ export interface CounterGroupSummary {
    */
   name: string;
   description: string | null;
+  preview: CounterPreview[] | null;
 }
 
 export interface CounterGroupListResponse {
@@ -3709,6 +3721,7 @@ export interface CounterGroupRead {
    */
   name: string;
   description: string | null;
+  preview: CounterPreview[] | null;
   counters: CounterRead[];
 }
 
@@ -3852,6 +3865,22 @@ export interface DashboardInstalledListings {
   counts: DashboardInstalledListingsCounts;
 }
 
+export type DashboardPreviewDefinition = { [key: string]: unknown };
+
+export type DashboardPreviewConfig = { [key: string]: unknown };
+
+export type DashboardPreviewWidgets = { [key: string]: DashboardWidgetData };
+
+/**
+ * A dashboard as a list's card draws it: its canvas and its query widgets'
+ * answers. Widgets bound to anything else draw from sample data there.
+ */
+export interface DashboardPreview {
+  definition: DashboardPreviewDefinition;
+  config: DashboardPreviewConfig;
+  widgets: DashboardPreviewWidgets;
+}
+
 export interface DashboardSummary {
   archived_at: string | null;
   can: ToolCan;
@@ -3873,6 +3902,7 @@ export interface DashboardSummary {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
+  preview: DashboardPreview | null;
 }
 
 export interface DashboardListResponse {
@@ -3918,6 +3948,7 @@ export interface DashboardRead {
   description: string | null;
   listing_uid: string | null;
   listing_version: string | null;
+  preview: DashboardPreview | null;
   definition: DashboardReadDefinition;
   config: DashboardReadConfig;
   published_over: PublishedOver[];
@@ -5199,6 +5230,14 @@ export interface HeldChangeRead {
   applies_at: string;
 }
 
+/**
+ * What a change that may be held answers, made or not: ``held`` is the
+ * change waiting (``202``), or null where it was made at once (``200``).
+ */
+export interface HeldChangeOutcome {
+  held: HeldChangeRead | null;
+}
+
 export interface ICalEventPreview {
   summary: string;
   start_at: string;
@@ -5476,7 +5515,7 @@ export interface InitiativeMemberAdd {
  * Member info including their role.
  */
 export interface InitiativeMemberRead {
-  user: UserPublic;
+  user: UserSummary;
   role_id: number | null;
   role_name: string | null;
   role_display_name: string | null;
@@ -5484,6 +5523,7 @@ export interface InitiativeMemberRead {
   override_share_restrictions: boolean;
   joined_at: string;
   oidc_managed: boolean;
+  presence: Presence;
 }
 
 /**
@@ -7879,6 +7919,17 @@ export interface QueueItemUpdate {
   tag_ids?: number[] | null;
 }
 
+/**
+ * One turn as a list's card draws it: who, in what colour, and whether it
+ * is theirs now.
+ */
+export interface QueueTurnPreview {
+  id: number;
+  label: string;
+  color: string | null;
+  current: boolean;
+}
+
 export interface QueueSummary {
   archived_at: string | null;
   can: ToolCan;
@@ -7900,6 +7951,7 @@ export interface QueueSummary {
   description: string | null;
   current_round: number;
   is_active: boolean;
+  preview: QueueTurnPreview[] | null;
 }
 
 export interface QueueListResponse {
@@ -7932,6 +7984,7 @@ export interface QueueRead {
   description: string | null;
   current_round: number;
   is_active: boolean;
+  preview: QueueTurnPreview[] | null;
   items: QueueItemRead[];
   current_item: QueueItemRead | null;
 }
@@ -10235,6 +10288,10 @@ export type ListQueuesParams = {
    */
   is_active?: boolean | null;
   /**
+   * Also send what each row's card shows of what is inside it, read for the whole page at once.
+   */
+  include_preview?: boolean;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -10271,6 +10328,10 @@ export type ListCounterGroupsParams = {
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
   archived?: boolean | null;
+  /**
+   * Also send what each row's card shows of what is inside it, read for the whole page at once.
+   */
+  include_preview?: boolean;
   /**
    * @minimum 1
    */
@@ -10346,6 +10407,10 @@ export type ListDashboardsParams = {
    * true lists what has been archived instead of what is live. Omit for the live list, which is what every other view shows.
    */
   archived?: boolean | null;
+  /**
+   * Also send what each row's card shows of what is inside it, read for the whole page at once.
+   */
+  include_preview?: boolean;
   /**
    * @minimum 1
    */
@@ -10629,6 +10694,10 @@ export type GetInitiativeMembersParams = {
    * Only the members whose role is (or is not) a manager role.
    */
   is_manager?: boolean | null;
+  /**
+   * Only the members who appear online, idle or busy right now.
+   */
+  online?: boolean;
   /**
    * @minimum 1
    */

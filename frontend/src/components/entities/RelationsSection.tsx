@@ -83,7 +83,7 @@ const CARD_GRID =
 
 /** Rows stack in one column however wide the section is: a row is read across,
  *  so two of them side by side would be two lists to scan rather than one. */
-const ROW_LIST = "flex flex-col gap-1.5";
+const ROW_LIST = "flex flex-col";
 
 /**
  * How a section draws what it found.
@@ -125,10 +125,8 @@ interface RelationsSectionProps {
   headerActions?: ReactNode;
   /** Persist the collapsed state and the chosen density under this key. */
   collapseKey?: string;
-  /**
-   * How to draw these before anybody says otherwise. Tiles suit a full-width
-   * section, rows a column beside a form, a carousel a shelf of attachments.
-   */
+  /** How to draw these before anybody says otherwise: a shelf you push
+   *  along, on every surface, until somebody picks another way. */
   defaultLayout?: RelationsLayout;
   /** What the thing itself is called, for the middle of the graph. */
   entityTitle?: string;
@@ -156,7 +154,7 @@ export const RelationsSection = ({
   groups = RELATION_GROUP_ORDER,
   headerActions,
   collapseKey,
-  defaultLayout = "tiles",
+  defaultLayout = "carousel",
   entityTitle,
   title,
   description,
@@ -272,18 +270,17 @@ export const RelationsSection = ({
     };
   };
 
-  // Contextual, from the thing itself, so no caller has to pass copy for a
-  // surface it happens to sit on. i18next falls back to the bare key for a kind
-  // that has no wording of its own.
-  const kind = entity.type;
-  const sectionTitle = title ?? t("title", { context: kind });
-  const emptyLine = t("empty", { context: kind });
+  // One name on every surface. The empty line is contextual, from the thing
+  // itself, so no caller has to pass copy for a surface it happens to sit on;
+  // i18next falls back to the bare key for a kind with no wording of its own.
+  const sectionTitle = title ?? t("title");
+  const emptyLine = t("empty", { context: entity.type });
 
   return (
     <Collapsible
       open={!collapsed}
       onOpenChange={(open) => setCollapsedState(!open)}
-      className={cn("relative", className ?? "space-y-4 rounded-2xl border bg-card p-5 shadow-sm")}
+      className={cn("relative space-y-3", className)}
       {...drop.handlers}
     >
       {drop.dragging ? <DropOverlay label={t("dropzone")} className="rounded-2xl" /> : null}
@@ -454,10 +451,25 @@ export const RelationsSection = ({
             if (edges.length === 0) return null;
             const GroupIcon = group.icon;
             return (
-              <section key={group.key} className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <GroupIcon className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="font-medium text-sm">{t(`groups.${group.key}.title`)}</h3>
+              <section key={group.key} className={layout === "rows" ? "space-y-1" : "space-y-3"}>
+                <div
+                  className={cn(
+                    "flex items-center gap-2",
+                    layout === "rows" && "px-2 text-muted-foreground"
+                  )}
+                  // A list keeps its headings to one line; why a group cannot be
+                  // added to is under the pointer there.
+                  title={layout === "rows" && !group.assertable ? t("derived") : undefined}
+                >
+                  <GroupIcon
+                    className={cn(
+                      "text-muted-foreground",
+                      layout === "rows" ? "h-3.5 w-3.5" : "h-4 w-4"
+                    )}
+                  />
+                  <h3 className={cn("font-medium", layout === "rows" ? "text-xs" : "text-sm")}>
+                    {t(`groups.${group.key}.title`)}
+                  </h3>
                   {(() => {
                     // "1 of 3 still open" where the ends can say, a plain count
                     // where they cannot. A bare 3 under Blocked by outlives the
@@ -472,7 +484,7 @@ export const RelationsSection = ({
                     );
                   })()}
                 </div>
-                {group.assertable ? null : (
+                {group.assertable || layout === "rows" ? null : (
                   <p className="text-muted-foreground text-xs">{t("derived")}</p>
                 )}
                 {/* Sized by the container rather than by viewport breakpoints:

@@ -13,7 +13,10 @@ import {
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { Editor } from "@/components/documents/editor/editor";
 import { WikiChrome } from "@/components/initiativeTools/wikis/WikiChrome";
-import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
+import {
+  WikiConnectionsSheet,
+  WikiPageConnections,
+} from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PropertyPanel } from "@/components/properties";
@@ -348,6 +351,10 @@ export const WikiPageView = () => {
   const isComfortable = wiki.reading_width === WikiReadingWidth.comfortable;
   // Asked for, allowed by the wiki, and there is a page to have connections.
   const railOpen = showConnections && wiki.show_connections && Boolean(page);
+  const sheetOpen = railOpen && !railFitsBeside && railAsked;
+  // What the toggle shows is what is on screen: beside the words the rail is
+  // there from the start, while a drawer is shut until it is asked for.
+  const connectionsShown = railFitsBeside ? showConnections : sheetOpen;
   // Definitions belong to an initiative, so a community-level wiki's pages have
   // none; and a reader has nothing to open on a page that carries none.
   const propertiesInitiativeId = wiki.initiative_id;
@@ -384,9 +391,9 @@ export const WikiPageView = () => {
           onOpenComments={() => setCommentsOpen(true)}
           onToggleConnections={() => {
             setRailAsked(true);
-            setShowConnections((shown) => !shown);
+            setShowConnections(!connectionsShown);
           }}
-          connectionsOpen={showConnections}
+          connectionsOpen={connectionsShown}
           trailing={
             offersProperties ? (
               <Tooltip>
@@ -481,7 +488,7 @@ export const WikiPageView = () => {
               at which opening it moves nothing. */}
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections entity={pageRef} className="min-h-0" />
+              <WikiPageConnections entity={pageRef} initiativeId={wiki.initiative_id} />
             </div>
           ) : null}
         </div>
@@ -489,19 +496,12 @@ export const WikiPageView = () => {
 
       {/* Too narrow to sit beside the words, so it opens over them instead —
           the control means the same thing at every width. */}
-      <Sheet
-        open={railOpen && !railFitsBeside && railAsked}
+      <WikiConnectionsSheet
+        entity={pageRef}
+        initiativeId={wiki.initiative_id}
+        open={sheetOpen}
         onOpenChange={(open) => !open && setShowConnections(false)}
-      >
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
-          <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections entity={pageRef} className="border-0 shadow-none" />
-          </div>
-        </SheetContent>
-      </Sheet>
+      />
 
       <Sheet open={propertiesOpen && offersProperties} onOpenChange={setPropertiesOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">

@@ -21,6 +21,7 @@ import type {
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -33,9 +34,7 @@ export const uploadAttachment = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadAttachment.file);
-
+  const formData = toFormData(bodyUploadAttachment);
   return apiMutator<AttachmentUploadResponse>(
     {
       url: `/api/v1/c/${communityId}/attachments/`,
@@ -131,9 +130,7 @@ export const uploadPastedImage = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  const formData = new FormData();
-  formData.append(`file`, bodyUploadPastedImage.file);
-
+  const formData = toFormData(bodyUploadPastedImage);
   return apiMutator<AttachmentUploadResponse>(
     {
       url: `/api/v1/c/${communityId}/attachments/pasted`,

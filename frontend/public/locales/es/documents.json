@@ -140,13 +140,6 @@
     "openPanel": "Abrir panel",
     "togglePanel": "Alternar panel lateral",
     "titlePlaceholder": "Título del documento",
-    "metadataTitle": "Metadatos",
-    "expandMetadata": "Expand metadata",
-    "collapseMetadata": "Collapse metadata",
-    "featuredImage": "Imagen destacada",
-    "uploadImage": "Subir imagen destacada",
-    "uploading": "Subiendo…",
-    "removeImage": "Eliminar imagen",
     "pdfError": "No se pudo cargar el PDF. Intenta descargar el archivo en su lugar.",
     "imageFileRequired": "Por favor selecciona un archivo de imagen.",
     "imageUploaded": "Imagen subida.",
@@ -174,6 +167,15 @@
     "commentsLoadError": "No se pudieron cargar los comentarios en este momento.",
     "projectFallback": "Proyecto #{{id}}",
     "updatedLabel": "Actualizado"
+  },
+  "featuredImage": {
+    "label": "Imagen destacada",
+    "upload": "Subir imagen",
+    "replace": "Reemplazar",
+    "remove": "Quitar",
+    "uploading": "Subiendo…",
+    "makeFeatured": "Usar como imagen destacada",
+    "isFeatured": "Imagen destacada"
   },
   "editor": {
     "align": "Alinear",
@@ -321,7 +323,6 @@
     "loading": "Cargando documentos…",
     "loadError": "No se pudieron cargar los documentos en este momento.",
     "noMatchingTags": "Ningún documento coincide con las etiquetas seleccionadas.",
-    "browseByTag": "Explorar por etiqueta",
     "noDocumentsTitle": "Aún no hay documentos",
     "noDocumentsDescription": "Crea tu primer documento de iniciativa para compartir resúmenes, decisiones o guías.",
     "noTemplatesTitle": "Aún no hay plantillas",

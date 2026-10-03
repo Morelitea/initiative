@@ -140,13 +140,6 @@
     "openPanel": "Panel öffnen",
     "togglePanel": "Seitenpanel umschalten",
     "titlePlaceholder": "Dokumenttitel",
-    "metadataTitle": "Metadaten",
-    "expandMetadata": "Metadaten ausklappen",
-    "collapseMetadata": "Metadaten einklappen",
-    "featuredImage": "Beitragsbild",
-    "uploadImage": "Beitragsbild hochladen",
-    "uploading": "Wird hochgeladen…",
-    "removeImage": "Bild entfernen",
     "pdfError": "PDF konnte nicht geladen werden. Versuche stattdessen, die Datei herunterzuladen.",
     "imageFileRequired": "Bitte wähle eine Bilddatei aus.",
     "imageUploaded": "Bild hochgeladen.",
@@ -174,6 +167,15 @@
     "commentsLoadError": "Kommentare können derzeit nicht geladen werden.",
     "projectFallback": "Projekt #{{id}}",
     "updatedLabel": "Aktualisiert"
+  },
+  "featuredImage": {
+    "label": "Beitragsbild",
+    "upload": "Bild hochladen",
+    "replace": "Ersetzen",
+    "remove": "Entfernen",
+    "uploading": "Wird hochgeladen…",
+    "makeFeatured": "Als Beitragsbild verwenden",
+    "isFeatured": "Beitragsbild"
   },
   "editor": {
     "align": "Ausrichten",
@@ -321,7 +323,6 @@
     "loading": "Dokumente werden geladen…",
     "loadError": "Dokumente können derzeit nicht geladen werden.",
     "noMatchingTags": "Keine Dokumente entsprechen den ausgewählten Tags.",
-    "browseByTag": "Nach Tag durchsuchen",
     "noDocumentsTitle": "Noch keine Dokumente",
     "noDocumentsDescription": "Erstelle dein erstes Initiative-Dokument, um Briefings, Entscheidungen oder Anleitungen zu teilen.",
     "noTemplatesTitle": "Noch keine Vorlagen",

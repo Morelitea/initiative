@@ -26,7 +26,6 @@ import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateAc
 import { PaginationBar } from "@/components/PaginationBar";
 import { parsePropertyFilters } from "@/components/properties/PropertyFilter";
 import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
-import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,14 +43,13 @@ import type { GridToggleOptions } from "@/hooks/useGridSelection";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
-import { useTags } from "@/hooks/useTags";
+import { useTagTreeSelection } from "@/hooks/useTagTreeSelection";
 import { useToolCounts } from "@/hooks/useToolCounts";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { DOCUMENT_UPLOAD_ACCEPT } from "@/lib/fileUtils";
 import { everyCan } from "@/lib/permissions";
 import { resolveCardClick } from "@/lib/selectionRange";
-import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { isToolView, type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 const DOCUMENT_VIEW_KEY = "documents:view-mode";
@@ -134,8 +132,6 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     },
     [setPersistedTagFilters]
   );
-
-  const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
 
   const queryDocumentType = filters.document_type ?? undefined;
 
@@ -229,61 +225,16 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
     [persistSorting, setPage]
   );
 
-  const { data: allTags = [] } = useTags();
-
-  const handleTreeTagToggle = (fullPath: string, ctrlKey: boolean) => {
-    setTreeSelectedPaths((prev) => {
-      const next = new Set(prev);
-      if (ctrlKey) {
-        // Ctrl/Cmd+Click: toggle in selection
-        if (next.has(fullPath)) {
-          next.delete(fullPath);
-        } else {
-          next.add(fullPath);
-        }
-      } else {
-        // Plain click: replace selection, or deselect if already the only selection
-        if (next.size === 1 && next.has(fullPath)) {
-          next.clear();
-        } else {
-          next.clear();
-          next.add(fullPath);
-        }
-      }
-      return next;
-    });
-  };
-
-  // Reset tree selection when switching away from tags view
-  useEffect(() => {
-    if (viewMode !== "tags") {
-      setTreeSelectedPaths(new Set());
-    }
-  }, [viewMode]);
+  const {
+    allTags,
+    selectedPaths: treeSelectedPaths,
+    toggle: handleTreeTagToggle,
+    tagIds: treeTagIds,
+    wantsUntagged: treeWantsUntagged,
+  } = useTagTreeSelection(viewMode === "tags");
 
   // In tags view, the tree does its own client-side filtering, so skip backend tag filters
   const effectiveTagFilters = viewMode === "tags" ? [] : tagFilters;
-
-  // For tags view, derive tag_ids from tree selection for server-side filtering
-  const treeTagIds = useMemo(() => {
-    if (viewMode !== "tags" || treeSelectedPaths.size === 0) return [];
-    const tagPaths = new Set(treeSelectedPaths);
-    tagPaths.delete(UNTAGGED_PATH);
-    const tree = buildTagTree(allTags);
-    const ids: number[] = [];
-    for (const path of tagPaths) {
-      const node = findNodeByPath(tree, path);
-      if (node) {
-        for (const id of collectDescendantTagIds(node)) {
-          ids.push(id);
-        }
-      }
-    }
-    return ids;
-  }, [viewMode, treeSelectedPaths, allTags]);
-
-  // Whether "untagged" is selected in tags view
-  const treeWantsUntagged = viewMode === "tags" && treeSelectedPaths.has(UNTAGGED_PATH);
 
   // Effective tag_ids sent to the server for the document list query
   // In tags view: use tree-derived tag IDs; in other views: use filter bar tag IDs
@@ -586,12 +537,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         }}
         actions={
           canCreateDocuments && lockedInitiativeId ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => setCreateDialogOpen(true)}
-            >
+            <Button size="sm" className="h-9" onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("page.newDocument")}
             </Button>

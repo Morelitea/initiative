@@ -14,7 +14,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { LayoutGrid, List, Pin as PinIcon } from "lucide-react";
+import { LayoutGrid, List, Pin as PinIcon, Tags } from "lucide-react";
 import type { HTMLAttributes, MouseEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -37,14 +37,19 @@ import {
   ListSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { TagBrowseLayout } from "@/components/tags/TagBrowseLayout";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useProjectListView } from "@/hooks/useProjectListView";
 import { useReorderProjects } from "@/hooks/useProjects";
+import { useToolCounts } from "@/hooks/useToolCounts";
+import type { ToolView } from "@/lib/tools";
 
 type ProjectListPanelProps = {
   /** Which list this tab reads — its initiative, and active, templates, or
    *  archived. */
   params: ListProjectsParams;
+  /** The state `params` reads, which the tags view counts tags in. */
+  status: ToolView;
   loadingLabel: string;
   errorLabel: string;
   /** Rendered when the tab has no projects at all. */
@@ -81,6 +86,7 @@ type ProjectListPanelProps = {
  */
 export const ProjectListPanel = ({
   params,
+  status,
   loadingLabel,
   errorLabel,
   emptyState,
@@ -103,10 +109,23 @@ export const ProjectListPanel = ({
   });
   const { filteredProjects, pinnedProjects, sortedProjects, viewMode } = view;
 
-  const viewOptions: ToolViewOption<"grid" | "list">[] = [
+  const viewOptions: ToolViewOption<"grid" | "list" | "tags">[] = [
     { value: "grid", label: t("view.grid"), icon: LayoutGrid },
     { value: "list", label: t("view.list"), icon: List },
+    { value: "tags", label: t("common:toolbar.viewTags"), icon: Tags },
   ];
+  // The tags view draws cards, as the grid does.
+  const itemMode = viewMode === "list" ? "list" : "grid";
+  // How many projects in this state carry each tag, for the tree.
+  const countsQuery = useToolCounts(
+    Tool.project,
+    {
+      ...(params.initiative_id ? { initiative_id: params.initiative_id } : {}),
+      view: status,
+      include_tags: true,
+    },
+    { enabled: viewMode === "tags" }
+  );
 
   // Ranges run along the order the cards render in — in selection mode
   // that's `sortedProjects` (the pinned section is hidden while selecting).
@@ -137,19 +156,19 @@ export const ProjectListPanel = ({
   };
 
   const itemActions = (project: ProjectRead) =>
-    renderItemActions?.(project, { iconSize: viewMode === "list" ? "sm" : "md" });
+    renderItemActions?.(project, { iconSize: itemMode === "list" ? "sm" : "md" });
 
   const renderProject = (project: ProjectRead, keyPrefix = "") => (
     <ProjectItem
       key={`${keyPrefix}${project.id}`}
       project={project}
-      viewMode={viewMode}
+      viewMode={itemMode}
       actions={itemActions(project)}
       showInitiative={showInitiativeLabel}
     />
   );
 
-  const listClassName = viewMode === "list" ? "space-y-3" : "grid gap-4 md:grid-cols-2";
+  const listClassName = itemMode === "list" ? "space-y-3" : "grid gap-4 md:grid-cols-2";
   // A manual order covers the whole list, so a searched or tagged one, which
   // holds only part of it, is not dragged.
   const draggable = sortable && view.sortMode === "custom" && !selection.active && !view.narrowed;
@@ -164,7 +183,7 @@ export const ProjectListPanel = ({
           onToggle={(options) => selection.toggle(project, options)}
           label={project.name}
         >
-          <ProjectItem project={project} viewMode={viewMode} showInitiative={showInitiativeLabel} />
+          <ProjectItem project={project} viewMode={itemMode} showInitiative={showInitiativeLabel} />
         </SelectableGridItem>
       ))}
     </div>
@@ -183,7 +202,7 @@ export const ProjectListPanel = ({
             <SortableProjectItem
               key={project.id}
               project={project}
-              viewMode={viewMode}
+              viewMode={itemMode}
               actions={itemActions(project)}
               showInitiative={showInitiativeLabel}
             />
@@ -207,6 +226,21 @@ export const ProjectListPanel = ({
         </div>
       </div>
     ) : null;
+
+  const projectList = (
+    <>
+      {/* Entering selection lives in the toolbar's overflow menu, so the
+          list itself goes straight to the pinned section. */}
+      {selection.active ? null : pinnedSection}
+      {sortedProjects.length > 0 ? (
+        projectItems
+      ) : pinnedProjects.length > 0 ? (
+        <p className="text-muted-foreground text-sm">{t("onlyPinnedMatch")}</p>
+      ) : (
+        <p className="py-8 text-center text-muted-foreground text-sm">{noMatchesLabel}</p>
+      )}
+    </>
+  );
 
   return (
     <div className="space-y-4">
@@ -244,7 +278,11 @@ export const ProjectListPanel = ({
         </SkeletonRegion>
       ) : view.isError ? (
         <p className="text-destructive text-sm">{errorLabel}</p>
-      ) : filteredProjects.length === 0 ? (
+      ) : filteredProjects.length === 0 &&
+        !(
+          viewMode === "tags" &&
+          (view.tagTree.selectedPaths.size > 0 || view.activeFilterCount > 0)
+        ) ? (
         view.activeFilterCount > 0 ? (
           <p className="text-muted-foreground text-sm">{noMatchesLabel}</p>
         ) : (
@@ -257,14 +295,18 @@ export const ProjectListPanel = ({
             tool={Tool.project}
             invalidate={() => invalidate(q.allProjects())}
           />
-          {/* Entering selection lives in the toolbar's overflow menu, so the
-              list itself goes straight to the pinned section. */}
-          {selection.active ? null : pinnedSection}
-          {sortedProjects.length > 0 ? (
-            projectItems
-          ) : pinnedProjects.length > 0 ? (
-            <p className="text-muted-foreground text-sm">{t("onlyPinnedMatch")}</p>
-          ) : null}
+          {viewMode === "tags" ? (
+            <TagBrowseLayout
+              allTags={view.tagTree.allTags}
+              tagCounts={countsQuery.data?.tag_counts ?? {}}
+              selectedPaths={view.tagTree.selectedPaths}
+              onToggleTag={view.tagTree.toggle}
+            >
+              {projectList}
+            </TagBrowseLayout>
+          ) : (
+            projectList
+          )}
         </>
       )}
     </div>

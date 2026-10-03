@@ -31,7 +31,11 @@ from app.api.v1.platform_endpoints.password_recheck import (
     require_password_or_recent_proof,
 )
 from app.api.v1.platform_endpoints.change_assessment import is_risky
-from app.api.v1.platform_endpoints.held_changes import HELD, hold_change
+from app.api.v1.platform_endpoints.held_changes import (
+    HELD_OUTCOME,
+    held_response,
+    hold_change,
+)
 from app.api.v1.platform_endpoints.session_opening import (
     count_wrong_answer,
     refuse_if_locked,
@@ -39,6 +43,7 @@ from app.api.v1.platform_endpoints.session_opening import (
 )
 
 from app.schemas.platform.token import Token
+from app.schemas.platform.user import HeldChangeOutcome
 from app.schemas.platform.second_factor import (
     SecondFactorStepUpAnswer,
     RecoveryCodes,
@@ -218,9 +223,8 @@ async def confirm_second_factor(
 
 @router.post(
     "/totp/disable",
-    status_code=status.HTTP_204_NO_CONTENT,
-    response_model=None,
-    responses=HELD,
+    response_model=HeldChangeOutcome,
+    responses=HELD_OUTCOME,
 )
 @limiter.limit("10/15minutes")
 async def disable_second_factor(
@@ -229,7 +233,7 @@ async def disable_second_factor(
     system_session: SystemSessionDep,
     payload: SecondFactorDisable,
     _first_party: str = FirstPartyOnly,
-) -> Optional[JSONResponse]:
+) -> HeldChangeOutcome | JSONResponse:
     """Remove the factor, its seed and its recovery codes.
 
     Asks for the password — or, where the password is not asked for, a
@@ -270,12 +274,13 @@ async def disable_second_factor(
 
     await sign_in_locks.record_success(system_session, current_user.id)
     if await is_risky(request, system_session, current_user):
-        return await hold_change(
+        held = await hold_change(
             request,
             system_session,
             current_user,
             kind=HeldChangeKind.second_factor_off,
         )
+        return held_response(HeldChangeOutcome(held=held))
     # Every other session, and not this one: the change was made from a page
     # that should still be signed in when it finishes.
     await held_changes.turn_off_second_factor(
@@ -283,7 +288,7 @@ async def disable_second_factor(
         current_user,
         kept_session_id=getattr(request.state, "session_id", None),
     )
-    return None
+    return HeldChangeOutcome()
 
 
 @router.post("/step-up/totp", response_model=Token)

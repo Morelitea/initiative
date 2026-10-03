@@ -14,7 +14,10 @@ import {
   isWideDocument,
   WikiDocumentBody,
 } from "@/components/initiativeTools/wikis/WikiDocumentBody";
-import { WikiPageConnections } from "@/components/initiativeTools/wikis/WikiPageConnections";
+import {
+  WikiConnectionsSheet,
+  WikiPageConnections,
+} from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,6 +108,10 @@ export const WikiDocumentView = () => {
   const isComfortable =
     wiki.reading_width === WikiReadingWidth.comfortable && !isWideDocument(document_);
   const railOpen = showConnections && wiki.show_connections && Boolean(document_);
+  const sheetOpen = railOpen && !railFitsBeside && railAsked;
+  // What the toggle shows is what is on screen: beside the words the rail is
+  // there from the start, while a drawer is shut until it is asked for.
+  const connectionsShown = railFitsBeside ? showConnections : sheetOpen;
 
   return (
     <>
@@ -122,9 +129,9 @@ export const WikiDocumentView = () => {
           commentsEnabled={document_?.comments_enabled ?? false}
           onToggleConnections={() => {
             setRailAsked(true);
-            setShowConnections((shown) => !shown);
+            setShowConnections(!connectionsShown);
           }}
-          connectionsOpen={showConnections}
+          connectionsOpen={connectionsShown}
           trailing={
             <Button variant="outline" size="sm" className="h-8" asChild>
               <Link to={gp(toolDetailRoute(Tool.document, initiativeId, documentId))}>
@@ -172,25 +179,18 @@ export const WikiDocumentView = () => {
 
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections entity={documentRef} className="min-h-0" />
+              <WikiPageConnections entity={documentRef} initiativeId={wiki.initiative_id} />
             </div>
           ) : null}
         </div>
       </div>
 
-      <Sheet
-        open={railOpen && !railFitsBeside && railAsked}
+      <WikiConnectionsSheet
+        entity={documentRef}
+        initiativeId={wiki.initiative_id}
+        open={sheetOpen}
         onOpenChange={(open) => !open && setShowConnections(false)}
-      >
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
-          <SheetHeader className="border-b px-5 py-4">
-            <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            <WikiPageConnections entity={documentRef} className="border-0 shadow-none" />
-          </div>
-        </SheetContent>
-      </Sheet>
+      />
 
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
         <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">

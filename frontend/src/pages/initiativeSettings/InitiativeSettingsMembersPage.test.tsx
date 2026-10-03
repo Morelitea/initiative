@@ -16,7 +16,6 @@ import {
   buildInitiativeRole,
   buildPage,
   buildUser,
-  buildUserPublic,
   buildUserSummary,
   initiativeCan,
 } from "@/__tests__/factories";
@@ -81,7 +80,7 @@ function stubInitiative(
 /** A membership that makes the signed-in user a manager of the initiative —
  *  the standing that reaches these settings without being a community admin. */
 const managerMembership = () =>
-  buildInitiativeMember({ user: buildUserPublic({ id: MANAGER_ID }), is_manager: true });
+  buildInitiativeMember({ user: buildUserSummary({ id: MANAGER_ID }), is_manager: true });
 
 const renderMembers = (role: "admin" | "member" = "admin") =>
   renderPage(InitiativeSettingsMembersPage, {
