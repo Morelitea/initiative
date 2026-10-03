@@ -168,9 +168,6 @@ jobs:
 
   journeys:
     name: Journeys
-    permissions:
-      contents: read
-      packages: read  # the uv image on ghcr.io
     uses: ./.github/workflows/journeys.yml
     with:
       # A schedule runs from the default branch, main; the night tests dev.
