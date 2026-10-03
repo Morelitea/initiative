@@ -926,13 +926,14 @@ async def test_turning_it_off_from_a_new_sign_in_waits(
     client: AsyncClient, session: AsyncSession
 ):
     """Held, the factor stays. Made once due, it goes, and every other session
-    goes with it but the one that asked."""
+    goes with it but the one that asked. A factor confirmed after the request
+    is not the one it asked about, and stays."""
     from app.models.platform.auth_session import AuthSession
     from app.services.auth import held_changes
     from app.services.auth import sessions as session_service
     from app.services.auth import totp as totp_service
 
-    user, secret, _codes = await _enrol(client, session, "held-off@example.com")
+    user, secret, codes = await _enrol(client, session, "held-off@example.com")
     user_id = user.id
     mine = await session_service.create_session(
         session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
@@ -942,16 +943,32 @@ async def test_turning_it_off_from_a_new_sign_in_waits(
     )
     await session.commit()
     mine_id, elsewhere_id = mine.session.id, elsewhere.session.id
+    headers = {"Authorization": f"Bearer {get_auth_token(user, session_id=mine_id)}"}
 
     held = await client.post(
         "/api/v1/auth/totp/disable",
         json={"current_password": PASSWORD, "code": _next_code(secret)},
-        headers={"Authorization": f"Bearer {get_auth_token(user, session_id=mine_id)}"},
+        headers=headers,
     )
     assert held.status_code == 202, held.text
     assert held.json()["kind"] == "second_factor_off"
     assert await totp_service.is_enrolled(session, user_id=user_id)
 
+    factor = await totp_service.get_factor(session, user_id=user_id)
+    assert factor is not None
+    factor.confirmed_at = datetime.now(timezone.utc)
+    session.add(factor)
+    await session.commit()
+    due = datetime.now(timezone.utc) + held_changes.HOLD_FOR
+    assert await held_changes.apply_due(session, now=due) == 0
+    assert await totp_service.is_enrolled(session, user_id=user_id)
+
+    held = await client.post(
+        "/api/v1/auth/totp/disable",
+        json={"current_password": PASSWORD, "recovery_code": codes[0]},
+        headers=headers,
+    )
+    assert held.status_code == 202, held.text
     due = datetime.now(timezone.utc) + held_changes.HOLD_FOR
     assert await held_changes.apply_due(session, now=due) == 1
     session.expire_all()

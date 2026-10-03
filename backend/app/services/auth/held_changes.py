@@ -357,12 +357,20 @@ async def apply(
                 AccountChangeHold.address_id,
                 AccountChangeHold.passkey_id,
                 AccountChangeHold.session_id,
+                AccountChangeHold.requested_at,
             )
         )
     ).first()
     if claimed is None:
         return False
-    kind, address_id, passkey_id, session_id = claimed
+    kind, address_id, passkey_id, session_id, requested_at = claimed
+    # The hold is kept past the address or passkey it removes, for the run of
+    # changes it counts towards.
+    await session.exec(
+        update(AccountChangeHold)
+        .where(col(AccountChangeHold.id) == hold_id)
+        .values(address_id=None, passkey_id=None)
+    )
     await audit_service.record(
         session,
         event_type=AuditEventType.AUTH_HELD_CHANGE_APPLIED,
@@ -375,6 +383,14 @@ async def apply(
         elif kind == HeldChangeKind.remove_address:
             await remove_address(session, user, address_id=address_id, risky=risky)
         elif kind == HeldChangeKind.second_factor_off:
+            # Only the factor the account held when it asked.
+            factor = await totp_service.get_factor(session, user_id=user_id)
+            if (
+                factor is None
+                or factor.confirmed_at is None
+                or factor.confirmed_at > requested_at
+            ):
+                raise ChangeLapsed()
             await turn_off_second_factor(
                 session, user, kept_session_id=keep_session or session_id
             )

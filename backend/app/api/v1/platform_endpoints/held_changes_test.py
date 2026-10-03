@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.account_change_hold import HeldChangeKind
+from app.models.platform.account_change_hold import AccountChangeHold, HeldChangeKind
 from app.models.platform.user import User
 from app.services.auth import addresses, held_changes
 from app.testing import create_user, get_auth_headers, signed_in_headers
@@ -120,3 +120,31 @@ async def test_a_change_the_account_no_longer_allows_is_cancelled_when_due(
     assert await addresses.primary_address(session, user_id=user_id) == (
         "lapsing@example.com"
     )
+
+
+async def test_a_made_removal_keeps_its_hold(session: AsyncSession):
+    """For the run of changes it counts towards, past the address it took."""
+    user = await create_user(session, email="keeps-hold@example.com")
+    spare = addresses.record_address(
+        session,
+        user_id=user.id,
+        email="taken@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+    hold = await held_changes.hold(
+        session,
+        user,
+        kind=HeldChangeKind.remove_address,
+        session_id=None,
+        address_id=spare.id,
+    )
+    hold_id = hold.id
+    assert hold_id is not None
+
+    assert await held_changes.apply(session, user, hold_id=hold_id, risky=True)
+    session.expire_all()
+    row = await session.get(AccountChangeHold, hold_id)
+    assert row is not None and row.applied_at is not None
