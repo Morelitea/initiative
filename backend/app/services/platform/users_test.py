@@ -753,7 +753,8 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
     """Anonymizing a user leaves content as it is, since a mention holds no
     name, and takes the names out of the collaboration state of every document
     and wiki page that mentions them, archived ones included: an editor from
-    before names were left out can have written one into it. Digest rows lose
+    before names were left out can have written one into it. A state that
+    cannot be read is left as it is. Digest rows lose
     the assigner's name snapshot (issue #794)."""
     from sqlalchemy import text
 
@@ -806,6 +807,9 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
         content=lexical_body("Thanks ", mentioning=author.id),
         yjs_state=b"kept-state",
     )
+    unreadable = await create_document(
+        session, initiative, author, content=mentioning, yjs_state=b"unreadable"
+    )
     await enable_all_tools(session, initiative)
     page = await create_wiki_page(
         session,
@@ -850,12 +854,17 @@ async def test_soft_delete_takes_their_name_out_of_collaboration(
         (
             await session.exec(
                 select(Document.id, Document.yjs_state)
-                .where(Document.id.in_([document.id, archived.id, elsewhere.id]))  # type: ignore[union-attr]
+                .where(
+                    Document.id.in_(  # type: ignore[union-attr]
+                        [document.id, archived.id, elsewhere.id, unreadable.id]
+                    )
+                )
                 .execution_options(include_archived=True)
             )
         ).all()
     )
     assert states.pop(elsewhere.id) == b"kept-state"
+    assert states.pop(unreadable.id) == b"unreadable"
     refreshed_page = (
         await session.exec(
             select(WikiPage)

@@ -118,10 +118,11 @@ def _nameless_state(state: bytes) -> Optional[bytes]:
     The editor's binding keeps a document under the root ``root``: an element
     as an ``XmlText`` embedded in its parent, and a decorator, a mention among
     them, as an ``XmlElement`` whose attributes are its properties, the name in
-    ``__mention`` and the id in ``__mentionUserId``.
+    ``__mention`` and the id in ``__mentionUserId``. A state that cannot be
+    read is left as it is: collaboration never loads one, and starts from the
+    content instead.
     """
     doc = Doc()
-    doc.apply_update(state)
     changed = False
 
     def walk(text: Text) -> None:
@@ -140,7 +141,11 @@ def _nameless_state(state: bytes) -> Optional[bytes]:
                 node.attributes["__mention"] = ""
                 changed = True
 
-    walk(doc.get("root", type=Text))
+    try:
+        doc.apply_update(state)
+        walk(doc.get("root", type=Text))
+    except Exception:
+        return None
     return bytes(doc.get_update()) if changed else None
 
 

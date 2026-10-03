@@ -51,8 +51,9 @@ def _revision() -> ModuleType:
 async def test_a_mention_written_before_keeps_no_name(session):
     """In markdown and in an editor state, archived and trashed rows included,
     and in a collaboration state as an edit on top of it. A mention with no
-    account keeps its name, text typed in an editor is left as it was, and the
-    search index is left to be rebuilt."""
+    account keeps its name, text typed in an editor is left as it was, a state
+    that cannot be read is skipped, and the search index is left to be
+    rebuilt."""
     author = await create_user(session)
     guild = await create_guild(session, creator=author)
     initiative = await create_initiative(session, guild, author)
@@ -74,6 +75,13 @@ async def test_a_mention_written_before_keeps_no_name(session):
         author,
         content=lexical_body("Hi ", mentioning=author.id, name="Ada"),
         yjs_state=MENTIONING_YJS_STATE,
+    )
+    unreadable = await create_document(
+        session,
+        initiative,
+        author,
+        content=lexical_body("Hi ", mentioning=author.id, name="Ada"),
+        yjs_state=b"unreadable",
     )
     typed = lexical_body(f"Hi @[Ada]({author.id})")
     plain = await create_document(
@@ -114,7 +122,7 @@ async def test_a_mention_written_before_keeps_no_name(session):
         for row in (
             await session.exec(
                 select(Document)
-                .where(Document.id.in_([mentioning.id, plain.id]))  # type: ignore[union-attr]
+                .where(Document.id.in_([mentioning.id, plain.id, unreadable.id]))  # type: ignore[union-attr]
                 .options(undefer(Document.content), undefer(Document.yjs_state))
             )
         ).all()
@@ -124,6 +132,10 @@ async def test_a_mention_written_before_keeps_no_name(session):
     assert state != MENTIONING_YJS_STATE and b"Ada" not in state
     assert nameless_state(state) is None
     assert documents[plain.id] == (typed, b"kept")
+    assert documents[unreadable.id] == (
+        lexical_body("Hi ", mentioning=author.id),
+        b"unreadable",
+    )
     marker = await session.scalar(
         text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
         params={"t": f'"{schema}".search_entries'},
