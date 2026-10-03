@@ -29,6 +29,7 @@ from app.testing import (
     create_wiki,
     create_wiki_page,
     guild_of,
+    lexical_body,
     route_session_to_guild,
 )
 from app.testing.app_clients import (
@@ -183,6 +184,52 @@ async def test_lists_a_wiki_s_pages_with_the_read_scope(
     assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
 
 
+async def test_reads_a_wiki_page_with_the_read_scope(
+    client, session, acting_user, role_session
+):
+    await lift_person_and_guild_ids(session)
+    installed = await install_app(
+        session, acting_user, role_session, granted=["wikis:read"]
+    )
+    seat = installed.seat
+    guild_id = installed.guild.id
+    await _switch_on(session, TOOLS[2], installed.placed)
+    wiki = await create_wiki(session, installed.placed, seat.user)
+    content = lexical_body("Over to ", mentioning=seat.user.id, name="The Seat")
+    content["root"]["children"].append(
+        {"type": "image", "src": f"/uploads/{guild_id}/shot.png", "altText": "shot"}
+    )
+    page = await create_wiki_page(
+        session, wiki, seat.user, title="Start here", content=content
+    )
+    path = guild_url(guild_id, f"/wiki-pages/{page.id}")
+
+    read = await client.get(path, headers=install_headers(installed, ["wikis:read"]))
+    assert read.status_code == 200, read.text
+    body = read.json()
+    assert body["title"] == "Start here"
+    assert isinstance(body["created_by"], str)
+    assert isinstance(body["community_id"], str)
+    # The mention names the seat by this install's reference, and the stored
+    # picture comes without its path.
+    [_, node] = body["content"]["root"]["children"][0]["children"]
+    assert (node["mentionUserId"], node["mentionName"], node["text"]) == (
+        body["created_by"],
+        "",
+        "",
+    )
+    assert body["content"]["root"]["children"][1]["src"] == ""
+    assert "/uploads/" not in read.text
+    assert "The Seat" not in read.text
+    assert_names_nobody(read.text, [seat.user.id, guild_id])
+
+    refused = await client.get(
+        path, headers=install_headers(installed, ["galleries:read"])
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
+
+
 async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     client, session, acting_user, role_session
 ):
@@ -240,13 +287,14 @@ async def test_lists_a_gallery_s_pictures_with_the_read_scope(
     assert refused.json()["detail"] == AppMessages.SCOPE_REQUIRED
 
 
-def test_the_app_document_lists_a_wiki_s_pages_and_a_gallery_s_pictures():
+def test_the_app_document_lists_wiki_pages_and_gallery_pictures():
     operations = {
         operation["operationId"]: operation
         for item in app_openapi()["paths"].values()
         for operation in item.values()
     }
     assert operations["list_wiki_pages"]["x-app-scope"] == "wikis:read"
+    assert operations["read_wiki_page"]["x-app-scope"] == "wikis:read"
     assert operations["list_gallery_images"]["x-app-scope"] == "galleries:read"
 
 

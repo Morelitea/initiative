@@ -22,7 +22,7 @@ from app.schemas.tenant.tag import TagSummary, annotated_tags
 from app.schemas.tenant.tool import ToolSummaryBase, from_row
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.db.guild_standing import ActorContext, GuildContext
+    from app.db.guild_standing import ActorContext
 
 
 class WikiBase(SanitizedBaseModel):
@@ -297,7 +297,7 @@ def serialize_document_as_page(
     )
 
 
-def serialize_wiki_page(page: "Any", *, context: GuildContext) -> WikiPageRead:
+def serialize_wiki_page(page: "Any", *, context: ActorContext) -> WikiPageRead:
     return WikiPageRead(
         **serialize_wiki_page_summary(page, context=context).model_dump(),
         content=page.content or {},

@@ -494,9 +494,9 @@ async def create_wiki_page(
 @pages_router.get("/wiki-pages/{page_id}", response_model=WikiPageRead)
 async def read_wiki_page(
     page_id: int,
-    session: RLSSessionDep,
-    current_user: CurrentUserDep,
-    guild_context: GuildContextDep,
+    session: ActorSessionDep,
+    current_user: ActorUserDep,
+    guild_context: WikisRead,
 ) -> WikiPageRead:
     """One page by its own id, which is all a link to it, a mention or a
     stored notification names."""
