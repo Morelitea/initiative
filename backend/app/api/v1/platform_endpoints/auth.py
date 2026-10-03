@@ -49,8 +49,10 @@ from app.core.messages import (
 from app.core.password_policy import enforce_password_policy
 from app.core import usernames
 from app.core.usernames import UsernameError
+from app.core.identify import identify
 from app.core.security import (
     REFRESH_COOKIE_NAME,
+    UPLOAD_TOKEN_LIFETIME,
     create_handle_offer,
     create_upload_token,
     get_password_hash,
@@ -1177,6 +1179,17 @@ async def issue_upload_token(
     token is accepted only by the uploads/download routes and is useless as a
     general API credential.
     """
+    # No longer than the session that asked for it: its access token is minted
+    # no longer-lived than the session row, so ending with the access token
+    # ends no later than the session. An API key has no session to end with.
+    lifetime = UPLOAD_TOKEN_LIFETIME
+    identified = identify(request)
+    if identified is not None and identified.session is not None:
+        if identified.session.exp is not None:
+            left = datetime.fromtimestamp(identified.session.exp, timezone.utc) - (
+                datetime.now(timezone.utc)
+            )
+            lifetime = min(lifetime, left)
     # Copy the minting session's satisfied-provider set into the scoped token
     # so media loads and the collaboration handover pass a policy-gated guild
     # exactly when the session itself would.
@@ -1185,6 +1198,7 @@ async def issue_upload_token(
         satisfied_providers=sorted(auth_context.satisfied_providers()),
         satisfied_claims=auth_context.satisfied_claims(),
         session_amr=auth_context.session_amr(),
+        expires_in=lifetime,
     )
     return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 
