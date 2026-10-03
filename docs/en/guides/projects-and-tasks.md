@@ -108,7 +108,7 @@ Deleting from here on ends the repeat. Deleting all of them sends the finished o
 
 Finish a task that's assigned to you and Initiative marks the occasion — confetti, a "+1 Heart", a "Natural 20", or a shower of gold coins.
 
-Pick your preferred celebration in **User settings → Interface**, or set it to **None** if you'd rather your accomplishments passed in dignified silence.
+Pick your preferred celebration in **User settings → Preferences**, or set it to **None** if you'd rather your accomplishments passed in dignified silence.
 
 There's optional sound and vibration too, for anyone who wants the full experience. No judgement. Some weeks you need the coins.
 

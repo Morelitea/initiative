@@ -146,7 +146,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Why does my name show in one community and not another?"
     A display name belongs to the community you set it in. Every other community shows your handle until you set one there too, from its **Members** page.
 
-    Your **timezone** is wrong. It's almost always the timezone. Fix it in **User settings → Interface** and everything snaps back into place.
+    Your **timezone** is wrong. It's almost always the timezone. Fix it in **User settings → Preferences** and everything snaps back into place.
 
 ??? question "I'm getting too many (or too few) emails"
     Tune them category by category in **User settings → Notifications** — each has its own email and mobile switch, and there's no minimum. The in-app bell keeps working regardless. See [Notifications](guides/notifications.md).

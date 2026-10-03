@@ -68,7 +68,7 @@ Yours doesn't affect anybody else's — so the person who needs an hour's warnin
 
 Reminders run on **your timezone**, which Initiative guesses from your browser when you sign up and usually gets right.
 
-If your reminders are arriving at genuinely baffling hours, this is the thing to check: **User settings → Interface**.
+If your reminders are arriving at genuinely baffling hours, this is the thing to check: **User settings → Preferences**.
 
 ## Views, importing and exporting
 

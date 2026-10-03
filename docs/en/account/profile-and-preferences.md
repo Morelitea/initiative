@@ -8,7 +8,7 @@ Your personal settings live in **User settings**, opened from your name and pict
 
 Nothing on any of these tabs changes anything for anybody else, so fiddle away.
 
-The tabs split along a simple line: **Profile** is the face other people see, **Account** is how you get in, **Interface** is how the app reads to you.
+The tabs split along a simple line: **Profile** is the face other people see, **Account** is how you get in, **Preferences** is how the app reads to you.
 
 ## Your profile page
 
@@ -73,28 +73,27 @@ The same dot on your profile card in **User settings → Profile** opens the sam
 
 ## Account
 
-How you sign in. Two things here are shown but not editable:
+Who you are and how you get in.
 
-- **Email** — the anchor of your account.
-- **Handle** — the name you picked plus a four-digit number, like `jordan#1234`. The number is what lets two people share a name.
-
-**Password** is the one thing you can change here: current password, then the new one twice (12+ characters).
+- **Username** — your handle: the name you picked plus a four-digit number, like `jordan#1234`. The number is what lets two people share a name. A moderator can change it for you.
+- **Email addresses** — any confirmed one signs you in, and account mail goes to all of them.
+- **Password** — current password, then the new one twice (12+ characters), then **Change password**.
 
 Sign in with a work login instead? Then your password lives with them, not us, and this section is none of your concern.
 
-## Interface
+## Preferences
 
 How the app reads to you. Each choice saves as you make it — no Save button.
 
+- **Color theme** — pick one from the previews. Each comes in light and dark, and follows your device's setting.
+- **Recent items in tab bar** — how many to keep along the top (1–100).
 - **Language** — for the interface.
-- **Color theme** — Light, Dark, or System.
-- **Timezone** — the clock your due dates, daily reminders and repeating tasks run on. Taken from your browser at sign-up; correct it here if it's wrong. It also appears beside the reminder time on the Notifications tab, where you need it in context.
+- **Time zone** — the clock your due dates, daily reminders, scheduled email and repeating tasks run on. Taken from your browser at sign-up; correct it here if it's wrong.
 - **Time format** — whether a clock reads `1:30 PM` or `13:30`, everywhere one appears: calendars and their hour gutters, event times, due dates, message timestamps. **Browser default** takes its cue from your browser's language. Your phone or laptop keeps its own 12/24-hour setting to itself, so when the app and the clock on your wall disagree, this is the place to settle it.
 - **Week starts on** — which day calendars and date pickers lead with.
-- **Recent items in tab bar** — how many to keep along the top (1–100).
 - **Task completion feedback** — a bit of fun when you finish something: **Confetti**, **+1 Heart**, **Natural 20**, **Gold coins**, **Random**, or **None**.
 - **Sound** and **vibration** on task completion — optional, each with a button to try it.
-- **Keep screen awake** — stops this device's screen dimming while Initiative is open. Useful for a counter propped up on a door. Saved per device.
+- **This device** — settings kept by this browser or computer rather than your account. **Keep screen awake** stops the screen dimming while Initiative is open, which is useful for a counter propped up on a door. The desktop app adds its own switches here: updating itself, staying in the tray, and opening when the computer starts.
 
 ## Where you're signed in
 
@@ -118,7 +117,7 @@ Things *you* recently deleted, restorable within the retention window. (Communit
 
 ## Closing your account
 
-The **Danger Zone** tab. Two paths, and Initiative walks you through either with a short wizard that checks for anything needing sorted first — projects you own, communities where you're the last admin.
+The bottom of the **Account** tab. Two paths, and Initiative walks you through either with a short wizard that checks for anything needing sorted first — projects you own, communities where you're the last admin.
 
 ### Deactivate
 
