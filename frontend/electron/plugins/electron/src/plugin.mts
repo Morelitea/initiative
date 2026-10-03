@@ -1,3 +1,4 @@
+export { DesktopUpdater } from "./desktopUpdater.mjs";
 export { CapacitorUpdater } from "./updater.mjs";
 
 import { hostname, platform, release } from "node:os";

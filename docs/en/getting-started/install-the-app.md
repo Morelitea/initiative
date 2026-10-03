@@ -62,7 +62,9 @@ Get it from the **Download** page on your community's Initiative, which picks th
 !!! note "Your computer will ask whether you meant it"
     The installers aren't signed with a publisher's certificate yet, so Windows and macOS stop and check. On Windows, choose **More info**, then **Run anyway**. On a Mac, open it once, then go to **System Settings › Privacy & Security** and choose **Open Anyway**.
 
-The first launch asks which Initiative it's talking to, like the phone. It keeps itself current the same way too. On the rare release that changes the app itself, it says so and gives you a **Download** button for the new one.
+The first launch asks which Initiative it's talking to, like the phone. It keeps itself current the same way too.
+
+Once in a while a release changes the app itself, and then it says so. On Windows and Linux it can fetch and install the new app for you: choose **Update now**, and leave **Always update automatically** ticked if you'd rather not be asked again. After that it downloads the next one on its own and only asks you to restart. Change your mind under **Settings › Interface**. A Mac gets a **Download** button instead, until the app is signed for macOS.
 
 ## On iPhone
 
