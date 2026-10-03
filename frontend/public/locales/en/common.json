@@ -2,6 +2,7 @@
   "deletedUserName": "Deleted user #{{id}}",
   "user": "User",
   "userWithId": "User #{{id}}",
+  "formerMember": "Former member",
   "save": "Save",
   "cancel": "Cancel",
   "delete": "Delete",

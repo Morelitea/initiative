@@ -1,6 +1,7 @@
 {
   "user": "Utilisateur",
   "userWithId": "Utilisateur n° {{id}}",
+  "formerMember": "Ancien membre",
   "save": "Enregistrer",
   "cancel": "Annuler",
   "delete": "Supprimer",

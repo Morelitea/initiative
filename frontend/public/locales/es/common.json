@@ -1,6 +1,7 @@
 {
   "user": "Usuario",
   "userWithId": "Usuario #{{id}}",
+  "formerMember": "Exmiembro",
   "save": "Guardar",
   "cancel": "Cancelar",
   "delete": "Eliminar",

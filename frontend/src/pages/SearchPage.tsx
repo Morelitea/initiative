@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 import type { SearchResults } from "@/api/generated/initiativeAPI.schemas";
 import { StatusMessage } from "@/components/StatusMessage";
 import { MemberResultRow } from "@/components/search/MemberResultRow";
-import { SearchResultRow } from "@/components/search/SearchResultRow";
+import { SearchResultList } from "@/components/search/SearchResultRow";
 import { ListSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -236,9 +236,7 @@ export function SearchPage() {
                       {t("search:closeMatches", { query })}
                     </p>
                   )}
-                  {items.map((hit) => (
-                    <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
-                  ))}
+                  <SearchResultList hits={items} />
                   <Pager page={page} hasNext={hasNextPage(results.data)} onPageChange={setPage} />
                 </>
               )}

@@ -2,7 +2,7 @@
  * Remark plugins for rendering comment bodies.
  *
  * Comments are markdown, but they also carry the mention syntax the composer
- * writes — `@[Name](12)`, `#task[Title](3)`, `#doc[…](3)`, `#project[…](3)`.
+ * writes — `@[](12)`, `#task[Title](3)`, `#doc[…](3)`, `#project[…](3)`.
  * That syntax is shaped like a markdown link, so remark parses it before any
  * text-level pass can see it: the result is a text node ending in the trigger
  * followed by a link whose url is the entity id. `remarkMentions` recognises
@@ -33,6 +33,9 @@ const TRIGGERS: { trigger: string; type: MentionType }[] = [
 ];
 
 const ENTITY_ID = /^\d+$/;
+/** A person is stored by id alone, `@[](12)`; somebody an import could match
+ *  to no account, by name alone, `@[Ada]()`. Each is still a mention. */
+const PERSON_ID = /^\d*$/;
 
 /** Collect the plain text of a node subtree — a mention's label renders as a
  *  badge or link, so any inline formatting inside it is dropped. */
@@ -75,7 +78,7 @@ export function remarkMentions() {
 
       for (let i = children.length - 1; i >= 0; i--) {
         const link = children[i];
-        if (link.type !== "link" || !link.url || !ENTITY_ID.test(link.url)) continue;
+        if (link.type !== "link" || typeof link.url !== "string") continue;
 
         const previous = children[i - 1];
         if (previous?.type !== "text" || typeof previous.value !== "string") continue;
@@ -84,7 +87,11 @@ export function remarkMentions() {
         if (!match) continue;
 
         const label = textOf(link);
-        if (!label) continue;
+        if (match.type === "user") {
+          if (!PERSON_ID.test(link.url) || !(label || link.url)) continue;
+        } else if (!ENTITY_ID.test(link.url) || !label) {
+          continue;
+        }
 
         previous.value = previous.value.slice(0, -match.trigger.length);
         children[i] = mentionNode(match.type, link.url, label);
