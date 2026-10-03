@@ -11,11 +11,18 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.email_i18n import email_t
 from app.core.encryption import hash_email
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserToken, UserTokenPurpose
+from app.services import email as email_service
 from app.services.auth import addresses
+from app.services.platform import email_outbox
 from app.testing.factories import create_user, get_auth_headers
+
+#: What ``create_user`` hashes, and so what every change here is confirmed with.
+PASSWORD = "testpassword123"
+CONFIRM = {"current_password": PASSWORD}
 
 
 async def _enable_smtp(session: AsyncSession) -> None:
@@ -74,7 +81,7 @@ async def test_adding_an_address_holds_it_unproven(
 
     response = await client.post(
         "/api/v1/me/emails",
-        json={"email": "second@example.com"},
+        json={"email": "second@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(user),
     )
     assert response.status_code == 202, response.text
@@ -98,12 +105,12 @@ async def test_adding_an_address_somebody_holds_says_the_same_thing(
 
     taken = await client.post(
         "/api/v1/me/emails",
-        json={"email": "taken@example.com"},
+        json={"email": "taken@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(other),
     )
     free = await client.post(
         "/api/v1/me/emails",
-        json={"email": "untaken@example.com"},
+        json={"email": "untaken@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(other),
     )
     assert taken.status_code == free.status_code
@@ -130,7 +137,7 @@ async def test_a_verification_token_proves_one_address(
     user_id = user.id
     await client.post(
         "/api/v1/me/emails",
-        json={"email": "proveme@example.com"},
+        json={"email": "proveme@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(user),
     )
 
@@ -171,13 +178,17 @@ async def test_the_primary_moves_only_to_a_proven_address(
     unproven_id, proven_id = unproven.id, proven.id
 
     refused = await client.put(
-        f"/api/v1/me/emails/{unproven_id}/primary", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{unproven_id}/primary",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "ADDRESS_NOT_VERIFIED"
 
     moved = await client.put(
-        f"/api/v1/me/emails/{proven_id}/primary", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{proven_id}/primary",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
     )
     assert moved.status_code == 200, moved.text
     assert moved.json()["is_primary"] is True
@@ -193,8 +204,10 @@ async def test_the_primary_address_is_not_removed(
     user = await create_user(session, email="keepme@example.com")
     address_id = (await _listing(client, user))[0]["id"]
 
-    refused = await client.delete(
-        f"/api/v1/me/emails/{address_id}", headers=get_auth_headers(user)
+    refused = await client.post(
+        f"/api/v1/me/emails/{address_id}/remove",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "PRIMARY_ADDRESS"
@@ -218,21 +231,27 @@ async def test_the_last_proven_address_is_not_removed(
 
     # Hand the primary to the spare, leaving the original merely proven.
     moved = await client.put(
-        f"/api/v1/me/emails/{spare_id}/primary", headers=get_auth_headers(user)
+        f"/api/v1/me/emails/{spare_id}/primary",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
     )
     assert moved.status_code == 200, moved.text
 
     original = [
         i for i in await _listing(client, user) if i["email"] == "proven@example.com"
     ][0]
-    gone = await client.delete(
-        f"/api/v1/me/emails/{original['id']}", headers=get_auth_headers(user)
+    gone = await client.post(
+        f"/api/v1/me/emails/{original['id']}/remove",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
     )
     assert gone.status_code == 204, gone.text
 
     # And now the spare is the only proven one, so it stays.
-    refused = await client.delete(
-        f"/api/v1/me/emails/{spare_id}", headers=get_auth_headers(user)
+    refused = await client.post(
+        f"/api/v1/me/emails/{spare_id}/remove",
+        json=CONFIRM,
+        headers=get_auth_headers(user),
     )
     assert refused.status_code == 400
     assert refused.json()["detail"] == "PRIMARY_ADDRESS"
@@ -246,12 +265,14 @@ async def test_an_address_on_another_account_is_not_yours_to_touch(
     owner_address_id = (await _listing(client, owner))[0]["id"]
 
     for response in (
-        await client.delete(
-            f"/api/v1/me/emails/{owner_address_id}",
+        await client.post(
+            f"/api/v1/me/emails/{owner_address_id}/remove",
+            json=CONFIRM,
             headers=get_auth_headers(stranger),
         ),
         await client.put(
             f"/api/v1/me/emails/{owner_address_id}/primary",
+            json=CONFIRM,
             headers=get_auth_headers(stranger),
         ),
     ):
@@ -271,7 +292,7 @@ async def test_an_unproven_claim_does_not_take_the_address(
 
     claimed = await client.post(
         "/api/v1/me/emails",
-        json={"email": "contested@example.com"},
+        json={"email": "contested@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(other_claimant),
     )
     assert claimed.status_code == 202
@@ -279,7 +300,7 @@ async def test_an_unproven_claim_does_not_take_the_address(
     # The real holder can still make the same claim.
     theirs = await client.post(
         "/api/v1/me/emails",
-        json={"email": "contested@example.com"},
+        json={"email": "contested@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(holder),
     )
     assert theirs.status_code == 202
@@ -362,7 +383,7 @@ async def test_an_account_holds_a_bounded_number_of_addresses(
 
     refused = await client.post(
         "/api/v1/me/emails",
-        json={"email": "one-too-many@example.com"},
+        json={"email": "one-too-many@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(user),
     )
     assert refused.status_code == 400
@@ -380,7 +401,7 @@ async def test_asking_again_resends_rather_than_refusing(
     for _ in range(2):
         response = await client.post(
             "/api/v1/me/emails",
-            json={"email": "again@example.com"},
+            json={"email": "again@example.com", "current_password": PASSWORD},
             headers=get_auth_headers(user),
         )
         assert response.status_code == 202
@@ -420,12 +441,12 @@ async def test_a_full_account_answers_the_same_whoever_holds_the_address(
 
     taken = await client.post(
         "/api/v1/me/emails",
-        json={"email": "spoken-for@example.com"},
+        json={"email": "spoken-for@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(full),
     )
     free = await client.post(
         "/api/v1/me/emails",
-        json={"email": "nobody-has-this@example.com"},
+        json={"email": "nobody-has-this@example.com", "current_password": PASSWORD},
         headers=get_auth_headers(full),
     )
     assert taken.status_code == free.status_code == 400
@@ -464,3 +485,165 @@ async def test_proving_an_address_somebody_just_proved_is_refused(
     ) is None
     holder = await addresses.find_user_by_address(session, "contested3@example.com")
     assert holder is not None and holder.id == first_id
+
+
+# ---------------------------------------------------------------------------
+# Confirming a change, and who is told
+# ---------------------------------------------------------------------------
+
+
+def _record_letters(monkeypatch) -> tuple[list[str], list[list[str]]]:
+    """The subjects queued to the account, and the recipients of every letter
+    sent straight away."""
+    queued: list[str] = []
+    sent: list[list[str]] = []
+
+    async def queue(user, pieces) -> None:
+        queued.append(pieces.subject)
+
+    async def send(session, *, recipients, **kwargs) -> None:
+        sent.append(list(recipients))
+
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", queue)
+    monkeypatch.setattr(email_service, "send_email", send)
+    return queued, sent
+
+
+def _subject(change: str) -> str:
+    return email_t(f"address.{change}.subject", "en", escape=False)
+
+
+async def test_changing_the_addresses_asks_for_the_password(
+    client: AsyncClient, session: AsyncSession
+):
+    await _enable_smtp(session)
+    user = await create_user(session, email="confirm@example.com")
+    spare = addresses.record_address(
+        session,
+        user_id=user.id,
+        email="confirm-spare@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+    spare_id = spare.id
+    headers = get_auth_headers(user)
+
+    listed = await client.get("/api/v1/me/emails", headers=headers)
+    assert listed.json()["password_required"] is True
+
+    for response in (
+        await client.post(
+            "/api/v1/me/emails",
+            json={"email": "confirm-new@example.com"},
+            headers=headers,
+        ),
+        await client.put(
+            f"/api/v1/me/emails/{spare_id}/primary", json={}, headers=headers
+        ),
+        await client.post(
+            f"/api/v1/me/emails/{spare_id}/remove", json={}, headers=headers
+        ),
+    ):
+        assert response.status_code == 400, response.text
+        assert response.json()["detail"] == "USER_CURRENT_PASSWORD_REQUIRED"
+
+    # Nothing changed.
+    held = {i["email"]: i["is_primary"] for i in await _listing(client, user)}
+    assert held == {"confirm@example.com": True, "confirm-spare@example.com": False}
+
+
+async def test_proving_an_added_address_tells_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _enable_smtp(session)
+    user = await create_user(session, email="told@example.com")
+    tokens: list[str] = []
+
+    async def capture(session, user, *, address, token) -> None:
+        tokens.append(token)
+
+    monkeypatch.setattr(email_service, "send_address_verification_email", capture)
+    queued, _sent = _record_letters(monkeypatch)
+
+    added = await client.post(
+        "/api/v1/me/emails",
+        json={"email": "told-new@example.com", "current_password": PASSWORD},
+        headers=get_auth_headers(user),
+    )
+    assert added.status_code == 202, added.text
+    assert queued == []
+
+    confirmed = await client.post(
+        "/api/v1/auth/verification/confirm", json={"token": tokens[0]}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert queued == [_subject("proved")]
+
+
+async def test_moving_the_primary_tells_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The queued letter goes to every proved address, the old primary among
+    them. Asking for the primary it already has tells nobody anything."""
+    user = await create_user(session, email="old-primary@example.com")
+    spare = addresses.record_address(
+        session,
+        user_id=user.id,
+        email="new-primary@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    await session.commit()
+    spare_id = spare.id
+    queued, _sent = _record_letters(monkeypatch)
+
+    for _ in range(2):
+        moved = await client.put(
+            f"/api/v1/me/emails/{spare_id}/primary",
+            json=CONFIRM,
+            headers=get_auth_headers(user),
+        )
+        assert moved.status_code == 200, moved.text
+    assert queued == [_subject("primary")]
+
+
+async def test_a_removed_address_is_told_as_well_as_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The queued letter reaches only the addresses still held, so the one
+    removed is written to directly. An address nobody proved hears nothing."""
+    user = await create_user(session, email="stays@example.com")
+    proved = addresses.record_address(
+        session,
+        user_id=user.id,
+        email="proved-goes@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=True,
+        is_primary=False,
+    )
+    unproved = addresses.record_address(
+        session,
+        user_id=user.id,
+        email="unproved-goes@example.com",
+        source=addresses.SOURCE_ADDED,
+        verified=False,
+        is_primary=False,
+    )
+    await session.commit()
+    proved_id, unproved_id = proved.id, unproved.id
+    await _enable_smtp(session)
+    queued, sent = _record_letters(monkeypatch)
+
+    for address_id in (unproved_id, proved_id):
+        gone = await client.post(
+            f"/api/v1/me/emails/{address_id}/remove",
+            json=CONFIRM,
+            headers=get_auth_headers(user),
+        )
+        assert gone.status_code == 204, gone.text
+
+    assert queued == [_subject("removed")]
+    assert sent == [["proved-goes@example.com"]]

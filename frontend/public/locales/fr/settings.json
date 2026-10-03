@@ -4,13 +4,11 @@
     "tabs": {
       "profile": "Profil",
       "account": "Compte",
-      "interface": "Interface",
+      "interface": "Préférences",
       "notifications": "Notifications",
       "ai": "IA",
-      "import": "Importer",
       "security": "Sécurité",
       "trash": "Corbeille",
-      "danger": "Zone de danger",
       "privacy": "Confidentialité"
     },
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
@@ -46,11 +44,9 @@
   },
   "profile": {
     "currentPasswordLabel": "Mot de passe actuel",
-    "currentPasswordPlaceholder": "Saisissez votre mot de passe actuel",
     "currentPasswordRequired": "Saisissez votre mot de passe actuel pour en définir un nouveau.",
     "newPasswordLabel": "Nouveau mot de passe",
     "confirmPasswordLabel": "Confirmer le mot de passe",
-    "passwordPlaceholder": "••••••••",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Télécharger",
     "avatarUrlTab": "URL",
@@ -59,8 +55,6 @@
     "passwordsMismatch": "Les mots de passe ne correspondent pas",
     "saveChanges": "Enregistrer les modifications",
     "saving": "Enregistrement…",
-    "reset": "Réinitialiser",
-    "updateSuccess": "Profil mis à jour",
     "updateError": "Impossible de mettre à jour le profil",
     "avatarUploadHelp": "N'importe quelle image. Elle est recadrée en carré et redimensionnée pour vous.",
     "avatar": {
@@ -99,8 +93,14 @@
     "primaryFailed": "L'adresse principale n'a pas pu être changée.",
     "removeDialogTitle": "Retirer cette adresse ?",
     "removeDialogDescription": "<strong>{{email}}</strong> ne vous connectera plus et ne recevra plus le courrier de votre compte.",
-    "removeCancel": "Annuler",
-    "removeConfirm": "Retirer"
+    "removeConfirm": "Retirer",
+    "passwordLabel": "Mot de passe actuel",
+    "addDialogTitle": "Ajouter cette adresse ?",
+    "addDialogDescription": "Nous enverrons un lien à <strong>{{email}}</strong> pour la confirmer.",
+    "addConfirm": "Ajouter",
+    "primaryDialogTitle": "Définir cette adresse comme principale ?",
+    "primaryDialogDescription": "Les réinitialisations de mot de passe et les codes de connexion iront d'abord à <strong>{{email}}</strong>.",
+    "primaryConfirm": "Définir comme principale"
   },
   "security": {
     "loadingDevices": "Chargement des appareils…",
@@ -119,7 +119,6 @@
     "keyNamePlaceholder": "ex. : script-reporting",
     "expirationLabel": "Expiration (optionnel)",
     "neverExpires": "N'expire jamais",
-    "expirationHelp": "Laissez vide pour une clé qui n'expire jamais.",
     "readOnlyLabel": "Lecture seule",
     "readOnlyHelp": "La clé peut lire des données mais ne peut jamais créer, modifier ni supprimer quoi que ce soit. Recommandé pour les automatisations et les intégrations.",
     "guildLabel": "Accès à la communauté",
@@ -130,25 +129,14 @@
     "nameRequired": "Le nom est requis",
     "createSuccess": "Clé API créée",
     "createError": "Impossible de créer la clé API",
-    "existingTitle": "Clés existantes",
-    "existingDescription": "Seuls les derniers caractères sont affichés. Faites pivoter les clés régulièrement.",
     "loadingKeys": "Chargement des clés API…",
     "keysError": "Impossible de charger les clés API.",
     "noKeys": "Aucune clé API pour l'instant.",
-    "columnName": "Nom",
-    "columnPrefix": "Préfixe",
-    "columnStatus": "Statut",
-    "columnScope": "Portée",
-    "columnLastUsed": "Dernière utilisation",
-    "columnExpires": "Expire",
-    "columnActions": "Actions",
-    "statusActive": "Active",
     "statusExpired": "Expirée",
     "statusDisabled": "Désactivée",
     "scopeReadOnly": "Lecture seule",
     "scopeGuild": "Communauté : {{guild}}",
     "scopeFull": "Accès complet",
-    "never": "Jamais",
     "deleteButton": "Supprimer",
     "deleting": "Suppression en cours…",
     "deleteSuccess": "Clé API supprimée",
@@ -175,7 +163,16 @@
     "signOutOthersDialogDescription_one": "Cela met fin à {{count}} autre session. Vous resterez connecté ici.",
     "signOutOthersDialogDescription_other": "Cela met fin aux {{count}} autres sessions. Vous resterez connecté ici.",
     "signOutOthersConfirm": "Déconnecter partout ailleurs",
-    "signedOutOthers": "Déconnecté partout ailleurs"
+    "signedOutOthers": "Déconnecté partout ailleurs",
+    "apiKeysTitle": "Clés d'API",
+    "apiKeysDescription": "Pour les scripts et les intégrations. Le secret d'une clé n'est affiché qu'une fois, à sa création.",
+    "newKeyButton": "Nouvelle clé d'API",
+    "keyCreated": "Créée le {{date}}",
+    "keyLastUsed": "Dernière utilisation le {{date}}",
+    "keyNeverUsed": "Jamais utilisée",
+    "keyExpires": "Expire le {{date}}",
+    "deleteDialogTitle": "Supprimer cette clé d'API ?",
+    "deleteDialogDescription": "Tout ce qui utilise {{name}} cesse de fonctionner immédiatement."
   },
   "ai": {
     "loading": "Chargement des paramètres d'IA…",
@@ -273,7 +270,6 @@
     "languageDescription": "Choisissez votre langue préférée pour l'interface.",
     "updateSuccess": "Préférences d'interface mises à jour",
     "updateError": "Impossible de mettre à jour les préférences d'interface",
-    "themePreview": "Aperçu du thème",
     "themeDescriptions": {
       "kobold": "Le thème classique d'Initiative, aux tons indigo profonds.",
       "displacer": "Thème pastel apaisant inspiré de Catppuccin (Latte/Macchiato).",
@@ -283,8 +279,6 @@
       "orc": "Thème vert terreux aux accents vert vif de peau d'orc. ORC ORC ORC !",
       "aboleth": "Antre sombre inspiré de Monokai, aux vifs accents bioluminescents."
     },
-    "lightMode": "Clair",
-    "darkMode": "Sombre",
     "taskCompletionVisualFeedback": {
       "label": "Effet à la fin d'une tâche",
       "description": "Un peu de fun quand vous terminez une tâche qui vous était assignée.",
@@ -310,23 +304,27 @@
     },
     "keepScreenAwake": {
       "label": "Garder l'écran allumé",
-      "description": "Empêche l'écran de cet appareil de s'atténuer ou de se verrouiller tant que l'application est ouverte. Ce paramètre est enregistré uniquement sur cet appareil.",
+      "description": "Empêche l'écran de cet appareil de s'atténuer ou de se verrouiller tant que l'application est ouverte.",
       "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
     },
     "desktopKeepRunning": {
       "label": "Continuer quand la fenêtre se ferme",
-      "description": "Reste dans la zone de notification pour que les notifications arrivent encore. Quittez depuis son icône. Enregistré sur cet ordinateur uniquement."
+      "description": "Reste dans la zone de notification pour que les notifications arrivent encore. Quittez depuis son icône."
     },
     "desktopOpenAtLogin": {
       "label": "Ouvrir au démarrage de l'ordinateur",
-      "description": "Lance Initiative quand vous ouvrez votre session sur cet ordinateur. Enregistré sur cet ordinateur uniquement."
+      "description": "Lance Initiative quand vous ouvrez votre session sur cet ordinateur."
     },
     "desktopAutoUpdate": {
       "label": "Mettre à jour l'application automatiquement",
-      "description": "Quand votre serveur a besoin d'une application de bureau plus récente, elle est téléchargée et installée au redémarrage. Enregistré sur cet ordinateur uniquement."
+      "description": "Quand votre serveur a besoin d'une application de bureau plus récente, elle est téléchargée et installée au redémarrage."
     },
     "completionTitle": "Quand vous terminez une tâche",
-    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder."
+    "completionDescription": "Ce que fait l'app dès qu'une tâche est cochée. Essayez chacune avant de la garder.",
+    "appearanceTitle": "Apparence",
+    "regionTitle": "Langue et heure",
+    "deviceTitle": "Cet appareil",
+    "deviceDescription": "Enregistré uniquement sur cet appareil, pas dans votre compte."
   },
   "notifications": {
     "title": "Paramètres de notifications",
@@ -336,11 +334,7 @@
     "pushBlocked": "Bloquées",
     "pushNotEnabled": "Non activées",
     "enablePush": "Activer les notifications push",
-    "pushBlockedTitle": "Les notifications push sont bloquées",
     "pushBlockedDescription": "Pour activer les notifications push, ouvrez les paramètres de votre appareil, trouvez cette application et activez les notifications.",
-    "timezone": "Fuseau horaire",
-    "timezonePlaceholder": "Sélectionner un fuseau horaire",
-    "timezoneEmpty": "Aucun fuseau horaire trouvé.",
     "toggleError": "Impossible de mettre à jour les paramètres de notifications",
     "categoryHeader": "Catégorie",
     "categories": {
@@ -454,7 +448,9 @@
         "note": "Les réinitialisations de mot de passe et les e-mails de connexion arrivent toujours. Ce ne sont pas des notifications."
       },
       "saved": "Enregistré",
-      "saveError": "Impossible de mettre à jour quand vous êtes prévenu"
+      "saveError": "Impossible de mettre à jour quand vous êtes prévenu",
+      "zone": "Les heures sont celles du fuseau {{timezone}}.",
+      "changeZone": "Changer de fuseau horaire"
     },
     "weekdays": {
       "1": "lundi",
@@ -464,7 +460,8 @@
       "5": "vendredi",
       "6": "samedi",
       "7": "dimanche"
-    }
+    },
+    "quietTitle": "Ne pas déranger"
   },
   "dangerZone": {
     "serverConnection": "Connexion au serveur",
@@ -477,7 +474,8 @@
     "permanentDeleteDescriptionText": "Votre compte disparaît immédiatement pour les autres. Rien n'est effacé dans l'immédiat : reconnectez-vous avant la fin du délai et la suppression est annulée, avec vos communautés et votre travail tels que vous les avez laissés. Ensuite, les projets sont transférés à d'autres, et les commentaires et documents restent mais affichent « [Utilisateur supprimé] ».",
     "cannotBeUndone": "Se reconnecter est ce qui l'arrête.",
     "deactivateButton": "Désactiver le compte",
-    "deleteButton": "Supprimer le compte"
+    "deleteButton": "Supprimer le compte",
+    "title": "Fermer votre compte"
   },
   "deleteAccount": {
     "title": "Supprimer le compte",
@@ -1725,8 +1723,6 @@
     }
   },
   "account": {
-    "identityTitle": "Comment vous vous connectez",
-    "identityDescription": "Votre pseudo et l'horloge sur laquelle vous êtes.",
     "passwordTitle": "Mot de passe",
     "passwordDescription": "Changez-le ici. Vous resterez connecté sur cet appareil.",
     "passwordsOffDescription": "La connexion par mot de passe est désactivée sur ce serveur : il n'y a donc aucun mot de passe à définir ou à changer ici.",
@@ -1738,7 +1734,9 @@
     "removePasswordBody": "Votre clé d'accès vous connectera désormais, et vous serez déconnecté partout ailleurs. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. S'il vous en reste moins de trois, un nouveau jeu vous sera présenté : conservez-le.",
     "removePasswordCodes": "Conservez-les en lieu sûr. Si votre clé d'accès venait à disparaître, c'est un code de secours qui vous permet de définir un nouveau mot de passe. Chaque code sert une fois, et ils ne vous seront plus montrés. Les codes que vous déteniez auparavant ne fonctionnent plus.",
     "passwordRemoved": "Votre mot de passe a été supprimé.",
-    "removePasswordError": "Impossible de supprimer votre mot de passe."
+    "removePasswordError": "Impossible de supprimer votre mot de passe.",
+    "passwordSaved": "Mot de passe enregistré",
+    "changePassword": "Changer le mot de passe"
   },
   "privacy": {
     "dm": {
@@ -1758,7 +1756,6 @@
       "platformDisabled": "Cette installation ne propose pas de messages privés : il n'y a donc rien à régler ici. S'ils sont réactivés, votre règle et vos listes reviennent telles quelles."
     },
     "receipts": {
-      "title": "Accusés de lecture",
       "label": "Indiquer aux autres quand leurs messages vous parviennent",
       "help": "Ils voient quand un message est arrivé sur l'un de vos appareils et quand vous l'avez lu. Si vous désactivez ceci, ils ne voient ni l'un ni l'autre — comme pour quelqu'un qui n'a pas ouvert l'application. Vous continuez à voir les leurs."
     },

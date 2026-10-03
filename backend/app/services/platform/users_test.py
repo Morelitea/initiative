@@ -747,24 +747,27 @@ async def test_soft_delete_removes_membership_in_guild_schema(
     assert refreshed.status == UserStatus.anonymized
 
 
-async def test_soft_delete_scrubs_embedded_mentions(
+async def test_soft_delete_takes_their_name_out_of_collaboration(
     session: AsyncSession, role_session
 ):
-    """Anonymizing a user rewrites their display name wherever content embedded
-    it as literal text — on every surface somebody writes on: @-mention markup
-    in comments, descriptions and checklist items, Lexical mention nodes in
-    documents and wiki pages (with yjs_state cleared), and digest-row name
-    snapshots (issue #794)."""
-    from app.models.tenant.comment import Comment
+    """Anonymizing a user leaves content as it is, since a mention holds no
+    name, and takes the names out of the collaboration state of every document
+    and wiki page that mentions them, archived ones included: an editor from
+    before names were left out can have written one into it. A state that
+    cannot be read is left as it is. Digest rows lose
+    the assigner's name snapshot (issue #794)."""
+    from sqlalchemy import text
+
+    from app.db.session import set_rls_context
     from app.models.tenant.document import Document
-    from app.models.tenant.task import Task
     from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
     from app.models.tenant.wiki import WikiPage
-    from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
-    from app.models.tenant.project import Project
+    from app.services.tenant.mention_parser import (
+        ANONYMIZED_MENTION_NAME,
+        nameless_state,
+    )
+    from app.testing import MENTIONING_YJS_STATE
     from app.testing.factories import (
-        checklist_items,
-        create_comment,
         create_document,
         create_initiative,
         create_initiative_member,
@@ -773,6 +776,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
         create_wiki,
         create_wiki_page,
         enable_all_tools,
+        lexical_body,
     )
     from app.testing.schema_harness import route_session_to_guild
 
@@ -782,94 +786,60 @@ async def test_soft_delete_scrubs_embedded_mentions(
     await create_guild_membership(session, user=victim, guild=guild)
     initiative = await create_initiative(session, guild, author)
     await create_initiative_member(session, initiative=initiative, user=victim)
-    project = await create_project(
-        session, initiative, author, description=f"lead: @[Vic Tim]({victim.id})"
+    project = await create_project(session, initiative, author)
+    task = await create_task(session, project)
+    mentioning = lexical_body("Thanks ", mentioning=victim.id)
+    document = await create_document(
+        session, initiative, author, content=mentioning, yjs_state=MENTIONING_YJS_STATE
     )
-    task = await create_task(
+    archived = await create_document(
         session,
-        project,
-        description=f"pair with @[Vic Tim]({victim.id})",
-        checklist=checklist_items(f"ask @[Vic Tim]({victim.id})"),
-    )
-    # Finished work is scrubbed too: an archived task keeps its words, so it
-    # would keep the name.
-    archived_task = await create_task(
-        session,
-        project,
-        description=f"was @[Vic Tim]({victim.id})'s",
+        initiative,
+        author,
+        content=mentioning,
+        yjs_state=MENTIONING_YJS_STATE,
         archived_at=datetime.now(timezone.utc),
     )
-
-    comment = await create_comment(
-        session, author, task=task, content=f"ping @[Vic Tim]({victim.id}) thanks"
-    )
-    archived_comment = await create_comment(
+    elsewhere = await create_document(
         session,
+        initiative,
         author,
-        task=archived_task,
-        content=f"ask @[Vic Tim]({victim.id})",
+        content=lexical_body("Thanks ", mentioning=author.id),
+        yjs_state=b"kept-state",
     )
-    trashed_comment = await create_comment(
-        session,
-        author,
-        task=task,
-        content=f"bin @[Vic Tim]({victim.id})",
-        deleted_at=datetime.now(timezone.utc),
-    )
-    mention_body = {
-        "root": {
-            "type": "root",
-            "children": [
-                {
-                    "type": "paragraph",
-                    "children": [
-                        {
-                            "type": "mention",
-                            "mentionName": "Vic Tim",
-                            "mentionUserId": victim.id,
-                            "text": "Vic Tim",
-                        }
-                    ],
-                }
-            ],
-        }
-    }
-    document = await create_document(
-        session, initiative, author, content=mention_body, yjs_state=b"stale-state"
+    unreadable = await create_document(
+        session, initiative, author, content=mentioning, yjs_state=b"unreadable"
     )
     await enable_all_tools(session, initiative)
     page = await create_wiki_page(
         session,
         await create_wiki(session, initiative, author),
         author,
-        content=mention_body,
-        yjs_state=b"stale-state",
+        content=mentioning,
+        yjs_state=MENTIONING_YJS_STATE,
     )
-    digest = TaskAssignmentDigestItem(
-        user_id=author.id,
-        task_id=task.id,
-        project_id=project.id,
-        task_title=task.title,
-        project_name=project.name,
-        assigned_by_name="Vic Tim",
-        assigned_by_id=victim.id,
+    session.add(
+        TaskAssignmentDigestItem(
+            user_id=author.id,
+            task_id=task.id,
+            project_id=project.id,
+            task_title=task.title,
+            project_name=project.name,
+            assigned_by_name="Vic Tim",
+            assigned_by_id=victim.id,
+        )
     )
-    session.add(digest)
     await session.commit()
     victim_id = victim.id
 
     # Account erasure is trusted system work and must not be narrowed by an
-    # evolving tenant UPDATE policy.  This restrictive policy independently
+    # evolving tenant UPDATE policy. This restrictive policy independently
     # proves the lifecycle path retains its system identity while routed into
     # the guild schema.
-    from sqlalchemy import text
-
-    from app.db.session import set_rls_context
-
     await set_rls_context(session, Unattributed())
     await session.exec(
         text(
-            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".comments '
+            f'CREATE POLICY test_erasure_system_path ON "guild_{guild.id}".documents '
             "AS RESTRICTIVE FOR UPDATE USING (false) WITH CHECK (false)"
         )
     )
@@ -880,69 +850,40 @@ async def test_soft_delete_scrubs_embedded_mentions(
 
     session.expunge_all()
     await route_session_to_guild(session, guild.id)
-
-    refreshed_comment = (
-        await session.exec(select(Comment).where(Comment.id == comment.id))
-    ).one()
-    assert refreshed_comment.content == f"ping @[]({victim_id}) thanks"
-
-    refreshed_archived_comment = (
-        await session.exec(select(Comment).where(Comment.id == archived_comment.id))
-    ).one()
-    assert refreshed_archived_comment.content == (f"ask @[]({victim_id})")
-
-    refreshed_trashed_comment = (
-        await session.exec(
-            select(Comment)
-            .where(Comment.id == trashed_comment.id)
-            .execution_options(include_deleted=True)
-        )
-    ).one()
-    assert refreshed_trashed_comment.content == (f"bin @[]({victim_id})")
-
-    descriptions = dict(
+    states = dict(
         (
             await session.exec(
-                select(Task.id, Task.description)
-                .where(Task.id.in_([task.id, archived_task.id]))  # type: ignore[union-attr]
+                select(Document.id, Document.yjs_state)
+                .where(
+                    Document.id.in_(  # type: ignore[union-attr]
+                        [document.id, archived.id, elsewhere.id, unreadable.id]
+                    )
+                )
                 .execution_options(include_archived=True)
             )
         ).all()
     )
-    assert descriptions == {
-        task.id: f"pair with @[]({victim_id})",
-        archived_task.id: f"was @[]({victim_id})'s",
-    }
-    checklist = (
-        await session.exec(select(Task.checklist).where(Task.id == task.id))
-    ).one()
-    assert checklist[0]["text"] == f"ask @[]({victim_id})"
-    project_description = (
-        await session.exec(select(Project.description).where(Project.id == project.id))
-    ).one()
-    assert project_description == f"lead: @[]({victim_id})"
-
-    for model, row_id in ((Document, document.id), (WikiPage, page.id)):
-        refreshed = (
-            await session.exec(
-                select(model)
-                .where(model.id == row_id)
-                .options(undefer(model.content), undefer(model.yjs_state))
-            )
-        ).one()
-        node = refreshed.content["root"]["children"][0]["children"][0]
-        assert (node["mentionName"], node["text"]) == ("", ""), model
-        assert node["mentionUserId"] == victim_id, model
-        assert refreshed.yjs_state is None, model
-
-    refreshed_digest = (
+    assert states.pop(elsewhere.id) == b"kept-state"
+    assert states.pop(unreadable.id) == b"unreadable"
+    refreshed_page = (
         await session.exec(
-            select(TaskAssignmentDigestItem).where(
+            select(WikiPage)
+            .where(WikiPage.id == page.id)
+            .options(undefer(WikiPage.content), undefer(WikiPage.yjs_state))
+        )
+    ).one()
+    assert refreshed_page.content == mentioning
+    for state in (*states.values(), refreshed_page.yjs_state):
+        assert state != MENTIONING_YJS_STATE and nameless_state(state) is None
+
+    digest_name = (
+        await session.exec(
+            select(TaskAssignmentDigestItem.assigned_by_name).where(
                 TaskAssignmentDigestItem.assigned_by_id == victim_id
             )
         )
     ).one()
-    assert refreshed_digest.assigned_by_name == ANONYMIZED_MENTION_NAME
+    assert digest_name == ANONYMIZED_MENTION_NAME
 
 
 async def test_hard_delete_anonymized_user_cleans_guild_data(

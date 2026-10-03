@@ -49,7 +49,7 @@ The trade is that your history lives on your devices rather than on a server, so
 
 - See **where you're signed in** and sign out or remove any device you don't recognize, from **User settings → Security**.
 - Create and **revoke access keys** for apps and scripts at any time (see [API keys & integrations](../account/api-keys-and-integrations.md)).
-- **Deactivate or delete your account** whenever you choose, from **User settings → Danger Zone**. You decide whether your content is preserved or removed. See [Data & compliance](data-and-compliance.md).
+- **Deactivate or delete your account** whenever you choose, from the bottom of **User settings → Account**. You decide whether your content is preserved or removed. See [Data & compliance](data-and-compliance.md).
 
 ## A few habits that do most of the work
 

@@ -56,7 +56,7 @@ It gets the most room because it *is* the thing. Everything else described on th
 
 Browser tabs, but for your work. Things you open stack up along the top, so you can get back to the document you were three paragraphs into when somebody messaged you about something else entirely.
 
-Close them when you're done. Or let them pile up, as is traditional. You can cap how many it keeps in **User settings → Interface**, if you'd like that limit actually enforced rather than merely intended.
+Close them when you're done. Or let them pile up, as is traditional. You can cap how many it keeps in **User settings → Preferences**, if you'd like that limit actually enforced rather than merely intended.
 
 ## The one thing genuinely worth learning today
 

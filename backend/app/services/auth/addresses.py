@@ -583,6 +583,16 @@ async def verify_for_user(
     return row
 
 
+def proved_an_added_address(row: UserEmail | None, *, at: datetime) -> bool:
+    """Whether ``row`` is an address its holder added, proved at ``at``.
+
+    A new way into an account that already had one, which the account is told
+    about wherever the proof arrives: the emailed link, or a provider asserting
+    the address at sign-in.
+    """
+    return row is not None and row.verified_at == at and row.source == SOURCE_ADDED
+
+
 async def remove_for_user(
     session: AsyncSession, *, user_id: int, address_id: int
 ) -> UserEmail:

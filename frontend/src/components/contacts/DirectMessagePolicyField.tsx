@@ -38,8 +38,6 @@ export const DirectMessagePolicyField = ({
 
   return (
     <div className="space-y-4">
-      <p className="text-muted-foreground text-sm">{t("privacy.dm.description")}</p>
-
       <RadioGroup
         value={policy}
         onValueChange={(next) => onPolicyChange(next as DmPolicy)}

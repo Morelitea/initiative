@@ -281,6 +281,24 @@
       "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez."
     }
   },
+  "address": {
+    "fallbackText": "Si ce n'était pas vous, connectez-vous et vérifiez sans attendre les adresses de votre compte, puis contactez la personne qui gère ce site.",
+    "proved": {
+      "subject": "Une adresse a été ajoutée à votre compte",
+      "title": "Une adresse a été ajoutée à votre compte",
+      "body": "<strong>{{address}}</strong> est désormais confirmée sur votre compte et peut servir à vous connecter."
+    },
+    "primary": {
+      "subject": "Votre adresse e-mail principale a changé",
+      "title": "Votre adresse e-mail principale a changé",
+      "body": "<strong>{{address}}</strong> est désormais l'adresse principale de votre compte. Les réinitialisations de mot de passe et les codes de connexion y arrivent en premier."
+    },
+    "removed": {
+      "subject": "Une adresse a été retirée de votre compte",
+      "title": "Une adresse a été retirée de votre compte",
+      "body": "<strong>{{address}}</strong> a été retirée de votre compte et ne peut plus servir à vous connecter."
+    }
+  },
   "digest": {
     "hourly": {
       "title": "La dernière heure sur Initiative",

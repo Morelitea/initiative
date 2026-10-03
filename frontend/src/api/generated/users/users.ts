@@ -47,6 +47,7 @@ import type {
   OwnershipTransferResponse,
   SearchUsersParams,
   UserCommunityMemberListResponse,
+  UserEmailChange,
   UserEmailCreate,
   UserEmailListResponse,
   UserEmailRead,
@@ -2950,6 +2951,9 @@ export function useListMyAddresses<
 /**
  * Start holding another address, and write to it to prove it.
  *
+ * The password is asked for first, where there is one, and a recent sign-in
+ * otherwise, as for every change to how the account is signed into.
+ *
  * The answer is the same whoever holds the address already. What differs is
  * where the mail goes: a free address gets a link to confirm it, and one that
  * is taken gets nothing.
@@ -3038,15 +3042,24 @@ export const useAddMyAddress = <TError = ErrorType<HTTPValidationError>, TContex
   return useMutation(getAddMyAddressMutationOptions(options), queryClient);
 };
 /**
+ * Stop holding one address. The password is asked for again, as it is for
+ * a password change.
  * @summary Remove My Address
  */
 export const removeMyAddress = (
   addressId: number,
+  userEmailChange: BodyType<UserEmailChange>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/me/emails/${addressId}`, method: "DELETE", signal },
+    {
+      url: `/api/v1/me/emails/${addressId}/remove`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: userEmailChange,
+      signal,
+    },
     options
   );
 };
@@ -3081,9 +3094,9 @@ export const getRemoveMyAddressMutationOptions = <
     Awaited<ReturnType<typeof removeMyAddress>>,
     RemoveMyAddressMutationVariables
   > = (props) => {
-    const { addressId } = props ?? {};
+    const { addressId, data } = props ?? {};
 
-    return removeMyAddress(addressId, requestOptions);
+    return removeMyAddress(addressId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -3092,9 +3105,12 @@ export const getRemoveMyAddressMutationOptions = <
 export type RemoveMyAddressMutationResult = NonNullable<
   Awaited<ReturnType<typeof removeMyAddress>>
 >;
-
+export type RemoveMyAddressMutationBody = BodyType<UserEmailChange>;
 export type RemoveMyAddressMutationError = ErrorType<HTTPValidationError>;
-export type RemoveMyAddressMutationVariables = { addressId: number };
+export type RemoveMyAddressMutationVariables = {
+  addressId: number;
+  data: BodyType<UserEmailChange>;
+};
 
 /**
  * @summary Remove My Address
@@ -3119,16 +3135,25 @@ export const useRemoveMyAddress = <TError = ErrorType<HTTPValidationError>, TCon
   return useMutation(getRemoveMyAddressMutationOptions(options), queryClient);
 };
 /**
- * Move where account mail goes.
+ * Move where account mail goes. The password is asked for again, and every
+ * address the account has proved is told, the one that was primary among
+ * them.
  * @summary Make My Address Primary
  */
 export const makeMyAddressPrimary = (
   addressId: number,
+  userEmailChange: BodyType<UserEmailChange>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserEmailRead>(
-    { url: `/api/v1/me/emails/${addressId}/primary`, method: "PUT", signal },
+    {
+      url: `/api/v1/me/emails/${addressId}/primary`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: userEmailChange,
+      signal,
+    },
     options
   );
 };
@@ -3163,9 +3188,9 @@ export const getMakeMyAddressPrimaryMutationOptions = <
     Awaited<ReturnType<typeof makeMyAddressPrimary>>,
     MakeMyAddressPrimaryMutationVariables
   > = (props) => {
-    const { addressId } = props ?? {};
+    const { addressId, data } = props ?? {};
 
-    return makeMyAddressPrimary(addressId, requestOptions);
+    return makeMyAddressPrimary(addressId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -3174,9 +3199,12 @@ export const getMakeMyAddressPrimaryMutationOptions = <
 export type MakeMyAddressPrimaryMutationResult = NonNullable<
   Awaited<ReturnType<typeof makeMyAddressPrimary>>
 >;
-
+export type MakeMyAddressPrimaryMutationBody = BodyType<UserEmailChange>;
 export type MakeMyAddressPrimaryMutationError = ErrorType<HTTPValidationError>;
-export type MakeMyAddressPrimaryMutationVariables = { addressId: number };
+export type MakeMyAddressPrimaryMutationVariables = {
+  addressId: number;
+  data: BodyType<UserEmailChange>;
+};
 
 /**
  * @summary Make My Address Primary
