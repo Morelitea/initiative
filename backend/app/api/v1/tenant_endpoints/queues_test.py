@@ -18,6 +18,7 @@ from app.testing import (
     create_initiative,
     create_project,
     create_queue,
+    create_queue_item,
     create_task,
     grant_role_permission,
 )
@@ -130,6 +131,34 @@ async def test_list_queues(client: AsyncClient, acting_user, session):
             a.g("/queues/"), headers=a.headers, params={"is_active": is_active}
         )
         assert [q["name"] for q in narrowed.json()["items"]] == expected
+
+
+async def test_list_queues_previews_whose_turn_it_is(
+    client: AsyncClient, acting_user, session
+):
+    """Asked for previews, the list says whose turn it is on each queue and
+    who follows, wrapping round the order; held items are out of it."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    queue = await create_queue(session, a.initiative, a.user, is_active=True)
+    items = {
+        label: await create_queue_item(session, queue, label=label, position=position)
+        for label, position in (("A", 4), ("B", 3), ("C", 2), ("D", 1))
+    }
+    await create_queue_item(session, queue, label="Held", position=0, held_at_round=1)
+    queue.current_item_id = items["C"].id
+    session.add(queue)
+    await session.commit()
+
+    plain = await client.get(a.g("/queues/"), headers=a.headers)
+    previewed = await client.get(
+        a.g("/queues/"), headers=a.headers, params={"include_preview": True}
+    )
+
+    assert plain.json()["items"][0]["preview"] is None
+    assert [
+        (turn["label"], turn["current"])
+        for turn in previewed.json()["items"][0]["preview"]
+    ] == [("C", True), ("D", False), ("A", False)]
 
 
 async def test_get_queue(client: AsyncClient, acting_user):

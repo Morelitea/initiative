@@ -176,8 +176,22 @@ class CounterGroupUpdate(SanitizedBaseModel):
     description: Optional[MentionStr] = None
 
 
+class CounterPreview(SanitizedBaseModel):
+    """One counter as a list's card draws it: its name, colour and count."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    name: str
+    color: Optional[str] = None
+    count: str
+
+
 class CounterGroupSummary(CounterGroupBase, ToolSummaryBase):
-    """A counter group in a list: the group alone, without its counters."""
+    """A counter group in a list: the group alone, without its counters —
+    unless the list was asked for previews, when its first few come along."""
+
+    preview: Optional[List[CounterPreview]] = None
 
 
 class CounterGroupListResponse(PageMeta):
@@ -203,7 +217,7 @@ class CounterGroupRead(CounterGroupSummary):
 # ---------------------------------------------------------------------------
 
 
-def _format_decimal(value: Decimal) -> str:
+def format_decimal(value: Decimal) -> str:
     """Return a plain decimal string with no exponent and no trailing zeros.
 
     PostgreSQL's ``Numeric(20, 10)`` round-trips zeros as ``Decimal('0E-10')``,
@@ -219,7 +233,7 @@ def _format_decimal(value: Decimal) -> str:
 
 
 def _format_optional_decimal(value: Optional[Decimal]) -> Optional[str]:
-    return _format_decimal(value) if value is not None else None
+    return format_decimal(value) if value is not None else None
 
 
 def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRead:
@@ -229,13 +243,13 @@ def serialize_counter(counter: "Counter", *, context: ActorContext) -> CounterRe
         community_id=context.guild_id,
         name=counter.name,
         color=counter.color,
-        count=_format_decimal(counter.count),
+        count=format_decimal(counter.count),
         min=_format_optional_decimal(counter.min),
         max=_format_optional_decimal(counter.max),
-        step=_format_decimal(counter.step),
-        initial_count=_format_decimal(counter.initial_count),
+        step=format_decimal(counter.step),
+        initial_count=format_decimal(counter.initial_count),
         view_mode=counter.view_mode,
-        position=_format_decimal(counter.position),
+        position=format_decimal(counter.position),
         properties=annotated_properties(counter),
         created_at=counter.created_at,
         updated_at=counter.updated_at,

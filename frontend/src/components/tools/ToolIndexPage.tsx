@@ -217,6 +217,8 @@ const useQueueRows = (initiativeId: number, filters: ToolIndexFilters): ToolInde
     archived: filters.archived,
     page: filters.page,
     page_size: filters.pageSize,
+    // What each card shows of what is inside it, read with the page.
+    include_preview: true,
   });
 
   const rows = useMemo(
@@ -241,6 +243,8 @@ const useCounterGroupRows = (initiativeId: number, filters: ToolIndexFilters): T
     archived: filters.archived,
     page: filters.page,
     page_size: filters.pageSize,
+    // What each card shows of what is inside it, read with the page.
+    include_preview: true,
   });
 
   const rows = useMemo(
@@ -268,6 +272,8 @@ const useDashboardRows = (initiativeId: number, filters: ToolIndexFilters): Tool
     archived: filters.archived,
     page: filters.page,
     page_size: filters.pageSize,
+    // What each card shows of what is inside it, read with the page.
+    include_preview: true,
   });
 
   const rows = useMemo(

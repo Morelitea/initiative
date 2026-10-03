@@ -145,6 +145,26 @@ async def test_list_counter_groups(client: AsyncClient, acting_user):
     assert {item["name"] for item in body["items"]} == {"Group A", "Group B"}
 
 
+async def test_list_counter_groups_previews_their_first_counters(
+    client: AsyncClient, acting_user
+):
+    """Asked for previews, each group brings its first four counters in its own
+    order, with their counts."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    group = await _create_group(client, a, name="Scores")
+    for index in range(5):
+        await _add_counter(client, a, group["id"], name=f"C{index}", count=str(index))
+
+    response = await client.get(
+        a.g("/counter-groups/"), headers=a.headers, params={"include_preview": True}
+    )
+
+    assert [
+        (counter["name"], counter["count"])
+        for counter in response.json()["items"][0]["preview"]
+    ] == [("C0", "0"), ("C1", "1"), ("C2", "2"), ("C3", "3")]
+
+
 # ---------------------------------------------------------------------------
 # Counter CRUD + view mode validation
 # ---------------------------------------------------------------------------

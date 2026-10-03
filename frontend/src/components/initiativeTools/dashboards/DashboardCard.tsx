@@ -1,12 +1,15 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { type DashboardSummary, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type DashboardPreview as DashboardPreviewData,
+  type DashboardSummary,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { DashboardCanvas } from "@/components/initiativeTools/dashboards/DashboardCanvas";
 import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
-import { useSeenOnScreen } from "@/hooks/useSeenOnScreen";
+import { useWidgetCatalog } from "@/hooks/useDashboards";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -22,15 +25,20 @@ interface DashboardCardProps {
 const PREVIEW_WIDTH = 1200;
 
 /**
- * The dashboard itself, shrunk to the card.
- *
- * Read only once the card is on screen, through the same queries opening the
- * dashboard makes, so a long list costs what is scrolled past and a card opened
- * afterwards is already loaded. It is a picture: nothing in it can be clicked.
+ * The dashboard itself, shrunk to the card: its canvas and its query widgets'
+ * answers as the list sent them, every other widget from sample data. It is a
+ * picture: nothing in it can be clicked, and it fetches nothing.
  */
-const DashboardPreview = ({ dashboardId }: { dashboardId: number }) => {
-  const { ref: box, seen: visible } = useSeenOnScreen<HTMLDivElement>();
+const DashboardPreview = ({
+  dashboard,
+  preview,
+}: {
+  dashboard: DashboardSummary;
+  preview: DashboardPreviewData;
+}) => {
+  const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
+  const catalogQuery = useWidgetCatalog();
 
   useEffect(() => {
     const node = box.current;
@@ -40,11 +48,7 @@ const DashboardPreview = ({ dashboardId }: { dashboardId: number }) => {
     });
     sized.observe(node);
     return () => sized.disconnect();
-  }, [box]);
-
-  const dashboardQuery = useDashboard(visible ? dashboardId : null);
-  const catalogQuery = useWidgetCatalog({ enabled: visible });
-  const dashboard = dashboardQuery.data;
+  }, []);
 
   return (
     <div
@@ -53,18 +57,19 @@ const DashboardPreview = ({ dashboardId }: { dashboardId: number }) => {
       inert
       className="pointer-events-none relative aspect-[16/9] overflow-hidden border-b bg-muted/40"
     >
-      {dashboard && scale > 0 ? (
+      {scale > 0 ? (
         <div
           className="absolute top-0 left-0 origin-top-left p-4"
           style={{ width: PREVIEW_WIDTH, transform: `scale(${scale})` }}
         >
           <DashboardCanvas
-            definition={readDefinition(dashboard.definition)}
-            config={readConfig(dashboard.config)}
+            definition={readDefinition(preview.definition)}
+            config={readConfig(preview.config)}
             catalog={catalogQuery.data}
             initiativeId={dashboard.initiative_id}
             dashboardId={dashboard.id}
             canEdit={false}
+            previewAnswers={preview.widgets}
             onLayoutChange={() => {}}
           />
         </div>
@@ -86,7 +91,9 @@ export const DashboardCard = ({ dashboard, className }: DashboardCardProps) => {
         className
       )}
     >
-      <DashboardPreview dashboardId={dashboard.id} />
+      {dashboard.preview ? (
+        <DashboardPreview dashboard={dashboard} preview={dashboard.preview} />
+      ) : null}
       <Card className="border-0 shadow-none">
         <CardHeader className="pb-2">
           <CardTitle className="line-clamp-1 text-lg leading-tight">

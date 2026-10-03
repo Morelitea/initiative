@@ -146,9 +146,23 @@ class QueueUpdate(SanitizedBaseModel):
     description: Optional[MentionStr] = None
 
 
+class QueueTurnPreview(SanitizedBaseModel):
+    """One turn as a list's card draws it: who, in what colour, and whether it
+    is theirs now."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    id: int
+    label: str
+    color: Optional[str] = None
+    current: bool = False
+
+
 class QueueSummary(QueueBase, ToolSummaryBase):
     current_round: int
     is_active: bool
+    #: Whose turn it is and who follows, when the list was asked for previews.
+    preview: Optional[List[QueueTurnPreview]] = None
 
 
 class QueueListResponse(PageMeta):

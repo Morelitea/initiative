@@ -8,6 +8,7 @@ This module handles:
 """
 
 from datetime import datetime, timezone
+from typing import Sequence
 
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -15,12 +16,14 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.core.messages import QueueMessages
+from app.db.query import ids_in
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.queue import (
     Queue,
     QueueItem,
 )
 from app.models.tenant.resource_grant import ResourceGrant
+from app.schemas.tenant.queue import QueueTurnPreview
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -126,6 +129,56 @@ async def get_queue_item(
         await tags_service.annotate_tags(session, [item])
         await properties_service.annotate_properties(session, [item])
     return item
+
+
+#: Turns a list's card shows for each queue: whoever is up and who follows.
+PREVIEW_TURNS = 3
+
+
+async def list_previews(
+    session: AsyncSession, queues: Sequence[Queue]
+) -> dict[int, list[QueueTurnPreview]]:
+    """Whose turn it is and who follows, for every queue on a list's page, read
+    in one statement for the whole page. A queue not running shows its order
+    from the top. Held and hidden items are out of the rotation, as they are
+    when the queue runs."""
+    by_id = {queue.id: queue for queue in queues if queue.id is not None}
+    if not by_id:
+        return {}
+    rows = await session.exec(
+        select(
+            QueueItem.id,
+            QueueItem.queue_id,
+            QueueItem.label,
+            QueueItem.color,
+        )
+        .where(
+            ids_in(QueueItem.queue_id, list(by_id)),
+            QueueItem.deleted_at.is_(None),
+            QueueItem.is_visible.is_(True),
+            QueueItem.held_at_round.is_(None),
+        )
+        .order_by(QueueItem.queue_id, QueueItem.position.desc(), QueueItem.id)
+    )
+    rotations: dict[int, list] = {queue_id: [] for queue_id in by_id}
+    for row in rows.all():
+        rotations[row.queue_id].append(row)
+
+    previews: dict[int, list[QueueTurnPreview]] = {}
+    for queue_id, rotation in rotations.items():
+        queue = by_id[queue_id]
+        current = queue.current_item_id if queue.is_active else None
+        start = next(
+            (index for index, row in enumerate(rotation) if row.id == current), 0
+        )
+        turns = (rotation[start:] + rotation[:start])[:PREVIEW_TURNS]
+        previews[queue_id] = [
+            QueueTurnPreview(
+                id=row.id, label=row.label, color=row.color, current=row.id == current
+            )
+            for row in turns
+        ]
+    return previews
 
 
 # ---------------------------------------------------------------------------

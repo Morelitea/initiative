@@ -7,7 +7,7 @@ Initiative; Counters are independent numeric values clamped to optional
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
@@ -21,7 +21,13 @@ from app.models.tenant.counter import (
 )
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.resource_grant import ResourceGrant
-from app.schemas.tenant.counter import CounterSortDirection, CounterSortField
+from app.db.query import ids_in
+from app.schemas.tenant.counter import (
+    CounterPreview,
+    CounterSortDirection,
+    CounterSortField,
+    format_decimal,
+)
 from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -45,6 +51,53 @@ def list_loader_options() -> list:
         selectinload(CounterGroup.initiative),
         undefer(CounterGroup.actions),
     ]
+
+
+#: Counters a list's card shows for each group.
+PREVIEW_COUNTERS = 4
+
+
+async def list_previews(
+    session: AsyncSession, groups: Sequence[CounterGroup]
+) -> dict[int, list[CounterPreview]]:
+    """The first few counters of every group on a list's page, in their own
+    order, read in one statement for the whole page."""
+    ids = [group.id for group in groups if group.id is not None]
+    if not ids:
+        return {}
+    ranked = (
+        select(
+            Counter.id,
+            Counter.counter_group_id,
+            Counter.name,
+            Counter.color,
+            Counter.count,
+            func.row_number()
+            .over(
+                partition_by=Counter.counter_group_id,
+                order_by=(Counter.position, Counter.id),
+            )
+            .label("rank"),
+        )
+        .where(ids_in(Counter.counter_group_id, ids), Counter.deleted_at.is_(None))
+        .subquery()
+    )
+    rows = await session.exec(
+        select(*ranked.c)
+        .where(ranked.c.rank <= PREVIEW_COUNTERS)
+        .order_by(ranked.c.counter_group_id, ranked.c.rank)
+    )
+    previews: dict[int, list[CounterPreview]] = {group_id: [] for group_id in ids}
+    for row in rows.all():
+        previews[row.counter_group_id].append(
+            CounterPreview(
+                id=row.id,
+                name=row.name,
+                color=row.color,
+                count=format_decimal(row.count),
+            )
+        )
+    return previews
 
 
 async def get_counter_group(
