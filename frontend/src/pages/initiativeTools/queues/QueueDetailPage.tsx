@@ -21,7 +21,7 @@ import {
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { ToolChest } from "@/components/tools/ToolChest";
+import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,38 +166,35 @@ export function QueueDetailPage() {
         settingsTo={canEdit ? toolSettingsRoute(Tool.queue, initiativeId, queue.id) : undefined}
         title={queue.name}
         onRename={canEdit ? (name) => updateQueue.mutateAsync({ name }) : undefined}
-        chest={<ToolChest tool={Tool.queue} entity={queue} />}
+        chest={
+          <ToolChest tool={Tool.queue} entity={queue}>
+            <QueueControls
+              queue={queue}
+              onStart={() => startQueue.mutate()}
+              onStop={() => stopQueue.mutate()}
+              onNext={() => advanceTurn.mutate()}
+              onPrevious={() => previousTurn.mutate()}
+              onReset={() => resetQueue.mutate()}
+              onHold={() => holdCurrent.mutate()}
+              isLoading={isControlLoading}
+            />
+            <ToolChestSegment>
+              <QueueViewToggle view={view} onChange={setView} />
+              {canEdit && (
+                <Button variant="outline" size="sm" onClick={() => setAddItemOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  {t("addItem")}
+                </Button>
+              )}
+            </ToolChestSegment>
+          </ToolChest>
+        }
       >
         {queue.description && <p className="text-muted-foreground text-sm">{queue.description}</p>}
       </ToolPageHeader>
 
-      {/* Queue Controls */}
-      <QueueControls
-        queue={queue}
-        onStart={() => startQueue.mutate()}
-        onStop={() => stopQueue.mutate()}
-        onNext={() => advanceTurn.mutate()}
-        onPrevious={() => previousTurn.mutate()}
-        onReset={() => resetQueue.mutate()}
-        onHold={() => holdCurrent.mutate()}
-        isLoading={isControlLoading}
-      />
-
       {/* Items list */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-xl tracking-tight">{t("items")}</h2>
-          <div className="flex items-center gap-2">
-            <QueueViewToggle view={view} onChange={setView} />
-            {canEdit && (
-              <Button variant="outline" size="sm" onClick={() => setAddItemOpen(true)}>
-                <Plus className="h-4 w-4" />
-                {t("addItem")}
-              </Button>
-            )}
-          </div>
-        </div>
-
         {sortedItems.length === 0 ? (
           <Card>
             <CardHeader>
