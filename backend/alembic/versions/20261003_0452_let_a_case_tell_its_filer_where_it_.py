@@ -17,13 +17,13 @@ as it is now and tells the filer only about what moved.
 
 Guild-scoped: applied to ``guild_template`` and every ``guild_<id>``.
 
-Revision ID: 20261003_0451
-Revises: 20261003_0450
+Revision ID: 20261003_0452
+Revises: 20261003_0451
 Create Date: 2026-10-03
 """
 
-revision = "20261003_0451"
-down_revision = "20261003_0450"
+revision = "20261003_0452"
+down_revision = "20261003_0451"
 branch_labels = None
 depends_on = None
 
