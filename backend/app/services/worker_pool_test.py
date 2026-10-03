@@ -1,20 +1,23 @@
-"""The evaluator pool: started on first use, small, and gone when idle or
-shut down."""
+"""The worker pool, as JSONata evaluation uses it: started on first use,
+small, and gone when idle or shut down."""
 
 import time
+from pathlib import Path
 
-from app.services.jsonata_pool import Pool
+from app.services import jsonata_worker
+from app.services.worker_pool import Pool
 
 
 def _pool(**overrides) -> Pool:
+    # time ms, depth, output bytes, address space bytes
+    arguments = ["1000", "500", "1024", str(256 * 1024 * 1024)]
     return Pool(
         **{
+            "handler": Path(jsonata_worker.__file__),
+            "arguments": arguments,
             "size": 2,
             "time_ms": 1000,
-            "depth": 500,
-            "output_bytes": 1024,
             "idle_seconds": 300,
-            "address_space_bytes": 256 * 1024 * 1024,
             **overrides,
         }
     )

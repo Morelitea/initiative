@@ -10,7 +10,7 @@ an expression that raises an error is (:class:`ExpressionError`).
 **Where it runs.** The library checks the time and depth bounds between
 evaluation steps, as the reference implementation does. One step can still run
 long on its own (a regular expression, a large ``$pad``), so evaluations run in
-worker processes (:mod:`app.services.jsonata_pool`), and one still busy after
+worker processes (:mod:`app.services.worker_pool`), and one still busy after
 the time bound and a grace period is stopped and replaced. The pool starts on
 the first evaluation, holds at most ``EXPRESSION_WORKERS`` per process, and a
 worker idle for ``_IDLE_SECONDS`` exits. Parsing, which publishing a manifest
@@ -25,13 +25,14 @@ from __future__ import annotations
 import asyncio
 import atexit
 import threading
+from pathlib import Path
 from typing import Any, Optional
 
 import jsonata
 from jsonata.parser import Parser
 
 from app.core.config import settings
-from app.services.jsonata_pool import Pool, PoolError
+from app.services.worker_pool import Pool, PoolError
 from app.services.marketplace import contract
 
 __all__ = [
@@ -51,6 +52,7 @@ TIME_MS = contract.cap("expressionTimeMs")
 DEPTH = contract.cap("expressionDepth")
 OUTPUT_BYTES = contract.cap("expressionOutputBytes")
 
+_HANDLER = Path(__file__).parent.parent / "jsonata_worker.py"
 #: How long a worker waits for its next evaluation before it exits.
 _IDLE_SECONDS = 300
 #: A worker's address space. Measured: about 42 MB at rest and about 60 MB
@@ -155,12 +157,16 @@ def _the_pool() -> Pool:
             # on its way out.
             atexit.register(shutdown)
             _pool = Pool(
+                handler=_HANDLER,
+                arguments=[
+                    str(TIME_MS),
+                    str(DEPTH),
+                    str(OUTPUT_BYTES),
+                    str(_ADDRESS_SPACE_BYTES),
+                ],
                 size=settings.EXPRESSION_WORKERS,
                 time_ms=TIME_MS,
-                depth=DEPTH,
-                output_bytes=OUTPUT_BYTES,
                 idle_seconds=_IDLE_SECONDS,
-                address_space_bytes=_ADDRESS_SPACE_BYTES,
             )
         return _pool
 

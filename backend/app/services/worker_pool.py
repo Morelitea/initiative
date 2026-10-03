@@ -1,11 +1,12 @@
-"""A small pool of JSONata evaluator processes (:mod:`jsonata_worker`).
+"""A small pool of worker processes (:mod:`worker_host`), each running one
+handler module: JSONata evaluation (:mod:`jsonata_worker`) or the document
+editor (:mod:`editor_worker`).
 
-Each worker evaluates one expression at a time. A worker still busy past an
-evaluation's deadline is stopped and replaced, which is what bounds a step the
-library cannot interrupt on its own. Nothing starts until the first
-evaluation; a worker left idle exits by itself, and :meth:`Pool.shutdown`
-stops the rest. A worker whose parent goes away reads the end of its input and
-exits.
+Each worker answers one request at a time. A worker still busy past a
+request's deadline is stopped and replaced, which is what bounds work a
+handler cannot interrupt on its own. Nothing starts until the first request;
+a worker left idle exits by itself, and :meth:`Pool.shutdown` stops the rest.
+A worker whose parent goes away reads the end of its input and exits.
 
 Calls block, and are made from a thread (``asyncio.to_thread``), so one pool
 serves every event loop in the process.
@@ -26,7 +27,7 @@ from typing import Any, Optional
 
 __all__ = ["Pool", "PoolError"]
 
-WORKER = Path(__file__).with_name("jsonata_worker.py")
+HOST = Path(__file__).with_name("worker_host.py")
 _LENGTH = struct.Struct(">I")
 
 
@@ -43,7 +44,7 @@ class _Worker:
         # ``-I``: the standard library and installed packages only, so the
         # worker imports nothing of the application.
         self.process = subprocess.Popen(
-            [sys.executable, "-I", str(WORKER), *arguments],
+            [sys.executable, "-I", str(HOST), *arguments],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
@@ -87,30 +88,24 @@ class _Worker:
 
 
 class Pool:
-    """Up to ``size`` workers, each answering within ``time_ms`` and a grace
-    period, held to ``address_space_bytes`` of memory, and exiting after
+    """Up to ``size`` workers running ``handler`` with ``arguments``, each
+    answering within ``time_ms`` and a grace period, and exiting after
     ``idle_seconds`` without a request."""
 
     def __init__(
         self,
         *,
+        handler: Path,
+        arguments: list[str],
         size: int,
         time_ms: int,
-        depth: int,
-        output_bytes: int,
         idle_seconds: int,
-        address_space_bytes: int,
         grace_seconds: float = 1.0,
     ) -> None:
         self._size = max(1, size)
+        self._time_ms = time_ms
         self._budget = time_ms / 1000 + grace_seconds
-        self._arguments = [
-            str(time_ms),
-            str(depth),
-            str(output_bytes),
-            str(idle_seconds),
-            str(address_space_bytes),
-        ]
+        self._arguments = [str(handler), str(idle_seconds), *arguments]
         self._lock = threading.Condition()
         self._idle: list[_Worker] = []
         self._live = 0
@@ -122,7 +117,7 @@ class Pool:
             while not self._idle and self._live >= self._size:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise PoolError("no evaluator came free in time")
+                    raise PoolError("no worker came free in time")
                 self._lock.wait(remaining)
             if self._idle:
                 return self._idle.pop(), True
@@ -154,9 +149,7 @@ class Pool:
             except _Overran:
                 worker.stop()
                 self._release(None)
-                raise PoolError(
-                    f"timeout after {self._arguments[0]} milliseconds"
-                ) from None
+                raise PoolError(f"timeout after {self._time_ms} milliseconds") from None
             except BaseException:
                 worker.stop()
                 self._release(None)
@@ -176,7 +169,7 @@ class Pool:
                 break
             # It exited for being idle as it was handed this request: once more
             # on a fresh one.
-        raise PoolError("the evaluator stopped")
+        raise PoolError("the worker stopped")
 
     def shutdown(self) -> None:
         """Stop the waiting workers. One still answering is stopped when it

@@ -1,10 +1,8 @@
-"""One JSONata evaluator process, run as a script by :mod:`jsonata_pool`.
+"""JSONata evaluation in a worker process, for :mod:`worker_host`.
 
-Started as ``python -I jsonata_worker.py <time ms> <depth> <output bytes>
-<idle seconds> <address space bytes>``, so it imports the standard library
-and the JSONata library and nothing of Initiative. It reads one request at a time from stdin and
-writes one answer to stdout, each a length-prefixed JSON document, and exits
-when stdin closes or no request arrives for the idle time.
+The host loads this module by path and calls :func:`start` with ``<time ms>
+<depth> <output bytes> <address space bytes>``; this imports the standard
+library and the JSONata library and nothing of Initiative.
 
 A request is ``{"expression", "document"?, "millis"?, "predicate"?}``; the
 answer is ``{"value"}``, ``{"undefined": true}`` or ``{"error", "position"}``.
@@ -20,12 +18,8 @@ from __future__ import annotations
 
 import json
 import math
-import os
-import select
-import signal
-import struct
 import sys
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import jsonata
 from jsonata.parser import Parser
@@ -33,8 +27,6 @@ from jsonata.utils import Utils
 
 #: The library's code for an evaluation past its time bound.
 _TIMEOUT = "D1012"
-
-_LENGTH = struct.Struct(">I")
 
 #: No answer: JSONata's ``undefined``, which is not ``null``.
 _UNDEFINED = object()
@@ -130,28 +122,12 @@ def answer(request: dict[str, Any], bounds: tuple) -> dict[str, Any]:
         return {"error": str(error) or type(error).__name__}
 
 
-def _read(stream: int, size: int) -> Optional[bytes]:
-    chunks = bytearray()
-    while len(chunks) < size:
-        chunk = os.read(stream, size - len(chunks))
-        if not chunk:
-            return None
-        chunks += chunk
-    return bytes(chunks)
-
-
-def _write(stream: int, data: bytes) -> None:
-    view = memoryview(_LENGTH.pack(len(data)) + data)
-    while view:
-        view = view[os.write(stream, view) :]
-
-
-def main(arguments: list[str]) -> None:
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
+def start(arguments: list[str]) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    """Set the process's bounds, and answer requests within them."""
     # The depth bound is the library's; this only keeps Python's own limit
     # from being reached first.
     sys.setrecursionlimit(20_000)
-    time_ms, depth, output, idle, address_space = (int(value) for value in arguments)
+    time_ms, depth, output, address_space = (int(value) for value in arguments)
     bounds = (time_ms, depth, output)
     try:
         import resource
@@ -159,22 +135,4 @@ def main(arguments: list[str]) -> None:
         resource.setrlimit(resource.RLIMIT_AS, (address_space, address_space))
     except (ImportError, ValueError, OSError):
         pass
-    stdin, stdout = sys.stdin.fileno(), sys.stdout.fileno()
-    while True:
-        ready, _, _ = select.select([stdin], [], [], idle)
-        if not ready:
-            return
-        header = _read(stdin, _LENGTH.size)
-        if header is None:
-            return
-        body = _read(stdin, _LENGTH.unpack(header)[0])
-        if body is None:
-            return
-        reply = answer(json.loads(body), bounds)
-        _write(stdout, json.dumps(reply, ensure_ascii=False).encode("utf-8"))
-        if reply.get("replace"):
-            return
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
+    return lambda request: answer(request, bounds)

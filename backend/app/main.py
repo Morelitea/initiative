@@ -226,10 +226,13 @@ async def lifespan(app: FastAPI):
         from app.db import cohorts
 
         await cohorts.settle_all()
-        # The expression evaluators of declarative apps, if any started.
+        # The expression evaluators of declarative apps and the document
+        # editor, if either started.
+        from app.services import editor_engine
         from app.services.marketplace import expressions
 
         expressions.shutdown()
+        editor_engine.shutdown()
 
 
 # docs_url is left None: the default route would inherit the app-wide CSP and
