@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -40,11 +40,13 @@ from app.core.intake import CaseField, CASE_FIELD_TYPES, IntakeStream, STREAM_FI
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.tenant.comment import Comment, CommentAudience
 from app.models.tenant.intake import DEDUPE_KEY_LENGTH, IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
 from app.models.tenant.property import PropertyDefinition, PropertyType
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.schemas.tenant.property import PropertyValueInput
+from app.services.platform import case_activity
 from app.services.tenant import properties as properties_service
 from app.services.tenant import task_creation as task_creation_service
 from app.db.request_context import SystemGuild
@@ -86,6 +88,21 @@ class CaseRefs:
             CaseField.severity: self.severity,
         }
         return {field: value for field, value in named.items() if value is not None}
+
+
+@dataclass(frozen=True)
+class CaseFiler:
+    """The person who filed a case, when a person did.
+
+    What connects them to it — so they can follow it — and their own words:
+    what they called it, and what they said, which opens the case's
+    conversation with them rather than being folded into a description the
+    people working it will rewrite.
+    """
+
+    user_id: int
+    subject: str
+    words: str
 
 
 @dataclass(frozen=True)
@@ -170,6 +187,34 @@ async def stream_is_bound(stream: IntakeStream) -> bool:
             )
         ).first()
         return project is not None and project[0] is None and project[1] is None
+
+
+async def open_cases_filed_by(user_id: int, stream: IntakeStream) -> int:
+    """How many of ``stream``'s cases ``user_id`` filed that are still open.
+
+    Read in the operations guild, where the cases are, on a system session of
+    its own like every other read the writer makes there. A case is open while
+    its task is out of the trash and short of a ``done`` status — the same
+    test a repeat uses to find the case it joins.
+    """
+    guild_id = await _configured_operations_guild_id()
+    if guild_id is None:
+        return 0
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        count = (
+            await session.exec(
+                select(func.count())
+                .select_from(IntakeCase)
+                .join(Task, Task.id == IntakeCase.task_id)
+                .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+                .where(IntakeCase.filer_user_id == user_id)
+                .where(IntakeCase.stream == stream.value)
+                .where(Task.deleted_at.is_(None))
+                .where(TaskStatus.category != TaskStatusCategory.done)
+            )
+        ).one()
+    return int(count)
 
 
 async def _hold_key(
@@ -330,6 +375,7 @@ async def open_case(
     dedupe_key: Optional[str] = None,
     window: timedelta = DEFAULT_RECURRENCE_WINDOW,
     now: Optional[datetime] = None,
+    filer: Optional[CaseFiler] = None,
 ) -> Optional[CaseOutcome]:
     """File ``stream``'s work as a task in the project bound to it.
 
@@ -338,6 +384,10 @@ async def open_case(
     unconditionally. Errors are not swallowed here: a caller that must not fail
     because of us (a rule watching the request path) runs this in the
     background and handles that itself.
+
+    ``filer`` names the person filing, when a person is. A new case records
+    them and opens with their words, said to them; a repeat that lands in a
+    case already open says what was new on the case instead.
     """
     moment = now or datetime.now(timezone.utc)
     if dedupe_key is not None and len(dedupe_key) > DEDUPE_KEY_LENGTH:
@@ -393,9 +443,23 @@ async def open_case(
                 # run in progress is not annotated once per event.
                 existing.occurrences += 1
                 existing.last_seen_at = moment
-                if existing.noted_at + window <= moment:
+                window_passed = existing.noted_at + window <= moment
+                if window_passed:
                     existing.noted_at = moment
                 session.add(existing)
+                # What a repeat brings with it is noted every time — it is
+                # somebody's words, not one more of the same event — and a
+                # repeat bringing nothing is noted once per window.
+                detail = filer.words if filer is not None else body
+                if detail or window_passed:
+                    await case_activity.post(
+                        session,
+                        task_id=existing.task_id,
+                        kind=case_activity.ActivityKind.repeat,
+                        text=case_activity.repeat_text(
+                            occurrences=existing.occurrences, detail=detail
+                        ),
+                    )
                 await session.commit()
                 return CaseOutcome(task_id=existing.task_id, opened=False)
 
@@ -426,7 +490,21 @@ async def open_case(
                 last_seen_at=moment,
                 noted_at=moment,
                 occurrences=1,
+                filer_user_id=filer.user_id if filer is not None else None,
+                filer_subject=filer.subject if filer is not None else None,
             )
         )
+        if filer is not None:
+            # Their words open the conversation with them, under their name.
+            # Named explicitly: the routing carries no user, so the trigger
+            # would otherwise leave the author empty.
+            session.add(
+                Comment(
+                    task_id=task.id,
+                    content=filer.words,
+                    created_by=filer.user_id,
+                    audience=CommentAudience.filer,
+                )
+            )
         await session.commit()
         return CaseOutcome(task_id=task.id, opened=True)

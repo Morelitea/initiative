@@ -10,6 +10,7 @@ from pydantic import ConfigDict, Field, computed_field, field_validator, model_v
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
+from app.models.tenant.comment import CommentAudience
 from app.schemas.platform.user import PersonShape, ProfileDecorations
 from app.services.platform import presence
 
@@ -153,6 +154,13 @@ class CommentRead(CommentBase):
     # where they administer the community or manage the initiative. Filled by
     # the service's serializer from the same rule the delete route applies.
     can_remove: bool = False
+    # Who it is said to. ``filer`` on the part of an operations case that is
+    # said to the person who filed it; ``members`` on everything else.
+    audience: CommentAudience = CommentAudience.members
+    # What the platform posted it as, on a note the platform wrote on an
+    # operations case. Null on everything a person or an app wrote — which
+    # is how a client tells the platform's notes from an app's.
+    system_kind: Optional[str] = None
 
 
 class CommentListResponse(SanitizedBaseModel):

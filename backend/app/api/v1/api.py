@@ -12,7 +12,6 @@ from app.api.deps import DirectMessagesEnabledDep
 #                          single guild context (see /me routes below).
 from app.api.v1.tenant_endpoints import (
     moderation,
-    support,
     archive,
     query,
     smart_chips,
@@ -98,6 +97,7 @@ from app.api.v1.platform_endpoints import (
     second_factor,
     sessions,
     settings,
+    tickets,
     user_view_preferences,
     users,
     version,
@@ -260,7 +260,6 @@ guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 guild_router.include_router(moderation.router, tags=["moderation"])
 # Asking whoever runs the deployment for help. Guild-scoped because whether
 # it is offered at all is the community's own setting.
-guild_router.include_router(support.router, prefix="/support", tags=["support"])
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])
 guild_router.include_router(reactions.router, prefix="/reactions", tags=["reactions"])
 # Guild-scoped AI config (guild/user levels). Platform AI config is top-level.
@@ -371,7 +370,7 @@ api_router.include_router(guild_router)
 # ---------------------------------------------------------------------------
 me_router = APIRouter(prefix="/me")
 me_router.include_router(tasks.me_router, tags=["tasks"])
-me_router.include_router(moderation.me_router, tags=["moderation"])
+me_router.include_router(tickets.me_router, tags=["tickets"])
 # The My Tools page: every tool's cross-guild list, mounted once per tool from
 # MY_TOOL_LISTS, plus the tab counts. One tag, because they are one page rather
 # than nine domains reaching across guilds for their own reasons.
