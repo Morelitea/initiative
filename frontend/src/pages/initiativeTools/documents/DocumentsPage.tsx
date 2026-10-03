@@ -586,12 +586,7 @@ export const DocumentsView = ({ fixedInitiativeId, canCreate }: DocumentsViewPro
         }}
         actions={
           canCreateDocuments && lockedInitiativeId ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9"
-              onClick={() => setCreateDialogOpen(true)}
-            >
+            <Button size="sm" className="h-9" onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4" />
               {t("page.newDocument")}
             </Button>

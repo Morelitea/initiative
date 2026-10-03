@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { ChevronDown, SearchX, Settings } from "lucide-react";
-import { type ComponentType, Suspense, useMemo } from "react";
+import { type ComponentType, type CSSProperties, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -11,14 +11,13 @@ import {
   SkeletonRegion,
   ToolListSkeleton,
 } from "@/components/skeletons/PageSkeletons";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
 
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
@@ -127,16 +126,15 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     );
   }
 
+  const color = resolveInitiativeColor(initiative.color);
+
   // If user has no access to any features, show a message
   if (availableTabs.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="rounded-lg border p-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
-            <h1 className="font-semibold text-3xl tracking-tight">{initiative.name}</h1>
-          </div>
-          <p className="mt-4 text-muted-foreground">{t("detail.noAccess")}</p>
+        <div className="border-l-2 pl-4" style={{ borderColor: color }}>
+          <h1 className="font-semibold text-3xl tracking-tight">{initiative.name}</h1>
+          <p className="mt-2 text-muted-foreground">{t("detail.noAccess")}</p>
         </div>
       </div>
     );
@@ -152,21 +150,28 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     </SkeletonRegion>
   );
 
-  // Description + counts, rendered inline on wide screens and inside the
+  // One quiet line of facts: the reader's role here, then how many are in it.
+  // Said as words in a row rather than a pill and a separate count strip, and
+  // with nothing standing in for a description nobody wrote.
+  const facts = [roleBadgeLabel, t("detail.member", { count: memberCount })].filter(
+    (fact): fact is string => Boolean(fact)
+  );
+
+  // Description + facts, rendered inline on wide screens and inside the
   // mobile disclosure — one definition, so the two can't drift.
   const headerDetails = (
     <>
       {initiative.description ? (
         <Markdown content={initiative.description} className="text-muted-foreground" />
-      ) : (
-        <p className="text-muted-foreground text-sm">{t("noDescription")}</p>
-      )}
-      <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
-        <span>{t("detail.member", { count: memberCount })}</span>
-        <span>
-          {t("detail.updated", { date: new Date(initiative.updated_at).toLocaleDateString() })}
-        </span>
-      </div>
+      ) : null}
+      <p className="text-muted-foreground text-sm">
+        {facts.map((fact, index) => (
+          <span key={fact}>
+            {index > 0 ? <span aria-hidden> · </span> : null}
+            {fact}
+          </span>
+        ))}
+      </p>
     </>
   );
 
@@ -178,17 +183,13 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
           The row never wraps — a long name wraps its own text instead (it can
           shrink past its content, hence min-w-0), so the gear stays put. */}
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <InitiativeColorDot color={initiative.color} className="h-4 w-4 shrink-0" />
-            <h1 className="min-w-0 break-words font-semibold text-3xl tracking-tight">
-              {initiative.name}
-            </h1>
-            <div className="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
-              {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
-            </div>
-          </div>
-          <div className="hidden space-y-4 sm:block">{headerDetails}</div>
+        {/* The initiative's colour as a rule down the side of its name: the
+            line the sidebar draws under the same initiative's tools. */}
+        <div className="min-w-0 flex-1 border-l-2 pl-4" style={{ borderColor: color }}>
+          <h1 className="min-w-0 break-words font-semibold text-3xl tracking-tight">
+            {initiative.name}
+          </h1>
+          <div className="mt-2 hidden space-y-2 sm:block">{headerDetails}</div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {canManageInitiative ? (
@@ -218,16 +219,23 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
             <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
           </Button>
         </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 pt-2">
-          {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
-          {headerDetails}
-        </CollapsibleContent>
+        <CollapsibleContent className="space-y-3 pt-2">{headerDetails}</CollapsibleContent>
       </Collapsible>
 
       <Tabs value={activeTab}>
-        <TabsBar>
+        {/* Words on a rule rather than a pill bar, the open one underlined in
+            the initiative's colour — the same colour as the rule by its name. */}
+        <TabsBar
+          className="h-auto gap-5 rounded-none border-b bg-transparent p-0"
+          style={{ "--initiative": color } as CSSProperties}
+        >
           {TOOL_TABS.filter(([tabTool]) => availableTabs.includes(tabTool)).map(([tabTool]) => (
-            <TabsTrigger key={tabTool} value={tabTool} asChild>
+            <TabsTrigger
+              key={tabTool}
+              value={tabTool}
+              className="-mb-px rounded-none border-transparent border-b-2 px-0 pt-1 pb-2 data-[state=active]:border-(--initiative) data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              asChild
+            >
               {/* A real link, so a tab is shareable and answers the back
                     button. `search={{}}` clears the page cursor: all six tabs
                     now share one search schema, so a ?page from the queue tab

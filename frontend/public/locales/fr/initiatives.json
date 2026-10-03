@@ -87,7 +87,6 @@
     "noAccess": "Vous n'avez accès à aucune fonctionnalité de cette initiative. Contactez un gestionnaire d'initiative pour obtenir de l'aide.",
     "member_one": "{{count}} membre",
     "member_other": "{{count}} membres",
-    "updated": "Mis à jour {{date}}",
     "initiativeSettings": "Paramètres de l'initiative",
     "documents": "Documents",
     "projects": "Projets",

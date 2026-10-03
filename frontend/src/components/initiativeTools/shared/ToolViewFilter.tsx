@@ -74,7 +74,6 @@ export const ToolViewFilter = ({
       onValueChange={(next) =>
         next && (onChange as (value: ToolView | "all") => void)(next as ToolView | "all")
       }
-      variant="outline"
       aria-label={t("toolViewFilter.label")}
       className="h-9 shrink-0 justify-start"
     >

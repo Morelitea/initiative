@@ -37,7 +37,7 @@ export const ToolFilterButton = ({
 
   return (
     <Button
-      variant={open || activeCount > 0 ? "secondary" : "outline"}
+      variant={open || activeCount > 0 ? "secondary" : "ghost"}
       size="sm"
       className="h-9 gap-2"
       aria-expanded={open}

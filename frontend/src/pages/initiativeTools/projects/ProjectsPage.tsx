@@ -234,12 +234,7 @@ export const ProjectsView = ({ fixedInitiativeId, canCreate }: ProjectsViewProps
             renderItemActions={renderItemActions}
             toolbarActions={
               canCreateProjects && lockedInitiativeId ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9"
-                  onClick={() => setIsComposerOpen(true)}
-                >
+                <Button size="sm" className="h-9" onClick={() => setIsComposerOpen(true)}>
                   <Plus className="h-4 w-4" />
                   {t("addProject")}
                 </Button>

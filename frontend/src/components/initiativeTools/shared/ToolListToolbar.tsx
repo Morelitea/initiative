@@ -135,7 +135,7 @@ export const ToolListToolbar = <V extends string>({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 className="h-9 w-9 p-0"
                 aria-label={t("toolbar.moreActions")}

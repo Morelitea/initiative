@@ -67,7 +67,7 @@ export const ProjectCardLink = ({
         {dragHandleProps ? (
           <button
             type="button"
-            className="rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Reorder project"
             {...dragHandleProps}
           >
@@ -80,9 +80,11 @@ export const ProjectCardLink = ({
         className="block"
       >
         <Card className="overflow-hidden">
-          {initiativeColor ? (
+          {/* Which initiative a card is from, where a list mixes them; inside
+              one initiative every card would wear the same colour. */}
+          {initiativeColor && showInitiative ? (
             <div
-              className="h-1.5 w-full"
+              className="h-1 w-full"
               style={{ backgroundColor: initiativeColor }}
               aria-hidden="true"
             />
@@ -151,7 +153,7 @@ export const ProjectRowLink = ({
       {dragHandleProps ? (
         <button
           type="button"
-          className="absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-full border bg-background p-1 text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute top-1/2 left-4 z-10 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Reorder project"
           {...dragHandleProps}
         >
@@ -181,8 +183,14 @@ export const ProjectRowLink = ({
         className="block"
       >
         <Card
-          className={cn("p-4 pr-16", actions && "pr-24", initiativeColor && "border-l-4")}
-          style={initiativeColor ? { borderLeftColor: initiativeColor } : undefined}
+          className={cn(
+            "p-4 pr-16",
+            actions && "pr-24",
+            initiativeColor && showInitiative && "border-l-4"
+          )}
+          style={
+            initiativeColor && showInitiative ? { borderLeftColor: initiativeColor } : undefined
+          }
         >
           <div className={`flex flex-wrap items-center gap-4 ${dragHandleProps ? "pl-10" : ""}`}>
             {project.icon ? <span className="text-2xl leading-none">{project.icon}</span> : null}

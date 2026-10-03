@@ -87,7 +87,6 @@
     "noAccess": "Du hast auf keine Funktionen in dieser Initiative Zugriff. Wende dich an einen Initiative-Manager, um Hilfe zu erhalten.",
     "member_one": "{{count}} Mitglied",
     "member_other": "{{count}} Mitglieder",
-    "updated": "Aktualisiert am {{date}}",
     "initiativeSettings": "Initiative-Einstellungen",
     "documents": "Dokumente",
     "projects": "Projekte",

@@ -297,12 +297,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
           }}
           actions={
             canCreatePosts ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9"
-                onClick={() => setCreateOpen(true)}
-              >
+              <Button size="sm" className="h-9" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
                 {t("createPost")}
               </Button>

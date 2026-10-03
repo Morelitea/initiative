@@ -506,7 +506,7 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
         }}
         actions={
           canCreateHere ? (
-            <Button variant="outline" size="sm" className="h-9" onClick={() => setCreateOpen(true)}>
+            <Button size="sm" className="h-9" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
               {t(entry.text.create)}
             </Button>
