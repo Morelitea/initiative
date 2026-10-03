@@ -87,5 +87,11 @@
     "submit": "Envoyer",
     "thanks": "Envoyé. Quelqu'un s'en chargera.",
     "error": "Impossible d'envoyer. Réessayez dans un instant."
+  },
+  "contact": {
+    "title": "Prendre contact",
+    "description": "Écrivez aux personnes qui gèrent ce serveur à cette adresse, et elles vous répondront.",
+    "copy": "Copier l'adresse",
+    "write": "Écrire un e-mail"
   }
 }

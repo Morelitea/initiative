@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
-import { AskForHelpDialog } from "@/components/support/AskForHelpDialog";
+import { ContactDialog } from "@/components/tickets/ContactDialog";
+import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,7 @@ import {
 import { useBillingPortal } from "@/hooks/useBillingPortal";
 import { useGuildPaymentIssue } from "@/hooks/useGuildPaymentIssue";
 import type { GuildEntry } from "@/hooks/useGuilds";
-import { useSupportAvailability } from "@/hooks/useSupport";
+import { useTicketAvailability } from "@/hooks/useTickets";
 import { getSessionItem, setSessionItem } from "@/lib/storage";
 
 const SEEN_KEY_PREFIX = "guild-status-notice:";
@@ -44,16 +45,27 @@ export const GuildStatusNotice = ({ guild }: { guild: GuildEntry }) => {
   const paymentFailed = askBilling && issue.data?.payment_failed === true;
 
   const askSupport = noticeOpen && (!askBilling || issue.isFetched) && !paymentFailed;
-  const support = useSupportAvailability(guild.id, { enabled: askSupport, retry: false });
-  const canAskForHelp = askSupport && support.data?.available === true;
+  const support = useTicketAvailability(guild.id, {
+    enabled: askSupport || stage === "help",
+    retry: false,
+  });
+  const offered = support.data?.support;
+  // A form where the deployment takes help requests from here; otherwise the
+  // address it gave, which is still somebody to ask.
+  const contact = offered?.mode === "email" ? offered.contact : null;
+  const canAskForHelp = askSupport && (offered?.mode === "form" || contact != null);
 
   if (stage === "closed") return null;
 
   if (stage === "help") {
-    return (
-      <AskForHelpDialog
+    const close = (open: boolean) => !open && setStage("closed");
+    return contact ? (
+      <ContactDialog open onOpenChange={close} contact={contact} />
+    ) : (
+      <FileTicketDialog
         open
-        onOpenChange={(open) => !open && setStage("closed")}
+        onOpenChange={close}
+        ticket={{ stream: "support" }}
         guildId={guild.id}
       />
     );

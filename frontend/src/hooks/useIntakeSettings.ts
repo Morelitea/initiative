@@ -55,7 +55,8 @@ export const useIntakeOptions = (options?: QueryOpts<IntakeOptionsRead>) =>
  * Both reads are invalidated by every write: naming a community changes what
  * the pickers can offer, and binding a stream changes what the list shows.
  */
-const refreshIntake = () => invalidate(q.intakeSettings(), q.intakeOptions());
+const refreshIntake = () =>
+  invalidate(q.intakeSettings(), q.intakeOptions(), q.ticketAvailability());
 
 export const useUpdateOperationsGuild = (
   options?: MutationOpts<IntakeSettingsRead, OperationsGuildUpdate>

@@ -3,6 +3,7 @@ import {
   BadgeInfo,
   ChevronLeft,
   ChevronRight,
+  CircleQuestionMark,
   CircleUserRound,
   LogOut,
   Settings,
@@ -42,6 +43,7 @@ import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { isStatusEmpty, StatusBubble, StatusEditor } from "@/components/user/ProfileStatus";
 import { VersionDialog } from "@/components/VersionDialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { docsUrl } from "@/lib/links";
 import { presenceLabelKey } from "@/lib/presence";
 import { decorationSrc, resolveDecoration } from "@/lib/profileDecorations";
 import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
@@ -408,8 +410,8 @@ export const SidebarUserFooter = ({
               </button>
             </VersionDialog>
 
-            {/* The two icons are one group at the right edge, not two things
-                spread across the row by justify-between. */}
+            {/* The icons are one group at the right edge, not things spread
+                across the row by justify-between. */}
             <div className="flex items-center gap-3">
               <Tooltip delayDuration={300}>
                 <TooltipTrigger asChild>
@@ -426,10 +428,27 @@ export const SidebarUserFooter = ({
                 </TooltipContent>
               </Tooltip>
 
-              {/* The question mark was the documentation link and still leaves
-                  for the docs where nobody takes help requests — it just leads
-                  with the FAQ now, and becomes the form itself in a community
-                  that has switched support on. */}
+              {/* The documentation, always: what most questions want, and
+                  never standing in for somebody to ask. */}
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <a
+                    href={docsUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label={t("documentation")}
+                  >
+                    <CircleQuestionMark className="h-4 w-4" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  <p>{t("documentation")}</p>
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Somebody to ask, where there is: the form in a community that
+                  takes help requests, else the address the deployment gave. */}
               <AskForHelpButton />
             </div>
           </div>

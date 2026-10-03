@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   billing: null as { url: string } | null,
   // The phone app, where nothing may be sold.
   native: false,
-  support: { available: false } as { available: boolean } | undefined,
+  support: { mode: "none", contact: null } as { mode: string; contact: string | null } | undefined,
 }));
 const askMock = vi.hoisted(() => vi.fn());
 const openPortalMock = vi.hoisted(() => vi.fn());
@@ -22,11 +22,14 @@ vi.mock("@/hooks/useBillingPortal", () => ({
     openPortal: openPortalMock,
   }),
 }));
-vi.mock("@/hooks/useSupport", async () => {
-  const actual = await vi.importActual<typeof import("@/hooks/useSupport")>("@/hooks/useSupport");
+vi.mock("@/hooks/useTickets", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useTickets")>("@/hooks/useTickets");
   return {
     ...actual,
-    useSupportAvailability: () => ({ data: state.support, isPending: false }),
+    useTicketAvailability: () => ({
+      data: state.support && { support: state.support, moderation: state.support },
+      isPending: false,
+    }),
   };
 });
 vi.mock("@/api/generated/communities/communities", () => ({
@@ -65,7 +68,7 @@ describe("GuildStatusNotice", () => {
     window.sessionStorage.clear();
     state.native = false;
     state.billing = null;
-    state.support = { available: false };
+    state.support = { mode: "none", contact: null };
     askMock.mockReset();
     openPortalMock.mockReset();
   });
@@ -115,11 +118,22 @@ describe("GuildStatusNotice", () => {
   });
 
   it("offers a support request when help is on", async () => {
-    state.support = { available: true };
+    state.support = { mode: "form", contact: null };
     renderWithProviders(<GuildStatusNotice guild={seatGuild()} />);
     await userEvent.click(await screen.findByRole("button", { name: "Contact support" }));
     expect(await screen.findByLabelText("What is this about?")).toBeInTheDocument();
     expect(screen.queryByText("Something is wrong")).toBeNull();
+  });
+
+  it("offers the address the deployment gave when it takes no requests", async () => {
+    state.support = { mode: "email", contact: "help@example.org" };
+    renderWithProviders(<GuildStatusNotice guild={seatGuild()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Contact support" }));
+    expect(await screen.findByText("help@example.org")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Write an email" })).toHaveAttribute(
+      "href",
+      "mailto:help@example.org"
+    );
   });
 
   it("offers only OK when help is off", async () => {

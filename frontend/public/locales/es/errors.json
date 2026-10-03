@@ -644,6 +644,8 @@
   "MODERATION_NOT_A_MODERATOR": "Solo los moderadores pueden ver eso",
   "SUPPORT_NOT_AVAILABLE": "Esta comunidad no acepta solicitudes de ayuda. Consulta las preguntas frecuentes.",
   "SUPPORT_NOWHERE_TO_SEND": "Las solicitudes de ayuda están activadas aquí, pero todavía no hay nadie configurado para recibirlas. Avisa a un administrador de la comunidad.",
+  "TICKET_FILING_TOO_FAST": "Has enviado varias en poco tiempo. Espera un rato antes de enviar otra.",
+  "TICKET_TOO_MANY_OPEN": "Ya tienes varias abiertas. Podrás enviar otra cuando se cierre alguna.",
   "PROJECTS_NOT_ENABLED": "Los proyectos no están habilitados para esta iniciativa",
   "DOCUMENTS_NOT_ENABLED": "Los documentos no están habilitados para esta iniciativa",
   "SETTINGS_LOGIN_METHODS_EMPTY": "Al menos una forma de entrar debe seguir activa.",

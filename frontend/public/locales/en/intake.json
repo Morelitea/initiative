@@ -87,5 +87,11 @@
     "submit": "Send",
     "thanks": "Sent. Somebody will pick it up.",
     "error": "Could not send that. Try again in a moment."
+  },
+  "contact": {
+    "title": "Get in touch",
+    "description": "Write to the people who run this server at this address, and they'll get back to you.",
+    "copy": "Copy address",
+    "write": "Write an email"
   }
 }

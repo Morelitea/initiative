@@ -373,6 +373,12 @@ const intakeSettings = (): Spec => ({ personalExact: ["/api/v1/settings/intake"]
 
 const intakeOptions = (): Spec => ({ personalExact: ["/api/v1/settings/intake/options"] });
 
+/** What each kind of ticket offers the reader. Moves with the intake settings
+ *  and with a community's help-request switch. */
+const ticketAvailability = (): Spec => ({
+  personalExact: ["/api/v1/me/tickets/availability"],
+});
+
 /** One initiative's moderation reports. A prefix, so the open list and the
  *  settled one — which differ only in their params — both move on a write. */
 const moderationReports = (initiativeId: number): Spec => ({
@@ -645,6 +651,7 @@ export const q = {
   platformAuthSettings,
   intakeOptions,
   intakeSettings,
+  ticketAvailability,
   moderationReports,
   contactGrants,
   contacts,

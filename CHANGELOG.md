@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The API reference is always served,** at `/api/v1/docs` with its schema at `/api/v1/openapi.json`. `ENABLE_API_DOCS` is gone; a deployment that still sets it starts as before and ignores it.
 - **The app's first screen asks where your Initiative runs.** Pick **Self-hosted** and enter your server's address.
 - **The app opens faster.** The sign-in page loads less than half the code it used to, in 30 files rather than nearly 170, and the rest of the app loads as you reach it.
+- **Documentation and Ask for help are two buttons now.** The question mark at the foot of the sidebar always opens the documentation. **Ask for help**, the lifebuoy beside it, shows wherever there is somebody to ask: the form in a community that takes help requests, or else your server's support address. The "Something is wrong" notice offers the address too.
+- **App and API integrations:** help requests and reports are filed with `POST /me/tickets`, which takes a `stream` of `support` or `moderation`, and `GET /me/tickets/availability` says what each kind offers. `POST /me/reports` and `/c/{id}/support` have been removed. Comments report `audience` and `system_kind`.
 
 ### Fixed
 
@@ -50,7 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The help form isn't offered while the support project is archived.** It took the request and then said there was nowhere to send it.
 - **An escalated report now carries what its reporters wrote** to the platform, and a report about a whole community names that community on the case.
 - **Access grants are marked expired when their time runs out**, rather than staying "approved" on the Access page, and the audit log records each one. Opening the billing portal from the Communities tab is now recorded in the audit log like any other grant somebody issues themselves.
-- **Help requests and reports are limited per account**, to 10 and 30 an hour.
+- **Help requests and reports are limited per account**, to 10 and 30 an hour, and one account can have five help requests open at once.
+- **A second report of something the platform is already looking at adds what its reporter wrote to the case**, rather than only counting it. The platform's notes on a case show as "Platform" rather than "An app".
 
 ## [0.74.0] - 2026-10-01
 

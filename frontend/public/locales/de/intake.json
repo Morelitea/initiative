@@ -87,5 +87,11 @@
     "submit": "Senden",
     "thanks": "Gesendet. Jemand kümmert sich darum.",
     "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal."
+  },
+  "contact": {
+    "title": "Kontakt aufnehmen",
+    "description": "Schreib den Betreibern dieses Servers an diese Adresse, und sie melden sich bei dir.",
+    "copy": "Adresse kopieren",
+    "write": "E-Mail schreiben"
   }
 }

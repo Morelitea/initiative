@@ -1,31 +1,28 @@
 /**
  * "Ask for help", in the sidebar's bottom row.
  *
- * Always here, whatever the community has decided — somebody who needs help
- * should not have to find out first whether there is anybody to ask. What it
- * does is what changes: a community that takes help requests gets the form,
- * and everywhere else — including outside any community — it opens the FAQ,
- * which is the answer to most of what would be typed into the form anyway.
+ * Here wherever there is somebody to ask: a community that takes help
+ * requests gets the form, and where the deployment takes none but has said who
+ * to write to, the button shows that address. Where there is neither, it is
+ * not drawn — the documentation has a button of its own beside it, so a dead
+ * end never stands in for one.
  */
 
-import { CircleQuestionMark } from "lucide-react";
+import { LifeBuoy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { AskForHelpDialog } from "@/components/support/AskForHelpDialog";
+import { ContactDialog } from "@/components/tickets/ContactDialog";
+import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { FAQ_URL, useSupportAvailability } from "@/hooks/useSupport";
-
-const ICON_CLASS = "text-muted-foreground transition-colors hover:text-foreground";
+import { useTicketAvailability } from "@/hooks/useTickets";
 
 export const AskForHelpButton = () => {
   const { t } = useTranslation("intake");
   const guildId = useActiveGuildId();
   const [open, setOpen] = useState(false);
-  // A failed or unfinished read leaves the FAQ, which is the honest fallback:
-  // the form is the thing that needs an answer to work.
-  const { data } = useSupportAvailability(guildId);
+  const { data } = useTicketAvailability(guildId);
 
   // The sidebar stays mounted across a community switch, so a request opened
   // in one could be sent to the next. Changing community closes it: a help
@@ -35,8 +32,14 @@ export const AskForHelpButton = () => {
     setOpen(false);
   }, [guildId]);
 
+  const support = data?.support;
+  const canAsk = support?.mode === "form" && guildId != null;
+  const contact = support?.mode === "email" ? support.contact : null;
+  // Nobody to ask from here, or no answer yet: nothing is drawn rather than a
+  // control that would lead nowhere.
+  if (!canAsk && !contact) return null;
+
   const label = t("help.action");
-  const canAsk = Boolean(data?.available) && guildId != null;
 
   return (
     <>
@@ -45,36 +48,32 @@ export const AskForHelpButton = () => {
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
-            {canAsk ? (
-              <button
-                type="button"
-                className={`${ICON_CLASS} cursor-pointer`}
-                aria-label={label}
-                onClick={() => setOpen(true)}
-              >
-                <CircleQuestionMark className="h-4 w-4" />
-              </button>
-            ) : (
-              <a
-                href={FAQ_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={ICON_CLASS}
-                aria-label={label}
-              >
-                <CircleQuestionMark className="h-4 w-4" />
-              </a>
-            )}
+            <button
+              type="button"
+              className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={label}
+              onClick={() => setOpen(true)}
+            >
+              <LifeBuoy className="h-4 w-4" />
+            </button>
           </TooltipTrigger>
           <TooltipContent side="top">
             <p>{label}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      {open && guildId != null ? (
+      {open && canAsk ? (
         // Keyed on the community as well, so nothing typed can outlive the one
         // it was typed in even if the close above were ever missed.
-        <AskForHelpDialog key={guildId} open={open} onOpenChange={setOpen} guildId={guildId} />
+        <FileTicketDialog
+          key={guildId}
+          open={open}
+          onOpenChange={setOpen}
+          ticket={{ stream: "support" }}
+          guildId={guildId}
+        />
+      ) : open && contact ? (
+        <ContactDialog open={open} onOpenChange={setOpen} contact={contact} />
       ) : null}
     </>
   );

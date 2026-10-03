@@ -14,7 +14,7 @@ import { Flag } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ReportDialog } from "@/components/moderation/ReportDialog";
+import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -72,12 +72,11 @@ export const ReportButton = ({
         </Tooltip>
       </TooltipProvider>
       {open && (
-        <ReportDialog
+        <FileTicketDialog
           open={open}
           onOpenChange={setOpen}
-          targetType={targetType}
-          targetId={targetId}
-          guildId={guildId === undefined ? activeGuildId : guildId}
+          ticket={{ stream: "moderation", targetType, targetId }}
+          guildId={(guildId === undefined ? activeGuildId : guildId) ?? null}
         />
       )}
     </>
