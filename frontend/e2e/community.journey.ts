@@ -138,7 +138,10 @@ test("an invited member sees only what they are let into", async ({ browser }) =
 
   await ownerPage.goto(`${made.communityPath}/settings/users`);
   await ownerPage.getByRole("button", { name: "Generate invite" }).click();
-  const invite = await ownerPage.getByText(/\/invite\//).textContent();
+  // The start flow already made one link; the list is newest first.
+  const links = ownerPage.getByText(/\/invite\//);
+  await expect(links).toHaveCount(2);
+  const invite = await links.first().textContent();
   expect(invite).toBeTruthy();
 
   const page = await freshPage(browser);
