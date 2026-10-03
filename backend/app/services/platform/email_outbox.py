@@ -170,7 +170,7 @@ async def enqueue_account_letter(
     per address, so each copy retries on its own: every address the account
     has proved, and ``also_to`` beside them for an address it no longer holds.
     ``notice`` names the account notice the letter is, and the worker gives
-    each copy a link that answers it. Written on a system session of its own,
+    each copy to one of the account's own addresses a link that answers it. Written on a system session of its own,
     because it is raised once the change it reports has been committed.
     """
     from app.db.session import SystemSessionLocal
@@ -179,11 +179,8 @@ async def enqueue_account_letter(
     async with SystemSessionLocal() as session:
         if not await email_service.email_configured(session):
             return
-        recipients = list(
-            dict.fromkeys(
-                [*await addresses.proven_addresses(session, user_id=user.id), *also_to]
-            )
-        )
+        own = await addresses.proven_addresses(session, user_id=user.id)
+        recipients = list(dict.fromkeys([*own, *also_to]))
         if not recipients:
             return
         await session.exec(
@@ -195,7 +192,11 @@ async def enqueue_account_letter(
                         "category": NotificationCategory.account.value,
                         "security": True,
                         "recipient_encrypted": encrypt_field(address, SALT_EMAIL),
-                        "change": {"notice": notice} if notice else None,
+                        # A link speaks for an address of the account's, so
+                        # an address it no longer holds gets none.
+                        "change": (
+                            {"notice": notice} if notice and address in own else None
+                        ),
                         "locale": getattr(user, "locale", None) or "en",
                         "subject": pieces.subject,
                         "headline": pieces.headline,

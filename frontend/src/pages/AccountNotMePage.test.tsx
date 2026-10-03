@@ -8,8 +8,9 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
@@ -23,6 +24,7 @@ const PAGE = {
 describe("AccountNotMePage", () => {
   it("signs out everywhere only when the button is pressed", async () => {
     const user = userEvent.setup();
+    const refreshUser = vi.fn().mockResolvedValue(undefined);
     const signOuts: unknown[] = [];
     server.use(
       http.post("/api/v1/auth/account-change/read", () =>
@@ -34,7 +36,7 @@ describe("AccountNotMePage", () => {
       })
     );
 
-    renderPage(AccountNotMePage, PAGE);
+    renderPage(AccountNotMePage, { ...PAGE, auth: { user: buildUser(), refreshUser } });
 
     expect(await screen.findByText(/a change to your passkeys/i)).toBeInTheDocument();
     expect(signOuts).toEqual([]);
@@ -43,6 +45,9 @@ describe("AccountNotMePage", () => {
 
     expect(await screen.findByText(/you're signed out everywhere/i)).toBeInTheDocument();
     expect(signOuts).toEqual([{ token: "a-token-from-the-email" }]);
+    // A signed-in browser asks after its own session, which may be one of
+    // those just ended.
+    expect(refreshUser).toHaveBeenCalledTimes(1);
   });
 
   it("says so when the link has expired or been used", async () => {

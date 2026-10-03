@@ -123,11 +123,15 @@ async def consume_token(
     *,
     token: str,
     purpose: UserTokenPurpose,
+    commit: bool = True,
 ) -> Optional[UserToken]:
     """Spend a live token and return it, or ``None``.
 
     One conditional update claims it, so a token is spent once however many
     requests present it at the same moment.
+
+    ``commit=False`` stages the spend, for a caller whose work and spend must
+    land together, so a link whose work failed stays good.
     """
     now = datetime.now(timezone.utc)
     claimed = (
@@ -145,7 +149,8 @@ async def consume_token(
     ).first()
     if claimed is None:
         return None
-    await session.commit()
+    if commit:
+        await session.commit()
     return await session.get(UserToken, claimed[0], populate_existing=True)
 
 

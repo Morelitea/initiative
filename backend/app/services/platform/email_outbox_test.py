@@ -234,9 +234,9 @@ async def test_a_channel_switched_off_after_writing_is_not_delivered(
 async def test_an_account_letter_goes_to_each_address_with_its_own_link(
     session: AsyncSession, configured, sent
 ):
-    """One copy per proved address, and per address named beside them, each
-    sent alone with a "This wasn't me" link of its own that records where it
-    went."""
+    """One copy per proved address, each sent alone with a "This wasn't me"
+    link of its own that records where it went. An address named beside them,
+    which the account no longer holds, gets its copy with no link."""
     user = await create_user(session, email="first@example.com")
     addresses.record_address(
         session,
@@ -255,13 +255,18 @@ async def test_an_account_letter_goes_to_each_address_with_its_own_link(
     )
 
     await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
-    everyone = ["first@example.com", "gone@example.com", "second@example.com"]
-    assert sorted(letter["recipient"] for letter in sent) == everyone
+    own = ["first@example.com", "second@example.com"]
+    assert sorted(letter["recipient"] for letter in sent) == sorted(
+        [*own, "gone@example.com"]
+    )
     links = {
-        re.search(r"/account/not-me\?token=([\w-]+)", letter["html"]).group(1)
+        letter["recipient"]: re.search(
+            r"/account/not-me\?token=([\w-]+)", letter["html"]
+        )
         for letter in sent
     }
-    assert len(links) == 3
+    assert links["gone@example.com"] is None
+    assert len({links[address].group(1) for address in own}) == 2
 
     tokens = (
         await session.exec(
@@ -272,7 +277,7 @@ async def test_an_account_letter_goes_to_each_address_with_its_own_link(
         )
     ).all()
     assert sorted((token.change or {})["recipient"] for token in tokens) == sorted(
-        hash_email(address) for address in everyone
+        hash_email(address) for address in own
     )
     assert {(token.change or {})["notice"] for token in tokens} == {"passkey.added"}
 

@@ -3808,7 +3808,7 @@ export const useReadAccountChange = <TError = ErrorType<HTTPValidationError>, TC
 /**
  * Sign the account out of every browser, phone and computer, and turn off
  * its API keys. Its password, addresses and other ways in stay as they are.
- * The link is spent.
+ * The link is spent with the work, so a sign-out that fails leaves it good.
  * @summary Sign Out Everywhere
  */
 export const signOutEverywhere = (

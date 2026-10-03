@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 type Step = "reading" | "ready" | "done" | "invalid";
@@ -44,6 +45,7 @@ const subjectKey = (notice: string) => {
 export const AccountNotMePage = () => {
   const { t } = useTranslation("auth");
   const { token } = useSearch({ strict: false }) as { token?: string };
+  const { user, refreshUser } = useAuth();
   const [step, setStep] = useState<Step>(token ? "reading" : "invalid");
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -66,6 +68,10 @@ export const AccountNotMePage = () => {
     try {
       await signOutEverywhere({ token });
       setStep("done");
+      // This browser may be one of the sessions just ended. Asking for its
+      // own account finds out, and the usual expiry handling signs it out
+      // here too; a browser signed in to somebody else stays as it is.
+      if (user) void refreshUser().catch(() => undefined);
     } catch (err) {
       setError(getErrorMessage(err, "auth:notMe.failed"));
     } finally {
