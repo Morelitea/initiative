@@ -20,6 +20,7 @@ import {
   buildTaskCalendarEntries,
   buildTaskOccurrenceEntries,
   CALENDAR_VIEW_MODE_KEY,
+  CALENDAR_VIEW_OPTIONS,
   type CalendarEntry,
   type CalendarEntryReschedule,
   CalendarView,
@@ -684,6 +685,16 @@ export const CalendarsView = ({
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
         }
+        view={{
+          value: viewMode,
+          onChange: setViewMode,
+          options: CALENDAR_VIEW_OPTIONS.map(({ mode, icon, labelKey }) => ({
+            value: mode,
+            label: t(`common:${labelKey}`),
+            icon,
+          })),
+          label: t("common:calendar.viewMode"),
+        }}
         actions={
           communityScope && canCreateCalendars ? (
             <Button size="sm" className="h-9" onClick={() => setCreateCalendarOpen(true)}>
@@ -869,6 +880,8 @@ export const CalendarsView = ({
           entries={calendarEntries}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          // Offered in the toolbar, where other tools keep their views.
+          hideViewSwitch
           focusDate={focusDate}
           onFocusDateChange={setFocusDate}
           onEntryClick={handleEntryClick}
