@@ -14,6 +14,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_core import PydanticSerializationError
 
+from app.core.config import settings
 from app.core.identity_boundary import (
     UNKNOWN_REFERENCE_ERROR,
     BoundaryPhase,
@@ -254,9 +255,15 @@ def _mention(person: int | str, name: str) -> dict[str, Any]:
     }
 
 
-_PICTURE = f"/uploads/{_GUILD}/pasted-ab12.png"
-_FILE = f"https://initiative.example/uploads/{_GUILD}/notes.pdf"
-_ELSEWHERE = "https://pictures.example/logo.png"
+_PICTURE = f"/uploads/{_GUILD}/pasted-ab12.png?size=small"
+_FILE = f"https://initiative.example/uploads/{_GUILD}/notes.pdf#page=2"
+_ELSEWHERE = f"https://pictures.example/uploads/{_GUILD}/logo.png?v=2"
+
+
+@pytest.fixture
+def own_origin(monkeypatch):
+    """This deployment is served at ``initiative.example``."""
+    monkeypatch.setattr(settings, "APP_URL", "https://initiative.example")
 
 
 def _image(src: str) -> dict[str, Any]:
@@ -264,10 +271,11 @@ def _image(src: str) -> dict[str, Any]:
 
 
 def _shown(text: str, picture: str, file: str) -> dict[str, Any]:
-    """A body mentioning Ada, showing a stored picture and file, and a picture
-    from elsewhere."""
+    """A body mentioning Ada, showing a stored picture and file, and a linked
+    picture from another site."""
+    elsewhere = f"[![logo]({_ELSEWHERE})]({_ELSEWHERE})"
     return {
-        "text": f"{text} ![chart]({picture}) [notes.pdf]({file}) ![logo]({_ELSEWHERE})",
+        "text": f"{text} ![chart]({picture}) [notes.pdf]({file}) {elsewhere}",
         "state": {
             "root": {
                 "children": [
@@ -299,7 +307,7 @@ def test_an_install_s_mention_is_stored_with_initiative_s_name():
     assert body.state == {"root": _mention(11, "Ada]")}
 
 
-def test_an_install_reads_a_mention_and_no_stored_file_s_path():
+def test_an_install_reads_a_mention_and_no_stored_file_s_path(own_origin):
     body = _Body.model_validate(_shown("@[Ada](11)", _PICTURE, _FILE))
     with boundary_scope():
         boundary = _boundary(reads_names=True)
@@ -311,7 +319,7 @@ def test_an_install_reads_a_mention_and_no_stored_file_s_path():
     assert dumped == expected
 
 
-def test_derived_text_shows_an_install_no_stored_file_s_path():
+def test_derived_text_shows_an_install_no_stored_file_s_path(own_origin):
     text = f"see {_PICTURE} and {_ELSEWHERE}"
     assert without_upload_paths(text) == text
     with boundary_scope():

@@ -1104,7 +1104,8 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
     client, session, acting_user, role_session
 ):
     """A comment on a task is read through the task's project, so finding one
-    needs ``projects:read`` beside ``comments:read``."""
+    needs ``projects:read`` beside ``comments:read``. Its title is the start of
+    what was written, and mentions and shows files as the comment does."""
     installed = await install_app(
         session,
         acting_user,
@@ -1113,8 +1114,13 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
     )
     project = await _open_project(session, installed, installed.placed, "Open A")
     task = await create_task(session, project, title="stage build")
+    seat = installed.seat.user
+    picture = f"/uploads/{installed.guild.id}/pasted-shot.png?size=small"
     comment = await create_comment(
-        session, installed.seat.user, task=task, content="beacon confirmed"
+        session,
+        seat,
+        task=task,
+        content=f"beacon confirmed @[The Seat]({seat.id}) ![shot]({picture})",
     )
 
     comments_only = await _suggest(
@@ -1135,7 +1141,11 @@ async def test_suggest_asks_the_scope_of_the_tool_a_comment_is_on(
         types=["comment"],
     )
     assert with_projects.status_code == 200, with_projects.text
-    assert [r["entity_id"] for r in with_projects.json()] == [comment.id]
+    [found] = with_projects.json()
+    assert found["entity_id"] == comment.id
+    assert found["title"].startswith("beacon confirmed @[](")
+    assert found["title"].endswith(") ![shot]()")
+    assert_names_nobody(found["title"], [seat.id, installed.guild.id])
 
 
 async def test_a_narrowed_token_suggests_only_its_initiative(

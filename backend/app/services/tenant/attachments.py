@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.core.identity_boundary import UPLOAD_PATH_IN_TEXT
+from app.core.identity_boundary import UPLOAD_PATH_SHAPE
 from app.core.image_headers import read_image_header
 from app.db.query import ids_in
 from app.services.storage import get_guild_storage
@@ -29,6 +29,10 @@ UPLOADS_URL_PREFIX = "/uploads/"
 #: is ever deleted because the text stopped showing it. An image copied in from
 #: a document or a gallery keeps its own name and is never touched.
 PASTED_IMAGE_PREFIX = "pasted-"
+
+#: An upload's address inside markdown: ``/uploads/{guild_id}/{filename}``,
+#: optionally behind an origin.
+_MARKDOWN_UPLOAD_URL = re.compile(rf"(?:https?://[^\s()<>]+?)?{UPLOAD_PATH_SHAPE}")
 
 # Maximum file size for document uploads: 50 MB
 MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024
@@ -233,7 +237,7 @@ async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> Set[str
 def upload_urls_in_markdown(text: str | None) -> Set[str]:
     """Every upload a markdown body shows, normalized."""
     urls: Set[str] = set()
-    for match in UPLOAD_PATH_IN_TEXT.findall(text or ""):
+    for match in _MARKDOWN_UPLOAD_URL.findall(text or ""):
         normalized = normalize_upload_url(match)
         if normalized:
             urls.add(normalized)
@@ -581,7 +585,7 @@ def replace_upload_urls(payload: Any, replacements: Mapping[str, str]) -> Any:
 
     def _walk(value: Any) -> Any:
         if isinstance(value, str):
-            return UPLOAD_PATH_IN_TEXT.sub(_swap, value)
+            return _MARKDOWN_UPLOAD_URL.sub(_swap, value)
         if isinstance(value, dict):
             return {key: _walk(child) for key, child in value.items()}
         if isinstance(value, list):

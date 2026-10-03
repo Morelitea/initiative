@@ -36,7 +36,8 @@ A field marked :data:`UPLOAD_PATH` holds a stored file's path,
 ``/uploads/{guild_id}/{name}``, which names the community by its row id and is
 served to people. A person gets it; an install's response leaves it out. Text
 marked :class:`Mentions` can show a stored file too, as an image or a link: in
-an install's response its path is left empty (:data:`UPLOAD_PATH_IN_TEXT`).
+an install's response the address of each one this deployment serves is left
+empty (:data:`UPLOAD_PATH_SHAPE`).
 
 The boundary lives in a context variable that ``ActorRoute`` opens per request,
 so it never outlives the request that set it.
@@ -51,7 +52,9 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import Annotated, Any, Optional
+from urllib.parse import urlsplit
 
 from pydantic import (
     Field,
@@ -64,6 +67,7 @@ from pydantic import (
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticCustomError, core_schema
 
+from app.core.config import settings
 from app.core.messages import AppMessages
 from app.models.platform.identity_ref import IdentityEntity
 
@@ -79,7 +83,7 @@ __all__ = [
     "STORED_MENTION",
     "UNKNOWN_REFERENCE_ERROR",
     "UPLOAD_PATH",
-    "UPLOAD_PATH_IN_TEXT",
+    "UPLOAD_PATH_SHAPE",
     "admit_install",
     "boundary_scope",
     "current_install_boundary",
@@ -476,16 +480,30 @@ LEXICAL_MENTIONS = Mentions(MentionForm.lexical)
 # --- Stored files ---------------------------------------------------------------
 
 
-#: A stored file's address inside text, ``/uploads/{guild_id}/{name}``,
-#: optionally behind an origin: in a markdown image or link, or a Lexical
-#: node's ``src`` or ``url``.
-UPLOAD_PATH_IN_TEXT = re.compile(r"(?:https?://[^\s()<>]+?)?/uploads/\d+/[\w.-]+")
+#: A stored file's path, ``/uploads/{guild_id}/{name}``, as a pattern.
+UPLOAD_PATH_SHAPE = r"/uploads/\d+/[\w.-]+"
+
+#: Characters an address goes on with: a path after one is part of it.
+_ADDRESS_CHARS = r"\w.~%+@:/?#=&-"
+
+
+@lru_cache(maxsize=4)
+def _stored_file_address(app_url: str) -> re.Pattern[str]:
+    """A stored file's address in text: its path on its own, or behind this
+    deployment's origin (``app_url``, with its path when it has one), with any
+    query and fragment, up to a space, a bracket or the end of the text."""
+    own = urlsplit(app_url.strip())
+    origin = rf"(?<![{_ADDRESS_CHARS}])"
+    if own.netloc:
+        prefix = re.escape(own.path.rstrip("/"))
+        origin = rf"(?:https?://(?i:{re.escape(own.netloc)})(?:{prefix})?|{origin})"
+    return re.compile(rf"{origin}{UPLOAD_PATH_SHAPE}(?:[?#][^\s()<>]*)?")
 
 
 def _without_paths(text: str) -> str:
     """``text`` with each stored file's address emptied: ``![alt]()``,
-    ``[name]()``, a node's ``"src": ""``."""
-    return UPLOAD_PATH_IN_TEXT.sub("", text)
+    ``[name]()``, a node's ``"src": ""``. An address on another site stays."""
+    return _stored_file_address(settings.APP_URL).sub("", text)
 
 
 def _upload_path_withheld(_path: Any) -> bool:
