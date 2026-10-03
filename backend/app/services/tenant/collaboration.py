@@ -2,8 +2,8 @@
 Real-time collaboration service using Yjs (via pycrdt).
 
 A room is the Yjs document plus its persistence, for ANY body several people
-can write at once — a native document, a wiki page. Which row a room is a body
-of, and whose sharing decides who may open it, is declared once in
+can write at once — a document with an editor, a wiki page. Which row a room is
+a body of, and whose sharing decides who may open it, is declared once in
 :mod:`app.services.tenant.collaborative_resources`; nothing here knows about
 documents in particular.
 
@@ -23,17 +23,18 @@ from contextlib import suppress
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
-from pycrdt import Decoder, Doc
+from pycrdt import Doc
 from sqlalchemy import update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from app.core.identity_boundary import MentionForm, without_mention_names
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.services import editor_engine
 from app.services.content_sockets import resource_room, sockets
 from app.services.tenant import attachments as attachments_service
+from app.services.tenant import body_states
+from app.services.tenant.body_states import BodyState
 from app.services.tenant.collaborative_resources import (
     YJS_STATE_COLUMN,
     YJS_UPDATED_COLUMN,
@@ -44,22 +45,11 @@ from app.db.request_context import SystemGuild
 logger = logging.getLogger(__name__)
 
 
-def _clocks(state_vector: bytes) -> dict[int, int]:
-    """A Yjs state vector as ``{client: clock}``: a count, then that many
-    ``(client, clock)`` pairs, all variable-length unsigned integers."""
-    decoder = Decoder(state_vector)
-    return {
-        decoder.read_var_uint(): decoder.read_var_uint()
-        for _ in range(decoder.read_var_uint())
-    }
-
-
 class CollaborationRoom:
     """The live Yjs state of one body, and what it owes the database.
 
-    Holds the merged ``Doc`` every connection reads and writes, the JSON
-    ``content`` an editor last reported for it, and enough bookkeeping to know
-    whether either has moved since it was last written down.
+    Holds the merged ``Doc`` every connection reads and writes, and enough
+    bookkeeping to know whether it has moved since it was last written down.
     """
 
     def __init__(self, guild_id: int, resource_type: str, resource_id: int):
@@ -86,10 +76,6 @@ class CollaborationRoom:
         # Connections that have been handed this room but have not yet reached
         # the register. They are on their way in, so the room is not idle.
         self._holds = 0
-        # The connection whose update the document currently reflects. A
-        # rendering of the document is only current if it came from the tab
-        # that last moved it.
-        self._last_writer: Any = None
         #: Everyone who has changed the document in this room.
         self.writers: set[int] = set()
         # A room dropped from the registry. Nothing should reach one — the
@@ -100,14 +86,14 @@ class CollaborationRoom:
         # commits, and an edit landing in between must not be marked saved.
         self._revision = 0
         self._persisted_revision = 0
-        #: Whether the body is the document editor's: the server made its
-        #: Yjs state and renders its content, so no tab reports one.
-        self.renders_content = False
-        self._content: Optional[dict] = None
-        # The revision the held rendering was made from. Below ``_revision``
-        # means the document has moved since, and a live tab has a newer
-        # rendering on the way.
-        self._content_revision = -1
+        #: How the body moves between its views, for a body with a live
+        #: editor: the server makes its Yjs state and renders its content.
+        self.body: Optional[BodyState] = None
+
+    @property
+    def renders_content(self) -> bool:
+        """Whether the server renders this body's content from its state."""
+        return self.body is not None
 
     @property
     def is_loaded(self) -> bool:
@@ -161,14 +147,16 @@ class CollaborationRoom:
                 return
             spec = resource_for(self.resource_type)
             statement = select(
-                getattr(spec.model, YJS_STATE_COLUMN), spec.editor_body()
+                getattr(spec.model, YJS_STATE_COLUMN), spec.body_kind()
             ).where(spec.model.id == self.resource_id)
             row = (await session.exec(statement)).one_or_none()
             if row:
-                state, self.renders_content = row[0], bool(row[1])
-                if state is None and self.renders_content:
+                state, self.body = row[0], body_states.for_kind(row[1])
+                if self.body is not None and (
+                    state is None or not self.body.holds_body(state)
+                ):
                     state = await _bootstrapped(
-                        self.guild_id, self.resource_type, self.resource_id
+                        self.guild_id, self.resource_type, self.resource_id, self.body
                     )
                 await self.initialize_from_db(yjs_state=state)
             self._loaded = True
@@ -228,37 +216,21 @@ class CollaborationRoom:
         """
         return bytes(self.doc.get_state())
 
-    def known_to(self, state_vector: bytes) -> bool:
-        """Whether a client at ``state_vector`` has everything this room has.
-
-        Only then is that client's rendering a rendering of this room: one that
-        is missing somebody else's edits describes an older document.
-        """
-        theirs = _clocks(state_vector)
-        return all(
-            clock <= theirs.get(client, 0)
-            for client, clock in _clocks(self.state_vector()).items()
-        )
-
-    def apply_update(
-        self, update: bytes, connection: Any = None, user_id: int | None = None
-    ) -> None:
+    def apply_update(self, update: bytes, user_id: int | None = None) -> None:
         """Apply a Yjs update from a client, sent by ``user_id``."""
         self.doc.apply_update(update)
         self._revision += 1
-        self._last_writer = connection
         if user_id is not None:
             self.writers.add(user_id)
 
-    async def rendering(self) -> dict:
-        """What this editor body reads as now, rendered from its live document."""
-        return without_mention_names(
-            await editor_engine.render(self.get_state()), MentionForm.lexical
-        )
+    async def rendering(self) -> Optional[dict]:
+        """What this body reads as now, rendered from its live document."""
+        assert self.body is not None
+        return await self.body.render(self.get_state())
 
     async def write(self, content: dict, version: str, user_id: Optional[int]) -> bool:
-        """Write ``content`` into this editor body's live document, as the
-        server's editor makes it read, if the body still reads as ``version``,
+        """Write ``content`` into this body's live document, as its editor
+        makes it read, if the body still reads as ``version``,
         and hand the change to everyone in the room. It is saved as their
         edits are.
 
@@ -269,9 +241,11 @@ class CollaborationRoom:
         self.hold()
         try:
             async with self._edit_lock:
-                if content_version(await self.rendering()) != version:
+                assert self.body is not None
+                current = await self.rendering()
+                if current is None or content_version(current) != version:
                     return False
-                update = await editor_engine.apply(self.get_state(), content)
+                update = await self.body.apply(self.get_state(), content)
                 self.apply_update(update, user_id=user_id)
                 sockets.emit_bytes(
                     resource_room(self.guild_id, self.resource_type, self.resource_id),
@@ -284,44 +258,9 @@ class CollaborationRoom:
                 self.guild_id, self.resource_type, self.resource_id
             )
 
-    def offer_content(self, content: dict, connection: Any = None) -> bool:
-        """Record the JSON an editor says this document now reads as.
-
-        ``content`` and ``yjs_state`` are two views of one document, and a row
-        whose two views disagree is a document that loads as something other
-        than what was edited. The room writes both together, from one
-        snapshot, and takes the rendering from the connection that last moved
-        the document — that is the tab whose view of it is current. Another
-        tab's rendering is of the document as it stood before, and its own
-        next offer will carry the merged state. A mention in it is kept by id
-        with no name, as every other write keeps one.
-
-        Returns whether the offer was taken.
-        """
-        if self._last_writer is not None and connection is not self._last_writer:
-            return False
-        self._content = without_mention_names(content, MentionForm.lexical)
-        self._revision += 1
-        self._content_revision = self._revision
-        return True
-
-    def snapshot(self) -> Tuple[int, bytes, Optional[dict]]:
-        """The revision being written, and the views of it that are current.
-
-        A rendering older than the document is held back while editors are
-        here: the one that moved the document reports a fresh rendering on its
-        next pass, and that is the one worth pairing with this state. Once the
-        room is empty no fresher rendering is coming, so the best one held is
-        written.
-        """
-        content = self._content
-        if (
-            content is not None
-            and self._content_revision < self._revision
-            and not self.is_empty()
-        ):
-            content = None
-        return self._revision, self.get_state(), content
+    def snapshot(self) -> Tuple[int, bytes]:
+        """The revision being written, and the state it is."""
+        return self._revision, self.get_state()
 
     def mark_persisted(self, revision: int) -> None:
         """Record that ``revision`` reached the database.
@@ -333,20 +272,18 @@ class CollaborationRoom:
             self._persisted_revision = revision
 
 
-def _editor_state(content: Any) -> Optional[dict]:
-    """``content`` as the editor can start from it, or ``None`` for an empty
-    document. A body nobody has written is stored as ``{}``, or as a root with
-    no children, and the editor refuses both as a starting state."""
-    root = content.get("root") if isinstance(content, dict) else None
-    children = root.get("children") if isinstance(root, dict) else None
-    return content if isinstance(children, list) and children else None
+def _merged(state: bytes, update: bytes) -> bytes:
+    doc = Doc()
+    doc.apply_update(state)
+    doc.apply_update(update)
+    return bytes(doc.get_update())
 
 
 async def _bootstrapped(
-    guild_id: int, resource_type: str, resource_id: int
+    guild_id: int, resource_type: str, resource_id: int, body: BodyState
 ) -> Optional[bytes]:
-    """An editor body's Yjs state, made from its content by the server's
-    editor when the row has none.
+    """A body's Yjs state, made from its content by the server when the row
+    has none, or has one that holds no body.
 
     Taken under the row's lock on a system session, so rooms opening the same
     row together make it once, and a reader opening it can still have it made.
@@ -367,8 +304,11 @@ async def _bootstrapped(
         if row is None:
             return None
         state, content = row
-        if state is None:
-            state = await editor_engine.bootstrap(_editor_state(content))
+        if state is None or not body.holds_body(state):
+            made = await body.bootstrap(content)
+            # A state a browser saved before writing anything into it keeps
+            # what it has, and gains the body beside it.
+            state = made if state is None else _merged(state, made)
             await session.exec(
                 sa_update(spec.model)
                 .where(spec.model.id == resource_id)
@@ -383,26 +323,25 @@ async def _bootstrapped(
         return state
 
 
-async def written_into(state: Optional[bytes], content: dict) -> Optional[bytes]:
-    """An editor body's stored Yjs state with ``content`` written into it.
+async def written_into(
+    body: BodyState, state: Optional[bytes], content: dict
+) -> Optional[bytes]:
+    """A body's stored Yjs state with ``content`` written into it.
 
-    The server's editor rewrites only what changed, so the state keeps the
-    history its editors made and a session reopening it starts from this
-    content. A body with no state keeps none: the room makes it when it opens.
-    Content the editor refuses leaves no state either, and the room makes one
-    from the content in the same way.
+    Only what changed is rewritten, so the state keeps the history its editors
+    made and a session reopening it starts from this content. A body with no
+    state keeps none: the room makes it when it opens. Content the editor
+    refuses leaves no state either, and the room makes one from the content in
+    the same way.
     """
     if state is None:
         return None
     try:
-        update = await editor_engine.apply(state, content)
+        update = await body.apply(state, content)
     except editor_engine.EditorError:
         logger.exception("The editor could not write content into a stored state")
         return None
-    doc = Doc()
-    doc.apply_update(state)
-    doc.apply_update(update)
-    return bytes(doc.get_update())
+    return _merged(state, update)
 
 
 #: The socket frame that carries a Yjs update.
@@ -424,7 +363,7 @@ async def current_content(
     room = collaboration_manager.live_room(guild_id, resource_type, resource_id)
     if room is None or not room.renders_content:
         return stored
-    return await room.rendering()
+    return await room.rendering() or stored
 
 
 async def versioned(read: Any, guild_id: int, resource_type: str) -> Any:
@@ -595,9 +534,9 @@ class CollaborationManager:
     async def _write_room(self, room: CollaborationRoom, session: AsyncSession) -> None:
         """Write both views of one room in a single statement.
 
-        ``content`` only joins the write once an editor in the room has
-        reported one; a room nobody has offered content for leaves the column
-        as it stands rather than blanking it.
+        ``content`` is the server's rendering of the state. A state that
+        renders no body leaves the column as it stands rather than blanking
+        it.
         """
         async with room._write_lock:
             await self._write_room_locked(room, session)
@@ -606,11 +545,8 @@ class CollaborationManager:
         self, room: CollaborationRoom, session: AsyncSession
     ) -> None:
         spec = resource_for(room.resource_type)
-        revision, state, content = room.snapshot()
-        if room.renders_content:
-            content = without_mention_names(
-                await editor_engine.render(state), MentionForm.lexical
-            )
+        revision, state = room.snapshot()
+        content = await room.body.render(state) if room.body is not None else None
         values: Dict[str, Any] = {
             YJS_STATE_COLUMN: state,
             YJS_UPDATED_COLUMN: datetime.now(timezone.utc),
@@ -643,8 +579,8 @@ class CollaborationManager:
             )
             if content is not None and result.rowcount:
                 # The files its writers uploaded are claimed. Nothing is copied:
-                # the content is the editors' rendering of the room's document,
-                # which the next save writes again as they hold it.
+                # the content is the rendering of the room's document, which
+                # the next save writes again as they hold it.
                 await attachments_service.claim_uploads(
                     session,
                     await session.get(spec.model, room.resource_id),

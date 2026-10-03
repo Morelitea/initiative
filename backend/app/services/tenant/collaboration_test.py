@@ -258,7 +258,7 @@ async def test_a_room_with_unsaved_work_is_not_retired(authority) -> None:
     manager = CollaborationManager()
     room = loaded_room(1, 5)
     manager._rooms[(1, DOC, 5)] = room
-    room.offer_content({"root": {}})
+    room.apply_update(_an_update())
 
     await manager.remove_room(1, DOC, 5)
 
@@ -324,7 +324,7 @@ async def test_an_edit_during_a_write_survives_it() -> None:
     """The revision saved is the one that was serialized, not whatever is
     current when the commit returns."""
     room = loaded_room(1, 5)
-    revision, _state, _content = room.snapshot()
+    revision, _state = room.snapshot()
     room.apply_update(_an_update())  # lands while the write is in flight
     room.mark_persisted(revision)
 
@@ -404,21 +404,6 @@ async def test_a_failed_save_on_leaving_keeps_the_room_for_the_sweep(
     assert manager._rooms.get((1, DOC, 5)) is room
 
 
-async def test_a_room_knows_whether_a_client_has_everything_it_has() -> None:
-    from pycrdt import Doc, Text
-
-    room = loaded_room(1, 5)
-    tab = Doc()
-    tab.get("body", type=Text).insert(0, "mine")
-    room.apply_update(bytes(tab.get_update()))
-    assert room.known_to(bytes(tab.get_state())) is True
-
-    peer = Doc()
-    peer.get("body", type=Text).insert(0, "theirs")
-    room.apply_update(bytes(peer.get_update()))
-    assert room.known_to(bytes(tab.get_state())) is False
-
-
 def _an_update() -> bytes:
     """A real Yjs update, so the room's document genuinely moves."""
     from pycrdt import Doc, Map
@@ -469,17 +454,6 @@ async def test_an_empty_room_with_unsaved_work_is_not_invalidated(authority) -> 
     assert manager._rooms.get((1, DOC, 5)) is room
 
 
-async def test_only_the_tab_that_last_moved_the_document_sets_its_content() -> None:
-    """A rendering is current only if it came from the tab that last typed."""
-    room = loaded_room(1, 5)
-    tab_a, tab_b = object(), object()
-    room.apply_update(_an_update(), connection=tab_a)
-
-    assert room.offer_content({"root": "as tab b saw it"}, connection=tab_b) is False
-    assert room.offer_content({"root": "as tab a saw it"}, connection=tab_a) is True
-    assert room.snapshot()[2] == {"root": "as tab a saw it"}
-
-
 async def test_two_writes_of_one_room_do_not_interleave() -> None:
     """A sweep and a disconnect can reach one room together.
 
@@ -515,46 +489,6 @@ async def test_two_writes_of_one_room_do_not_interleave() -> None:
 
     assert max(concurrent) == 1
     assert room.is_dirty is False
-
-
-async def test_a_rendering_keeps_a_mention_by_id_with_no_name() -> None:
-    room = loaded_room(1, 5)
-    tab = object()
-    room.apply_update(_an_update(), connection=tab)
-    named = {"type": "mention", "mentionUserId": 7, "mentionName": "Ada", "text": "Ada"}
-
-    assert room.offer_content({"root": named}, connection=tab) is True
-    assert room.snapshot()[2] == {"root": named | {"mentionName": "", "text": ""}}
-
-
-async def test_a_rendering_older_than_the_document_waits_for_a_fresher_one(
-    authority,
-) -> None:
-    """A rendering made before the document moved is held back while editors
-    are still here — the tab that moved it reports a current one next pass."""
-    room = loaded_room(1, 5)
-    tab = object()
-    room.apply_update(_an_update(), connection=tab)
-    assert room.offer_content({"root": "as it stood"}, connection=tab) is True
-    assert room.snapshot()[2] == {"root": "as it stood"}
-
-    # The document moves again; the held rendering is now of an older state.
-    authority.add(1, 5, member(7))
-    room.apply_update(_an_update(), connection=tab)
-
-    assert room.snapshot()[2] is None
-
-
-async def test_the_last_rendering_is_written_once_the_room_empties() -> None:
-    """With nobody left to send a fresher one, the best held is what is saved."""
-    room = loaded_room(1, 5)
-    tab = object()
-    room.apply_update(_an_update(), connection=tab)
-    room.offer_content({"root": "the last thing seen"}, connection=tab)
-    room.apply_update(_an_update(), connection=tab)
-
-    assert room.is_empty() is True
-    assert room.snapshot()[2] == {"root": "the last thing seen"}
 
 
 def test_every_collaborative_kind_declares_where_its_body_lives() -> None:

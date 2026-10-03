@@ -47,11 +47,6 @@ export interface UseCollaborationOptions {
   enabled?: boolean;
   onSynced?: () => void;
   onError?: (error: Error) => void;
-  /** The editor's rendering of the document as the page leaves, or
-   *  ``undefined`` for none. Handed to the room as the page is hidden or
-   *  left — over the socket, or with the handed-over edits when the socket
-   *  is gone — so the room's last save carries it. */
-  finalContent?: () => unknown;
 }
 
 export interface UseCollaborationResult {
@@ -85,10 +80,6 @@ export interface UseCollaborationResult {
   /** Start the connection over with a fresh retry budget — what to call when
    *  the network is back and the socket should stop waiting out its backoff. */
   resume: () => void;
-  /** Hand the document's room the editor's JSON rendering of it, so the room
-   *  writes that and the Yjs state together. No-op when not collaborating —
-   *  the caller then saves it over REST instead. */
-  sendContent: (content: unknown) => void;
 }
 
 export function useCollaboration({
@@ -96,7 +87,6 @@ export function useCollaboration({
   enabled = true,
   onSynced,
   onError,
-  finalContent,
 }: UseCollaborationOptions): UseCollaborationResult {
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -122,12 +112,10 @@ export function useCollaboration({
   // has already left.
   const onSyncedRef = useRef<UseCollaborationOptions["onSynced"]>(onSynced);
   const onErrorRef = useRef<UseCollaborationOptions["onError"]>(onError);
-  const finalContentRef = useRef<UseCollaborationOptions["finalContent"]>(finalContent);
   useEffect(() => {
     onSyncedRef.current = onSynced;
     onErrorRef.current = onError;
-    finalContentRef.current = finalContent;
-  }, [onSynced, onError, finalContent]);
+  }, [onSynced, onError]);
 
   // Check if we have all required values
   const isReady = Boolean(enabled && user && activeGuildId && socketPath);
@@ -143,27 +131,15 @@ export function useCollaboration({
   }, [isReady, activeGuildId, socketPath]);
 
   // Hand the room anything this tab has that it has not seen, as the page is
-  // hidden or left. Over the socket when it is open — the rendering is all
-  // the room lacks — and otherwise as a keepalive request that outlives the
-  // page: the edits made while the socket was gone, merged into the room
-  // there, and the rendering with them when it fits.
+  // hidden or left while the socket is gone: the edits made meanwhile, as a
+  // keepalive request that outlives the page, merged into the room there.
   const handOver = useCallback(() => {
     const provider = providerRef.current;
     const path = handoverPathRef.current;
-    if (!provider || !path) return;
-    const rendering = finalContentRef.current?.();
-    if (provider.connected) {
-      if (rendering !== undefined) provider.sendContent(rendering);
-      return;
-    }
+    if (!provider || !path || provider.connected) return;
     const unsent = provider.unsentEdits();
     if (!unsent) return;
-    const edits = {
-      update: toBase64(unsent.update),
-      state_vector: toBase64(unsent.stateVector),
-    };
-    let body = JSON.stringify({ ...edits, content: rendering ?? null });
-    if (body.length > KEEPALIVE_LIMIT) body = JSON.stringify(edits);
+    const body = JSON.stringify({ update: toBase64(unsent.update) });
     apiClient
       .post(path, body, {
         headers: { "Content-Type": "application/json" },
@@ -407,10 +383,6 @@ export function useCollaboration({
     providerRef.current?.resume();
   }, []);
 
-  const sendContent = useCallback((content: unknown) => {
-    providerRef.current?.sendContent(content);
-  }, []);
-
   // Sticky until the room changes: set from the one place that learns of a
   // sync, whichever path the provider took to get there.
   useEffect(() => {
@@ -430,7 +402,6 @@ export function useCollaboration({
       isCollaborating,
       isReady,
       resume,
-      sendContent,
     }),
     [
       providerFactory,
@@ -442,7 +413,6 @@ export function useCollaboration({
       isCollaborating,
       isReady,
       resume,
-      sendContent,
     ]
   );
 }

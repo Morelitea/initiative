@@ -36,6 +36,7 @@ from app.testing import (
 )
 from app.core.search import SearchEntityType
 from app.services import editor_engine
+from app.services.tenant import body_states
 from app.services.tenant.collaboration import (
     CollaborationManager,
     collaboration_manager,
@@ -46,7 +47,6 @@ from app.models.platform.user import UserRole
 from app.services import permissions as permissions_service
 from app.testing import route_as
 
-CONTENT = {"root": {"children": [{"type": "paragraph"}]}}
 WHITEBOARD = {"elements": [], "appState": {}, "files": {}}
 
 
@@ -91,12 +91,8 @@ def _typed(text: str, doc: Doc | None = None) -> Doc:
     return doc
 
 
-def _handover(doc: Doc, content: dict | None = CONTENT) -> dict:
-    return {
-        "update": _b64(doc.get_update()),
-        "state_vector": _b64(doc.get_state()),
-        "content": content,
-    }
+def _handover(doc: Doc) -> dict:
+    return {"update": _b64(doc.get_update())}
 
 
 def _text_of(yjs_state: bytes) -> str:
@@ -133,21 +129,26 @@ async def test_collaboration_guild_admin_gets_full_access(
 async def test_a_handover_merges_into_the_room_and_saves_both_views(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """The edits land in the Yjs state and the tab's rendering in the content
-    column, together, for a body the browser renders."""
+    """A whiteboard drawn on offline: the drawing lands in the Yjs state, and
+    the content column is the server's rendering of it."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    stored = await body_states.WHITEBOARD.bootstrap(WHITEBOARD)
     doc = await create_document(
         session,
         owner.initiative,
         owner.user,
         document_type=DocumentType.whiteboard,
         content=WHITEBOARD,
+        yjs_state=stored,
     )
     drawn = {**WHITEBOARD, "elements": [{"id": "drawn offline"}]}
+    offline = Doc()
+    offline.apply_update(stored)
+    offline.apply_update(await body_states.WHITEBOARD.apply(stored, drawn))
 
     response = await client.post(
         _document_url(owner.guild.id, doc.id),
-        json=_handover(_typed("written offline"), content=drawn),
+        json=_handover(offline),
         headers=owner.headers,
     )
 
@@ -160,15 +161,14 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
         )
     ).one()
     assert saved.content == drawn
-    assert saved.yjs_state is not None
-    assert _text_of(saved.yjs_state) == "written offline"
+    assert await body_states.WHITEBOARD.render(saved.yjs_state or b"") == drawn
 
 
 async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A native document's content is what the server reads its Yjs state
-    as, offline edits included; a rendering a tab sends along is not taken."""
+    as, offline edits included."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     doc = await create_document(
         session, owner.initiative, owner.user, content=_lexical("on the server")
@@ -179,7 +179,7 @@ async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
 
     response = await client.post(
         _document_url(owner.guild.id, doc.id),
-        json=_handover(offline, content=_lexical("from the tab")),
+        json=_handover(offline),
         headers=owner.headers,
     )
 
@@ -193,7 +193,6 @@ async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
     ).one()
     words = _words(saved.content)
     assert "on the server" in words and "written offline" in words
-    assert "from the tab" not in words
 
 
 async def test_an_editor_body_with_no_state_has_it_made_once(
@@ -225,43 +224,6 @@ async def test_an_editor_body_with_no_state_has_it_made_once(
     assert saved.yjs_state is not None
     assert first.get_state() == second.get_state() == saved.yjs_state
     assert _words(await editor_engine.render(saved.yjs_state)) == "as it was saved"
-
-
-async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
-    client: AsyncClient, session: AsyncSession, acting_user
-) -> None:
-    """The room holds edits the tab never saw: its edits merge in, but its
-    rendering describes an older document, so the column keeps what it had."""
-    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    elsewhere = _typed("from a peer. ")
-    doc = await create_document(
-        session,
-        owner.initiative,
-        owner.user,
-        document_type=DocumentType.whiteboard,
-        yjs_state=elsewhere.get_update(),
-        content=WHITEBOARD,
-    )
-
-    response = await client.post(
-        _document_url(owner.guild.id, doc.id),
-        json=_handover(
-            _typed("offline"), content={**WHITEBOARD, "elements": [{"id": "stale"}]}
-        ),
-        headers={"Authorization": f"Bearer {get_auth_token(owner.user)}"},
-    )
-
-    assert response.status_code == 204, response.text
-    saved = (
-        await session.exec(
-            select(Document)
-            .where(Document.id == doc.id)
-            .options(undefer(Document.content), undefer(Document.yjs_state))
-        )
-    ).one()
-    assert saved.content == WHITEBOARD
-    merged = _text_of(saved.yjs_state or b"")
-    assert "from a peer." in merged and "offline" in merged
 
 
 async def test_a_wiki_page_takes_a_handover_too(

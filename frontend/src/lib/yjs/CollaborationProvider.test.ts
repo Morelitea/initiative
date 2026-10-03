@@ -12,7 +12,6 @@ const MSG_SYNC_STEP1 = 0;
 const MSG_SYNC_STEP2 = 1;
 const MSG_UPDATE = 2;
 const MSG_AUTH = 5;
-const MSG_CONTENT = 6;
 
 class FakeWebSocket {
   static last: FakeWebSocket | null = null;
@@ -141,21 +140,6 @@ describe("CollaborationProvider sync handshake", () => {
     expect(doc.getMap("cells").get("B2")).toBe("from a peer");
     // The peer's update was applied but not sent back; the local edit was sent.
     expect(socket.framesOfType(MSG_UPDATE)).toHaveLength(afterRemote + 1);
-  });
-
-  it("reports content to the room only once synced", () => {
-    const { provider, socket } = connect(new Y.Doc());
-
-    // Before the initial sync lands, this client's doc is not yet the room's.
-    provider.sendContent({ root: "too early" });
-    expect(socket.framesOfType(MSG_CONTENT)).toHaveLength(0);
-
-    socket.deliver(MSG_SYNC_STEP2, Y.encodeStateAsUpdate(new Y.Doc()));
-    provider.sendContent({ root: "ready" });
-
-    const frames = socket.framesOfType(MSG_CONTENT);
-    expect(frames).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(frames[0]))).toEqual({ root: "ready" });
   });
 });
 

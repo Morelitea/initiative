@@ -9,7 +9,6 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
 const collaborating = { value: false };
-const sendContent = vi.fn();
 
 vi.mock("@/hooks/useCollaboration", () => ({
   useCollaboration: () => ({
@@ -23,7 +22,6 @@ vi.mock("@/hooks/useCollaboration", () => ({
     connect: vi.fn(),
     resume: vi.fn(),
     disconnect: vi.fn(),
-    sendContent,
   }),
 }));
 
@@ -48,7 +46,6 @@ let stored: Record<string, unknown> = { ...seed };
 beforeEach(() => {
   patches.length = 0;
   stored = { ...seed };
-  sendContent.mockClear();
   collaborating.value = false;
   server.use(
     guildHttp.get("/documents/:documentId", () => HttpResponse.json(stored)),
@@ -149,8 +146,6 @@ describe("renaming a document", () => {
 
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).not.toHaveProperty("name");
-    // A native body is rendered by the room itself.
-    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("does not PATCH on a loop while collaborating with nothing edited", async () => {
@@ -162,7 +157,6 @@ describe("renaming a document", () => {
     await vi.advanceTimersByTimeAsync(45_000);
 
     expect(patches).toEqual([]);
-    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("saves a rename with the Save button while collaborating", async () => {
@@ -181,7 +175,6 @@ describe("renaming a document", () => {
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toMatchObject({ name: "Renamed" });
     expect(patches[0]).not.toHaveProperty("content");
-    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("saves a rename with Ctrl+S while collaborating", async () => {
@@ -198,7 +191,6 @@ describe("renaming a document", () => {
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toMatchObject({ name: "Renamed" });
     expect(patches[0]).not.toHaveProperty("content");
-    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("saves a rename with Ctrl+S when not collaborating", async () => {
@@ -213,7 +205,6 @@ describe("renaming a document", () => {
 
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toMatchObject({ name: "Renamed", content: editedBody });
-    expect(sendContent).not.toHaveBeenCalled();
   });
 
   it("still autosaves a rename while collaborating", async () => {

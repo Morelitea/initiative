@@ -2182,20 +2182,12 @@ export const ClientKind = {
   unknown: "unknown",
 } as const;
 
-export type CollaborationHandoverContent = { [key: string]: unknown } | null;
-
 /**
  * Edits a tab made while its room's socket was closed, handed over as the
- * tab leaves.
- *
- * ``update`` is the Yjs update the room has not seen and ``state_vector`` is
- * the tab's own, so the room can tell whether ``content`` — the editor's
- * rendering of the tab's document — also describes the merged one.
+ * tab leaves: the Yjs update the room has not seen.
  */
 export interface CollaborationHandover {
   update: Blob;
-  state_vector: Blob;
-  content?: CollaborationHandoverContent;
 }
 
 /**

@@ -40,12 +40,10 @@ from app.services.tenant.collaboration import (
 from app.services.tenant.collaborative_resources import (
     CollaborativeResource,
     Collaborating,
-    ContentFrameError,
     resource_for,
 )
 from app.core.search import SearchEntityType
 from app.db.session import require_guild_context
-from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services.content_sockets import RoomKey, Wire, resource_room, sockets
 from app.api.content_socket import admit, hold_open
@@ -63,7 +61,8 @@ MSG_SYNC_STEP2 = 1  # Server sends current state
 # MSG_UPDATE = 2, an incremental Yjs update, is the service's: it sends them too.
 MSG_AWARENESS = 3  # Join / leave / roster, server to client (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
-MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
+# 6 carried a tab's rendering of the body. The server renders every body now,
+# so a frame of it from an older tab falls through unread.
 
 
 @router.websocket("/documents/{document_id}/collaborate")
@@ -207,7 +206,6 @@ async def _collaborate(
 
     user = sub.user
     can_write = bool(editing.can_write)
-    body = editing.resolved.body
     collaborator_name = meta["name"]
     # One line per session says they edited it; the rest is keystrokes.
     edit_recorded = False
@@ -267,7 +265,7 @@ async def _collaborate(
                     return
 
                 try:
-                    room.apply_update(payload, connection=websocket, user_id=user.id)
+                    room.apply_update(payload, user_id=user.id)
                     if msg_type == MSG_UPDATE and not edit_recorded:
                         # Once per session, and only for an update: a
                         # SYNC_STEP2 is the client answering the room's
@@ -285,32 +283,6 @@ async def _collaborate(
                     )
                 except Exception as e:
                     logger.warning(f"Failed to apply Yjs update: {e}")
-
-            elif msg_type == MSG_CONTENT:
-                # The editor's JSON rendering of what it just wrote. Held on
-                # the room and written alongside the Yjs state, so the two
-                # views of the document are always saved from one moment. An
-                # editor body's rendering is the server's, so a tab's is not
-                # asked for, and one sent anyway is not taken.
-                if not can_write or room.renders_content:
-                    return
-                try:
-                    room.offer_content(
-                        spec.normalize(body, json.loads(payload.decode())),
-                        connection=websocket,
-                    )
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    logger.warning(
-                        f"Collaboration: unreadable content frame from {handle_of(user)}"
-                    )
-                except (
-                    documents_service.DocumentContentError,
-                    ContentFrameError,
-                ) as exc:
-                    logger.warning(
-                        f"Collaboration: rejected content frame from "
-                        f"{handle_of(user)}: {exc.code}"
-                    )
 
             elif msg_type == MSG_AWARENESS_BINARY:
                 # y-protocols awareness update - relay as-is to other clients
@@ -401,9 +373,7 @@ async def _hand_over(
     Called as a page unloads with its socket already gone, so what the tab did
     offline is not lost with it. The edits go through the room — merged into
     whatever the room holds, live or loaded for the purpose — and are saved the
-    way the room always saves, both views together. The tab's rendering is
-    taken only when the tab had everything the merged room has; otherwise it
-    describes an older document, and the room keeps the rendering it had.
+    way the room always saves, with the content rendered from the merged state.
 
     Authenticates as every other write does (the session cookie on web, the
     Authorization header on native), and is admitted exactly as the socket is,
@@ -428,27 +398,13 @@ async def _hand_over(
     )
     room.hold()
     try:
-        tab = object()
         try:
-            room.apply_update(handover.update, connection=tab, user_id=user.id)
+            room.apply_update(handover.update, user_id=user.id)
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=DocumentMessages.COLLABORATION_UPDATE_INVALID,
             ) from None
-        # An editor body's content is the server's rendering, made at the save.
-        if (
-            handover.content is not None
-            and not room.renders_content
-            and room.known_to(handover.state_vector)
-        ):
-            try:
-                room.offer_content(
-                    spec.normalize(editing.resolved.body, handover.content),
-                    connection=tab,
-                )
-            except (documents_service.DocumentContentError, ContentFrameError):
-                pass
         sockets.emit_bytes(
             resource_room(guild_id, spec.resource_type, resource_id),
             bytes([MSG_UPDATE]) + handover.update,
