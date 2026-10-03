@@ -11,7 +11,7 @@ from app.models.platform.app_setting import (
     MIN_GUILD_RETENTION_DAYS,
 )
 from app.models.platform.user_dm_settings import DmPolicy
-from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel, reject_null
 
 
 class AuthProviderOwnerRead(SanitizedBaseModel):
@@ -99,7 +99,9 @@ class AuthProviderUpdate(SanitizedBaseModel):
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
-    @field_validator(
+    # An explicit null would strip config a login-ready row requires (the login
+    # flow refuses config-incomplete providers).
+    _required = reject_null(
         "display_name",
         "issuer",
         "client_id",
@@ -107,13 +109,6 @@ class AuthProviderUpdate(SanitizedBaseModel):
         "allow_jit",
         "asserts_second_factor",
     )
-    @classmethod
-    def _no_explicit_null(cls, value, info):
-        """Absent means keep; an explicit null would strip config a login-ready
-        row requires (the login flow refuses config-incomplete providers)."""
-        if value is None:
-            raise ValueError(f"{info.field_name} cannot be null")
-        return value
 
     @field_validator("issuer")
     @classmethod
@@ -656,7 +651,7 @@ class NotificationSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     #: Whether a notification may reach a phone. Off, nothing is sent, the
-    #: registration endpoint declines, and no device token is held.
+    #: registration endpoint declines, and no push token is held.
     push_notifications_enabled: bool
     #: Whether a notification may reach a mailbox. The notification half of
     #: email only — a sign-in code, an address to confirm, a password reset and

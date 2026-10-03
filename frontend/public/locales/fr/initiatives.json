@@ -144,8 +144,8 @@
     },
     "keepContentIn": {
       "title": "Garder le contenu dans cette initiative",
-      "label": "Bloquer les exports et les copies vers d’autres initiatives",
-      "help": "Tant que c’est activé, personne ne peut exporter quoi que ce soit de cette initiative ni le copier vers une autre initiative, y compris les responsables et les admins de la communauté. Les copies au sein de cette initiative fonctionnent toujours, tout comme l’export de l’initiative ci-dessous."
+      "label": "Bloquer les exports, et les copies et déplacements vers d’autres initiatives",
+      "help": "Tant que c’est activé, personne ne peut exporter quoi que ce soit de cette initiative, ni le copier ou le déplacer vers une autre initiative, y compris les responsables et les admins de la communauté. Copier et déplacer au sein de cette initiative fonctionnent toujours, tout comme l’export de l’initiative ci-dessous."
     },
     "membersTitle": "Membres",
     "membersDescription": "Les chefs de projet et les administrateurs de la communauté peuvent gérer les membres.",

@@ -14,7 +14,6 @@ from app.core.security import get_password_hash
 from app.models.platform.user import UserStatus
 from app.services import content_sockets
 from app.services.platform import api_keys as api_keys_service
-from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
 from app.services.content_sockets import (
     WS_CREDENTIAL_ENDED,
@@ -47,11 +46,18 @@ async def _signed_in_user(session: AsyncSession, email: str):
     )
 
 
-async def _sign_in(client: AsyncClient, email: str, *, user_agent: str):
+async def _sign_in(
+    client: AsyncClient, email: str, *, user_agent: str, device: bool = False
+):
+    """A browser's sign-in, or with ``device`` the app's, which it tells apart
+    by the origin it presents."""
+    headers = {"user-agent": user_agent}
+    if device:
+        headers["Origin"] = "https://com.morelitea.initiative"
     return await client.post(
         "/api/v1/auth/token",
         data={"username": email, "password": PASSWORD},
-        headers={"user-agent": user_agent},
+        headers=headers,
     )
 
 
@@ -211,45 +217,23 @@ async def test_signing_out_everywhere_else_spares_the_one_asking(
 async def test_signing_out_everywhere_else_takes_the_phones_too(
     client: AsyncClient, session: AsyncSession
 ):
-    """The list shows both credentials, so a sweep that left the device tokens
-    behind would not be telling the truth."""
-    user = await _signed_in_user(session, "sweep-phones@example.com")
-    phone = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
+    """The app's sign-in is a session like any other, so the sweep ends it."""
+    await _signed_in_user(session, "sweep-phones@example.com")
+    phone = await _sign_in(
+        client, "sweep-phones@example.com", user_agent=FIREFOX_WINDOWS, device=True
     )
+    client.cookies.clear()
     asking = await _sign_in(client, "sweep-phones@example.com", user_agent=CHROME_MAC)
     headers = {"Authorization": f"Bearer {asking.json()['access_token']}"}
 
     swept = await client.post("/api/v1/auth/sessions/revoke-others", headers=headers)
     assert swept.status_code == 204
 
-    spent = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"DeviceToken {phone}"}
+    client.cookies.clear()
+    spent = await client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": phone.json()["refresh_token"]}
     )
     assert spent.status_code == 401
-
-
-async def test_a_native_client_sweeping_spares_its_own_device(
-    client: AsyncClient, session: AsyncSession
-):
-    """Which credential is spared follows what the caller is holding."""
-    user = await _signed_in_user(session, "native-sweep@example.com")
-    asking = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="This phone"
-    )
-    other = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Old tablet"
-    )
-    headers = {"Authorization": f"DeviceToken {asking}"}
-
-    swept = await client.post("/api/v1/auth/sessions/revoke-others", headers=headers)
-    assert swept.status_code == 204
-
-    assert (await client.get("/api/v1/users/me", headers=headers)).status_code == 200
-    stale = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"DeviceToken {other}"}
-    )
-    assert stale.status_code == 401
 
 
 @pytest.mark.parametrize(
@@ -257,7 +241,6 @@ async def test_a_native_client_sweeping_spares_its_own_device(
     [
         ("GET", "/api/v1/auth/sessions"),
         ("POST", "/api/v1/auth/sessions/revoke-others"),
-        ("GET", "/api/v1/auth/device-tokens"),
     ],
 )
 async def test_a_standing_credential_does_not_manage_sign_ins(
@@ -313,7 +296,6 @@ async def streams(monkeypatch):
     """A socket register the endpoints under test report to, whose guild and
     resource checks pass, so a socket closes on its credential or not at all."""
     auth_context.set_session_credential(None)
-    auth_context.set_device_token_id(None)
     register = ContentSockets()
 
     async def _admitted(*_a, **_k):
@@ -387,16 +369,19 @@ async def test_ending_a_session_closes_the_connections_opened_on_it(
 async def test_signing_out_everywhere_else_keeps_this_sessions_connections(
     client: AsyncClient, session: AsyncSession, streams: ContentSockets
 ):
-    user = await _signed_in_user(session, "sweep-streams@example.com")
+    await _signed_in_user(session, "sweep-streams@example.com")
     elsewhere = await _sign_in(
         client, "sweep-streams@example.com", user_agent=FIREFOX_WINDOWS
     )
     client.cookies.clear()
     asking = await _sign_in(client, "sweep-streams@example.com", user_agent=CHROME_MAC)
     asking_token = asking.json()["access_token"]
-    phone = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
+    client.cookies.clear()
+    phone = (
+        await _sign_in(
+            client, "sweep-streams@example.com", user_agent=CHROME_MAC, device=True
+        )
+    ).json()["access_token"]
 
     on_elsewhere = await _open_stream(
         streams, elsewhere.json()["access_token"], session
@@ -420,16 +405,19 @@ async def test_a_password_change_closes_the_connections_opened_before_it(
 ):
     """Every credential the account held goes with the old password, this
     device's included; its replacement session is what it reconnects with."""
-    user = await _signed_in_user(session, "pw-streams@example.com")
+    await _signed_in_user(session, "pw-streams@example.com")
     elsewhere = await _sign_in(
         client, "pw-streams@example.com", user_agent=FIREFOX_WINDOWS
     )
     client.cookies.clear()
     asking = await _sign_in(client, "pw-streams@example.com", user_agent=CHROME_MAC)
     asking_token = asking.json()["access_token"]
-    phone = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
+    client.cookies.clear()
+    phone = (
+        await _sign_in(
+            client, "pw-streams@example.com", user_agent=CHROME_MAC, device=True
+        )
+    ).json()["access_token"]
 
     on_elsewhere = await _open_stream(
         streams, elsewhere.json()["access_token"], session

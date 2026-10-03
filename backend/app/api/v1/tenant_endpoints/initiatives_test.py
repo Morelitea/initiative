@@ -467,6 +467,15 @@ async def test_updating_an_initiative_records_the_new_name_and_description(
     assert data["name"] == "Updated Initiative"
     assert data["description"] == "Updated description"
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("name", "join_policy", "keep_content_in", "projects_enabled"):
+        response = await client.patch(
+            owner.g(f"/initiatives/{initiative.id}"),
+            headers=owner.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
+
 
 @pytest.mark.parametrize("verb", ["create", "update"], ids=["creating", "renaming"])
 async def test_an_initiative_name_is_taken_only_once(

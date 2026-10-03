@@ -6,11 +6,16 @@ import type {
   NotificationPreferencesRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
-const ALL_ON: Record<Channel, boolean> = { in_app: true, email: true, push: true };
-const EVERY_CHANNEL: Channel[] = ["in_app", "email", "push"];
+const ALL_ON: Record<Channel, boolean> = {
+  in_app: true,
+  email: true,
+  push: true,
+  desktop: true,
+};
+const EVERY_CHANNEL: Channel[] = ["in_app", "email", "push", "desktop"];
 // Being told your account was acted on, or that a queue waits on you, is not
 // an opt-in — the bell stays.
-const KEEPS_THE_BELL: Channel[] = ["email", "push"];
+const KEEPS_THE_BELL: Channel[] = ["email", "push", "desktop"];
 
 const category = (
   name: string,

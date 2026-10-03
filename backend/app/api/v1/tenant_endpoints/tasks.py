@@ -603,6 +603,7 @@ async def move_task(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=TaskMessages.CANNOT_MOVE_TO_TEMPLATE,
         )
+    await resource_access.require_may_move(session, task, target_project)
 
     default_status = await task_statuses_service.get_default_status(
         session, target_project.id

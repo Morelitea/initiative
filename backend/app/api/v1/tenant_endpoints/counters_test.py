@@ -460,33 +460,21 @@ async def test_update_min_max_reclamps_count(client: AsyncClient, acting_user):
     assert Decimal(response.json()["count"]) == Decimal("50")
 
 
-async def test_update_null_non_nullable_fields_is_noop(
+async def test_update_null_non_nullable_fields_is_refused(
     client: AsyncClient, acting_user
 ):
-    """Explicit null for NOT NULL columns (step/initial_count/position/name/
-    view_mode) must not 500 — it's treated as 'field not provided'."""
+    """A required field is omitted to keep it, never nulled."""
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     group = await _create_group(client, a)
-    counter = await _add_counter(
-        client,
-        a,
-        group["id"],
-        name="HP",
-        count="5",
-        step="2",
-        initial_count="0",
-    )
+    counter = await _add_counter(client, a, group["id"])
 
-    response = await client.patch(
-        a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}"),
-        headers=a.headers,
-        json={"step": None, "initial_count": None, "position": None, "name": None},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    # Original values are preserved.
-    assert data["name"] == "HP"
-    assert Decimal(data["step"]) == Decimal("2")
+    for field in ("name", "step", "initial_count", "view_mode", "position"):
+        response = await client.patch(
+            a.g(f"/counter-groups/{group['id']}/counters/{counter['id']}"),
+            headers=a.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
 
 
 async def test_update_step_zero_rejected(client: AsyncClient, acting_user):

@@ -67,23 +67,29 @@ async def _lock_line(session: AsyncSession, key: str) -> None:
     )
 
 
-async def _dm_device_token_ids(session: AsyncSession, user_id: int) -> set[int]:
-    """The installations of this account that could actually decrypt.
+async def _dm_device_session_ids(session: AsyncSession, user_id: int) -> set[uuid.UUID]:
+    """The sign-ins of this account whose device could actually decrypt.
 
-    A push wakes a client so it can fetch and decrypt. Sending one to an
-    installation with no key store would wake it for something it cannot read.
+    A push wakes a client so it can fetch and decrypt. Sending one to a device
+    with no key store would wake it for something it cannot read. Each key
+    store names the sign-in it last collected under, taken to the live row its
+    chain has reached, which is the one its push registration names too.
     """
     from app.models.platform.dm_device import DmDevice
+    from app.services.auth import sessions as session_service
 
     rows = (
         await session.exec(
-            select(DmDevice.device_token_id).where(
+            select(DmDevice.session_id).where(
                 DmDevice.user_id == user_id,
-                DmDevice.device_token_id.is_not(None),
+                DmDevice.session_id.is_not(None),
             )
         )
     ).all()
-    return {row for row in rows if row is not None}
+    tips = await session_service.live_chain_tips(
+        session, session_ids={row for row in rows if row is not None}
+    )
+    return set(tips.values())
 
 
 async def _roster_names(
@@ -218,7 +224,9 @@ async def forget_conversation(
     return removed
 
 
-async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) -> None:
+async def wake_own_devices(
+    *, user_id: int, except_session_id: uuid.UUID | None
+) -> None:
     """Push this account's other installations awake, saying nothing.
 
     One device has sent another something it cannot answer on its own -- a new
@@ -257,9 +265,9 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
                 channel=Channel.push,
             ):
                 return
-            token_ids = await _dm_device_token_ids(session, user_id)
-            token_ids.discard(except_device_token_id)
-            if not token_ids:
+            session_ids = await _dm_device_session_ids(session, user_id)
+            session_ids.discard(except_session_id)
+            if not session_ids:
                 return
             locale = _locale(user)
             await push_notifications.send_push_to_user(
@@ -269,7 +277,7 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
                 translate("deviceSync.title", locale, namespace="notifications"),
                 translate("deviceSync.body", locale, namespace="notifications"),
                 data={"type": "dm_device_sync", "target_path": "/messages"},
-                only_device_token_ids=token_ids,
+                only_session_ids=session_ids,
                 locale=locale,
             )
             await session.commit()
@@ -339,6 +347,10 @@ async def _roll_up(
         await _push(
             session, recipient=recipient, sender_name=sender_name, others=others
         )
+    # The desktop is told per message for the same reason, and shows the line
+    # as the bell words it.
+    if written is not None and _wanted(Channel.desktop):
+        await user_notifications.announce_on_desktop(session, written)
 
     # Email does not. It is the channel for somebody who is not there at all,
     # and one per message would be a mailbox nobody could use -- so it fires on
@@ -388,8 +400,8 @@ async def _email(
 async def _push(
     session: AsyncSession, *, recipient: User, sender_name: str, others: list[str]
 ) -> None:
-    token_ids = await _dm_device_token_ids(session, recipient.id)
-    if not token_ids:
+    session_ids = await _dm_device_session_ids(session, recipient.id)
+    if not session_ids:
         return
     locale = _locale(recipient)
     if others:
@@ -427,6 +439,6 @@ async def _push(
             "type": NotificationType.direct_message.value,
             "target_path": "/messages",
         },
-        only_device_token_ids=token_ids,
+        only_session_ids=session_ids,
         locale=locale,
     )

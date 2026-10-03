@@ -59,6 +59,8 @@ async def test_create_session_persists_hash_and_returns_raw(session):
     assert stored.satisfied_providers == [7]
     assert stored.revoked_at is None
     assert stored.parent_id is None
+    # A browser's session: the deployment's 30-day window.
+    assert stored.device is False
     assert stored.expires_at == _at(days=30)
     assert str(stored.ip) == "203.0.113.9"
 
@@ -72,8 +74,11 @@ async def test_rotate_spends_parent_and_carries_context(session):
         satisfied_providers=[3],
         provider_auth={"3": {"auth_time": 1757600000, "amr": ["mfa"]}},
         device_name="Pixel",
+        device=True,
         now=_at(),
     )
+    # A device's session stands 90 days unused, where a browser's stands 30.
+    assert first.session.expires_at == _at(days=90)
 
     second = await _rotate_ok(session, first.refresh_token, _at(minutes=5))
 
@@ -87,8 +92,9 @@ async def test_rotate_spends_parent_and_carries_context(session):
         "3": {"auth_time": 1757600000, "amr": ["mfa"]}
     }
     assert second.session.device_name == "Pixel"
-    # Sliding window: the child expires 30d from the rotation, not from creation.
-    assert second.session.expires_at == _at(days=30, minutes=5)
+    assert second.session.device is True
+    # Sliding window: the child expires 90d from the rotation, not from creation.
+    assert second.session.expires_at == _at(days=90, minutes=5)
 
     await session.refresh(first.session)
     assert first.session.revoked_at == _at(minutes=5)

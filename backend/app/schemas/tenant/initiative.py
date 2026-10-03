@@ -6,7 +6,12 @@ from pydantic import ConfigDict, Field, create_model
 
 from app.core.identity_boundary import GuildId
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
-from app.schemas.base import RichMentionStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import (
+    RichMentionStr,
+    SanitizedBaseModel,
+    TitleStr,
+    reject_null,
+)
 
 from app.models.tenant.initiative import (
     DEFAULT_PERMISSION_VALUES,
@@ -92,6 +97,14 @@ class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     auto_join: Optional[bool] = None
     # Settable by whoever may already update the initiative.
     keep_content_in: Optional[bool] = None
+
+    _required = reject_null(
+        "name",
+        "join_policy",
+        "auto_join",
+        "keep_content_in",
+        *(t.view_permission for t in Tool),
+    )
 
 
 # Role schemas

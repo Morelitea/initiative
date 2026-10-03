@@ -85,6 +85,7 @@ from app.services.platform import (
     notice_outbox,
     notification_policy,
     notification_prefs,
+    notification_stream,
     push_notifications,
     user_notifications,
 )
@@ -152,7 +153,10 @@ class Channels:
     in_app: bool
     email: bool
     push: bool
-    #: The document the three answers above came from. Every notifier needs it
+    #: The desktop app announces the bell line itself, so this applies only
+    #: where one is written.
+    desktop: bool
+    #: The document the answers above came from. Every notifier needs it
     #: twice — once to pick channels, once to decide when the email may go —
     #: so resolving it here saves loading the same row again.
     prefs: Mapping[str, Any]
@@ -187,7 +191,7 @@ async def _channels(
             tz_name=recipient.timezone,
             last_active_at=recipient.last_active_at,
         )
-        for channel in (Channel.in_app, Channel.push)
+        for channel in (Channel.in_app, Channel.push, Channel.desktop)
     }
     allowed[Channel.email] = notification_prefs.wants(
         prefs,
@@ -199,6 +203,7 @@ async def _channels(
         in_app=allowed[Channel.in_app],
         email=allowed[Channel.email],
         push=allowed[Channel.push],
+        desktop=allowed[Channel.desktop],
         prefs=prefs,
     )
 
@@ -517,6 +522,8 @@ async def deliver_notices(
             )
         if not opened:
             continue
+        if channels.desktop and line is not None:
+            await user_notifications.announce_on_desktop(session, line)
         if channels.email and notice.email_subject is not None:
             await email_outbox.enqueue(
                 session,
@@ -1579,16 +1586,26 @@ async def _roll_up_reaction(
         guild_id=guild_id,
         place=data,
     )
-    if existing is None:
-        await user_notifications.create_notification(
-            session,
-            user_id=recipient.id,
-            notification_type=NotificationType.comment_reaction,
-            data=line,
-            prefs=prefs,
-        )
-    else:
+    if existing is not None:
         await user_notifications.refresh_notification(session, existing, data=line)
+        return
+    opened = await user_notifications.create_notification(
+        session,
+        user_id=recipient.id,
+        notification_type=NotificationType.comment_reaction,
+        data=line,
+        prefs=prefs,
+    )
+    # Phones hear about reactions in a digest; the desktop is told when the
+    # line opens, as for a comment thread, so a flurry is one alert.
+    if opened is not None and notification_prefs.reachable(
+        prefs,
+        notification_type=NotificationType.comment_reaction,
+        channel=Channel.desktop,
+        guild_id=guild_id,
+        tz_name=recipient.timezone,
+    ):
+        await user_notifications.announce_on_desktop(session, opened)
 
 
 async def _take_back_reaction(
@@ -2129,12 +2146,13 @@ async def _hold_summary_rows(
     ]
 
 
-def _rows_for_push(
+def _rows_for(
+    channel: Channel,
     rows: list[tuple[NotificationCategory, int | None, int]],
     *,
     prefs: Mapping[str, Any],
 ) -> list[tuple[NotificationCategory, int | None, int]]:
-    """The part of a summary the push may carry.
+    """The part of a summary ``channel`` may carry.
 
     Resolved per (category, community) exactly as the live path resolves it, so
     a summary never counts something the account has switched off, and a
@@ -2146,7 +2164,7 @@ def _rows_for_push(
         if notification_prefs.wants(
             prefs,
             notification_type=sample_type(category),
-            channel=Channel.push,
+            channel=channel,
             guild_id=guild_id,
         )
     ]
@@ -2271,12 +2289,18 @@ async def _run_hold_summary_pass(session: AsyncSession, *, now: datetime) -> Non
             continue
         prefs = locked
 
-        rows = _rows_for_push(
-            await _hold_summary_rows(
-                session, user_id=user.id, since=lift.opened, until=lift.closed
-            ),
-            prefs=prefs,
+        held_rows = await _hold_summary_rows(
+            session, user_id=user.id, since=lift.opened, until=lift.closed
         )
+        # Only what each community still lets leave the app is counted.
+        policies = await notification_policy.for_send_many(
+            session, {guild_id for _, guild_id, _ in held_rows}
+        )
+        held_rows = [row for row in held_rows if policies[row[1]].push]
+        if _rows_for(Channel.desktop, held_rows, prefs=prefs):
+            # The desktop app says so from the bell, which already holds it all.
+            notification_stream.queue_summary_alert(session, cast(int, user.id))
+        rows = _rows_for(Channel.push, held_rows, prefs=prefs)
         if not rows:
             # Nothing the push may carry is a covered summary, not one to
             # reconsider on every poll.

@@ -144,8 +144,8 @@
     },
     "keepContentIn": {
       "title": "Inhalte in dieser Initiative behalten",
-      "label": "Exporte und Kopien in andere Initiativen sperren",
-      "help": "Solange dies aktiv ist, kann niemand etwas aus dieser Initiative exportieren oder in eine andere Initiative kopieren, auch Manager und Community-Admins nicht. Kopien innerhalb dieser Initiative funktionieren weiterhin, ebenso der Initiativen-Export unten."
+      "label": "Exporte sowie Kopien und Verschiebungen in andere Initiativen sperren",
+      "help": "Solange dies aktiv ist, kann niemand etwas aus dieser Initiative exportieren oder in eine andere Initiative kopieren oder verschieben, auch Manager und Community-Admins nicht. Kopien und Verschiebungen innerhalb dieser Initiative funktionieren weiterhin, ebenso der Initiativen-Export unten."
     },
     "membersTitle": "Mitglieder",
     "membersDescription": "Initiative-Projektmanager und Community-Administratoren können die Mitgliedschaft verwalten.",

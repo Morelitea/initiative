@@ -24,7 +24,6 @@ from app.models.platform.guild import GuildRole
 from app.models.platform.mfa_recovery_code import MfaRecoveryCode
 from app.models.platform.user import User, UserStatus
 from app.models.platform.user_passkey import UserPasskey
-from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import email_outbox
 from app.services.auth import sessions as session_service
 from app.services.auth import sign_in_locks
@@ -147,20 +146,6 @@ async def _rotated_headers(
         "Authorization": "Bearer "
         + get_auth_token(user, session_id=rotated.issued.session.id, amr=["webauthn"])
     }
-
-
-async def _device_tokens(session: AsyncSession, user_id: int) -> list[UserToken]:
-    session.expire_all()
-    return list(
-        (
-            await session.exec(
-                select(UserToken).where(
-                    UserToken.user_id == user_id,
-                    UserToken.purpose == UserTokenPurpose.device_auth,
-                )
-            )
-        ).all()
-    )
 
 
 async def _sign_in(
@@ -411,15 +396,14 @@ async def test_the_app_is_sent_to_a_browser_for_this(
     user = await _account(session, "pl-device@example.com")
     user_id = user.id
     await _seed_passkey(session, user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user_id, device_name="Phone"
-    )
-    await session.commit()
 
     response = await client.post(
         REMOVE,
         json={"current_password": PASSWORD},
-        headers={"Authorization": f"DeviceToken {device_token}"},
+        headers={
+            **get_auth_headers(user),
+            "Origin": "https://com.morelitea.initiative",
+        },
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
@@ -428,26 +412,6 @@ async def test_the_app_is_sent_to_a_browser_for_this(
     account = await session.get(User, user_id)
     assert account is not None
     assert account.hashed_password is not None
-
-
-async def test_the_phones_are_signed_out_when_the_password_goes(
-    client: AsyncClient, session: AsyncSession
-):
-    """The device tokens the account was carrying are spent on the way out,
-    the same as its API keys and its other sessions."""
-    user = await _account(session, "pl-remove-phones@example.com")
-    user_id = user.id
-    await _seed_passkey(session, user)
-    await user_tokens.create_device_token(session, user_id=user_id, device_name="Phone")
-    await session.commit()
-
-    response = await client.post(
-        REMOVE, json={"current_password": PASSWORD}, headers=get_auth_headers(user)
-    )
-    assert response.status_code == 200, response.text
-
-    held = await _device_tokens(session, user_id)
-    assert held and all(row.consumed_at is not None for row in held)
 
 
 async def test_a_thin_set_is_replaced_on_the_way_out(
@@ -715,31 +679,6 @@ async def test_recovering_sets_the_password_and_clears_the_sessions(
     assert signed_in.status_code == 200, signed_in.text
 
 
-async def test_recovering_signs_the_phones_out(
-    client: AsyncClient, session: AsyncSession
-):
-    """A phone carrying a device token was signed in as the account was
-    before, so it is spent along with the sessions."""
-    user = await _account(session, "pl-recover-phones@example.com", password=None)
-    user_id = user.id
-    codes = await _issue_codes(session, user)
-    await user_tokens.create_device_token(session, user_id=user_id, device_name="Phone")
-    await session.commit()
-
-    response = await client.post(
-        RECOVER,
-        json={
-            "email": "pl-recover-phones@example.com",
-            "recovery_code": codes[0],
-            "password": NEW_PASSWORD,
-        },
-    )
-    assert response.status_code == 200, response.text
-
-    held = await _device_tokens(session, user_id)
-    assert held and all(row.consumed_at is not None for row in held)
-
-
 # ---------------------------------------------------------------------------
 # What stands in for the password an account does not hold
 # ---------------------------------------------------------------------------
@@ -882,48 +821,6 @@ async def test_a_renewed_session_is_read_back_to_the_sign_in_it_began_at(
     chain is read back to the sign-in at its root."""
     user = await _account(session, "pl-rotated@example.com", password=None)
     headers = await _rotated_headers(session, user, minutes_ago=11)
-
-    response = await _regenerate_codes(client, session, user, headers)
-    assert response.status_code == 403, response.text
-    assert response.json()["detail"] == "RECENT_PROOF_REQUIRED"
-
-
-async def test_a_standing_credential_is_not_somebody_signing_in(
-    client: AsyncClient, session: AsyncSession
-):
-    """A device token names no session, so there is nothing to read an age
-    off."""
-    user = await _account(session, "pl-devicegate@example.com", password=None)
-    await _seed_passkey(session, user)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-    await session.commit()
-
-    response = await client.post(
-        "/api/v1/auth/recovery-codes/regenerate",
-        headers={"Authorization": f"DeviceToken {device_token}"},
-        json={},
-    )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "SESSION_REQUIRED"
-
-
-async def test_a_session_resumed_from_a_device_token_is_not_a_sign_in(
-    client: AsyncClient, session: AsyncSession
-):
-    """Trading a kept device token for a session opens a new chain that records
-    no sign-in, so it does not speak for the account."""
-    user = await _account(session, "pl-resumed@example.com", password=None)
-    device_token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-    await session.commit()
-    exchanged = await client.post(
-        "/api/v1/auth/device-token/exchange", json={"device_token": device_token}
-    )
-    assert exchanged.status_code == 200, exchanged.text
-    headers = {"Authorization": f"Bearer {exchanged.json()['access_token']}"}
 
     response = await _regenerate_codes(client, session, user, headers)
     assert response.status_code == 403, response.text

@@ -6,16 +6,26 @@
  * tasks you were most likely working through. It now returns to the project
  * the task belonged to.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildProject, buildPropertySummary, buildTask } from "@/__tests__/factories";
+import {
+  buildInitiative,
+  buildPage,
+  buildProject,
+  buildPropertySummary,
+  buildTask,
+} from "@/__tests__/factories";
 import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import { type PropertySummary, PropertyType } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type ProjectRead,
+  type PropertySummary,
+  PropertyType,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import { TaskEditPage } from "./TaskEditPage";
 
@@ -37,8 +47,13 @@ const renderTaskPage = ({
   recurrence = null,
   lastOccurrence = false,
   properties = [],
+  destinations = [],
+  keepContentIn = false,
 }: {
   taskProjectId?: number;
+  /** Other projects the person may move the task into. */
+  destinations?: ProjectRead[];
+  keepContentIn?: boolean;
   properties?: PropertySummary[];
   statuses?: unknown[];
   recurrence?: string | null;
@@ -70,10 +85,17 @@ const renderTaskPage = ({
     // The collection routes go first: `:projectId` would otherwise swallow
     // them and answer a list request with a single project.
     guildHttp.get("/projects/", ({ request }) => {
-      listed.push(new URL(request.url).searchParams);
-      return HttpResponse.json([project]);
+      const params = new URL(request.url).searchParams;
+      listed.push(params);
+      // The move dialog's destinations come a page at a time.
+      return HttpResponse.json(
+        params.get("writable") === "true" ? buildPage([project, ...destinations]) : [project]
+      );
     }),
     guildHttp.get("/projects/writable", () => HttpResponse.json([project])),
+    guildHttp.get("/initiatives/:id", () =>
+      HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, keep_content_in: keepContentIn }))
+    ),
     guildHttp.get("/projects/:projectId", () => HttpResponse.json(project)),
     ...(statuses
       ? [guildHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses))]
@@ -203,6 +225,30 @@ describe("TaskEditPage", () => {
     const destinations = listed.find((params) => params.get("writable") === "true");
     expect(destinations?.get("is_template")).toBe("false");
   });
+
+  it.each([
+    [false, "Elsewhere"],
+    [true, "Nearby"],
+  ])(
+    "offers other initiatives' projects only while content may leave (kept in: %s)",
+    async (keepContentIn, offered) => {
+      renderTaskPage({
+        keepContentIn,
+        destinations: [
+          buildProject({ id: PROJECT_ID + 1, initiative_id: INITIATIVE_ID + 1, name: "Elsewhere" }),
+          buildProject({ id: PROJECT_ID + 2, initiative_id: INITIATIVE_ID, name: "Nearby" }),
+        ],
+      });
+
+      await openActionsMenu();
+      await userEvent.click(await screen.findByRole("menuitem", { name: /move to project/i }));
+
+      // The dialog picks the first destination it offers.
+      expect(
+        await within(await screen.findByRole("dialog")).findByText(offered)
+      ).toBeInTheDocument();
+    }
+  );
 
   it("returns to the task's project after deleting it", async () => {
     const { router, deleted } = renderTaskPage();

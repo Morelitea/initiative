@@ -244,7 +244,9 @@ async def on_bus_connected() -> None:
     _deliver_local(None, resync)
 
 
-def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> None:
+def queue_frame(
+    session: Any, user_id: int | None, frame: Dict[str, Any]
+) -> Dict[str, Any] | None:
     """Note a frame this session has earned but not yet committed.
 
     Nothing is sent here — the hook below sends it once the transaction
@@ -261,13 +263,16 @@ def queue_frame(session: Any, user_id: int | None, frame: Dict[str, Any]) -> Non
 
     ``session`` may be an ``AsyncSession`` (whose ``.info`` proxies the sync
     session's) or a sync session; both land in the dict the hook reads.
+
+    Returns the frame that will be sent, so a channel whose frames name things
+    can add to it.
     """
     if user_id is None:
-        return
+        return None
     frames: Dict[tuple[int, str], Dict[str, Any]] = session.info.setdefault(
         _FRAMES_KEY, {}
     )
-    frames.setdefault((user_id, frame["resource"]), frame)
+    return frames.setdefault((user_id, frame["resource"]), frame)
 
 
 def _grouped(

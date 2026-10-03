@@ -8,7 +8,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.notification_categories import PERSONAL_TYPES, Channel
 from app.models.platform.notification import Notification, NotificationType
 from app.services import keyset_cursor
-from app.services.platform import notification_prefs, notification_stream
+from app.services.platform import (
+    notification_policy,
+    notification_prefs,
+    notification_stream,
+)
 
 
 def _int_or_none(value: object) -> Optional[int]:
@@ -91,6 +95,34 @@ async def create_notification(
     # nobody.
     notification_stream.queue_signal(session, user_id, "created")
     return notification
+
+
+async def announce_on_desktop(session: AsyncSession, line: Notification) -> None:
+    """Have the recipient's desktop apps show this line, unless the
+    deployment or the line's community has switched push off.
+
+    The caller has already asked whether the recipient wants it on the
+    desktop. Redaction is applied when the app reads the line, under the
+    switches as they stand then.
+    """
+    if line.id is None:
+        return
+    if (await notification_policy.for_send(session, line.guild_id)).push:
+        notification_stream.queue_alert(session, line.user_id, line.id)
+
+
+async def get_notification(
+    session: AsyncSession, *, user_id: int, notification_id: int
+) -> Optional[Notification]:
+    """One of this account's lines, or ``None``."""
+    result = await session.exec(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == user_id,
+        )
+    )
+    row = result.one_or_none()
+    return row[0] if isinstance(row, tuple) else row
 
 
 async def find_unread_by_data(
@@ -304,16 +336,10 @@ async def mark_notification_read(
     user_id: int,
     notification_id: int,
 ) -> Notification | None:
-    stmt = select(Notification).where(
-        Notification.id == notification_id,
-        Notification.user_id == user_id,
+    notification = await get_notification(
+        session, user_id=user_id, notification_id=notification_id
     )
-    result = await session.exec(stmt)
-    row = result.one_or_none()
-    if row is None:
-        return None
-    notification = row[0] if isinstance(row, tuple) else row
-    if not notification:
+    if notification is None:
         return None
     if notification.read_at is None:
         notification.read_at = datetime.now(timezone.utc)
@@ -334,15 +360,11 @@ async def mark_notification_unread(
 ) -> Notification | None:
     """Put a line back. Reading is a statement about the reader, and one made
     by accident should be retractable."""
-    stmt = select(Notification).where(
-        Notification.id == notification_id,
-        Notification.user_id == user_id,
+    notification = await get_notification(
+        session, user_id=user_id, notification_id=notification_id
     )
-    result = await session.exec(stmt)
-    row = result.one_or_none()
-    if row is None:
+    if notification is None:
         return None
-    notification = row[0] if isinstance(row, tuple) else row
     if notification.read_at is not None:
         notification.read_at = None
         session.add(notification)
@@ -359,15 +381,11 @@ async def dismiss_notification(
     notification_id: int,
 ) -> bool:
     """Remove one line outright."""
-    stmt = select(Notification).where(
-        Notification.id == notification_id,
-        Notification.user_id == user_id,
+    notification = await get_notification(
+        session, user_id=user_id, notification_id=notification_id
     )
-    result = await session.exec(stmt)
-    row = result.one_or_none()
-    if row is None:
+    if notification is None:
         return False
-    notification = row[0] if isinstance(row, tuple) else row
     await session.delete(notification)
     notification_stream.queue_signal(session, user_id, "withdrawn")
     await session.commit()

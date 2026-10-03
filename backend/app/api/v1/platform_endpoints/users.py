@@ -1381,7 +1381,7 @@ async def update_users_me(
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
         current_user.password_set_at = datetime.now(timezone.utc)
-        # Bump token_version and revoke device tokens + API keys + refresh
+        # Bump token_version and revoke API keys + refresh
         # sessions so no stale credential can survive the password change.
         #
         # Staged, not committed: the replacement session below joins them in

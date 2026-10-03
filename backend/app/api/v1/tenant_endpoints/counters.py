@@ -272,14 +272,6 @@ async def update_counter(
 
     update_data = counter_in.model_dump(exclude_unset=True)
 
-    # Drop explicit nulls for NOT NULL columns — a null is meaningless on PATCH
-    # for these (only min/max are nullable). This keeps a `{"step": null}`
-    # payload from reaching the constraint check (None <= 0 → TypeError → 500)
-    # or a DB NOT NULL violation, treating it as "field not provided".
-    for field in ("name", "step", "initial_count", "view_mode", "position"):
-        if field in update_data and update_data[field] is None:
-            del update_data[field]
-
     # Compute the prospective new state
     new_min: Optional[Decimal] = (
         update_data["min"] if "min" in update_data else counter.min

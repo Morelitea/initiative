@@ -51,14 +51,12 @@ class AuthMessages:
     ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED"
     CANNOT_REACTIVATE_ANONYMIZED = "CANNOT_REACTIVATE_ANONYMIZED"
     EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED"
-    TOKEN_NOT_FOUND = "TOKEN_NOT_FOUND"
     #: The session named is not one this account holds.
     SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
     NOT_AUTHENTICATED = "NOT_AUTHENTICATED"
-    INVALID_DEVICE_TOKEN = "INVALID_DEVICE_TOKEN"
     #: The action hands out authority, so it is taken while signed in rather
-    #: than through a standing credential (an API key, a device token, an app
-    #: acting on someone's behalf).
+    #: than through a standing credential (an API key, an app acting on
+    #: someone's behalf).
     SESSION_REQUIRED = "SESSION_REQUIRED"
     #: The account holds no password to re-check, and the session is not fresh
     #: enough to stand in for one.

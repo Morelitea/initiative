@@ -64,12 +64,23 @@ jobs:
   trivy-image:
     name: Trivy (image / base OS)
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read  # the uv image on ghcr.io
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        # The Dockerfile copies uv from ghcr.io, which rate-limits anonymous pulls.
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Name today for the package refresh
         id: day

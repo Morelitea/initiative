@@ -37,10 +37,12 @@ vi.mock("@/api/client", () => ({
 }));
 
 const getItem = vi.fn((_key: string): string | null => null);
+// Hoisted: i18n writes its language through storage while the setup file loads.
+const setItem = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/storage", async (importOriginal) => ({
   CREDENTIAL_KEYS: (await importOriginal<typeof import("@/lib/storage")>()).CREDENTIAL_KEYS,
   getItem: (key: string) => getItem(key),
-  setItem: vi.fn(),
+  setItem: (...args: unknown[]) => setItem(...args),
   removeItem: vi.fn(),
   listKeys: () => [],
 }));
@@ -385,6 +387,35 @@ describe("useAuth second factor", () => {
   });
 });
 
+describe("useAuth password sign-in on native", () => {
+  beforeEach(() => {
+    get.mockReset();
+    post.mockReset();
+    getItem.mockReset().mockReturnValue(null);
+    setItem.mockReset();
+  });
+
+  it("posts the browser's form with the device's name and keeps the refresh token", async () => {
+    const { Capacitor } = await import("@capacitor/core");
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    get.mockResolvedValue({ data: buildUser() });
+    renderAuth();
+    await waitFor(() => expect(auth.user).not.toBeNull());
+
+    post.mockResolvedValueOnce({ data: { access_token: "at", refresh_token: "rt" } });
+    await act(async () => {
+      await auth.login({ email: "a@example.com", password: "pw", deviceName: "Pixel" });
+    });
+
+    const [url, form] = post.mock.calls[0] as [string, URLSearchParams];
+    expect(url).toBe("/auth/token");
+    expect(form.get("username")).toBe("a@example.com");
+    expect(form.get("device_name")).toBe("Pixel");
+    expect(setItem).toHaveBeenCalledWith(CREDENTIAL_KEYS.refreshToken, "rt");
+    expect(setAuthToken).toHaveBeenCalledWith("at");
+  });
+});
+
 describe("useAuth passkey sign-in", () => {
   beforeEach(() => {
     get.mockReset();
@@ -403,9 +434,8 @@ describe("useAuth passkey sign-in", () => {
       await auth.applyPasskeySignIn({ access_token: "fresh-token", token_type: "bearer" });
     });
 
-    expect(setAuthToken).toHaveBeenCalledWith("fresh-token", false);
+    expect(setAuthToken).toHaveBeenCalledWith("fresh-token");
     expect(auth.token).toBe("fresh-token");
-    expect(auth.isDeviceToken).toBe(false);
     expect(auth.user?.username).toBe("Signed in");
   });
 
@@ -442,9 +472,8 @@ describe("useAuth passkey step-up", () => {
       await auth.stepUpWithPasskey();
     });
 
-    expect(setAuthToken).toHaveBeenCalledWith("stepped-up", false);
+    expect(setAuthToken).toHaveBeenCalledWith("stepped-up");
     expect(auth.token).toBe("stepped-up");
-    expect(auth.isDeviceToken).toBe(false);
     expect(auth.user?.username).toBe("All the way in");
   });
 

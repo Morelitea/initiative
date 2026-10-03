@@ -53,6 +53,7 @@ __all__ = [
     "revoke_chain",
     "revoke_all_for_user",
     "delete_all_for_user",
+    "follow_devices",
     "purge_dead_sessions",
     "process_dead_session_purge",
     "SESSION_PURGE_POLL_SECONDS",
@@ -84,17 +85,29 @@ def _generate_refresh_token() -> str:
     return secrets.token_urlsafe(_REFRESH_TOKEN_BYTES)
 
 
+#: How long a device's session stands unused: the phone and desktop apps stay
+#: signed in where a browser would not.
+DEVICE_REFRESH_TTL = timedelta(days=90)
+
+
 async def _narrowed_ttl(
-    session: AsyncSession, *, user_id: int, requested: timedelta | None
+    session: AsyncSession,
+    *,
+    user_id: int,
+    requested: timedelta | None,
+    device: bool,
 ) -> timedelta:
     """How long the refresh row may stand.
 
-    The deployment's own window unless the caller named one, narrowed by what
-    a community held to the compliance standard asks of its members. Resolved
+    The deployment's own window, or the device window, unless the caller named
+    one, narrowed by what a community held to the compliance standard asks of
+    its members. Resolved
     here rather than by each caller: a rotation learns whose session it is
     from the token it was handed, so there is one place that knows.
     """
-    ttl = requested or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
+    ttl = requested or (
+        DEVICE_REFRESH_TTL if device else timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
+    )
     idle = await session_lifetime.idle_window(session, user_id=user_id)
     return min(ttl, idle) if idle is not None else ttl
 
@@ -193,6 +206,7 @@ async def create_session(
     user_agent: str | None = None,
     ip: str | None = None,
     device_name: str | None = None,
+    device: bool = False,
     refresh_ttl: timedelta | None = None,
     now: datetime | None = None,
 ) -> IssuedSession:
@@ -213,7 +227,9 @@ async def create_session(
     so a sign-in that fails leaves the deletion exactly where it was.
     """
     issued = now or utcnow()
-    ttl = await _narrowed_ttl(session, user_id=user_id, requested=refresh_ttl)
+    ttl = await _narrowed_ttl(
+        session, user_id=user_id, requested=refresh_ttl, device=device
+    )
     # The end of the whole chain, read once here and carried forward from now
     # on. ``expires_at`` is the idle window and never outlives it.
     chain_ends = await session_lifetime.chain_deadline(
@@ -232,6 +248,7 @@ async def create_session(
         user_agent=user_agent,
         ip=ip,
         device_name=device_name,
+        device=device,
     )
     session.add(row)
     await session.flush()
@@ -309,7 +326,9 @@ async def rotate_session(
     # Whose session this is only becomes known here, from the token that was
     # presented, so the window it may stand for is worked out now rather than
     # by a caller that could not have known.
-    ttl = await _narrowed_ttl(session, user_id=row.user_id, requested=refresh_ttl)
+    ttl = await _narrowed_ttl(
+        session, user_id=row.user_id, requested=refresh_ttl, device=row.device
+    )
     if idle >= ttl:
         # Nobody has been here for the whole window. Ended rather than left to
         # expire, so a later renewal cannot take it up again.
@@ -357,16 +376,33 @@ async def rotate_session(
         user_agent=user_agent if user_agent is not None else row.user_agent,
         ip=ip if ip is not None else row.ip,
         device_name=device_name if device_name is not None else row.device_name,
+        device=row.device,
     )
     session.add(child)
     await session.flush()
-    from app.services.platform import push_tokens
-
-    await push_tokens.follow_session(session, from_id=row.id, to_id=child.id)
+    await follow_devices(session, from_id=row.id, to_id=child.id)
     return RotationResult(
         RefreshOutcome.ROTATED,
         issued=IssuedSession(session=child, refresh_token=raw),
     )
+
+
+async def follow_devices(
+    session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
+) -> None:
+    """Move what a device registered under one session to the session taking
+    its place: its push registrations and its message key store.
+
+    Called wherever a session is succeeded — a renewal, a step-up, a
+    replacement — so a device's push row and key store go on naming the same
+    live sign-in, which is how a message finds the phone that can read it. Does
+    not commit: it lands with the session change.
+    """
+    # Imported here: both reach back into the auth package.
+    from app.services.platform import dm_transport, push_tokens
+
+    await push_tokens.follow_session(session, from_id=from_id, to_id=to_id)
+    await dm_transport.follow_session(session, from_id=from_id, to_id=to_id)
 
 
 async def get_live_session_by_refresh_token(
