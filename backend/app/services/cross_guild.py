@@ -69,9 +69,10 @@ async def member_guild_ids(
     the guild path answers such a caller with nothing, and being the twin of
     that path means answering the same.
 
-    A guild that declines personal API keys is excluded when the request is
-    carrying one, which is the same twinning: ``/c/{community_id}`` refuses that
-    caller, so an aggregate cannot be the way its content is read instead.
+    A guild that turned off this member's API access is excluded when the
+    request is carrying a personal API key, which is the same twinning:
+    ``/c/{community_id}`` refuses that caller, so an aggregate cannot be the
+    way its content is read instead.
     A key limited to one guild reaches that guild alone, for the same reason."""
     await set_rls_context(session, Platform(user_id=user_id))
     conditions = [
@@ -82,7 +83,7 @@ async def member_guild_ids(
     if auth_context.api_key_credential():
         conditions.append(
             or_(
-                Guild.allow_api_keys.is_(True),
+                GuildMembership.api_keys_allowed.is_(True),
                 ~guild_entitlements.holds_option(
                     Guild.id, CommunityAuthOption.restrictions
                 ),

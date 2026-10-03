@@ -117,7 +117,6 @@ CASES: dict[tuple[str, str], Case] = {
         unmet=LoginMethod.totp.value,
     ),
     ("community", "enforce_compliance_session"): Case(False, True, GUILD_SETTINGS),
-    ("community", "allow_api_keys"): Case(True, False, GUILD_SETTINGS),
     ("community", "allow_push_notifications"): Case(True, False, GUILD_SETTINGS),
     ("community", "allow_email_notifications"): Case(True, False, GUILD_SETTINGS),
     ("community", "redact_notification_content"): Case(False, True, GUILD_SETTINGS),

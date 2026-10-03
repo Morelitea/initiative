@@ -1303,23 +1303,23 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
 async def test_a_refused_rule_leaves_the_communitys_others_as_they_were(
     client, session: AsyncSession, acting_user
 ):
-    """One change across the seat's rules: switching keys off beside a factor
+    """One change across the seat's rules: switching push off beside a factor
     the seat has not presented is refused as a whole, and a mixed change the
     seat meets is written as a whole."""
     seat = await acting_user(guild_role=CommunityRole.superadmin)
     await guild_administration(session, seat.guild, auth_options=["restrictions"])
-    body = {"allow_api_keys": False, "require_second_factor": True}
+    body = {"allow_push_notifications": False, "require_second_factor": True}
 
     refused = await client.patch(
         _settings(seat.guild.id), json=body, headers=seat.headers
     )
     assert refused.status_code == 400, refused.text
     read = await client.get(_settings(seat.guild.id), headers=seat.headers)
-    assert read.json()["allow_api_keys"] is True
+    assert read.json()["allow_push_notifications"] is True
     assert read.json()["require_second_factor"] is False
 
     met = _bearer(get_auth_token(seat.user, amr=[SECOND_FACTOR_AMR]))
     written = await client.patch(_settings(seat.guild.id), json=body, headers=met)
     assert written.status_code == 200, written.text
-    assert written.json()["allow_api_keys"] is False
+    assert written.json()["allow_push_notifications"] is False
     assert written.json()["require_second_factor"] is True

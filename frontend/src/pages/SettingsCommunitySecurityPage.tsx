@@ -187,28 +187,6 @@ export const SettingsCommunitySecurityPage = () => {
   const updatePolicy = useUpdateCommunityAuthSettings(communityId);
 
   // Each of these is one boolean, so each saves as it is switched.
-  const updateApiAccess = useUpdateCommunityAuthSettings(communityId);
-  const apiAccess = useFlipToSave(authSettings?.allow_api_keys ?? true, communityId);
-
-  const changeApiAccess = (next: boolean) => {
-    apiAccess.begin(next);
-    updateApiAccess.mutate(
-      { allow_api_keys: next },
-      {
-        onSuccess: async () => {
-          // A member's community list carries these too, for the pages that read
-          // them there.
-          if (!hasGrantedSeat) await refreshCommunities();
-          apiAccess.settle();
-          toast.success(t("communityAuth.apiAccess.saved"));
-        },
-        onError: (err: unknown) => {
-          apiAccess.fail(getErrorMessage(err, "settings:communityAuth.apiAccess.error"));
-        },
-      }
-    );
-  };
-
   const updateSessionLimit = useUpdateCommunityAuthSettings(communityId);
   const sessionLimit = useFlipToSave(
     authSettings?.enforce_compliance_session ?? false,
@@ -673,38 +651,6 @@ export const SettingsCommunitySecurityPage = () => {
               {sessionLimit.error && (
                 <Alert variant="destructive">
                   <AlertDescription>{sessionLimit.error}</AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("communityAuth.apiAccess.title")}</CardTitle>
-              <CardDescription>{t("communityAuth.apiAccess.description")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-1">
-                  <Label htmlFor="community-allow-api-keys" className="font-medium">
-                    {t("communityAuth.apiAccess.allowLabel")}
-                  </Label>
-                  <p className="text-muted-foreground text-sm">
-                    {apiAccess.value
-                      ? t("communityAuth.apiAccess.allowHelp")
-                      : t("communityAuth.apiAccess.blockedHelp")}
-                  </p>
-                </div>
-                <Switch
-                  id="community-allow-api-keys"
-                  checked={apiAccess.value}
-                  onCheckedChange={changeApiAccess}
-                  disabled={updateApiAccess.isPending}
-                />
-              </div>
-              {apiAccess.error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{apiAccess.error}</AlertDescription>
                 </Alert>
               )}
             </CardContent>

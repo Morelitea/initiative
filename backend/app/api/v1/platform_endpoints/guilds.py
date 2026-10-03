@@ -95,17 +95,19 @@ from app.schemas.platform.guild import (
     CommunityOrderUpdate,
     CommunityUpdate,
     LeaveCommunityEligibilityResponse,
+    MemberApiAccessUpdate,
     MemberDisplayNameUpdate,
 )
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.core.guild_auth_options import effective_options
+from app.core.guild_auth_options import CommunityAuthOption, effective_options
 from app.services.platform import auth_posture
 from app.services.platform import notification_policy
 from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform import guild_images as images_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
+from app.services.platform import guild_entitlements
 from app.services.platform import guilds as guilds_service
 from app.services.platform import intake as intake_service
 from app.services.content_sockets import sockets as content_sockets
@@ -231,7 +233,6 @@ def _serialize_guild(
         if admin_row
         else None,
         # Admins only: the state of the API-access control on that tab.
-        allow_api_keys=guild.allow_api_keys if is_admin else None,
         # Admins only: and of the session-limit control beside it.
         enforce_compliance_session=(
             guild.enforce_compliance_session if is_admin else None
@@ -1181,7 +1182,6 @@ async def _auth_settings_response(
         if administration
         else [],
         auth_policy=await _auth_policy_response(system_session, guild_id),
-        allow_api_keys=guild.allow_api_keys,
         enforce_compliance_session=guild.enforce_compliance_session,
         require_second_factor=guild.require_second_factor,
         allow_push_notifications=guild.allow_push_notifications,
@@ -1618,6 +1618,63 @@ async def set_member_display_name(
             detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
         )
     await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put(
+    "/{community_id}/members/{user_id}/api-access",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def set_member_api_access(
+    guild_id: CommunityIdPath,
+    _guild_context: SettingsSeatWriteContextDep,
+    user_id: int,
+    payload: MemberApiAccessUpdate,
+    session: SystemSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Response:
+    """Turn one member's personal API keys off or on for this community. The
+    seat only.
+
+    Turning them off needs the ``restrictions`` option, and applies while the
+    community holds it; turning them back on never needs it. Keys the member
+    already made are left alone either way: the gate refuses them here while
+    access is off, and they reach the community again when it is turned back
+    on.
+
+    On the system engine, as a role change is: the guild role writes only the
+    caller's own membership row."""
+    if not payload.api_keys_allowed:
+        await guild_entitlements.require_auth_option(
+            session, guild_id, CommunityAuthOption.restrictions
+        )
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=user_id, for_update=True
+    )
+    if membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
+        )
+    if membership.api_keys_allowed == payload.api_keys_allowed:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    membership.api_keys_allowed = payload.api_keys_allowed
+    session.add(membership)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_MEMBER_API_ACCESS_CHANGED,
+        actor_user_id=current_user.id,
+        target_user_id=user_id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={"api_keys_allowed": payload.api_keys_allowed},
+    )
+    await session.commit()
+    # A stream opened with one of their keys is re-checked now rather than on
+    # the next re-auth tick.
+    await content_sockets.revoke_user(guild_id, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

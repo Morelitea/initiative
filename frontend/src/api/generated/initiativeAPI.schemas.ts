@@ -2797,7 +2797,6 @@ export interface CommunityAuthPolicyUpdate {
 export interface CommunityAuthSettingsRead {
   auth_options: CommunityAuthOption[];
   auth_policy: CommunityAuthPolicyRead;
-  allow_api_keys: boolean;
   enforce_compliance_session: boolean;
   require_second_factor: boolean;
   allow_push_notifications: boolean;
@@ -2818,7 +2817,6 @@ export interface CommunityAuthSettingsRead {
  */
 export interface CommunityAuthSettingsUpdate {
   auth_policy?: CommunityAuthPolicyUpdate | null;
-  allow_api_keys?: boolean | null;
   enforce_compliance_session?: boolean | null;
   require_second_factor?: boolean | null;
   allow_push_notifications?: boolean | null;
@@ -3312,7 +3310,6 @@ export interface CommunityRead {
   content_read_only: boolean;
   contact_email: string | null;
   auth_options: CommunityAuthOption[] | null;
-  allow_api_keys: boolean | null;
   enforce_compliance_session: boolean | null;
   require_second_factor: boolean | null;
   is_community: boolean;
@@ -6115,6 +6112,13 @@ export interface MemberAIView {
   mode: AIConfigMode;
   enabled: boolean;
   connections: MemberAIConnectionView[];
+}
+
+/**
+ * Whether one member's personal API keys reach this community.
+ */
+export interface MemberApiAccessUpdate {
+  api_keys_allowed: boolean;
 }
 
 /**
@@ -9126,6 +9130,7 @@ export interface UserCommunityMember {
   community_role: string | null;
   oidc_managed: boolean;
   display_name: string | null;
+  api_keys_allowed: boolean | null;
 }
 
 /**

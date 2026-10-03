@@ -123,6 +123,9 @@ class AuditEventType(str, Enum):
     #: Between member and admin. A change to or from the seat that holds a
     #: community's sign-in is ``GUILD_SUPERADMIN_CHANGED`` instead.
     GUILD_MEMBER_ROLE_CHANGED = "guild.member_role_changed"
+    #: The seat turning one member's personal API keys off or on for the
+    #: community.
+    GUILD_MEMBER_API_ACCESS_CHANGED = "guild.member_api_access_changed"
     #: An invite is a standing offer of membership; issuing or withdrawing
     #: one is recorded, and redeeming one is a ``GUILD_MEMBER_ADDED``.
     GUILD_INVITE_CREATED = "guild.invite_created"
@@ -408,6 +411,9 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
     AuditEventType.GUILD_MEMBER_ROLE_CHANGED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
+    ),
+    AuditEventType.GUILD_MEMBER_API_ACCESS_CHANGED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHORIZATION, is_write=True
     ),
     AuditEventType.GUILD_INVITE_CREATED: AuditEventMeta(

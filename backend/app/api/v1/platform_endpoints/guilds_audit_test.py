@@ -212,6 +212,36 @@ async def test_a_role_change_short_of_the_seat_is_its_own_event(
     assert emitted(capfd, AuditEventType.GUILD_MEMBER_ROLE_CHANGED) == []
 
 
+async def test_a_members_api_access_changing_is_recorded(
+    client: AsyncClient, session: AsyncSession, capfd
+):
+    owner, guild = await _guild_with_admin(session, role=CommunityRole.superadmin)
+    owner_id, guild_id = owner.id, guild.id
+    member = await create_user(session)
+    member_id = member.id
+    await create_guild_membership(session, user=member, guild=guild)
+    capfd.readouterr()
+    path = f"/api/v1/communities/{guild_id}/members/{member_id}/api-access"
+
+    revoked = await client.put(
+        path, headers=get_auth_headers(owner), json={"api_keys_allowed": False}
+    )
+    assert revoked.status_code == 204, revoked.text
+
+    rows = emitted(capfd, AuditEventType.GUILD_MEMBER_API_ACCESS_CHANGED)
+    assert [_where(row) for row in rows] == [
+        (owner_id, member_id, guild_id, {"type": "guild", "id": guild_id})
+    ]
+    assert rows[0]["detail"] == {"api_keys_allowed": False}
+
+    # Restating what it already reads moved nothing.
+    again = await client.put(
+        path, headers=get_auth_headers(owner), json={"api_keys_allowed": False}
+    )
+    assert again.status_code == 204, again.text
+    assert emitted(capfd, AuditEventType.GUILD_MEMBER_API_ACCESS_CHANGED) == []
+
+
 # --- settings ---------------------------------------------------------------
 
 
@@ -281,12 +311,12 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
     headers = get_auth_headers(admin)
     capfd.readouterr()
 
-    api_access = await client.patch(
+    push = await client.patch(
         f"/api/v1/communities/{guild_id}/auth-settings",
         headers=headers,
-        json={"allow_api_keys": False},
+        json={"allow_push_notifications": False},
     )
-    assert api_access.status_code == 200, api_access.text
+    assert push.status_code == 200, push.text
 
     session_limit = await client.patch(
         f"/api/v1/communities/{guild_id}/auth-settings",
@@ -302,9 +332,9 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
     ]
     assert [row["detail"] for row in rows] == [
         {
-            "area": "api_access",
-            "changed": ["allow_api_keys"],
-            "values": {"allow_api_keys": {"from": True, "to": False}},
+            "area": "notifications",
+            "changed": ["allow_push_notifications"],
+            "values": {"allow_push_notifications": {"from": True, "to": False}},
         },
         {
             "area": "session_limit",
@@ -317,7 +347,7 @@ async def test_the_seats_own_switches_are_recorded_area_by_area(
     again = await client.patch(
         f"/api/v1/communities/{guild_id}/auth-settings",
         headers=headers,
-        json={"allow_api_keys": False},
+        json={"allow_push_notifications": False},
     )
     assert again.status_code == 200, again.text
     assert emitted(capfd, AuditEventType.GUILD_SETTINGS_CHANGED) == []
