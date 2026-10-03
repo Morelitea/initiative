@@ -254,6 +254,11 @@
       "subject": "Zwei-Faktor-Authentifizierung ist deaktiviert",
       "title": "Zwei-Faktor-Authentifizierung ist deaktiviert",
       "body": "Dein Konto fragt bei der Anmeldung keinen Code mehr ab, und deine bisherigen Wiederherstellungscodes wurden verworfen. Du wurdest überall sonst abgemeldet."
+    },
+    "disableHeld": {
+      "subject": "Zwei-Faktor-Authentifizierung wird deaktiviert",
+      "title": "Zwei-Faktor-Authentifizierung wird deaktiviert",
+      "body": "Die Zwei-Faktor-Authentifizierung wird am <strong>{{date}}</strong> deaktiviert. Bis dahin fragt dein Konto bei der Anmeldung weiter einen Code ab, und du kannst es in deinen Einstellungen unter Sicherheit abbrechen."
     }
   },
   "passwordRemoved": {
@@ -279,6 +284,11 @@
       "subject": "Von deinem Konto wurde ein Passkey entfernt",
       "title": "Von deinem Konto wurde ein Passkey entfernt",
       "body": "Mit dem Passkey <strong>{{passkey}}</strong> kannst du dich nicht mehr anmelden. Deine übrigen Anmeldewege bleiben unverändert, und du bleibst überall angemeldet, wo du es warst."
+    },
+    "removalHeld": {
+      "subject": "Dein letzter Passkey wird entfernt",
+      "title": "Dein letzter Passkey wird entfernt",
+      "body": "Der Passkey <strong>{{passkey}}</strong>, der letzte in deinem Konto, wird am <strong>{{date}}</strong> entfernt. Bis dahin kannst du dich weiter damit anmelden, und du kannst das Entfernen in deinen Einstellungen unter Sicherheit abbrechen."
     }
   },
   "address": {
@@ -297,6 +307,16 @@
       "subject": "Eine Adresse wurde aus deinem Konto entfernt",
       "title": "Eine Adresse wurde aus deinem Konto entfernt",
       "body": "<strong>{{address}}</strong> wurde aus deinem Konto entfernt und kann nicht mehr zur Anmeldung verwendet werden."
+    },
+    "primaryHeld": {
+      "subject": "Deine primäre E-Mail-Adresse wird geändert",
+      "title": "Deine primäre E-Mail-Adresse wird geändert",
+      "body": "<strong>{{address}}</strong> wird am <strong>{{date}}</strong> zur primären Adresse deines Kontos. Bis dahin ändert sich nichts, und du kannst es in deinen Einstellungen unter Konto abbrechen."
+    },
+    "removalHeld": {
+      "subject": "Eine Adresse wird aus deinem Konto entfernt",
+      "title": "Eine Adresse wird aus deinem Konto entfernt",
+      "body": "<strong>{{address}}</strong> wird am <strong>{{date}}</strong> aus deinem Konto entfernt. Bis dahin kannst du dich weiter damit anmelden, und du kannst das Entfernen in deinen Einstellungen unter Konto abbrechen."
     }
   },
   "accountNotice": {

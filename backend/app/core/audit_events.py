@@ -76,6 +76,11 @@ class AuditEventType(str, Enum):
     #: credential id and never any key material.
     AUTH_PASSKEY_REGISTERED = "auth.passkey_registered"
     AUTH_PASSKEY_REMOVED = "auth.passkey_removed"
+    #: A change to how the account is signed into was held, and later
+    #: cancelled or applied. The row carries the hold's id and kind.
+    AUTH_CHANGE_HELD = "auth.change_held"
+    AUTH_HELD_CHANGE_CANCELLED = "auth.held_change_cancelled"
+    AUTH_HELD_CHANGE_APPLIED = "auth.held_change_applied"
     #: Who holds a guild's sign-in configuration changed. The seat is passed
     #: on by whoever holds it — by membership, or through a superadmin
     #: settings grant — from the guild's own role route.
@@ -360,6 +365,15 @@ AUDIT_EVENT_META: dict[AuditEventType, AuditEventMeta] = {
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.AUTH_PASSKEY_REMOVED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_CHANGE_HELD: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_HELD_CHANGE_CANCELLED: AuditEventMeta(
+        tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
+    ),
+    AuditEventType.AUTH_HELD_CHANGE_APPLIED: AuditEventMeta(
         tier=2, category=AuditCategory.AUTHENTICATION, is_write=True
     ),
     AuditEventType.PLATFORM_LOGIN_METHODS_CHANGED: AuditEventMeta(

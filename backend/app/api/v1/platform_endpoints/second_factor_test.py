@@ -9,7 +9,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import get_password_hash
 from app.models.platform.user import User, UserStatus
 from app.services.auth import totp as totp_service
-from app.testing import create_user, get_auth_headers, get_auth_token
+from app.testing import (
+    create_user,
+    get_auth_headers,
+    get_auth_token,
+    signed_in_headers,
+)
 
 
 PASSWORD = "correct-horse-battery-staple"
@@ -260,7 +265,7 @@ async def test_removing_it_asks_for_the_password_and_the_factor(
     client: AsyncClient, session: AsyncSession
 ):
     user, secret, _codes = await _enrol(client, session, "remove@example.com")
-    headers = get_auth_headers(user)
+    headers = await signed_in_headers(session, user, amr=["hwk"])
 
     no_factor = await client.post(
         "/api/v1/auth/totp/disable",
@@ -372,7 +377,7 @@ async def test_removing_it_leaves_this_session_signed_in(
 
     user, secret, _codes = await _enrol(client, session, "keepme@example.com")
     mine = await session_service.create_session(
-        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+        session, user_id=user.id, amr=["hwk"], satisfied_providers=[]
     )
     elsewhere = await session_service.create_session(
         session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
@@ -380,7 +385,7 @@ async def test_removing_it_leaves_this_session_signed_in(
     await session.commit()
     mine_id, elsewhere_id = mine.session.id, elsewhere.session.id
 
-    token = get_auth_token(user, session_id=mine_id)
+    token = get_auth_token(user, session_id=mine_id, amr=["hwk"])
     removed = await client.post(
         "/api/v1/auth/totp/disable",
         json={"current_password": PASSWORD, "code": _next_code(secret)},
@@ -915,3 +920,41 @@ async def test_an_account_with_a_password_and_no_factor_has_nothing_to_re_issue(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "TOTP_NOT_ENROLLED"
+
+
+async def test_turning_it_off_from_a_new_sign_in_waits(
+    client: AsyncClient, session: AsyncSession
+):
+    """Held, the factor stays. Made once due, it goes, and every other session
+    goes with it but the one that asked."""
+    from app.models.platform.auth_session import AuthSession
+    from app.services.auth import held_changes
+    from app.services.auth import sessions as session_service
+    from app.services.auth import totp as totp_service
+
+    user, secret, _codes = await _enrol(client, session, "held-off@example.com")
+    user_id = user.id
+    mine = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    elsewhere = await session_service.create_session(
+        session, user_id=user_id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    mine_id, elsewhere_id = mine.session.id, elsewhere.session.id
+
+    held = await client.post(
+        "/api/v1/auth/totp/disable",
+        json={"current_password": PASSWORD, "code": _next_code(secret)},
+        headers={"Authorization": f"Bearer {get_auth_token(user, session_id=mine_id)}"},
+    )
+    assert held.status_code == 202, held.text
+    assert held.json()["kind"] == "second_factor_off"
+    assert await totp_service.is_enrolled(session, user_id=user_id)
+
+    due = datetime.now(timezone.utc) + held_changes.HOLD_FOR
+    assert await held_changes.apply_due(session, now=due) == 1
+    session.expire_all()
+    assert not await totp_service.is_enrolled(session, user_id=user_id)
+    assert (await session.get(AuthSession, mine_id)).revoked_at is None
+    assert (await session.get(AuthSession, elsewhere_id)).revoked_at is not None

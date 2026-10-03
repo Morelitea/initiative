@@ -191,6 +191,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         GRANT_EXPIRY_POLL_SECONDS,
         process_grant_expiry,
     )
+    from app.services.auth.held_changes import (
+        HOLD_SWEEP_POLL_SECONDS,
+        process_due_holds,
+    )
     from app.services.marketplace.tuf_registry import (
         process_registry_refresh,
         registry_available,
@@ -289,6 +293,9 @@ def start_background_tasks() -> list[asyncio.Task]:
             _loop_worker(
                 process_grant_expiry, GRANT_EXPIRY_POLL_SECONDS, "grant-expiry"
             )
+        ),
+        asyncio.create_task(
+            _loop_worker(process_due_holds, HOLD_SWEEP_POLL_SECONDS, "held-changes")
         ),
     ]
 

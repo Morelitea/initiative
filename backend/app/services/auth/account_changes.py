@@ -1,11 +1,12 @@
 """What an account notice records about its change, and undoing it.
 
 Four notices can be undone from their "This wasn't me" link: an address proved,
-the primary moved, an address removed, a passkey added. Each records, when it
-is queued, what undoing it would do, whether the change was risky, and the
-proof time of the newest address involved. The worker gives a copy the power
-to undo only where the change was risky and the copy's address was proved
-before that newest one; :func:`apply_undo` carries it out.
+the primary moved, an address removed, a passkey added. A notice that a change
+is waiting is answered the same way, and undoing it cancels the change. Each
+records, when it is queued, what undoing it would do, whether the change was
+risky, and the proof time of the newest address involved. The worker gives a
+copy the power to undo only where the change was risky and the copy's address
+was proved before that newest one; :func:`apply_undo` carries it out.
 """
 
 from __future__ import annotations
@@ -17,7 +18,6 @@ from sqlmodel import delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import SALT_EMAIL, decrypt_field, hash_email
-from app.core.login_methods import LoginMethod
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_passkey import UserPasskey
 from app.services.auth import addresses
@@ -37,22 +37,32 @@ async def change_record(
     user_id: int,
     risky: bool,
     undo: dict[str, Any],
+    any_address: bool = False,
 ) -> dict[str, Any]:
     """What an undoable notice carries: whether its change was risky, when it
     happened, the proof time of the newest address on the account, and what
     undoing it does.
 
     Called while the account still holds every address involved, so a removed
-    address counts towards the newest.
+    address counts towards the newest. A change that involves no address
+    (``any_address``) counts the moment it was made as the newest instead, so
+    every address the account held then may answer it.
     """
+    now = datetime.now(timezone.utc)
     newest = (
-        await session.exec(
-            select(func.max(UserEmail.verified_at)).where(UserEmail.user_id == user_id)
-        )
-    ).one()
+        now
+        if any_address
+        else (
+            await session.exec(
+                select(func.max(UserEmail.verified_at)).where(
+                    UserEmail.user_id == user_id
+                )
+            )
+        ).one()
+    )
     return {
         "risky": risky,
-        "at": datetime.now(timezone.utc).isoformat(),
+        "at": now.isoformat(),
         "newest": newest.isoformat() if newest else None,
         "undo": undo,
     }
@@ -112,6 +122,13 @@ async def subject_of(
     if kind == "passkey":
         passkey = await session.get(UserPasskey, undo.get("passkey_id"))
         return passkey.name if passkey and passkey.user_id == user_id else None
+    if kind == "hold":
+        from app.services.auth import held_changes
+
+        hold = await held_changes.pending_hold(
+            session, user_id=user_id, hold_id=undo.get("hold_id")
+        )
+        return await held_changes.subject_of(session, hold) if hold else None
     return None
 
 
@@ -147,6 +164,13 @@ async def apply_undo(
         await _take_back_passkey(
             session, user_id=user_id, passkey_id=undo.get("passkey_id")
         )
+    elif kind == "hold":
+        from app.services.auth import held_changes
+
+        if not await held_changes.cancel(
+            session, user_id=user_id, hold_id=undo.get("hold_id"), via="account_notice"
+        ):
+            raise UndoRefused()
     else:
         raise UndoRefused()
 
@@ -257,10 +281,7 @@ async def _take_back_passkey(
     from app.services.auth import identity as identity_service
     from app.services.auth import passkeys as passkey_service
 
-    ways = await identity_service.ways_in(session, user_id=user_id)
-    if not (ways - {LoginMethod.passkey}) and (
-        await passkey_service.count_for_user(session, user_id=user_id) == 1
-    ):
+    if await identity_service.passkey_is_last_way_in(session, user_id=user_id):
         raise UndoRefused()
     if not await passkey_service.remove(
         session, user_id=user_id, passkey_id=passkey_id

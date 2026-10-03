@@ -5,20 +5,21 @@ or when it comes from somewhere the account already uses (the phone or desktop
 app, or a sign-in at least a day old) and is not one of a run of changes. Any
 other change is risky, and the notice reporting it can undo it.
 
-What is read is already on the session row and in the account's own notices;
-nothing new is kept to answer it.
+What is read is already on the session row, in the account's own notices and
+in its held changes; nothing new is kept to answer it.
 """
 
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Request
 from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import func, select
+from sqlmodel import col, func, select
 
 from app.api.v1.platform_endpoints.session_opening import (
     current_session_row,
     signed_in_since,
 )
+from app.models.platform.account_change_hold import AccountChangeHold
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.user import User
@@ -60,19 +61,33 @@ async def risky_session(
 async def _in_a_run(
     system_session: AsyncSession, *, user_id: int, now: datetime
 ) -> bool:
-    """Whether the account's notices show other changes just before this one.
+    """Whether the account shows other changes just before this one.
 
-    Each change writes one row per address, all at one moment, so the moments
-    are what is counted.
+    Each change writes one notice row per address, all at one moment, so the
+    moments are what is counted. A held change counts from its hold, which is
+    there whether or not the deployment sends mail, and not again from its
+    notice.
     """
-    moments = (
+    since = now - RUN_WINDOW
+    noticed = (
         await system_session.exec(
             select(func.count(func.distinct(EmailOutboxItem.created_at))).where(
                 EmailOutboxItem.user_id == user_id,
                 EmailOutboxItem.security.is_(True),
                 EmailOutboxItem.change.is_not(None),
-                EmailOutboxItem.created_at >= now - RUN_WINDOW,
+                col(EmailOutboxItem.change)["undo"]["kind"].astext.is_distinct_from(
+                    "hold"
+                ),
+                EmailOutboxItem.created_at >= since,
             )
         )
     ).one()
-    return moments >= RUN_LENGTH
+    held = (
+        await system_session.exec(
+            select(func.count()).where(
+                AccountChangeHold.user_id == user_id,
+                AccountChangeHold.requested_at >= since,
+            )
+        )
+    ).one()
+    return noticed + held >= RUN_LENGTH

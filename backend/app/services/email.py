@@ -1189,6 +1189,37 @@ async def announce_address_removed(
     )
 
 
+#: The letter each held change sends, by kind, and what it names.
+_HELD_NOTICES: dict[str, tuple[str, str]] = {
+    "primary": ("address", "address.primaryHeld"),
+    "remove_address": ("address", "address.removalHeld"),
+    "second_factor_off": ("secondFactor", "secondFactor.disableHeld"),
+    "last_passkey": ("passkey", "passkey.removalHeld"),
+}
+
+
+async def announce_held_change(
+    user: User,
+    *,
+    kind: str,
+    subject: str | None,
+    applies_at: datetime,
+    record: Mapping[str, object],
+) -> None:
+    """Tell the account a change to it waits until ``applies_at``. Its link
+    cancels the change, where the copy may."""
+    section, key = _HELD_NOTICES[kind]
+    await _queue_account_notice(
+        user,
+        section=section,
+        key=key,
+        record=record,
+        date=email_date(applies_at, _user_locale(user)),
+        address=subject or "",
+        passkey=subject or "",
+    )
+
+
 async def announce_sign_in_locked(
     session: AsyncSession, user: User, *, lock_for: timedelta
 ) -> None:

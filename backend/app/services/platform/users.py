@@ -50,6 +50,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.schemas.platform.user import OperatorUserRead, UserRead, UserSummary
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.platform.api_key import UserApiKey
+from app.models.platform.account_change_hold import AccountChangeHold
 from app.models.platform.user_token import UserToken
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
@@ -632,6 +633,9 @@ async def soft_delete_user(
     # rows so they don't sit in the DB attributed to a "Deleted user".
     await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
+    await session.exec(
+        delete(AccountChangeHold).where(AccountChangeHold.user_id == user_id)
+    )
     await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
     # The session rows too: a husk keeps no record of the devices, addresses
     # and user agents its account signed in from. A hard delete gets this from

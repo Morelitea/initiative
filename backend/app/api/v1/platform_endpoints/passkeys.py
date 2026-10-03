@@ -18,11 +18,12 @@ scope a policy to.
 import json
 import logging
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 from urllib.parse import urlencode
 
 import webauthn
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from webauthn.helpers import bytes_to_base64url
 from webauthn.helpers.exceptions import WebAuthnException
@@ -34,6 +35,7 @@ from app.api.deps import (
     CurrentUser,
 )
 from app.api.v1.platform_endpoints.change_assessment import is_risky
+from app.api.v1.platform_endpoints.held_changes import HELD, hold_change
 from app.api.v1.platform_endpoints.password_recheck import (
     password_confirms,
     require_password_or_recent_proof,
@@ -52,6 +54,7 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, NativeMessages
 from app.core.rate_limit import limiter
 from app.db.session import get_session
+from app.models.platform.account_change_hold import HeldChangeKind
 from app.models.platform.user import SIGN_IN_STATUSES, User
 from app.models.platform.user_passkey import UserPasskey
 from app.schemas.platform.passkey import (
@@ -71,7 +74,7 @@ from app.schemas.platform.passkey import (
 from app.schemas.platform.token import Token
 from app.services import audit as audit_service
 from app.services import email as email_service
-from app.services.auth import account_changes, addresses
+from app.services.auth import account_changes, addresses, held_changes
 from app.services.auth import challenges as challenge_service
 from app.services.auth import native_handoff
 from app.services.auth import identity as identity_service
@@ -329,6 +332,7 @@ async def finish_passkey_registration(
             user_id=current_user.id,
             risky=risky,
             undo={"kind": "passkey", "passkey_id": str(read.id)},
+            any_address=True,
         ),
     )
     return read
@@ -361,7 +365,12 @@ async def rename_passkey(
     return read
 
 
-@router.post("/passkeys/{passkey_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/passkeys/{passkey_id}/remove",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    responses=HELD,
+)
 @limiter.limit("10/15minutes")
 async def remove_passkey(
     request: Request,
@@ -370,9 +379,11 @@ async def remove_passkey(
     system_session: SystemSessionDep,
     payload: PasskeyRemove,
     _first_party: str = FirstPartyOnly,
-) -> None:
+) -> Optional[JSONResponse]:
     """Forget the credential. The password is asked for again, as it is for a
-    password change, because a way in is being taken away."""
+    password change, because a way in is being taken away. The account's last
+    passkey, removed from somewhere the account does not yet know, waits two
+    days (``202``)."""
     await require_password_or_recent_proof(
         request, system_session, current_user, payload.current_password
     )
@@ -382,41 +393,41 @@ async def remove_passkey(
     # Where it is the whole of that, it stays. A deployment that has withdrawn
     # passkeys leaves such an account with nothing at all, which is the same
     # answer.
-    ways = await identity_service.ways_in(system_session, user_id=current_user.id)
-    if not (ways - {LoginMethod.passkey}) and (
-        await passkey_service.count_for_user(system_session, user_id=current_user.id)
-        == 1
+    if await identity_service.passkey_is_last_way_in(
+        system_session, user_id=current_user.id
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=AuthMessages.PASSKEY_IS_LAST_METHOD,
         )
 
-    # Read the name while the row is still there, so the letter can say which
-    # credential went.
     existing = await system_session.get(UserPasskey, passkey_id)
-    name = existing.name if existing is not None else ""
-
-    if not await passkey_service.remove(
-        system_session, user_id=current_user.id, passkey_id=passkey_id
+    if (
+        existing is not None
+        and existing.user_id == current_user.id
+        and await passkey_service.count_for_user(
+            system_session, user_id=current_user.id
+        )
+        == 1
+        and await is_risky(request, system_session, current_user)
+    ):
+        return await hold_change(
+            request,
+            system_session,
+            current_user,
+            kind=HeldChangeKind.last_passkey,
+            passkey_id=passkey_id,
+        )
+    # Sessions are left alone: the person is where they are and has just
+    # proved it.
+    if not await held_changes.remove_passkey(
+        system_session, current_user, passkey_id=passkey_id
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=AuthMessages.PASSKEY_NOT_FOUND,
         )
-
-    await audit_service.record(
-        system_session,
-        event_type=AuditEventType.AUTH_PASSKEY_REMOVED,
-        actor_user_id=current_user.id,
-        detail={"passkey_id": str(passkey_id)},
-    )
-    # Sessions are left alone: the person is where they are and has just
-    # proved it.
-    await system_session.commit()
-    await email_service.announce_passkey_change(
-        system_session, current_user, added=False, name=name
-    )
+    return None
 
 
 @router.post(
