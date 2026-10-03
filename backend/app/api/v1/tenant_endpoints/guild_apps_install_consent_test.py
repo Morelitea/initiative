@@ -195,7 +195,7 @@ class TestConsentAtInstall:
         response = await _install(client, a, granted_scopes=["projects:read"])
 
         assert response.status_code == 403
-        assert response.json()["detail"] == GuildMessages.GUILD_SUPERADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 
 
 class TestTheListingSaysWhatTheDialogAsks:

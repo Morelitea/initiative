@@ -218,7 +218,7 @@ async def test_register_with_invite_blocked_when_guild_full(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert response.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
 
 async def test_register_with_a_bound_invite_joins_on_confirming(

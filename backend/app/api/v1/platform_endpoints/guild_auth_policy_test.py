@@ -178,7 +178,7 @@ async def test_a_requirement_names_a_working_provider_of_this_communitys(
         json={"auth_policy": body},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_AUTH_POLICY_INVALID_PROVIDER"
+    assert response.json()["detail"] == "COMMUNITY_AUTH_POLICY_INVALID_PROVIDER"
 
 
 async def test_policy_requires_admin_own_session_to_satisfy(
@@ -207,7 +207,7 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
 ):
     """With the operator toggle off the config surface closes, and the three
     verbs part company: reading a standing requirement works, tightening it
-    404s with the same GUILD_AUTH_NOT_ENABLED shape as platform posture and
+    404s with the same COMMUNITY_AUTH_NOT_ENABLED shape as platform posture and
     writes nothing, and lifting the standing one is still reachable.
 
     Enforcement reads the policy row alone, so a requirement outlives the
@@ -238,7 +238,7 @@ async def test_without_the_entitlement_a_requirement_is_read_and_lifted_only(
         },
     )
     assert put.status_code == 404
-    assert put.json()["detail"] == "GUILD_AUTH_NOT_ENABLED"
+    assert put.json()["detail"] == "COMMUNITY_AUTH_NOT_ENABLED"
     session.expire_all()
     untouched = await session.get(GuildAuthPolicy, guild_id)
     assert untouched is not None and untouched.policy == "required"
@@ -270,7 +270,7 @@ async def test_a_required_provider_steps_up_every_session_that_lacks_it(
     # Unsatisfied (legacy) session: 401 naming the provider to step up with.
     blocked = await client.get(member.g("/initiatives/"), headers=member.headers)
     assert blocked.status_code == 401
-    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert blocked.json()["detail"] == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
     assert blocked.headers["X-Auth-Step-Up"] == "corp"
     # And the same answer in the standard form (RFC 9470 §3), for a client
     # that knows OAuth and nothing about this app.
@@ -289,7 +289,7 @@ async def test_a_required_provider_steps_up_every_session_that_lacks_it(
 
     still_blocked = await client.get(member.g("/initiatives/"), headers=member.headers)
     assert still_blocked.status_code == 401
-    assert still_blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert still_blocked.json()["detail"] == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
     assert still_blocked.headers["X-Auth-Step-Up"] == "corp"
 
     still_allowed = await client.get(member.g("/initiatives/"), headers=satisfied)
@@ -371,7 +371,7 @@ async def test_a_credential_that_records_no_sign_in_satisfies_no_requirement(
 
     blocked = await client.get(member.g("/initiatives/"), headers=headers)
     assert blocked.status_code == 401, blocked.text
-    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert blocked.json()["detail"] == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
     assert blocked.headers["X-Auth-Step-Up"] == step_up_slug
 
 
@@ -402,7 +402,7 @@ async def test_an_ordinary_admin_reads_the_connections_and_writes_neither(
 
     read = await client.get(_settings(guild_id), headers=admin.headers)
     assert read.status_code == 403
-    assert read.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
+    assert read.json()["detail"] == "COMMUNITY_SUPERADMIN_REQUIRED"
 
     listed = await client.get(connections, headers=admin.headers)
     assert listed.status_code == 200
@@ -429,7 +429,7 @@ async def test_an_ordinary_admin_reads_the_connections_and_writes_neither(
     for write in writes:
         refused = await write()
         assert refused.status_code == 403, refused.text
-        assert refused.json()["detail"] == "GUILD_SUPERADMIN_REQUIRED"
+        assert refused.json()["detail"] == "COMMUNITY_SUPERADMIN_REQUIRED"
 
     # And the row is untouched.
     session.expire_all()
@@ -701,7 +701,7 @@ async def test_a_grantee_answers_the_rule_a_member_does(
 
     with pytest.raises(GuildAccessError) as refused:
         await route_as(app_session, user_id=operator.id, guild_id=a.guild.id)
-    assert refused.value.detail == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert refused.value.detail == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
     assert refused.value.step_up_provider_slug == "corp"
     await app_session.rollback()
 
@@ -1008,7 +1008,7 @@ ANY_OF_OURS = Ask(
     method="sso",
     met_by=_a_session_through_one_of_ours,
     unmet_amr=["pwd"],
-    refusal="GUILD_AUTH_STEP_UP_REQUIRED",
+    refusal="COMMUNITY_AUTH_STEP_UP_REQUIRED",
     # Named no provider, so the challenge names the community: its own login
     # page is what serves the rule.
     challenge={"X-Auth-Step-Up": ""},
@@ -1019,7 +1019,7 @@ A_SECOND_FACTOR = Ask(
     method="totp",
     met_by=_a_session_carrying_the_factor,
     unmet_amr=["pwd"],
-    refusal="GUILD_AUTH_FACTOR_REQUIRED",
+    refusal="COMMUNITY_AUTH_FACTOR_REQUIRED",
     challenge={},
     withheld_by_the_deployment=["password", "sso"],
 )
@@ -1030,7 +1030,7 @@ A_PASSKEY = Ask(
     # An assertion records the second factor as well as the key, and a rule
     # naming the key reads the key's own markers.
     unmet_amr=["pwd", "otp", "mfa"],
-    refusal="GUILD_AUTH_PASSKEY_REQUIRED",
+    refusal="COMMUNITY_AUTH_PASSKEY_REQUIRED",
     challenge={},
     withheld_by_the_deployment=["password", "sso", "totp"],
 )
@@ -1146,7 +1146,7 @@ async def test_another_communitys_sign_in_does_not_satisfy_any_of_ours(
         ),
     )
     assert blocked.status_code == 401
-    assert blocked.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert blocked.json()["detail"] == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
 
 
 @pytest.mark.parametrize("ask", _asks())
@@ -1273,7 +1273,9 @@ async def test_a_community_asks_for_a_factor_without_asking_about_arrival(
         reached = await client.get(seat.g("/initiatives/"), headers=seat.headers)
         if reached.status_code == 200:
             return False
-        assert reached.json()["detail"] == "GUILD_AUTH_FACTOR_REQUIRED", reached.text
+        assert reached.json()["detail"] == "COMMUNITY_AUTH_FACTOR_REQUIRED", (
+            reached.text
+        )
         return True
 
     assert await asked()

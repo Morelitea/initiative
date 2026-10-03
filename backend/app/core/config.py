@@ -832,7 +832,7 @@ class Settings(BaseSettings):
     )
     DISABLE_GUILD_CREATION: bool = False
     # Communities one account may create in a day; 0 means no limit. Accounts
-    # holding ``guilds.manage`` are not held to it.
+    # holding ``communities.manage`` are not held to it.
     GUILD_CREATION_DAILY_LIMIT: int = Field(default=5, ge=0)
     # Boot back-fill normally skips guild schemas stamped with the current
     # provisioning-artifact version; set true to force a full sweep once.

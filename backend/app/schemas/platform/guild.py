@@ -79,7 +79,7 @@ class NewCommunity(CommunityBase):
 class CommunityCreate(NewCommunity):
     #: Make another account the guild's admin instead of the caller.
     #:
-    #: Honoured only for a caller holding ``guilds.manage``; anyone else
+    #: Honoured only for a caller holding ``communities.manage``; anyone else
     #: sending it is refused rather than quietly ignored, so a request that
     #: names an owner never succeeds under a different one. The account must
     #: already exist — this never creates one.
@@ -391,7 +391,7 @@ class PlatformCommunityStorageListResponse(PageMeta):
 
 
 class PlatformCommunityRestore(SanitizedBaseModel):
-    """Bring a deleted guild back (platform ``guilds.manage``).
+    """Bring a deleted guild back (platform ``communities.manage``).
 
     ``status`` is what it returns at — the operator decides, because a
     community suspended for nonpayment and then deleted should not come back
@@ -411,7 +411,7 @@ class PlatformCommunityRestore(SanitizedBaseModel):
     @classmethod
     def _not_deleted(cls, value: CommunityStatus) -> CommunityStatus:
         if value == CommunityStatus.deleted:
-            raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+            raise ValueError(GuildMessages.COMMUNITY_RESTORE_STATUS_INVALID)
         return value
 
 
@@ -442,7 +442,7 @@ class PlatformCommunityStorageUpdate(SanitizedBaseModel):
         Those two endpoints own the transition; this field does not.
         """
         if value == CommunityStatus.deleted:
-            raise ValueError(GuildMessages.GUILD_STATUS_NOT_SETTABLE)
+            raise ValueError(GuildMessages.COMMUNITY_STATUS_NOT_SETTABLE)
         return value
 
     # Per-guild sign-in entitlements. Omit-to-skip; a sent list replaces the

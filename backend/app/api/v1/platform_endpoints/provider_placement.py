@@ -1,6 +1,6 @@
 """The platform's sign-in placement rules, per provider.
 
-Operators and owners (``guilds.manage``) write the rules; whether they apply
+Operators and owners (``communities.manage``) write the rules; whether they apply
 to every community is an owner's call (``config.manage``). Everything runs on
 the system engine, and the logic lives in
 ``app.services.platform.provider_placement``.

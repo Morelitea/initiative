@@ -720,7 +720,9 @@ class UserRead(UserBase):
         if not settings.DISABLE_GUILD_CREATION:
             return True
         # When disabled, only platform roles that manage guilds can create them.
-        return Capability.GUILDS_MANAGE in standing_capabilities(self.role, self.status)
+        return Capability.COMMUNITIES_MANAGE in standing_capabilities(
+            self.role, self.status
+        )
 
     @computed_field(return_type=List[Capability])  # type: ignore[misc]
     @property

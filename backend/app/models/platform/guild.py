@@ -31,7 +31,7 @@ class CommunityStatus(str, Enum):
     """Lifecycle status of a guild.
 
     The first four are operator-set from the platform Guilds tab (platform
-    `guilds.manage`) and are freely interchangeable:
+    `communities.manage`) and are freely interchangeable:
 
     - ``active``: normal operation.
     - ``read_only``: members keep read access to content but writes are denied

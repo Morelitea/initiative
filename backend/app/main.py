@@ -496,7 +496,7 @@ async def insufficient_privilege_handler(
         )
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
-            content={"detail": GuildMessages.GUILD_ACCESS_DENIED},
+            content={"detail": GuildMessages.COMMUNITY_ACCESS_DENIED},
         )
     raise exc
 
@@ -638,7 +638,7 @@ async def serve_upload_file(
     try:
         await establish_guild_access(session, current_user, guild_id)
     except GuildAccessError as exc:
-        if exc.detail == GuildMessages.GUILD_ACCESS_DENIED:
+        if exc.detail == GuildMessages.COMMUNITY_ACCESS_DENIED:
             raise HTTPException(status_code=404) from exc
         raise_for_guild_access(exc)
     fname = FilePath(filename).name

@@ -85,7 +85,7 @@ async def test_no_key_is_minted_into_a_guild_that_declines_them(
         json={"name": "no", "community_id": guild.id},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_API_KEYS_REFUSED"
+    assert response.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"
 
 
 # --- The guild ---------------------------------------------------------------
@@ -115,7 +115,7 @@ async def test_a_key_minted_before_the_switch_stops_reaching_the_guild(
 
     after = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
     assert after.status_code == 403
-    assert after.json()["detail"] == "GUILD_API_KEYS_REFUSED"
+    assert after.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"
 
     await guild_administration(session, guild, auth_options=[])
     lapsed = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=key_headers)
@@ -152,7 +152,7 @@ async def test_an_unpinned_key_does_not_reach_a_guild_that_declines_them(
         f"/api/v1/c/{closed.id}/initiatives/", headers=key_headers
     )
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "GUILD_API_KEYS_REFUSED"
+    assert refused.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"
 
 
 async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
@@ -196,7 +196,7 @@ async def test_an_upload_is_not_served_to_a_key_the_guild_declines(
 
     refused = await client.get(path, headers=key_headers)
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "GUILD_API_KEYS_REFUSED"
+    assert refused.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"
 
     # The same account's own sign-in still gets the file.
     assert (await client.get(path, headers=headers)).status_code == 200

@@ -183,7 +183,7 @@ export const AccessGrantStatus = {
  * Lifecycle status of a guild.
  *
  * The first four are operator-set from the platform Guilds tab (platform
- * `guilds.manage`) and are freely interchangeable:
+ * `communities.manage`) and are freely interchangeable:
  *
  * - ``active``: normal operation.
  * - ``read_only``: members keep read access to content but writes are denied
@@ -2050,7 +2050,7 @@ export const Capability = {
   usersage_unblock: "users.age_unblock",
   usersmanage: "users.manage",
   usersdelete: "users.delete",
-  guildsmanage: "guilds.manage",
+  communitiesmanage: "communities.manage",
   announcementsmanage: "announcements.manage",
   rolesassign: "roles.assign",
   databypass: "data.bypass",
@@ -6930,7 +6930,7 @@ export interface PlatformAuthSettingsUpdate {
 }
 
 /**
- * Bring a deleted guild back (platform ``guilds.manage``).
+ * Bring a deleted guild back (platform ``communities.manage``).
  *
  * ``status`` is what it returns at — the operator decides, because a
  * community suspended for nonpayment and then deleted should not come back

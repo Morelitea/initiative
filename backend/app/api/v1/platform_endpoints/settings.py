@@ -881,9 +881,9 @@ async def list_platform_community_storage(
     """One page of the deployment's guilds with their storage caps, for the
     Operator dashboard Guilds tab.
 
-    Operator/owner (``guilds.manage``). Reads only shared ``public`` tables. The
+    Operator/owner (``communities.manage``). Reads only shared ``public`` tables. The
     guilds and their administration rows are read on the caller's platform
-    tier, under the ``guilds.manage`` policies on both; the caps join in a
+    tier, under the ``communities.manage`` policies on both; the caps join in a
     single pass. Member counts and seats are totals read on the system engine
     (``_member_tallies``), one grouped query each for the page.
     """
@@ -963,7 +963,7 @@ async def update_platform_community_storage(
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=GuildMessages.GUILD_PLAN_SET_BY_BILLING,
+            detail=GuildMessages.COMMUNITY_PLAN_SET_BY_BILLING,
         )
     before: dict[str, Any] = {}
     status_before: str | None = None
@@ -997,9 +997,9 @@ async def update_platform_community_storage(
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=(
-                        GuildMessages.GUILD_STATUS_SET_BY_BILLING
+                        GuildMessages.COMMUNITY_STATUS_SET_BY_BILLING
                         if managed
-                        else GuildMessages.GUILD_STATUS_NOT_SETTABLE
+                        else GuildMessages.COMMUNITY_STATUS_NOT_SETTABLE
                     ),
                 )
             logger.info(
@@ -1021,14 +1021,14 @@ async def update_platform_community_storage(
             detail=GuildMessages.SUPPORT_INTAKE_NOT_CONFIGURED,
         ) from exc
     except ValueError as exc:
-        # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
+        # update_guild -> get_guild raises ValueError(COMMUNITY_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate
         # pre-SELECT) closes the TOCTOU window where a concurrent delete between
         # the two queries would otherwise surface as an unhandled 500.
-        if str(exc) == GuildMessages.GUILD_NOT_FOUND:
+        if str(exc) == GuildMessages.COMMUNITY_NOT_FOUND:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=GuildMessages.GUILD_NOT_FOUND,
+                detail=GuildMessages.COMMUNITY_NOT_FOUND,
             ) from exc
         raise
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
@@ -1084,7 +1084,7 @@ async def read_community_narrowings(
     """What this community says its own arrivals look like, and whether
     anybody has agreed.
 
-    Operator/owner (``guilds.manage``). The community writes these values itself
+    Operator/owner (``communities.manage``). The community writes these values itself
     and nothing here can tell whether it holds the domain or tenant they name,
     so the answer is the deployment's. Support answers through the case raised
     when they are written; this is the same question where a deployment runs
@@ -1130,7 +1130,7 @@ async def restore_platform_community(
 ) -> PlatformCommunityStorageRead:
     """Bring a deleted guild back before its retention window runs out.
 
-    Operator/owner (``guilds.manage``). Deleting a guild keeps it — the shared
+    Operator/owner (``communities.manage``). Deleting a guild keeps it — the shared
     rows, the ``guild_<id>`` schema and the stored blobs all stay until
     ``guild_purge`` destroys them — so restoring is a status write plus, where
     the roster was emptied, seating somebody who can run the community again.
@@ -1156,13 +1156,13 @@ async def restore_platform_community(
         )
     except ValueError as exc:
         code = str(exc)
-        if code == GuildMessages.GUILD_NOT_FOUND:
+        if code == GuildMessages.COMMUNITY_NOT_FOUND:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail=code
             ) from exc
         if code in (
-            GuildMessages.GUILD_NOT_DELETED,
-            GuildMessages.GUILD_RESTORE_STATUS_SET_BY_BILLING,
+            GuildMessages.COMMUNITY_NOT_DELETED,
+            GuildMessages.COMMUNITY_RESTORE_STATUS_SET_BY_BILLING,
         ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=code
@@ -1198,7 +1198,7 @@ async def create_platform_community_billing_service_handoff(
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
-    Backs the Guilds tab's billing buttons. Operator/owner (``guilds.manage``).
+    Backs the Guilds tab's billing buttons. Operator/owner (``communities.manage``).
     The token names the ``access_grants`` row that authorises the visit: a
     live billing grant is reused, otherwise one is self-issued — after the
     account's second factor, as breaking glass takes it — so the visit is
@@ -1218,7 +1218,7 @@ async def create_platform_community_billing_service_handoff(
     if guild_name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
 
     grant = await access_grants_service.get_live_grant(

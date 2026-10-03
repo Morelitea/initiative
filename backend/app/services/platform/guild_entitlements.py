@@ -64,5 +64,5 @@ async def require_auth_option(
     if not await has_auth_option(session, guild_id, option):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_AUTH_NOT_ENABLED,
+            detail=GuildMessages.COMMUNITY_AUTH_NOT_ENABLED,
         )

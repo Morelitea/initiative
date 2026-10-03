@@ -682,7 +682,7 @@ class _SignInRequirement(Rule):
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+                detail=GuildMessages.COMMUNITY_AUTH_POLICY_INVALID_PROVIDER,
             )
 
     async def offered(self, ctx: RuleContext, after: Any) -> None:
@@ -699,7 +699,7 @@ class _SignInRequirement(Rule):
             ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+                    detail=GuildMessages.COMMUNITY_AUTH_POLICY_INVALID_PROVIDER,
                 )
         for method in sorted(after.methods & _FACTOR_REQUIREMENTS):
             if not await login_method_allowed(ctx.system, method):
@@ -862,7 +862,7 @@ async def _load(ctx: RuleContext) -> None:
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
     ctx.guild = guild
     ctx.policy = await ctx.session.get(GuildAuthPolicy, ctx.guild_id)

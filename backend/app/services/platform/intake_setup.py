@@ -85,7 +85,7 @@ async def set_operations_guild(
         if guild is None:
             raise HTTPException(
                 status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=GuildMessages.GUILD_NOT_FOUND,
+                detail=GuildMessages.COMMUNITY_NOT_FOUND,
             )
         if guild.status != CommunityStatus.active.value:
             raise HTTPException(

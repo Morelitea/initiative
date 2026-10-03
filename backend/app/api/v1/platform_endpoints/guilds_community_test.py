@@ -351,10 +351,10 @@ async def test_joining_a_listed_guild_needs_no_invite_and_repeats_harmlessly(
 @pytest.mark.parametrize(
     "condition,expected_detail",
     [
-        pytest.param("never listed", "GUILD_NOT_A_COMMUNITY", id="never listed"),
-        pytest.param("suspended", "GUILD_NOT_A_COMMUNITY", id="suspended"),
-        pytest.param("one seat", "GUILD_NOT_A_COMMUNITY", id="one seat"),
-        pytest.param("no such guild", "GUILD_NOT_FOUND", id="no such guild"),
+        pytest.param("never listed", "COMMUNITY_NOT_A_COMMUNITY", id="never listed"),
+        pytest.param("suspended", "COMMUNITY_NOT_A_COMMUNITY", id="suspended"),
+        pytest.param("one seat", "COMMUNITY_NOT_A_COMMUNITY", id="one seat"),
+        pytest.param("no such guild", "COMMUNITY_NOT_FOUND", id="no such guild"),
     ],
 )
 async def test_a_guild_the_directory_would_not_show_cannot_be_joined(
@@ -411,7 +411,7 @@ async def test_join_respects_the_member_cap(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert response.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
 
 async def test_a_member_cannot_opt_the_guild_in(
@@ -473,42 +473,42 @@ REFUSED_LISTINGS = (
         {},
         None,
         {"is_community": True, "has_adult_content": False},
-        "GUILD_COMMUNITY_REQUIRES_CATEGORY",
+        "COMMUNITY_COMMUNITY_REQUIRES_CATEGORY",
         id="a card nobody could reach by browsing",
     ),
     pytest.param(
         {},
         None,
         {"is_community": True, "categories": ["art"]},
-        "GUILD_COMMUNITY_CONTENT_NOT_DECLARED",
+        "COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED",
         id="the content question left unanswered",
     ),
     pytest.param(
         {},
         None,
         {"is_community": True, "categories": ["art"], "has_adult_content": True},
-        "GUILD_COMMUNITY_ADULT_CONTENT",
+        "COMMUNITY_COMMUNITY_ADULT_CONTENT",
         id="an adult guild",
     ),
     pytest.param(
         {"max_users": 1},
         None,
         {"is_community": True, "categories": ["art"], "has_adult_content": False},
-        "GUILD_COMMUNITY_REQUIRES_CAPACITY",
+        "COMMUNITY_COMMUNITY_REQUIRES_CAPACITY",
         id="one seat, so no joiner could ever take one",
     ),
     pytest.param(
         {},
         ["art"],
         {"categories": []},
-        "GUILD_COMMUNITY_REQUIRES_CATEGORY",
+        "COMMUNITY_COMMUNITY_REQUIRES_CATEGORY",
         id="a listed guild clearing its shelves",
     ),
     pytest.param(
         {},
         ["art"],
         {"has_adult_content": True},
-        "GUILD_COMMUNITY_ADULT_CONTENT",
+        "COMMUNITY_COMMUNITY_ADULT_CONTENT",
         id="a listed guild turning itself adult",
     ),
 )
@@ -946,10 +946,10 @@ async def test_the_age_a_birthdate_states_is_what_the_answer_turns_on(
     "prior_answer,expected_detail",
     [
         pytest.param(
-            "never asked", "GUILD_AGE_CONFIRMATION_REQUIRED", id="never answered"
+            "never asked", "COMMUNITY_AGE_CONFIRMATION_REQUIRED", id="never answered"
         ),
         pytest.param(
-            "answered under age", "GUILD_AGE_BELOW_MINIMUM", id="answered under age"
+            "answered under age", "COMMUNITY_AGE_BELOW_MINIMUM", id="answered under age"
         ),
     ],
 )
@@ -1187,7 +1187,7 @@ async def test_a_guild_holding_an_under_age_member_cannot_be_listed(
     )
 
     assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "GUILD_COMMUNITY_UNDER_AGE_MEMBERS"
+    assert response.json()["detail"] == "COMMUNITY_COMMUNITY_UNDER_AGE_MEMBERS"
     await session.refresh(guild)
     assert guild.is_community is False
 
@@ -1256,14 +1256,14 @@ async def test_an_already_listed_guild_is_not_re_checked_on_an_unrelated_edit(
             True,
             "unanswered",
             403,
-            "GUILD_AGE_CONFIRMATION_REQUIRED",
+            "COMMUNITY_AGE_CONFIRMATION_REQUIRED",
             id="a listed community asks at its own door",
         ),
         pytest.param(
             True,
             "under age",
             403,
-            "GUILD_AGE_BELOW_MINIMUM",
+            "COMMUNITY_AGE_BELOW_MINIMUM",
             id="and tells an answer that stands apart from a question",
         ),
         pytest.param(True, "confirmed", 200, None, id="an answered account walks in"),
@@ -1336,7 +1336,7 @@ async def test_being_asked_by_one_community_does_not_close_another(
     )
 
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "GUILD_AGE_CONFIRMATION_REQUIRED"
+    assert refused.json()["detail"] == "COMMUNITY_AGE_CONFIRMATION_REQUIRED"
     assert still_open.status_code == 200, still_open.text
 
 

@@ -200,7 +200,7 @@ async def test_only_a_guild_admin_moves_a_member_on_or_off_the_moderator_role(
         json={"role_id": moderator.id},
     )
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
+    assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_COMMUNITY_ADMIN"
 
     joiner = await acting_user(
         guild_role=CommunityRole.member, guild=guild, email="joiner@example.com"
@@ -211,7 +211,7 @@ async def test_only_a_guild_admin_moves_a_member_on_or_off_the_moderator_role(
         json={"user_id": joiner.user.id, "role_id": moderator.id},
     )
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
+    assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_COMMUNITY_ADMIN"
 
     # The same call from a community admin goes through.
     resp = await client.post(
@@ -240,7 +240,7 @@ async def test_only_a_guild_admin_moves_a_member_on_or_off_the_moderator_role(
         await client.delete(f"{members_url}/{joiner.user.id}", headers=pm.headers),
     ):
         assert resp.status_code == 403
-        assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
+        assert resp.json()["detail"] == "INITIATIVE_OVERRIDE_REQUIRES_COMMUNITY_ADMIN"
     assert (await _role_of(session, initiative, joiner.user)).name == "moderator"
 
     # A community admin can.

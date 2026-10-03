@@ -812,7 +812,7 @@ async def test_unknown_guild_404_does_not_consume_event_id(
         await _tier_payload(999_999_999, event_id="evt-preserved", tier_name="gold"),
     )
     assert missing.status_code == 404
-    assert missing.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+    assert missing.json()["detail"] == "BILLING_COMMUNITY_NOT_FOUND"
 
     retry = await _post(
         client,
@@ -838,7 +838,7 @@ async def test_a_reference_this_deployment_never_minted_is_404(
         },
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+    assert response.json()["detail"] == "BILLING_COMMUNITY_NOT_FOUND"
 
 
 async def test_a_reference_minted_for_something_else_is_404(
@@ -875,7 +875,7 @@ async def test_a_reference_minted_for_something_else_is_404(
         },
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+    assert response.json()["detail"] == "BILLING_COMMUNITY_NOT_FOUND"
 
 
 async def test_malformed_payload_rejected_after_verification(
@@ -943,7 +943,7 @@ async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSessio
         client, "usage", {"guild_ref": await billing_guild_ref(999_999_999)}
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+    assert response.json()["detail"] == "BILLING_COMMUNITY_NOT_FOUND"
 
 
 async def test_usage_burns_jti(client: AsyncClient, session: AsyncSession):
@@ -1066,7 +1066,7 @@ async def test_a_reference_naming_no_guild_has_no_name(client: AsyncClient):
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+    assert response.json()["detail"] == "BILLING_COMMUNITY_NOT_FOUND"
 
 
 # ── a deleted guild ──────────────────────────────────────────────────────────

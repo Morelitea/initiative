@@ -427,13 +427,13 @@ class GuildAccessError(Exception):
 
     def __init__(
         self,
-        detail: str = GuildMessages.GUILD_ACCESS_DENIED,
+        detail: str = GuildMessages.COMMUNITY_ACCESS_DENIED,
         *,
         step_up_provider_slug: str | None = None,
         step_up_guild_id: int | None = None,
     ) -> None:
         self.detail = detail
-        # Set for GUILD_AUTH_STEP_UP_REQUIRED: which provider the session must
+        # Set for COMMUNITY_AUTH_STEP_UP_REQUIRED: which provider the session must
         # satisfy (X-Auth-Step-Up) and which guild's login flow serves it
         # (X-Auth-Step-Up-Guild) — guild-scoped providers resolve their login
         # URL through the guild, not a global slug.
@@ -501,7 +501,7 @@ async def _enforce_guild_auth_policy(
     # step-up says a factor is what is wanted.
     if require_second_factor and restricts and SECOND_FACTOR_AMR not in markers:
         raise GuildAccessError(
-            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            GuildMessages.COMMUNITY_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
         )
     if policy is None or policy.policy == "open":
@@ -509,7 +509,7 @@ async def _enforce_guild_auth_policy(
 
     def _refuse() -> None:
         raise GuildAccessError(
-            detail=GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED,
+            detail=GuildMessages.COMMUNITY_AUTH_STEP_UP_REQUIRED,
             step_up_provider_slug=policy.provider_slug,
             step_up_guild_id=guild_id,
         )
@@ -540,7 +540,7 @@ async def _enforce_guild_auth_policy(
         and SECOND_FACTOR_AMR not in markers
     ):
         raise GuildAccessError(
-            GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
+            GuildMessages.COMMUNITY_AUTH_FACTOR_REQUIRED,
             step_up_guild_id=guild_id,
         )
 
@@ -553,7 +553,7 @@ async def _enforce_guild_auth_policy(
         and not carries_passkey(markers)
     ):
         raise GuildAccessError(
-            GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+            GuildMessages.COMMUNITY_AUTH_PASSKEY_REQUIRED,
             step_up_guild_id=guild_id,
         )
 
@@ -607,7 +607,7 @@ async def _enforce_guild_api_access(session: AsyncSession, guild: Guild) -> None
     their guilds themselves, ask the same question where they do it.
     """
     if await declines_this_credential(session, guild):
-        raise GuildAccessError(detail=GuildMessages.GUILD_API_KEYS_REFUSED)
+        raise GuildAccessError(detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED)
 
 
 async def _read_membership_gate(
@@ -643,7 +643,7 @@ async def _read_membership_gate(
         return None
     membership, guild, settings_row = row
     if guild is None:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     # The age switch rides along for the same reason the factor requirement
     # does: it is decided from this same row, and reading it separately would
     # be a round trip on every guild request there is.
@@ -668,7 +668,7 @@ async def _read_grant_gate(
         )
     ).one_or_none()
     if row is None:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     return row[0], asked_of_an_account(row[1])
 
 
@@ -871,8 +871,8 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
     present it, and 403 for everything else.
     """
     if exc.detail in (
-        GuildMessages.GUILD_AUTH_FACTOR_REQUIRED,
-        GuildMessages.GUILD_AUTH_PASSKEY_REQUIRED,
+        GuildMessages.COMMUNITY_AUTH_FACTOR_REQUIRED,
+        GuildMessages.COMMUNITY_AUTH_PASSKEY_REQUIRED,
         GuildMessages.PLATFORM_AUTH_FACTOR_REQUIRED,
     ):
         # 401 for the same reason as the provider step-up below, and apart
@@ -893,7 +893,7 @@ def raise_for_guild_access(exc: GuildAccessError) -> NoReturn:
                 ),
             },
         ) from exc
-    if exc.detail == GuildMessages.GUILD_AUTH_STEP_UP_REQUIRED:
+    if exc.detail == GuildMessages.COMMUNITY_AUTH_STEP_UP_REQUIRED:
         # 401, not 403: the session lacks an auth factor, not a permission.
         #
         # Said twice, for two audiences. ``WWW-Authenticate`` is the
@@ -937,7 +937,7 @@ def holds_guild_role(
 
 
 def require_seat(
-    context: GuildContext, *, detail: str = GuildMessages.GUILD_SUPERADMIN_REQUIRED
+    context: GuildContext, *, detail: str = GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
 ) -> None:
     """Raise 403 unless this request holds the community's seat, by the
     standing — the membership row's, or lent by a settings grant at that
@@ -951,10 +951,10 @@ def _rung_refusal(roles: tuple[CommunityRole, ...]) -> str:
     the seat says so, one for an administrator says so, and one naming
     anything else says a permission is missing."""
     if roles == (CommunityRole.superadmin,):
-        return GuildMessages.GUILD_SUPERADMIN_REQUIRED
+        return GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED
     if roles == (CommunityRole.admin,):
-        return GuildMessages.GUILD_ADMIN_REQUIRED
-    return GuildMessages.GUILD_PERMISSION_REQUIRED
+        return GuildMessages.COMMUNITY_ADMIN_REQUIRED
+    return GuildMessages.COMMUNITY_PERMISSION_REQUIRED
 
 
 def require_guild_roles(
@@ -1750,7 +1750,7 @@ async def _establish_seat(
     if not context.guild_seat:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_SUPERADMIN_REQUIRED,
+            detail=GuildMessages.COMMUNITY_SUPERADMIN_REQUIRED,
         )
     return context
 

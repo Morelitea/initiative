@@ -255,7 +255,7 @@ async def test_guild_scope_lists_the_whole_guild_for_admins_only(
     if status_code == 200:
         assert "Theirs" in {entry["name"] for entry in response.json()}
     else:
-        assert response.json()["detail"] == GuildMessages.GUILD_ADMIN_REQUIRED
+        assert response.json()["detail"] == GuildMessages.COMMUNITY_ADMIN_REQUIRED
 
 
 @pytest.mark.parametrize(
@@ -335,17 +335,17 @@ async def test_a_live_grant_lists_the_whole_guild_it_reaches(
     ("verb", "caller", "status_code", "detail"),
     [
         ("create", "admin", 201, None),
-        ("create", "manager", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("create", "member", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("create", "manager", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("create", "member", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
         ("update", "admin", 200, None),
         ("update", "manager", 200, None),
         ("update", "member", 403, InitiativeMessages.MANAGER_REQUIRED),
         ("archive", "admin", 200, None),
-        ("archive", "manager", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("archive", "member", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("archive", "manager", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("archive", "member", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
         ("delete", "admin", 204, None),
-        ("delete", "manager", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
-        ("delete", "member", 403, GuildMessages.GUILD_ADMIN_REQUIRED),
+        ("delete", "manager", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
+        ("delete", "member", 403, GuildMessages.COMMUNITY_ADMIN_REQUIRED),
     ],
 )
 async def test_initiative_crud_answers_each_caller(
@@ -809,7 +809,7 @@ async def test_add_user_not_in_guild_fails(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "USER_NOT_IN_GUILD"
+    assert response.json()["detail"] == "USER_NOT_IN_COMMUNITY"
 
 
 async def test_update_initiative_member_role(

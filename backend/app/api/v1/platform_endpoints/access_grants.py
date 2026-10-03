@@ -66,7 +66,7 @@ BreakGlassDep = Annotated[User, Depends(require_capability(Capability.DATA_BYPAS
 # Map service error codes to (status, detail). All details are machine-readable
 # codes the frontend localizes via errors.json.
 _ERROR_STATUS: dict[str, int] = {
-    "GUILD_NOT_FOUND": status.HTTP_404_NOT_FOUND,
+    "COMMUNITY_NOT_FOUND": status.HTTP_404_NOT_FOUND,
     "ALREADY_MEMBER": status.HTTP_400_BAD_REQUEST,
     "DURATION_TOO_LONG": status.HTTP_400_BAD_REQUEST,
     "OVERLAPPING_GRANT": status.HTTP_409_CONFLICT,
@@ -78,7 +78,7 @@ _ERROR_STATUS: dict[str, int] = {
     "GRANTEE_INELIGIBLE": status.HTTP_409_CONFLICT,
 }
 _ERROR_DETAIL: dict[str, str] = {
-    "GUILD_NOT_FOUND": AccessGrantMessages.GUILD_NOT_FOUND,
+    "COMMUNITY_NOT_FOUND": AccessGrantMessages.COMMUNITY_NOT_FOUND,
     "ALREADY_MEMBER": AccessGrantMessages.ALREADY_MEMBER,
     "DURATION_TOO_LONG": AccessGrantMessages.DURATION_TOO_LONG,
     "OVERLAPPING_GRANT": AccessGrantMessages.OVERLAPPING_GRANT,

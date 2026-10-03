@@ -246,7 +246,7 @@ async def request_grants(
     )
     guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
-        raise AccessGrantError("GUILD_NOT_FOUND")
+        raise AccessGrantError("COMMUNITY_NOT_FOUND")
 
     # Members don't need a grant — they already have standing access.
     membership = await guilds_service.get_membership(
@@ -389,7 +389,7 @@ async def break_glass(
     """
     guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
-        raise AccessGrantError("GUILD_NOT_FOUND")
+        raise AccessGrantError("COMMUNITY_NOT_FOUND")
 
     # A member already has standing access — nothing to break glass for.
     membership = await guilds_service.get_membership(

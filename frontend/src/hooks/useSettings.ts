@@ -198,7 +198,7 @@ export const useFcmConfig = () => {
 /**
  * One page of guilds with their storage caps, for the platform settings →
  * Guilds tab, searched and sorted on the server. Operator and above
- * (`guilds.manage`); pass `{ enabled }` to skip the request for anyone else.
+ * (`communities.manage`); pass `{ enabled }` to skip the request for anyone else.
  */
 export const usePlatformGuilds = (
   params: ListPlatformCommunityStorageParams,

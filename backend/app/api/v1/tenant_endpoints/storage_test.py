@@ -59,7 +59,7 @@ async def test_storage_usage_requires_guild_admin(
     member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
     response = await client.get(member.g("/storage/usage"), headers=member.headers)
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_ADMIN_REQUIRED"
+    assert response.json()["detail"] == "COMMUNITY_ADMIN_REQUIRED"
 
 
 async def test_storage_usage_requires_membership(

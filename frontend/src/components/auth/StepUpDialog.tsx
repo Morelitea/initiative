@@ -20,7 +20,7 @@ const currentSpaPath = (): string => `${window.location.pathname}${window.locati
 
 /**
  * Global handler for guild sign-in requirements. When any request is refused
- * with `GUILD_AUTH_STEP_UP_REQUIRED` (dispatched by the API client as a
+ * with `COMMUNITY_AUTH_STEP_UP_REQUIRED` (dispatched by the API client as a
  * window event carrying the required provider's slug), this dialog offers
  * that provider's sign-in and returns the browser to the interrupted page
  * afterwards via the login route's `next` parameter.

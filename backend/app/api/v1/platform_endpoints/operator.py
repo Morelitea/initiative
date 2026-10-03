@@ -77,7 +77,9 @@ ContentModerateDep = Annotated[
     User, Depends(require_capability(Capability.CONTENT_MODERATE))
 ]
 UsersDeleteDep = Annotated[User, Depends(require_capability(Capability.USERS_DELETE))]
-GuildsManageDep = Annotated[User, Depends(require_capability(Capability.GUILDS_MANAGE))]
+GuildsManageDep = Annotated[
+    User, Depends(require_capability(Capability.COMMUNITIES_MANAGE))
+]
 RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASSIGN))]
 # App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
 # Owner-only — imported by settings.py / ai_settings.py.

@@ -232,7 +232,7 @@ async def _require_guild(session: AsyncSession, guild_id: int) -> Guild:
     if guild is None or guild.status == CommunityStatus.deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
     return guild
 

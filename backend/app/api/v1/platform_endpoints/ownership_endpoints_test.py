@@ -74,7 +74,7 @@ async def test_content_cannot_be_handed_to_an_ordinary_member(
         json={"new_owner_id": member.user.id},
     )
     assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "OWNER_MUST_BE_GUILD_ADMIN"
+    assert response.json()["detail"] == "OWNER_MUST_BE_COMMUNITY_ADMIN"
 
 
 async def test_ownership_transfers_between_guild_admins(
@@ -164,7 +164,7 @@ async def test_content_cannot_be_handed_outside_the_guild(
         json={"new_owner_id": elsewhere.user.id},
     )
     assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "OWNER_MUST_BE_GUILD_ADMIN"
+    assert response.json()["detail"] == "OWNER_MUST_BE_COMMUNITY_ADMIN"
 
 
 async def test_content_cannot_be_handed_to_a_suspended_admin(
@@ -185,4 +185,4 @@ async def test_content_cannot_be_handed_to_a_suspended_admin(
         json={"new_owner_id": frozen.user.id},
     )
     assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "OWNER_MUST_BE_GUILD_ADMIN"
+    assert response.json()["detail"] == "OWNER_MUST_BE_COMMUNITY_ADMIN"

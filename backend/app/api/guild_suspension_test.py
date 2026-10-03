@@ -90,7 +90,7 @@ async def test_member_gets_generic_403_on_suspended_guild(
 
     resp = await client.get(a.g("/initiatives/"), headers=a.headers)
     assert resp.status_code == 403
-    assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+    assert resp.json()["detail"] == GuildMessages.COMMUNITY_ACCESS_DENIED
 
 
 @pytest.mark.parametrize("role", [CommunityRole.admin, CommunityRole.superadmin])
@@ -125,7 +125,7 @@ async def test_admin_of_suspended_guild_reaches_nothing(
     ]
     for resp in refusals:
         assert resp.status_code == 403, (resp.request.url, resp.text)
-        assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+        assert resp.json()["detail"] == GuildMessages.COMMUNITY_ACCESS_DENIED
 
     await session.refresh(a.guild)
     assert a.guild.name != "Still Ours"
@@ -166,7 +166,7 @@ async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
         ),
     ):
         assert resp.status_code == 403, (resp.request.url, resp.text)
-        assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+        assert resp.json()["detail"] == GuildMessages.COMMUNITY_ACCESS_DENIED
 
     handoff = await client.post(
         f"/api/v1/communities/{a.guild.id}/billing/handoff", headers=a.headers
@@ -176,7 +176,7 @@ async def test_a_guild_on_hold_is_gone_for_everyone_in_it(
         assert handoff.json()["handoff_token"]
     else:
         assert handoff.status_code == 403, handoff.text
-        assert handoff.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+        assert handoff.json()["detail"] == GuildMessages.COMMUNITY_ACCESS_DENIED
 
     listed = (await client.get("/api/v1/communities/", headers=a.headers)).json()
     assert a.guild.id not in [g["id"] for g in listed]

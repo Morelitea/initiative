@@ -49,7 +49,7 @@ async def owner(acting_user):
 
 @pytest.fixture
 async def operator(acting_user):
-    """An account holding ``guilds.manage`` and not ``config.manage`` — the
+    """An account holding ``communities.manage`` and not ``config.manage`` — the
     Guilds tab is theirs, the configuration pages are not."""
     return await acting_user("operator")
 
@@ -118,7 +118,7 @@ async def test_the_guilds_tab_lists_every_guild_with_its_dials(
     """The tab lists every guild — not just the reader's own — with its member
     count and each dial. An unset cap reads null, a guild nobody has moved
     reads active with no transition stamped, and a guild with no membership
-    rows reports 0 members. Read here by an operator (``guilds.manage``), which
+    rows reports 0 members. Read here by an operator (``communities.manage``), which
     is the tier the tab is for."""
     theirs = await create_guild(session, name="Dialled Guild", **{dial: value})
     await create_guild_membership(
@@ -395,7 +395,7 @@ async def test_raising_cap_reopens_joins(
         json={"code": invite.code},
     )
     assert blocked.status_code == 403
-    assert blocked.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert blocked.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
     patched = await client.patch(
         f"{GUILDS}/{guild.id}", json={"max_users": 5}, headers=operator.headers
@@ -769,7 +769,7 @@ async def test_a_guild_that_is_not_there_is_a_404(
     )
 
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "GUILD_NOT_FOUND"
+    assert resp.json()["detail"] == "COMMUNITY_NOT_FOUND"
 
 
 async def test_billing_handoff_self_issues_a_grant_and_names_it(
@@ -1100,7 +1100,7 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 # ---------------------------------------------------------------------------
 
 _CONFIG_MANAGE = "config.manage"  # owner only
-_GUILDS_MANAGE = "guilds.manage"  # operator and owner
+_GUILDS_MANAGE = "communities.manage"  # operator and owner
 
 #: (capability, method, path — ``{community_id}`` is filled in, json body or None)
 _ROUTES: list[tuple[str, str, str, dict | None]] = [

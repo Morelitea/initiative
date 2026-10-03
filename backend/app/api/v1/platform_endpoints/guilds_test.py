@@ -210,7 +210,7 @@ async def test_create_guild_requires_name(client: AsyncClient, acting_user):
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_NAME_REQUIRED"
+    assert response.json()["detail"] == "COMMUNITY_NAME_REQUIRED"
 
 
 # --- one free community each ------------------------------------------------
@@ -317,7 +317,7 @@ async def test_an_account_creates_only_its_daily_allowance_of_guilds(
         "/api/v1/communities/", headers=a.headers, json={"name": "Second"}
     )
     assert second.status_code == 429
-    assert second.json()["detail"] == "GUILD_CREATION_LIMIT_REACHED"
+    assert second.json()["detail"] == "COMMUNITY_CREATION_LIMIT_REACHED"
     made = (await session.exec(select(Guild).where(Guild.name == "Second"))).all()
     assert made == []
 
@@ -472,7 +472,7 @@ async def test_an_ordinary_user_cannot_name_another_owner(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_OWNER_REQUIRES_CAPABILITY"
+    assert response.json()["detail"] == "COMMUNITY_OWNER_REQUIRES_CAPABILITY"
     assert (
         await session.exec(select(Guild).where(Guild.name == "Not yours"))
     ).all() == []
@@ -517,7 +517,7 @@ async def test_an_unusable_owner_is_refused(
     )
 
     assert response.status_code == 404
-    assert response.json()["detail"] == "GUILD_OWNER_NOT_FOUND"
+    assert response.json()["detail"] == "COMMUNITY_OWNER_NOT_FOUND"
 
 
 async def test_update_guild_as_admin(
@@ -574,14 +574,14 @@ async def test_an_ordinary_admin_cannot_delete_the_community(
             "wrongpassword",
             "DELETE COMMUNITY TO DELETE",
             400,
-            "GUILD_INVALID_PASSWORD",
+            "COMMUNITY_INVALID_PASSWORD",
             id="a password that does not match",
         ),
         pytest.param(
             "testpassword123",
             "To Delete",
             400,
-            "GUILD_CONFIRMATION_MISMATCH",
+            "COMMUNITY_CONFIRMATION_MISMATCH",
             id="a phrase that does not match",
         ),
     ],
@@ -671,7 +671,7 @@ async def test_delete_guild_linked_admin_holding_a_password_is_asked_for_it(
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "GUILD_INVALID_PASSWORD"
+    assert response.json()["detail"] == "COMMUNITY_INVALID_PASSWORD"
 
 
 @pytest.mark.parametrize(
@@ -816,7 +816,7 @@ async def test_minting_an_invite_respects_the_seat_cap(
 
     assert response.status_code == expected_status, response.text
     if expected_status == 403:
-        assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+        assert response.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
 
 async def test_an_admin_lists_and_revokes_the_guilds_invites(
@@ -909,7 +909,7 @@ async def test_accept_invite_blocked_when_guild_full(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert response.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
 
 @pytest.mark.parametrize(

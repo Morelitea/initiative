@@ -223,7 +223,7 @@ async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
     result = await session.exec(stmt)
     guild = result.one_or_none()
     if not guild:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     return guild
 
 
@@ -242,7 +242,7 @@ async def get_administration(
     )
     administration = result.one_or_none()
     if not administration:
-        raise ValueError(GuildMessages.GUILD_NOT_FOUND)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_FOUND)
     return administration
 
 
@@ -454,7 +454,7 @@ async def _assert_member_capacity(
             params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
         )
     if await count_members(session, guild_id=guild_id) >= administration.max_users:
-        raise GuildCapacityError(GuildMessages.GUILD_USER_LIMIT_REACHED)
+        raise GuildCapacityError(GuildMessages.COMMUNITY_USER_LIMIT_REACHED)
 
 
 async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
@@ -1821,25 +1821,25 @@ async def restore_guild(
     """
     guild = await get_guild(session, guild_id=guild_id)
     if guild.status != CommunityStatus.deleted.value:
-        raise ValueError(GuildMessages.GUILD_NOT_DELETED)
+        raise ValueError(GuildMessages.COMMUNITY_NOT_DELETED)
     if status == CommunityStatus.deleted:
-        raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_INVALID)
+        raise ValueError(GuildMessages.COMMUNITY_RESTORE_STATUS_INVALID)
     if billing_service.billing_managed():
         recorded = (await get_administration(session, guild_id=guild_id)).billing_status
         if status not in restore_status_choices(
             billing_status=CommunityStatus(recorded) if recorded else None,
             billing_managed=True,
         ):
-            raise ValueError(GuildMessages.GUILD_RESTORE_STATUS_SET_BY_BILLING)
+            raise ValueError(GuildMessages.COMMUNITY_RESTORE_STATUS_SET_BY_BILLING)
 
     await lock_guild_seats(session, guild_id)
     seated: int | None = None
     if not await guild_has_seat(session, guild_id=guild_id):
         if seat_user_id is None:
-            raise ValueError(GuildMessages.GUILD_RESTORE_SEAT_REQUIRED)
+            raise ValueError(GuildMessages.COMMUNITY_RESTORE_SEAT_REQUIRED)
         user = await session.get(User, seat_user_id)
         if user is None:
-            raise ValueError(GuildMessages.GUILD_OWNER_NOT_FOUND)
+            raise ValueError(GuildMessages.COMMUNITY_OWNER_NOT_FOUND)
         await ensure_membership(
             session,
             guild_id=guild_id,
@@ -2023,17 +2023,19 @@ async def _assert_listable(session: AsyncSession, guild: Guild) -> None:
     - its seat cap leaves room for somebody to join.
     """
     if not guild.categories:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CATEGORY)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_REQUIRES_CATEGORY)
     if guild.has_adult_content is None:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_CONTENT_NOT_DECLARED)
+        raise CommunityListingError(
+            GuildMessages.COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED
+        )
     if guild.has_adult_content:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_ADULT_CONTENT)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_ADULT_CONTENT)
     administration = await get_administration(session, guild_id=guild.id)
     if (
         administration.max_users is not None
         and administration.max_users < MIN_COMMUNITY_SEATS
     ):
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_REQUIRES_CAPACITY)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_REQUIRES_CAPACITY)
 
 
 def community_listing_filters() -> list:
@@ -2134,7 +2136,7 @@ async def assert_may_list_with_members(session: AsyncSession, *, guild_id: int) 
         .limit(1)
     )
     if (await session.exec(statement)).first() is not None:
-        raise CommunityListingError(GuildMessages.GUILD_COMMUNITY_UNDER_AGE_MEMBERS)
+        raise CommunityListingError(GuildMessages.COMMUNITY_COMMUNITY_UNDER_AGE_MEMBERS)
 
 
 async def assert_age_confirmed(session: AsyncSession, *, user: User) -> None:
@@ -2304,11 +2306,11 @@ async def join_community_guild(
     try:
         guild = await get_guild(session, guild_id=guild_id)
     except ValueError as exc:
-        raise CommunityJoinError(GuildMessages.GUILD_NOT_FOUND) from exc
+        raise CommunityJoinError(GuildMessages.COMMUNITY_NOT_FOUND) from exc
     # Exactly what the directory shows, so a guild it does not list cannot be
     # joined by asking for it directly either.
     if not await is_listed_in_directory(session, guild_id=guild_id):
-        raise CommunityJoinError(GuildMessages.GUILD_NOT_A_COMMUNITY)
+        raise CommunityJoinError(GuildMessages.COMMUNITY_NOT_A_COMMUNITY)
     # Asked before the seat is taken, so the box is what joins rather than
     # something checked once they are already in.
     await assert_age_confirmed(session, user=user)

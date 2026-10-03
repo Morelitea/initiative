@@ -516,7 +516,7 @@ async def test_an_upload_is_reached_the_way_the_community_is(
     await create_guild_auth_policy(session, guild, provider)
     resp = await client.get(path, headers=get_auth_headers(user))
     assert resp.status_code == 401
-    assert resp.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert resp.json()["detail"] == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
 
 
 async def test_a_served_upload_is_typed_from_its_row(
