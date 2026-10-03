@@ -53,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An initiative's page is quieter.** Its colour runs down the side of its name and under the open tab, as it does in the sidebar. Whoever is online shows as faces in their profile frames: point at one to see who they are, or open the member count for everyone in it, searchable. Tool lists have one main button to create something, and cards inside an initiative no longer each carry its colour.
 - **A calendar's export is in its More actions menu**, beside import.
 - **Every tool list can be shown as cards, a list or by tag.** Projects, documents, queues, counters, dashboards, galleries and wikis each remember the view you pick. The tag view browses with the tag tree, as documents already did.
-- **Dashboard, counter and queue cards show what is inside.** A dashboard's card is a small copy of the dashboard, a counter group's shows its first counters, and a queue's shows whose turn it is and who is next. On a phone, the tags view picks tags from a row of chips, and on any screen several tags can be picked at once.
+- **Dashboard, counter and queue cards show what is inside.** A dashboard's card is a small copy of the dashboard, a counter group's shows its first counters, and a queue's shows whose turn it is and who is next. On a phone, the tags view picks tags from a row of chips, and on any screen several tags can be picked at once. **App and API integrations:** the queue, counter group and dashboard lists take `include_preview=true`, which adds a `preview` to each row: a queue's next turns, a group's first counters, or a dashboard's canvas with its query widgets answered.
 
 ### Fixed
 
