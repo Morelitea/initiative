@@ -1063,12 +1063,11 @@ class Settings(BaseSettings):
     # This is the same lever the test suite pulls (``limiter.enabled = False``),
     # surfaced as config; it is evaluated at startup, not per request.
     RATE_LIMIT_ENABLED: bool = True
-    # Storage backend for rate-limit counters. Defaults to in-process memory
-    # (``memory://``), which is per-worker — fine for a single process. For a
-    # multi-worker / multi-replica deployment that needs a shared, accurate
-    # counter, point this at Redis (``redis://host:6379/0``) or Memcached
-    # (``memcached://host:11211``) WITHOUT any code change. See the slowapi /
-    # limits "storage" docs for the full URI scheme list.
+    # Where rate-limit counters are kept. ``memory://`` (the default) counts in
+    # each process, so every process holds its own allowance. A ``redis://``,
+    # ``rediss://``, ``redis+sentinel://`` or ``redis+cluster://`` URI shares
+    # one count across processes. While that storage cannot be reached, each
+    # process counts in memory until it answers again (``rate_limit.build_limiter``).
     RATE_LIMIT_STORAGE_URI: str = "memory://"
 
     # How much the application says about itself on stderr: one of the

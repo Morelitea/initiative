@@ -113,8 +113,9 @@ async def _notify_bus() -> None:
 
 async def _rate_limit_store() -> None:
     # ``check()`` is a round trip for a shared store and a no-op for the
-    # in-process default. It is synchronous either way.
-    if not await anyio.to_thread.run_sync(limiter.limiter.storage.check):
+    # in-process default. It is synchronous either way. It asks the configured
+    # store, not the in-memory one the limiter counts in while that is down.
+    if not await anyio.to_thread.run_sync(limiter._storage.check):
         raise RuntimeError("unavailable")
 
 

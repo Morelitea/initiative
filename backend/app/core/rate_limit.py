@@ -140,15 +140,25 @@ def _default_limits() -> list[str]:
     return [raw] if raw else []
 
 
+def build_limiter(storage_uri: str) -> Limiter:
+    """The limiter, counting in ``storage_uri``.
+
+    While that storage cannot be reached, each process counts the same limits
+    in its own memory, and goes back to the storage once it answers again.
+    """
+    return Limiter(
+        key_func=get_user_or_ip_key,
+        default_limits=_default_limits(),
+        storage_uri=storage_uri,
+        in_memory_fallback_enabled=True,
+    )
+
+
 # Shared limiter instance - import this in endpoints. The default limit and the
 # counter storage backend are both settings-driven so a multi-worker deployment
 # can point at Redis (RATE_LIMIT_STORAGE_URI) or relax/disable the global default
 # (RATE_LIMIT_DEFAULT) with no code change.
-limiter = Limiter(
-    key_func=get_user_or_ip_key,
-    default_limits=_default_limits(),
-    storage_uri=settings.RATE_LIMIT_STORAGE_URI,
-)
+limiter = build_limiter(settings.RATE_LIMIT_STORAGE_URI)
 
 # Master kill-switch for local dev/testing. When RATE_LIMIT_ENABLED is False the
 # limiter short-circuits every check (global default *and* per-route decorators),
