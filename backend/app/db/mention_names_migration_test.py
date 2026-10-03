@@ -1,0 +1,128 @@
+"""Revision 0444 takes the names out of mentions written before.
+
+Loaded by path, as migrations are not on the import path, and run on one
+guild's schema the way the upgrade runs it on each.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+from datetime import datetime, timezone
+from pathlib import Path
+from types import ModuleType
+
+from sqlalchemy import text
+from sqlalchemy.orm import undefer
+from sqlmodel import select
+
+from app.models.tenant.comment import Comment
+from app.models.tenant.document import Document
+from app.models.tenant.task import Task
+from app.testing import route_session_to_guild
+from app.testing.factories import (
+    checklist_items,
+    create_comment,
+    create_document,
+    create_guild,
+    create_initiative,
+    create_project,
+    create_task,
+    create_user,
+    lexical_body,
+)
+
+_REVISION = (
+    Path(__file__).resolve().parents[2]
+    / "alembic"
+    / "versions"
+    / "20261002_0444_a_mention_keeps_no_name.py"
+)
+
+
+def _revision() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(_REVISION.stem, _REVISION)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+async def test_a_mention_written_before_keeps_no_name(session):
+    """In text and in an editor state, archived and trashed rows included. A
+    mention with no account keeps its name; a document that mentions somebody
+    starts collaboration again from its content, and the search index is left
+    to be rebuilt."""
+    author = await create_user(session)
+    guild = await create_guild(session, creator=author)
+    initiative = await create_initiative(session, guild, author)
+    project = await create_project(session, initiative, author)
+    named = f"@[Ada]({author.id}) and @[Bo]()"
+    task = await create_task(
+        session,
+        project,
+        description=named,
+        checklist=checklist_items(named),
+        archived_at=datetime.now(timezone.utc),
+    )
+    comment = await create_comment(
+        session, author, task=task, content=named, deleted_at=datetime.now(timezone.utc)
+    )
+    mentioning = await create_document(
+        session,
+        initiative,
+        author,
+        content=lexical_body("Hi ", mentioning=author.id, name="Ada"),
+        yjs_state=b"stale",
+    )
+    plain = await create_document(
+        session, initiative, author, content=lexical_body("Hi Bo"), yjs_state=b"kept"
+    )
+    schema = f"guild_{guild.id}"
+    await session.exec(
+        text(f"COMMENT ON TABLE \"{schema}\".search_entries IS 'current'")
+    )
+    await session.commit()
+
+    await session.run_sync(
+        lambda sync: _revision().strip_schema(sync.connection(), schema)
+    )
+    await session.commit()
+
+    session.expunge_all()
+    await route_session_to_guild(session, guild.id)
+    nameless = f"@[]({author.id}) and @[Bo]()"
+    stored = (
+        await session.exec(
+            select(Task.description, Task.checklist)
+            .where(Task.id == task.id)
+            .execution_options(include_archived=True)
+        )
+    ).one()
+    assert (stored[0], stored[1][0]["text"]) == (nameless, nameless)
+    content = (
+        await session.exec(
+            select(Comment.content)
+            .where(Comment.id == comment.id)
+            .execution_options(include_deleted=True)
+        )
+    ).one()
+    assert content == nameless
+    documents = {
+        row.id: (row.content, row.yjs_state)
+        for row in (
+            await session.exec(
+                select(Document)
+                .where(Document.id.in_([mentioning.id, plain.id]))  # type: ignore[union-attr]
+                .options(undefer(Document.content), undefer(Document.yjs_state))
+            )
+        ).all()
+    }
+    assert documents == {
+        mentioning.id: (lexical_body("Hi ", mentioning=author.id), None),
+        plain.id: (lexical_body("Hi Bo"), b"kept"),
+    }
+    marker = await session.scalar(
+        text("SELECT obj_description(to_regclass(:t), 'pg_class')"),
+        params={"t": f'"{schema}".search_entries'},
+    )
+    assert marker is None
