@@ -7,7 +7,12 @@ from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import PersonId
 from app.core.relationships import Related
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import (
+    MentionStr,
+    RichMentionStr,
+    SanitizedBaseModel,
+    TitleStr,
+)
 from app.schemas.query import PageMeta
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
@@ -56,7 +61,7 @@ class QueueItemBase(SanitizedBaseModel):
     label: str = Field(..., min_length=1, max_length=255)
     position: float = 0.0
     color: Optional[str] = None
-    notes: Optional[RichTextStr] = None
+    notes: Optional[RichMentionStr] = None
     is_visible: bool = True
 
 
@@ -73,7 +78,7 @@ class QueueItemUpdate(PropertiesOnUpdate):
     position: Optional[float] = None
     user_id: Optional[PersonId] = None
     color: Optional[str] = None
-    notes: Optional[RichTextStr] = None
+    notes: Optional[RichMentionStr] = None
     is_visible: Optional[bool] = None
     #: Replaces every tag on the item; omitted leaves them as they are.
     tag_ids: Optional[List[int]] = Field(default=None, max_length=100)
@@ -122,7 +127,7 @@ class QueueReleaseRequest(SanitizedBaseModel):
 
 class QueueBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
 
 
 class QueueCreate(QueueBase, PropertiesOnCreate):
@@ -135,7 +140,7 @@ class QueueCreate(QueueBase, PropertiesOnCreate):
 
 class QueueUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = None
-    description: Optional[str] = None
+    description: Optional[MentionStr] = None
 
 
 class QueueSummary(QueueBase, ToolSummaryBase):

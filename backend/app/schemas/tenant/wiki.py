@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
 from app.core.identity_boundary import GuildId, PersonId
 from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
-from app.schemas.tenant.document import smart_link_url
+from app.schemas.tenant.document import LexicalState, smart_link_url
 from app.schemas.tenant.property import (
     PropertiesOnCreate,
     PropertiesOnUpdate,
@@ -27,7 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class WikiBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
 
 
 class WikiCreate(WikiBase, PropertiesOnCreate):
@@ -66,7 +66,7 @@ class WikiSettings(SanitizedBaseModel):
 
 class WikiUpdate(WikiSettings):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
     #: The page the wiki opens on. ``null`` clears the choice and it opens on
     #: the first top-level page; a set value has to be one of its own pages.
     home_page_id: Optional[int] = None
@@ -109,7 +109,7 @@ class WikiPageCreate(PropertiesOnCreate):
     #: wiki people read should not be showing them that — so the default is the
     #: safe half of the answer, and publishing is a decision.
     is_draft: bool = True
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[LexicalState] = None
     tag_ids: Optional[List[int]] = None
 
 
@@ -122,7 +122,7 @@ class WikiPageUpdate(PropertiesOnUpdate):
 
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     is_draft: Optional[bool] = None
-    content: Optional[Dict[str, Any]] = None
+    content: Optional[LexicalState] = None
     tag_ids: Optional[List[int]] = None
 
 
@@ -221,7 +221,7 @@ class WikiPageSummary(SanitizedBaseModel):
 class WikiPageRead(WikiPageSummary):
     """One page, opened."""
 
-    content: Dict[str, Any] = Field(default_factory=dict)
+    content: LexicalState = Field(default_factory=dict)
     comment_count: int = 0
 
 

@@ -6,7 +6,7 @@ from pydantic import ConfigDict, Field, create_model
 
 from app.core.identity_boundary import GuildId
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import RichMentionStr, SanitizedBaseModel, TitleStr
 
 from app.models.tenant.initiative import (
     DEFAULT_PERMISSION_VALUES,
@@ -69,7 +69,7 @@ _InitiativeToolSwitchesPatch = create_model(
 
 class InitiativeBase(_InitiativeToolSwitches):
     name: str
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
 
 
@@ -82,7 +82,7 @@ class InitiativeCreate(InitiativeBase):
 
 class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     name: Optional[TitleStr] = None
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     # Settable by whoever may already update the initiative (managers, guild
     # admins).

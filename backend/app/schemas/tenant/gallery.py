@@ -5,7 +5,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel, TitleStr
+from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr
 from app.schemas.query import PageMeta
 from app.schemas.tenant.comment import CommentAuthor
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
@@ -25,7 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class GalleryBase(SanitizedBaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
 
 
 class GalleryCreate(GalleryBase, PropertiesOnCreate):
@@ -40,7 +40,7 @@ class GalleryCreate(GalleryBase, PropertiesOnCreate):
 
 class GalleryUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[str] = Field(default=None, max_length=2000)
+    description: Optional[MentionStr] = Field(default=None, max_length=2000)
     #: The picture that stands for the gallery in a list. ``null`` clears the
     #: choice and the list falls back to the newest picture; a set value has
     #: to be one of this gallery's own.

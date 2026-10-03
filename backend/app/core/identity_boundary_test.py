@@ -8,7 +8,7 @@ community's known reference) in its response phase.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Annotated, Any, Optional
 
 import pytest
 from pydantic import BaseModel, ValidationError
@@ -17,6 +17,8 @@ from pydantic_core import PydanticSerializationError
 from app.core.identity_boundary import (
     UNKNOWN_REFERENCE_ERROR,
     BoundaryPhase,
+    LEXICAL_MENTIONS,
+    MARKDOWN_MENTIONS,
     GuildId,
     InstallBoundary,
     PersonId,
@@ -230,6 +232,61 @@ def test_the_slot_closes_with_the_request():
         admit_install(_boundary())
         assert current_install_boundary() is not None
     assert current_install_boundary() is None
+
+
+# ---------------------------------------------------------------------------
+# Mentions
+# ---------------------------------------------------------------------------
+
+
+class _Body(BaseModel):
+    text: Annotated[str, MARKDOWN_MENTIONS]
+    state: Annotated[dict[str, Any], LEXICAL_MENTIONS] = {}
+
+
+def _mention(person: int | str, name: str) -> dict[str, Any]:
+    return {
+        "type": "mention",
+        "mentionUserId": person,
+        "mentionName": name,
+        "text": name,
+    }
+
+
+def test_a_person_s_mentions_pass_through():
+    body = {
+        "text": "@[Ada](11) on #task[Fix it](3)",
+        "state": {"root": _mention(11, "Ada")},
+    }
+    assert _Body.model_validate(body).model_dump(mode="json") == body
+
+
+def test_an_install_s_mention_is_stored_with_initiative_s_name():
+    with boundary_scope():
+        admit_install(_boundary(labels={11: "Ada]"}))
+        body = _Body.model_validate(
+            {
+                "text": f"@[anyone]({_PERSON_REF}) on #task[Fix it](3)",
+                "state": {"root": _mention(_PERSON_REF, "anyone")},
+            }
+        )
+    assert body.text == "@[Ada](11) on #task[Fix it](3)"
+    assert body.state == {"root": _mention(11, "Ada]")}
+
+
+@pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])
+def test_a_mention_of_nobody_named_here_is_refused(named):
+    with boundary_scope():
+        admit_install(_boundary(labels={11: "Ada"}))
+        for body in (
+            {"text": f"@[Ada]({named})"},
+            {"text": "", "state": {"root": _mention(named, "Ada")}},
+        ):
+            with pytest.raises(ValidationError) as caught:
+                _Body.model_validate(body)
+            assert _errors(caught.value) == [
+                (UNKNOWN_REFERENCE_ERROR, AppMessages.REFERENCE_UNKNOWN)
+            ]
 
 
 # ---------------------------------------------------------------------------
