@@ -388,7 +388,7 @@ async def test_a_guild_admin_level_carries_its_scope(
     )
 
     assert response.status_code == 200, response.text
-    assert response.json()["scope"] == "documents:read community:admin"
+    assert response.json()["scope"] == "community:admin documents:read"
 
 
 @pytest.mark.parametrize(

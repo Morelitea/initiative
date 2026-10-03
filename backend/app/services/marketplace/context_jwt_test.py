@@ -57,7 +57,7 @@ def _mint(**overrides) -> str:
     token, _ = context_jwt.mint_context_token(
         **{
             "public_id": PUBLIC_ID,
-            "community_ref": "gapp_testguild7",
+            "guild_ref": "gapp_testguild7",
             "app_install_id": 3,
             "scope": "endpoint",
             **overrides,

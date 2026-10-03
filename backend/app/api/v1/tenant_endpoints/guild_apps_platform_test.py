@@ -897,7 +897,7 @@ class TestOpenability:
                     actor.g(f"/apps/{app.id}/handoff/{surface}"), headers=actor.headers
                 )
                 assert (guild_wide.status_code == 200) is access[surface][
-                    "openable_guild_wide"
+                    "openable_community_wide"
                 ], (surface, guild_wide.text)
                 inside = await client.post(
                     actor.g(
@@ -925,13 +925,13 @@ class TestOpenability:
         access = await self._access(client, member, app.id)
         assert access["inside"]["openable_initiatives"] == [a.initiative.id]
         assert access["runs"]["openable_initiatives"] == [a.initiative.id]
-        assert access["runs"]["openable_guild_wide"] is False
+        assert access["runs"]["openable_community_wide"] is False
         assert access["settings"]["openable_initiatives"] == []
-        assert access["board"]["openable_guild_wide"] is False
+        assert access["board"]["openable_community_wide"] is False
 
         admin_access = await self._access(client, a, app.id)
         assert admin_access["settings"]["openable_initiatives"] == [a.initiative.id]
-        assert admin_access["board"]["openable_guild_wide"] is True
+        assert admin_access["board"]["openable_community_wide"] is True
 
 
 class TestPlacement:
