@@ -20,7 +20,7 @@ from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.notification import NotificationType
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services import email as email_service
-from app.services.auth import addresses
+from app.services.auth import account_changes, addresses
 from app.services.platform import email_outbox, user_notifications
 from app.testing import create_guild, create_user, set_notification_prefs
 
@@ -276,9 +276,9 @@ async def test_an_account_letter_goes_to_each_address_with_its_own_link(
             )
         )
     ).all()
-    assert sorted((token.change or {})["recipient"] for token in tokens) == sorted(
-        hash_email(address) for address in own
-    )
+    assert sorted(
+        account_changes.recipient_hash(token.change or {}) for token in tokens
+    ) == sorted(hash_email(address) for address in own)
     assert {(token.change or {})["notice"] for token in tokens} == {"passkey.added"}
 
 
