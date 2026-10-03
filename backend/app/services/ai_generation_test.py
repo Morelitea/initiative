@@ -35,8 +35,8 @@ def _resolved(
         base_url=base_url,
         model="test-model",
         allow_private=allow_private,
-        scope=ConnectionScope.platform if allow_private else ConnectionScope.guild,
-        source="platform" if allow_private else "guild",
+        scope=ConnectionScope.platform if allow_private else ConnectionScope.community,
+        source="platform" if allow_private else "community",
     )
 
 

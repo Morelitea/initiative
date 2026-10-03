@@ -103,6 +103,8 @@ _REFRESH_EVERY = 25
 
 class InitiativeExportAdapter:
     source = "initiative"
+    #: The scope a backup's manifest records, which an import reads back.
+    scope_kind = "initiative"
     template_id = "data-table"  # protocol requirement; items override per se
     formats = ("zip",)
     always_job = True
@@ -114,21 +116,24 @@ class InitiativeExportAdapter:
 
     async def count(self, session, *, user, guild_id, params, format) -> int:
         scope = await _resolve_scope(
-            session, user, guild_id, params, scope_kind=self.source
+            session, user, guild_id, params, scope_kind=self.scope_kind
         )
         return await _count_scope(
-            session, user, guild_id, params, scope, scope_kind=self.source
+            session, user, guild_id, params, scope, scope_kind=self.scope_kind
         )
 
     async def build(self, session, *, user, guild_id, params, format) -> RenderRequest:
         scope = await _resolve_scope(
-            session, user, guild_id, params, scope_kind=self.source
+            session, user, guild_id, params, scope_kind=self.scope_kind
         )
-        return await _build_scope(session, user, guild_id, params, scope, self.source)
+        return await _build_scope(
+            session, user, guild_id, params, scope, self.scope_kind
+        )
 
 
 class GuildExportAdapter(InitiativeExportAdapter):
-    source = "guild"
+    source = "community"
+    scope_kind = "guild"
 
 
 # ---------------------------------------------------------------------------

@@ -406,7 +406,7 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     welcomed = (
         await session.exec(
             select(Notification).where(
-                Notification.type == NotificationType.guild_welcome
+                Notification.type == NotificationType.community_welcome
             )
         )
     ).all()
@@ -417,7 +417,7 @@ async def test_creating_a_guild_for_another_account_seats_them_and_records_both(
     assert line.user_id == customer.user.id
     assert line.data == {
         "community": "Acme",
-        "guild_id": guild.id,
+        "community_id": guild.id,
         "target_path": "/settings/usage",
     }
     ((recipient_id, pieces),) = letters
@@ -772,7 +772,7 @@ async def test_create_guild_invite_as_admin(client: AsyncClient, acting_user):
 
     assert response.status_code == 201, response.text
     data = response.json()
-    assert data["guild_id"] == admin.guild.id
+    assert data["community_id"] == admin.guild.id
     assert data["max_uses"] == 5
     assert data["uses"] == 0
     assert len(data["code"]) == 22
@@ -867,8 +867,8 @@ async def test_get_invite_status_valid(
     assert response.status_code == 200
     data = response.json()
     assert data["code"] == invite.code
-    assert data["guild_id"] == guild.id
-    assert data["guild_name"] == "Test Guild"
+    assert data["community_id"] == guild.id
+    assert data["community_name"] == "Test Guild"
     assert data["is_valid"] is True
     assert data["max_uses"] == 5
     assert data["uses"] == 0
@@ -983,7 +983,7 @@ ADMIN_ONLY_ROUTES = (
 SIGNED_IN_ROUTES = (
     ("GET", "/api/v1/communities/", None),
     ("POST", "/api/v1/communities/", {"name": "Fresh"}),
-    ("PUT", "/api/v1/communities/order", {"guild_ids": []}),
+    ("PUT", "/api/v1/communities/order", {"community_ids": []}),
     ("POST", "/api/v1/communities/invite/accept", {"code": "notarealcode000000"}),
     ("GET", "/api/v1/communities/{guild}/leave/eligibility", None),
     ("DELETE", "/api/v1/communities/{guild}/leave", None),

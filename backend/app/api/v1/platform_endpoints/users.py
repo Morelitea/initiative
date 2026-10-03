@@ -950,7 +950,7 @@ _GUILD_CSV_HEADERS = [
     "user_id",
     "handle",
     "display_name",
-    "guild_role",
+    "community_role",
     "oidc_managed",
     "status",
     "created_at",

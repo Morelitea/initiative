@@ -82,7 +82,7 @@ export const useNotificationHistory = (options?: {
   const params = {
     limit: NOTIFICATION_PAGE_SIZE,
     unread_only: options?.unreadOnly,
-    guild_id: options?.guildId,
+    community_id: options?.guildId,
     personal_only: options?.personalOnly,
   };
   return useInfiniteQuery({

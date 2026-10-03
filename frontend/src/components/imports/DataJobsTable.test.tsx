@@ -25,7 +25,7 @@ const exportJob = (o: Record<string, unknown>) => ({
   id: 1,
   community_id: 1,
   created_by: 1,
-  source: "guild",
+  source: "community",
   template_id: "data-table",
   format: "zip",
   params: {},

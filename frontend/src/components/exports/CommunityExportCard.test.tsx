@@ -49,7 +49,7 @@ const job = (o: Record<string, unknown> = {}) => ({
   id: 7,
   community_id: 1,
   created_by: 1,
-  source: "guild",
+  source: "community",
   template_id: "backup",
   format: "zip",
   params: {},

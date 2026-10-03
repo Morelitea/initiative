@@ -128,8 +128,8 @@ async def _event_notification_data(session: AsyncSession, grant: AccessGrant) ->
     guild = await guilds_service.get_guild(session, guild_id=grant.guild_id)
     return {
         "grant_id": str(grant.id),
-        "guild_id": str(grant.guild_id),
-        "guild_name": guild.name if guild else None,
+        "community_id": str(grant.guild_id),
+        "community_name": guild.name if guild else None,
         "access_level": grant.access_level,
     }
 
@@ -190,7 +190,7 @@ async def _tell(
     first, *rest = lines
     # The community it is about, so a person who has muted that community
     # hears about it the way they asked to.
-    guild_id = int(first["guild_id"]) if first.get("guild_id") else None
+    guild_id = int(first["community_id"]) if first.get("community_id") else None
     rows = [
         await notice_outbox.notice(
             session,
@@ -301,8 +301,8 @@ async def request_grants(
             lines=[
                 {
                     "grant_id": str(grant.id),
-                    "guild_id": str(grant.guild_id),
-                    "guild_name": guild.name,
+                    "community_id": str(grant.guild_id),
+                    "community_name": guild.name,
                     "requester_id": str(requester.id),
                     "requester_name": requester_name,
                     "access_level": grant.access_level,
@@ -456,7 +456,7 @@ async def break_glass(
         lines=[data],
         push_key="approved",
         email_event="approved",
-        guild_name=data["guild_name"],
+        guild_name=data["community_name"],
         levels=[grant.access_level],
     )
     return grant
@@ -556,7 +556,7 @@ async def approve(
             lines=[data],
             push_key="approved",
             email_event="approved",
-            guild_name=data["guild_name"],
+            guild_name=data["community_name"],
             levels=[grant.access_level],
         )
     return grant
@@ -585,7 +585,7 @@ async def deny(
             lines=[data],
             push_key="denied",
             email_event="denied",
-            guild_name=data["guild_name"],
+            guild_name=data["community_name"],
         )
     return grant
 
@@ -615,7 +615,7 @@ async def revoke(
             lines=[data],
             push_key="revoked",
             email_event="revoked",
-            guild_name=data["guild_name"],
+            guild_name=data["community_name"],
         )
     return grant
 

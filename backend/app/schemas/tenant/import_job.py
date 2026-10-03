@@ -42,7 +42,7 @@ def serialize_import_job(job: ImportJob, *, guild_id: int) -> ImportJobRead:
     fields = {
         name: getattr(job, name)
         for name in ImportJobRead.model_fields
-        if name != "guild_id"
+        if name != "community_id"
     }
     return ImportJobRead(community_id=guild_id, **fields)
 
@@ -261,7 +261,7 @@ class BackupImportPlan(SanitizedBaseModel):
     """The confirm-screen summary, persisted to ``import_jobs.plan`` —
     counts and names only, never envelope content."""
 
-    source_guild_name: str = ""
+    source_community_name: str = ""
     app_version: str = ""
     exported_at: Optional[str] = None
     schema_version: int = 0

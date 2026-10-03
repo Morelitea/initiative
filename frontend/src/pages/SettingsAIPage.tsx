@@ -27,7 +27,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
 
-const MODES: AIConfigMode[] = ["disabled", "platform", "guild"];
+const MODES: AIConfigMode[] = ["disabled", "platform", "community"];
 
 export const SettingsAIPage = () => {
   const { t } = useTranslation("settings");

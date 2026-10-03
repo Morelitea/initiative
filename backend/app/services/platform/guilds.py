@@ -1515,7 +1515,7 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
     await notice_outbox.enqueue(
         session,
         [
-            notice_outbox.row(user_id, None, NotificationType.guild_on_hold, data)
+            notice_outbox.row(user_id, None, NotificationType.community_on_hold, data)
             for user_id in seat_holders
         ],
     )
@@ -1543,8 +1543,8 @@ async def announce_on_hold(session: AsyncSession, guild_id: int) -> None:
 
 #: The bell line each billing trial notice writes.
 _TRIAL_NOTICE_TYPES = {
-    "trial_ending": NotificationType.guild_trial_ending,
-    "trial_ended": NotificationType.guild_trial_ended,
+    "trial_ending": NotificationType.community_trial_ending,
+    "trial_ended": NotificationType.community_trial_ended,
 }
 
 
@@ -1653,7 +1653,7 @@ async def queue_welcome_notice(
         session,
         guild,
         [owner_user_id],
-        NotificationType.guild_welcome,
+        NotificationType.community_welcome,
         # The bell line leads to Plan & usage like the trial ones, not to the
         # portal: in the phone app, which may not sell, that tab shows the plan
         # and offers nothing. The letter is the way straight to the portal.
@@ -1694,7 +1694,7 @@ async def _queue_plan_notice(
                 notification_type,
                 {
                     "community": guild.name,
-                    "guild_id": guild.id,
+                    "community_id": guild.id,
                     "target_path": "/settings/usage",
                     **data,
                 },

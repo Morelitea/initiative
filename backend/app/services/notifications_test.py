@@ -397,7 +397,7 @@ async def test_a_community_notice_carries_its_guild(
     ).all()
     assert len(notifs) == 1
     data = notifs[0].data
-    assert data["guild_id"] == guild.id
+    assert data["community_id"] == guild.id
     assert data["target_path"] == f"/i/{initiative.id}"
     assert f"guild_id={guild.id}" in data["smart_link"]
 
@@ -937,7 +937,7 @@ async def test_assignment_digest_of_one_deep_links_to_the_task(
 
     [push] = await _queued_pushes(session)
     assert push.push_data is not None
-    assert push.push_data["guild_id"] == str(guild.id)
+    assert push.push_data["community_id"] == str(guild.id)
     assert push.push_data["target_path"].startswith("/go/task/")
 
 
@@ -1401,7 +1401,7 @@ async def test_withdrawal_keeps_a_reactor_whose_other_gesture_rolled_off(
         user_id=author.id,
         notification_type=NotificationType.comment_reaction,
         data={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "target_type": "comment",
             "target_id": 5,
             "count": 25,

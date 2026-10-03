@@ -110,7 +110,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             // A path in this app, or nowhere.
             const targetPath = returnPath(data.target_path as string | undefined);
             if (targetPath) {
-              const guildId = data.guild_id as string | undefined;
+              const guildId = data.community_id as string | undefined;
               if (guildId) {
                 router.navigate({
                   to: "/navigate",

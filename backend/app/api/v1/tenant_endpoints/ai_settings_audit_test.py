@@ -180,7 +180,7 @@ async def test_a_community_connection_is_recorded_against_its_community(
     client, acting_user, capfd
 ):
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
+    await _set_mode(client, owner, "community")
     seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     seat_id, guild_id = seat.user.id, seat.guild.id
     capfd.readouterr()
@@ -214,14 +214,14 @@ async def test_a_community_connection_is_recorded_against_its_community(
         assert [(r["actor_user_id"], r["guild_id"], r["target"]) for r in rows] == [
             (seat_id, guild_id, {"type": "ai_connection", "id": connection_id})
         ], event
-        assert rows[0]["detail"]["scope"] == "guild"
+        assert rows[0]["detail"]["scope"] == "community"
 
 
 async def test_a_community_connection_edit_that_changes_nothing_records_nothing(
     client, acting_user, capfd
 ):
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
+    await _set_mode(client, owner, "community")
     seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
 
     created = await client.post(
@@ -245,7 +245,7 @@ async def test_a_community_connection_edit_that_changes_nothing_records_nothing(
 async def test_a_refused_connection_write_records_nothing(client, acting_user, capfd):
     """Running a community is not the seat that connects it to a provider."""
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
+    await _set_mode(client, owner, "community")
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     capfd.readouterr()
 

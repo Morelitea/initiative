@@ -291,7 +291,7 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
                     f'INSERT INTO "{schema}".guild_ai_member_keys '  # noqa: S608
                     "(user_id, connection_scope, connection_id, "
                     " api_key_encrypted, created_at, updated_at) "
-                    "VALUES (1, 'guild', 1, :a, now(), now())"
+                    "VALUES (1, 'community', 1, :a, now(), now())"
                 ),
                 {
                     "a": encrypt_field("member-ai", SALT_AI_API_KEY, secret_key=OLD),

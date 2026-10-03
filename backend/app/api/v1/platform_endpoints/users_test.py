@@ -922,7 +922,7 @@ async def test_export_users_csv_as_admin(client, session, csv_guild):
         "user_id",
         "handle",
         "display_name",
-        "guild_role",
+        "community_role",
         "oidc_managed",
         "status",
         "created_at",

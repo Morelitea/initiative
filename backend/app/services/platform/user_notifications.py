@@ -36,7 +36,7 @@ def _place(data: Mapping[str, object]) -> dict[str, object]:
     # is what the link resolver reads, so it is not the place to say the other.
     tool = data.get("tool") or data.get("entity_type")
     return {
-        "guild_id": _int_or_none(data.get("guild_id")),
+        "guild_id": _int_or_none(data.get("community_id")),
         "initiative_id": _int_or_none(data.get("initiative_id")),
         "tool": tool if isinstance(tool, str) and tool else None,
         "resource_id": _int_or_none(data.get("resource_id")),

@@ -28,7 +28,7 @@ const buildGuildPath = (guildId: number, targetPath: string): string => {
 
 export const resolveSmartLink = (notification: NotificationRead): string | null => {
   const data = notification.data || {};
-  const guildValue = data.guild_id;
+  const guildValue = data.community_id;
   const targetValue = data.target_path;
 
   let guildId: number | null = null;
@@ -107,7 +107,7 @@ export const notificationLink = (notification: NotificationRead): string | null 
     case "import_failed": {
       // The report lives on the guild's Data settings tab (the jobs table's
       // "View report"). Absolute guild path — the notification names its guild.
-      const guildId = Number(data.guild_id);
+      const guildId = Number(data.community_id);
       return Number.isFinite(guildId) ? buildGuildPath(guildId, "/settings/data") : null;
     }
     case "user_pending_approval":
@@ -365,22 +365,22 @@ export const notificationText = (
     case "access_grant_requested": {
       const level = accessLevelLabel(data.access_level, t);
       const requester = data.requester_name ?? t("notifications.someone");
-      const guild = data.guild_name ?? "a guild";
+      const guild = data.community_name ?? "a community";
       return level
         ? t("notifications.accessGrantRequested", { requester, level, guild })
         : t("notifications.accessGrantRequestedGeneric", { requester, guild });
     }
     case "access_grant_approved": {
       const level = accessLevelLabel(data.access_level, t);
-      const guild = data.guild_name ?? "a guild";
+      const guild = data.community_name ?? "a community";
       return level
         ? t("notifications.accessGrantApproved", { level, guild })
         : t("notifications.accessGrantApprovedGeneric", { guild });
     }
     case "access_grant_denied":
-      return t("notifications.accessGrantDenied", { guild: data.guild_name ?? "a guild" });
+      return t("notifications.accessGrantDenied", { guild: data.community_name ?? "a community" });
     case "access_grant_revoked":
-      return t("notifications.accessGrantRevoked", { guild: data.guild_name ?? "a guild" });
+      return t("notifications.accessGrantRevoked", { guild: data.community_name ?? "a community" });
     case "event_invitation":
       return t("notifications.eventInvitation", {
         organizer: data.organizer_name ?? t("notifications.someone"),
@@ -458,7 +458,7 @@ export const notificationText = (
         app: typeof data.app_name === "string" ? data.app_name : "",
         version: typeof data.version === "string" ? data.version : "",
       });
-    case "guild_on_hold": {
+    case "community_on_hold": {
       const community = typeof data.community === "string" ? data.community : "";
       // The day it is deleted, where this deployment deletes a held community.
       const date = formatDate(data.delete_on);
@@ -474,7 +474,7 @@ export const notificationText = (
     }
     // The plan lines ask the reader to choose a plan, which the phone app may
     // not; there each says only what happens to the community.
-    case "guild_trial_ending":
+    case "community_trial_ending":
       return t(
         Capacitor.isNativePlatform()
           ? "notifications.guildTrialEndingInApp"
@@ -484,14 +484,14 @@ export const notificationText = (
           date: formatDate(data.trial_ends_on),
         }
       );
-    case "guild_trial_ended":
+    case "community_trial_ended":
       return t(
         Capacitor.isNativePlatform()
           ? "notifications.guildTrialEndedInApp"
           : "notifications.guildTrialEnded",
         { community: typeof data.community === "string" ? data.community : "" }
       );
-    case "guild_welcome":
+    case "community_welcome":
       return t(
         Capacitor.isNativePlatform()
           ? "notifications.guildWelcomeInApp"
@@ -512,7 +512,7 @@ export const exportDownloadTarget = (
     return null;
   }
   const data = notification.data || {};
-  const guildId = Number(data.guild_id);
+  const guildId = Number(data.community_id);
   const jobId = Number(data.export_job_id);
   if (!Number.isFinite(guildId) || !Number.isFinite(jobId)) {
     return null;

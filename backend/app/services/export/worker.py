@@ -209,7 +209,7 @@ def _outcome(job: ExportJob, guild_id: int) -> JobOutcome:
         if job.status == ExportJobStatus.done
         else NotificationType.export_failed,
         {
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "export_job_id": job.id,
             "source": job.source,
             "format": job.format,

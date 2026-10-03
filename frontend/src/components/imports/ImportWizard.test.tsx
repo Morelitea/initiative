@@ -46,7 +46,7 @@ const STAGED_JOB = {
   params: {},
   status: "staged",
   plan: {
-    source_guild_name: "Old Guild",
+    source_community_name: "Old Guild",
     initiatives: [
       {
         source_id: 1,

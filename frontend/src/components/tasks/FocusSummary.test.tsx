@@ -187,7 +187,7 @@ describe("FocusSummary", () => {
     // The list spans every guild the user belongs to and answers only to its
     // own settings — it is not scoped by the guild you happen to be viewing,
     // nor by the task table's filters.
-    expect(captured[0].get("conditions")).not.toContain("guild_id");
+    expect(captured[0].get("conditions")).not.toContain("community_id");
   });
 
   it("asks for backlog work too, not just what someone moved to To Do", async () => {

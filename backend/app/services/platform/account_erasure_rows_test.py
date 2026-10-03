@@ -120,12 +120,15 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
         # Held in custody for them: an API key and the preference beside it.
         "ai_key": GuildAIMemberKey(
             user_id=victim.id,
-            connection_scope="guild",
+            connection_scope="community",
             connection_id=1,
             api_key_encrypted="ciphertext",
         ),
         "ai_pref": GuildAIMemberPref(
-            user_id=victim.id, connection_scope="guild", connection_id=1, enabled=True
+            user_id=victim.id,
+            connection_scope="community",
+            connection_id=1,
+            enabled=True,
         ),
         # A receipt that a reminder for this event reached this person.
         "dispatch": EventReminderDispatch(

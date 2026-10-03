@@ -1041,7 +1041,7 @@ async def test_backup_import_end_to_end_with_assets(
     job_id = body["id"]
     assert body["status"] == ImportJobStatus.staged.value
     plan = body["plan"]
-    assert plan["source_guild_name"] == "Source Guild"
+    assert plan["source_community_name"] == "Source Guild"
     assert plan["initiatives"][0]["proposed_name"] == "Restored"
     assert plan["initiatives"][0]["entry_counts"] == {"queue": 1, "document": 1}
     assert plan["asset_count"] == 1

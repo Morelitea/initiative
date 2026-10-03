@@ -269,7 +269,7 @@ def occurrences(
             for start in starts
             if start not in own
         )
-    found.sort(key=lambda event: (event.start_at, event.guild_id, event.id))
+    found.sort(key=lambda event: (event.start_at, event.community_id, event.id))
     return found
 
 
@@ -458,7 +458,7 @@ async def query_my_calendar_events(
     )
     events = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
     # Merge-sort across guilds (per-schema SQL can't order across schemas).
-    events.sort(key=lambda e: (e.start_at, e.guild_id, e.id))
+    events.sort(key=lambda e: (e.start_at, e.community_id, e.id))
     return events
 
 
