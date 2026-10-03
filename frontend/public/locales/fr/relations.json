@@ -1,5 +1,5 @@
 {
-  "title": "En lien avec",
+  "title": "Connexions",
   "description": "Tout ce à quoi ceci est relié, et comment.",
   "untitled": "Sans titre",
   "empty": "Rien n'est encore lié.",
@@ -82,15 +82,16 @@
       "title": "Mentionné dans",
       "option": "est mentionné dans"
     },
+    "references": {
+      "title": "Renvoie vers",
+      "option": "renvoie vers"
+    },
     "tagged": {
       "title": "Étiqueté",
       "option": "est étiqueté"
     }
   },
   "loading": "Chargement…",
-  "title_task": "Connexions",
-  "title_document": "Connexions",
-  "title_project": "Pièces jointes et liens",
   "empty_task": "Rien n'est encore lié. Lie le document qui décrit cette tâche, ou la tâche qui la bloque.",
   "empty_document": "Rien n'est encore lié. Lie le projet que ceci explique, ou la tâche dont il est issu.",
   "empty_project": "Rien n'est encore lié. Joins les documents et fichiers sur lesquels ce projet s'appuie.",
@@ -125,16 +126,6 @@
     "label_other": "{{count}} choses retiennent ceci",
     "icon": "Ce qui retient ceci"
   },
-  "title_calendar": "Connexions",
-  "title_calendar_event": "Connexions",
-  "title_counter": "Connexions",
-  "title_counter_group": "Connexions",
-  "title_dashboard": "Connexions",
-  "title_gallery": "Pièces jointes et liens",
-  "title_gallery_image": "Connexions",
-  "title_post": "Connexions",
-  "title_queue": "Connexions",
-  "title_queue_item": "Connexions",
   "empty_calendar": "Rien n'est encore lié. Lie le projet que ce calendrier planifie, ou le document qui l'explique.",
   "empty_calendar_event": "Rien n'est encore lié. Lie la tâche concernée, ou le document dont tu partiras.",
   "empty_counter": "Rien n'est encore lié. Lie la tâche à laquelle cela contribue, ou le projet dont cela rend compte.",
@@ -144,5 +135,6 @@
   "empty_gallery_image": "Rien n'est encore lié. Lie la tâche à laquelle cette image sert, ou le document auquel elle appartient.",
   "empty_post": "Rien n'est encore lié. Lie le projet annoncé, ou le document qui le sous-tend.",
   "empty_queue": "Rien n'est encore lié. Lie le projet que cette file alimente.",
-  "empty_queue_item": "Rien n'est encore lié. Lie la tâche qu'il est devenu, ou le document dont il vient."
+  "empty_queue_item": "Rien n'est encore lié. Lie la tâche qu'il est devenu, ou le document dont il vient.",
+  "empty_wiki_page": "Rien n'est encore lié. Mentionnez cette page avec [[ depuis n’importe où et elle apparaîtra ici."
 }

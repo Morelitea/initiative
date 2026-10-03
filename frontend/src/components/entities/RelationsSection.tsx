@@ -125,10 +125,8 @@ interface RelationsSectionProps {
   headerActions?: ReactNode;
   /** Persist the collapsed state and the chosen density under this key. */
   collapseKey?: string;
-  /**
-   * How to draw these before anybody says otherwise. Tiles suit a full-width
-   * section, rows a column beside a form, a carousel a shelf of attachments.
-   */
+  /** How to draw these before anybody says otherwise: a shelf you push
+   *  along, on every surface, until somebody picks another way. */
   defaultLayout?: RelationsLayout;
   /** What the thing itself is called, for the middle of the graph. */
   entityTitle?: string;
@@ -156,7 +154,7 @@ export const RelationsSection = ({
   groups = RELATION_GROUP_ORDER,
   headerActions,
   collapseKey,
-  defaultLayout = "tiles",
+  defaultLayout = "carousel",
   entityTitle,
   title,
   description,
@@ -272,18 +270,17 @@ export const RelationsSection = ({
     };
   };
 
-  // Contextual, from the thing itself, so no caller has to pass copy for a
-  // surface it happens to sit on. i18next falls back to the bare key for a kind
-  // that has no wording of its own.
-  const kind = entity.type;
-  const sectionTitle = title ?? t("title", { context: kind });
-  const emptyLine = t("empty", { context: kind });
+  // One name on every surface. The empty line is contextual, from the thing
+  // itself, so no caller has to pass copy for a surface it happens to sit on;
+  // i18next falls back to the bare key for a kind with no wording of its own.
+  const sectionTitle = title ?? t("title");
+  const emptyLine = t("empty", { context: entity.type });
 
   return (
     <Collapsible
       open={!collapsed}
       onOpenChange={(open) => setCollapsedState(!open)}
-      className={cn("relative", className ?? "space-y-4 rounded-2xl border bg-card p-5 shadow-sm")}
+      className={cn("relative space-y-3", className)}
       {...drop.handlers}
     >
       {drop.dragging ? <DropOverlay label={t("dropzone")} className="rounded-2xl" /> : null}

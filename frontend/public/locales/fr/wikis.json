@@ -52,11 +52,7 @@
     "groupLabel": "Pages"
   },
   "links": {
-    "title": "Connexions",
-    "outgoing": "Liens depuis cette page",
-    "incoming": "Lié depuis",
-    "noneDescription": "Mentionnez cette page avec [[ depuis n’importe où et elle apparaîtra ici.",
-    "loading": "Chargement des connexions..."
+    "title": "Connexions"
   },
   "card": {
     "comments_one": "{{count}} commentaire",

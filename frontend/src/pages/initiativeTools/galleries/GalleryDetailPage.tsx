@@ -475,7 +475,6 @@ export function GalleryDetailPage() {
         entity={gallery}
         canEdit={canEdit}
         entityTitle={gallery?.name}
-        defaultLayout="carousel"
       />
 
       {gallery != null && <ToolCommentsPanel tool={Tool.gallery} entity={gallery} />}

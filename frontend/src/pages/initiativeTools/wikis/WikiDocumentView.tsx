@@ -179,7 +179,7 @@ export const WikiDocumentView = () => {
 
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections entity={documentRef} className="min-h-0" />
+              <WikiPageConnections entity={documentRef} initiativeId={wiki.initiative_id} />
             </div>
           ) : null}
         </div>
@@ -187,6 +187,7 @@ export const WikiDocumentView = () => {
 
       <WikiConnectionsSheet
         entity={documentRef}
+        initiativeId={wiki.initiative_id}
         open={sheetOpen}
         onOpenChange={(open) => !open && setShowConnections(false)}
       />

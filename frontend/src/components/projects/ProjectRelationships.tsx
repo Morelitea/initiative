@@ -46,12 +46,6 @@ export const ProjectRelationships = ({
         entity={{ id: projectId, initiative_id: initiativeId }}
         canEdit={canAttach}
         entityTitle={projectName}
-        /* The shelf this section has always been. A project's attachments are
-           browsed along rather than read down, and a carousel says "there is
-           more this way" where a grid just runs out. */
-        defaultLayout="carousel"
-        /* Unframed, like the tasks section under it. */
-        className="space-y-3"
         headerActions={
           canCreate ? (
             <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>

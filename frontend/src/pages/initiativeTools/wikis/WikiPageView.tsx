@@ -488,7 +488,7 @@ export const WikiPageView = () => {
               at which opening it moves nothing. */}
           {railOpen && railFitsBeside ? (
             <div className="flex w-72 shrink-0 flex-col overflow-y-auto py-6 pr-6">
-              <WikiPageConnections entity={pageRef} className="min-h-0" />
+              <WikiPageConnections entity={pageRef} initiativeId={wiki.initiative_id} />
             </div>
           ) : null}
         </div>
@@ -498,6 +498,7 @@ export const WikiPageView = () => {
           the control means the same thing at every width. */}
       <WikiConnectionsSheet
         entity={pageRef}
+        initiativeId={wiki.initiative_id}
         open={sheetOpen}
         onOpenChange={(open) => !open && setShowConnections(false)}
       />

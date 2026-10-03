@@ -52,11 +52,7 @@
     "groupLabel": "Seiten"
   },
   "links": {
-    "title": "Verbindungen",
-    "outgoing": "Links von dieser Seite",
-    "incoming": "Verlinkt von",
-    "noneDescription": "Erwähne diese Seite mit [[ von irgendwo – dann erscheint sie hier.",
-    "loading": "Verbindungen werden geladen ..."
+    "title": "Verbindungen"
   },
   "card": {
     "comments_one": "{{count}} Kommentar",
