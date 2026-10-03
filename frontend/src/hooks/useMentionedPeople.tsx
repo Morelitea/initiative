@@ -42,6 +42,8 @@ interface MentionedPeopleValue {
   /** Whether every answer has arrived. Until it has, a mention cannot tell
    *  somebody who has left from somebody not yet looked up. */
   ready: boolean;
+  /** Whether the lookup gave up, so no answer is coming. */
+  failed: boolean;
   /** How a page says who it mentions in a community, the scope's own unless
    *  one is named. Each community's set replaces the one reported before it. */
   report: (ids: number[], guildId?: number) => void;
@@ -50,6 +52,7 @@ interface MentionedPeopleValue {
 const MentionedPeopleContext = createContext<MentionedPeopleValue>({
   find: () => undefined,
   ready: false,
+  failed: false,
   report: () => {},
 });
 
@@ -140,9 +143,10 @@ export function MentionedPeopleScope({
     return {
       find: (userId, community = guildId) => people.get(personKey(community, userId)),
       ready,
+      failed: query.isError,
       report,
     };
-  }, [entries, guildId, ready, report]);
+  }, [entries, guildId, ready, query.isError, report]);
 
   return (
     <MentionedPeopleContext.Provider value={value}>{children}</MentionedPeopleContext.Provider>
@@ -187,7 +191,7 @@ export function ReportMentionedPeople({
 export const useMentionedPerson = (
   userId: number | null | undefined,
   guildId?: number
-): { person: UserSummary | undefined; ready: boolean } => {
-  const { find, ready } = useMentionedPeople();
-  return { person: userId == null ? undefined : find(userId, guildId), ready };
+): { person: UserSummary | undefined; ready: boolean; failed: boolean } => {
+  const { find, ready, failed } = useMentionedPeople();
+  return { person: userId == null ? undefined : find(userId, guildId), ready, failed };
 };

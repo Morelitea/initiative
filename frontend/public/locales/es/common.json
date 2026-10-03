@@ -2,6 +2,7 @@
   "user": "Usuario",
   "userWithId": "Usuario #{{id}}",
   "formerMember": "Exmiembro",
+  "mentionNotLoaded": "No se pudo cargar este nombre",
   "save": "Guardar",
   "cancel": "Cancelar",
   "delete": "Eliminar",

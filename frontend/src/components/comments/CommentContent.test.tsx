@@ -146,10 +146,23 @@ describe("CommentContent", () => {
     expect(screen.queryByText(/Former member/)).not.toBeInTheDocument();
   });
 
+  it("stops waiting once the lookup gives up, without guessing", async () => {
+    server.use(
+      http.get("*/api/v1/c/:guildId/users/search", () => HttpResponse.json({}, { status: 500 }))
+    );
+
+    renderResolvedContent("thanks @[](12)!");
+
+    expect(await screen.findByTitle("Couldn't load this name")).toHaveTextContent("…");
+    expect(screen.queryByText(/Former member/)).not.toBeInTheDocument();
+  });
+
   it("keeps the name of somebody with no account, who has nothing else to go by", () => {
-    const { container } = renderContent("thanks @[Ada Lovelace]()!");
+    // One an export could not name has neither, and reads as a former member.
+    const { container } = renderContent("thanks @[Ada Lovelace]() and @[]()!");
 
     expect(screen.getByText("@Ada Lovelace")).toBeInTheDocument();
+    expect(screen.getByText("@Former member")).toBeInTheDocument();
     expect(container.querySelector("a")).toBeNull();
   });
 

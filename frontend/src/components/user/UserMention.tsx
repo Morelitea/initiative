@@ -43,15 +43,18 @@ export const UserMention = ({
   className,
 }: UserMentionProps) => {
   const { t } = useTranslation("common");
-  const { person, ready } = useMentionedPerson(userId, guildId);
+  const { person, ready, failed } = useMentionedPerson(userId, guildId);
 
   let label: ReactNode;
   if (person) {
     label = getUserDisplayName(person, fallback);
-  } else if (userId == null || (!ready && fallback)) {
+  } else if (fallback && (userId == null || !ready)) {
     label = fallback;
-  } else if (ready) {
+  } else if (userId == null || ready) {
+    // Nobody this community has now, or somebody an export could not name.
     label = t("formerMember");
+  } else if (failed) {
+    label = <span title={t("mentionNotLoaded")}>…</span>;
   } else {
     label = <span className="animate-pulse">…</span>;
   }

@@ -88,7 +88,7 @@ export function remarkMentions() {
 
         const label = textOf(link);
         if (match.type === "user") {
-          if (!PERSON_ID.test(link.url) || !(label || link.url)) continue;
+          if (!PERSON_ID.test(link.url)) continue;
         } else if (!ENTITY_ID.test(link.url) || !label) {
           continue;
         }

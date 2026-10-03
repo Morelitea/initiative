@@ -2,6 +2,7 @@
   "user": "Utilisateur",
   "userWithId": "Utilisateur n° {{id}}",
   "formerMember": "Ancien membre",
+  "mentionNotLoaded": "Impossible de charger ce nom",
   "save": "Enregistrer",
   "cancel": "Annuler",
   "delete": "Supprimer",

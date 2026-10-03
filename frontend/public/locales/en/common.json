@@ -3,6 +3,7 @@
   "user": "User",
   "userWithId": "User #{{id}}",
   "formerMember": "Former member",
+  "mentionNotLoaded": "Couldn't load this name",
   "save": "Save",
   "cancel": "Cancel",
   "delete": "Delete",
