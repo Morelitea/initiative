@@ -5,6 +5,8 @@ import { Markdown } from "@/components/Markdown";
 
 interface TaskDescriptionProps {
   content: string;
+  /** The community the task is in, where that is not the one the page is in. */
+  guildId?: number;
   className?: string;
 }
 
@@ -14,13 +16,13 @@ interface TaskDescriptionProps {
  * when it was written.
  *
  * It resolves its own mentions, so mount it where one description is on
- * screen. A board of cards renders `<Markdown mentions>` instead, which shows
- * the names as written rather than asking about every card.
+ * screen. A board of cards shows each card's excerpt instead, with the people
+ * in all of them asked about once for the board.
  */
-export const TaskDescription = ({ content, className }: TaskDescriptionProps) => {
+export const TaskDescription = ({ content, guildId, className }: TaskDescriptionProps) => {
   const contents = useMemo(() => [content], [content]);
   return (
-    <CommentReferences contents={contents}>
+    <CommentReferences contents={contents} guildId={guildId}>
       <Markdown content={content} className={className} mentions />
     </CommentReferences>
   );

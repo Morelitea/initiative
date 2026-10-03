@@ -884,17 +884,12 @@ async def test_soft_delete_scrubs_embedded_mentions(
     refreshed_comment = (
         await session.exec(select(Comment).where(Comment.id == comment.id))
     ).one()
-    assert (
-        refreshed_comment.content
-        == f"ping @[{ANONYMIZED_MENTION_NAME}]({victim_id}) thanks"
-    )
+    assert refreshed_comment.content == f"ping @[]({victim_id}) thanks"
 
     refreshed_archived_comment = (
         await session.exec(select(Comment).where(Comment.id == archived_comment.id))
     ).one()
-    assert refreshed_archived_comment.content == (
-        f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
-    )
+    assert refreshed_archived_comment.content == (f"ask @[]({victim_id})")
 
     refreshed_trashed_comment = (
         await session.exec(
@@ -903,9 +898,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
             .execution_options(include_deleted=True)
         )
     ).one()
-    assert refreshed_trashed_comment.content == (
-        f"bin @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
-    )
+    assert refreshed_trashed_comment.content == (f"bin @[]({victim_id})")
 
     descriptions = dict(
         (
@@ -917,17 +910,17 @@ async def test_soft_delete_scrubs_embedded_mentions(
         ).all()
     )
     assert descriptions == {
-        task.id: f"pair with @[{ANONYMIZED_MENTION_NAME}]({victim_id})",
-        archived_task.id: f"was @[{ANONYMIZED_MENTION_NAME}]({victim_id})'s",
+        task.id: f"pair with @[]({victim_id})",
+        archived_task.id: f"was @[]({victim_id})'s",
     }
     checklist = (
         await session.exec(select(Task.checklist).where(Task.id == task.id))
     ).one()
-    assert checklist[0]["text"] == f"ask @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    assert checklist[0]["text"] == f"ask @[]({victim_id})"
     project_description = (
         await session.exec(select(Project.description).where(Project.id == project.id))
     ).one()
-    assert project_description == f"lead: @[{ANONYMIZED_MENTION_NAME}]({victim_id})"
+    assert project_description == f"lead: @[]({victim_id})"
 
     for model, row_id in ((Document, document.id), (WikiPage, page.id)):
         refreshed = (
@@ -938,8 +931,7 @@ async def test_soft_delete_scrubs_embedded_mentions(
             )
         ).one()
         node = refreshed.content["root"]["children"][0]["children"][0]
-        assert node["mentionName"] == ANONYMIZED_MENTION_NAME, model
-        assert node["text"] == ANONYMIZED_MENTION_NAME, model
+        assert (node["mentionName"], node["text"]) == ("", ""), model
         assert node["mentionUserId"] == victim_id, model
         assert refreshed.yjs_state is None, model
 

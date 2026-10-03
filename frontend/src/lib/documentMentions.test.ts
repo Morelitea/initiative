@@ -89,22 +89,28 @@ describe("who a document asks about", () => {
 });
 
 describe("what a mention keeps when it is stored", () => {
-  it("round-trips the person and the name it was written with", () => {
+  it("keeps the person and not their name, however it was made", () => {
+    // The picker hands over the name it showed; the node drops it.
     const serialized = inEditor(() => $createMentionNode("Ada Lovelace", 4).exportJSON());
 
     expect(serialized).toMatchObject({
       type: "mention",
-      mentionName: "Ada Lovelace",
+      mentionName: "",
       mentionUserId: 4,
-      // The export renderers degrade a node carrying `text` to its text, and
-      // the search index reads it. A PDF cannot poll for the current name.
-      text: "Ada Lovelace",
+      text: "",
     });
   });
 
-  it("reads a mention written before it drew its own chip", () => {
-    // What a `TextNode` mention serialized: the same three fields, plus text
-    // formatting this node has no use for.
+  it("keeps the name of somebody with no account, which is all it has", () => {
+    const serialized = inEditor(() => $createMentionNode("Ada Lovelace").exportJSON());
+
+    expect(serialized).toMatchObject({ mentionName: "Ada Lovelace", mentionUserId: null });
+  });
+
+  it("reads a mention written with a name, and lets the name go", () => {
+    // What a `TextNode` mention serialized, and what every mention did before
+    // names were left out: the same three fields, plus text formatting this
+    // node has no use for.
     const node = inEditor(() =>
       MentionNode.importJSON({
         type: "mention",
@@ -120,6 +126,6 @@ describe("what a mention keeps when it is stored", () => {
     );
 
     expect(node.getMentionUserId()).toBe(4);
-    expect(node.getTextContent()).toBe("Ada Lovelace");
+    expect(node.getTextContent()).toBe("");
   });
 });

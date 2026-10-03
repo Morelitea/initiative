@@ -244,7 +244,7 @@ class _Body(BaseModel):
     state: Annotated[dict[str, Any], LEXICAL_MENTIONS] = {}
 
 
-def _mention(person: int | str, name: str) -> dict[str, Any]:
+def _mention(person: int | str | None, name: str) -> dict[str, Any]:
     return {
         "type": "mention",
         "mentionUserId": person,
@@ -253,31 +253,39 @@ def _mention(person: int | str, name: str) -> dict[str, Any]:
     }
 
 
-def test_a_person_s_mentions_pass_through():
-    body = {
-        "text": "@[Ada](11) on #task[Fix it](3)",
-        "state": {"root": _mention(11, "Ada")},
+def test_a_person_s_mention_is_stored_by_id_with_no_name():
+    """A mention of somebody without an account keeps the name it has."""
+    body = _Body.model_validate(
+        {
+            "text": "@[Ada](11), @[Bo]() on #task[Fix it](3)",
+            "state": {
+                "root": {"children": [_mention(11, "Ada"), _mention(None, "Bo")]}
+            },
+        }
+    )
+    assert body.text == "@[](11), @[Bo]() on #task[Fix it](3)"
+    assert body.state == {
+        "root": {"children": [_mention(11, ""), _mention(None, "Bo")]}
     }
-    assert _Body.model_validate(body).model_dump(mode="json") == body
 
 
-def test_an_install_s_mention_is_stored_with_initiative_s_name():
+def test_an_install_s_mention_is_stored_by_row_id():
     with boundary_scope():
-        admit_install(_boundary(labels={11: "Ada]"}))
+        admit_install(_boundary(members=frozenset({11})))
         body = _Body.model_validate(
             {
                 "text": f"@[anyone]({_PERSON_REF}) on #task[Fix it](3)",
                 "state": {"root": _mention(_PERSON_REF, "anyone")},
             }
         )
-    assert body.text == "@[Ada](11) on #task[Fix it](3)"
-    assert body.state == {"root": _mention(11, "Ada]")}
+    assert body.text == "@[](11) on #task[Fix it](3)"
+    assert body.state == {"root": _mention(11, "")}
 
 
 @pytest.mark.parametrize("named", ["11", "uapp_nobody-here", _GUILD_REF, _OTHER_REF])
 def test_a_mention_of_nobody_named_here_is_refused(named):
     with boundary_scope():
-        admit_install(_boundary(labels={11: "Ada"}))
+        admit_install(_boundary(members=frozenset({11})))
         for body in (
             {"text": f"@[Ada]({named})"},
             {"text": "", "state": {"root": _mention(named, "Ada")}},

@@ -29,15 +29,18 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { MentionText } from "@/components/user/MentionText";
 import { useAuth } from "@/hooks/useAuth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
+import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useRecents } from "@/hooks/useRecents";
 import { useGuildSearchSuggest } from "@/hooks/useSearch";
 import { useTasks } from "@/hooks/useTasks";
 import { useUserSearch } from "@/hooks/useUsers";
+import { USER_MENTION_PATTERN } from "@/lib/commentReferences";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
@@ -340,62 +343,70 @@ export function CommandCenter() {
 
         {/* What the guild index found — first, so the top hit is what Enter
             opens. The server has already decided these match, so they are
-            keyed on the query itself rather than re-filtered here. */}
+            keyed on the query itself rather than re-filtered here. A comment
+            is found by its opening words, which can mention people. */}
         {isSearching && (
-          <CommandGroup heading={t("groups.results")}>
-            {members.map((member) => (
-              // A profile belongs to the person rather than to the community
-              // the search ran in, so this leaves the community tree.
-              <CommandItem
-                key={`member-${member.id}`}
-                value={`member-${member.id}`}
-                keywords={[effectiveSearch, getUserDisplayName(member)]}
-                onSelect={() => handleSelect(`/u/${getUrlHandle(member)}`)}
-              >
-                <Avatar className="size-4">
-                  <AvatarImage src={getAvatarSrc(member)} alt="" />
-                  <AvatarFallback className="text-3xs">{getInitialsForUser(member)}</AvatarFallback>
-                </Avatar>
-                <span>{getUserDisplayName(member)}</span>
-              </CommandItem>
-            ))}
-            {suggestions.map(({ hit, path }) => {
-              const Icon = hitIcon(hit);
-              return (
+          <MentionedPeopleScope>
+            <ReportMentionedPeople texts={suggestions.map(({ hit }) => hit.title)} />
+            <CommandGroup heading={t("groups.results")}>
+              {members.map((member) => (
+                // A profile belongs to the person rather than to the community
+                // the search ran in, so this leaves the community tree.
                 <CommandItem
-                  key={`result-${hit.entity_type}-${hit.entity_id}`}
-                  value={`result-${hit.entity_type}-${hit.entity_id}`}
-                  keywords={[effectiveSearch, hit.title]}
+                  key={`member-${member.id}`}
+                  value={`member-${member.id}`}
+                  keywords={[effectiveSearch, getUserDisplayName(member)]}
+                  onSelect={() => handleSelect(`/u/${getUrlHandle(member)}`)}
+                >
+                  <Avatar className="size-4">
+                    <AvatarImage src={getAvatarSrc(member)} alt="" />
+                    <AvatarFallback className="text-3xs">
+                      {getInitialsForUser(member)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span>{getUserDisplayName(member)}</span>
+                </CommandItem>
+              ))}
+              {suggestions.map(({ hit, path }) => {
+                const Icon = hitIcon(hit);
+                return (
+                  <CommandItem
+                    key={`result-${hit.entity_type}-${hit.entity_id}`}
+                    value={`result-${hit.entity_type}-${hit.entity_id}`}
+                    keywords={[effectiveSearch, hit.title.replace(USER_MENTION_PATTERN, " ")]}
+                    onSelect={() =>
+                      handleSelect(activeGuildId ? guildPath(activeGuildId, path) : path)
+                    }
+                  >
+                    <Icon className="text-muted-foreground" />
+                    <span>
+                      <MentionText text={hit.title} disableLink />
+                    </span>
+                  </CommandItem>
+                );
+              })}
+              {(scopeQuery.isError || scopeIsEmpty) && (
+                <div className="py-3 text-center text-muted-foreground text-sm">
+                  {scopeQuery.isError ? t("search:failed.title") : t("noResults")}
+                </div>
+              )}
+              {activeGuildId !== null && (
+                <CommandItem
+                  value="result-see-all"
+                  keywords={[effectiveSearch]}
                   onSelect={() =>
-                    handleSelect(activeGuildId ? guildPath(activeGuildId, path) : path)
+                    handleSelect(
+                      `${getGuildPath("/search")}?q=${encodeURIComponent(effectiveSearch)}` +
+                        (scope === DEFAULT_SEARCH_CATEGORY ? "" : `&tab=${scope}`)
+                    )
                   }
                 >
-                  <Icon className="text-muted-foreground" />
-                  <span>{hit.title}</span>
+                  <Search className="text-muted-foreground" />
+                  <span>{t("seeAllResults", { query: effectiveSearch })}</span>
                 </CommandItem>
-              );
-            })}
-            {(scopeQuery.isError || scopeIsEmpty) && (
-              <div className="py-3 text-center text-muted-foreground text-sm">
-                {scopeQuery.isError ? t("search:failed.title") : t("noResults")}
-              </div>
-            )}
-            {activeGuildId !== null && (
-              <CommandItem
-                value="result-see-all"
-                keywords={[effectiveSearch]}
-                onSelect={() =>
-                  handleSelect(
-                    `${getGuildPath("/search")}?q=${encodeURIComponent(effectiveSearch)}` +
-                      (scope === DEFAULT_SEARCH_CATEGORY ? "" : `&tab=${scope}`)
-                  )
-                }
-              >
-                <Search className="text-muted-foreground" />
-                <span>{t("seeAllResults", { query: effectiveSearch })}</span>
-              </CommandItem>
-            )}
-          </CommandGroup>
+              )}
+            </CommandGroup>
+          </MentionedPeopleScope>
         )}
 
         {/* Actions — each shown only when the user can land its wizard

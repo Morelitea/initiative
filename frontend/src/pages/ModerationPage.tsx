@@ -23,8 +23,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { MentionText } from "@/components/user/MentionText";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useInitiativeRoster } from "@/hooks/useInitiatives";
+import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import {
   REPORTS_PAGE_SIZE,
   useInitiativeSharing,
@@ -121,14 +123,21 @@ export const ModerationPage = () => {
                     : t("empty.settled")}
               </p>
             ) : (
-              reports.map((report) => (
-                <ReportCard
-                  key={report.id}
-                  report={report}
-                  guildId={guildId ?? 0}
-                  initiativeId={initiative}
+              // A reported comment is shown by its opening words, and the
+              // people those mention are asked about once for the page.
+              <MentionedPeopleScope>
+                <ReportMentionedPeople
+                  texts={reports.flatMap((report) => report.target_excerpt ?? [])}
                 />
-              ))
+                {reports.map((report) => (
+                  <ReportCard
+                    key={report.id}
+                    report={report}
+                    guildId={guildId ?? 0}
+                    initiativeId={initiative}
+                  />
+                ))}
+              </MentionedPeopleScope>
             )}
 
             {/* Outside the empty branch on purpose: a count that divides exactly
@@ -230,7 +239,7 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
             its kind makes a moderator open every one of them to find out. */}
         {report.target_excerpt ? (
           <blockquote className="whitespace-pre-wrap break-words border-l-2 py-1 pl-3 text-sm">
-            {report.target_excerpt}
+            <MentionText text={report.target_excerpt} />
           </blockquote>
         ) : (
           // Deleted since, or beyond this reader's reach — the two are one

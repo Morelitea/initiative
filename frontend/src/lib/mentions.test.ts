@@ -10,6 +10,7 @@ import {
   supportsEntityMentions,
   typeForTrigger,
   typeTrigger,
+  userMentionSyntax,
 } from "@/lib/mentions";
 
 describe("what can be mentioned", () => {
@@ -81,6 +82,13 @@ describe("what gets written into the comment", () => {
     expect(entityMentionSyntax(SearchEntityType.counter_group, "Q1", 7)).toBe(
       "#counter-group[Q1](7)"
     );
+  });
+
+  it("leaves out of a label the characters the syntax is built from", () => {
+    expect(entityMentionSyntax(SearchEntityType.project, "Q[1] (draft)", 9)).toBe(
+      "#project[Q1 draft](9)"
+    );
+    expect(userMentionSyntax("Ada (she/her)", 4)).toBe("@[Ada she/her](4)");
   });
 });
 

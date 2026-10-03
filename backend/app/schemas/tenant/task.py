@@ -224,8 +224,9 @@ class TaskListRead(TaskBase):
     )
 
     #: The description's opening words as plain text, ending on a word
-    #: boundary with an ellipsis when cut. The whole text is on ``TaskRead``.
-    description_excerpt: Optional[str] = None
+    #: boundary with an ellipsis when cut, and a mention as its markdown,
+    #: ``@[](42)``. The whole text is on ``TaskRead``.
+    description_excerpt: Optional[MentionStr] = None
     has_description: bool = False
     id: int
     project_id: int

@@ -532,9 +532,10 @@ def _link_mentions(
 
     Placed the way a comment's author is (:func:`_comment_author`): the
     account the people step mapped the handle to, else a member of the target
-    initiative with that exact handle. A mention nobody places stays the name
-    it arrived as. Handles are tried longest first, so ``@Ann Lee`` is never
-    read as ``@Ann`` followed by a surname.
+    initiative with that exact handle, and is stored by id alone, as every
+    mention is. A mention nobody places stays the name it arrived as. Handles
+    are tried longest first, so ``@Ann Lee`` is never read as ``@Ann``
+    followed by a surname.
     """
     if not text or not handles:
         return text
@@ -554,10 +555,7 @@ def _link_mentions(
     def link(match: re.Match[str]) -> str:
         handle = match.group(1)
         user_id = targets.get(handle)
-        if user_id is None:
-            return match.group(0)
-        label = handle.replace("[", "").replace("]", "")
-        return f"@[{label}]({user_id})"
+        return match.group(0) if user_id is None else f"@[]({user_id})"
 
     return pattern.sub(link, text)
 

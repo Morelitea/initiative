@@ -1,7 +1,7 @@
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { useEffect } from "react";
 
-import { useReportMentionedPeople } from "@/hooks/useMentionedPeople";
+import { useMentionedPeople } from "@/hooks/useMentionedPeople";
 import { documentMentionedUserIds } from "@/lib/documentMentions";
 
 /**
@@ -15,7 +15,7 @@ import { documentMentionedUserIds } from "@/lib/documentMentions";
  */
 export function MentionedPeoplePlugin(): null {
   const [editor] = useLexicalComposerContext();
-  const report = useReportMentionedPeople();
+  const { report } = useMentionedPeople();
 
   useEffect(() => {
     const collect = () => report(documentMentionedUserIds(editor.getEditorState()));
