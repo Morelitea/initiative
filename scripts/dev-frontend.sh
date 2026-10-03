@@ -12,6 +12,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 [ -n "${DEV_BACKEND_PORT:-}" ] || exit 1
 
 cd "$SCRIPT_DIR/../frontend"
+# The backend runs the document editor from this build (editor_engine.py), so
+# it is rebuilt with the frontend it belongs to.
+pnpm build:editor-server
 # Forward extra args to Vite (e.g. --open, passed by the dev setup tasks to
 # launch the browser once the server is up). Bare `pnpm dev` stays open-free.
 pnpm dev "$@"

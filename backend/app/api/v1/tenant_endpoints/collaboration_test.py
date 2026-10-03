@@ -7,6 +7,7 @@ write does: the HttpOnly session cookie on web, the Authorization header on
 native. A ``?token=`` in the URL authenticates nothing here.
 """
 
+import asyncio
 import base64
 import json
 from datetime import datetime, timedelta, timezone
@@ -23,7 +24,7 @@ from app.core.security import create_upload_token
 from app.core.user_display import handle_of
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
-from app.models.tenant.document import Document
+from app.models.tenant.document import Document, DocumentType
 from app.models.tenant.wiki import WikiPage
 from app.testing import (
     create_document,
@@ -34,7 +35,11 @@ from app.testing import (
     get_auth_token,
 )
 from app.core.search import SearchEntityType
-from app.services.tenant.collaboration import collaboration_manager
+from app.services import editor_engine
+from app.services.tenant.collaboration import (
+    CollaborationManager,
+    collaboration_manager,
+)
 from app.services.tenant.collaborative_resources import resource_for
 from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
@@ -42,6 +47,32 @@ from app.services import permissions as permissions_service
 from app.testing import route_as
 
 CONTENT = {"root": {"children": [{"type": "paragraph"}]}}
+WHITEBOARD = {"elements": [], "appState": {}, "files": {}}
+
+
+def _lexical(words: str) -> dict:
+    """A document holding one paragraph of ``words``."""
+    return {
+        "root": {
+            "type": "root",
+            "version": 1,
+            "children": [
+                {
+                    "type": "paragraph",
+                    "version": 1,
+                    "children": [{"type": "text", "text": words, "version": 1}],
+                }
+            ],
+        }
+    }
+
+
+def _words(content: dict) -> str:
+    return "".join(
+        node.get("text", "")
+        for block in content["root"]["children"]
+        for node in block.get("children", [])
+    )
 
 
 def _document_url(guild_id: int, document_id: int) -> str:
@@ -102,14 +133,21 @@ async def test_collaboration_guild_admin_gets_full_access(
 async def test_a_handover_merges_into_the_room_and_saves_both_views(
     client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
-    """The edits land in the Yjs state and the rendering in the content
-    column, together."""
+    """The edits land in the Yjs state and the tab's rendering in the content
+    column, together, for a body the browser renders."""
     owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    doc = await create_document(session, owner.initiative, owner.user)
+    doc = await create_document(
+        session,
+        owner.initiative,
+        owner.user,
+        document_type=DocumentType.whiteboard,
+        content=WHITEBOARD,
+    )
+    drawn = {**WHITEBOARD, "elements": [{"id": "drawn offline"}]}
 
     response = await client.post(
         _document_url(owner.guild.id, doc.id),
-        json=_handover(_typed("written offline")),
+        json=_handover(_typed("written offline"), content=drawn),
         headers=owner.headers,
     )
 
@@ -121,9 +159,68 @@ async def test_a_handover_merges_into_the_room_and_saves_both_views(
             .options(undefer(Document.content), undefer(Document.yjs_state))
         )
     ).one()
-    assert saved.content == CONTENT
+    assert saved.content == drawn
     assert saved.yjs_state is not None
     assert _text_of(saved.yjs_state) == "written offline"
+
+
+async def test_an_editor_body_is_rendered_by_the_server_not_the_tab(
+    client: AsyncClient, session: AsyncSession, acting_user
+) -> None:
+    """A native document's content is what the server reads its Yjs state
+    as; a rendering a tab sends along is not taken."""
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    doc = await create_document(
+        session, owner.initiative, owner.user, content=_lexical("on the server")
+    )
+
+    response = await client.post(
+        _document_url(owner.guild.id, doc.id),
+        json=_handover(_typed("written offline"), content=_lexical("from the tab")),
+        headers=owner.headers,
+    )
+
+    assert response.status_code == 204, response.text
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.content), undefer(Document.yjs_state))
+        )
+    ).one()
+    assert _words(saved.content) == "on the server"
+    assert _text_of(saved.yjs_state or b"") == "written offline"
+
+
+async def test_an_editor_body_with_no_state_has_it_made_once(
+    session: AsyncSession, acting_user, role_session
+) -> None:
+    """Rooms opening a native document with no Yjs state together make it on
+    the server once, from the document's content."""
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    doc = await create_document(
+        session, owner.initiative, owner.user, content=_lexical("as it was saved")
+    )
+
+    async def open_room():
+        routed = await role_session("app_user")
+        await route_as(routed, user_id=owner.user.id, guild_id=owner.guild.id)
+        return await CollaborationManager().get_or_create_room(
+            owner.guild.id, SearchEntityType.document.value, doc.id, routed
+        )
+
+    first, second = await asyncio.gather(open_room(), open_room())
+
+    saved = (
+        await session.exec(
+            select(Document)
+            .where(Document.id == doc.id)
+            .options(undefer(Document.yjs_state))
+        )
+    ).one()
+    assert saved.yjs_state is not None
+    assert first.get_state() == second.get_state() == saved.yjs_state
+    assert _words(await editor_engine.render(saved.yjs_state)) == "as it was saved"
 
 
 async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
@@ -137,13 +234,16 @@ async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
         session,
         owner.initiative,
         owner.user,
+        document_type=DocumentType.whiteboard,
         yjs_state=elsewhere.get_update(),
-        content={"root": {"children": []}},
+        content=WHITEBOARD,
     )
 
     response = await client.post(
         _document_url(owner.guild.id, doc.id),
-        json=_handover(_typed("offline")),
+        json=_handover(
+            _typed("offline"), content={**WHITEBOARD, "elements": [{"id": "stale"}]}
+        ),
         headers={"Authorization": f"Bearer {get_auth_token(owner.user)}"},
     )
 
@@ -155,7 +255,7 @@ async def test_a_rendering_missing_the_rooms_edits_is_not_taken(
             .options(undefer(Document.content), undefer(Document.yjs_state))
         )
     ).one()
-    assert saved.content == {"root": {"children": []}}
+    assert saved.content == WHITEBOARD
     merged = _text_of(saved.yjs_state or b"")
     assert "from a peer." in merged and "offline" in merged
 

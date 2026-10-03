@@ -30,6 +30,7 @@ from sqlmodel import select
 from app.core.identity_boundary import MentionForm, without_mention_names
 from app.db import cohorts
 from app.db.session import set_rls_context
+from app.services import editor_engine
 from app.services.content_sockets import resource_room, sockets
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant.collaborative_resources import (
@@ -95,6 +96,9 @@ class CollaborationRoom:
         # commits, and an edit landing in between must not be marked saved.
         self._revision = 0
         self._persisted_revision = 0
+        #: Whether the body is the document editor's: the server made its
+        #: Yjs state and renders its content, so no tab reports one.
+        self.renders_content = False
         self._content: Optional[dict] = None
         # The revision the held rendering was made from. Below ``_revision``
         # means the document has moved since, and a live tab has a newer
@@ -152,20 +156,23 @@ class CollaborationRoom:
                 return
             spec = resource_for(self.resource_type)
             statement = select(
-                spec.model.id, getattr(spec.model, YJS_STATE_COLUMN)
+                getattr(spec.model, YJS_STATE_COLUMN), spec.editor_body()
             ).where(spec.model.id == self.resource_id)
             row = (await session.exec(statement)).one_or_none()
             if row:
-                await self.initialize_from_db(yjs_state=row[1])
+                state, self.renders_content = row[0], bool(row[1])
+                if state is None and self.renders_content:
+                    state = await _bootstrapped(
+                        self.guild_id, self.resource_type, self.resource_id
+                    )
+                await self.initialize_from_db(yjs_state=state)
             self._loaded = True
 
     async def initialize_from_db(self, yjs_state: Optional[bytes]) -> None:
         """Initialize the Y.Doc from database state.
 
-        Note: We don't try to convert Lexical content to Yjs here because Lexical's
-        Yjs binding uses a specific structure that's complex to recreate server-side.
-        Instead, the frontend handles migration via CollaborationPlugin's shouldBootstrap
-        and initialEditorState props.
+        An editor body arrives with a state the server made; any other body
+        with none yet starts empty, and the first browser editing it fills it.
         """
         async with self._lock:
             if self._initialized:
@@ -184,11 +191,9 @@ class CollaborationRoom:
                         f"failed to restore Yjs state: {e}"
                     )
             else:
-                # First time collaborative edit - Yjs doc starts empty
-                # Frontend will bootstrap with existing Lexical content via initialEditorState
                 logger.info(
                     f"{self.resource_type} {self.resource_id}: no Yjs state, "
-                    "frontend will bootstrap"
+                    "the first editor will fill it"
                 )
 
             self._initialized = True
@@ -287,6 +292,56 @@ class CollaborationRoom:
         """
         if revision > self._persisted_revision:
             self._persisted_revision = revision
+
+
+def _editor_state(content: Any) -> Optional[dict]:
+    """``content`` as the editor can start from it, or ``None`` for an empty
+    document. A body nobody has written is stored as ``{}``, or as a root with
+    no children, and the editor refuses both as a starting state."""
+    root = content.get("root") if isinstance(content, dict) else None
+    children = root.get("children") if isinstance(root, dict) else None
+    return content if isinstance(children, list) and children else None
+
+
+async def _bootstrapped(
+    guild_id: int, resource_type: str, resource_id: int
+) -> Optional[bytes]:
+    """An editor body's Yjs state, made from its content by the server's
+    editor when the row has none.
+
+    Taken under the row's lock on a system session, so rooms opening the same
+    row together make it once, and a reader opening it can still have it made.
+    """
+    spec = resource_for(resource_type)
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        row = (
+            await session.exec(
+                select(
+                    getattr(spec.model, YJS_STATE_COLUMN),
+                    getattr(spec.model, spec.content_column),
+                )
+                .where(spec.model.id == resource_id)
+                .with_for_update()
+            )
+        ).one_or_none()
+        if row is None:
+            return None
+        state, content = row
+        if state is None:
+            state = await editor_engine.bootstrap(_editor_state(content))
+            await session.exec(
+                sa_update(spec.model)
+                .where(spec.model.id == resource_id)
+                .values(
+                    {
+                        YJS_STATE_COLUMN: state,
+                        YJS_UPDATED_COLUMN: datetime.now(timezone.utc),
+                    }
+                )
+            )
+            await session.commit()
+        return state
 
 
 # A room is identified by (guild_id, resource_type, resource_id). The guild_id
@@ -461,6 +516,10 @@ class CollaborationManager:
     ) -> None:
         spec = resource_for(room.resource_type)
         revision, state, content = room.snapshot()
+        if room.renders_content:
+            content = without_mention_names(
+                await editor_engine.render(state), MentionForm.lexical
+            )
         values: Dict[str, Any] = {
             YJS_STATE_COLUMN: state,
             YJS_UPDATED_COLUMN: datetime.now(timezone.utc),

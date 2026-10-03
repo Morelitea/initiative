@@ -88,11 +88,6 @@ export function Editor({
 
   const useCollaborativeMode = Boolean(collaborative && providerFactory);
 
-  const initialEditorStateForCollab =
-    useCollaborativeMode && editorSerializedState
-      ? JSON.stringify(editorSerializedState)
-      : undefined;
-
   const showSyncingOverlay = useCollaborativeMode && !hasSynced;
 
   // Capture initial editor configuration at first mount. LexicalExtensionComposer
@@ -167,11 +162,13 @@ export function Editor({
 
               {useCollaborativeMode && providerFactory && (
                 <LexicalCollaboration>
+                  {/* The server makes a document's Yjs state from its saved
+                      content before anyone joins, so the room always arrives
+                      holding the document and no tab fills it. */}
                   <CollaborationPlugin
                     id="main"
                     providerFactory={providerFactory}
-                    initialEditorState={initialEditorStateForCollab}
-                    shouldBootstrap={true}
+                    shouldBootstrap={false}
                     username={userName}
                     cursorColor={userColor.current}
                     cursorsContainerRef={cursorsContainerRef}

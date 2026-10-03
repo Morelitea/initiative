@@ -288,8 +288,10 @@ async def _collaborate(
             elif msg_type == MSG_CONTENT:
                 # The editor's JSON rendering of what it just wrote. Held on
                 # the room and written alongside the Yjs state, so the two
-                # views of the document are always saved from one moment.
-                if not can_write:
+                # views of the document are always saved from one moment. An
+                # editor body's rendering is the server's, so a tab's is not
+                # asked for, and one sent anyway is not taken.
+                if not can_write or room.renders_content:
                     return
                 try:
                     room.offer_content(
@@ -433,7 +435,12 @@ async def _hand_over(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=DocumentMessages.COLLABORATION_UPDATE_INVALID,
             ) from None
-        if handover.content is not None and room.known_to(handover.state_vector):
+        # An editor body's content is the server's rendering, made at the save.
+        if (
+            handover.content is not None
+            and not room.renders_content
+            and room.known_to(handover.state_vector)
+        ):
             try:
                 room.offer_content(
                     spec.normalize(editing.resolved.body, handover.content),
