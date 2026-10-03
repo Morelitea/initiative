@@ -4,6 +4,8 @@
  * that points somebody at a guide.
  */
 
+import type { DesktopOs } from "@/pages/landing/platform";
+
 export const REPO_URL = "https://github.com/Morelitea/initiative";
 export const RELEASES_URL = `${REPO_URL}/releases`;
 export const CHANGELOG_URL = `${REPO_URL}/blob/main/CHANGELOG.md`;
@@ -30,6 +32,17 @@ export const COOKIE_DOCS_URL = docsUrl(
  */
 export const androidApkUrl = (version: string): string =>
   `${RELEASES_URL}/download/v${version}/initiative-${version}.apk`;
+
+const DESKTOP_INSTALLER = {
+  windows: "-setup.exe",
+  mac: ".dmg",
+  linux: ".deb",
+} as const;
+
+/** The desktop installer for one computer, attached to the same release as
+ *  the APK and named the same way (see `desktop-app.yml`). */
+export const desktopInstallerUrl = (version: string, os: DesktopOs): string =>
+  `${RELEASES_URL}/download/v${version}/initiative-${version}${DESKTOP_INSTALLER[os]}`;
 
 /** Adds the repo to Obtainium, which then keeps the Android app updated from
  *  its releases. The same link the install guide carries. */

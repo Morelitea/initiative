@@ -1,0 +1,71 @@
+name: Desktop App
+
+# Builds the desktop installers: a Windows setup, a macOS disk image and a
+# Debian package. Build and Release calls it when the native floor moves and
+# attaches what it builds to the release. A pull request that changes the
+# desktop app runs it too, so a release never depends on a build nobody has
+# tried; download the installers from the run's artifacts.
+
+on:
+  workflow_call:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - "frontend/electron/**"
+      # Where the platform's version and the app's config live, and the
+      # setup the build shares with the rest of CI.
+      - "frontend/package.json"
+      - "frontend/capacitor.config.ts"
+      - ".github/actions/setup-frontend/**"
+      - ".github/workflows/desktop-app.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Build the web app
+        working-directory: frontend
+        run: pnpm build:capacitor
+
+      - name: Install the desktop project
+        working-directory: frontend/electron
+        run: pnpm install --frozen-lockfile
+
+      # The plugins are built before the sync, which lists them from their
+      # built output.
+      - name: Sync the desktop project
+        working-directory: frontend
+        run: |
+          pnpm --dir electron build:plugins
+          npx cap sync @capawesome/capacitor-electron
+
+      - name: Build the installer
+        working-directory: frontend/electron
+        env:
+          # No signing certificate yet; the Mac build is signed ad hoc.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: pnpm run build:installer
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-${{ runner.os }}
+          path: |
+            frontend/electron/dist/*.deb
+            frontend/electron/dist/*.exe
+            frontend/electron/dist/*.dmg
+          if-no-files-found: error

@@ -18,7 +18,7 @@ from app.core.cookie_categories import active_cookie_categories
 from app.core.config import settings
 from app.core.security import billing_support_handoff_enabled
 from app.services.platform.billing import billing_managed
-from app.core.version import get_min_native_version
+from app.core.version import get_min_desktop_version, get_min_native_version
 from app.services import captcha as captcha_service
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
@@ -118,6 +118,8 @@ class AppConfig(BaseModel):
     # the release CI attached an APK to, so the landing page can offer that
     # download by version without asking anybody's release listing.
     min_native_version: str
+    # The same for the desktop app: the release its installers are attached to.
+    min_desktop_version: str
 
 
 @router.get("/config", response_model=AppConfig)
@@ -169,4 +171,5 @@ async def get_app_config(session: SessionDep) -> AppConfig:
             m.value for m in auth_posture.methods_from_row(app_settings)
         ),
         min_native_version=get_min_native_version(),
+        min_desktop_version=get_min_desktop_version(),
     )

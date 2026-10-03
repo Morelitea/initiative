@@ -9,6 +9,7 @@ FROM frontend-deps AS frontend-build
 COPY frontend .
 COPY VERSION /VERSION
 COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
+COPY MIN_DESKTOP_VERSION /MIN_DESKTOP_VERSION
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
 # The dev signing key's public half: the dev app accepts updates signed with it.
@@ -32,7 +33,7 @@ RUN cp -r dist /tmp/browser-dist \
 # the release key as the secret `ota_signing_key` (see scripts/sign-ota.mjs).
 RUN --mount=type=secret,id=ota_signing_key \
     node scripts/sign-ota.mjs /ota "$(cat /VERSION)${VITE_VERSION_SUFFIX}" \
-      "$(cat /MIN_NATIVE_VERSION)" /run/secrets/ota_signing_key
+      "$(cat /MIN_NATIVE_VERSION)" "$(cat /MIN_DESKTOP_VERSION)" /run/secrets/ota_signing_key
 
 # The virtualenv is built in a stage of its own, on the same base, and copied
 # into the runtime below. It depends on the lockfile alone, so a build reuses it
@@ -104,6 +105,7 @@ COPY backend/ .
 ENV PATH="/app/.venv/bin:$PATH"
 COPY VERSION ./VERSION
 COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
+COPY MIN_DESKTOP_VERSION ./MIN_DESKTOP_VERSION
 COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
 COPY --from=frontend-build /ota/ ./ota/

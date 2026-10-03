@@ -574,6 +574,7 @@ export interface AppConfig {
   cookie_categories: string[];
   login_methods: string[];
   min_native_version: string;
+  min_desktop_version: string;
 }
 
 /**
