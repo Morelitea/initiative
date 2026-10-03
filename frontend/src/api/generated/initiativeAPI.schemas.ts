@@ -5476,7 +5476,7 @@ export interface InitiativeMemberAdd {
  * Member info including their role.
  */
 export interface InitiativeMemberRead {
-  user: UserPublic;
+  user: UserSummary;
   role_id: number | null;
   role_name: string | null;
   role_display_name: string | null;
@@ -5484,6 +5484,7 @@ export interface InitiativeMemberRead {
   override_share_restrictions: boolean;
   joined_at: string;
   oidc_managed: boolean;
+  presence: Presence;
 }
 
 /**
@@ -10629,6 +10630,10 @@ export type GetInitiativeMembersParams = {
    * Only the members whose role is (or is not) a manager role.
    */
   is_manager?: boolean | null;
+  /**
+   * Only the members who appear online, idle or busy right now.
+   */
+  online?: boolean;
   /**
    * @minimum 1
    */

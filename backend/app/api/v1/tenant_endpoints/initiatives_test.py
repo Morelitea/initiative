@@ -23,11 +23,12 @@ from app.models.platform.access_grant import AccessGrant
 from app.models.platform.email_outbox import EmailOutboxItem
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
-from app.models.platform.user import UserStatus
+from app.models.platform.user import Presence, UserStatus
 from app.models.tenant.initiative import InitiativeJoinRequest, InitiativeMember
 from app.models.tenant.resource_grant import ResourceGrant
 from app.services import email as email_service
 from app.services.platform import email_outbox
+from app.services.content_sockets import sockets as content_sockets
 from app.services.tenant import initiatives as initiatives_service
 from app.testing import (
     create_resource_grant,
@@ -37,6 +38,7 @@ from app.testing import (
     drain_notices,
 )
 from app.testing.factories import create_guild_membership, create_initiative
+from app.testing.sockets import open_account_socket
 
 
 async def _live_grant(
@@ -726,9 +728,10 @@ async def test_the_roster_answers_its_members_and_a_guild_admin(
 async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The roster is read a page at a time and can be narrowed to the managers,
-    while the initiative list carries each one's headcount and the caller's own
-    role instead of everyone's. A suspended member is in neither."""
+    """The roster is read a page at a time and can be narrowed to the managers
+    or to who is here, each member saying how they appear, while the initiative
+    list carries each one's headcount and the caller's own role instead of
+    everyone's. A suspended member is in neither."""
     owner, initiative = await _initiative_with_owner(session, acting_user)
     insider = await _caller(acting_user, "member", owner, initiative)
     await acting_user(
@@ -742,6 +745,11 @@ async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
     first = await _roster(client, insider, initiative.id, page_size=1)
     managers = await _roster(client, insider, initiative.id, is_manager="true")
     others = await _roster(client, insider, initiative.id, is_manager="false")
+    socket = open_account_socket(insider.user.id, chosen_presence=Presence.busy)
+    try:
+        here = await _roster(client, insider, initiative.id, online="true")
+    finally:
+        content_sockets.leave(socket)  # type: ignore[arg-type]
     listed = await client.get(insider.g("/initiatives/"), headers=insider.headers)
 
     assert (first["total_count"], len(first["items"]), first["has_next"]) == (
@@ -751,6 +759,10 @@ async def test_the_roster_pages_and_narrows_to_managers_beside_a_slim_list(
     )
     assert [row["user"]["id"] for row in managers["items"]] == [owner.user.id]
     assert [row["user"]["id"] for row in others["items"]] == [insider.user.id]
+    assert [(row["user"]["id"], row["presence"]) for row in here["items"]] == [
+        (insider.user.id, "busy")
+    ]
+    assert {row["presence"] for row in first["items"]} == {"offline"}
     assert listed.status_code == 200, listed.text
     assert [
         (row["id"], row["member_count"], row["role_display_name"])

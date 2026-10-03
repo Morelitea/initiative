@@ -14,7 +14,7 @@ import {
   buildInitiativeMember,
   buildPage,
   buildUser,
-  buildUserPublic,
+  buildUserSummary,
 } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -256,11 +256,11 @@ describe("ModerationPage", () => {
         const member =
           page === 2
             ? buildInitiativeMember({
-                user: buildUserPublic({ display_name: "Bea Second" }),
+                user: buildUserSummary({ display_name: "Bea Second" }),
                 role_display_name: "Member",
               })
             : buildInitiativeMember({
-                user: buildUserPublic({ display_name: "Ada First" }),
+                user: buildUserSummary({ display_name: "Ada First" }),
                 role_display_name: "Moderator",
                 override_share_restrictions: true,
               });

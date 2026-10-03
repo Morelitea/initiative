@@ -14,7 +14,7 @@ import {
   toolViewPermission,
 } from "@/lib/tools";
 
-import { buildUserPublic, buildUserSummary } from "./user.factory";
+import { buildUserSummary } from "./user.factory";
 
 let counter = 0;
 
@@ -32,7 +32,7 @@ export function buildInitiativeMember(
 ): InitiativeMemberRead {
   counter++;
   return {
-    user: buildUserPublic(),
+    user: buildUserSummary(),
     role_id: null,
     role_name: null,
     role_display_name: null,
@@ -40,6 +40,7 @@ export function buildInitiativeMember(
     override_share_restrictions: false,
     oidc_managed: false,
     joined_at: "2026-01-15T00:00:00.000Z",
+    presence: "offline",
     ...overrides,
   };
 }

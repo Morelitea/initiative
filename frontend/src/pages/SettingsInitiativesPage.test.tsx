@@ -15,7 +15,6 @@ import {
   buildInitiative,
   buildInitiativeMember,
   buildPage,
-  buildUserPublic,
   buildUserSummary,
 } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
@@ -130,10 +129,10 @@ describe("SettingsInitiativesPage project managers", () => {
   it("reads every manager, starting again when the roster changes between pages", async () => {
     stubTable([]);
     const ada = buildInitiativeMember({
-      user: buildUserPublic({ id: ADMIN_ID, display_name: "Ada Lovelace" }),
+      user: buildUserSummary({ id: ADMIN_ID, display_name: "Ada Lovelace" }),
     });
     const bo = buildInitiativeMember({
-      user: buildUserPublic({ id: MEMBER_ID, display_name: "Bo Diddley" }),
+      user: buildUserSummary({ id: MEMBER_ID, display_name: "Bo Diddley" }),
     });
     const asked: number[] = [];
     server.use(
@@ -175,7 +174,7 @@ describe("SettingsInitiativesPage project managers", () => {
   it("unticking an ordinary manager leaves them in the initiative as a member", async () => {
     const calls = stubTable([
       buildInitiativeMember({
-        user: buildUserPublic({ id: MEMBER_ID, username: "bo" }),
+        user: buildUserSummary({ id: MEMBER_ID, username: "bo" }),
         role_id: PM_ROLE.id,
         role_name: "project_manager",
         is_manager: true,
@@ -197,7 +196,7 @@ describe("SettingsInitiativesPage project managers", () => {
   it("unticking a community admin takes their membership away, since they hold no other role", async () => {
     const calls = stubTable([
       buildInitiativeMember({
-        user: buildUserPublic({ id: ADMIN_ID, username: "ada" }),
+        user: buildUserSummary({ id: ADMIN_ID, username: "ada" }),
         role_id: PM_ROLE.id,
         role_name: "project_manager",
         is_manager: true,

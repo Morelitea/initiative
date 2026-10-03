@@ -52,8 +52,16 @@ const RosterList = ({ initiativeId, total }: { initiativeId: number; total: numb
       <ul className="max-h-80 overflow-y-auto p-1">
         {members.map((member) => (
           <li key={member.user.id} className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
-            <ProfileAvatar user={member.user} className="h-7 w-7" />
-            <UserHoverLink user={member.user} className="min-w-0 truncate text-sm">
+            <ProfileAvatar
+              user={member.user}
+              decorations={member.user.profile_decorations}
+              presence={member.presence}
+              className="h-7 w-7"
+            />
+            <UserHoverLink
+              user={{ ...member.user, presence: member.presence }}
+              className="min-w-0 truncate text-sm"
+            >
               {getUserDisplayName(member.user)}
             </UserHoverLink>
             {member.role_display_name ? (
@@ -79,9 +87,10 @@ const RosterList = ({ initiativeId, total }: { initiativeId: number; total: numb
 /**
  * Who is in an initiative, as people rather than a number.
  *
- * A few faces, each pointing at the person behind it the way a name anywhere
- * else does, and the count beside them opening the whole roster. Only the
- * faces are read with the page; the roster waits until it is opened.
+ * The faces are whoever is around right now, in the frames they chose, each
+ * pointing at the person behind it the way a name anywhere else does; the
+ * count beside them opens the whole roster. Only the faces are read with the
+ * page, so an initiative of thousands costs five rows until somebody looks.
  */
 export const InitiativeMembersPeek = ({
   initiativeId,
@@ -91,32 +100,42 @@ export const InitiativeMembersPeek = ({
   memberCount: number;
 }) => {
   const { t } = useTranslation("initiatives");
-  const faces = useInitiativeRoster(initiativeId, { page_size: FACES });
-  const members = faces.data?.items ?? [];
-  const total = faces.data?.total_count ?? memberCount;
+  const here = useInitiativeRoster(initiativeId, { online: true, page_size: FACES });
+  const faces = here.data?.items ?? [];
+  const online = here.data?.total_count ?? 0;
 
   return (
-    <span className="inline-flex items-center gap-2 align-middle">
-      {members.length > 0 ? (
-        <span className="-space-x-1.5 inline-flex">
-          {members.map((member) => (
-            <UserHoverLink key={member.user.id} user={member.user} className="rounded-full">
-              <ProfileAvatar
-                user={member.user}
-                className="h-6 w-6 ring-2 ring-background transition-transform hover:z-10 hover:-translate-y-0.5"
-              />
-            </UserHoverLink>
-          ))}
-        </span>
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 align-middle">
+      {faces.length > 0 ? (
+        <>
+          <span className="inline-flex items-center gap-1.5">
+            {faces.map((member) => (
+              <UserHoverLink
+                key={member.user.id}
+                user={{ ...member.user, presence: member.presence }}
+                className="rounded-full"
+              >
+                <ProfileAvatar
+                  user={member.user}
+                  decorations={member.user.profile_decorations}
+                  presence={member.presence}
+                  className="h-7 w-7 transition-transform hover:-translate-y-0.5"
+                />
+              </UserHoverLink>
+            ))}
+          </span>
+          <span>{t("detail.online", { count: online })}</span>
+          <span aria-hidden>·</span>
+        </>
       ) : null}
       <Popover>
         <PopoverTrigger className="rounded-sm underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {t("detail.member", { count: total })}
+          {t("detail.member", { count: memberCount })}
         </PopoverTrigger>
         {/* Mounted only while open, which is what keeps the roster unread
             until somebody asks for it. */}
         <PopoverContent align="start" className="w-72 p-0">
-          <RosterList initiativeId={initiativeId} total={total} />
+          <RosterList initiativeId={initiativeId} total={memberCount} />
         </PopoverContent>
       </Popover>
     </span>

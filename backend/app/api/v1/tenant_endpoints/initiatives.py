@@ -39,7 +39,7 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import NotificationType
-from app.models.platform.user import User
+from app.models.platform.user import Presence, User
 from app.models.platform.user_profile_view import MemberProfile
 from app.schemas.tenant.initiative import (
     InitiativeCreate,
@@ -63,6 +63,7 @@ from app.schemas.platform.user import UserSummaryListResponse
 from app.db.query import (
     MAX_ID_FILTER_VALUES,
     build_paginated_response,
+    ids_in,
     paginated_query,
 )
 from app.services import audit as audit_service
@@ -72,6 +73,7 @@ from app.services.platform import accounts as accounts_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant.names import ensure_name_free
 from app.services.platform import guilds as guilds_service
+from app.services.platform import presence
 from app.services.platform import users as users_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services import rls as rls_service
@@ -1244,6 +1246,10 @@ async def get_initiative_members(
         default=None,
         description="Only the members whose role is (or is not) a manager role.",
     ),
+    online: bool = Query(
+        default=False,
+        description="Only the members who appear online, idle or busy right now.",
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> InitiativeMemberListResponse:
@@ -1265,6 +1271,9 @@ async def get_initiative_members(
         base = base.where(
             func.coalesce(InitiativeRoleModel.is_manager, False).is_(is_manager)
         )
+    shown = presence.online.shown()
+    if online:
+        base = base.where(ids_in(MemberProfile.id, shown))
 
     count_stmt = select(func.count()).select_from(base.subquery())
     data_stmt = base.order_by(*order).options(
@@ -1276,7 +1285,10 @@ async def get_initiative_members(
     )
     return InitiativeMemberListResponse(
         **build_paginated_response(
-            [serialize_initiative_member(m) for m in memberships],
+            [
+                serialize_initiative_member(m, shown.get(m.user_id, Presence.offline))
+                for m in memberships
+            ],
             total_count,
             actual_page,
             page_size,

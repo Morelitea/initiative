@@ -87,6 +87,8 @@
     "noAccess": "No tienes acceso a ninguna función en esta iniciativa. Contacta a un gerente de iniciativa para obtener ayuda.",
     "member_one": "{{count}} miembro",
     "member_other": "{{count}} miembros",
+    "online_one": "{{count}} en línea",
+    "online_other": "{{count}} en línea",
     "initiativeSettings": "Configuración de la iniciativa",
     "documents": "Documentos",
     "projects": "Proyectos",
