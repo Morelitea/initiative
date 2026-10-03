@@ -72,7 +72,6 @@ from app.core.user_input_validators import (
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import (
     GUILD_ADMIN_ROLES,
-    Guild,
     GuildMembership,
     CommunityRole,
 )
@@ -321,6 +320,7 @@ async def list_users(
             GuildMembership.role,
             GuildMembership.oidc_provider_id,
             GuildMembership.display_name,
+            GuildMembership.api_keys_allowed,
         )
         .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
         .where(
@@ -347,13 +347,16 @@ async def list_users(
     await initiatives_service.load_user_initiative_roles(session, users)
 
     # ``oidc_managed`` stays a yes/no on the wire: a roster wants to know that
-    # SSO placed somebody, not which provider did.
+    # SSO placed somebody, not which provider did. API access is the seat's to
+    # set, so only the seat is told it.
+    seat = guild_context.guild_seat
     items = []
-    for user, guild_role, oidc_provider_id, display_name in rows:
+    for user, guild_role, oidc_provider_id, display_name, api_keys_allowed in rows:
         member = UserCommunityMember.model_validate(user)
         member.community_role = guild_role.value
         member.oidc_managed = oidc_provider_id is not None
         member.display_name = display_name
+        member.api_keys_allowed = api_keys_allowed if seat else None
         member.initiative_roles = getattr(user, "initiative_roles", [])
         items.append(member)
     return UserCommunityMemberListResponse(
@@ -1749,10 +1752,10 @@ async def create_my_api_key(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=UserMessages.API_KEY_GUILD_FORBIDDEN,
             )
-        # And the guild has to accept the credential at all. Asked here as well
-        # as at the gate so a key that could never be used is never handed over.
-        guild = await session.get(Guild, payload.community_id)
-        if guild is not None and await refuses_api_keys(session, guild):
+        # And the guild has to accept this member's keys at all. Asked here as
+        # well as at the gate so a key that could never be used is never handed
+        # over.
+        if await refuses_api_keys(session, membership):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED,

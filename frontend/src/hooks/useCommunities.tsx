@@ -152,7 +152,6 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Co
   // Likewise: these settings are not inferred into a synthetic entry. An
   // authorized settings grantee reads their real values from the dedicated
   // settings endpoint when opening Authentication.
-  allow_api_keys: null,
   enforce_compliance_session: null,
   require_second_factor: null,
   // A grant reaches one named community directly; the directory is not how the

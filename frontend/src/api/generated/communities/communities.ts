@@ -43,6 +43,7 @@ import type {
   HTTPValidationError,
   LeaveCommunityEligibilityResponse,
   ListDirectoryCommunitiesParams,
+  MemberApiAccessUpdate,
   MemberDisplayNameUpdate,
 } from "../initiativeAPI.schemas";
 
@@ -2736,6 +2737,110 @@ export const useSetMemberDisplayName = <
   TContext
 > => {
   return useMutation(getSetMemberDisplayNameMutationOptions(options), queryClient);
+};
+/**
+ * Turn one member's personal API keys off or on for this community. The
+ * seat only.
+ *
+ * Turning them off needs the ``restrictions`` option, and applies while the
+ * community holds it; turning them back on never needs it. Keys the member
+ * already made are left alone either way: the gate refuses them here while
+ * access is off, and they reach the community again when it is turned back
+ * on.
+ *
+ * On the system engine, as a role change is: the guild role writes only the
+ * caller's own membership row.
+ * @summary Set Member Api Access
+ */
+export const setMemberApiAccess = (
+  communityId: number,
+  userId: number,
+  memberApiAccessUpdate: BodyType<MemberApiAccessUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/communities/${communityId}/members/${userId}/api-access`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: memberApiAccessUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetMemberApiAccessMutationKey = () => ["setMemberApiAccess"] as const;
+
+export const getSetMemberApiAccessMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setMemberApiAccess>>,
+    TError,
+    SetMemberApiAccessMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setMemberApiAccess>>,
+  TError,
+  SetMemberApiAccessMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSetMemberApiAccessMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setMemberApiAccess>>,
+    SetMemberApiAccessMutationVariables
+  > = (props) => {
+    const { communityId, userId, data } = props ?? {};
+
+    return setMemberApiAccess(communityId, userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetMemberApiAccessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setMemberApiAccess>>
+>;
+export type SetMemberApiAccessMutationBody = BodyType<MemberApiAccessUpdate>;
+export type SetMemberApiAccessMutationError = ErrorType<HTTPValidationError>;
+export type SetMemberApiAccessMutationVariables = {
+  communityId: number;
+  userId: number;
+  data: BodyType<MemberApiAccessUpdate>;
+};
+
+/**
+ * @summary Set Member Api Access
+ */
+export const useSetMemberApiAccess = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setMemberApiAccess>>,
+      TError,
+      SetMemberApiAccessMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setMemberApiAccess>>,
+  TError,
+  SetMemberApiAccessMutationVariables,
+  TContext
+> => {
+  return useMutation(getSetMemberApiAccessMutationOptions(options), queryClient);
 };
 /**
  * Set what the caller is called in this community, or clear it.

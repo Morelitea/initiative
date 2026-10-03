@@ -94,7 +94,6 @@ async def _build_settings(ctx: SectionContext) -> tuple[dict[str, Any], int] | N
         "is_community": guild.is_community,
         "categories": list(guild.categories or []),
         "has_adult_content": guild.has_adult_content,
-        "allow_api_keys": guild.allow_api_keys,
         "enforce_compliance_session": guild.enforce_compliance_session,
         "allow_push_notifications": guild.allow_push_notifications,
         "allow_email_notifications": guild.allow_email_notifications,
@@ -128,7 +127,8 @@ async def _build_tags(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
 
 
 async def _build_members(ctx: SectionContext) -> tuple[dict[str, Any], int] | None:
-    """Who was in the community, and at what guild role.
+    """Who was in the community, at what guild role, and whether their
+    personal API keys reached it.
 
     Named by handle rather than by id: an id means nothing in the instance the
     archive is restored into, while a handle is the identifier that reads the
@@ -166,6 +166,7 @@ async def _build_members(ctx: SectionContext) -> tuple[dict[str, Any], int] | No
                 "handle": handle_of(profile) if profile else None,
                 "name": membership.display_name,
                 "role": _enum_value(membership.role),
+                "api_keys_allowed": membership.api_keys_allowed,
                 "joined_at": _iso(getattr(membership, "created_at", None)),
             }
         )

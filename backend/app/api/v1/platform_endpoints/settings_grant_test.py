@@ -227,7 +227,6 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
     guild = await create_guild(
         session,
         creator=owner,
-        allow_api_keys=False,
         enforce_compliance_session=True,
     )
     await _request_and_approve(
@@ -250,7 +249,6 @@ async def test_the_superadmin_grantee_reads_the_auth_controls(
             "require_methods": [],
             "factor_required_by_platform": False,
         },
-        "allow_api_keys": False,
         "enforce_compliance_session": True,
         "require_second_factor": False,
         "allow_email_notifications": True,
@@ -278,7 +276,7 @@ async def test_the_admin_rung_does_not_reach_the_seat(
     refused = await client.patch(
         f"/api/v1/communities/{guild.id}/auth-settings",
         headers=headers,
-        json={"allow_api_keys": False},
+        json={"enforce_compliance_session": True},
     )
     assert refused.status_code == 403, refused.text
 

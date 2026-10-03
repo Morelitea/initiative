@@ -209,7 +209,12 @@
     "exportError": "Impossible d'exporter les utilisateurs.",
     "removeFromCommunity": "Retirer de la communauté",
     "failedToUpdateRole": "Échec de la mise à jour du rôle",
-    "handleColumn": "Identifiant"
+    "handleColumn": "Identifiant",
+    "apiAccessColumn": "Accès par API",
+    "apiAccessLabel": "Clés d'API personnelles de {{name}}",
+    "apiAccessHelp": "Si les clés d'API personnelles de cette personne atteignent cette communauté. Le désactiver arrête les clés déjà créées comme les nouvelles.",
+    "apiAccessSaved": "Accès par API enregistré",
+    "apiAccessError": "Impossible d'enregistrer l'accès par API"
   },
   "notMember": {
     "title": "Communauté non disponible",

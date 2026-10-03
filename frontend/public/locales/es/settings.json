@@ -1379,15 +1379,6 @@
       "requirePasskeyHelp": "Los miembros deben haber iniciado sesión con una clave de acceso, o haber presentado una, en esta sesión. Pueden añadirla sin cerrar sesión.",
       "factorRequiredByPlatform": "Tu servidor ya pide un segundo factor a todo el mundo, así que aquí no hay nada que añadir."
     },
-    "apiAccess": {
-      "title": "Acceso por API",
-      "description": "Si se puede usar una clave de API personal en esta comunidad.",
-      "allowLabel": "Permitir claves de API personales",
-      "allowHelp": "Los miembros pueden crear una clave y usarla aquí: para scripts, integraciones y clientes MCP.",
-      "blockedHelp": "No se puede crear ninguna clave para esta comunidad, y una ya creada deja de alcanzarla. Los miembros conservan sus claves para otras comunidades.",
-      "saved": "Acceso por API guardado",
-      "error": "No se pudo guardar el acceso por API"
-    },
     "sessionLimit": {
       "title": "Duración de la sesión",
       "allowLabel": "Volver a iniciar sesión cada doce horas",

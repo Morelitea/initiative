@@ -244,6 +244,9 @@ class UserCommunityMember(UserCommunityRead):
     #: The name set for this member in this guild. ``None`` when nobody set
     #: one, and the handle renders.
     display_name: Optional[str] = None
+    #: SEAT-ONLY. Whether this member's personal API keys reach the guild.
+    #: ``None`` for anyone who does not hold the superadmin seat.
+    api_keys_allowed: Optional[bool] = None
 
 
 class UserCommunityMemberListResponse(PageMeta):

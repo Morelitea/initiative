@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  setMemberApiAccess,
   setMemberDisplayName,
   setOwnDisplayName,
   updateCommunityMembership,
@@ -375,6 +376,38 @@ export const useUpdateCommunityMembership = (
     },
     options
   );
+
+type SetMemberApiAccessVars = { communityId: number; userId: number; allowed: boolean };
+
+/**
+ * Whether one member's personal API keys reach a community. The seat's.
+ *
+ * The roster pages already loaded take the new answer as soon as it is saved,
+ * so the switch does not show the old one while they refetch.
+ */
+export const useSetMemberApiAccess = (options?: MutationOpts<void, SetMemberApiAccessVars>) => {
+  const queryClient = useQueryClient();
+  return useApiMutation<void, SetMemberApiAccessVars>(
+    {
+      mutationFn: ({ communityId, userId, allowed }) =>
+        setMemberApiAccess(communityId, userId, { api_keys_allowed: allowed }),
+      invalidate: (_data, { communityId, userId, allowed }) => {
+        queryClient.setQueriesData<UserCommunityMemberListResponse>(
+          { queryKey: getListUsersQueryKey(communityId) },
+          (page) =>
+            page && {
+              ...page,
+              items: page.items.map((member) =>
+                member.id === userId ? { ...member, api_keys_allowed: allowed } : member
+              ),
+            }
+        );
+        return invalidate(q.communityMembers());
+      },
+    },
+    options
+  );
+};
 
 type SetDisplayNameVars = { communityId: number; userId?: number; displayName: string | null };
 

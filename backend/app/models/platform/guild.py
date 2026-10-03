@@ -326,29 +326,16 @@ class Guild(SQLModel, table=True):
     has_adult_content: Optional[bool] = Field(
         default=None, sa_column=Column(Boolean, nullable=True)
     )
-    # Whether a personal API key may be used against this guild. True by
-    # default. False means the guild declines that credential: no key can be
-    # minted into it, and a request authenticated by one does not reach it —
-    # pinned to this guild or not.
-    #
-    # Here rather than on ``GuildAuthPolicy`` for the same reason ``status`` is
-    # here: the guild-access gate already holds this row, and the answer has to
-    # survive a guild lifting its sign-in requirement (which deletes the policy
-    # row). Read by the gate, by key creation, and by the cross-guild
-    # aggregates.
-    allow_api_keys: bool = Field(
-        default=True,
-        sa_column=Column(Boolean, nullable=False, server_default="true"),
-    )
     # Whether this guild's members are held to the compliance session standard:
     # they sign in again every ``COMPLIANCE_SESSION_HOURS``, whatever the
     # deployment's own limit says. A single standard rather than a number per
     # guild, so somebody in two of them has one answer and not a comparison.
     #
-    # Here for the same reason as the line above: it says what is asked of a
-    # session reaching this community, and the answer has to survive the guild
-    # lifting its sign-in requirement. Set by the guild's superadmin; read when
-    # a sign-in is stamped with its deadline.
+    # Here rather than on ``GuildAuthPolicy`` for the same reason ``status`` is
+    # here: it says what is asked of a session reaching this community, and the
+    # answer has to survive the guild lifting its sign-in requirement (which
+    # deletes the policy row). Set by the guild's superadmin; read when a
+    # sign-in is stamped with its deadline.
     enforce_compliance_session: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
@@ -357,7 +344,7 @@ class Guild(SQLModel, table=True):
     # asks for one; which kinds exist, and which providers' word counts as
     # having presented one, are the deployment's answers.
     #
-    # Here for the reason the two above are: it says what is asked of a session
+    # Here for the reason the one above is: it says what is asked of a session
     # reaching this community, and the answer has to survive the guild lifting
     # its sign-in requirement. Set by the guild's superadmin; read by the
     # guild-access gate.
@@ -370,7 +357,7 @@ class Guild(SQLModel, table=True):
     # stricter of the pair applies, so a community can decline what the
     # deployment permits and never the reverse.
     #
-    # Here rather than on ``GuildAdministration`` for the reason the three above
+    # Here rather than on ``GuildAdministration`` for the reason the two above
     # are: it says what is done on this community's behalf, and the answer has
     # to survive the guild lifting its sign-in requirement. Set by the guild's
     # superadmin; read where a notification is sent.
@@ -534,6 +521,15 @@ class GuildMembership(SQLModel, table=True):
     display_name: Optional[str] = Field(
         default=None,
         sa_column=Column(String(MEMBER_DISPLAY_NAME_MAX_LENGTH), nullable=True),
+    )
+    #: Whether this person's personal API keys reach this community. True
+    #: unless its superadmin turned it off for them, and read only while the
+    #: community holds the ``restrictions`` option: without it every member's
+    #: keys reach it. Read by the guild-access gate, by key creation and by the
+    #: cross-guild aggregates, so turning it off stops a key already made.
+    api_keys_allowed: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
     #: The provider whose claims put this person here, and the only one whose
     #: sign-in may take it away again. NULL is a membership nobody manages —
