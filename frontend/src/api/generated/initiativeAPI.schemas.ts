@@ -3519,7 +3519,7 @@ export interface DocumentSummary {
   properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   name: string;
-  featured_image_url?: string | null;
+  featured_image_url: string | null;
   is_template: boolean;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
@@ -3527,7 +3527,7 @@ export interface DocumentSummary {
   projects: DocumentProjectLink[];
   comment_count: number;
   document_type: DocumentType;
-  file_url?: string | null;
+  file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
@@ -3562,7 +3562,7 @@ export interface DocumentRead {
   properties: PropertySummary[];
   grants: ResourceGrantSchema[];
   name: string;
-  featured_image_url?: string | null;
+  featured_image_url: string | null;
   is_template: boolean;
   initiative: InitiativeSummary | null;
   owner: UserPublic | null;
@@ -3570,7 +3570,7 @@ export interface DocumentRead {
   projects: DocumentProjectLink[];
   comment_count: number;
   document_type: DocumentType;
-  file_url?: string | null;
+  file_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
@@ -4041,8 +4041,8 @@ export interface ForeignPreview {
  */
 export interface GalleryCover {
   image_id: number;
-  file_url?: string;
-  thumbnail_url?: string | null;
+  file_url: string;
+  thumbnail_url: string | null;
   width: number | null;
   height: number | null;
 }
@@ -4081,8 +4081,8 @@ export interface GalleryImageRead {
   guild_id: number;
   title: string | null;
   caption: string | null;
-  file_url?: string;
-  thumbnail_url?: string | null;
+  file_url: string;
+  thumbnail_url: string | null;
   file_content_type: string | null;
   file_size: number | null;
   original_filename: string | null;
