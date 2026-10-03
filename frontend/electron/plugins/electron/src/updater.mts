@@ -2,8 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, normalize, sep } from "node:path";
 
-import { app } from "electron";
 import { unzipSync } from "fflate";
+
+import { app } from "./app.mjs";
 
 type BundleStatus = "success" | "error" | "pending" | "downloading";
 

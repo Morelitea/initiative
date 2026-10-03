@@ -1,13 +1,14 @@
 from datetime import date, datetime
-from typing import Annotated, List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
-    PlainSerializer,
+    SerializerFunctionWrapHandler,
     computed_field,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -31,9 +32,12 @@ from app.core.profile_decorations import (
     validate_decoration_id,
     validate_tint,
 )
-from app.core.identity_boundary import PersonId, responding_to_install
+from app.core.identity_boundary import (
+    PersonId,
+    names_withheld,
+    responding_to_install,
+)
 from app.models.platform.user import Presence, UserRole, UserStatus
-from app.services.platform.user_avatars import is_avatar_url
 from app.core.config import settings
 
 # ``avatar_url`` is where a user's picture is: either a path this API serves
@@ -111,18 +115,53 @@ class UserCreate(SanitizedBaseModel):
     birthdate: Optional[date] = None
 
 
-def _avatar_out(value: Optional[str]) -> Optional[str]:
-    if value is not None and responding_to_install() and is_avatar_url(value):
-        return None
-    return value
+class AppPerson(SanitizedBaseModel):
+    """A person, as an installed app receives them wherever one appears.
+
+    ``id`` is the install's own reference for them. Their handle (``username``
+    and ``discriminator``) and the name they set in the community
+    (``display_name``) come only to an install holding ``members:read``. A
+    field without a value is left out, so without that scope a person is their
+    ``id`` alone. ``avatar_url`` is not sent yet.
+    """
+
+    id: PersonId
+    username: Optional[str] = None
+    discriminator: Optional[int] = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+    def for_install(self) -> dict[str, Any]:
+        """This person, as the installed app being answered may know them."""
+        include = (
+            {"id"}
+            if names_withheld()
+            else {"id", "username", "discriminator", "display_name"}
+        )
+        return self.model_dump(mode="json", include=include, exclude_none=True)
 
 
-#: A person's picture. One this API serves is addressed by the person's row id,
-#: so an installed app's response leaves it out; a picture hosted elsewhere
-#: comes along.
-AvatarUrl = Annotated[
-    Optional[str], PlainSerializer(_avatar_out, return_type=Optional[str])
-]
+class PersonShape(SanitizedBaseModel):
+    """A shape that draws a person.
+
+    Served as itself to a person. To an installed app it is the
+    :class:`AppPerson` it names, which is how the app API's document types it
+    (``x-person``, read by ``app.api.app_openapi``).
+    """
+
+    model_config = ConfigDict(json_schema_extra={"x-person": True})
+
+    def app_person(self) -> AppPerson:
+        """Who this shape draws, read off its own fields. A shape that names
+        the person under other fields says so."""
+        return AppPerson.model_validate(self, from_attributes=True)
+
+    # Left unannotated, so the shape's published schema stays its own.
+    @model_serializer(mode="wrap")
+    def _as_app_person(self, handler: SerializerFunctionWrapHandler):
+        if responding_to_install():
+            return self.app_person().for_install()
+        return handler(self)
 
 
 class UserIdentity(SanitizedBaseModel):
@@ -145,45 +184,15 @@ class UserIdentity(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    avatar_url: AvatarUrl = None
+    avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
 
-class UserPublic(UserIdentity):
+class UserPublic(UserIdentity, PersonShape):
     """A person, as everyone else sees them — the handle, and the name they
     set in the guild being read."""
 
     display_name: Optional[str] = None
-
-
-class AppMemberRead(SanitizedBaseModel):
-    """A member, as an installed app reads them under ``members:read``.
-
-    What its install calls them (``id``, a :data:`PersonId`), their handle,
-    the name they set in that guild, and their picture. Built from the
-    shape the guild's own roster serves, so it carries no address to drop.
-    A picture this API serves is addressed by the member's row id, so only a
-    picture hosted elsewhere comes along.
-    """
-
-    id: PersonId
-    username: str
-    discriminator: int
-    display_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-
-    @classmethod
-    def from_public(cls, user: UserIdentity) -> "AppMemberRead":
-        avatar = user.avatar_url
-        if avatar is not None and is_avatar_url(avatar):
-            avatar = None
-        return cls(
-            id=user.id,
-            username=user.username,
-            discriminator=user.discriminator,
-            display_name=getattr(user, "display_name", None),
-            avatar_url=avatar,
-        )
 
 
 class UserGuildRead(UserIdentity):
@@ -228,7 +237,7 @@ class UserGuildMemberListResponse(PageMeta):
     items: List[UserGuildMember]
 
 
-class UserSummary(UserIdentity):
+class UserSummary(UserIdentity, PersonShape):
     """Slim user projection for typeahead and picker surfaces.
 
     What it keeps is what it takes to *draw* a person and say where they stand

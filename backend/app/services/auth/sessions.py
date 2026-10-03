@@ -256,6 +256,7 @@ async def rotate_session(
     ip: str | None = None,
     device_name: str | None = None,
     refresh_ttl: timedelta | None = None,
+    idle: timedelta = timedelta(0),
     now: datetime | None = None,
 ) -> RotationResult:
     """Single-use rotate: spend the presented refresh token, mint its successor.
@@ -263,6 +264,12 @@ async def rotate_session(
     Carries ``amr``/``satisfied_providers``/``provider_auth`` (and device
     metadata) forward from the parent unless overridden — a step-up rotation
     passes the widened set.
+
+    ``idle`` is how long ago the person last did something, as the client
+    reports it. The idle window runs from then, not from the renewal, so a
+    client renewing on its own keeps the session no longer than the person's
+    last input allows. A session whose window has already run out from there
+    is ended, and answers ``EXPIRED``.
 
     **Returns** a :class:`RotationResult` (never raises for a bad token) —
     ``ROTATED`` carries the new :class:`IssuedSession`; ``UNKNOWN``/``EXPIRED``/
@@ -299,6 +306,17 @@ async def rotate_session(
     if row.chain_expires_at is not None and row.chain_expires_at <= issued:
         return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
 
+    # Whose session this is only becomes known here, from the token that was
+    # presented, so the window it may stand for is worked out now rather than
+    # by a caller that could not have known.
+    ttl = await _narrowed_ttl(session, user_id=row.user_id, requested=refresh_ttl)
+    if idle >= ttl:
+        # Nobody has been here for the whole window. Ended rather than left to
+        # expire, so a later renewal cannot take it up again.
+        await revoke_session(session, session_id=row.id, now=issued)
+        return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
+    active_at = issued - idle
+
     # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
     # two concurrent refreshes with the same token can't both mint a child.
     claimed = (
@@ -316,11 +334,6 @@ async def rotate_session(
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).
     await session.refresh(row)
-
-    # Whose session this is only becomes known here, from the token that was
-    # presented, so the window it may stand for is worked out now rather than
-    # by a caller that could not have known.
-    ttl = await _narrowed_ttl(session, user_id=row.user_id, requested=refresh_ttl)
 
     raw = _generate_refresh_token()
     child = AuthSession(
@@ -340,7 +353,7 @@ async def rotate_session(
         parent_id=row.id,
         created_at=issued,
         chain_expires_at=row.chain_expires_at,
-        expires_at=_capped(issued + ttl, row.chain_expires_at),
+        expires_at=_capped(active_at + ttl, row.chain_expires_at),
         user_agent=user_agent if user_agent is not None else row.user_agent,
         ip=ip if ip is not None else row.ip,
         device_name=device_name if device_name is not None else row.device_name,

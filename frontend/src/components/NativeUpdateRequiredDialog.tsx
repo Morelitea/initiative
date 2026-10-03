@@ -1,7 +1,10 @@
 import { Capacitor } from "@capacitor/core";
+import { Download } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -10,13 +13,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { desktopCanUpdate, setAutoUpdateConsent } from "@/lib/desktopUpdates";
+import { androidApkUrl, desktopInstallerUrl, RELEASES_URL } from "@/lib/links";
+import { detectDesktopOs } from "@/pages/landing/platform";
+import DesktopUpdater from "@/plugins/desktopUpdater";
 
 interface NativeUpdateRequiredDialogProps {
   open: boolean;
   /** The server version that requires a newer native app than the one installed. */
   version: string;
+  /** The app version it needs, which names the release holding the download. */
+  minNativeVersion?: string;
   onClose: () => void;
 }
+
+/** The new app for this device, from the release the bundle's floor names. */
+const downloadUrl = (minNativeVersion?: string): string => {
+  if (!minNativeVersion) return RELEASES_URL;
+  if (Capacitor.getPlatform() !== "electron") return androidApkUrl(minNativeVersion);
+  const os = detectDesktopOs();
+  return os ? desktopInstallerUrl(minNativeVersion, os) : RELEASES_URL;
+};
 
 /**
  * Shown on native when the server's web bundle requires a newer native shell (APK/IPA, or the
@@ -26,9 +44,46 @@ interface NativeUpdateRequiredDialogProps {
 export const NativeUpdateRequiredDialog = ({
   open,
   version,
+  minNativeVersion,
   onClose,
 }: NativeUpdateRequiredDialogProps) => {
   const { t } = useTranslation("guilds");
+  // A desktop app that can replace itself offers to, and to keep doing so.
+  const [canUpdate, setCanUpdate] = useState(false);
+  const [always, setAlways] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  // Each prompt starts afresh: a failure belongs to the release it was for.
+  useEffect(() => {
+    if (!open) return;
+    setFailed(false);
+    setUpdating(false);
+    if (minNativeVersion) void desktopCanUpdate().then(setCanUpdate);
+  }, [open, minNativeVersion]);
+
+  const updateNow = async () => {
+    if (!minNativeVersion) return;
+    setAutoUpdateConsent(always);
+    setUpdating(true);
+    setFailed(false);
+    try {
+      await DesktopUpdater.download({ version: minNativeVersion });
+      await DesktopUpdater.install();
+    } catch {
+      setFailed(true);
+      setUpdating(false);
+    }
+  };
+
+  const download = (
+    <Button asChild>
+      <a href={downloadUrl(minNativeVersion)} target="_blank" rel="noopener noreferrer">
+        <Download className="h-4 w-4" aria-hidden="true" />
+        {t("version.nativeUpdateDownload")}
+      </a>
+    </Button>
+  );
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -41,8 +96,31 @@ export const NativeUpdateRequiredDialog = ({
               : t("version.nativeUpdateRequiredDescription", { version })}
           </DialogDescription>
         </DialogHeader>
+        {canUpdate ? (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="always-update"
+              checked={always}
+              onCheckedChange={(next) => setAlways(next === true)}
+              disabled={updating}
+            />
+            <Label htmlFor="always-update" className="font-normal">
+              {t("version.alwaysUpdate")}
+            </Label>
+          </div>
+        ) : null}
+        {failed ? <p className="text-destructive text-sm">{t("version.updateFailed")}</p> : null}
         <DialogFooter>
-          <Button onClick={onClose}>{t("version.nativeUpdateRequiredAcknowledge")}</Button>
+          <Button variant="outline" onClick={onClose} disabled={updating}>
+            {canUpdate ? t("version.notNow") : t("version.nativeUpdateRequiredAcknowledge")}
+          </Button>
+          {canUpdate && !failed ? (
+            <Button onClick={() => void updateNow()} disabled={updating}>
+              {updating ? t("version.updating") : t("version.updateNow")}
+            </Button>
+          ) : (
+            download
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

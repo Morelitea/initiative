@@ -7,6 +7,8 @@ document (:func:`build_app_openapi`) is cut from it:
 
 - only the marked operations, and the component schemas they reach;
 - every identity field (``x-identity``) is a string, the install's reference;
+- every shape that draws a person (``x-person``) is ``AppPerson``, which is
+  what an install receives in its place;
 - paths start after ``/api/v1/c/{guild_id}``, served from ``/api/v1/c/0``: an
   install's community comes from its token;
 - each operation is named after its route;
@@ -22,6 +24,7 @@ from fastapi.routing import APIRoute
 
 from app.api.deps import route_app_scope_declaration
 from app.core.config import API_V1_STR
+from app.schemas.platform.user import AppPerson
 
 #: The prefix every route an app may call starts with.
 COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{guild_id}}"
@@ -30,6 +33,7 @@ COMMUNITY_PREFIX = f"{API_V1_STR}/c/{{guild_id}}"
 APP_SERVER_URL = f"{API_V1_STR}/c/0"
 
 _SCHEMA_REF = "#/components/schemas/"
+_APP_PERSON = AppPerson.__name__
 _SECURITY_SCHEME = "AppToken"
 
 
@@ -74,6 +78,23 @@ def _schema_refs(node: Any) -> Iterator[str]:
     elif isinstance(node, list):
         for item in node:
             yield from _schema_refs(item)
+
+
+def _as_app_people(node: Any, people: set[str]) -> Any:
+    """``node`` copied, with each reference to a schema in ``people`` a
+    reference to ``AppPerson``."""
+    if isinstance(node, dict):
+        return {
+            key: (
+                f"{_SCHEMA_REF}{_APP_PERSON}"
+                if key == "$ref" and value.removeprefix(_SCHEMA_REF) in people
+                else _as_app_people(value, people)
+            )
+            for key, value in node.items()
+        }
+    if isinstance(node, list):
+        return [_as_app_people(item, people) for item in node]
+    return node
 
 
 def _as_references(node: Any) -> Any:
@@ -123,14 +144,19 @@ def build_app_openapi(
             rewritten["parameters"] = parameters
         paths.setdefault(path, {})[method] = rewritten
 
-    schemas = openapi_schema["components"]["schemas"]
+    schemas = {
+        **openapi_schema["components"]["schemas"],
+        _APP_PERSON: AppPerson.model_json_schema(mode="serialization"),
+    }
+    people = {name for name, schema in schemas.items() if schema.get("x-person")}
+    paths = _as_app_people(paths, people)
     reached: dict[str, Any] = {}
     pending = list(_schema_refs(paths))
     while pending:
         name = pending.pop()
         if name not in reached:
-            reached[name] = schemas[name]
-            pending.extend(_schema_refs(schemas[name]))
+            reached[name] = _as_app_people(schemas[name], people)
+            pending.extend(_schema_refs(reached[name]))
 
     info = openapi_schema["info"]
     return _as_references(

@@ -69,7 +69,7 @@ describe("InstallAppDialog", () => {
     open();
 
     expect(await screen.findByLabelText("Read projects")).toBeChecked();
-    expect(screen.getByLabelText("See who is in your community")).toBeChecked();
+    expect(screen.getByLabelText("See who is in your community, by name")).toBeChecked();
 
     expect(await install()).toEqual({
       listing_uid: "WIDGETCO000001",
@@ -92,9 +92,9 @@ describe("InstallAppDialog", () => {
   it("sends what the seat unticked as not granted", async () => {
     open();
 
-    (await screen.findByLabelText("See who is in your community")).click();
+    (await screen.findByLabelText("See who is in your community, by name")).click();
     await waitFor(() =>
-      expect(screen.getByLabelText("See who is in your community")).not.toBeChecked()
+      expect(screen.getByLabelText("See who is in your community, by name")).not.toBeChecked()
     );
 
     expect((await install()).granted_scopes).toEqual(["projects:read"]);

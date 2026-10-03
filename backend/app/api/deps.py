@@ -1488,6 +1488,7 @@ async def _establish_install_request(
                 ref: (IdentityEntity(entity_type), entity_id)
                 for ref, entity_type, entity_id in context.named_refs
             },
+            reads_names=context.holds("members:read"),
             session=session,
         )
     )

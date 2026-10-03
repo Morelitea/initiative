@@ -285,7 +285,7 @@
         "write": "Sehen und ändern, wer worauf Zugriff hat"
       },
       "members": {
-        "read": "Sehen, wer in deiner Community ist"
+        "read": "Sehen, wer in deiner Community ist, mit Namen"
       },
       "initiatives": {
         "read": "Die Initiativen deiner Community sehen",

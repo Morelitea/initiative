@@ -308,6 +308,10 @@
       "description": "Prevent this device's screen from dimming or locking while the app is open. This setting is saved on this device only.",
       "unsupported": "Your browser does not support keeping the screen awake."
     },
+    "desktopAutoUpdate": {
+      "label": "Update the app automatically",
+      "description": "When your server needs a newer desktop app, download it and install it on restart. Saved on this computer only."
+    },
     "completionTitle": "When you finish a task",
     "completionDescription": "What the app does the moment a task is checked off. Try each one before you keep it."
   },

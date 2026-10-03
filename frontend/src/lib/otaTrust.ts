@@ -26,6 +26,9 @@ export interface UpdateStatement {
   sha256: string;
   /** The oldest native app (APK/IPA) the bundle runs on. */
   minNativeVersion: string;
+  /** The oldest desktop app it runs on. Absent from statements made before
+   *  the desktop app had a floor of its own. */
+  minDesktopVersion?: string;
 }
 
 const fromBase64 = (value: string) => Uint8Array.from(atob(value), (c) => c.charCodeAt(0));

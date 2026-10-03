@@ -7,11 +7,17 @@
   "scripts": {
     "build": "tsc",
     "build:plugins": "tsc -p plugins",
-    "start": "electron ."
+    "start": "electron .",
+    "build:installer": "pnpm run build && pnpm run build:plugins && node ../node_modules/@capawesome/capacitor-electron/dist/cli/index.js vendor && electron-builder --config electron-builder.config.js --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "fflate": "^0.8.3"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
     "typescript": "^7.0.2"
   }
 }

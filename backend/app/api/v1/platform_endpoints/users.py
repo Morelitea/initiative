@@ -80,7 +80,6 @@ from app.schemas.platform.guild import (
 )
 from app.schemas.platform.user import (
     AccountTimeOutRead,
-    AppMemberRead,
     CookieConsentRead,
     CookieConsentUpdate,
     UserEmailCreate,
@@ -394,12 +393,7 @@ async def _search_members_for_app(
     users, total_count, actual_page = await paginated_query(
         session, data_stmt, count_stmt, page=page, page_size=page_size
     )
-    items = [
-        UserSummary(
-            **AppMemberRead.from_public(UserSummary.model_validate(user)).model_dump()
-        )
-        for user in users
-    ]
+    items = [UserSummary.model_validate(user) for user in users]
     return UserSummaryListResponse(
         **build_paginated_response(items, total_count, actual_page, page_size)
     )
@@ -467,8 +461,8 @@ async def search_users(
     rehydrating stored ids into names/avatars) rather than searching.
 
     An installed app (``members:read``) names members by its own references
-    and reads what :class:`AppMemberRead` carries: the reference, the handle,
-    the display name set in the community, and a picture hosted elsewhere.
+    and reads each as an :class:`AppPerson`: the reference, the handle and the
+    display name set in the community.
     """
     if initiative_id is not None and not (
         initiative_id in guild_context.member_initiatives

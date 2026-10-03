@@ -14,9 +14,12 @@ import {
   AUTH_ACCOUNT_SUSPENDED_EVENT,
   AUTH_UNAUTHORIZED_EVENT,
   apiClient,
+  forgetSessionActivity,
   renewSession,
   setAuthToken,
   setHasActiveSession,
+  startSessionActivity,
+  watchForActivity,
 } from "@/api/client";
 import type {
   NewCommunity,
@@ -163,6 +166,13 @@ const secondFactorChallenge = (error: unknown): string | null => {
 };
 
 const isNative = Capacitor.isNativePlatform();
+
+/** A sign-in finished here: the route guard lets it through, and signing in
+ *  counts as the person's input toward the session it opened. */
+const beginSession = () => {
+  markJustSignedIn();
+  startSessionActivity();
+};
 
 /** Stop keeping the long-lived device token this device may hold. */
 const forgetDeviceToken = () => {
@@ -496,7 +506,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsDeviceToken(false);
         await refreshUser();
       }
-      markJustSignedIn();
+      beginSession();
     } catch (error) {
       const challenge = secondFactorChallenge(error);
       if (challenge) {
@@ -540,7 +550,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTokenState(accessToken);
       setIsDeviceToken(false);
       await refreshUser();
-      markJustSignedIn();
+      beginSession();
     } catch (error) {
       throw new Error(getErrorMessage(error, "auth:login.defaultError"));
     }
@@ -562,7 +572,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setTokenState(accessToken);
       setIsDeviceToken(false);
       await refreshUser();
-      markJustSignedIn();
+      beginSession();
     },
     [refreshUser]
   );
@@ -683,7 +693,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // A browser's cookie was set by the server's redirect.
       const me = await apiClient.get<UserRead>("/users/me");
       replaceIdentity(me.data);
-      markJustSignedIn();
+      beginSession();
     },
     [setUser, replaceIdentity]
   );
@@ -697,6 +707,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     clearUploadToken();
     forgetDeviceToken();
     clearRefreshToken();
+    forgetSessionActivity();
     queryClient.clear();
     // replaceIdentity already dropped the session snapshot; the cache that went
     // with it goes at the same time.
@@ -766,6 +777,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     clearLocalSession();
   }, [clearLocalSession]);
+
+  // While somebody is signed in, their input is what keeps the session alive.
+  const signedIn = user !== null;
+  useEffect(() => (signedIn ? watchForActivity() : undefined), [signedIn]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

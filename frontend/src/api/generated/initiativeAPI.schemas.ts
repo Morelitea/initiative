@@ -574,6 +574,7 @@ export interface AppConfig {
   cookie_categories: string[];
   login_methods: string[];
   min_native_version: string;
+  min_desktop_version: string;
 }
 
 /**
@@ -1658,7 +1659,7 @@ export interface PropertySummary {
   name: string;
   type: PropertyType;
   options: PropertyOption[] | null;
-  /** Shaped by the property's type. For user_reference, a person: id, username, discriminator, display_name and avatar_url, with id the reader's own reference to them when the reader is an installed app. */
+  /** Shaped by the property's type. For user_reference, a person: id, username, discriminator, display_name and avatar_url, or an AppPerson when the reader is an installed app. */
   value: unknown;
 }
 
@@ -8040,6 +8041,7 @@ export interface ReferenceEmbedList {
  */
 export interface RefreshRequest {
   refresh_token?: string | null;
+  idle_seconds?: number | null;
 }
 
 /**

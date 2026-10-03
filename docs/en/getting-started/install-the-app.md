@@ -6,7 +6,7 @@ icon: lucide/smartphone
 
 Initiative runs in a browser, and using it that way forever is a completely respectable life choice. But you can also give it its own icon, its own window, and — on Android — notifications that arrive when you aren't looking.
 
-Two ways to do that. Neither takes longer than finding the charger.
+A few ways to do that. None takes longer than finding the charger.
 
 ## Install it from the browser
 
@@ -52,6 +52,19 @@ Restore your old phone's backup onto a new one and the app comes back with your 
     Each Docker image ships the Capacitor web bundle that matches its version, served from `/api/v1/native/bundle/`, along with a statement of that bundle (its version, checksum and the oldest app it runs on) signed with Initiative's release key. On launch the app checks the signature against the keys it was built with, compares the signed version with the one it's running, downloads the difference, verifies its checksum, and swaps it in behind the splash screen. A bundle without a valid signature is left alone and the app stays on the version it has.
 
     An over-the-air update can only replace web assets, never native code. Each bundle therefore declares a `minNativeVersion`, and the app refuses any bundle that needs a newer shell than the installed APK — prompting for a store or APK update instead. Release CI rebuilds the APK only when that floor moves, so most releases attach none at all. An updater watching the releases falls back to the last one that did — which is the build you want, because it is still the shell this bundle runs on. Re-attaching that same APK to later releases would be worse than attaching nothing: an updater reads the release, not the file, so it would see a new version each time and reinstall the app you already have.
+
+## The desktop app
+
+There's an app for Windows, Mac and Linux as well. Same Initiative, in its own window, and it signs in as one of your devices, the way the Android app does.
+
+Get it from the **Download** page on your community's Initiative, which picks the right file for your computer. Or take it from the newest [release](https://github.com/Morelitea/initiative/releases) that has one: the `.exe` for Windows, the `.dmg` for a Mac, the `.deb` for Debian and Ubuntu.
+
+!!! note "Your computer will ask whether you meant it"
+    The installers aren't signed with a publisher's certificate yet, so Windows and macOS stop and check. On Windows, choose **More info**, then **Run anyway**. On a Mac, open it once, then go to **System Settings › Privacy & Security** and choose **Open Anyway**.
+
+The first launch asks which Initiative it's talking to, like the phone. It keeps itself current the same way too.
+
+Once in a while a release changes the app itself, and then it says so. On Windows and Linux it can fetch and install the new app for you: choose **Update now**, and leave **Always update automatically** ticked if you'd rather not be asked again. After that it downloads the next one on its own and only asks you to restart. Change your mind under **Settings › Interface**. A Mac gets a **Download** button instead, until the app is signed for macOS.
 
 ## On iPhone
 

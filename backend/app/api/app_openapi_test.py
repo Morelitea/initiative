@@ -18,12 +18,24 @@ from app.main import app, app_openapi
 
 _APP_DIR = Path(__file__).resolve().parent.parent
 
-#: Where a person's id is written into a value no ``PersonId`` field
-#: describes, so the app API's document cannot type it as a reference.
-_UNTYPED_PERSON_IDS = {
+#: Where a person is written for an installed app.
+_APP_PERSON_WRITES = {
+    # Every shape the app API's document types as ``AppPerson``.
+    "schemas/platform/user.py:PersonShape._as_app_person",
     # ``value`` holds whatever the property's type stores; a person for a
     # ``user_reference`` property, which the field's description states.
     "schemas/tenant/property.py:PropertySummary._value_out",
+}
+
+#: What says who a person is, beside the reference that names them.
+_PERSON_DETAILS = {
+    "username",
+    "discriminator",
+    "display_name",
+    "avatar_url",
+    "name",
+    "full_name",
+    "email",
 }
 
 
@@ -105,9 +117,35 @@ def test_two_app_routes_with_one_name_fail_the_build():
         build_app_openapi(probe.openapi(), probe.routes)
 
 
-def _person_id_writes(node: ast.AST, scope: tuple[str, ...] = ()) -> Iterator[str]:
-    """Where under ``node`` ``serialize_person_id`` is called, by the names of
-    the classes and functions around each call."""
+def _names_a_person(field: Any) -> bool:
+    return any(node.get("x-identity") == "person" for node in _nodes(field))
+
+
+def _draws_a_person(properties: dict[str, Any]) -> bool:
+    """Whether an object with ``properties`` names a person and says who they
+    are. ``name`` beside an ``id`` of the object's own is the object's name."""
+    details = _PERSON_DETAILS & set(properties)
+    if "id" in properties and not _names_a_person(properties["id"]):
+        details.discard("name")
+    return bool(details) and any(map(_names_a_person, properties.values()))
+
+
+@pytest.mark.always
+def test_every_person_in_the_app_document_is_an_app_person():
+    schemas = app_openapi()["components"]["schemas"]
+    drawn = {
+        name
+        for name, schema in schemas.items()
+        for node in _nodes(schema)
+        if _draws_a_person(node.get("properties", {}))
+    }
+    assert drawn == {"AppPerson"}
+    assert not [name for name, schema in schemas.items() if schema.get("x-person")]
+
+
+def _app_person_writes(node: ast.AST, scope: tuple[str, ...] = ()) -> Iterator[str]:
+    """Where under ``node`` ``for_install`` is called, by the names of the
+    classes and functions around each call."""
     if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
         scope = (*scope, node.name)
     if isinstance(node, ast.Call):
@@ -115,21 +153,21 @@ def _person_id_writes(node: ast.AST, scope: tuple[str, ...] = ()) -> Iterator[st
         name = called.attr if isinstance(called, ast.Attribute) else None
         if isinstance(called, ast.Name):
             name = called.id
-        if name == "serialize_person_id":
+        if name == "for_install":
             yield ".".join(scope)
     for child in ast.iter_child_nodes(node):
-        yield from _person_id_writes(child, scope)
+        yield from _app_person_writes(child, scope)
 
 
 @pytest.mark.always
-def test_every_untyped_person_id_is_listed():
+def test_every_app_person_write_is_listed():
     found = {
         f"{path.relative_to(_APP_DIR).as_posix()}:{where}"
         for path in _APP_DIR.rglob("*.py")
         if not path.name.endswith("_test.py")
-        for where in _person_id_writes(ast.parse(path.read_text()))
+        for where in _app_person_writes(ast.parse(path.read_text()))
     }
-    assert found == _UNTYPED_PERSON_IDS
+    assert found == _APP_PERSON_WRITES
 
 
 async def test_the_app_document_and_its_page_are_served(client: AsyncClient):

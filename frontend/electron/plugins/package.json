@@ -8,8 +8,5 @@
     "electron": {
       "src": "electron"
     }
-  },
-  "dependencies": {
-    "fflate": "^0.8.3"
   }
 }
