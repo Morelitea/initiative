@@ -211,11 +211,9 @@ def _task_text(row: str) -> str:
     return f"coalesce({row}.description, '') || ' ' || {lines}"
 
 
-#: What a cut preview can end inside, with the space before it: a mention or
-#: reference, a markdown picture or link, or a stored file's address.
-_UNFINISHED_TAIL = (
-    r"\s*(?:(?:[@!]|#\w+)?\[[^\]\n]*(?:\](?:\([^)\n]*)?)?|\S*/uploads/\S*)$"
-)
+#: What a cut preview can end inside: a mention or reference, a markdown
+#: picture or link, or a stored file's address.
+_UNFINISHED_TAIL = r"(?:(?:[@!]|#\w+)?\[[^\]\n]*(?:\](?:\([^)\n]*)?)?|\S*/uploads/\S*)$"
 
 
 def _comment_preview(row: str) -> str:

@@ -1169,7 +1169,7 @@ async def test_a_cut_comment_title_ends_before_what_the_cut_goes_through(
         types=["comment"],
     )
     assert response.status_code == 200, response.text
-    assert [found["title"] for found in response.json()] == [lead]
+    assert [found["title"] for found in response.json()] == [f"{lead} "]
 
 
 async def test_a_narrowed_token_suggests_only_its_initiative(
