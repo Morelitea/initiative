@@ -2190,6 +2190,39 @@ async def test_a_provider_proving_an_added_address_tells_the_account(
     assert told == [email_t("address.proved.subject", "en", escape=False)]
 
 
+async def test_a_provider_adding_an_address_tells_the_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An address a provider asserts that the account did not hold arrives
+    proved, and the account is told. The address an account is created with
+    is not news."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+    told: list[str] = []
+
+    async def _capture(user_, pieces):
+        told.append(pieces.subject)
+
+    monkeypatch.setattr(email_outbox, "enqueue_account_letter", _capture)
+
+    created = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "made-here@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in created.cookies
+    assert told == []
+
+    again = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "asserted@example.com", "email_verified": True},
+    )
+    assert SESSION_COOKIE_NAME in again.cookies
+    assert told == [email_t("address.proved.subject", "en", escape=False)]
+
+
 async def test_oidc_callback_refuses_deactivated_account(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):

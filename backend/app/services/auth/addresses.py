@@ -583,14 +583,20 @@ async def verify_for_user(
     return row
 
 
-def proved_an_added_address(row: UserEmail | None, *, at: datetime) -> bool:
-    """Whether ``row`` is an address its holder added, proved at ``at``.
+def proved_a_new_way_in(row: UserEmail | None, *, at: datetime) -> bool:
+    """Whether ``row`` became a way into its account at ``at``.
 
-    A new way into an account that already had one, which the account is told
-    about wherever the proof arrives: the emailed link, or a provider asserting
-    the address at sign-in.
+    Proved at that moment, and either added by its holder or created at that
+    moment — a provider asserting an address the account did not hold. The
+    account is told about either, wherever the proof arrives: the emailed link,
+    or a provider at sign-in. An account's first address, made with it, is
+    neither.
     """
-    return row is not None and row.verified_at == at and row.source == SOURCE_ADDED
+    return (
+        row is not None
+        and row.verified_at == at
+        and (row.source == SOURCE_ADDED or row.created_at == at)
+    )
 
 
 async def remove_for_user(
