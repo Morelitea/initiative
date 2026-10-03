@@ -328,7 +328,39 @@ def maximal_declarative_manifest() -> dict:
                         }
                     ],
                 },
-            }
+            },
+            {
+                "id": "profile",
+                "scope": "interactive",
+                "label": {"en": "Your profile"},
+                "fields": [],
+                "flow": {
+                    "type": "oauth2",
+                    "authorize_url": "https://tracker.example/authorize",
+                    "token_url": "https://tracker.example/token",
+                    "client_id": "{vendor.client_id}",
+                    "after_connect": {
+                        "steps": [
+                            {
+                                "name": "me",
+                                "request": {
+                                    "method": "GET",
+                                    "url": '"https://api.tracker.example/user"',
+                                },
+                            },
+                            {
+                                "name": "home",
+                                "request": {
+                                    "method": "GET",
+                                    "url": '"https://api.tracker.example/users/"'
+                                    " & steps.me.body.login",
+                                },
+                            },
+                        ],
+                        "map": '{"account_label": steps.home.body.name}',
+                    },
+                },
+            },
         ],
         "webhooks": {
             "verify": {
@@ -466,7 +498,7 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
     read, written, _emitted = published["endpoints"]
     widget = published["widgets"][0]
     dashboard = published["dashboards"][0]
-    workspace = declarative["connections"][0]
+    workspace, profile = declarative["connections"]
     after = workspace["flow"]["after_connect"]
     listed, searched, labelled, _opened = declarative["endpoints"]
     current, setting = labelled["steps"]
@@ -514,7 +546,9 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
             {**searched["request"]["paging"], **current["request"]["paging"]},
         ),
         ("errorRule", listed["errors"][0]),
-        ("afterConnect", after),
+        # A call is one request or its steps, so the two after_connects are
+        # measured together.
+        ("afterConnect", {**after, **profile["flow"]["after_connect"]}),
         ("connectionHealth", workspace["health"]),
         ("healthState", workspace["health"]["states"][0]),
         ("webhookEvent", hooks["events"][0]),
@@ -772,6 +806,18 @@ def _with(build, change):
         ),
         _with(
             maximal_declarative_manifest,
+            lambda b: b["connections"][1]["flow"]["after_connect"].update(
+                request={"method": "GET", "url": '"https://api.tracker.example/"'}
+            ),
+        ),
+        _with(
+            maximal_declarative_manifest,
+            lambda b: b["connections"][1]["flow"]["after_connect"].update(
+                map="steps.later.body"
+            ),
+        ),
+        _with(
+            maximal_declarative_manifest,
             lambda b: b["endpoints"][0].update(map='{"titles": ['),
         ),
         _with(
@@ -798,6 +844,8 @@ def _with(build, change):
         "declarative-no-hosts",
         "declarative-no-request",
         "declarative-reads-a-later-step",
+        "after-connect-request-and-steps",
+        "after-connect-reads-a-later-step",
         "declarative-map-does-not-parse",
         "declarative-url-does-not-parse",
         "declarative-sets-the-credential",

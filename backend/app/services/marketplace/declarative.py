@@ -631,12 +631,15 @@ async def after_connect(
     access_token: str,
     now: Optional[datetime] = None,
 ) -> flows.AfterConnect:
-    """A declarative ``after_connect``: its request made with the token the
-    flow just obtained, its map's ``{values, account_label}``, and a refusal
-    with the declared code when ``refuse_when`` holds over the map's answer.
+    """A declarative ``after_connect``: its request or steps made with the
+    token the flow just obtained, its map's ``{values, account_label}``, and a
+    refusal with the declared code when ``refuse_when`` holds over the map's
+    answer.
 
-    Its expressions read the flow's ``params`` and ``now``. An answer the
-    defaults refuse, a passing failure or an expression that fails raises
+    Its expressions read the flow's ``params`` and ``now``, each earlier
+    step's answer as ``steps.<name>`` and, once a call is answered,
+    ``response``. An answer the defaults refuse, a passing failure or an
+    expression that fails raises
     :class:`~app.services.tenant.app_connection_flows.HookError`, as a hook
     that fails does.
     """
@@ -646,14 +649,28 @@ async def after_connect(
         credentials={"": access_token},
         now=now or datetime.now(timezone.utc),
     )
-    document: dict[str, Any] = {"params": dict(params), "now": run.now}
+    base: dict[str, Any] = {"params": dict(params), "now": run.now}
+    steps = after.get("steps") or [{"name": "", "request": after["request"]}]
+    named = "steps" in after
+    answers: dict[str, Any] = {}
+    read: dict[str, Any] = base
     try:
-        response = (
-            await run.perform(after["request"], document, "after_connect/request")
-        ).read()
-        result = await run.value(
-            after["map"], {**document, "response": response}, "after_connect/map"
-        )
+        for index, step in enumerate(steps):
+            read = {**base, **({"steps": dict(answers)} if named else {})}
+            where = (
+                f"after_connect/steps/{index}/request"
+                if named
+                else "after_connect/request"
+            )
+            response = (await run.perform(step["request"], read, where)).read()
+            if named:
+                answers[step["name"]] = response
+            read = {
+                **base,
+                **({"steps": dict(answers)} if named else {}),
+                "response": response,
+            }
+        result = await run.value(after["map"], read, "after_connect/map")
         if not isinstance(result, dict):
             raise _Outcome(
                 MAPPING_FAILED,
@@ -661,9 +678,7 @@ async def after_connect(
                 "which is not {values, account_label}",
             )
         if "refuse_when" in after and await run.holds(
-            after["refuse_when"],
-            {**document, "response": response, "result": result},
-            "refuse_when",
+            after["refuse_when"], {**read, "result": result}, "refuse_when"
         ):
             return flows.AfterConnect(
                 refused=True, values={}, account_label=None, code=after["code"]

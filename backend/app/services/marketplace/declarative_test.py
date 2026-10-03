@@ -1,4 +1,5 @@
-"""A declarative endpoint, run as the SDK's ``runEndpoint`` runs it.
+"""A declarative endpoint, run as the SDK's ``runEndpoint`` runs it, and an
+``after_connect`` as its ``runAfterConnect`` does.
 
 The app is the SDK's own test app (``test/support/app.ts``, 1.4.0), and each
 case asserts what its ``test/testing.test.ts`` asserts: the requests rendered,
@@ -13,8 +14,9 @@ import pytest
 
 from app.core.messages import AppDataMessages
 from app.services.marketplace.app_data import AppDataError
-from app.services.marketplace.declarative import run_endpoint
+from app.services.marketplace.declarative import after_connect, run_endpoint
 from app.services.marketplace.definitions import normalize_listing_definition
+from app.services.tenant.app_connection_flows import HookError
 from app.testing.fake_vendor import FakeVendor
 
 NOW = datetime(2026, 10, 2, 12, tzinfo=timezone.utc)
@@ -245,6 +247,74 @@ async def test_steps_run_in_order_each_reading_the_ones_before_it(vendor):
     assert second["body"] == {"labels": ["ui", "bug"]}
     assert second["headers"]["content-type"] == "application/json"
     assert result == {"labels": ["ui", "bug"]}
+
+
+#: An after_connect in steps: the installation, then the person's membership
+#: of the account it is on.
+STEPPED_AFTER_CONNECT = {
+    "steps": [
+        {
+            "name": "installation",
+            "request": {
+                "method": "GET",
+                "url": f"{_api('/installations/')} & params.installation_id",
+            },
+        },
+        {
+            "name": "member",
+            "request": {
+                "method": "GET",
+                "url": f"{_api('/orgs/')} & steps.installation.body.account"
+                ' & "/membership"',
+            },
+        },
+    ],
+    "map": '{"values": {"owner": steps.installation.body.account},'
+    ' "account_label": steps.installation.body.account}',
+    "refuse_when": 'response.body.role != "admin" or steps.member.body.role != "admin"',
+    "code": "not-admin",
+}
+
+
+async def _after_connect(after: dict = STEPPED_AFTER_CONNECT):
+    return await after_connect(
+        issues_app(),
+        after,
+        params={"installation_id": "2"},
+        access_token="tok-person",
+        now=NOW,
+    )
+
+
+async def test_after_connect_steps_run_in_order_each_reading_the_ones_before_it(
+    vendor,
+):
+    vendor.api_answers = [{"body": {"account": "acme"}}, {"body": {"role": "admin"}}]
+    answer = await _after_connect()
+
+    assert [request["url"] for request in vendor.api_requests] == [
+        f"{API}/installations/2",
+        f"{API}/orgs/acme/membership",
+    ]
+    assert all(
+        request["headers"]["authorization"] == "Bearer tok-person"
+        for request in vendor.api_requests
+    )
+    assert not answer.refused
+    assert answer.values == {"owner": "acme"}
+    assert answer.account_label == "acme"
+
+
+async def test_after_connect_refuses_by_a_steps_answer(vendor):
+    vendor.api_answers = [{"body": {"account": "acme"}}, {"body": {"role": "member"}}]
+    answer = await _after_connect()
+    assert (answer.refused, answer.code) == (True, "not-admin")
+
+
+async def test_a_failing_after_connect_step_fails_the_hook(vendor):
+    vendor.api_answers = [{"body": {"account": "acme"}}, {"status": 404}]
+    with pytest.raises(HookError, match="not-found"):
+        await _after_connect()
 
 
 @pytest.mark.parametrize(
