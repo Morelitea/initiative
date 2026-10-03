@@ -30,8 +30,9 @@ const scrollerTag = (): string => {
 
 /** The viewport-sized box the whole app sits in — the one carrying `overflow-clip`. */
 const shellTag = (): string => {
-  const match = shellSource().match(/<div\b[^>]*\bh-screen\b[^>]*\boverflow-clip\b[^>]*>/s);
-  if (!match) throw new Error("no h-screen overflow-clip shell in the app layout");
+  // Sized to the viewport, the dynamic one where the browser has it.
+  const match = shellSource().match(/<div\b[^>]*\bh-(?:screen|dvh)\b[^>]*\boverflow-clip\b[^>]*>/s);
+  if (!match) throw new Error("no viewport-sized overflow-clip shell in the app layout");
   return match[0];
 };
 
