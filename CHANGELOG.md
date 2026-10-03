@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **People sharing a network no longer share a rate limit.** Requests are counted per signed-in account, so an office behind one address gets an allowance each. Sign-in codes and password reset emails are limited per email address, five every 15 minutes, rather than per network. Loading the app's own pages and scripts no longer counts at all.
 - **A document leads with its featured image.** The **Metadata** section is gone. A document's featured image runs across the top of it, where whoever can edit the document can replace or remove it, and a document without one has a small row there to add it. To make a picture in a document the featured one, select it and choose **Make this the featured image**. Uploading a picture with **Insert › Image** has a box that does the same.
 - **Wiki connections open from the bottom of a phone screen**, and open the first time you tap **Connections**.
+- **Connections look the same everywhere.** Every tool, and every wiki page, shows one **Connections** section: a row of cards to scroll through by default, or a plain list of links like a wiki's, with the view you pick remembered. It lists what a thing links to as well as what links to it. Wiki pages open on the list.
+- **A queue's controls sit in its header strip**, beside its status and tags, instead of in two rows of their own.
 
 ### Fixed
 
