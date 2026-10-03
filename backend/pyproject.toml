@@ -36,6 +36,7 @@ dependencies = [
     # Collaboration (Yjs CRDT): pycrdt-websocket 0.16.1 requires pycrdt>=0.13,<0.14; keep aligned.
     "pycrdt>=0.13.0,<0.15",
     "pycrdt-websocket>=0.16.1,<0.17",
+    "mini-racer>=0.14.1",                # the document editor on the server (app/services/editor_engine.py)
     "premailer>=3.10.0",
     "fastmcp>=3.4.2",
     "boto3>=1.35,<2",                    # S3 / S3-compatible (MinIO) object storage; only imported when STORAGE_BACKEND=s3

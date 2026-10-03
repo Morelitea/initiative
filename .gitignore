@@ -51,6 +51,7 @@ backend/htmlcov/
 # Frontend
 frontend/node_modules
 frontend/dist/
+frontend/dist-editor/
 frontend/vite.config.js
 frontend/vite.config.d.ts
 frontend/capacitor.config.js

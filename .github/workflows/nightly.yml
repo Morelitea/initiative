@@ -78,6 +78,13 @@ jobs:
 
       - uses: ./.github/actions/setup-backend
 
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Build the document editor for the server
+        # app/services/editor_engine.py runs it.
+        working-directory: frontend
+        run: pnpm build:editor-server
+
       - name: Move to another timezone and locale
         if: matrix.tz
         env:
